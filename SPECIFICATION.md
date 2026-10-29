@@ -413,6 +413,25 @@ Rules:
 - Global-only settings cannot be set on a job: `[vigil]` (instance, state directory, `max_concurrent`), `[scheduler]` `tick` and `max_pending`, `[log]` `dir`, `stdout` and `max_file_mb`, `[spool]` and the `[backend.*]` definitions. A job chooses *which* backends receive its metrics, not how they connect.
 - In `env` and `tag`, a repeated name within the same section is a validation error; repeating one across layers is an override.
 - Relative `working_dir` paths resolve against the install root; the directory must exist (checked by pre-flight).
+- Merged `tag` and `env` lists keep the global order: a job value with the same name replaces the global one in place, and the job's other names follow in job order. `require_env` lists the runner's names, then the job's, each once.
+- The runner from the extension map is found by the file's extension, compared case-insensitively, after the last `/` or `\`.
+
+Built-in defaults, used when no layer sets a key:
+
+| Key | Built-in |
+| --- | --- |
+| `metric_name` | the job id |
+| `max_runtime` | none (unlimited) |
+| `grace` | `30s` |
+| `overlap` | `skip` |
+| `exit_codes` | `standard` |
+| `enabled` | `true` |
+| `on_uncertain` | `wait` |
+| `backends` | every backend not disabled, in file order |
+| `late_start_window` | `15m` |
+| `log_retain_days` / `[log] retain_days` | `7` |
+| `working_dir` | the install root |
+| `runner` | none: the file is executed directly |
 
 `vigil precheck <job>` prints a job's effective settings and where each came from:
 

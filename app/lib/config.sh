@@ -6,6 +6,10 @@
 #   VIGIL_CFG_SECTION[i]  VIGIL_CFG_KEY[i]  VIGIL_CFG_VALUE[i]  VIGIL_CFG_LINE[i]
 # Accepted section headers, including empty ones, in file order:
 #   VIGIL_CFG_SEC_NAME[j]  VIGIL_CFG_SEC_LINE[j]
+#   VIGIL_CFG_SEC_FIRST[j]  VIGIL_CFG_SEC_COUNT[j]  its entries - a section's keys
+#                           are contiguous, so lookups scan only that range
+#   vigil_config_section <name>  finds a section's j without a loop or pattern match
+#   VIGIL_CFG_GENERATION    incremented by every parse, so callers can cache
 # Errors are collected in VIGIL_CFG_ERRORS[i] as "<line><TAB><code><TAB><message>".
 #
 # The parser is deliberately dumb: it records every "key = value" in file
@@ -49,12 +53,22 @@ _vigil_cfg_trim() {
 # Returns 0 when the file parsed without errors, 1 otherwise.
 vigil_config_parse() {
     local path=$1
+    # Clear the previous parse's section variables (none on the first parse).
+    local j=0
+    while [ -n "${VIGIL_CFG_SEC_NAME[$j]+set}" ]; do
+        _vigil_cfg_secvar "${VIGIL_CFG_SEC_NAME[$j]}"
+        unset "$_vigil_cfg_secvar"
+        j=$((j + 1))
+    done
     VIGIL_CFG_SECTION=()
     VIGIL_CFG_KEY=()
     VIGIL_CFG_VALUE=()
     VIGIL_CFG_LINE=()
     VIGIL_CFG_SEC_NAME=()
     VIGIL_CFG_SEC_LINE=()
+    VIGIL_CFG_SEC_FIRST=()
+    VIGIL_CFG_SEC_COUNT=()
+    VIGIL_CFG_GENERATION=$((${VIGIL_CFG_GENERATION:-0} + 1))
     VIGIL_CFG_ERRORS=()
 
     if [ ! -f "$path" ]; then
@@ -122,6 +136,10 @@ vigil_config_parse() {
                             i=${#VIGIL_CFG_SEC_NAME[@]}
                             VIGIL_CFG_SEC_NAME[$i]=$section
                             VIGIL_CFG_SEC_LINE[$i]=$n
+                            VIGIL_CFG_SEC_FIRST[$i]=${#VIGIL_CFG_KEY[@]}
+                            VIGIL_CFG_SEC_COUNT[$i]=0
+                            _vigil_cfg_secvar "$section"
+                            printf -v "$_vigil_cfg_secvar" '%s' "$i"
                             ;;
                     esac
                 else
@@ -150,6 +168,8 @@ vigil_config_parse() {
                 VIGIL_CFG_KEY[$i]=$key
                 VIGIL_CFG_VALUE[$i]=$value
                 VIGIL_CFG_LINE[$i]=$n
+                i=$((${#VIGIL_CFG_SEC_COUNT[@]} - 1))
+                VIGIL_CFG_SEC_COUNT[$i]=$((VIGIL_CFG_SEC_COUNT[$i] + 1))
                 ;;
             *)
                 if [ "$skipping" -eq 1 ]; then
@@ -179,5 +199,40 @@ vigil_config_dump() {
         e=${VIGIL_CFG_ERRORS[$i]}
         printf 'ERROR\t%s\n' "$(printf '%s' "$e" | cut -f1,2)"
         i=$((i + 1))
+    done
+}
+
+# Name of the variable holding a section's index. Section names are
+# [a-z0-9_.]; "_" -> "_u" and "." -> "_d" keeps the mapping one-to-one.
+# Result in _vigil_cfg_secvar.
+_vigil_cfg_secvar() {
+    local s=${1//_/_u}
+    _vigil_cfg_secvar=_VIGIL_SEC_${s//./_d}
+}
+
+# vigil_config_section <name>
+# Sets VIGIL_CFG_SEC to the section's index in VIGIL_CFG_SEC_NAME, or -1.
+# Uses one variable per section: bash 3.2 has no associative arrays, and
+# matching a pattern against a list of names is slow in bash.
+vigil_config_section() {
+    _vigil_cfg_secvar "$1"
+    VIGIL_CFG_SEC=${!_vigil_cfg_secvar:--1}
+}
+
+# Lowercases ASCII letters without starting a process (tr costs a fork,
+# which is slow on Windows bash). Result in _vigil_lowered.
+_vigil_lower() {
+    local s=$1 c rest upper=ABCDEFGHIJKLMNOPQRSTUVWXYZ lower=abcdefghijklmnopqrstuvwxyz
+    _vigil_lowered=''
+    while [ -n "$s" ]; do
+        c=${s:0:1}
+        s=${s:1}
+        case $c in
+            [A-Z])
+                rest=${upper%%"$c"*}
+                c=${lower:${#rest}:1}
+                ;;
+        esac
+        _vigil_lowered=$_vigil_lowered$c
     done
 }

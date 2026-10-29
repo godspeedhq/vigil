@@ -1,0 +1,44 @@
+WARN	49	W_BACKEND_DISABLED
+all_builtin	file	checks/disk.sh	job
+all_builtin	runner		built-in
+all_builtin	metric_name	all_builtin	built-in
+all_builtin	run_every	5m	job
+all_builtin	max_runtime		built-in
+all_builtin	grace	10s	defaults
+all_builtin	overlap	skip	built-in
+all_builtin	exit_codes	standard	built-in
+all_builtin	enabled	true	built-in
+all_builtin	on_uncertain	wait	built-in
+all_builtin	backends	file, datadog	built-in
+all_builtin	late_start_window	20m	scheduler
+all_builtin	log_retain_days	30	defaults
+all_builtin	working_dir	.	built-in
+all_job	file	queries\Report.SQL	job
+all_job	runner	pg16	job
+all_job	metric_name	db.report	job
+all_job	run_at	01:00, 13:00	job
+all_job	run_on_days	mon, wed	job
+all_job	max_runtime	2h	job
+all_job	grace	0s	job
+all_job	overlap	queue_one	job
+all_job	exit_codes	0-7	job
+all_job	enabled	false	job
+all_job	on_uncertain	manual	job
+all_job	backends	datadog, off	job
+all_job	late_start_window	3h	job
+all_job	log_retain_days	90	job
+all_job	working_dir	queries	job
+mapped	file	queries\Nightly.SQL	job
+mapped	runner	psql	runners
+mapped	metric_name	mapped	built-in
+mapped	run_every	1d	job
+mapped	max_runtime		built-in
+mapped	grace	10s	defaults
+mapped	overlap	skip	built-in
+mapped	exit_codes	standard	built-in
+mapped	enabled	true	built-in
+mapped	on_uncertain	wait	built-in
+mapped	backends	file, datadog	built-in
+mapped	late_start_window	20m	scheduler
+mapped	log_retain_days	30	defaults
+mapped	working_dir	.	built-in

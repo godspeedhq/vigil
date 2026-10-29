@@ -11,6 +11,9 @@
       tests/conformance/parser/<case>.expected    Format-VigilConfigDump output
       tests/conformance/validate/<case>.config    input
       tests/conformance/validate/<case>.expected  Format-VigilValidationDump output
+      tests/conformance/effective/<case>.config     input
+      tests/conformance/effective/<case>.expected   validation dump, then
+                                                    Format-VigilEffectiveDump
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -20,13 +23,14 @@ $root = Split-Path -Parent $here
 
 . (Join-Path $root 'app\lib\Config.ps1')
 . (Join-Path $root 'app\lib\Validate.ps1')
+. (Join-Path $root 'app\lib\Effective.ps1')
 
 $pass = 0
 $fail = 0
 
 Write-Host "PowerShell $($PSVersionTable.PSVersion)"
 
-foreach ($suite in @('parser', 'validate')) {
+foreach ($suite in @('parser', 'validate', 'effective')) {
     $cases = Get-ChildItem -LiteralPath (Join-Path $here "conformance\$suite") -Filter '*.config' |
         Sort-Object Name
 
@@ -39,7 +43,11 @@ foreach ($suite in @('parser', 'validate')) {
             $actual = Format-VigilConfigDump -Parsed $parsed
         }
         else {
-            $actual = Format-VigilValidationDump -Parsed $parsed -Records (Test-VigilConfig -Parsed $parsed)
+            $records = Test-VigilConfig -Parsed $parsed
+            $actual = Format-VigilValidationDump -Parsed $parsed -Records $records
+            if ($suite -eq 'effective') {
+                $actual += Format-VigilEffectiveDump -Parsed $parsed -Records $records
+            }
         }
         $expected = [System.IO.File]::ReadAllText($expectedPath)
 

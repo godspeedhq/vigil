@@ -1,0 +1,38 @@
+# Runs the shared conformance suite on every shell Vigil supports. macOS
+# runners ship /bin/bash 3.2, the oldest bash Vigil must run on.
+name: conformance
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  bash:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash version
+        run: /bin/bash --version | head -1
+      - name: conformance (/bin/bash)
+        run: /bin/bash tests/run-conformance.sh
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: conformance (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/Run-Conformance.ps1
+      - name: conformance (PowerShell 7)
+        shell: pwsh
+        run: ./tests/Run-Conformance.ps1
+      - name: conformance (Git Bash)
+        shell: bash
+        run: bash tests/run-conformance.sh

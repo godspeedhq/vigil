@@ -110,7 +110,7 @@ function ConvertFrom-VigilConfig {
                 $section = $Matches[1]
                 if ($seen.Add($section)) {
                     $skipping = $false
-                    $result.Sections.Add([pscustomobject]@{ Name = $section; Line = $n })
+                    $result.Sections.Add([pscustomobject]@{ Name = $section; Line = $n; First = $result.Entries.Count; Count = 0 })
                 }
                 else {
                     & $addError $n 'E_SECTION_DUPLICATE' "section [$section] appears more than once"
@@ -152,6 +152,8 @@ function ConvertFrom-VigilConfig {
             Value   = $value
             Line    = $n
         })
+        # A section's keys are contiguous, so lookups can scan only its range.
+        $result.Sections[$result.Sections.Count - 1].Count++
     }
 
     return $result

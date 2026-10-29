@@ -8,6 +8,9 @@
 #   tests/conformance/parser/<case>.expected    vigil_config_dump output
 #   tests/conformance/validate/<case>.config    input
 #   tests/conformance/validate/<case>.expected  vigil_config_validate_dump output
+#   tests/conformance/effective/<case>.config     input
+#   tests/conformance/effective/<case>.expected   validate dump, then
+#                                                 vigil_config_effective_dump
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -20,22 +23,27 @@ root=$(dirname "$here")
 . "$root/app/lib/config.sh"
 # shellcheck source=../app/lib/validate.sh
 . "$root/app/lib/validate.sh"
+# shellcheck source=../app/lib/effective.sh
+. "$root/app/lib/effective.sh"
 
 pass=0
 fail=0
 
 printf 'bash %s\n' "$BASH_VERSION"
 
-for suite in parser validate; do
+for suite in parser validate effective; do
     for cfg in "$here"/conformance/$suite/*.config; do
         name=$(basename "$cfg" .config)
         expected_file=${cfg%.config}.expected
 
-        if [ "$suite" = parser ]; then
-            actual=$(vigil_config_parse "$cfg"; vigil_config_dump)
-        else
-            actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump)
-        fi
+        case $suite in
+            parser)
+                actual=$(vigil_config_parse "$cfg"; vigil_config_dump) ;;
+            validate)
+                actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump) ;;
+            effective)
+                actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump; vigil_config_effective_dump) ;;
+        esac
         expected=$(cat "$expected_file")
 
         if [ "$actual" = "$expected" ]; then
