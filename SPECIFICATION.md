@@ -1,0 +1,1245 @@
+# Vigil — Technical Specification
+
+| | |
+| --- | --- |
+| **Project** | Vigil |
+| **Organisation** | GodspeedHQ |
+| **Repository** | <https://github.com/godspeedhq/vigil> |
+| **Licence** | Apache License 2.0 |
+| **Status** | Proposed v1 Specification |
+
+---
+
+## 1. Overview
+
+Vigil is a lightweight, cross-platform job scheduler and supervisor that runs your scripts, attaches metrics to every run and forwards them to the observability backends you already use.
+
+It is built entirely from operating-system-native scripts. There is no compiled agent, no runtime to install and no central server. On a brand-new Windows, Linux or macOS machine, Vigil needs nothing beyond what the OS ships with, plus a short, honest list of prerequisites (§5).
+
+Vigil:
+
+- Runs any script or executable on a schedule: PowerShell, bash, SQL through a database client, Java, Perl, shell scripts under Cygwin, native binaries.
+- Supervises every run as an independent OS process with its own state.
+- Detects failures, crashes and overruns.
+- Records structured logs and a live status view of every job.
+- Publishes metrics about every run, plus any metrics the job itself prints, to one or many backends at once (Datadog, Splunk, OpenTelemetry, CloudWatch, Azure Monitor and others), and to a local flat file.
+- Keeps working with no network and no backend.
+
+Vigil does not interpret the metrics. It runs your scripts, adds metrics to them and forwards them. Alerting and dashboards belong to the backend the organisation already uses.
+
+Vigil is independent of GodspeedOS.
+
+### 1.1 Origin
+
+Vigil generalises a production system that supervised Sybase ASE maintenance and monitoring jobs on Windows fleets with PowerShell 5.1 for about a year with no maintenance. That system's proven design — independent worker processes, a file-based state contract, tick-based scheduling, hot-reloaded configuration and a live status file — is carried forward deliberately. Where this specification differs from it, the difference is called out.
+
+---
+
+## 2. Design Philosophy
+
+### 2.1 Simplicity
+
+The supervisor must remain small, readable and maintainable by the operators who run it. Avoid frameworks, databases, background services and dependencies.
+
+### 2.2 Native Scripts Only
+
+Vigil is written in the scripting language each OS ships with:
+
+| OS | Implementation language |
+| --- | --- |
+| Windows | Windows PowerShell 5.1 (also runs unmodified on PowerShell 7) |
+| Linux | bash |
+| macOS | bash (3.2 compatible — the version macOS ships) |
+
+Vigil must not require Python, Node.js, Java, Go, containers, agents or any compiled binary of its own. The single exception is NSSM on Windows, used only to register the service (§18.1).
+
+The motivation is adoption: plain-text scripts can be read, reviewed and approved by an IT or security team far more easily than a binary that needs scanning, whitelisting and change approval.
+
+### 2.3 Failure Is Expected
+
+Scripts crash, hang, exit with misleading codes or print malformed output. None of this may compromise the supervisor or unrelated jobs.
+
+### 2.4 Bounded Execution
+
+Concurrency is limited globally. A job may declare a runtime limit; when it does, the limit is enforced (§10.3).
+
+### 2.5 Observable Behaviour
+
+Every significant state transition is observable through logs, the status file and metrics. A failed job must never silently appear successful.
+
+### 2.6 Local Autonomy
+
+Vigil keeps scheduling and supervising with no network, no backend and no control plane. Every backend is optional.
+
+### 2.7 Predictable Recovery
+
+Supervisor restarts, worker crashes and machine reboots have documented recovery behaviour that does not depend on undocumented assumptions.
+
+### 2.8 Honest Limits
+
+Where a platform cannot guarantee something, Vigil documents the limit instead of pretending. Known limits are listed in §24.
+
+---
+
+## 3. Non-Goals
+
+Vigil is not:
+
+- A replacement for Kubernetes, systemd, launchd or the Windows Service Control Manager.
+- A distributed or fleet-wide job scheduler. Each host runs independently; there is no shared state between hosts.
+- An alerting, notification or dashboard system. That is the backend's job.
+- An observability backend or metrics database.
+- A configuration-management or deployment platform.
+- A secrets manager.
+- A sandbox for untrusted scripts.
+- A remote command-execution platform.
+
+---
+
+## 4. Architecture
+
+Vigil has four logical components. They communicate only through files.
+
+```text
+            +-------------------- host --------------------+
+            |                                              |
+  config -->|  Supervisor (tick loop)                      |
+            |    reads config + all worker state files     |
+            |    decides: spawn / wait / kill / report     |
+            |      |                       ^               |
+            |      | spawns (detached)     | reads (only)  |
+            |      v                       |               |
+            |  Worker  ---- writes ---->  state/<job>      |
+            |    runs the job (runner + file)              |
+            |    writes metric events --> spool/           |
+            |                               |              |
+            |  Sender (drains spool) <------+              |
+            |    file | datadog | splunk | otel | ...  ----+--> backends
+            +----------------------------------------------+
+```
+
+### 4.1 Supervisor
+
+The long-running process managed by the OS service manager. Responsible for:
+
+- Loading, validating and hot-reloading configuration.
+- Evaluating every job once per tick.
+- Spawning workers when jobs are due.
+- Enforcing the global concurrency limit.
+- Detecting crashed workers and overrunning jobs.
+- Enforcing `max_runtime` where declared.
+- Writing the live status file (`jobs.log`).
+- Publishing its own health metrics.
+
+The supervisor is job-agnostic. It knows nothing about isql, psql, PowerShell, Java or any tool a job uses.
+
+Only one supervisor may own a given state directory (VIGIL-001).
+
+### 4.2 Scheduler
+
+The scheduling logic inside the supervisor. It decides, per tick, whether each job is due. It is implemented by Vigil and never delegates to cron, Windows Task Scheduler or launchd calendar intervals.
+
+### 4.3 Worker
+
+One worker process per job run. The worker:
+
+1. Writes its own state file: `status=running` with its identity (§11).
+2. Starts the job through its runner (§6.4).
+3. Records the identity of the job process it started.
+4. Captures the job's stdout and stderr to the job log, parsing metric lines (§14.3) and, for Nagios jobs, performance data (§14.4).
+5. Classifies the outcome from the exit code (§10).
+6. Writes its final state.
+7. Writes outcome metric events to the spool.
+8. Exits.
+
+Workers are independent OS processes, not threads or child jobs of the supervisor. **Stopping or crashing the supervisor does not stop running workers.** A worker that finishes while the supervisor is down still records its outcome; the supervisor reads it when it returns.
+
+### 4.4 State
+
+Each worker owns its job's state file and is its only writer. The supervisor has read-only access to worker state (VIGIL-005). There is no shared memory, socket, pipe or callback between supervisor and worker. The state file is the contract.
+
+This is what allows workers to survive supervisor restarts, upgrades and crashes, and what lets a restarted supervisor know the exact state of every job immediately.
+
+### 4.5 Spool and Sender
+
+The spool is a local outbox: a directory of small text files. There is no broker and no extra software.
+
+Workers never talk to backends. A worker writes its run's metric events to one spool file and exits, so a slow or unreachable backend can never delay a job, cause it to overrun its next run, or lose its metrics. The original system posted each metric directly from the worker with no timeout; this design replaces that.
+
+**Producers.** At the end of a run, the worker writes all of the run's events to `spool/incoming/<epoch>-<job id>-<run id>.events`. The supervisor writes its own events (heartbeat, `.running`, `invalid_config`, …) once per tick to `spool/incoming/<epoch>-supervisor.events`. Files are written to a temporary name and renamed, so a reader never sees a partial file.
+
+**Event file format.** One event per line, the same shape as a job metric line (§14.3) with a Unix timestamp in front and all tags already applied:
+
+```text
+1793282403 sybase.dba.dump_databases.duration_seconds 867 host=sybprod01 os=windows instance=sybase-windows job=dump_databases environment=production
+```
+
+**Sender.** The sender is a worker like any other, with one fixed job id, `vigil_sender`:
+
+- On each tick where the spool is not empty and no sender is alive, the supervisor starts one, exactly as it starts a job: detached, with its own state file, identity check (§11) and log.
+- Only one sender runs at a time. It has a fixed internal `max_runtime` of 5 minutes.
+- Like every worker, it keeps running if the supervisor stops, and is never started while the supervisor is down.
+
+**Fan-out.** The sender moves each incoming file into `spool/backends/<name>/` for every enabled backend that should receive it (respecting each job's `backends` key), then deletes the incoming file.
+
+**Delivery.** For each backend in turn, the sender:
+
+1. Takes the oldest queued files, up to a batch limit.
+2. Sends them as **one request** for the whole batch, with the backend's timeout.
+3. On success, deletes those files.
+4. On failure, leaves them, records the failure, and backs off for that backend only (exponential, capped at 5 minutes). It then moves on to the next backend.
+
+So a dead Datadog delays only Datadog's queue; Splunk and the local file still receive everything on time.
+
+**Limits and guarantees.**
+
+- **Delay:** normally at most one tick (60 seconds by default).
+- **At-least-once delivery:** a crash between "sent" and "deleted" can resend a batch. Gauges are unaffected; a count may occasionally be duplicated.
+- **Size cap:** when a backend's queue pushes the spool past `max_mb`, that queue's oldest (or newest, per `when_full`) files are dropped and counted in `vigil.spool.dropped`, tagged by backend.
+- **Removed or disabled backends:** their queues are discarded on the next sender run and counted as dropped.
+- **Old timestamps:** backends limit how old an accepted timestamp may be. Events older than a backend accepts are rejected; they are then dropped and counted, never retried forever.
+- **Supervisor down:** workers keep writing to `spool/incoming/`, and delivery resumes when the supervisor returns. The missing `vigil.supervisor.up` heartbeat is how the backend learns of the outage.
+
+A slow or unreachable backend therefore never blocks a job, the scheduler or another backend (VIGIL-009), and its events survive the outage within the spool's size cap.
+
+---
+
+## 5. Supported Platforms and Prerequisites
+
+### 5.1 Prerequisites
+
+Vigil is honest about what it needs:
+
+| OS | Required |
+| --- | --- |
+| Windows client and server | Windows PowerShell 5.1 (inbox on Windows 10 / Server 2016 and later). NSSM (vendored, §18.2) for system-mode service installation. |
+| Linux | bash, curl, systemd. |
+| macOS | bash (the shipped 3.2 is sufficient), curl (shipped), launchd (shipped). |
+
+PowerShell 7 is supported on Windows but never required.
+
+Windows support floor:
+
+| Windows | Status |
+| --- | --- |
+| Server 2016, 2019, 2022, 2025; Windows 10 and 11 | Supported. PowerShell 5.1 built in. |
+| Server 2012 / 2012 R2 | Supported once WMF 5.1 (Microsoft's PowerShell 5.1 package) is installed. |
+| Server 2008 R2 SP1 / Windows 7 SP1 | Best effort with WMF 5.1. Out of vendor support; documented, not tested. |
+| XP / Server 2003 | Not supported: PowerShell 2.0 at most and no TLS 1.2, so HTTPS backends are unreachable. |
+
+Some backends carry an extra prerequisite, documented with the backend (for example openssl for Google Cloud when not running on GCP, §15.4).
+
+Jobs may need their own tools (isql, psql, java, Cygwin). Those are the job's prerequisites, not Vigil's, and are checked by pre-flight validation (§16.4).
+
+### 5.2 Language Constraints
+
+- **PowerShell:** code must run unmodified on Windows PowerShell 5.1. Known 5.1 pitfalls (BOM on `Set-Content -Encoding UTF8`, function output pollution, `$PSScriptRoot` empty under `Start-Process`, `GetTempFileName()` exhaustion, case-insensitive variable collisions) are documented in the contributor guide and must not be reintroduced.
+- **bash:** code must run on bash 3.2. No associative arrays, `mapfile`, `${var,,}`, `declare -n` or `wait -n`. Use only tools present on a default install of every supported distribution and macOS; where GNU and BSD tools differ (`date`, `sed -i`, `stat`), use the portable subset.
+- **Files:** all files Vigil writes are ASCII or UTF-8 without BOM, with LF line endings on Linux/macOS.
+
+### 5.3 Portability
+
+Platform-specific operations live behind explicit internal interfaces:
+
+- Process creation and detachment.
+- Process identity lookup (name, start time).
+- Process-tree termination.
+- Single-instance locking.
+- Service installation.
+- Atomic file replacement.
+
+The same configuration semantics produce the same behaviour on every platform wherever the OS permits. Differences are documented in §24.
+
+---
+
+## 6. Configuration
+
+### 6.1 Format
+
+Vigil uses its own small INI dialect, parsed identically in PowerShell 5.1 and bash 3.2. The file extension is `.config`.
+
+Rules:
+
+- One `key = value` per line. Whitespace around `=` is trimmed.
+- `[section]` and `[section.name]` headers.
+- A line starting with `#` or `;` is a comment. There are no inline comments; `#` inside a value is literal.
+- No quoting, no escaping, no variable expansion. Values are literal. The only substitution is the `{file}` token in runner arguments (§6.4).
+- Repeating a key appends to a list (used for `arg` and `env`).
+- Lists inside one value are comma-separated.
+- Durations: `30s`, `5m`, `2h`, `7d`. There are no months; `m` is always minutes.
+- Times: `HH:MM`, 24-hour, local wall-clock.
+- Days: `mon` … `sun`, case-insensitive.
+- Relative paths resolve against the install root — the folder that contains `config/` (§12.1). So `file = scripts/disk.sh` points at `<root>/scripts/disk.sh`.
+- Keys may begin with `.` (used by `[runners]`).
+- ASCII only.
+
+XML (used by the original system) and JSON were rejected because neither can be parsed reliably in bash without non-native tools.
+
+A config file is not tied to an OS. Backends, tags and schedules are portable; runners and paths are usually OS-specific, so in practice each OS has its own file.
+
+### 6.2 Sections
+
+| Section | Purpose |
+| --- | --- |
+| `[vigil]` | Instance name, state directory, global concurrency limit. |
+| `[scheduler]` | Tick interval, late-start window, pending limit. |
+| `[log]` | Log directory, stdout mirroring, retention, file size cap. |
+| `[tags]` | Tags attached to every metric. |
+| `[spool]` | Spool directory, size cap, overflow policy. |
+| `[backend.<name>]` | One metrics destination (§15). |
+| `[runner.<name>]` | A reusable command prefix (§6.4). |
+| `[runners]` | File extension → runner map (§6.4). |
+| `[defaults]` | Default values for job keys. |
+| `[job.<id>]` | One scheduled job (§6.3). |
+
+### 6.3 Job Definition
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `file` | Yes | Script or executable to run. |
+| `runner` | No | `[runner.*]` that runs `file`. Overrides the extension map. |
+| `arg` | No | Extra argument after `file`. Repeat per argument. |
+| `metric_name` | No | Base metric name. Default: the job id. |
+| `run_every` | One of | Fixed interval. |
+| `run_at` | One of | One or more local times of day. |
+| `run_on_days` | No | Restricts `run_every` or `run_at` to weekdays. |
+| `max_runtime` | No | Runtime limit. Absent means unlimited. |
+| `grace` | No | Time between polite stop and forced kill. |
+| `overlap` | No | `skip` (default) or `queue_one`. |
+| `exit_codes` | No | `standard` (default), `nagios` or a success list such as `0-7`. |
+| `enabled` | No | `false` keeps the job defined but unscheduled. Default `true`. |
+| `backends` | No | Comma-separated backend names. Default: all enabled backends. |
+
+The job id (`[job.<id>]`) names the state file, the log folder and the `job` tag. Ids are restricted to `[a-z0-9_]`. Ids starting with `vigil_` are reserved for Vigil's own workers (such as `vigil_sender`).
+
+The smallest valid job:
+
+```ini
+[job.disk_usage]
+file      = checks/disk_usage.sh
+run_every = 5m
+```
+
+A disabled job remains visible as `DISABLED` in `jobs.log` and is still validated, so a mistake in it is caught before it is re-enabled.
+
+### 6.4 Runners
+
+A runner is a reusable command prefix. Vigil builds the job's command line as:
+
+```text
+runner.command  runner.arg...  job.file  job.arg...
+```
+
+If any runner `arg` contains the token `{file}`, the file path is substituted there and not appended. This supports clients that take the script inside another argument (`sqlplus @{file}`, `mysql --execute=source {file}`).
+
+Runner keys: `command`, `arg` (repeatable), `env` (repeatable `NAME=value`, literal, never secrets), `require_env` (variables that must exist before any job using the runner may start).
+
+Runner resolution, first match wins:
+
+1. The job's `runner` key.
+2. The file extension looked up in `[runners]`.
+3. No runner: the file is executed directly (native executables, `.bat`/`.cmd` on Windows, scripts with a `#!` line and the executable bit on Linux/macOS).
+
+A file that matches nothing and cannot run directly is rejected at validation, never discovered at first run.
+
+Arguments are passed as an argument vector, never through a shell, so no quoting is needed and no shell expansion occurs.
+
+### 6.5 Secrets
+
+Secrets are never written in configuration. Every credential value has the form `env:NAME`:
+
+```ini
+api_key = env:DATADOG_API_KEY
+```
+
+Credential keys (`api_key`, `token`, `username`, `password`, `*_secret`, `*_key`, `header_value`, …) reject any value that does not start with `env:`. A pasted raw secret fails validation; the rejected value is never echoed in errors or logs.
+
+Vigil reads the variable only at the moment it needs it, and never logs it, persists it, writes it to the spool or passes it on a command line. On Linux/macOS secrets are passed to curl on stdin (`curl -K -`), never as arguments. Secrets go in headers, never URL query strings.
+
+Jobs receive the service environment. Job tools that need credentials should use their own credential store (Windows integrated auth, pgpass, MySQL option files, Oracle Wallet) or a wrapper script that reads environment variables. Credentials should not be placed on a job's command line, where other users can see them in the process list.
+
+### 6.6 Example
+
+A complete annotated example, converted from the original Sybase configuration and extended with industry examples, is maintained in the repository as the reference mock configuration.
+
+---
+
+## 7. Scheduling
+
+### 7.1 Tick Model
+
+The supervisor evaluates every job once per tick (default `60s`). A job becomes due at the first tick at or after its scheduled time. Scheduling resolution is therefore one tick; Vigil is not intended for sub-tick precision.
+
+### 7.2 Interval Scheduling
+
+```ini
+run_every = 5m
+```
+
+Intervals use scheduled-time semantics: the next run is due one interval after the previous **scheduled** time, not after the previous run finished. A long run does not shift the schedule; overlap is handled by the overlap policy (§9).
+
+### 7.3 Time-of-Day Scheduling
+
+```ini
+run_at = 01:00
+run_at = 03:00, 09:00, 15:00, 21:00
+```
+
+`run_at` accepts a list. This replaces the original system's "`RunEvery` anchored by `RunAt`" behaviour, which needed special-case logic.
+
+### 7.4 Day Selection
+
+```ini
+run_at      = 18:00
+run_on_days = mon, wed, fri, sun
+```
+
+### 7.5 Valid Combinations
+
+| Combination | Valid |
+| --- | --- |
+| `run_every` | Yes |
+| `run_at` | Yes |
+| `run_every` + `run_on_days` | Yes |
+| `run_at` + `run_on_days` | Yes |
+| `run_every` + `run_at` | No — list the times in `run_at` |
+| `run_on_days` alone | No — nothing says when to run |
+| neither | No |
+
+### 7.6 New Jobs
+
+A job seen for the first time runs at its next scheduled time, never immediately. A job added at 14:00 with `run_at = 20:00` first runs at 20:00.
+
+### 7.7 Missed Runs
+
+The default and only v1 missed-run policy is skip. If the supervisor was down when a run was due:
+
+- If it returns within `late_start_window` (default `15m`) of the scheduled time, the run fires.
+- Otherwise the run is recorded as missed and the job waits for its next scheduled time.
+
+A restart never triggers a backlog of historical runs (VIGIL-008).
+
+A worker that crashed is not respawned immediately; the job runs again at its next scheduled time. (The original system respawned immediately. This specification deliberately does not.)
+
+### 7.8 Clock Behaviour
+
+- Calendar scheduling uses local wall-clock time.
+- Elapsed durations use a monotonic clock where the platform offers one to scripts; otherwise wall-clock, and the limitation is documented.
+- A backwards clock change never re-runs a run that already completed for the same scheduled time.
+- A forwards jump is treated as missed runs, subject to §7.7.
+- Daylight-saving: a `run_at` time that does not exist on the transition day fires at the first tick after it; a time that occurs twice fires once.
+
+---
+
+## 8. Concurrency
+
+`max_concurrent` (default `5`) limits the number of running workers across all jobs.
+
+When the limit is reached:
+
+1. Due jobs become pending.
+2. Running workers continue.
+3. Pending jobs start as capacity frees, oldest first.
+4. Scheduling delay is recorded.
+5. `max_pending` (default `20`) bounds the pending queue; beyond it, runs are skipped and recorded.
+
+Because workers outlive the supervisor, a restarted supervisor counts workers that are still alive (from their state files) before admitting new work.
+
+---
+
+## 9. Overlapping Runs
+
+Each job has an overlap policy:
+
+- **`skip`** (default): if the previous run is still active when the next is due, the new run is skipped and recorded as skipped.
+- **`queue_one`**: at most one run is held pending until the active run finishes.
+
+A skipped run is never reported as a failure. Pending runs are held in supervisor memory and are not persisted; a supervisor restart drops them (documented in §24).
+
+---
+
+## 10. Run Outcomes
+
+### 10.1 Lifecycle
+
+```text
+waiting --> pending --> running --+--> succeeded
+                                  +--> warning      (nagios exit 1)
+                                  +--> failed
+                                  +--> unknown      (nagios exit 3)
+                                  +--> timed_out    (max_runtime)
+                                  +--> crashed      (worker vanished)
+```
+
+`skipped`, `missed`, `invalid_config` and `file_missing` are recorded events, not run states.
+
+### 10.2 Exit Code Classification
+
+| `exit_codes` | Succeeded | Warning | Failed | Unknown |
+| --- | --- | --- | --- | --- |
+| `standard` | 0 | — | any other | — |
+| `nagios` | 0 | 1 | 2 | 3 and any other |
+| list, e.g. `0-7` | listed codes | — | any other | — |
+
+`nagios` lets existing Nagios-compatible plugins run unmodified, including their performance data (§14.4). Explicit lists cover tools with unusual conventions (robocopy exits 1–7 on success).
+
+A job that cannot start (missing runner, missing file, permission denied) is `failed` with a reason.
+
+### 10.3 Runtime Limit
+
+`max_runtime` is optional. A job without it runs until it finishes, however long that takes; its climbing `.running` metric is the signal that something is wrong.
+
+When `max_runtime` is set, the supervisor checks it every tick. On expiry it asks the job's process tree to stop, waits `grace`, then kills it, and records `timed_out`. Enforcement is therefore accurate to one tick.
+
+The supervisor kills only processes whose identity matches the state file (§11). It never kills by PID alone.
+
+While the supervisor is down, `max_runtime` is not enforced. It is enforced on the first tick after the supervisor returns. This is a deliberate simplicity trade-off (§24).
+
+### 10.4 Supervisor Shutdown
+
+Stopping the supervisor:
+
+1. Stops scheduling.
+2. Leaves running workers alone. They finish and record their own outcome.
+3. Flushes the spool within a bounded deadline.
+4. Exits.
+
+Service managers are configured not to kill the worker process tree on stop (§18).
+
+`vigil uninstall` (§18.8) is the only operation that terminates running workers.
+
+---
+
+## 11. Process Identity and Recovery
+
+### 11.1 Recorded Identity
+
+Each running state file records:
+
+- Worker PID, process name and process start time.
+- Job process PID, process name and start time (the runner or executable the worker started).
+- Job id, run id and scheduled time.
+- Vigil instance name.
+
+### 11.2 Liveness
+
+A recorded process is considered alive only if a process with that PID exists **and** its name matches **and**, where the platform exposes it, its start time matches. Start time is read natively: `Get-Process` on Windows, `/proc/<pid>/stat` on Linux, `ps -o lstart` on macOS.
+
+Matching on PID alone is not allowed (VIGIL-007). The name and start-time check prevents a reused PID — common after a reboot — from being mistaken for a live job.
+
+### 11.3 Recovery Cases
+
+Evaluated by the supervisor each tick from the state file:
+
+| State file says | Observed | Action |
+| --- | --- | --- |
+| `running` | Worker alive | Post `.running`; enforce `max_runtime` if set. |
+| `running` | Worker gone, job process alive | Do not respawn. Report `orphaned`. Treat the job as still running until the job process exits; enforce `max_runtime` against it if set. |
+| `running` | Worker and job process gone | Record `crashed`, post the crash metric, schedule normally (§7.7). |
+| `running` | Identity cannot be confirmed | Report the uncertainty; do not kill; do not respawn. |
+| terminal state | — | Schedule normally. |
+| missing | — | New job (§7.6). |
+| unreadable | — | Report corrupt state; do not run the job until resolved. |
+
+The second row prevents duplicate runs: if a worker dies while its isql dump is still running, a second dump is not started.
+
+A recovered supervisor never assumes a run succeeded without a final state written by its worker (VIGIL-006).
+
+### 11.4 Process-Tree Termination
+
+Used only for `max_runtime` and explicit teardown.
+
+- **Windows:** `taskkill /T /F` against the identity-checked job process.
+- **Linux/macOS:** the worker starts the job in its own process group (`set -m`); termination signals the group (`TERM`, then `KILL` after `grace`).
+
+Processes that deliberately escape their group or tree may survive. This limit is documented (§24).
+
+---
+
+## 12. State
+
+### 12.1 Layout
+
+Everything lives under one install root (§18.6 gives the root per platform):
+
+```text
+<root>/
+  app/                    Vigil's own scripts - replaced on upgrade
+  vendor/nssm/            Windows only
+  config/
+    vigil.config          the operator's - never overwritten
+    vigil.env             credential variables (systemd EnvironmentFile), owner-only
+  scripts/                the operator's job scripts - never overwritten
+  state/
+    supervisor.lock
+    jobs/<job id>.state
+    jobs/vigil_sender.state
+  spool/
+    incoming/<epoch>-<job id>-<run id>.events
+    backends/<backend name>/<same file names>
+  logs/
+    supervisor/yyyy-MM-dd.log
+    supervisor/jobs.log
+    jobs/<job id>/yyyy-MM-dd.log
+  metrics/vigil.prom      when the file backend is enabled
+```
+
+Relative paths in the config resolve against the root (§6.1). The state, spool and log locations can be overridden in the config.
+
+### 12.2 Format
+
+State files use the same `key = value` format as the configuration, read by the same parser on every platform. JSON is not used: writing it from bash is easy, but the bash supervisor must also *read* every state file each tick, and bash has no native JSON parser. The original system's JSON state worked because it was PowerShell-only.
+
+Example of a completed run:
+
+```ini
+schema_version   = 1
+job              = dump_databases
+run_id           = 20261029T200000Z-4821
+instance         = sybase-windows
+status           = succeeded
+reason           =
+scheduled_epoch  = 1793304000
+started_epoch    = 1793304003
+ended_epoch      = 1793304870
+scheduled_at     = 2026-10-29T20:00:00Z
+started_at       = 2026-10-29T20:00:03Z
+ended_at         = 2026-10-29T20:14:30Z
+duration_seconds = 867
+exit_code        = 0
+worker_pid       = 4821
+worker_name      = powershell.exe
+worker_start     = 1793304002
+job_pid          = 4830
+job_name         = isql.exe
+job_start        = 1793304003
+metric_lines     = 0
+invalid_lines    = 0
+spool_file       = 1793304870-dump_databases-20261029T200000Z-4821.events
+```
+
+Field rules:
+
+- **Status** is one of `waiting`, `running`, `succeeded`, `warning`, `failed`, `unknown`, `timed_out` or `crashed`. `reason` holds a one-line explanation for anything other than success (for example `exit code 2`, `runner not found`, `worker vanished`).
+- **Times are stored twice.** `*_epoch` fields are Unix seconds in UTC and are what Vigil computes with. `*_at` fields are ISO 8601 UTC, for humans. Both are needed because converting an ISO date back to a number is not portable between GNU and BSD `date`, while printing both is trivial on every platform.
+- **Process identity:** `*_pid`, `*_name` and `*_start` (epoch) for the worker and for the job process it started (§11.1). On platforms where a start time is unavailable, `*_start` is empty.
+- **A running file** has `status = running` and no `ended_*`, `duration_seconds` or `exit_code`.
+- **Run summary:** `metric_lines` and `invalid_lines` count the metric lines and Nagios perfdata items accepted and rejected; `spool_file` names the spool file holding the run's events, so a missing metric can be traced from state to spool.
+- **Values are single-line.** Line breaks in a reason or error are replaced by spaces, and values are truncated to 500 characters. Full detail belongs in the job log, not the state file.
+- **Unknown keys are ignored**, so a newer Vigil can add fields. A higher `schema_version` than the running Vigil understands is reported as unsupported state (§12.3).
+- **Never secrets.** State files never contain credentials or environment values.
+
+### 12.3 Rules
+
+- Writes are atomic: temporary file, then rename (`mv` on POSIX, `File.Replace` on Windows).
+- Each state file has exactly one writer: the current worker for that job. The supervisor only reads (VIGIL-005), except to create the initial `waiting` state for a new job, to record `crashed` for a job whose worker is gone, and to record `timed_out` after it terminates a job for exceeding `max_runtime`. In each of those cases no live worker exists for the file, so there is still only one writer at a time.
+- An unreadable or unsupported state file is reported, never silently discarded.
+- Deleting a state file is supported and resets the job to "new". Editing one is not supported.
+- Configuration is the source of truth for scheduling. State records what happened.
+
+### 12.4 Single Supervisor
+
+The supervisor takes an exclusive lock on the state directory at startup (`mkdir`-based lock on POSIX, an exclusively opened lock file on Windows) and refuses to start if another live supervisor holds it. A stale lock is detected by the same identity check as §11.2.
+
+---
+
+## 13. Logging
+
+### 13.1 Logs
+
+- **Supervisor log:** daily file, one line per event: timestamp, level, component, message.
+- **Job log:** one daily file per job, containing lifecycle events plus the job's captured stdout and stderr.
+- **stdout mirroring:** optional, so service managers (NSSM, journald, launchd) capture the supervisor's output.
+
+Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014).
+
+### 13.2 Status File
+
+`logs/supervisor/jobs.log` is rewritten every tick and is the primary operator view. It groups jobs into sections:
+
+- `CRASHED` / `ORPHANED`
+- `INVALID` (with the validation reason)
+- `FILE MISSING`
+- `RUNNING` (PID, elapsed, time to `max_runtime`)
+- `PENDING` (waiting for capacity)
+- `WAITING` (next scheduled time)
+- `DISABLED`
+- `LAST RUN` (outcome, end time, duration)
+
+A healthy system shows only `WAITING`, `RUNNING` and `LAST RUN`.
+
+### 13.3 Log Safety
+
+Logs never contain secret values. Environment values are never dumped. A full disk or unwritable log location is reported and never crashes the supervisor.
+
+---
+
+## 14. Metrics
+
+### 14.1 Naming
+
+Metric names are dotted (`sybase.dba.dump_databases.failures`). Backends translate to their native conventions (for example dots to underscores for Prometheus).
+
+### 14.2 Per-Job Metrics
+
+Posted for each job under its `metric_name`:
+
+| Metric | Type | When |
+| --- | --- | --- |
+| `<m>.duration_seconds` | gauge | Every completed run. |
+| `<m>.runs` | count | Every run started. |
+| `<m>.succeeded` | count | Run succeeded. |
+| `<m>.warnings` | count | Nagios warning. |
+| `<m>.failures` | count | Run failed or unknown. Tagged `exit_code`. |
+| `<m>.timeouts` | count | `max_runtime` exceeded. |
+| `<m>.crashes` | count | Worker vanished without a final state. |
+| `<m>.skipped` | count | Overlap or pending-limit skip. |
+| `<m>.missed` | count | Missed while the supervisor was down. |
+| `<m>.running` | gauge | Elapsed seconds, every tick while running. |
+| `<m>.invalid_config` | gauge | `1` every tick while the job fails validation. |
+| `<m>.file_missing` | gauge | `1` every tick while the job's file is missing. |
+
+### 14.3 Job-Emitted Metrics
+
+Any line a job prints to stdout of the form:
+
+```text
+metric <name> <value> [key=value ...]
+```
+
+is posted as `<metric_name>.<name>` with the job's tags plus the line's tags. Any language can emit metrics this way; no library is needed.
+
+Grammar:
+
+- `<name>`: `[A-Za-z0-9_.]+`
+- `<value>`: a decimal number
+- tags: `key=value` pairs separated by spaces; keys `[A-Za-z0-9_]+`; values contain no spaces
+- Other stdout lines are written to the job log only.
+- A line starting with the word `metric` that does not parse is logged and counted in `<m>.invalid_metric_lines`; it never fails the run.
+- Lines per run are capped; excess lines are dropped and counted.
+
+### 14.4 Nagios Performance Data
+
+Jobs with `exit_codes = nagios` also have their Nagios performance data parsed, so existing plugins report their numbers without modification. Other jobs are never parsed for perfdata, so a `|` in ordinary output is never misread.
+
+Perfdata follows the Nagios plugin guidelines: everything after the first `|` on the first output line, plus everything after a `|` on any later line, is a space-separated list of:
+
+```text
+'label'=value[UOM];[warn];[crit];[min];[max]
+```
+
+Example (`check_disk`):
+
+```text
+DISK OK - free space: / 7800 MB (40%) | /=11700MB;15600;17550;0;19500
+```
+
+Parsing rules:
+
+- The label may be single-quoted to contain spaces or `=`; `''` inside quotes is a literal quote.
+- A value of `U` (undetermined) is skipped.
+- Units are normalised: `s`, `ms`, `us` to seconds; `B`, `KB`, `MB`, `GB`, `TB` to bytes (1024 multiples); `%` kept as a percentage; `c` (continuous counter) posted as a count. Unknown units are kept as-is and recorded in a `uom` tag.
+- `warn`, `crit`, `min` and `max` are posted as `<…>.warn`, `<…>.crit`, `<…>.min`, `<…>.max` when they are plain numbers. Range syntax (`10:20`, `@10:20`, `~:5`) is not posted.
+- A malformed item is skipped and counted in `<m>.invalid_metric_lines`; it never fails the run.
+- Perfdata items count towards the per-run metric line cap.
+- `metric` lines (§14.3) work in Nagios jobs too; both are collected.
+
+Every perfdata value is posted under one fixed name, `<m>.perf`, with the perfdata label as a `label` tag. There is nothing to configure:
+
+```text
+<m>.perf      = 12268339200   label=/      (11700 MB as bytes)
+<m>.perf.warn = 16357785600   label=/
+<m>.perf.crit = 18402508800   label=/
+<m>.perf.min  = 0             label=/
+<m>.perf.max  = 20447232000   label=/
+```
+
+This works for every plugin, whether its labels are fixed names (`rta`, `pl`, `time`) or variable ones (disk paths, interface names), and matches how established collectors such as Telegraf represent Nagios perfdata. Backends filter or group by the `label` tag.
+
+### 14.5 Supervisor Metrics
+
+| Metric | Type |
+| --- | --- |
+| `vigil.supervisor.up` | gauge, every tick (heartbeat) |
+| `vigil.supervisor.workers` | gauge |
+| `vigil.supervisor.pending` | gauge |
+| `vigil.supervisor.config_reload_failed` | gauge, `1` while a reload is rejected |
+| `vigil.spool.bytes` | gauge |
+| `vigil.spool.dropped` | count |
+| `vigil.backend.failures` | count, tagged by backend |
+
+The absence of `vigil.supervisor.up` is how a backend detects that Vigil itself is down.
+
+### 14.6 Tags
+
+Every metric carries the `[tags]` section plus automatic tags: `host`, `os`, `instance` and, for job metrics, `job`. Run ids are never attached to metrics, to keep cardinality bounded. Variable dimensions (database, drive, tablespace) belong in tags, not in metric names.
+
+`[tags]` accepts any number of tags:
+
+- Keys: `[a-z0-9_]+`. Values: any text without spaces.
+- Reserved keys, set only by Vigil: `host`, `os`, `instance`, `job`, `label`, `uom`, `exit_code`. Declaring one is a validation error.
+- Tags are static per host, so adding more does not multiply the number of series in the backend.
+- Some backends cap the number of tags (dimensions) per metric — Azure Monitor custom metrics allow 10 and CloudWatch 30, counting Vigil's automatic tags. Validation warns when an enabled backend's cap would be exceeded; the backend's own documentation is authoritative for current limits.
+
+---
+
+## 15. Backends
+
+### 15.1 Model
+
+Any number of backends may be enabled. By default every job's metrics go to every enabled backend. A job may restrict this with `backends = <name>, ...`; names refer to `[backend.<name>]` sections, so `backends = datadog_eu` targets one Datadog account and not another. An unknown name makes the job invalid; a disabled one is a validation warning.
+
+`[backend.<name>]` names are free text; `type` defaults to the name, so the same backend type can be configured twice (for example two Datadog sites).
+
+### 15.2 Transport
+
+- Linux/macOS: curl, with secrets on stdin.
+- Windows: `Invoke-WebRequest` / .NET.
+- UDP backends (StatsD) use bash `/dev/udp` and .NET `UdpClient`; no curl.
+
+Every request has a timeout. Retries are bounded with backoff. Delivery is from the spool (§4.5).
+
+### 15.3 Supported Types
+
+| Type | Protocol | Auth |
+| --- | --- | --- |
+| `file` | Prometheus text format on local disk | none |
+| `datadog` | Series API | API key |
+| `otel` | OTLP/HTTP JSON | optional bearer |
+| `prometheus` | Pushgateway | optional basic |
+| `victoriametrics` | Prometheus text import | optional basic / bearer |
+| `influxdb` | Line protocol (v1 and v2) | token |
+| `splunk` | HTTP Event Collector | HEC token |
+| `graphite` | Carbon plaintext (TCP) | none |
+| `statsd` | StatsD / DogStatsD (UDP) | none |
+| `elasticsearch` | Document API | basic or API key |
+| `opensearch` | Document API | basic or API key |
+| `azuremonitor` | Custom metrics REST | service principal or managed identity |
+| `cloudwatch` | PutMetricData, SigV4 | access keys or instance profile |
+| `gcp` | Cloud Monitoring `timeSeries.create` | metadata server or service-account key |
+| `newrelic` | Metric API | license key |
+| `dynatrace` | Metrics ingest line protocol | API token |
+| `webhook` | Generic JSON POST | optional header |
+
+### 15.4 Platform Notes
+
+- **Cloud-native auth:** on AWS, Azure and GCP machines, credentials can come from the local metadata service (`auth = instance_profile`, `managed_identity`, `metadata`), so no secret is stored on the host.
+- **CloudWatch** request signing needs curl 7.75 or later on Linux/macOS.
+- **Google Cloud off-GCP** needs openssl on Linux/macOS to sign the service-account token.
+- **Prometheus remote_write is not supported**: it requires protobuf and snappy, which cannot be produced from plain scripts. Use VictoriaMetrics import, OTLP/HTTP or Influx-protocol endpoints instead.
+
+### 15.5 Failure Behaviour
+
+When a backend fails:
+
+- Scheduling and supervision continue.
+- The failure is logged and counted.
+- That backend's events stay in the spool and are retried with bounded backoff.
+- When the spool reaches `max_mb`, events are dropped according to `when_full` and counted.
+
+A backend can never consume unbounded memory or disk (VIGIL-009, VIGIL-014).
+
+---
+
+## 16. Configuration Management
+
+### 16.1 Hot Reload
+
+The configuration is re-read every tick. Changes to jobs, schedules, runners, backends and tags take effect within one tick without a restart. Only changes to Vigil's own scripts require a service restart.
+
+On Windows, environment variables named by `env:` and `require_env` are re-read from the machine and user scopes every tick, so rotated secrets take effect without a restart. On Linux/macOS, environment changes require a service restart.
+
+### 16.2 Adding a Job
+
+Adding a job never needs a restart:
+
+1. Copy the script into `<root>/scripts/`.
+2. Add a `[job.<id>]` block to `vigil.config` and save.
+3. On the next tick the config is reloaded and validated, and the job is scheduled.
+
+Copy the script before editing the config. A config saved with a mistake is rejected, the previous configuration keeps running, and `jobs.log` shows the reason. A new job first runs at its next scheduled time (§7.6); `vigil run <job>` runs it once immediately in the foreground for testing. Scripts reached through the `[runners]` map need no executable bit; only files executed directly do, and pre-flight reports them.
+
+### 16.3 Validation
+
+- At startup, an invalid configuration stops Vigil with the full list of errors.
+- On reload, an invalid configuration is rejected as a whole; the last known valid configuration stays active and `vigil.supervisor.config_reload_failed` is posted (VIGIL-010).
+- A single invalid job does not invalidate the file: that job is skipped, shown as `INVALID` and reported via `invalid_config` until fixed. Other jobs keep running.
+- A job whose file disappears is shown as `FILE MISSING` and reported via `file_missing`; it resumes automatically when the file returns.
+
+### 16.4 Pre-flight Checks
+
+Before install or start, and on demand, Vigil checks without starting anything:
+
+- Configuration parses and validates.
+- Every `env:` and `require_env` variable is set (names only are printed).
+- Every job file exists and is runnable through its resolved runner.
+- Every runner `command` exists.
+- State, log and spool directories are writable.
+
+Install and start abort with no changes if any check fails.
+
+### 16.5 Git Distribution (Optional)
+
+Configuration and scripts may be distributed from a Git repository. If supported, it is disabled by default, pinned to an approved revision, validated before activation, never executes repository hooks, and a failed update leaves the last valid configuration active.
+
+---
+
+## 17. Security
+
+- **Least privilege:** Vigil runs as an ordinary user in user mode. Jobs run with Vigil's identity; Vigil never elevates.
+- **Secrets by reference:** credentials are `env:` references only (§6.5).
+- **No secrets on command lines** constructed by Vigil.
+- **Script trust:** jobs run with Vigil's permissions. Vigil is not a sandbox; untrusted scripts need OS-level isolation.
+- **File permissions:** configuration, state, spool and the install directory must not be writable by untrusted users. Install sets owner-only permissions where the OS allows.
+- **No remote control:** Vigil exposes no network listener.
+- **Script signing:** Windows releases are Authenticode-signed so they run under `AllSigned` execution policy.
+
+---
+
+## 18. Service Management
+
+### 18.1 Install Modes
+
+| OS | User mode (no admin) | System mode (admin) |
+| --- | --- | --- |
+| Windows | Per-user Run registry entry (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) starting the supervisor hidden at logon | NSSM service running as a service account |
+| Linux | `systemd --user` unit | system unit in `/etc/systemd/system`, running as a dedicated `vigil` user |
+| macOS | launchd LaunchAgent | launchd LaunchDaemon |
+
+User mode generally runs only while the user is logged in. Unattended operation needs:
+
+- Linux: lingering (`loginctl enable-linger`), which may need admin once depending on distribution policy.
+- macOS: a LaunchDaemon (admin).
+- Windows: system mode. Registering any Windows service requires admin. Windows user mode starts at logon only and has **no automatic restart** if the supervisor crashes; it is intended for trying Vigil out and for workstations, and the docs say so.
+
+The docs state plainly that unattended server monitoring realistically needs one admin action at install time. After that the supervisor may run as an unprivileged account.
+
+Windows Task Scheduler and cron are not used, even as launchers.
+
+### 18.2 NSSM
+
+NSSM (public domain) is vendored in `vendor/nssm/` as the 2.24-101 pre-release build, 64-bit and 32-bit, with a NOTICE giving its source and SHA-256 hashes. 2.24 is not used: it fails to start services on Windows 10 Creators Update and later. NSSM is unmaintained upstream; this is stated in the docs.
+
+### 18.3 Workers Survive Service Stop
+
+Each service manager is configured so stopping the service stops only the supervisor:
+
+| Manager | Setting |
+| --- | --- |
+| NSSM | Do not kill the process tree on stop (verified against the vendored build) |
+| systemd | `KillMode=process` |
+| launchd | `AbandonProcessGroup = true` |
+
+### 18.4 Service Behaviour
+
+- Start automatically.
+- Restart on failure with throttling (to avoid restart storms from a bad deploy). Not available in Windows user mode (§18.1).
+- Graceful stop (§10.4).
+- Capture supervisor stdout/stderr (NSSM append mode, journald, launchd log paths).
+
+### 18.5 Operator Commands
+
+| Command | Purpose |
+| --- | --- |
+| `init` | Onboarding (§19). |
+| `precheck` | Pre-flight checks (§16.4). |
+| `service install` / `service remove` | Register or unregister the service without touching files (for example to switch mode). |
+| `start` / `stop` / `restart` | Service control. Stop leaves workers running. |
+| `status` | Print `jobs.log`. |
+| `run <job>` | Run one job once now, in the foreground, for testing. |
+| `uninstall` | Remove Vigil completely (§18.8). |
+
+### 18.6 Install Locations
+
+Everything is installed under one root (layout in §12.1):
+
+| Platform | User mode | System mode |
+| --- | --- | --- |
+| Linux | `~/.local/share/vigil` | `/opt/vigil` |
+| macOS | `~/.local/share/vigil` | `/opt/vigil` |
+| Windows | `%LOCALAPPDATA%\Vigil` | `C:\ProgramData\Vigil` |
+
+Outside the root, Vigil creates only:
+
+- The service registration: the systemd unit, the launchd plist, the NSSM service, or the Windows Run entry.
+- The `vigil` command: a link in `~/.local/bin` (user mode) or `/usr/local/bin` (system mode) on Linux/macOS; on Windows the root's `app\` folder is added to the user's or machine's `PATH`.
+
+`--prefix <path>` installs to a custom root.
+
+Rationale:
+
+- **One root over OS conventions.** Splitting across `/etc`, `/var/lib` and `/var/log` is more conventional on Linux, but one root makes uninstall a single delete and lets an operator find everything.
+- **macOS user mode uses `~/.local/share/vigil`, not `~/Library/Application Support/Vigil`,** because a space in the root path breaks carelessly written job scripts.
+- **SELinux:** on Fedora/RHEL with SELinux enforcing, a system-mode service cannot execute scripts from a home directory; system mode therefore always uses `/opt/vigil`, and pre-flight warns when SELinux is enforcing.
+
+### 18.7 Installer
+
+One-line installers, in the style of rustup:
+
+```text
+Linux / macOS:  curl -fsSL https://<host>/install.sh | sh
+Windows:        irm https://<host>/install.ps1 | iex
+```
+
+The installer:
+
+1. Runs pre-flight checks for Vigil's prerequisites (§5.1) and stops before changing anything if one is missing.
+2. Downloads a versioned release archive from GitHub Releases and verifies its SHA-256 (`sha256sum`, `shasum -a 256` or `Get-FileHash`) before using it.
+3. Unpacks it into the root. On upgrade, only `app/` and `vendor/` are replaced; `config/` and `scripts/` are never touched.
+4. Registers the service for the chosen mode.
+5. Runs `vigil init` on a fresh install (§19).
+
+Details:
+
+- Every prompt has a flag equivalent (`sh -s -- --system --backend datadog`), so the installer runs unattended from deployment tooling. When piped, prompts read from `/dev/tty`, because standard input is the script itself.
+- `install.sh` is POSIX `sh`, since it is what `| sh` runs; it switches to bash for the rest of the install.
+- Windows: the documented one-liner first enables TLS 1.2, which PowerShell 5.1 on older servers may not use by default. After verifying the hash, the installer removes the downloaded-from-the-internet mark from Vigil's files so a RemoteSigned execution policy does not block them; signed releases (§17) avoid the issue under AllSigned.
+- A version can be pinned (`--version 1.2.0`).
+
+Many IT teams do not allow piping a remote script into a shell. The docs therefore give an equivalent reviewed path: download the release archive and its published checksum, verify, read the installer, and run it locally. Both paths run the same installer.
+
+### 18.8 Uninstall
+
+`vigil uninstall` removes Vigil completely:
+
+1. Stop and unregister the service.
+2. Terminate Vigil's running workers. Only processes that pass the identity check (§11.2) are terminated — never "every process that mentions the install folder".
+3. Wait for file handles to be released (Windows).
+4. Delete the root, the `vigil` command link or `PATH` entry, and the service registration.
+
+Before deleting, it lists what will be removed — including how many scripts are in `scripts/` — and asks for confirmation:
+
+- `--yes` skips the confirmation, for unattended use.
+- `--keep-config` keeps `config/` and `scripts/`, so a reinstall picks up where it left off.
+
+Environment variables set outside Vigil (machine environment, `vigil.env` aside) are left untouched. Uninstall is idempotent: running it on a clean machine succeeds and changes nothing. On Windows, when the root cannot be deleted because the uninstall itself is running from inside it, deletion is completed by a short-lived detached process after Vigil exits.
+
+---
+
+## 19. Onboarding
+
+`vigil init` generates a starting configuration:
+
+1. Detects the OS and available shells.
+2. Asks which backend(s) the organisation uses.
+3. Writes a commented config with the correct runners, paths, `env:` placeholders and one sample job.
+4. Prints the environment variable names that must be set.
+
+`init` never asks for or stores secret values. Every prompt has a flag equivalent so it can run unattended from deployment tooling.
+
+### 19.1 Check Library
+
+The repository includes a `checks/` library of ready-made job scripts, per platform: disk, memory, load, TCP port, certificate expiry and similar. `init` can enable a basic set. Contributed checks follow a short guide:
+
+- Print results as `metric` lines (§14.3).
+- Use meaningful exit codes, or Nagios codes with `exit_codes = nagios`.
+- Start with a header comment: purpose, platforms, prerequisites, metrics emitted, suggested alert thresholds.
+- POSIX checks stay bash 3.2 compatible; PowerShell checks stay 5.1 compatible.
+- Include a test.
+
+---
+
+## 20. Resource Limits
+
+Explicit, configurable limits exist for:
+
+- Concurrent workers and pending runs.
+- Log file size and retention.
+- Spool size.
+- Metric lines per run.
+- Backend request timeouts and retries.
+- Configuration file size.
+
+`max_runtime` is the only per-job limit, and it is optional. Vigil does not claim CPU or memory isolation.
+
+---
+
+## 21. Failure Behaviour
+
+| Scenario | Behaviour |
+| --- | --- |
+| Config invalid at startup | Refuse to start; print all errors. |
+| Config invalid on reload | Keep last valid config; post `config_reload_failed`. |
+| One job invalid | Skip that job; `INVALID`; `invalid_config` metric. |
+| Required env var missing at start | Refuse to start; print all missing names. |
+| Job file missing | Skip; `FILE MISSING`; `file_missing` metric; auto-resume. |
+| Job exits non-zero | Classified per `exit_codes`; failure metric. |
+| Job exceeds `max_runtime` | Tree terminated; `timed_out`. |
+| Worker vanishes, job process gone | `crashed`; crash metric; next scheduled run. |
+| Worker vanishes, job process alive | `orphaned`; no respawn until it exits. |
+| Supervisor crashes | Workers continue; supervisor resumes from state on restart. |
+| Machine reboots | All `running` states fail identity checks → `crashed`; normal scheduling. |
+| Corrupt state file | Reported; job held until resolved. |
+| Backend unreachable | Spooled and retried; other backends and jobs unaffected. |
+| Spool full | Drop per policy; counted. |
+| Disk full | Reported where possible; supervisor keeps running. |
+| Clock change | §7.8. |
+
+Where an outcome cannot be determined, Vigil reports the uncertainty rather than inventing a result.
+
+---
+
+## 22. Testing and Verification
+
+### 22.1 Shared Conformance Suite
+
+The scheduling decision logic is tested as a table of inputs and expected decisions (in the style of the original `Test-ScheduleLogic.ps1`). The same table is executed against both the PowerShell and bash implementations, which must produce identical results. The config parser is tested the same way.
+
+### 22.2 Unit Tests
+
+Config parsing and validation, schedule calculation, exit-code classification, metric-line parsing, state transitions, identity matching, spool bounds and backend formatting.
+
+### 22.3 Integration Tests
+
+Successful, failing and hung jobs; Nagios exit codes; child-process spawning; `max_runtime` tree termination; supervisor restart with live workers; reboot simulation; overlap and concurrency limits; backend failure and recovery; hot reload.
+
+### 22.4 Fault Injection
+
+Kill workers; kill the supervisor; kill a worker while its job runs; corrupt state; remove files; break the network; fill the spool; change the clock; reuse a PID; flood stdout.
+
+### 22.5 Platform Matrix
+
+A pass on one platform is never evidence for another. The v1 matrix:
+
+| Platform | Where it is tested |
+| --- | --- |
+| Windows 11, PowerShell 5.1 and 7 | Development machine; Windows Sandbox for clean-install tests |
+| Windows Server 2016 / 2019 / 2022 / 2025 | Free 180-day evaluation VMs in Hyper-V; GitHub Actions Windows runners |
+| Windows Server 2012 R2 + WMF 5.1 | Evaluation VM where obtainable |
+| Ubuntu (Debian family) | WSL2 with systemd enabled; GitHub Actions Ubuntu runners |
+| Fedora (Red Hat family, SELinux enforcing) | Dedicated Fedora machine |
+| macOS, bash 3.2, launchd | MacBook; GitHub Actions macOS runners |
+| Cygwin-hosted jobs | Windows development machine |
+
+Backends are simulated: most tests assert on spool contents; sender tests run against a test-only local HTTP receiver (.NET `HttpListener` on Windows, a small test script on Linux/macOS) that records requests and can simulate failures. Optional Docker-based tests run real VictoriaMetrics and an OpenTelemetry Collector. Test tooling is never shipped.
+
+### 22.6 Evidence
+
+Every result records Vigil version, OS and version, shell version, test id, result and artifacts. Unexecuted tests are never reported as passing.
+
+---
+
+## 23. Engineering Invariants
+
+**VIGIL-001 — Single Supervisor Ownership.** Only one supervisor may own a state directory.
+
+**VIGIL-002 — Bounded Concurrency.** Running workers never exceed `max_concurrent` while the supervisor is running.
+
+**VIGIL-003 — Declared Runtime Limits.** A declared `max_runtime` is enforced by tree termination within one tick of expiry while the supervisor runs. Jobs without one are unbounded by design.
+
+**VIGIL-004 — Failure Isolation.** A job's failure never terminates the supervisor or another job.
+
+**VIGIL-005 — Single-Writer State.** Each job's state file has one writer, its worker. The supervisor reads it.
+
+**VIGIL-006 — Safe Recovery.** A run without a worker-written final state is never treated as successful.
+
+**VIGIL-007 — Process Identity.** A PID alone is never sufficient to treat a process as a live job or to kill it; name and, where available, start time must match.
+
+**VIGIL-008 — No Backlog.** Missed runs are skipped, never replayed in bulk.
+
+**VIGIL-009 — Telemetry Independence.** Backends never block scheduling, supervision or each other.
+
+**VIGIL-010 — Configuration Safety.** An invalid configuration never replaces the last valid one.
+
+**VIGIL-011 — No Silent Failure.** Every failure produces a local record where storage allows.
+
+**VIGIL-012 — Native Only.** Vigil requires only its documented prerequisites. No cron, Task Scheduler, agents or compiled code of its own (NSSM excepted).
+
+**VIGIL-013 — Explicit Privilege.** Vigil never elevates its own or a job's privileges.
+
+**VIGIL-014 — Bounded Storage.** Logs, state history and spool have explicit limits.
+
+**VIGIL-015 — Graceful Degradation.** Unavailable backends or optional features never stop core scheduling.
+
+**VIGIL-016 — Secrets by Reference.** Credentials appear in configuration only as `env:` references; raw values are rejected.
+
+**VIGIL-017 — Workers Outlive the Supervisor.** Stopping or restarting the supervisor never terminates running workers, except through `vigil uninstall`.
+
+Each invariant has a documented enforcement mechanism and regression tests.
+
+---
+
+## 24. Known Limitations
+
+- `max_runtime` is not enforced while the supervisor is down, and is accurate to one tick.
+- Scheduling resolution is one tick (default 60 seconds).
+- `queue_one` pending runs are lost on supervisor restart.
+- Processes that deliberately escape their process group or tree may survive termination.
+- Cygwin emulates fork/exec; Windows parent/child links may differ from Cygwin's, so tree termination of Cygwin jobs needs its own verification.
+- bash on Linux/macOS has no portable monotonic clock; elapsed time may be affected by clock changes.
+- Process start time is unavailable or coarse on some platforms; identity then relies on PID plus name.
+- User-mode installs run only while the user is logged in unless lingering (Linux) or system mode is used.
+- Prometheus remote_write is not supported.
+- NSSM is unmaintained upstream.
+- Environment variable changes require a restart on Linux/macOS.
+- Windows user mode starts at logon only and is not restarted automatically if the supervisor crashes.
+- macOS privacy controls (TCC) silently block launchd jobs from `~/Documents`, `~/Desktop`, `~/Downloads` and external volumes unless `/bin/bash` is granted Full Disk Access.
+- macOS still ships bash 3.2 as `/bin/bash`; if Apple removes it, macOS support needs a replacement shell.
+- WSL needs systemd enabled (`systemd=true` in `/etc/wsl.conf`) for the systemd service.
+
+---
+
+## 25. v1 Acceptance Criteria
+
+Vigil v1 is ready when:
+
+- [ ] The supervisor runs on Windows PowerShell 5.1, Linux bash and macOS bash 3.2.
+- [ ] User-mode and system-mode installation work on all three platforms.
+- [ ] The one-line installers and the reviewed manual path work on all three platforms, verify checksums, and never overwrite `config/` or `scripts/` on upgrade.
+- [ ] `vigil uninstall` removes everything (or keeps `config/` and `scripts/` with `--keep-config`) and is idempotent.
+- [ ] A job added by dropping in a script and editing the config is scheduled without a restart.
+- [ ] The config parser behaves identically on PowerShell and bash (shared conformance suite).
+- [ ] `run_every`, `run_at` (lists) and `run_on_days` schedule correctly, including missed-run handling.
+- [ ] Runners, the extension map, `{file}` substitution and direct execution work.
+- [ ] Standard, Nagios and explicit exit-code classification work.
+- [ ] Global concurrency and overlap policies are enforced.
+- [ ] Workers survive supervisor stop and restart on all three platforms.
+- [ ] Crashed, orphaned and identity-mismatched workers are handled per §11.3.
+- [ ] `max_runtime` terminates the whole process tree on all three platforms.
+- [ ] Invalid configuration is rejected safely, at startup and on reload.
+- [ ] `env:` enforcement rejects raw secrets.
+- [ ] Each job has its own log; `jobs.log` reflects every state.
+- [ ] Job-emitted metric lines are parsed and forwarded.
+- [ ] Nagios performance data is parsed, unit-normalised and forwarded.
+- [ ] The file backend and at least the Datadog, OTLP and Splunk backends work.
+- [ ] Backend failures do not block jobs; the spool is bounded.
+- [ ] Fault-injection tests cover §22.4.
+- [ ] `init`, installation and configuration are documented.
+- [ ] Known limitations are published.
+
+Not every backend type is required for v1. Reliable scheduling and supervision come before breadth of backends.
+
+---
+
+## 26. Future Development
+
+- Bounded catch-up policies for missed runs.
+- Cron-style expressions.
+- Per-job CPU and memory limits where the OS supports them for unprivileged users.
+- Package-manager distribution (winget, Chocolatey, Homebrew, apt, dnf).
+- Signed configuration bundles and enhanced Git distribution.
+- Additional backend types.
+
+None may compromise the simplicity or reliability of the supervisor.
+
+---
+
+## 27. Success Criteria
+
+Vigil succeeds when an operator on a brand-new machine can:
+
+1. Install it with native tools and no agent.
+2. Point it at a script in any language.
+3. Set a schedule.
+4. Start the service.
+5. See every run's outcome and the script's own metrics in the backend they already use.
+6. Survive crashes and reboots without manual repair.
+7. Never think about Vigil again.
+
+---
+
+## 28. Final Principle
+
+Vigil must remain operationally boring.
+
+**Small supervisor. Independent workers. Explicit state. Predictable recovery. Observable outcomes.**
