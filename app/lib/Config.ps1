@@ -40,8 +40,10 @@ function ConvertFrom-VigilConfig {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     $result = [pscustomobject]@{
-        Entries = New-Object 'System.Collections.Generic.List[object]'
-        Errors  = New-Object 'System.Collections.Generic.List[object]'
+        Entries  = New-Object 'System.Collections.Generic.List[object]'
+        # Accepted section headers, including empty ones, in file order.
+        Sections = New-Object 'System.Collections.Generic.List[object]'
+        Errors   = New-Object 'System.Collections.Generic.List[object]'
     }
 
     $addError = {
@@ -108,6 +110,7 @@ function ConvertFrom-VigilConfig {
                 $section = $Matches[1]
                 if ($seen.Add($section)) {
                     $skipping = $false
+                    $result.Sections.Add([pscustomobject]@{ Name = $section; Line = $n })
                 }
                 else {
                     & $addError $n 'E_SECTION_DUPLICATE' "section [$section] appears more than once"

@@ -4,6 +4,8 @@
 #
 # Parses the Vigil INI dialect (SPECIFICATION.md 6.1) into parallel arrays:
 #   VIGIL_CFG_SECTION[i]  VIGIL_CFG_KEY[i]  VIGIL_CFG_VALUE[i]  VIGIL_CFG_LINE[i]
+# Accepted section headers, including empty ones, in file order:
+#   VIGIL_CFG_SEC_NAME[j]  VIGIL_CFG_SEC_LINE[j]
 # Errors are collected in VIGIL_CFG_ERRORS[i] as "<line><TAB><code><TAB><message>".
 #
 # The parser is deliberately dumb: it records every "key = value" in file
@@ -51,6 +53,8 @@ vigil_config_parse() {
     VIGIL_CFG_KEY=()
     VIGIL_CFG_VALUE=()
     VIGIL_CFG_LINE=()
+    VIGIL_CFG_SEC_NAME=()
+    VIGIL_CFG_SEC_LINE=()
     VIGIL_CFG_ERRORS=()
 
     if [ ! -f "$path" ]; then
@@ -115,6 +119,9 @@ vigil_config_parse() {
                         *)
                             seen="$seen$section"$'\n'
                             skipping=0
+                            i=${#VIGIL_CFG_SEC_NAME[@]}
+                            VIGIL_CFG_SEC_NAME[$i]=$section
+                            VIGIL_CFG_SEC_LINE[$i]=$n
                             ;;
                     esac
                 else
