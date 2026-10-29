@@ -1,0 +1,28 @@
+relative_file	program	C:\Program Files\Vigil\scripts\disk.ps1
+relative_file	cwd	C:\Program Files\Vigil
+relative_file	cmdline	
+absolute_forward_slashes	program	C:\data\check.exe
+absolute_forward_slashes	cwd	D:\work
+absolute_forward_slashes	cmdline	
+unc	program	\\fileserver\vigil\check.exe
+unc	cwd	C:\Program Files\Vigil
+unc	cmdline	
+rooted	program	\tools\check.exe
+rooted	cwd	C:\Program Files\Vigil\logs
+rooted	cmdline	
+substituted	program	sqlplus
+substituted	arg	-S
+substituted	arg	/nolog
+substituted	arg	@C:\Program Files\Vigil\sql\report.sql
+substituted	cwd	C:\Program Files\Vigil
+substituted	cmdline	"-S" "/nolog" "@C:\Program Files\Vigil\sql\report.sql"
+substituted_twice	program	C:\Program Files\Vigil\tools\wrap.exe
+substituted_twice	arg	--in=C:\Program Files\Vigil\in\data.csv
+substituted_twice	arg	--log=C:\Program Files\Vigil\in\data.csv.log
+substituted_twice	arg	--verbose
+substituted_twice	cwd	C:\Program Files\Vigil
+substituted_twice	cmdline	"--in=C:\Program Files\Vigil\in\data.csv" "--log=C:\Program Files\Vigil\in\data.csv.log" "--verbose"
+java_path_with_space	program	C:\Program Files\Java\bin\java.exe
+java_path_with_space	arg	C:\Program Files\Vigil\jobs\Export.java
+java_path_with_space	cwd	C:\Program Files\Vigil
+java_path_with_space	cmdline	"C:\Program Files\Vigil\jobs\Export.java"

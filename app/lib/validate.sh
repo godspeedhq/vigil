@@ -92,7 +92,7 @@ _vigil_val_keytype() {
         spool:max_mb) _vv_type=int1 ;;
         spool:when_full) _vv_type=when_full ;;
         runner:command) _vv_type=path ;;
-        runner:arg) _vv_type=text; _vv_list=1 ;;
+        runner:arg) _vv_type=arg; _vv_list=1 ;;
         runner:env) _vv_type=envpair; _vv_list=1 ;;
         runner:require_env) _vv_type=envnames; _vv_list=1 ;;
         backend:type) _vv_type=backend_type ;;
@@ -112,7 +112,7 @@ _vigil_val_keytype() {
             case $2 in
                 file | working_dir) _vv_type=path ;;
                 runner) _vv_type=runner_ref ;;
-                arg) _vv_type=text; _vv_list=1 ;;
+                arg) _vv_type=arg; _vv_list=1 ;;
                 metric_name) _vv_type=metric ;;
                 run_every | max_runtime) _vv_type=dur ;;
                 run_at) _vv_type=times ;;
@@ -140,14 +140,15 @@ _vigil_val_check() {
     _vv_msg=''
     _vv_warn=''
 
-    if [ -z "$value" ]; then
+    # Arguments may be empty: some tools take an empty argument (spec 6.4).
+    if [ -z "$value" ] && [ "$type" != arg ]; then
         _vv_code=E_VALUE_EMPTY
         _vv_msg="'$key' has no value"
         return
     fi
 
     case $type in
-        text | path) ;;
+        text | path | arg) ;;
         dur | dur0)
             if ! [[ $value =~ $_vigil_val_re_dur ]]; then
                 _vv_code=E_DURATION

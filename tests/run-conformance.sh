@@ -11,6 +11,12 @@
 #   tests/conformance/effective/<case>.config     input
 #   tests/conformance/effective/<case>.expected   validate dump, then
 #                                                 vigil_config_effective_dump
+#   tests/conformance/command/<case>.config       input; a name ending -windows
+#                                                 uses platform windows and root
+#                                                 C:\Program Files\Vigil, others
+#                                                 posix and /opt/vigil
+#   tests/conformance/command/<case>.expected     validate dump, then
+#                                                 vigil_job_command_dump
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -25,13 +31,15 @@ root=$(dirname "$here")
 . "$root/app/lib/validate.sh"
 # shellcheck source=../app/lib/effective.sh
 . "$root/app/lib/effective.sh"
+# shellcheck source=../app/lib/command.sh
+. "$root/app/lib/command.sh"
 
 pass=0
 fail=0
 
 printf 'bash %s\n' "$BASH_VERSION"
 
-for suite in parser validate effective; do
+for suite in parser validate effective command; do
     for cfg in "$here"/conformance/$suite/*.config; do
         name=$(basename "$cfg" .config)
         expected_file=${cfg%.config}.expected
@@ -43,6 +51,13 @@ for suite in parser validate effective; do
                 actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump) ;;
             effective)
                 actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump; vigil_config_effective_dump) ;;
+            command)
+                case $name in
+                    *-windows) platform=windows install_root='C:\Program Files\Vigil' ;;
+                    *) platform=posix install_root=/opt/vigil ;;
+                esac
+                actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump
+                         vigil_job_command_dump "$platform" "$install_root") ;;
         esac
         expected=$(cat "$expected_file")
 

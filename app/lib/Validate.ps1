@@ -106,7 +106,7 @@ function Get-VigilKeyType {
         'runner' {
             switch -CaseSensitive ($Key) {
                 'command' { $t = 'path' }
-                'arg' { $t = 'text'; $list = $true }
+                'arg' { $t = 'arg'; $list = $true }
                 'env' { $t = 'envpair'; $list = $true }
                 'require_env' { $t = 'envnames'; $list = $true }
             }
@@ -129,7 +129,7 @@ function Get-VigilKeyType {
                 'file' { $t = 'path' }
                 'working_dir' { $t = 'path' }
                 'runner' { $t = 'runner_ref' }
-                'arg' { $t = 'text'; $list = $true }
+                'arg' { $t = 'arg'; $list = $true }
                 'metric_name' { $t = 'metric' }
                 'run_every' { $t = 'dur' }
                 'max_runtime' { $t = 'dur' }
@@ -160,7 +160,8 @@ function Test-VigilValue {
     $re = $Script:VigilValRe
     $r = @{ Code = ''; Message = ''; Warn = '' }
 
-    if ($Value.Length -eq 0) {
+    # Arguments may be empty: some tools take an empty argument (spec 6.4).
+    if ($Value.Length -eq 0 -and $Type -cne 'arg') {
         $r.Code = 'E_VALUE_EMPTY'; $r.Message = "'$Key' has no value"
         return $r
     }

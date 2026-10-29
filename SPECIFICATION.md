@@ -368,9 +368,17 @@ Runner resolution, first match wins:
 2. The file extension looked up in `[runners]`.
 3. No runner: the file is executed directly (native executables, `.bat`/`.cmd` on Windows, scripts with a `#!` line and the executable bit on Linux/macOS).
 
-A file that matches nothing and cannot run directly is rejected at validation, never discovered at first run.
+A file that matches nothing and cannot run directly is rejected by pre-flight (§16.4), never discovered at first run.
 
-Arguments are passed as an argument vector, never through a shell, so no quoting is needed and no shell expansion occurs.
+**Paths.** `file`, `working_dir` and a runner `command` that contains a directory separator resolve against the install root when relative; a bare command name (`java`, `sqlplus`) is found on `PATH` when the job starts. On Windows, `/` in these paths becomes `\`, and drive (`C:\`), UNC (`\\server\`) and rooted (`\dir`) paths are absolute. Runner and job `arg` values are passed literally and never resolved. `arg` may be empty: some tools take an empty argument.
+
+**Arguments are an argument vector, never a shell command line.** No quoting is needed in the config, and no shell expansion occurs:
+
+- **Linux/macOS:** the vector is passed to the program as is.
+- **Windows** has no argument vector: every program receives one command-line string and splits it itself. Vigil builds that string by the Microsoft C runtime's rules, which most programs use, quoting every argument, and starts the job with `ProcessStartInfo` (never `& $cmd @args`, which in Windows PowerShell 5.1 drops empty arguments and does not escape embedded quotes). Quoting every argument also stops Cygwin programs from expanding `*` and `?`, which they do to unquoted arguments when started from a Windows process. Programs that split their command line by other rules may see different arguments; this is documented (§24).
+- **Batch files are the exception.** When the program is a `.bat` or `.cmd` file, `cmd.exe` parses the command line and interprets some characters even inside quotes. Arguments are then quoted only when they contain a space or tab or are empty, and an argument or batch file path containing `"`, `%`, `!`, `&`, `|`, `<`, `>` or `^` makes the job invalid (`E_BATCH_ARG`, `E_BATCH_PATH`). Such values are rejected, never escaped: no escaping for `cmd.exe` is reliable. Wrap the work in a PowerShell script or executable instead.
+
+The encoding is verified on every change: `tests/Test-CommandLineRoundTrip.ps1` parses each generated command line back with Windows' `CommandLineToArgvW` and requires the original vector exactly.
 
 ### 6.5 Secrets
 
@@ -1441,6 +1449,7 @@ Each invariant has a documented enforcement mechanism and regression tests.
 - `queue_one` pending runs are lost on supervisor restart.
 - Processes that deliberately escape their process group or tree may survive termination.
 - Cygwin emulates fork/exec; Windows parent/child links may differ from Cygwin's, so tree termination of Cygwin jobs needs its own verification.
+- On Windows, a program that splits its command line by rules other than the Microsoft C runtime's may receive different arguments from those configured. Batch files reject arguments containing `cmd.exe` metacharacters (§6.4).
 - bash on Linux/macOS has no portable monotonic clock; elapsed time may be affected by clock changes.
 - Process start time is unavailable or coarse on some platforms; identity then relies on the run id, the run token and PID plus name.
 - Ownership guarantees differ by platform (§11.2). Linux and macOS: the run token identifies the worker and every job process that inherited it. Windows: the run token proves the worker is alive but not which process it is, and job processes are tracked by recorded identity only. A job process that closes inherited files escapes token tracking on every platform.

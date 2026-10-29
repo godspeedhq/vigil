@@ -14,6 +14,12 @@
       tests/conformance/effective/<case>.config     input
       tests/conformance/effective/<case>.expected   validation dump, then
                                                     Format-VigilEffectiveDump
+      tests/conformance/command/<case>.config       input; a name ending -windows
+                                                    uses platform windows and root
+                                                    C:\Program Files\Vigil, others
+                                                    posix and /opt/vigil
+      tests/conformance/command/<case>.expected     validation dump, then
+                                                    Format-VigilCommandDump
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -24,13 +30,14 @@ $root = Split-Path -Parent $here
 . (Join-Path $root 'app\lib\Config.ps1')
 . (Join-Path $root 'app\lib\Validate.ps1')
 . (Join-Path $root 'app\lib\Effective.ps1')
+. (Join-Path $root 'app\lib\Command.ps1')
 
 $pass = 0
 $fail = 0
 
 Write-Host "PowerShell $($PSVersionTable.PSVersion)"
 
-foreach ($suite in @('parser', 'validate', 'effective')) {
+foreach ($suite in @('parser', 'validate', 'effective', 'command')) {
     $cases = Get-ChildItem -LiteralPath (Join-Path $here "conformance\$suite") -Filter '*.config' |
         Sort-Object Name
 
@@ -47,6 +54,11 @@ foreach ($suite in @('parser', 'validate', 'effective')) {
             $actual = Format-VigilValidationDump -Parsed $parsed -Records $records
             if ($suite -eq 'effective') {
                 $actual += Format-VigilEffectiveDump -Parsed $parsed -Records $records
+            }
+            elseif ($suite -eq 'command') {
+                if ($name.EndsWith('-windows')) { $platform = 'windows'; $installRoot = 'C:\Program Files\Vigil' }
+                else { $platform = 'posix'; $installRoot = '/opt/vigil' }
+                $actual += Format-VigilCommandDump -Parsed $parsed -Records $records -Platform $platform -Root $installRoot
             }
         }
         $expected = [System.IO.File]::ReadAllText($expectedPath)

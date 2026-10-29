@@ -17,7 +17,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: bash version
         run: /bin/bash --version | head -1
       - name: conformance (/bin/bash)
@@ -26,7 +26,7 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: conformance (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/Run-Conformance.ps1
@@ -36,3 +36,6 @@ jobs:
       - name: conformance (Git Bash)
         shell: bash
         run: bash tests/run-conformance.sh
+      - name: command-line round trip (CommandLineToArgvW)
+        shell: powershell
+        run: ./tests/Test-CommandLineRoundTrip.ps1
