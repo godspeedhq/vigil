@@ -267,7 +267,7 @@ Rules:
 - `[section]` and `[section.name]` headers.
 - A line starting with `#` or `;` is a comment. There are no inline comments; `#` inside a value is literal.
 - No quoting, no escaping, no variable expansion. Values are literal. The only substitution is the `{file}` token in runner arguments (§6.4).
-- Repeating a key appends to a list (used for `arg` and `env`).
+- Repeating a key appends to a list (used for `arg`, `env`, `tag` and `require_env`).
 - Lists inside one value are comma-separated.
 - Durations: `30s`, `5m`, `2h`, `7d`. There are no months; `m` is always minutes.
 - Times: `HH:MM`, 24-hour, local wall-clock.
@@ -292,7 +292,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `[backend.<name>]` | One metrics destination (§15). |
 | `[runner.<name>]` | A reusable command prefix (§6.4). |
 | `[runners]` | File extension → runner map (§6.4). |
-| `[defaults]` | Default values for job keys. |
+| `[defaults]` | Default values for overridable job keys (§6.6). |
 | `[job.<id>]` | One scheduled job (§6.3). |
 
 ### 6.3 Job Definition
@@ -313,6 +313,14 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `enabled` | No | `false` keeps the job defined but unscheduled. Default `true`. |
 | `on_uncertain` | No | `wait` (default) or `replace`: what to do when a previous run's liveness cannot be established (§11.4). |
 | `backends` | No | Comma-separated backend names. Default: all enabled backends. |
+| `tag` | No | Extra metric tag, `key=value`. Repeat per tag. Merged with `[tags]` (§14.6). |
+| `env` | No | Environment variable for the job, `NAME=value`, literal. Repeat per variable. Merged with the runner's `env`. Never a secret. |
+| `require_env` | No | Comma-separated variables that must exist before the job may start. Combined with the runner's `require_env`. |
+| `late_start_window` | No | Overrides `[scheduler] late_start_window` for this job (§7.7). |
+| `log_retain_days` | No | Overrides `[log] retain_days` for this job's log (§13.1). |
+| `working_dir` | No | Working directory of the job process. Default: the install root. |
+
+Where each key may also be set, and which value wins, is defined in §6.6.
 
 The job id (`[job.<id>]`) names the state file, the log folder and the `job` tag. Ids are restricted to `[a-z0-9_]`. Ids starting with `vigil_` are reserved for Vigil's own workers (such as `vigil_sender`).
 
@@ -360,9 +368,54 @@ Credential keys (`api_key`, `token`, `username`, `password`, `*_secret`, `*_key`
 
 Vigil reads the variable only at the moment it needs it, and never logs it, persists it, writes it to the spool or passes it on a command line. On Linux/macOS secrets are passed to curl on stdin (`curl -K -`), never as arguments. Secrets go in headers, never URL query strings.
 
-Jobs receive the service environment. Job tools that need credentials should use their own credential store (Windows integrated auth, pgpass, MySQL option files, Oracle Wallet) or a wrapper script that reads environment variables. Credentials should not be placed on a job's command line, where other users can see them in the process list.
+Jobs receive the service environment, plus the literal `env` entries of their runner and job (§6.6). An `env` entry whose value starts with `env:` is a validation error: `env` values are literal, and the job already inherits the variable it names. Job tools that need credentials should use their own credential store (Windows integrated auth, pgpass, MySQL option files, Oracle Wallet) or a wrapper script that reads environment variables. Credentials should not be placed on a job's command line, where other users can see them in the process list.
 
-### 6.6 Example
+### 6.6 Precedence and Overrides
+
+A setting that describes how a job runs can be set on the job, in `[defaults]`, or left to its built-in default. A setting that describes the host or Vigil itself is global only.
+
+For a single-valued key the first value found wins, in this order:
+
+1. The job (`[job.<id>]`).
+2. The key's global source: `[defaults]`, or the section named below.
+3. The built-in default.
+
+| Job key | Global source | When both are set |
+| --- | --- | --- |
+| `runner` | `[runners]` extension map | Job wins |
+| `max_runtime`, `grace`, `overlap`, `exit_codes`, `on_uncertain`, `backends`, `enabled`, `working_dir` | `[defaults]` | Job wins |
+| `late_start_window` | `[defaults]`, then `[scheduler]` | Job wins |
+| `log_retain_days` | `[defaults]`, then `[log] retain_days` | Job wins |
+| `tag` | `[tags]` | Merged by key; the job's value wins on a clash |
+| `env` | The resolved runner's `env` | Merged by name; the job's value wins on a clash |
+| `require_env` | The resolved runner's `require_env` | Combined |
+
+Rules:
+
+- `backends` replaces the global choice; it is not merged. A job that lists backends sends only to those.
+- Job-only keys may not appear in `[defaults]`: `file`, `arg`, `metric_name`, `run_every`, `run_at`, `run_on_days`, `runner`, `tag`, `env` and `require_env`. A default schedule would silently schedule every job that forgot its own; a default runner, tag or environment belongs in `[runners]`, `[tags]` or a runner. Setting one is a validation error.
+- Global-only settings cannot be set on a job: `[vigil]` (instance, state directory, `max_concurrent`), `[scheduler]` `tick` and `max_pending`, `[log]` `dir`, `stdout` and `max_file_mb`, `[spool]` and the `[backend.*]` definitions. A job chooses *which* backends receive its metrics, not how they connect.
+- In `env` and `tag`, a repeated name within the same section is a validation error; repeating one across layers is an override.
+- Relative `working_dir` paths resolve against the install root; the directory must exist (checked by pre-flight).
+
+`vigil precheck <job>` prints a job's effective settings and where each came from:
+
+```text
+job.legacy_export
+  runner            = java8                  (job)
+  max_runtime       = 2h                     (job)
+  grace             = 30s                    (defaults)
+  overlap           = skip                   (built-in)
+  late_start_window = 3h                     (job)
+  log_retain_days   = 7                      (log)
+  working_dir       = C:\ProgramData\Vigil   (built-in)
+  tag               = team=dba               (tags)
+  tag               = database=SYBPROD       (job)
+  env               = JAVA_TOOL_OPTIONS=-Xmx4g       (job)
+  require_env       = SYBASE                 (runner)
+```
+
+### 6.7 Example
 
 A complete annotated example, converted from the original Sybase configuration and extended with industry examples, is maintained in the repository as the reference mock configuration.
 
@@ -418,7 +471,7 @@ A job seen for the first time runs at its next scheduled time, never immediately
 
 The default and only v1 missed-run policy is skip. If the supervisor was down when a run was due:
 
-- If it returns within `late_start_window` (default `15m`) of the scheduled time, the run fires.
+- If it returns within `late_start_window` (default `15m`, overridable per job; §6.6) of the scheduled time, the run fires.
 - Otherwise the run is recorded as missed and the job waits for its next scheduled time.
 
 A restart never triggers a backlog of historical runs (VIGIL-008).
@@ -727,7 +780,7 @@ The supervisor holds `state/supervisor.lock` open for its whole life, the same w
 - **Job log:** one daily file per job, containing lifecycle events plus the job's captured stdout and stderr.
 - **stdout mirroring:** optional, so service managers (NSSM, journald, launchd) capture the supervisor's output.
 
-Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014).
+Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014). A job may keep its own log for a different number of days with `log_retain_days` (§6.6); the size cap is global.
 
 ### 13.2 Status File
 
@@ -859,6 +912,7 @@ Every metric carries the `[tags]` section plus automatic tags: `host`, `os`, `in
 - Keys: `[a-z0-9_]+`. Values: any text without spaces.
 - Reserved keys, set only by Vigil: `host`, `os`, `instance`, `job`, `label`, `uom`, `exit_code`. Declaring one is a validation error.
 - Tags are static per host, so adding more does not multiply the number of series in the backend.
+- A job adds or overrides tags for its own metrics with repeatable `tag = key=value` lines (§6.6), under the same key, value and reserved-key rules. A metric line's own tags (§14.3) override both, except reserved keys.
 - Some backends cap the number of tags (dimensions) per metric — Azure Monitor custom metrics allow 10 and CloudWatch 30, counting Vigil's automatic tags. Validation warns when an enabled backend's cap would be exceeded; the backend's own documentation is authoritative for current limits.
 
 ---
@@ -954,7 +1008,10 @@ Before install or start, and on demand, Vigil checks without starting anything:
 - Every `env:` and `require_env` variable is set (names only are printed).
 - Every job file exists and is runnable through its resolved runner.
 - Every runner `command` exists.
+- Every job `working_dir` exists.
 - State, log and spool directories are writable.
+
+`vigil precheck <job>` also prints that job's effective settings and their sources (§6.6).
 
 Install and start abort with no changes if any check fails.
 
@@ -1022,7 +1079,7 @@ Each service manager is configured so stopping the service stops only the superv
 | Command | Purpose |
 | --- | --- |
 | `init` | Onboarding (§19). |
-| `precheck` | Pre-flight checks (§16.4). |
+| `precheck [<job>]` | Pre-flight checks (§16.4); with a job, also its effective settings (§6.6). |
 | `service install` / `service remove` | Register or unregister the service without touching files (for example to switch mode). |
 | `start` / `stop` / `restart` | Service control. Stop leaves workers running. |
 | `status` | Print `jobs.log`. |
@@ -1295,6 +1352,7 @@ Vigil v1 is ready when:
 - [ ] The config parser behaves identically on PowerShell and bash (shared conformance suite).
 - [ ] `run_every`, `run_at` (lists) and `run_on_days` schedule correctly, including missed-run handling.
 - [ ] Runners, the extension map, `{file}` substitution and direct execution work.
+- [ ] Per-job overrides follow §6.6 identically on PowerShell and bash, and `vigil precheck <job>` shows each effective value's source.
 - [ ] Standard, Nagios and explicit exit-code classification work.
 - [ ] Global concurrency and overlap policies are enforced.
 - [ ] Workers survive supervisor stop and restart on all three platforms.
