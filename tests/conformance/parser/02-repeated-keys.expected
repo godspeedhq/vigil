@@ -1,0 +1,5 @@
+runner.ps	command	powershell.exe
+runner.ps	arg	-NoProfile
+runner.ps	arg	-File
+runner.ps	env	A=1
+runner.ps	env	B=2

@@ -1,0 +1,14 @@
+# Line endings are pinned so a Windows checkout (core.autocrlf=true) can never
+# turn bash scripts into CRLF files that fail with "$'\r': command not found".
+* text=auto eol=lf
+
+# cmd.exe needs CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Conformance fixtures are compared byte for byte, and some deliberately
+# contain CRLF or a BOM - never let git touch them.
+tests/conformance/**/*.config  -text
+tests/conformance/**/*.expected -text
+
+*.exe binary

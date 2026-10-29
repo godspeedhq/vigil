@@ -1,0 +1,5 @@
+vigil	instance	sybase-windows
+vigil	max_concurrent	5
+scheduler	tick	60s
+scheduler	late_start_window	15m
+scheduler	empty_value	

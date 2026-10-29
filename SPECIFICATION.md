@@ -588,11 +588,12 @@ Relative paths in the config resolve against the root (§6.1). The state, spool 
 
 ### 12.2 Format
 
-State files use the same `key = value` format as the configuration, read by the same parser on every platform. JSON is not used: writing it from bash is easy, but the bash supervisor must also *read* every state file each tick, and bash has no native JSON parser. The original system's JSON state worked because it was PowerShell-only.
+State files use the same `key = value` format as the configuration, with a single `[state]` section, so the same parser reads both on every platform with no special mode. JSON is not used: writing it from bash is easy, but the bash supervisor must also *read* every state file each tick, and bash has no native JSON parser. The original system's JSON state worked because it was PowerShell-only.
 
 Example of a completed run:
 
 ```ini
+[state]
 schema_version   = 1
 job              = dump_databases
 run_id           = 20261029T200000Z-4821
