@@ -135,9 +135,24 @@ The scheduling logic inside the supervisor. It decides, per tick, whether each j
 
 ### 4.3 Worker
 
-One worker process per job run. The supervisor generates a unique run id before starting the worker and passes it on the worker's command line (`--run-id`) and in the environment (`VIGIL_RUN_ID`). The worker:
+One worker process per job run.
 
-1. Opens its run token, `state/locks/<job id>.<run id>.token`, and holds it open for its whole life (§11.2).
+**Launch.** Evidence of a run must exist before its process does, so a supervisor that crashes mid-launch can never mistake a started worker for a job that never ran. The supervisor:
+
+1. Generates a unique run id.
+2. Writes a launch record, `state/locks/<job id>.<run id>.launch` (`[launch]` section: job, run id, boot id, scheduled and launch times), atomically.
+3. Only then starts the worker, passing the run id on its command line (`--run-id`) and in the environment (`VIGIL_RUN_ID`).
+
+**Claim.** The worker takes ownership of the run by claiming the launch record, an operation that can succeed for exactly one party (§11.2):
+
+- **Linux/macOS:** open the launch record, then rename it to `<job id>.<run id>.token`. The open descriptor follows the file, so it is held under its new name without a gap.
+- **Windows:** open the launch record exclusively, create and exclusively hold `<job id>.<run id>.token`, then close and delete the launch record — hand over hand, so one of the two is held at every moment.
+
+If the claim fails because the launch record is gone, the supervisor has abandoned the launch (§11.3): the worker exits at once **without running the job**.
+
+The worker then:
+
+1. Holds its run token open for its whole life (§11.2).
 2. Writes its own state file: `status=running` with its identity, the boot id and its deadline (§11.1).
 3. Starts the job through its runner (§6.4). The job inherits `VIGIL_RUN_ID` and, on Linux/macOS, the open run token.
 4. Records the identity of the job process it started.
@@ -177,7 +192,14 @@ Workers never talk to backends. A worker writes its run's metric events to one s
 - Only one sender runs at a time. It has a fixed internal `max_runtime` of 5 minutes.
 - Like every worker, it keeps running if the supervisor stops, and is never started while the supervisor is down.
 
-**Fan-out.** The sender moves each incoming file into `spool/backends/<name>/` for every enabled backend that should receive it (respecting each job's `backends` key), then deletes the incoming file.
+**Fan-out.** The sender copies each incoming file into `spool/backends/<name>/` for every enabled backend that should receive it (respecting each job's `backends` key). An interrupted fan-out must never silently lose a destination, so it follows a write-ahead protocol:
+
+1. **Claim:** rename `incoming/<f>` to `fanout/<f>` (atomic).
+2. **Fix the targets:** write `fanout/<f>.targets`, the list of destination backends, atomically. A resumed fan-out uses this list, never the current configuration, so a reload in between cannot change where events go.
+3. **Place, per target:** copy to a temporary name in `backends/<name>/`, rename it into place, then create the empty marker `fanout/<f>.<name>.done`.
+4. **Retire:** once every target has its marker, delete `fanout/<f>`, then the targets file and markers.
+
+On every sender start, unfinished fan-outs in `fanout/` are resumed before new incoming files are taken: targets with a marker are skipped, the rest are placed. A target whose backend has since been removed or disabled is dropped and counted in `vigil.spool.dropped` with `reason=backend_removed`, never silently. A crash between placing a copy and writing its marker places it again: a possible duplicate, consistent with at-least-once delivery, never a loss. A crash mid-copy leaves only a temporary file, which is never sent and is deleted on resume. Copies, not links, are used: event files are small, and copies keep size accounting exact on every filesystem.
 
 **Delivery.** For each backend in turn, the sender:
 
@@ -582,7 +604,8 @@ Each run leaves several independent pieces of evidence. Losing one does not lose
 | --- | --- | --- |
 | **State file** | `state/jobs/<job id>.state` | What the worker last recorded: run id, PIDs, names, start times, boot id, deadline. Useful, but only as trustworthy as the file. |
 | **Boot id** | In the state file; compared with the running system's | A run recorded during a previous boot is certainly over — every process in it died with the reboot. |
-| **Run token** | `state/locks/<job id>.<run id>.token`, held open by the worker | Held open means alive. The OS releases it however the process dies, so a token that exists but is not held proves nothing is using it. |
+| **Launch record** | `state/locks/<job id>.<run id>.launch`, written by the supervisor before the worker starts | A run was launched. Until it is claimed, the run is *launching*: it may be starting, so the job is held (§11.3). |
+| **Run token** | `state/locks/<job id>.<run id>.token`, created by the worker's claim and held open by it | Held open means alive. The OS releases it however the process dies, so a token that exists but is not held proves its worker has gone. |
 | **Run id on the command line** | The worker's `--run-id` argument | A process whose command line carries this run id is this run's worker. A reused PID belongs to a process with a different command line, so it can never match. |
 | **Run id in the environment** | `VIGIL_RUN_ID`, inherited by the job's processes | Ties the job's processes (sqlcmd, java, …) to the run, even after the worker has died. |
 | **Process identity** | PID + process name + start time | Supporting evidence; never sufficient alone (VIGIL-007). |
@@ -602,6 +625,15 @@ The resulting guarantees are deliberately not conflated:
 
 - **Linux and macOS:** the token identifies the worker and every job process that inherited it, so "worker dead, psql still running" is visible without knowing psql's PID. A job process that deliberately closes inherited files (a self-daemonising program) escapes this and is tracked only by its recorded identity.
 - **Windows:** the token proves the worker is alive but does not name it, and something else (antivirus, backup software) briefly opening the file reads as "held" — a conservative error. The job's processes are tracked by their recorded identity plus the worker's command line.
+
+**Claim and abandonment are a single race with one winner.** The worker's claim and the supervisor's abandonment act on the same launch record, and the filesystem lets only one succeed:
+
+| Platform | Worker claims | Supervisor abandons | Why only one wins |
+| --- | --- | --- | --- |
+| Linux/macOS | rename `.launch` → `.token` (after opening it) | rename `.launch` → `.abandoned` | `rename` of a name that no longer exists fails |
+| Windows | exclusive open of `.launch` | delete `.launch` | Deleting a file held exclusively fails; opening a deleted file fails |
+
+A worker that loses exits without running the job. A supervisor that loses treats the run as Alive.
 
 ### 11.3 Recovery Decisions
 
@@ -630,11 +662,23 @@ Applying the table to damaged or absent state:
 | **Missing** | Nothing held, nothing running | New job (§7.6). |
 | Any | Probes fail or conflict | Uncertain |
 
-When the state file is unreadable or missing, the run id is recovered from the token file names and the spool file names for that job. The process scan for a job's run id is only done in these rare cases, not every tick.
+**Launching runs.** A launch record is checked before anything else, whatever the state file says — this is what stops a restarted supervisor from mistaking a just-started worker for a job that never ran:
+
+| Launch record | Evidence | Conclusion |
+| --- | --- | --- |
+| Present, held (worker is claiming) | — | Alive |
+| Present, not held, younger than the launch grace (120 seconds) | — | Launching: hold the job, start nothing |
+| Present, not held, older than the grace | A process carries the run id | Launching: the worker is slow; keep holding |
+| Present, not held, older than the grace | No process carries the run id | Abandon (§11.2). If the supervisor wins, the run never started: record it, post `<m>.abandoned_launches`, and treat the scheduled time under §7.7. If it loses, Alive. |
+| Present, from a previous boot | — | Abandon immediately: nothing from that boot can claim it |
+
+An abandoned launch is not a crash and not a failure: the job never ran. `<m>.abandoned_launches` makes a repeated launch problem visible.
+
+When the state file is unreadable or missing, the run id is recovered from the launch, token and spool file names for that job. The process scan for a run id is only done in these cases and for launch records past their grace, not every tick.
 
 **Quarantine.** An unreadable state file is moved to `state/quarantine/<job id>.<epoch>.state` only once the run is concluded Finished or Crashed, never while it might be alive. Quarantine follows the log retention limit. Corruption is always recorded: `<m>.state_corrupt` and a `jobs.log` entry.
 
-**Stale tokens.** A token file that exists but is not held is left behind by a worker that was killed. It is deleted once the run is concluded.
+**Stale tokens.** A run token that exists but is not held was left behind by a claimed worker that was killed. It is deleted once the run is concluded. An `.abandoned` file is deleted at once; a launch record that is not held is never "stale" — it is handled as a launching run above.
 
 ### 11.4 Uncertain Runs
 
@@ -714,11 +758,13 @@ Everything lives under one install root (§18.6 gives the root per platform):
     supervisor.lock               held open by the live supervisor
     jobs/<job id>.state
     jobs/vigil_sender.state
-    locks/<job id>.<run id>.token held open by the live worker
+    locks/<job id>.<run id>.launch  written by the supervisor before the worker starts
+    locks/<job id>.<run id>.token held open by the live worker after its claim
     quarantine/<job id>.<epoch>.state   unreadable state, kept as evidence
     recovery/<job id>.recovery    supervisor-owned record of a held job (§11.4)
   spool/
     incoming/<epoch>-<job id>-<run id>.events
+    fanout/<file>, <file>.targets, <file>.<backend>.done   fan-out in progress (§4.5)
     backends/<backend name>/<same file names>
   logs/
     supervisor/yyyy-MM-dd.log
@@ -845,6 +891,7 @@ Posted for each job under its `metric_name`:
 | `<m>.failures` | count | Run failed or unknown. Tagged `exit_code`. |
 | `<m>.timeouts` | count | `max_runtime` exceeded. |
 | `<m>.crashes` | count | Worker vanished without a final state. |
+| `<m>.abandoned_launches` | count | A launched worker never claimed its run; the job did not run (§11.3). |
 | `<m>.uncertain` | gauge | `1` every tick while a run's liveness cannot be established (§11.4). |
 | `<m>.possible_duplicates` | count | A run started under `on_uncertain = replace`. |
 | `<m>.state_corrupt` | count | The job's state file was unreadable. |
@@ -1031,6 +1078,7 @@ Before install or start, and on demand, Vigil checks without starting anything:
 - Every job file exists and is runnable through its resolved runner.
 - Every runner `command` exists.
 - Every job `working_dir` exists.
+- `VIGIL_FAULT` is not set (§22.4.1).
 - State, log and spool directories are writable.
 
 `vigil precheck <job>` also prints that job's effective settings and their sources (§6.6).
@@ -1279,6 +1327,30 @@ State and ownership (§11) — each test must show the run was protected or corr
 18. Confirm `on_uncertain = manual` keeps the job held after the evidence clears, until `vigil resolve`.
 19. Restart the supervisor while a job is held; it stays held from its recovery record.
 
+Launch window (§4.3, §11.3) — the invariant is *exactly one run per launch, or none, never two*:
+
+20. Crash the supervisor at `launch.after_record` (record written, worker not started); after restart the launch is abandoned past its grace and the job is not run twice.
+21. Crash the supervisor at `launch.after_spawn`; the worker claims, and the restarted supervisor sees it Alive and starts nothing.
+22. Delay the worker past the launch grace before it claims (`worker.before_claim` with a pause); the supervisor abandons, and the late worker exits without running the job.
+23. Run claim against abandonment concurrently, at least 1,000 iterations per platform; exactly one side wins every time.
+24. Leave a launch record from a previous boot; it is abandoned immediately.
+
+Fan-out (§4.5) — the invariant is *every event reaches every one of its targets at least once; no partial file is ever sent*:
+
+25. Crash the sender at `fanout.after_claim`, `fanout.after_targets`, after each placement (`fanout.after_place:N`) and at `fanout.before_retire`; after restart every target holds every event.
+26. Crash mid-copy; the temporary file is never sent and is cleaned up on resume.
+27. Remove a backend from the config between a crash and the resume; the drop is counted with `reason=backend_removed`.
+28. Fill the disk part-way through a fan-out; the incoming file is not retired and the fan-out completes once space returns.
+29. Randomised crash loop over all launch and fan-out crash points, per platform, checked against both invariants.
+
+### 22.4.1 Crash Points
+
+Timed kills cannot reliably land inside windows that last microseconds on three operating systems, so the code carries named crash points. When the environment variable `VIGIL_FAULT` names a point (for example `fanout.after_place:2`), the process exits immediately with code 99 when it reaches it.
+
+Points: `launch.after_record`, `launch.after_spawn`, `worker.before_claim`, `worker.after_claim`, `worker.after_spool`, `worker.after_state`, `fanout.after_claim`, `fanout.after_targets`, `fanout.after_place:N`, `fanout.before_retire`, `sender.after_send`, `state.after_temp` (temporary file written, not yet renamed).
+
+A crash point only ever makes Vigil's own process exit; it cannot change behaviour otherwise. The supervisor logs a warning at startup and pre-flight fails if `VIGIL_FAULT` is set in the service environment, so it cannot be left on in production by accident.
+
 ### 22.5 Platform Matrix
 
 A pass on one platform is never evidence for another. The v1 matrix:
@@ -1337,7 +1409,7 @@ Every result records Vigil version, OS and version, shell version, test id, resu
 
 **VIGIL-017 — Workers Outlive the Supervisor.** Stopping or restarting the supervisor never terminates running workers, except through `vigil uninstall`.
 
-**VIGIL-018 — Conservative Orphan Recovery.** Loss or corruption of state never, by itself, authorises terminating or replacing a potentially active run. Liveness and ownership are established from independent evidence first; when they cannot be, the work is preserved, conflicting runs are deferred and the uncertainty is reported.
+**VIGIL-018 — Conservative Orphan Recovery.** Loss or corruption of state never, by itself, authorises terminating or replacing a potentially active run. Liveness and ownership are established from independent evidence first; when they cannot be, the work is preserved, conflicting runs are deferred and the uncertainty is reported. Evidence of a run is written before its worker starts, so no crash can leave a running worker with no trace.
 
 Each invariant has a documented enforcement mechanism and regression tests.
 
@@ -1389,6 +1461,9 @@ Vigil v1 is ready when:
 - [ ] A live run is recognised from its run token and run id alone, with its state file deleted or corrupted.
 - [ ] A finished run whose final state was lost is reconciled from its spool file.
 - [ ] A reboot is recognised from the boot id and all prior runs are concluded.
+- [ ] A supervisor crash at any point of a launch never produces two runs; a worker that loses its claim never runs the job.
+- [ ] An interrupted fan-out never loses a destination or sends a partial file; every drop is counted.
+- [ ] The crash points of §22.4.1 drive the launch and fan-out tests on every platform.
 - [ ] Uncertain runs are held, reported every tick, resolvable by `vigil resolve`, and never killed; a held job stays held across supervisor restarts.
 - [ ] The supervisor never writes a state file whose worker may still be alive; it takes over writing only after proving the worker can no longer write.
 - [ ] `on_uncertain` `wait`, `replace` and `manual` behave per §11.4.
