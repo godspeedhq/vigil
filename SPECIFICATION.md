@@ -141,16 +141,19 @@ The scheduling logic inside the supervisor. It decides, per tick, whether each j
 
 ### 4.3 Worker
 
-One worker process per job run. The worker:
+One worker process per job run. The supervisor generates a unique run id before starting the worker and passes it on the worker's command line (`--run-id`) and in the environment (`VIGIL_RUN_ID`). The worker:
 
-1. Writes its own state file: `status=running` with its identity (§11).
-2. Starts the job through its runner (§6.4).
-3. Records the identity of the job process it started.
-4. Captures the job's stdout and stderr to the job log, parsing metric lines (§14.3) and, for Nagios jobs, performance data (§14.4).
-5. Classifies the outcome from the exit code (§10).
-6. Writes its final state.
-7. Writes outcome metric events to the spool.
-8. Exits.
+1. Opens its run token, `state/locks/<job id>.<run id>.token`, and holds it open for its whole life (§11.2).
+2. Writes its own state file: `status=running` with its identity, the boot id and its deadline (§11.1).
+3. Starts the job through its runner (§6.4). The job inherits `VIGIL_RUN_ID` and, on Linux/macOS, the open run token.
+4. Records the identity of the job process it started.
+5. Captures the job's stdout and stderr to the job log, parsing metric lines (§14.3) and, for Nagios jobs, performance data (§14.4).
+6. Classifies the outcome from the exit code (§10).
+7. Writes the run's events, including its outcome, to the spool.
+8. Writes its final state.
+9. Closes and deletes its run token, and exits.
+
+Step 7 comes before step 8 on purpose: if the final state cannot be written, the spool file still proves how the run ended (§11.3).
 
 Workers are independent OS processes, not threads or child jobs of the supervisor. **Stopping or crashing the supervisor does not stop running workers.** A worker that finishes while the supervisor is down still records its outcome; the supervisor reads it when it returns.
 
@@ -308,6 +311,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `overlap` | No | `skip` (default) or `queue_one`. |
 | `exit_codes` | No | `standard` (default), `nagios` or a success list such as `0-7`. |
 | `enabled` | No | `false` keeps the job defined but unscheduled. Default `true`. |
+| `on_uncertain` | No | `wait` (default) or `replace`: what to do when a previous run's liveness cannot be established (§11.4). |
 | `backends` | No | Comma-separated backend names. Default: all enabled backends. |
 
 The job id (`[job.<id>]`) names the state file, the log folder and the `job` tag. Ids are restricted to `[a-z0-9_]`. Ids starting with `vigil_` are reserved for Vigil's own workers (such as `vigil_sender`).
@@ -473,6 +477,8 @@ waiting --> pending --> running --+--> succeeded
 
 `skipped`, `missed`, `invalid_config` and `file_missing` are recorded events, not run states.
 
+`uncertain` is the supervisor's assessment of a run whose liveness it cannot establish (§11.3). It is reported, never written into the state file of a run that may still be live.
+
 ### 10.2 Exit Code Classification
 
 | `exit_codes` | Succeeded | Warning | Failed | Unknown |
@@ -512,47 +518,109 @@ Service managers are configured not to kill the worker process tree on stop (§1
 
 ## 11. Process Identity and Recovery
 
-### 11.1 Recorded Identity
+**State is evidence, not authority over a process.** A corrupt or missing state file is a metadata failure. It is never, by itself, proof that a run has ended, and never, by itself, a reason to kill or replace anything (VIGIL-018).
 
-Each running state file records:
+Vigil keeps two separate concerns apart:
 
-- Worker PID, process name and process start time.
-- Job process PID, process name and start time (the runner or executable the worker started).
-- Job id, run id and scheduled time.
-- Vigil instance name.
+- **State recovery** — repairing or replacing unreadable run metadata.
+- **Run recovery** — deciding whether a run is alive, finished or safe to replace.
 
-### 11.2 Liveness
+Recovering the state never implies the run has been recovered. Deleting a state file terminates nothing.
 
-A recorded process is considered alive only if a process with that PID exists **and** its name matches **and**, where the platform exposes it, its start time matches. Start time is read natively: `Get-Process` on Windows, `/proc/<pid>/stat` on Linux, `ps -o lstart` on macOS.
+### 11.1 Evidence
 
-Matching on PID alone is not allowed (VIGIL-007). The name and start-time check prevents a reused PID — common after a reboot — from being mistaken for a live job.
+Each run leaves several independent pieces of evidence. Losing one does not lose the others.
 
-### 11.3 Recovery Cases
-
-Evaluated by the supervisor each tick from the state file:
-
-| State file says | Observed | Action |
+| Evidence | Where | What it proves |
 | --- | --- | --- |
-| `running` | Worker alive | Post `.running`; enforce `max_runtime` if set. |
-| `running` | Worker gone, job process alive | Do not respawn. Report `orphaned`. Treat the job as still running until the job process exits; enforce `max_runtime` against it if set. |
-| `running` | Worker and job process gone | Record `crashed`, post the crash metric, schedule normally (§7.7). |
-| `running` | Identity cannot be confirmed | Report the uncertainty; do not kill; do not respawn. |
-| terminal state | — | Schedule normally. |
-| missing | — | New job (§7.6). |
-| unreadable | — | Report corrupt state; do not run the job until resolved. |
+| **State file** | `state/jobs/<job id>.state` | What the worker last recorded: run id, PIDs, names, start times, boot id, deadline. Useful, but only as trustworthy as the file. |
+| **Boot id** | In the state file; compared with the running system's | A run recorded during a previous boot is certainly over — every process in it died with the reboot. |
+| **Run token** | `state/locks/<job id>.<run id>.token`, held open by the worker | Held open means alive. The OS releases it however the process dies, so a token that exists but is not held proves nothing is using it. |
+| **Run id on the command line** | The worker's `--run-id` argument | A process whose command line carries this run id is this run's worker. A reused PID belongs to a process with a different command line, so it can never match. |
+| **Run id in the environment** | `VIGIL_RUN_ID`, inherited by the job's processes | Ties the job's processes (isql, java, …) to the run, even after the worker has died. |
+| **Process identity** | PID + process name + start time | Supporting evidence; never sufficient alone (VIGIL-007). |
+| **Spool file** | `spool/…-<job id>-<run id>.events`, written before the final state | The run finished, and how — even if its final state was never written. |
 
-The second row prevents duplicate runs: if a worker dies while its isql dump is still running, a second dump is not started.
+Boot id sources: `/proc/sys/kernel/random/boot_id` on Linux, `sysctl kern.boottime` on macOS, the last boot time on Windows.
 
-A recovered supervisor never assumes a run succeeded without a final state written by its worker (VIGIL-006).
+### 11.2 How Evidence Is Read
 
-### 11.4 Process-Tree Termination
+| Platform | Run token | Run id on command line | Run id in environment | Start time |
+| --- | --- | --- | --- | --- |
+| Linux | `/proc/<pid>/fd` links to the token: names the exact holder, worker or inherited child | `/proc/<pid>/cmdline` | `/proc/<pid>/environ` (own processes) | `/proc/<pid>/stat` |
+| macOS | `lsof -t <token>` lists every holder, worker or inherited child | `ps -o args= -p <pid>` | not relied on | `ps -o lstart= -p <pid>` |
+| Windows | An exclusive open fails while the worker holds it; the job's processes do not inherit it | Process `CommandLine` | not relied on | `Get-Process` `StartTime` |
 
-Used only for `max_runtime` and explicit teardown.
+The resulting guarantees are deliberately not conflated:
 
-- **Windows:** `taskkill /T /F` against the identity-checked job process.
+- **Linux and macOS:** the token identifies the worker and every job process that inherited it, so "worker dead, isql still running" is visible without knowing isql's PID. A job process that deliberately closes inherited files (a self-daemonising program) escapes this and is tracked only by its recorded identity.
+- **Windows:** the token proves the worker is alive but does not name it, and something else (antivirus, backup software) briefly opening the file reads as "held" — a conservative error. The job's processes are tracked by their recorded identity plus the worker's command line.
+
+### 11.3 Recovery Decisions
+
+Each tick, for each job, the supervisor gathers the evidence and reaches exactly one of five conclusions:
+
+| Conclusion | Established by | Action |
+| --- | --- | --- |
+| **Alive** | Run token held, or a process carrying the run id is running | Treat as running. Post `.running`. Never start another run (overlap policy applies). Enforce `max_runtime` only when ownership is proven (§11.5). |
+| **Orphaned** | Worker gone, but a job process of the run is still alive | As Alive: no replacement while it runs. Reported as `ORPHANED`. |
+| **Finished** | Boot id changed; or no token held, no process carrying the run id, and a terminal state or spool file shows the outcome | Record the outcome (reconciled from the spool if the state is unreadable), then schedule normally. |
+| **Crashed** | Boot id changed, or no token held and no process carrying the run id, and no outcome anywhere | Record `crashed`, post `.crashes`, schedule at the next scheduled time (§7.7). Never treated as success (VIGIL-006). |
+| **Uncertain** | The evidence conflicts or cannot be read (permission denied, a probe failed, identity partly matches) | Do not kill. Do not replace (unless `on_uncertain = replace`, §11.4). Report every tick until resolved. |
+
+Applying the table to damaged or absent state:
+
+| State file | Evidence | Conclusion |
+| --- | --- | --- |
+| Readable, `running` | Token held / run id process found | Alive |
+| Readable, `running` | Worker gone, job process found | Orphaned |
+| Readable, `running` | Nothing alive, spool has outcome | Finished (reconciled) |
+| Readable, `running` | Nothing alive, no outcome | Crashed |
+| Readable, `running` | Previous boot | Finished or Crashed — nothing can be alive |
+| **Unreadable** | A token for this job held, or a process carries this job's run id | Alive. The worker's final write repairs the file. |
+| **Unreadable** | Nothing held, nothing running | Finished (from spool) or Crashed; the bad file is quarantined. |
+| **Missing** | A token for this job held, or a process carries this job's run id | Alive — **not** a new job. |
+| **Missing** | Nothing held, nothing running | New job (§7.6). |
+| Any | Probes fail or conflict | Uncertain |
+
+When the state file is unreadable or missing, the run id is recovered from the token file names and the spool file names for that job. The process scan for a job's run id is only done in these rare cases, not every tick.
+
+**Quarantine.** An unreadable state file is moved to `state/quarantine/<job id>.<epoch>.state` only once the run is concluded Finished or Crashed, never while it might be alive. Quarantine follows the log retention limit. Corruption is always recorded: `<m>.state_corrupt` and a `jobs.log` entry.
+
+**Stale tokens.** A token file that exists but is not held is left behind by a worker that was killed. It is deleted once the run is concluded.
+
+### 11.4 Uncertain Runs
+
+An uncertain run holds its job: no new run starts and nothing is killed. It is shown as `UNCERTAIN` in `jobs.log` with the reason, and `<m>.uncertain = 1` is posted every tick, so a stalled job is loud, never silent.
+
+It resolves:
+
+- **Automatically**, as soon as the evidence becomes conclusive — the token is released, the process exits, or the boot id changes.
+- **By an operator**, with `vigil resolve <job>`, which records that the operator confirmed the run is over. It never kills anything.
+
+`on_uncertain = replace` lets cheap, idempotent checks (ping, disk, HTTP probes) keep running while a previous run is uncertain. Each replacement posts `<m>.possible_duplicates`. It is never the default, and it never authorises killing anything.
+
+### 11.5 Ownership Before Termination
+
+Vigil terminates a process only for `max_runtime` or `vigil uninstall`, and only when it has proven the process belongs to the run:
+
+- **Worker:** its command line carries the run id, and its start time matches where available.
+- **Job process:** on Linux/macOS it holds the run token or carries `VIGIL_RUN_ID`; on Windows its PID, name and start time match the state file and, while the worker lives, its parent is the worker.
+
+If ownership cannot be proven, Vigil does not terminate. It records the timeout and the uncertainty, keeps the job held, and reports it.
+
+Deadlines: `deadline_epoch` is recorded at start. While the supervisor runs, elapsed time is measured with a monotonic clock where the platform offers one to scripts. After a supervisor restart, only the recorded timestamps are available; they are used for enforcement but are not equivalent to uninterrupted monotonic timing (§24).
+
+### 11.6 Process-Tree Termination
+
+Used only for `max_runtime` and `vigil uninstall`, after §11.5.
+
+- **Windows:** `taskkill /T /F` against the ownership-checked job process, then the worker.
 - **Linux/macOS:** the worker starts the job in its own process group (`set -m`); termination signals the group (`TERM`, then `KILL` after `grace`).
 
 Processes that deliberately escape their group or tree may survive. This limit is documented (§24).
+
+Vigil does not guarantee exactly-once execution of a job's external effects. Jobs that need stronger guarantees implement idempotency, transactions or external coordination themselves.
 
 ---
 
@@ -571,9 +639,11 @@ Everything lives under one install root (§18.6 gives the root per platform):
     vigil.env             credential variables (systemd EnvironmentFile), owner-only
   scripts/                the operator's job scripts - never overwritten
   state/
-    supervisor.lock
+    supervisor.lock               held open by the live supervisor
     jobs/<job id>.state
     jobs/vigil_sender.state
+    locks/<job id>.<run id>.token held open by the live worker
+    quarantine/<job id>.<epoch>.state   unreadable state, kept as evidence
   spool/
     incoming/<epoch>-<job id>-<run id>.events
     backends/<backend name>/<same file names>
@@ -600,8 +670,10 @@ run_id           = 20261029T200000Z-4821
 instance         = sybase-windows
 status           = succeeded
 reason           =
+boot_id          = 6f1c0e2a-9b4d-4a57-8e0f-2c1d3b5a7e90
 scheduled_epoch  = 1793304000
 started_epoch    = 1793304003
+deadline_epoch   =
 ended_epoch      = 1793304870
 scheduled_at     = 2026-10-29T20:00:00Z
 started_at       = 2026-10-29T20:00:03Z
@@ -625,6 +697,9 @@ Field rules:
 - **Times are stored twice.** `*_epoch` fields are Unix seconds in UTC and are what Vigil computes with. `*_at` fields are ISO 8601 UTC, for humans. Both are needed because converting an ISO date back to a number is not portable between GNU and BSD `date`, while printing both is trivial on every platform.
 - **Process identity:** `*_pid`, `*_name` and `*_start` (epoch) for the worker and for the job process it started (§11.1). On platforms where a start time is unavailable, `*_start` is empty.
 - **A running file** has `status = running` and no `ended_*`, `duration_seconds` or `exit_code`.
+- **`run_id`** is generated by the supervisor before the worker starts and also appears on the worker's command line, in `VIGIL_RUN_ID`, in the run token's name and in the spool file's name (§11.1).
+- **`boot_id`** identifies the system boot the run started in. On Linux it is the kernel boot id; on macOS and Windows it is derived from the boot time.
+- **`deadline_epoch`** is `started_epoch + max_runtime`, empty when the job has no `max_runtime`.
 - **Run summary:** `metric_lines` and `invalid_lines` count the metric lines and Nagios perfdata items accepted and rejected; `spool_file` names the spool file holding the run's events, so a missing metric can be traced from state to spool.
 - **Values are single-line.** Line breaks in a reason or error are replaced by spaces, and values are truncated to 500 characters. Full detail belongs in the job log, not the state file.
 - **Unknown keys are ignored**, so a newer Vigil can add fields. A higher `schema_version` than the running Vigil understands is reported as unsupported state (§12.3).
@@ -633,14 +708,14 @@ Field rules:
 ### 12.3 Rules
 
 - Writes are atomic: temporary file, then rename (`mv` on POSIX, `File.Replace` on Windows).
-- Each state file has exactly one writer: the current worker for that job. The supervisor only reads (VIGIL-005), except to create the initial `waiting` state for a new job, to record `crashed` for a job whose worker is gone, and to record `timed_out` after it terminates a job for exceeding `max_runtime`. In each of those cases no live worker exists for the file, so there is still only one writer at a time.
-- An unreadable or unsupported state file is reported, never silently discarded.
-- Deleting a state file is supported and resets the job to "new". Editing one is not supported.
+- Each state file has exactly one writer: the current worker for that job. The supervisor only reads (VIGIL-005), except to create the initial `waiting` state for a new job, to record `crashed` or an outcome reconciled from the spool for a run concluded over (§11.3), and to record `timed_out` after it terminates a job for exceeding `max_runtime`. In each of those cases no live worker exists for the file, so there is still only one writer at a time.
+- An unreadable or unsupported state file is reported and handled per §11.3: never silently discarded, and quarantined only once the run is concluded.
+- Deleting a state file resets the job to "new" only when no run of it is alive (§11.3). Deleting the state of a live run changes nothing: the run is still found through its token and run id, and its final write recreates the file. Editing a state file is not supported.
 - Configuration is the source of truth for scheduling. State records what happened.
 
 ### 12.4 Single Supervisor
 
-The supervisor takes an exclusive lock on the state directory at startup (`mkdir`-based lock on POSIX, an exclusively opened lock file on Windows) and refuses to start if another live supervisor holds it. A stale lock is detected by the same identity check as §11.2.
+The supervisor holds `state/supervisor.lock` open for its whole life, the same way a worker holds its run token (§11.2), and records its PID and start time in it. At startup it refuses to run if another live supervisor holds the lock. A lock file that exists but is not held is stale and is taken over.
 
 ---
 
@@ -658,6 +733,7 @@ Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every
 
 `logs/supervisor/jobs.log` is rewritten every tick and is the primary operator view. It groups jobs into sections:
 
+- `UNCERTAIN` (with the reason; §11.4)
 - `CRASHED` / `ORPHANED`
 - `INVALID` (with the validation reason)
 - `FILE MISSING`
@@ -694,6 +770,9 @@ Posted for each job under its `metric_name`:
 | `<m>.failures` | count | Run failed or unknown. Tagged `exit_code`. |
 | `<m>.timeouts` | count | `max_runtime` exceeded. |
 | `<m>.crashes` | count | Worker vanished without a final state. |
+| `<m>.uncertain` | gauge | `1` every tick while a run's liveness cannot be established (§11.4). |
+| `<m>.possible_duplicates` | count | A run started under `on_uncertain = replace`. |
+| `<m>.state_corrupt` | count | The job's state file was unreadable. |
 | `<m>.skipped` | count | Overlap or pending-limit skip. |
 | `<m>.missed` | count | Missed while the supervisor was down. |
 | `<m>.running` | gauge | Elapsed seconds, every tick while running. |
@@ -948,6 +1027,7 @@ Each service manager is configured so stopping the service stops only the superv
 | `start` / `stop` / `restart` | Service control. Stop leaves workers running. |
 | `status` | Print `jobs.log`. |
 | `run <job>` | Run one job once now, in the foreground, for testing. |
+| `resolve <job>` | Confirm that an uncertain run is over so the job can be scheduled again (§11.4). Never kills anything. |
 | `uninstall` | Remove Vigil completely (§18.8). |
 
 ### 18.6 Install Locations
@@ -1004,7 +1084,7 @@ Many IT teams do not allow piping a remote script into a shell. The docs therefo
 `vigil uninstall` removes Vigil completely:
 
 1. Stop and unregister the service.
-2. Terminate Vigil's running workers. Only processes that pass the identity check (§11.2) are terminated — never "every process that mentions the install folder".
+2. Terminate Vigil's running workers. Only processes whose ownership is proven (§11.5) are terminated — never "every process that mentions the install folder".
 3. Wait for file handles to be released (Windows).
 4. Delete the root, the `vigil` command link or `PATH` entry, and the service registration.
 
@@ -1069,8 +1149,8 @@ Explicit, configurable limits exist for:
 | Worker vanishes, job process gone | `crashed`; crash metric; next scheduled run. |
 | Worker vanishes, job process alive | `orphaned`; no respawn until it exits. |
 | Supervisor crashes | Workers continue; supervisor resumes from state on restart. |
-| Machine reboots | All `running` states fail identity checks → `crashed`; normal scheduling. |
-| Corrupt state file | Reported; job held until resolved. |
+| Machine reboots | Boot id differs: every `running` run is concluded over (outcome from spool or `crashed`); normal scheduling. |
+| Corrupt or missing state file | Liveness established from independent evidence (§11.3). Live run: protected, no duplicate. Concluded run: reconciled or `crashed`, file quarantined. Uncertain: job held and reported (§11.4). |
 | Backend unreachable | Spooled and retried; other backends and jobs unaffected. |
 | Spool full | Drop per policy; counted. |
 | Disk full | Reported where possible; supervisor keeps running. |
@@ -1096,7 +1176,24 @@ Successful, failing and hung jobs; Nagios exit codes; child-process spawning; `m
 
 ### 22.4 Fault Injection
 
-Kill workers; kill the supervisor; kill a worker while its job runs; corrupt state; remove files; break the network; fill the spool; change the clock; reuse a PID; flood stdout.
+General: kill workers; kill the supervisor; kill a worker while its job runs; remove files; break the network; fill the spool; change the clock; flood stdout.
+
+State and ownership (§11) — each test must show the run was protected or correctly concluded, not merely that a replacement started:
+
+1. Corrupt the state file while the worker is still running.
+2. Delete the state file while the worker is still running.
+3. Kill the supervisor while a worker remains active.
+4. Restart the supervisor and reconcile surviving workers.
+5. Simulate PID reuse: a recorded PID now belonging to an unrelated process.
+6. Corrupt the state file after the worker has completed.
+7. Interrupt a state write midway (leftover temporary file, truncated file).
+8. Let a job pass its deadline while the supervisor is down.
+9. Confirm the run token is released when the worker is killed.
+10. Make ownership uncertain and confirm the job is held, reported and never killed.
+11. Confirm `on_uncertain = replace` starts a run and posts `possible_duplicates`.
+12. Confirm an unrelated process is never terminated using stale ownership data.
+13. Reboot (or simulate a boot id change) with runs recorded as `running`.
+14. Kill the worker while its job process keeps running (orphan), on each platform.
 
 ### 22.5 Platform Matrix
 
@@ -1156,6 +1253,8 @@ Every result records Vigil version, OS and version, shell version, test id, resu
 
 **VIGIL-017 — Workers Outlive the Supervisor.** Stopping or restarting the supervisor never terminates running workers, except through `vigil uninstall`.
 
+**VIGIL-018 — Conservative Orphan Recovery.** Loss or corruption of state never, by itself, authorises terminating or replacing a potentially active run. Liveness and ownership are established from independent evidence first; when they cannot be, the work is preserved, conflicting runs are deferred and the uncertainty is reported.
+
 Each invariant has a documented enforcement mechanism and regression tests.
 
 ---
@@ -1168,7 +1267,11 @@ Each invariant has a documented enforcement mechanism and regression tests.
 - Processes that deliberately escape their process group or tree may survive termination.
 - Cygwin emulates fork/exec; Windows parent/child links may differ from Cygwin's, so tree termination of Cygwin jobs needs its own verification.
 - bash on Linux/macOS has no portable monotonic clock; elapsed time may be affected by clock changes.
-- Process start time is unavailable or coarse on some platforms; identity then relies on PID plus name.
+- Process start time is unavailable or coarse on some platforms; identity then relies on the run id, the run token and PID plus name.
+- Ownership guarantees differ by platform (§11.2). Linux and macOS: the run token identifies the worker and every job process that inherited it. Windows: the run token proves the worker is alive but not which process it is, and job processes are tracked by recorded identity only. A job process that closes inherited files escapes token tracking on every platform.
+- A job whose run stays uncertain is held until the evidence resolves or an operator runs `vigil resolve`; it is reported every tick but does not run in the meantime (unless `on_uncertain = replace`).
+- After a supervisor restart, deadlines are enforced from recorded timestamps, which are affected by clock changes; uninterrupted monotonic timing is only available while the supervisor runs.
+- bash cannot force a single file to disk, so after a power loss a just-written state file may be empty; it is then handled as unreadable state (§11.3).
 - User-mode installs run only while the user is logged in unless lingering (Linux) or system mode is used.
 - Prometheus remote_write is not supported.
 - NSSM is unmaintained upstream.
@@ -1196,6 +1299,13 @@ Vigil v1 is ready when:
 - [ ] Global concurrency and overlap policies are enforced.
 - [ ] Workers survive supervisor stop and restart on all three platforms.
 - [ ] Crashed, orphaned and identity-mismatched workers are handled per §11.3.
+- [ ] Corrupt or missing state never, by itself, causes a run to be killed or a duplicate run to start.
+- [ ] A live run is recognised from its run token and run id alone, with its state file deleted or corrupted.
+- [ ] A finished run whose final state was lost is reconciled from its spool file.
+- [ ] A reboot is recognised from the boot id and all prior runs are concluded.
+- [ ] Uncertain runs are held, reported every tick, resolvable by `vigil resolve`, and never killed.
+- [ ] A reused PID can never authorise a termination.
+- [ ] Every test in §22.4 passes on Windows, Linux and macOS separately.
 - [ ] `max_runtime` terminates the whole process tree on all three platforms.
 - [ ] Invalid configuration is rejected safely, at startup and on reload.
 - [ ] `env:` enforcement rejects raw secrets.
