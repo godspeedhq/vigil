@@ -1,2 +1,2 @@
-runners	.sql	isql
+runners	.sql	psql
 runners	.ps1	ps

@@ -27,12 +27,6 @@ Vigil:
 
 Vigil does not interpret the metrics. It runs your scripts, adds metrics to them and forwards them. Alerting and dashboards belong to the backend the organisation already uses.
 
-Vigil is independent of GodspeedOS.
-
-### 1.1 Origin
-
-Vigil generalises a production system that supervised Sybase ASE maintenance and monitoring jobs on Windows fleets with PowerShell 5.1 for about a year with no maintenance. That system's proven design — independent worker processes, a file-based state contract, tick-based scheduling, hot-reloaded configuration and a live status file — is carried forward deliberately. Where this specification differs from it, the difference is called out.
-
 ---
 
 ## 2. Design Philosophy
@@ -131,7 +125,7 @@ The long-running process managed by the OS service manager. Responsible for:
 - Writing the live status file (`jobs.log`).
 - Publishing its own health metrics.
 
-The supervisor is job-agnostic. It knows nothing about isql, psql, PowerShell, Java or any tool a job uses.
+The supervisor is job-agnostic. It knows nothing about sqlcmd, psql, PowerShell, Java or any tool a job uses.
 
 Only one supervisor may own a given state directory (VIGIL-001).
 
@@ -167,14 +161,14 @@ This is what allows workers to survive supervisor restarts, upgrades and crashes
 
 The spool is a local outbox: a directory of small text files. There is no broker and no extra software.
 
-Workers never talk to backends. A worker writes its run's metric events to one spool file and exits, so a slow or unreachable backend can never delay a job, cause it to overrun its next run, or lose its metrics. The original system posted each metric directly from the worker with no timeout; this design replaces that.
+Workers never talk to backends. A worker writes its run's metric events to one spool file and exits, so a slow or unreachable backend can never delay a job, cause it to overrun its next run, or lose its metrics.
 
 **Producers.** At the end of a run, the worker writes all of the run's events to `spool/incoming/<epoch>-<job id>-<run id>.events`. The supervisor writes its own events (heartbeat, `.running`, `invalid_config`, …) once per tick to `spool/incoming/<epoch>-supervisor.events`. Files are written to a temporary name and renamed, so a reader never sees a partial file.
 
 **Event file format.** One event per line, the same shape as a job metric line (§14.3) with a Unix timestamp in front and all tags already applied:
 
 ```text
-1793282403 sybase.dba.dump_databases.duration_seconds 867 host=sybprod01 os=windows instance=sybase-windows job=dump_databases environment=production
+1793282403 dba.dump_databases.duration_seconds 867 host=dbprod01 os=windows instance=ops-windows job=dump_databases environment=production
 ```
 
 **Sender.** The sender is a worker like any other, with one fixed job id, `vigil_sender`:
@@ -232,7 +226,7 @@ Windows support floor:
 
 Some backends carry an extra prerequisite, documented with the backend (for example openssl for Google Cloud when not running on GCP, §15.4).
 
-Jobs may need their own tools (isql, psql, java, Cygwin). Those are the job's prerequisites, not Vigil's, and are checked by pre-flight validation (§16.4).
+Jobs may need their own tools (sqlcmd, psql, java, Cygwin). Those are the job's prerequisites, not Vigil's, and are checked by pre-flight validation (§16.4).
 
 ### 5.2 Language Constraints
 
@@ -276,7 +270,7 @@ Rules:
 - Keys may begin with `.` (used by `[runners]`).
 - ASCII only.
 
-XML (used by the original system) and JSON were rejected because neither can be parsed reliably in bash without non-native tools.
+XML and JSON were rejected because neither can be parsed reliably in bash without non-native tools.
 
 A config file is not tied to an OS. Backends, tags and schedules are portable; runners and paths are usually OS-specific, so in practice each OS has its own file.
 
@@ -410,14 +404,14 @@ job.legacy_export
   log_retain_days   = 7                      (log)
   working_dir       = C:\ProgramData\Vigil   (built-in)
   tag               = team=dba               (tags)
-  tag               = database=SYBPROD       (job)
+  tag               = database=orders        (job)
   env               = JAVA_TOOL_OPTIONS=-Xmx4g       (job)
-  require_env       = SYBASE                 (runner)
+  require_env       = ORACLE_HOME            (runner)
 ```
 
 ### 6.7 Example
 
-A complete annotated example, converted from the original Sybase configuration and extended with industry examples, is maintained in the repository as the reference mock configuration.
+A complete annotated example configuration for each platform, covering common databases, checks, runners and backends, ships in `examples/`.
 
 ---
 
@@ -442,7 +436,7 @@ run_at = 01:00
 run_at = 03:00, 09:00, 15:00, 21:00
 ```
 
-`run_at` accepts a list. This replaces the original system's "`RunEvery` anchored by `RunAt`" behaviour, which needed special-case logic.
+`run_at` accepts a list, so several fixed times need no interval arithmetic.
 
 ### 7.4 Day Selection
 
@@ -476,7 +470,7 @@ The default and only v1 missed-run policy is skip. If the supervisor was down wh
 
 A restart never triggers a backlog of historical runs (VIGIL-008).
 
-A worker that crashed is not respawned immediately; the job runs again at its next scheduled time. (The original system respawned immediately. This specification deliberately does not.)
+A worker that crashed is not respawned immediately; the job runs again at its next scheduled time. Immediate respawn would turn a crash loop into a tight restart loop.
 
 ### 7.8 Clock Behaviour
 
@@ -590,7 +584,7 @@ Each run leaves several independent pieces of evidence. Losing one does not lose
 | **Boot id** | In the state file; compared with the running system's | A run recorded during a previous boot is certainly over — every process in it died with the reboot. |
 | **Run token** | `state/locks/<job id>.<run id>.token`, held open by the worker | Held open means alive. The OS releases it however the process dies, so a token that exists but is not held proves nothing is using it. |
 | **Run id on the command line** | The worker's `--run-id` argument | A process whose command line carries this run id is this run's worker. A reused PID belongs to a process with a different command line, so it can never match. |
-| **Run id in the environment** | `VIGIL_RUN_ID`, inherited by the job's processes | Ties the job's processes (isql, java, …) to the run, even after the worker has died. |
+| **Run id in the environment** | `VIGIL_RUN_ID`, inherited by the job's processes | Ties the job's processes (sqlcmd, java, …) to the run, even after the worker has died. |
 | **Process identity** | PID + process name + start time | Supporting evidence; never sufficient alone (VIGIL-007). |
 | **Spool file** | `spool/…-<job id>-<run id>.events`, written before the final state | The run finished, and how — even if its final state was never written. |
 
@@ -606,7 +600,7 @@ Boot id sources: `/proc/sys/kernel/random/boot_id` on Linux, `sysctl kern.bootti
 
 The resulting guarantees are deliberately not conflated:
 
-- **Linux and macOS:** the token identifies the worker and every job process that inherited it, so "worker dead, isql still running" is visible without knowing isql's PID. A job process that deliberately closes inherited files (a self-daemonising program) escapes this and is tracked only by its recorded identity.
+- **Linux and macOS:** the token identifies the worker and every job process that inherited it, so "worker dead, psql still running" is visible without knowing psql's PID. A job process that deliberately closes inherited files (a self-daemonising program) escapes this and is tracked only by its recorded identity.
 - **Windows:** the token proves the worker is alive but does not name it, and something else (antivirus, backup software) briefly opening the file reads as "held" — a conservative error. The job's processes are tracked by their recorded identity plus the worker's command line.
 
 ### 11.3 Recovery Decisions
@@ -737,7 +731,7 @@ Relative paths in the config resolve against the root (§6.1). The state, spool 
 
 ### 12.2 Format
 
-State files use the same `key = value` format as the configuration, with a single `[state]` section, so the same parser reads both on every platform with no special mode. JSON is not used: writing it from bash is easy, but the bash supervisor must also *read* every state file each tick, and bash has no native JSON parser. The original system's JSON state worked because it was PowerShell-only.
+State files use the same `key = value` format as the configuration, with a single `[state]` section, so the same parser reads both on every platform with no special mode. JSON is not used: writing it from bash is easy, but the bash supervisor must also *read* every state file each tick, and bash has no native JSON parser.
 
 Example of a completed run:
 
@@ -746,7 +740,7 @@ Example of a completed run:
 schema_version   = 1
 job              = dump_databases
 run_id           = 20261029T200000Z-4821
-instance         = sybase-windows
+instance         = ops-windows
 status           = succeeded
 reason           =
 boot_id          = 6f1c0e2a-9b4d-4a57-8e0f-2c1d3b5a7e90
@@ -763,7 +757,7 @@ worker_pid       = 4821
 worker_name      = powershell.exe
 worker_start     = 1793304002
 job_pid          = 4830
-job_name         = isql.exe
+job_name         = sqlcmd.exe
 job_start        = 1793304003
 metric_lines     = 0
 invalid_lines    = 0
@@ -836,7 +830,7 @@ Logs never contain secret values. Environment values are never dumped. A full di
 
 ### 14.1 Naming
 
-Metric names are dotted (`sybase.dba.dump_databases.failures`). Backends translate to their native conventions (for example dots to underscores for Prometheus).
+Metric names are dotted (`dba.dump_databases.failures`). Backends translate to their native conventions (for example dots to underscores for Prometheus).
 
 ### 14.2 Per-Job Metrics
 
@@ -1249,7 +1243,7 @@ Where an outcome cannot be determined, Vigil reports the uncertainty rather than
 
 ### 22.1 Shared Conformance Suite
 
-The scheduling decision logic is tested as a table of inputs and expected decisions (in the style of the original `Test-ScheduleLogic.ps1`). The same table is executed against both the PowerShell and bash implementations, which must produce identical results. The config parser is tested the same way.
+The scheduling decision logic is tested as a table of inputs and expected decisions. The same table is executed against both the PowerShell and bash implementations, which must produce identical results. The config parser is tested the same way.
 
 ### 22.2 Unit Tests
 
