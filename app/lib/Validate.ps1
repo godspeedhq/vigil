@@ -234,8 +234,8 @@ function Test-VigilValue {
             }
         }
         'on_uncertain' {
-            if ($Value -cne 'wait' -and $Value -cne 'replace') {
-                $r.Code = 'E_ENUM'; $r.Message = "'$Key' must be wait or replace: $Value"
+            if (@('wait', 'replace', 'manual') -cnotcontains $Value) {
+                $r.Code = 'E_ENUM'; $r.Message = "'$Key' must be wait, replace or manual: $Value"
             }
         }
         'when_full' {

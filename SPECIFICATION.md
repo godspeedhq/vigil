@@ -159,7 +159,7 @@ Workers are independent OS processes, not threads or child jobs of the superviso
 
 ### 4.4 State
 
-Each worker owns its job's state file and is its only writer. The supervisor has read-only access to worker state (VIGIL-005). There is no shared memory, socket, pipe or callback between supervisor and worker. The state file is the contract.
+Each worker owns its job's state file and is its only writer. The supervisor only reads worker state while a run may be alive, and takes over writing only once the worker provably cannot write (VIGIL-005, §12.3). There is no shared memory, socket, pipe or callback between supervisor and worker. The state file is the contract.
 
 This is what allows workers to survive supervisor restarts, upgrades and crashes, and what lets a restarted supervisor know the exact state of every job immediately.
 
@@ -311,7 +311,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `overlap` | No | `skip` (default) or `queue_one`. |
 | `exit_codes` | No | `standard` (default), `nagios` or a success list such as `0-7`. |
 | `enabled` | No | `false` keeps the job defined but unscheduled. Default `true`. |
-| `on_uncertain` | No | `wait` (default) or `replace`: what to do when a previous run's liveness cannot be established (§11.4). |
+| `on_uncertain` | No | `wait` (default), `replace` or `manual`: what to do when a previous run's liveness cannot be established (§11.4). |
 | `backends` | No | Comma-separated backend names. Default: all enabled backends. |
 | `tag` | No | Extra metric tag, `key=value`. Repeat per tag. Merged with `[tags]` (§14.6). |
 | `env` | No | Environment variable for the job, `NAME=value`, literal. Repeat per variable. Merged with the runner's `env`. Never a secret. |
@@ -651,7 +651,32 @@ It resolves:
 - **Automatically**, as soon as the evidence becomes conclusive — the token is released, the process exits, or the boot id changes.
 - **By an operator**, with `vigil resolve <job>`, which records that the operator confirmed the run is over. It never kills anything.
 
-`on_uncertain = replace` lets cheap, idempotent checks (ping, disk, HTTP probes) keep running while a previous run is uncertain. Each replacement posts `<m>.possible_duplicates`. It is never the default, and it never authorises killing anything.
+The `on_uncertain` policy chooses between these:
+
+| Policy | While uncertain | When the evidence becomes conclusive |
+| --- | --- | --- |
+| `wait` (default) | Hold the job; report every tick. | Conclude the run (§11.3) and resume scheduling. |
+| `replace` | Keep scheduling; each run started posts `<m>.possible_duplicates`. For cheap, idempotent checks (ping, disk, HTTP probes). | Conclude the run. |
+| `manual` | Hold the job; report every tick. | Conclude the run but keep the job held until `vigil resolve`. For jobs where a run of unknown fate may have left half-done external effects (dumps, loads, transfers) that someone should inspect first. |
+
+No policy ever authorises killing anything; termination always requires proven ownership (§11.5).
+
+**Recovery record.** The supervisor never writes uncertainty into the worker's state file, because the worker may still be alive and writing it. Each held job instead has a supervisor-owned record, `state/recovery/<job id>.recovery`, in the same `key = value` format with a single `[recovery]` section:
+
+```ini
+[recovery]
+job          = dump_databases
+run_id       = 20261029T200000Z-4821
+conclusion   = uncertain
+reason       = run token held but no process carries the run id
+first_seen   = 1793305200
+last_checked = 1793308800
+policy       = wait
+resolved_by  =
+resolved_at  =
+```
+
+The record survives supervisor restarts, so a held job stays held without re-deriving why. `vigil resolve` fills `resolved_by` (the operator's user name) and `resolved_at`; the supervisor then concludes the run and deletes the record. A record is also deleted when the run is concluded automatically, except under `manual`.
 
 ### 11.5 Ownership Before Termination
 
@@ -697,6 +722,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
     jobs/vigil_sender.state
     locks/<job id>.<run id>.token held open by the live worker
     quarantine/<job id>.<epoch>.state   unreadable state, kept as evidence
+    recovery/<job id>.recovery    supervisor-owned record of a held job (§11.4)
   spool/
     incoming/<epoch>-<job id>-<run id>.events
     backends/<backend name>/<same file names>
@@ -760,8 +786,10 @@ Field rules:
 
 ### 12.3 Rules
 
-- Writes are atomic: temporary file, then rename (`mv` on POSIX, `File.Replace` on Windows).
-- Each state file has exactly one writer: the current worker for that job. The supervisor only reads (VIGIL-005), except to create the initial `waiting` state for a new job, to record `crashed` or an outcome reconciled from the spool for a run concluded over (§11.3), and to record `timed_out` after it terminates a job for exceeding `max_runtime`. In each of those cases no live worker exists for the file, so there is still only one writer at a time.
+- **Atomic publication.** Every state and recovery-record write goes to a temporary file in the same directory, `<name>.tmp.<pid>`, which is then renamed over the target: `mv -f` on POSIX; on Windows `File.Replace`, or `File.Move` when the target does not exist yet (`File.Replace` requires it). Same directory, so the rename never crosses filesystems. Readers only ever open the exact target name, so a temporary file is never mistaken for state.
+- **Durability.** On Windows the temporary file is flushed to disk (`FileStream.Flush($true)`) before the rename. bash has no portable per-file flush, so on Linux/macOS a power loss can leave an empty or truncated state file; that is handled as unreadable state (§11.3), never trusted. Atomic replacement prevents partially published state; it does not prevent every corruption, which is why state is evidence, not authority (§11).
+- **Leftover temporary files** (from a writer that died mid-write) are deleted by the supervisor only once the run they belong to is concluded, never while their writer might be alive.
+- **One writer at a time (VIGIL-005).** While a run may be alive, its worker is the only writer of the job's state file. The supervisor writes it only to create the initial `waiting` state of a new job, or to record a concluded run (`crashed`, `timed_out`, or an outcome reconciled from the spool, §11.3) — and only after it has established that the worker can no longer write: the run token is no longer held **and** no process carries the run id on its command line. A passed deadline, a missing PID or an unreadable state file is never, by itself, that proof. While ownership is uncertain, the supervisor writes only its own recovery record (§11.4).
 - An unreadable or unsupported state file is reported and handled per §11.3: never silently discarded, and quarantined only once the run is concluded.
 - Deleting a state file resets the job to "new" only when no run of it is alive (§11.3). Deleting the state of a live run changes nothing: the run is still found through its token and run id, and its final write recreates the file. Editing a state file is not supported.
 - Configuration is the source of truth for scheduling. State records what happened.
@@ -1251,6 +1279,11 @@ State and ownership (§11) — each test must show the run was protected or corr
 12. Confirm an unrelated process is never terminated using stale ownership data.
 13. Reboot (or simulate a boot id change) with runs recorded as `running`.
 14. Kill the worker while its job process keeps running (orphan), on each platform.
+15. Let a worker finish while the supervisor is down; on return, the outcome is recorded without a crash or a rerun.
+16. Make the worker's final state write fail; the outcome is reconciled from its spool file.
+17. Confirm the supervisor never writes a job's state file while the run token is held or a process carries the run id — including after the deadline passes.
+18. Confirm `on_uncertain = manual` keeps the job held after the evidence clears, until `vigil resolve`.
+19. Restart the supervisor while a job is held; it stays held from its recovery record.
 
 ### 22.5 Platform Matrix
 
@@ -1284,7 +1317,7 @@ Every result records Vigil version, OS and version, shell version, test id, resu
 
 **VIGIL-004 — Failure Isolation.** A job's failure never terminates the supervisor or another job.
 
-**VIGIL-005 — Single-Writer State.** Each job's state file has one writer, its worker. The supervisor reads it.
+**VIGIL-005 — Single-Writer State.** A job's state file has at most one writer at any moment. While a run may be alive, that is its worker. The supervisor writes it only after proving the worker can no longer write (run token released and no process carrying the run id); otherwise it writes only its own recovery record (§12.3).
 
 **VIGIL-006 — Safe Recovery.** A run without a worker-written final state is never treated as successful.
 
@@ -1326,9 +1359,10 @@ Each invariant has a documented enforcement mechanism and regression tests.
 - bash on Linux/macOS has no portable monotonic clock; elapsed time may be affected by clock changes.
 - Process start time is unavailable or coarse on some platforms; identity then relies on the run id, the run token and PID plus name.
 - Ownership guarantees differ by platform (§11.2). Linux and macOS: the run token identifies the worker and every job process that inherited it. Windows: the run token proves the worker is alive but not which process it is, and job processes are tracked by recorded identity only. A job process that closes inherited files escapes token tracking on every platform.
-- A job whose run stays uncertain is held until the evidence resolves or an operator runs `vigil resolve`; it is reported every tick but does not run in the meantime (unless `on_uncertain = replace`).
+- A job whose run stays uncertain is held until the evidence resolves or an operator runs `vigil resolve`; it is reported every tick but does not run in the meantime (unless `on_uncertain = replace`). Under `manual` it stays held until `vigil resolve` even after the evidence resolves.
 - After a supervisor restart, deadlines are enforced from recorded timestamps, which are affected by clock changes; uninterrupted monotonic timing is only available while the supervisor runs.
-- bash cannot force a single file to disk, so after a power loss a just-written state file may be empty; it is then handled as unreadable state (§11.3).
+- bash cannot force a single file to disk, so after a power loss a just-written state file may be empty or truncated; it is then handled as unreadable state (§11.3). Windows flushes before renaming, but filesystem and storage caches can still lose a write.
+- Process-tree termination on Windows uses `taskkill /T`, which can miss children whose parent has already exited. Windows Job Objects would close this gap but need compiled code (§26).
 - User-mode installs run only while the user is logged in unless lingering (Linux) or system mode is used.
 - Prometheus remote_write is not supported.
 - NSSM is unmaintained upstream.
@@ -1361,7 +1395,9 @@ Vigil v1 is ready when:
 - [ ] A live run is recognised from its run token and run id alone, with its state file deleted or corrupted.
 - [ ] A finished run whose final state was lost is reconciled from its spool file.
 - [ ] A reboot is recognised from the boot id and all prior runs are concluded.
-- [ ] Uncertain runs are held, reported every tick, resolvable by `vigil resolve`, and never killed.
+- [ ] Uncertain runs are held, reported every tick, resolvable by `vigil resolve`, and never killed; a held job stays held across supervisor restarts.
+- [ ] The supervisor never writes a state file whose worker may still be alive; it takes over writing only after proving the worker can no longer write.
+- [ ] `on_uncertain` `wait`, `replace` and `manual` behave per §11.4.
 - [ ] A reused PID can never authorise a termination.
 - [ ] Every test in §22.4 passes on Windows, Linux and macOS separately.
 - [ ] `max_runtime` terminates the whole process tree on all three platforms.
@@ -1385,6 +1421,7 @@ Not every backend type is required for v1. Reliable scheduling and supervision c
 - Bounded catch-up policies for missed runs.
 - Cron-style expressions.
 - Per-job CPU and memory limits where the OS supports them for unprivileged users.
+- Stronger process containment: Windows Job Objects and Linux cgroups (`systemd-run --scope`) for complete tree termination. Deferred from v1 because Job Objects need compiled code from PowerShell 5.1 and cgroup scopes differ between user and system mode; the run token and run id already establish ownership without them.
 - Package-manager distribution (winget, Chocolatey, Homebrew, apt, dnf).
 - Signed configuration bundles and enhanced Git distribution.
 - Additional backend types.

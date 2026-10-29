@@ -237,8 +237,8 @@ _vigil_val_check() {
             ;;
         on_uncertain)
             case $value in
-                wait | replace) ;;
-                *) _vv_code=E_ENUM; _vv_msg="'$key' must be wait or replace: $value" ;;
+                wait | replace | manual) ;;
+                *) _vv_code=E_ENUM; _vv_msg="'$key' must be wait, replace or manual: $value" ;;
             esac
             ;;
         when_full)
