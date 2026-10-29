@@ -75,5 +75,28 @@ for suite in parser validate effective command; do
     done
 done
 
+# File-level cases need inputs that cannot be committed as fixtures: a
+# missing file, and files at and over the 1 MiB limit (all "a", no newline,
+# so a file at the limit is read and reports one E_NO_EQUALS).
+tmp=${TMPDIR:-/tmp}/vigil-conformance.$$
+mkdir -p "$tmp"
+head -c "$VIGIL_CFG_MAX_BYTES" /dev/zero | tr '\0' a > "$tmp/at-limit.config"
+{ cat "$tmp/at-limit.config"; printf 'a'; } > "$tmp/over-limit.config"
+for check in "missing	ERROR	0	E_FILE_NOT_FOUND" \
+             "at-limit	ERROR	1	E_NO_EQUALS" \
+             "over-limit	ERROR	0	E_FILE_TOO_LARGE"; do
+    name=${check%%	*}
+    expected=${check#*	}
+    actual=$(vigil_config_parse "$tmp/$name.config"; vigil_config_dump)
+    if [ "$actual" = "$expected" ]; then
+        pass=$((pass + 1))
+        printf '  PASS  file/%s\n' "$name"
+    else
+        fail=$((fail + 1))
+        printf '  FAIL  file/%s: expected [%s] actual [%s]\n' "$name" "$expected" "$actual"
+    fi
+done
+rm -rf "$tmp"
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

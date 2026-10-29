@@ -86,6 +86,32 @@ foreach ($suite in @('parser', 'validate', 'effective', 'command')) {
     }
 }
 
+# File-level cases need inputs that cannot be committed as fixtures: a
+# missing file, and files at and over the 1 MiB limit (all "a", no newline,
+# so a file at the limit is read and reports one E_NO_EQUALS).
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-conformance.$PID"
+[void](New-Item -ItemType Directory -Force -Path $tmp)
+$atLimit = [System.Text.Encoding]::ASCII.GetBytes('a' * $Script:VigilConfigMaxBytes)
+[System.IO.File]::WriteAllBytes((Join-Path $tmp 'at-limit.config'), $atLimit)
+[System.IO.File]::WriteAllBytes((Join-Path $tmp 'over-limit.config'), $atLimit + [byte]97)
+$checks = @(
+    @('missing', "ERROR`t0`tE_FILE_NOT_FOUND"),
+    @('at-limit', "ERROR`t1`tE_NO_EQUALS"),
+    @('over-limit', "ERROR`t0`tE_FILE_TOO_LARGE")
+)
+foreach ($check in $checks) {
+    $actual = (Format-VigilConfigDump -Parsed (ConvertFrom-VigilConfig -Path (Join-Path $tmp "$($check[0]).config"))).TrimEnd("`n")
+    if ($actual -ceq $check[1]) {
+        $pass++
+        Write-Host "  PASS  file/$($check[0])"
+    }
+    else {
+        $fail++
+        Write-Host "  FAIL  file/$($check[0]): expected [$($check[1])] actual [$actual]"
+    }
+}
+Remove-Item -Recurse -Force -LiteralPath $tmp
+
 Write-Host "$pass passed, $fail failed"
 if ($fail -gt 0) { exit 1 }
 exit 0

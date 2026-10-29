@@ -103,9 +103,14 @@ vigil_config_parse() {
 
     while IFS= read -r line || [ -n "$line" ]; do
         n=$((n + 1))
-        line=${line%$'\r'}
-        if [ "$n" -eq 1 ]; then
-            line=${line#"$bom"}
+        # Fixed-length substring tests, not ${line%$'\r'} / ${line#"$bom"}:
+        # bash removes a pattern by trying every split point, which is
+        # quadratic - over a minute for one 1 MiB line.
+        if [ "${line: -1}" = $'\r' ]; then
+            line=${line:0:${#line}-1}
+        fi
+        if [ "$n" -eq 1 ] && [ "${line:0:3}" = "$bom" ]; then
+            line=${line:3}
         fi
 
         case $line in

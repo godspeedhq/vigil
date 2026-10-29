@@ -1,0 +1,9 @@
+ERROR	3	E_ENV_NAME
+INVALID	empty_value	6	E_VALUE_EMPTY
+INVALID	bad_metric_name	12	E_METRIC_NAME
+INVALID	metric_name_with_dash	17	E_METRIC_NAME
+INVALID	env_without_equals	22	E_ENV_SYNTAX
+INVALID	env_bad_name	27	E_ENV_SYNTAX
+INVALID	require_env_bad_name	32	E_ENV_NAME
+INVALID	no_schedule	34	E_SCHEDULE_NONE
+INVALID	empty_list_item	39	E_TIME

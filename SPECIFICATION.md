@@ -1095,6 +1095,33 @@ Copy the script before editing the config. A config saved with a mistake is reje
 - On reload, an invalid configuration is rejected as a whole; the last known valid configuration stays active and `vigil.supervisor.config_reload_failed` is posted (VIGIL-010).
 - A single invalid job does not invalidate the file: that job is skipped, shown as `INVALID` and reported via `invalid_config` until fixed. Other jobs keep running.
 - A job whose file disappears is shown as `FILE MISSING` and reported via `file_missing`; it resumes automatically when the file returns.
+- Validation is a pure function of the parsed file: it never reads the filesystem or the environment (pre-flight does, §16.4). Each problem is reported once, with its line; a problem in a `[job.*]` section makes only that job invalid, and any other problem rejects the file. Messages never contain a credential value.
+
+Error codes, shared by both implementations and the conformance suite (`tests/conformance`):
+
+| Stage | Code | Meaning |
+| --- | --- | --- |
+| File | `E_FILE_NOT_FOUND`, `E_FILE_UNREADABLE`, `E_FILE_TOO_LARGE` | The file is missing, unreadable or over 1 MiB. |
+| Syntax | `E_INVALID_CHAR` | A character other than printable ASCII or tab. |
+| | `E_SECTION_SYNTAX`, `E_SECTION_DUPLICATE` | A malformed or repeated `[section]`; its keys are skipped. |
+| | `E_KEY_OUTSIDE_SECTION`, `E_KEY_SYNTAX`, `E_NO_EQUALS` | A key before any section, a malformed key, or a line that is none of the allowed forms. |
+| Structure | `E_SECTION_UNKNOWN` | A section Vigil does not define. |
+| | `E_KEY_UNKNOWN`, `E_KEY_DUPLICATE`, `E_KEY_REQUIRED` | A key not allowed in that section, a single-valued key set twice, or a required key missing (`file`, a runner's `command`). |
+| | `E_KEY_NOT_DEFAULTABLE` | A job-only key in `[defaults]` (§6.6). |
+| Values | `E_VALUE_EMPTY` | An empty value (allowed only for `arg`). |
+| | `E_DURATION`, `E_INTEGER`, `E_BOOLEAN`, `E_ENUM` | Not a duration (`30s`, `5m`, `2h`, `7d`; zero only for `grace` and `late_start_window`), a whole number, `true`/`false`, or one of the listed words. |
+| | `E_TIME`, `E_DAY`, `E_EXIT_CODES` | Not `HH:MM`, a weekday, or `standard`/`nagios`/codes `0-255`. |
+| | `E_NAME`, `E_METRIC_NAME` | An instance name or metric name with characters outside its set. |
+| References | `E_RUNNER_UNKNOWN`, `E_BACKEND_UNKNOWN`, `E_BACKEND_TYPE`, `E_EXTENSION` | A runner or backend that is not defined, an unknown backend type, or a `[runners]` key that is not an extension. |
+| Tags and environment | `E_TAG_SYNTAX`, `E_TAG_RESERVED`, `E_TAG_DUPLICATE` | A malformed tag, a reserved tag key (§14.6), or a tag name repeated in one section. |
+| | `E_ENV_SYNTAX`, `E_ENV_NAME`, `E_ENV_LITERAL`, `E_ENV_DUPLICATE` | A malformed `NAME=value`, an invalid variable name, an `env` value starting with `env:` (§6.5), or a name repeated in one section. |
+| Secrets | `E_SECRET_RAW` | A credential key whose value is not `env:NAME`; the value is never shown. |
+| Jobs | `E_SCHEDULE_NONE`, `E_SCHEDULE_BOTH`, `E_SCHEDULE_DAYS_ONLY` | An invalid schedule combination (§7.5). |
+| | `E_JOB_ID_RESERVED` | A job id starting with `vigil_`. |
+| Command | `E_BATCH_ARG`, `E_BATCH_PATH` | A batch file argument or path containing a `cmd.exe` metacharacter (§6.4). |
+| Warnings | `W_BACKEND_DISABLED` | A job names a disabled backend. |
+
+Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rule on credential keys; the keys specific to each backend type are checked by that backend (§15).
 
 ### 16.4 Pre-flight Checks
 
