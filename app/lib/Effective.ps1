@@ -117,17 +117,13 @@ function Get-VigilEffectiveJob {
     $file = (Get-VigilIndexValue -Index $Index -Section $job -Key 'file').Value
     & $add 'file' $file 'job'
 
-    # A fetched script: its source, the ref it is taken from (the job's, else
-    # the source's) and its digest. Rows appear only when set.
+    # A fetched script: its source, the source's ref (git) and the job's
+    # digest. Rows appear only when set.
     $src = Get-VigilIndexValue -Index $Index -Section $job -Key 'source'
     if ($src.Found) {
         & $add 'source' $src.Value 'job'
-        $r = Get-VigilIndexValue -Index $Index -Section $job -Key 'ref'
-        if ($r.Found) { & $add 'ref' $r.Value 'job' }
-        else {
-            $r = Get-VigilIndexValue -Index $Index -Section "source.$($src.Value)" -Key 'ref'
-            if ($r.Found) { & $add 'ref' $r.Value 'source' }
-        }
+        $r = Get-VigilIndexValue -Index $Index -Section "source.$($src.Value)" -Key 'ref'
+        if ($r.Found) { & $add 'ref' $r.Value 'source' }
         $r = Get-VigilIndexValue -Index $Index -Section $job -Key 'sha256'
         if ($r.Found) { & $add 'sha256' $r.Value 'job' }
     }

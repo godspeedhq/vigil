@@ -1,6 +1,0 @@
-# One configuration from several files (spec 6.8), in this order:
-# <role> <label> <path inside this folder>; label - is the main file.
-main    -                       vigil.config
-dropin  jobs.d/10-ntp.config    jobs.d/10-ntp.config
-dropin  jobs.d/20-fleet.config  jobs.d/20-fleet.config
-fetched fleet:fleet/db.config   fetched/fleet/db.config

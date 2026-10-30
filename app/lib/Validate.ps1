@@ -54,7 +54,7 @@ $Script:VigilSourceTypes = @('local', 'git', 'https', 'sftp')
 # Whether a key applies to a source of the given type (spec 6.9).
 function Test-VigilSourceKey {
     param([string]$Type, [string]$Key)
-    if (@('type', 'config', 'check_every', 'timeout') -ccontains $Key) { return $true }
+    if (@('type', 'check_every', 'timeout') -ccontains $Key) { return $true }
     return @('local:path', 'git:url', 'git:ref', 'https:url', 'https:header_name', 'https:header_value',
         'sftp:host', 'sftp:port', 'sftp:user', 'sftp:path') -ccontains "${Type}:$Key"
 }
@@ -104,7 +104,7 @@ function Get-VigilKeyType {
     $list = $false
     $credential = @('username', 'password', 'token', 'api_key', 'api_token', 'api_key_id',
         'header_value', 'access_key_id', 'client_id', 'tenant_id')
-    $jobOnly = @('file', 'source', 'ref', 'sha256', 'arg', 'metric_name', 'run_every', 'run_at',
+    $jobOnly = @('file', 'source', 'sha256', 'arg', 'metric_name', 'run_every', 'run_at',
         'run_on_days', 'runner', 'tag', 'env', 'require_env')
 
     switch -CaseSensitive ($Kind) {
@@ -118,7 +118,6 @@ function Get-VigilKeyType {
                 'ref' { $t = 'text' }
                 'header_name' { $t = 'text' }
                 'port' { $t = 'port' }
-                'config' { $t = 'srcpath'; $list = $true }
                 'check_every' { $t = 'dur' }
                 'timeout' { $t = 'dur' }
                 'header_value' { $t = 'credential' }
@@ -126,6 +125,8 @@ function Get-VigilKeyType {
         }
         'vigil' {
             switch -CaseSensitive ($Key) {
+                'config_source' { $t = 'source_ref' }
+                'config_file' { $t = 'srcpath' }
                 'instance' { $t = 'name' }
                 'state_dir' { $t = 'path' }
                 'max_concurrent' { $t = 'int1' }
@@ -179,7 +180,6 @@ function Get-VigilKeyType {
                 # Inside a source, file is a relative path in that source.
                 'file' { if ($JobSource.Length -gt 0) { $t = 'srcpath' } else { $t = 'path' } }
                 'source' { $t = 'source_ref' }
-                'ref' { $t = 'git_ref' }
                 'sha256' { $t = 'sha256' }
                 'working_dir' { $t = 'path' }
                 'runner' { $t = 'runner_ref' }
@@ -388,16 +388,6 @@ function Test-VigilValue {
                 $r.Code = 'E_SOURCE_UNKNOWN'; $r.Message = "no [source.$Value] section"
             }
         }
-        'git_ref' {
-            # A job's ref needs a git source. An undefined source, or one with
-            # an invalid type, is reported on its own line instead.
-            if ($Ctx.JSource.Length -eq 0) {
-                $r.Code = 'E_REF_NOT_GIT'; $r.Message = "'$Key' needs a git source"
-            }
-            elseif ($Ctx.JType.Length -gt 0 -and $Ctx.JType -cne 'git') {
-                $r.Code = 'E_REF_NOT_GIT'; $r.Message = "'$Key' needs a git source; [source.$($Ctx.JSource)] is $($Ctx.JType)"
-            }
-        }
         'sha256' {
             if ($Value -cnotmatch $re.Sha256) {
                 $r.Code = 'E_SHA256'; $r.Message = "'$Key' must be 64 hexadecimal digits"
@@ -418,6 +408,70 @@ function Test-VigilValue {
     return $r
 }
 
+# Warns when two jobs' different base metric names become the same name in
+# a backend that only allows underscores (spec 14.1): "a.b_c" and "a_b.c"
+# are both a_b_c there. Only jobs sending to the same such backend clash.
+function Test-VigilMetricCollisions {
+    param($Parsed, $Disabled, [scriptblock]$Add)
+
+    # Enabled backends whose format allows only underscores in names.
+    $us = New-Object 'System.Collections.Generic.List[string]'
+    $defList = ''
+    foreach ($sec in $Parsed.Sections) {
+        if ($sec.Name.StartsWith('backend.', [System.StringComparison]::Ordinal)) {
+            $bname = $sec.Name.Substring(8)
+            $type = Get-VigilFirstValue $Parsed $sec 'type'
+            if ($type.Length -eq 0) { $type = $bname }
+            if (-not $Disabled.Contains($bname) -and @('file', 'prometheus', 'victoriametrics') -ccontains $type) {
+                $us.Add($bname)
+            }
+        }
+        elseif ($sec.Name -ceq 'defaults') {
+            $defList = Get-VigilFirstValue $Parsed $sec 'backends'
+        }
+    }
+    if ($us.Count -eq 0) { return }
+
+    $jobs = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($sec in $Parsed.Sections) {
+        if (-not $sec.Name.StartsWith('job.', [System.StringComparison]::Ordinal)) { continue }
+        $base = Get-VigilFirstValue $Parsed $sec 'metric_name'
+        if ($base.Length -eq 0) { $base = $sec.Name.Substring(4) }
+        if ($base -cnotmatch $Script:VigilValRe.Metric) { continue }
+        $list = Get-VigilFirstValue $Parsed $sec 'backends'
+        if ($list.Length -eq 0) { $list = $defList }
+        # The underscore-only backends this job sends to.
+        $set = New-Object 'System.Collections.Generic.List[string]'
+        if ($list.Length -gt 0) {
+            foreach ($item in (Split-VigilList $list)) {
+                if ($us.Contains($item) -and -not $set.Contains($item)) { $set.Add($item) }
+            }
+        }
+        else {
+            foreach ($item in $us) { $set.Add($item) }
+        }
+        if ($set.Count -gt 0) {
+            $jobs.Add(@{ Name = $sec.Name.Substring(4); Base = $base; Under = $base.Replace('.', '_'); Line = $sec.Line; Set = $set })
+        }
+    }
+
+    for ($j = 1; $j -lt $jobs.Count; $j++) {
+        $b = $jobs[$j]
+        for ($i = 0; $i -lt $j; $i++) {
+            $a = $jobs[$i]
+            if ($a.Under -cne $b.Under -or $a.Base -ceq $b.Base) { continue }
+            $shared = ''
+            foreach ($item in $b.Set) {
+                if ($a.Set.Contains($item)) { $shared = $item; break }
+            }
+            if ($shared.Length -gt 0) {
+                & $Add 'WARN' '' $b.Line 'W_METRIC_COLLISION' "metric '$($b.Base)' becomes '$($b.Under)' in backend '$shared', the same as '$($a.Base)' of [job.$($a.Name)]"
+                break
+            }
+        }
+    }
+}
+
 function Test-VigilConfig {
     param([Parameter(Mandatory = $true)]$Parsed)
 
@@ -425,8 +479,6 @@ function Test-VigilConfig {
     $records = New-Object 'System.Collections.Generic.List[object]'
     $state = @{ Job = '' }
 
-    # Line is a location: a line number, or "<label>:<line>" outside the
-    # main file (spec 6.8).
     $add = {
         param([string]$Kind, [string]$Job, $Line, [string]$Code, [string]$Message)
         $records.Add([pscustomobject]@{ Kind = $Kind; Job = $Job; Line = $Line; Code = $Code; Message = $Message })
@@ -449,8 +501,13 @@ function Test-VigilConfig {
         JSource  = ''
         JType    = ''
     }
+    $pointer = ''
     foreach ($sec in $Parsed.Sections) {
-        if ($sec.Name.StartsWith('runner.', [System.StringComparison]::Ordinal)) {
+        if ($sec.Name -ceq 'vigil') {
+            # A config_source makes this file a pointer to the real one.
+            $pointer = Get-VigilFirstValue $Parsed $sec 'config_source'
+        }
+        elseif ($sec.Name.StartsWith('runner.', [System.StringComparison]::Ordinal)) {
             [void]$ctx.Runners.Add($sec.Name.Substring(7))
         }
         elseif ($sec.Name.StartsWith('backend.', [System.StringComparison]::Ordinal)) {
@@ -492,20 +549,14 @@ function Test-VigilConfig {
         }
         if ($kind -ceq 'job') { $state.Job = $sub }
 
-        # Which sections each kind of file may hold (spec 6.8).
-        $role = 'main'
-        if ($null -ne $sec.File -and $sec.File -lt $Parsed.Files.Count) { $role = $Parsed.Files[$sec.File].Role }
         $skip = $false
         if ($kind.Length -eq 0) {
             & $report $sline 'E_SECTION_UNKNOWN' "unknown section [$name]"
             $skip = $true
         }
-        elseif ($role -ceq 'dropin' -and $kind -cne 'job' -and $kind -cne 'runner') {
-            & $report $sline 'E_SECTION_NOT_ALLOWED' "[$name] cannot be in a jobs.d file, which holds [job.*] and [runner.*] only"
-            $skip = $true
-        }
-        elseif ($role -ceq 'fetched' -and ($kind -ceq 'vigil' -or $kind -ceq 'source')) {
-            & $report $sline 'E_SECTION_NOT_ALLOWED' "[$name] cannot come from a source; only this host's vigil.config can set it"
+        elseif ($pointer.Length -gt 0 -and $kind -cne 'vigil' -and $name -cne "source.$pointer") {
+            # A pointer file holds only where the configuration is (6.8).
+            & $report $sline 'E_POINTER_ONLY' "[$name] belongs in the configuration fetched from [source.$pointer], not in this file"
             $skip = $true
         }
         if ($skip) {
@@ -533,7 +584,7 @@ function Test-VigilConfig {
         $seen = New-VigilNameSet @()
         $tagKeys = New-VigilNameSet @()
         $envNames = New-VigilNameSet @()
-        $has = @{ file = $false; run_every = $false; run_at = $false; run_on_days = $false; command = $false; type = $false; sha256 = $false }
+        $has = @{ file = $false; run_every = $false; run_at = $false; run_on_days = $false; command = $false; type = $false; sha256 = $false; config_file = $false }
 
         while ($e -lt $count -and $entries[$e].Section -ceq $name) {
             $key = $entries[$e].Key
@@ -567,6 +618,10 @@ function Test-VigilConfig {
 
             if ($kt.Type.Length -eq 0) {
                 & $report $line 'E_KEY_UNKNOWN' "unknown key '$key' in [$name]"
+                continue
+            }
+            if ($pointer.Length -gt 0 -and $kind -ceq 'vigil' -and @('config_source', 'config_file', 'state_dir') -cnotcontains $key) {
+                & $report $line 'E_POINTER_ONLY' "'$key' belongs in the configuration fetched from [source.$pointer], not in this file"
                 continue
             }
             if ($ctx.SType.Length -gt 0 -and -not (Test-VigilSourceKey $ctx.SType $key)) {
@@ -646,7 +701,7 @@ function Test-VigilConfig {
                         & $report $sline 'E_SHA256_REQUIRED' "[$name] needs 'sha256': scripts from $($ctx.JType) sources are pinned by digest"
                     }
                     elseif ($ctx.JType -ceq 'local') {
-                        & $add 'WARN' '' $sline 'W_SCRIPT_UNPINNED' "[$name] has no 'sha256'; its script is copied once, and hosts may hold different versions"
+                        & $add 'WARN' '' $sline 'W_SCRIPT_UNPINNED' "[$name] has no 'sha256'; its script follows changes in the source, so hosts may briefly differ"
                     }
                 }
             }
@@ -669,6 +724,15 @@ function Test-VigilConfig {
                     & $report $sline 'E_KEY_REQUIRED' "[$name] needs '$req'"
                 }
             }
+            'vigil' {
+                # config_source and config_file go together.
+                if ($pointer.Length -gt 0 -and -not $has.config_file) {
+                    & $report $sline 'E_KEY_REQUIRED' "[$name] needs 'config_file' with 'config_source'"
+                }
+                elseif ($pointer.Length -eq 0 -and $has.config_file) {
+                    & $report $sline 'E_KEY_REQUIRED' "[$name] needs 'config_source' with 'config_file'"
+                }
+            }
             'runner' {
                 if (-not $has.command) {
                     & $report $sline 'E_KEY_REQUIRED' "[$name] needs 'command'"
@@ -681,6 +745,8 @@ function Test-VigilConfig {
             }
         }
     }
+
+    Test-VigilMetricCollisions -Parsed $Parsed -Disabled $ctx.Disabled -Add $add
 
     return ,$records
 }

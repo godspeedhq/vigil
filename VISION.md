@@ -74,7 +74,7 @@ Examples include Datadog, Splunk, Prometheus-compatible systems and OpenTelemetr
 
 Local configuration and local scripts are the default operating mode.
 
-An operator installs Vigil as an operating-system service and places scripts and their configuration files in the designated local directories. Each job can live in its own small configuration file beside the main one, so adding or removing a job never means editing a shared file.
+An operator installs Vigil as an operating-system service, places scripts in the designated local directory and declares the jobs in one configuration file. Each Vigil instance has exactly one configuration file: jobs are simple entries in it that name a script, a schedule and where the results go.
 
 Vigil discovers the configuration, validates it and schedules the declared jobs. No central server, Git repository or network-accessible configuration source is required.
 
@@ -82,7 +82,7 @@ The basic workflow is:
 
 1. Install Vigil.
 2. Add a script.
-3. Add its configuration file.
+3. Add the job to the configuration file.
 4. Allow Vigil to discover and activate the job.
 5. Observe the resulting telemetry in the configured backend.
 
@@ -99,6 +99,8 @@ Vigil may optionally retrieve its configuration from a remote source. Retrieval 
 
 Other mechanisms may follow when they can be used securely. Plain FTP and plain HTTP are not supported, because they expose credentials and content in transit.
 
+The local configuration file then says only where the real configuration is, and Vigil fetches it. There is still one configuration per instance, so a setting never has more than one place it can come from. Usage can be fully local, mixed (local configuration with some scripts fetched remotely) or fully remote.
+
 Remote configuration is an optional extension of the local-first model. It must not require a different Vigil edition, separate agent or central Vigil management server.
 
 The configuration source determines the desired jobs, their settings and the scripts they reference. The core supervisor remains unchanged regardless of where configuration originates.
@@ -110,7 +112,7 @@ Where configuration comes from is always decided on the host itself. A remotely 
 Job configurations may reference scripts stored locally or remotely. A script may be retrieved from:
 
 - A local filesystem path.
-- A Git repository at a specified tag or commit.
+- A Git repository at a specified tag, commit or branch.
 - An HTTPS endpoint.
 - An SFTP-accessible location.
 
@@ -120,7 +122,7 @@ Script retrieval is independent of the scheduling and supervision mechanisms. Op
 
 ## 6. Configuration-Driven Reconciliation
 
-Vigil monitors configuration changes, not continuous changes to remote scripts. A remote script changing does not automatically trigger a deployment. The configuration is the authoritative declaration of which script version should execute.
+The configuration is the authoritative declaration of which script version should execute. A script pinned to a tag, commit or digest never changes underneath a host; a script follows a branch or a shared folder only when its source is declared that way.
 
 The reconciliation process is:
 

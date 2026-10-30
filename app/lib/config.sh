@@ -11,8 +11,6 @@
 #   vigil_config_section <name>  finds a section's j without a loop or pattern match
 #   VIGIL_CFG_GENERATION    incremented by every parse, so callers can cache
 # Errors are collected in VIGIL_CFG_ERRORS[i] as "<line><TAB><code><TAB><message>".
-# vigil_config_parse_files reads several files as one configuration; lines
-# are then locations, "<label>:<line>" in any file but the main one.
 #
 # The parser is deliberately dumb: it records every "key = value" in file
 # order, repeated keys included, and leaves meaning (allowed keys, duplicate
@@ -37,14 +35,9 @@
 # bash 3.2: no associative arrays, no ${var,,}, no mapfile - keep it that way.
 
 VIGIL_CFG_MAX_BYTES=1048576
-VIGIL_CFG_MAX_FILES=256
 
-# Records an error at line $1 of the file being read. Locations are plain
-# line numbers in the main file and "<label>:<line>" in any other (spec 6.8).
 _vigil_cfg_error() {
-    local loc=$1
-    if [ -n "${_vc_label-}" ]; then loc="$_vc_label:$1"; fi
-    VIGIL_CFG_ERRORS[${#VIGIL_CFG_ERRORS[@]}]="$loc	$2	$3"
+    VIGIL_CFG_ERRORS[${#VIGIL_CFG_ERRORS[@]}]="$1	$2	$3"
 }
 
 # Trims leading and trailing spaces and tabs. Result in _vigil_cfg_trimmed
@@ -57,39 +50,9 @@ _vigil_cfg_trim() {
 }
 
 # vigil_config_parse <path>
-# Parses one file as the main configuration file. Returns 0 when it parsed
-# without errors, 1 otherwise.
+# Returns 0 when the file parsed without errors, 1 otherwise.
 vigil_config_parse() {
-    _vigil_cfg_reset
-    _vigil_cfg_read main '' "$1"
-    [ "${#VIGIL_CFG_ERRORS[@]}" -eq 0 ]
-}
-
-# vigil_config_parse_files <role> <label> <path> [<role> <label> <path> ...]
-# Parses several files as one configuration (spec 6.8), in the order given.
-# role is main, dropin or fetched; label names the file in locations, and
-# is - for the main file, whose locations are plain line numbers. Each
-# section may be defined once across all files. Also sets, per file:
-#   VIGIL_CFG_FILE_ROLE[k]  VIGIL_CFG_FILE_LABEL[k]
-# and per section VIGIL_CFG_SEC_FILE[j], the k of the file defining it.
-vigil_config_parse_files() {
-    _vigil_cfg_reset
-    if [ $(($# / 3)) -gt "$VIGIL_CFG_MAX_FILES" ]; then
-        _vigil_cfg_error 0 E_TOO_MANY_FILES "$(($# / 3)) configuration files; the limit is $VIGIL_CFG_MAX_FILES"
-        return 1
-    fi
-    while [ "$#" -ge 3 ]; do
-        if [ "$2" = - ]; then
-            _vigil_cfg_read "$1" '' "$3"
-        else
-            _vigil_cfg_read "$1" "$2" "$3"
-        fi
-        shift 3
-    done
-    [ "${#VIGIL_CFG_ERRORS[@]}" -eq 0 ]
-}
-
-_vigil_cfg_reset() {
+    local path=$1
     # Clear the previous parse's section variables (none on the first parse).
     local j=0
     while [ -n "${VIGIL_CFG_SEC_NAME[$j]+set}" ]; do
@@ -105,21 +68,8 @@ _vigil_cfg_reset() {
     VIGIL_CFG_SEC_LINE=()
     VIGIL_CFG_SEC_FIRST=()
     VIGIL_CFG_SEC_COUNT=()
-    VIGIL_CFG_SEC_FILE=()
-    VIGIL_CFG_FILE_ROLE=()
-    VIGIL_CFG_FILE_LABEL=()
     VIGIL_CFG_GENERATION=$((${VIGIL_CFG_GENERATION:-0} + 1))
     VIGIL_CFG_ERRORS=()
-    _vc_label=''
-}
-
-# _vigil_cfg_read <role> <label> <path>
-# Appends one file to the current parse.
-_vigil_cfg_read() {
-    local path=$3 k=${#VIGIL_CFG_FILE_ROLE[@]}
-    VIGIL_CFG_FILE_ROLE[$k]=$1
-    VIGIL_CFG_FILE_LABEL[$k]=$2
-    _vc_label=$2
 
     if [ ! -f "$path" ]; then
         _vigil_cfg_error 0 E_FILE_NOT_FOUND "config file not found: $path"
@@ -140,14 +90,12 @@ _vigil_cfg_read() {
 
     # Byte-wise matching for the character check, whatever the caller's locale.
     local LC_ALL=C
-    # Prefix that turns a line number into a location.
-    local loc=''
-    if [ -n "$2" ]; then loc="$2:"; fi
 
     local re_section='^\[([a-z0-9_]+(\.[a-z0-9_]+)?)\]$'
     local re_key='^\.?[a-z0-9_]+$'
     local tab='	'
     local bom=$'\xef\xbb\xbf'
+    local seen=$'\n'
     local section=''
     local skipping=0
     local n=0
@@ -182,22 +130,23 @@ _vigil_cfg_read() {
             '['*)
                 if [[ $line =~ $re_section ]]; then
                     section=${BASH_REMATCH[1]}
-                    vigil_config_section "$section"
-                    if [ "$VIGIL_CFG_SEC" -ge 0 ]; then
-                        # Repeated in this file or defined by an earlier one.
-                        _vigil_cfg_error "$n" E_SECTION_DUPLICATE "section [$section] appears more than once; first at ${VIGIL_CFG_SEC_LINE[$VIGIL_CFG_SEC]}"
-                        skipping=1
-                    else
-                        skipping=0
-                        i=${#VIGIL_CFG_SEC_NAME[@]}
-                        VIGIL_CFG_SEC_NAME[$i]=$section
-                        VIGIL_CFG_SEC_LINE[$i]=$loc$n
-                        VIGIL_CFG_SEC_FIRST[$i]=${#VIGIL_CFG_KEY[@]}
-                        VIGIL_CFG_SEC_COUNT[$i]=0
-                        VIGIL_CFG_SEC_FILE[$i]=$k
-                        _vigil_cfg_secvar "$section"
-                        printf -v "$_vigil_cfg_secvar" '%s' "$i"
-                    fi
+                    case $seen in
+                        *$'\n'"$section"$'\n'*)
+                            _vigil_cfg_error "$n" E_SECTION_DUPLICATE "section [$section] appears more than once"
+                            skipping=1
+                            ;;
+                        *)
+                            seen="$seen$section"$'\n'
+                            skipping=0
+                            i=${#VIGIL_CFG_SEC_NAME[@]}
+                            VIGIL_CFG_SEC_NAME[$i]=$section
+                            VIGIL_CFG_SEC_LINE[$i]=$n
+                            VIGIL_CFG_SEC_FIRST[$i]=${#VIGIL_CFG_KEY[@]}
+                            VIGIL_CFG_SEC_COUNT[$i]=0
+                            _vigil_cfg_secvar "$section"
+                            printf -v "$_vigil_cfg_secvar" '%s' "$i"
+                            ;;
+                    esac
                 else
                     _vigil_cfg_error "$n" E_SECTION_SYNTAX "invalid section header: $line"
                     skipping=1
@@ -223,7 +172,7 @@ _vigil_cfg_read() {
                 VIGIL_CFG_SECTION[$i]=$section
                 VIGIL_CFG_KEY[$i]=$key
                 VIGIL_CFG_VALUE[$i]=$value
-                VIGIL_CFG_LINE[$i]=$loc$n
+                VIGIL_CFG_LINE[$i]=$n
                 i=$((${#VIGIL_CFG_SEC_COUNT[@]} - 1))
                 VIGIL_CFG_SEC_COUNT[$i]=$((VIGIL_CFG_SEC_COUNT[$i] + 1))
                 ;;

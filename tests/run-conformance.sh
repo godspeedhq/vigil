@@ -18,15 +18,14 @@
 #   tests/conformance/command/<case>.expected     validate dump, then
 #                                                 vigil_job_command_dump
 #   tests/conformance/schedule/<case>.config      input
-#   tests/conformance/files/<case>/files.list     several files read as one
-#                                                 configuration, in order
-#   tests/conformance/files/<case>/case.expected  validate dump, then
-#                                                 vigil_config_effective_dump
 #   tests/conformance/schedule/<case>.table       decisions table, inputs and
 #                                                 expected decisions per row;
 #                                                 compared with comments and
 #                                                 blank lines dropped and
 #                                                 columns single-spaced
+#   tests/mocks/<path>.config                     the example configurations
+#   tests/conformance/mocks/<path>.expected       validate dump, then
+#                                                 vigil_config_effective_dump
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -110,18 +109,13 @@ for suite in parser validate effective command schedule; do
     done
 done
 
-# Multi-file cases: a folder per case, with files.list naming each file in
-# order as "<role> <label> <path>" (label - for the main file), and
-# case.expected holding the validate dump, then vigil_config_effective_dump.
-for dir in "$here"/conformance/files/*/; do
-    dir=${dir%/}
-    set --
-    while read -r role label path || [ -n "$role" ]; do
-        case $role in '' | '#'*) continue ;; esac
-        set -- "$@" "$role" "$label" "$dir/$path"
-    done < "$dir/files.list"
-    actual=$(vigil_config_parse_files "$@"; vigil_config_validate; vigil_config_validate_dump; vigil_config_effective_dump)
-    compare "files/$(basename "$dir")" "$(cat "$dir/case.expected")" "$actual"
+# The example configurations in tests/mocks, every tier: each must give the
+# validate dump and vigil_config_effective_dump recorded in
+# tests/conformance/mocks/<path>.expected.
+for cfg in $(find "$here/mocks" -name '*.config' | LC_ALL=C sort); do
+    rel=${cfg#"$here/mocks/"}
+    actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump; vigil_config_effective_dump)
+    compare "mocks/${rel%.config}" "$(cat "$here/conformance/mocks/${rel%.config}.expected")" "$actual"
 done
 
 # File-level cases need inputs that cannot be committed as fixtures: a
@@ -145,15 +139,6 @@ for check in "missing	ERROR	0	E_FILE_NOT_FOUND" \
         printf '  FAIL  file/%s: expected [%s] actual [%s]\n' "$name" "$expected" "$actual"
     fi
 done
-# One file over the limit on the number of configuration files.
-printf '[job.a]\n' > "$tmp/small.config"
-set -- main - "$tmp/small.config"
-i=1
-while [ "$i" -le "$VIGIL_CFG_MAX_FILES" ]; do
-    set -- "$@" dropin "jobs.d/$i.config" "$tmp/small.config"
-    i=$((i + 1))
-done
-compare file/too-many-files "ERROR	0	E_TOO_MANY_FILES" "$(vigil_config_parse_files "$@"; vigil_config_dump)"
 rm -rf "$tmp"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"

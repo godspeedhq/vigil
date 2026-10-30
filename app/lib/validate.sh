@@ -81,6 +81,8 @@ _vigil_val_keytype() {
     _vv_type=''
     _vv_list=0
     case $1:$2 in
+        vigil:config_source) _vv_type=source_ref ;;
+        vigil:config_file) _vv_type=srcpath ;;
         vigil:instance) _vv_type=name ;;
         vigil:state_dir) _vv_type=path ;;
         vigil:max_concurrent) _vv_type=int1 ;;
@@ -111,10 +113,9 @@ _vigil_val_keytype() {
         source:url) _vv_type=url ;;
         source:host | source:user | source:ref | source:header_name) _vv_type=text ;;
         source:port) _vv_type=port ;;
-        source:config) _vv_type=srcpath; _vv_list=1 ;;
         source:check_every | source:timeout) _vv_type=dur ;;
         source:header_value) _vv_type=credential ;;
-        defaults:file | defaults:source | defaults:ref | defaults:sha256 | \
+        defaults:file | defaults:source | defaults:sha256 | \
         defaults:arg | defaults:metric_name | defaults:run_every | \
         defaults:run_at | defaults:run_on_days | defaults:runner | defaults:tag | \
         defaults:env | defaults:require_env)
@@ -124,7 +125,6 @@ _vigil_val_keytype() {
             if [ -n "$_vv_jsource" ]; then _vv_type=srcpath; else _vv_type=path; fi
             ;;
         job:source) _vv_type=source_ref ;;
-        job:ref) _vv_type=git_ref ;;
         job:sha256) _vv_type=sha256 ;;
         job:* | defaults:*)
             case $2 in
@@ -153,7 +153,7 @@ _vigil_val_keytype() {
 # Whether key $2 applies to a source of type $1 (spec 6.9).
 _vigil_val_source_key() {
     case $2 in
-        type | config | check_every | timeout) return 0 ;;
+        type | check_every | timeout) return 0 ;;
     esac
     case $1:$2 in
         local:path | git:url | git:ref | https:url | https:header_name | https:header_value | \
@@ -446,17 +446,6 @@ _vigil_val_check() {
                 _vv_msg="no [source.$value] section"
             fi
             ;;
-        git_ref)
-            # A job's ref needs a git source. An undefined source, or one with
-            # an invalid type, is reported on its own line instead.
-            if [ -z "$_vv_jsource" ]; then
-                _vv_code=E_REF_NOT_GIT
-                _vv_msg="'$key' needs a git source"
-            elif [ -n "$_vv_jtype" ] && [ "$_vv_jtype" != git ]; then
-                _vv_code=E_REF_NOT_GIT
-                _vv_msg="'$key' needs a git source; [source.$_vv_jsource] is $_vv_jtype"
-            fi
-            ;;
         sha256)
             if ! [[ $value =~ $_vigil_val_re_sha256 ]]; then
                 _vv_code=E_SHA256
@@ -494,8 +483,9 @@ vigil_config_validate() {
     local LC_ALL=C
     local nl=$'\n'
     local count=${#VIGIL_CFG_KEY[@]}
-    local s si e name sline kind sub key value line seen role req
+    local s si e name sline kind sub key value line seen req pointer=''
     local has_file has_every has_at has_days has_command has_type has_sha256
+    local has_config_file
     local tag_keys env_names
 
     # Names that references may point at, and each source's type (empty
@@ -511,6 +501,11 @@ vigil_config_validate() {
         case $name in
             runner.*) _vv_runners="$_vv_runners${name#runner.}$nl" ;;
             backend.*) _vv_backends="$_vv_backends${name#backend.}$nl" ;;
+            vigil)
+                # A config_source makes this file a pointer to the real one.
+                _vigil_val_first "$s" config_source
+                pointer=$_vv_first
+                ;;
             source.*)
                 _vigil_val_first "$s" type
                 case $_vv_first in
@@ -553,24 +548,14 @@ vigil_config_validate() {
             _vv_job=$sub
         fi
 
-        # Which sections each kind of file may hold (spec 6.8).
-        role=${VIGIL_CFG_FILE_ROLE[${VIGIL_CFG_SEC_FILE[$si]:-0}]:-main}
         req=ok
         if [ -z "$kind" ]; then
             _vigil_val_report "$sline" E_SECTION_UNKNOWN "unknown section [$name]"
             req=skip
-        else
-            case $role:$kind in
-                dropin:job | dropin:runner | main:*) ;;
-                dropin:*)
-                    _vigil_val_report "$sline" E_SECTION_NOT_ALLOWED "[$name] cannot be in a jobs.d file, which holds [job.*] and [runner.*] only"
-                    req=skip
-                    ;;
-                fetched:vigil | fetched:source)
-                    _vigil_val_report "$sline" E_SECTION_NOT_ALLOWED "[$name] cannot come from a source; only this host's vigil.config can set it"
-                    req=skip
-                    ;;
-            esac
+        elif [ -n "$pointer" ] && [ "$kind" != vigil ] && [ "$name" != "source.$pointer" ]; then
+            # A pointer file holds only where the configuration is (6.8).
+            _vigil_val_report "$sline" E_POINTER_ONLY "[$name] belongs in the configuration fetched from [source.$pointer], not in this file"
+            req=skip
         fi
         if [ "$req" = skip ]; then
             # The section is rejected as a whole; its keys are not checked.
@@ -606,6 +591,7 @@ vigil_config_validate() {
         tag_keys=$nl
         env_names=$nl
         has_file=0 has_every=0 has_at=0 has_days=0 has_command=0 has_type=0 has_sha256=0
+        has_config_file=0
 
         while [ "$e" -lt "$count" ] && [ "${VIGIL_CFG_SECTION[$e]}" = "$name" ]; do
             key=${VIGIL_CFG_KEY[$e]}
@@ -621,6 +607,7 @@ vigil_config_validate() {
                 command) has_command=1 ;;
                 type) has_type=1 ;;
                 sha256) has_sha256=1 ;;
+                config_file) has_config_file=1 ;;
             esac
 
             case $kind in
@@ -654,6 +641,15 @@ vigil_config_validate() {
             if [ -z "$_vv_type" ]; then
                 _vigil_val_report "$line" E_KEY_UNKNOWN "unknown key '$key' in [$name]"
                 continue
+            fi
+            if [ -n "$pointer" ] && [ "$kind" = vigil ]; then
+                case $key in
+                    config_source | config_file | state_dir) ;;
+                    *)
+                        _vigil_val_report "$line" E_POINTER_ONLY "'$key' belongs in the configuration fetched from [source.$pointer], not in this file"
+                        continue
+                        ;;
+                esac
             fi
             if [ -n "$_vv_stype" ] && ! _vigil_val_source_key "$_vv_stype" "$key"; then
                 _vigil_val_report "$line" E_KEY_UNKNOWN "'$key' does not apply to a $_vv_stype source"
@@ -744,7 +740,7 @@ vigil_config_validate() {
                             _vigil_val_report "$sline" E_SHA256_REQUIRED "[$name] needs 'sha256': scripts from $_vv_jtype sources are pinned by digest"
                             ;;
                         local)
-                            _vigil_val_add WARN '' "$sline" W_SCRIPT_UNPINNED "[$name] has no 'sha256'; its script is copied once, and hosts may hold different versions"
+                            _vigil_val_add WARN '' "$sline" W_SCRIPT_UNPINNED "[$name] has no 'sha256'; its script follows changes in the source, so hosts may briefly differ"
                             ;;
                     esac
                 fi
@@ -772,6 +768,14 @@ vigil_config_validate() {
                     _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs '$req'"
                 fi
                 ;;
+            vigil)
+                # config_source and config_file go together.
+                if [ -n "$pointer" ] && [ "$has_config_file" -eq 0 ]; then
+                    _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs 'config_file' with 'config_source'"
+                elif [ -z "$pointer" ] && [ "$has_config_file" -eq 1 ]; then
+                    _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs 'config_source' with 'config_file'"
+                fi
+                ;;
             runner)
                 if [ "$has_command" -eq 0 ]; then
                     _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs 'command'"
@@ -788,6 +792,8 @@ vigil_config_validate() {
         esac
     done
 
+    _vigil_val_collisions
+
     local i=0
     while [ "$i" -lt "${#VIGIL_VAL_KIND[@]}" ]; do
         if [ "${VIGIL_VAL_KIND[$i]}" = ERROR ]; then
@@ -796,6 +802,101 @@ vigil_config_validate() {
         i=$((i + 1))
     done
     return 0
+}
+
+# Warns when two jobs' different base metric names become the same name in
+# a backend that only allows underscores (spec 14.1): "a.b_c" and "a_b.c"
+# are both a_b_c there. Only jobs sending to the same such backend clash.
+_vigil_val_collisions() {
+    local nl=$'\n' s name type under list item i j
+    local us=$nl
+    local -a jname jbase junder jline jset
+    jname=() jbase=() junder=() jline=() jset=()
+
+    # Enabled backends whose format allows only underscores in names.
+    s=0
+    while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
+        name=${VIGIL_CFG_SEC_NAME[$s]}
+        case $name in
+            backend.*)
+                _vigil_val_first "$s" type
+                type=${_vv_first:-${name#backend.}}
+                case $_vv_disabled in
+                    *$nl"${name#backend.}"$nl*) ;;
+                    *)
+                        case $type in
+                            file | prometheus | victoriametrics) us="$us${name#backend.}$nl" ;;
+                        esac
+                        ;;
+                esac
+                ;;
+        esac
+        s=$((s + 1))
+    done
+    [ "$us" = "$nl" ] && return 0
+
+    # The default backend list, as for a job without "backends".
+    local deflist=''
+    vigil_config_section defaults
+    if [ "$VIGIL_CFG_SEC" -ge 0 ]; then
+        _vigil_val_first "$VIGIL_CFG_SEC" backends
+        deflist=$_vv_first
+    fi
+
+    s=0
+    while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
+        name=${VIGIL_CFG_SEC_NAME[$s]}
+        case $name in
+            job.*) ;;
+            *) s=$((s + 1)); continue ;;
+        esac
+        _vigil_val_first "$s" metric_name
+        item=${_vv_first:-${name#job.}}
+        if ! [[ $item =~ $_vigil_val_re_metric ]]; then
+            s=$((s + 1))
+            continue
+        fi
+        _vigil_val_first "$s" backends
+        list=${_vv_first:-$deflist}
+        # The underscore-only backends this job sends to.
+        local set=$nl
+        if [ -n "$list" ]; then
+            _vigil_val_split "$list"
+            for type in "${_vv_items[@]}"; do
+                case $us in *$nl"$type"$nl*) set="$set$type$nl" ;; esac
+            done
+        else
+            set=$us
+        fi
+        if [ "$set" != "$nl" ]; then
+            i=${#jname[@]}
+            jname[$i]=${name#job.}
+            jbase[$i]=$item
+            junder[$i]=${item//./_}
+            jline[$i]=${VIGIL_CFG_SEC_LINE[$s]}
+            jset[$i]=$set
+        fi
+        s=$((s + 1))
+    done
+
+    j=1
+    while [ "$j" -lt "${#jname[@]}" ]; do
+        i=0
+        while [ "$i" -lt "$j" ]; do
+            if [ "${junder[$i]}" = "${junder[$j]}" ] && [ "${jbase[$i]}" != "${jbase[$j]}" ]; then
+                under=''
+                for type in ${jset[$j]}; do
+                    case ${jset[$i]} in *$nl"$type"$nl*) under=$type; break ;; esac
+                done
+                if [ -n "$under" ]; then
+                    _vigil_val_add WARN '' "${jline[$j]}" W_METRIC_COLLISION "metric '${jbase[$j]}' becomes '${junder[$j]}' in backend '$under', the same as '${jbase[$i]}' of [job.${jname[$i]}]"
+                    break
+                fi
+            fi
+            i=$((i + 1))
+        done
+        j=$((j + 1))
+    done
 }
 
 # vigil_config_validate_dump

@@ -20,16 +20,15 @@
                                                     posix and /opt/vigil
       tests/conformance/command/<case>.expected     validation dump, then
                                                     Format-VigilCommandDump
-      tests/conformance/files/<case>/files.list     several files read as one
-                                                    configuration, in order
-      tests/conformance/files/<case>/case.expected  validation dump, then
-                                                    Format-VigilEffectiveDump
       tests/conformance/schedule/<case>.config      input
       tests/conformance/schedule/<case>.table       decisions table, inputs and
                                                     expected decisions per row;
                                                     compared with comments and
                                                     blank lines dropped and
                                                     columns single-spaced
+      tests/mocks/<path>.config                     the example configurations
+      tests/conformance/mocks/<path>.expected       validation dump, then
+                                                    Format-VigilEffectiveDump
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -48,16 +47,16 @@ $fail = 0
 
 Write-Host "PowerShell $($PSVersionTable.PSVersion)"
 
-# Counts and reports one case. Compares without trailing newlines, as the
+# Counts and reports one case, comparing without trailing newlines as the
 # bash runner's $(...) does.
 function Compare-Case {
     param([string]$Name, [string]$Expected, [string]$Actual)
     if ($Actual.TrimEnd("`n") -ceq $Expected.TrimEnd("`n")) {
-        $script:pass++
+        $Script:pass++
         Write-Host "  PASS  $Name"
         return
     }
-    $script:fail++
+    $Script:fail++
     Write-Host "  FAIL  $Name"
     $exp = $Expected.TrimEnd("`n").Split("`n")
     $act = $Actual.TrimEnd("`n").Split("`n")
@@ -115,22 +114,20 @@ foreach ($suite in @('parser', 'validate', 'effective', 'command', 'schedule')) 
     }
 }
 
-# Multi-file cases: a folder per case, with files.list naming each file in
-# order as "<role> <label> <path>" (label - for the main file), and
-# case.expected holding the validation dump, then Format-VigilEffectiveDump.
-foreach ($dir in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\files') -Directory | Sort-Object Name)) {
-    $files = New-Object 'System.Collections.Generic.List[object]'
-    foreach ($line in [System.IO.File]::ReadAllLines((Join-Path $dir.FullName 'files.list'))) {
-        $f = $line.Trim() -split '\s+'
-        if ($f[0] -ceq '' -or $f[0].StartsWith('#')) { continue }
-        $label = if ($f[1] -ceq '-') { '' } else { $f[1] }
-        $files.Add(@{ Role = $f[0]; Label = $label; Path = (Join-Path $dir.FullName $f[2]) })
-    }
-    $parsed = ConvertFrom-VigilConfigFiles -Files $files
+# The example configurations in tests/mocks, every tier: each must give the
+# validation and effective dumps recorded in tests/conformance/mocks.
+$mockRoot = Join-Path $here 'mocks'
+$mocks = Get-ChildItem -LiteralPath $mockRoot -Filter '*.config' -Recurse |
+    ForEach-Object { $_.FullName.Substring($mockRoot.Length + 1).Replace('\', '/') } |
+    Sort-Object
+foreach ($rel in $mocks) {
+    $name = $rel.Substring(0, $rel.Length - '.config'.Length)
+    $parsed = ConvertFrom-VigilConfig -Path (Join-Path $mockRoot $rel)
     $records = Test-VigilConfig -Parsed $parsed
     $actual = (Format-VigilValidationDump -Parsed $parsed -Records $records) +
         (Format-VigilEffectiveDump -Parsed $parsed -Records $records)
-    Compare-Case "files/$($dir.Name)" ([System.IO.File]::ReadAllText((Join-Path $dir.FullName 'case.expected'))) $actual
+    $expected = [System.IO.File]::ReadAllText((Join-Path $here "conformance\mocks\$name.expected"))
+    Compare-Case "mocks/$name" $expected $actual
 }
 
 # File-level cases need inputs that cannot be committed as fixtures: a
@@ -157,14 +154,6 @@ foreach ($check in $checks) {
         Write-Host "  FAIL  file/$($check[0]): expected [$($check[1])] actual [$actual]"
     }
 }
-# One file over the limit on the number of configuration files.
-[System.IO.File]::WriteAllText((Join-Path $tmp 'small.config'), "[job.a]`n")
-$files = New-Object 'System.Collections.Generic.List[object]'
-$files.Add(@{ Role = 'main'; Label = ''; Path = (Join-Path $tmp 'small.config') })
-for ($i = 1; $i -le $Script:VigilConfigMaxFiles; $i++) {
-    $files.Add(@{ Role = 'dropin'; Label = "jobs.d/$i.config"; Path = (Join-Path $tmp 'small.config') })
-}
-Compare-Case 'file/too-many-files' "ERROR`t0`tE_TOO_MANY_FILES" (Format-VigilConfigDump -Parsed (ConvertFrom-VigilConfigFiles -Files $files))
 Remove-Item -Recurse -Force -LiteralPath $tmp
 
 Write-Host "$pass passed, $fail failed"

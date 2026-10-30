@@ -302,7 +302,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 
 | Section | Purpose |
 | --- | --- |
-| `[vigil]` | Instance name, state directory, global concurrency limit. |
+| `[vigil]` | Instance name, state directory, global concurrency limit, and where the configuration comes from (§6.8). |
 | `[scheduler]` | Tick interval, late-start window, pending limit. |
 | `[log]` | Log directory, stdout mirroring, retention, file size cap. |
 | `[tags]` | Tags attached to every metric. |
@@ -310,7 +310,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `[backend.<name>]` | One metrics destination (§15). |
 | `[runner.<name>]` | A reusable command prefix (§6.4). |
 | `[runners]` | File extension → runner map (§6.4). |
-| `[source.<name>]` | A place configuration files or scripts are fetched from (§6.9). |
+| `[source.<name>]` | A place the configuration or scripts are fetched from (§6.9). |
 | `[defaults]` | Default values for overridable job keys (§6.6). |
 | `[job.<id>]` | One scheduled job (§6.3). |
 
@@ -320,7 +320,6 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | --- | --- | --- |
 | `file` | Yes | Script or executable to run. |
 | `source` | No | `[source.*]` the script is fetched from; `file` is then a path inside that source (§6.9). Default: none, `file` is local. |
-| `ref` | No | For a `git` source: the tag, commit or branch to take the script from. Default: the source's `ref`. |
 | `sha256` | No | Expected SHA-256 digest of the script, 64 hex digits. Required for `https` and `sftp` sources (§6.9). |
 | `runner` | No | `[runner.*]` that runs `file`. Overrides the extension map. |
 | `arg` | No | Extra argument after `file`. Repeat per argument. |
@@ -468,34 +467,55 @@ job.legacy_export
 
 A complete annotated example configuration for each platform, covering common databases, checks, runners and backends, ships in `examples/`.
 
-### 6.8 Configuration Files
+### 6.8 Where the Configuration Comes From
 
-The configuration may be split across files, which together form one configuration:
+Each Vigil instance has one configuration file, `config/vigil.config`. It is used in one of two ways:
 
-| File | May contain |
+- **Local:** the file is the configuration.
+- **Remote:** the file says only where the configuration is, and Vigil fetches it from a source (§6.9):
+
+```ini
+[vigil]
+config_source = central
+config_file   = hosts/db01.config
+
+[source.central]
+type        = git
+url         = git@git.example.com:ops/vigil-config.git
+ref         = main
+check_every = 5m
+```
+
+| Key | Description |
 | --- | --- |
-| `config/vigil.config` | Any section. The only file that may contain `[vigil]` and `[source.*]`. |
-| `config/jobs.d/*.config` | `[job.*]` and `[runner.*]` only. Read in byte order of file name. |
-| Files fetched from a source (`config` key, §6.9) | Any section except `[vigil]` and `[source.*]`. |
+| `config_source` | The `[source.*]` holding the configuration, defined in the same file. |
+| `config_file` | The configuration file inside that source: a relative path with `/` separators, without `..` segments. |
 
-- A drop-in file holds one job, or a few related jobs, and is named after them (`config/jobs.d/cert_expiry.config`). Adding a job means dropping in a script and its file; removing it means deleting them. `vigil.config` itself never needs editing.
-- In `jobs.d`, only names ending in `.config` and not starting with `.` are read, so editor backups and temporary files are ignored.
-- Each section may be defined once across all files. A repeated section is `E_SECTION_DUPLICATE`, reported with both places; a host cannot redefine a fleet job by repeating it.
-- Every record is reported as `file:line`. The rules of §16.3 apply to the configuration as a whole: an error in any file rejects the new configuration, and the last valid one stays active.
-- Each file is limited to 1 MiB, and there may be at most 256 files in all.
-- A fetched file cannot define `[vigil]` or `[source.*]`, so it can never change the instance, its state location or where configuration comes from. Only a change on the host itself can redirect a host.
+`config_source` and `config_file` are set together or not at all. With them, the local file is a *pointer file*:
+
+- It holds only `[vigil]` with `config_source`, `config_file` and optionally `state_dir`, and the one `[source.*]` they name. Anything else is `E_POINTER_ONLY`. A setting therefore always has exactly one place it can come from.
+- The fetched file is a complete configuration in the same format, validated the same way (§16.3). It may define its own `[source.*]` sections for scripts.
+- The fetched file cannot set `config_source`, `config_file` or `state_dir` (`E_NOT_FROM_SOURCE`): where the configuration comes from, and where Vigil keeps its state, are decided on the host. Configuration is never chained.
+- A new version of the fetched file is picked up every `check_every`. It is validated as a whole and becomes active only when it, and every script it names, is present and verified (§16.5). A broken or unreachable configuration never replaces a working one.
+
+Jobs are the same in both modes: each job names a script, local or from a source (§6.9). The three common layouts are:
+
+| Layout | Configuration | Scripts |
+| --- | --- | --- |
+| Everything local | `vigil.config` | Local files. |
+| Mixed | `vigil.config` | Some local, some from sources. |
+| Everything remote | Fetched from a source; `vigil.config` is a pointer file. | Local files or sources, as the fetched configuration says. |
 
 ### 6.9 Sources
 
-A source is a place Vigil fetches configuration files or scripts from. Sources are optional: with none, everything is local.
+A source is a place Vigil fetches the configuration or scripts from. Sources are optional: with none, everything is local.
 
 ```ini
-# Fleet configuration and scripts from a Git repository.
-[source.fleet]
-type   = git
-url    = https://git.example.com/ops/monitoring.git
-ref    = main
-config = hosts/linux-db.config
+# Scripts from a Git repository, at a release tag.
+[source.scripts]
+type = git
+url  = https://git.example.com/ops/monitoring.git
+ref  = v2.3.1
 
 # Single scripts from an HTTPS file server.
 [source.files]
@@ -505,8 +525,7 @@ header_name  = Authorization
 header_value = env:VIGIL_FILES_AUTH
 
 [job.disk_usage]
-source    = fleet
-ref       = v2.3.1
+source    = scripts
 file      = checks/disk_usage.sh
 run_every = 5m
 
@@ -521,27 +540,24 @@ run_at    = 06:00
 | --- | --- | --- |
 | `type` | all | `local`, `git`, `https` or `sftp`. Required. |
 | `path` | `local`, `sftp` | The source directory: a local path or a network share for `local` (relative paths resolve against the install root), a remote directory for `sftp`. Required for those types. |
-| `url` | `git`, `https` | The repository URL (`https://` or SSH form) for `git`, the base URL for `https`. `https` URLs must use `https://`. Credentials in a URL are rejected. Required for those types. |
+| `url` | `git`, `https` | The repository URL for `git`: `https://`, `ssh://` or `user@host:path`. The base URL for `https`, which must use `https://`. Credentials in a URL are rejected. Required for those types. |
 | `host`, `port`, `user` | `sftp` | Server, port (default `22`) and login. Authentication uses the service account's SSH key; `user` is not a secret. `host` is required. |
-| `ref` | `git` | The default tag, commit or branch. Required. |
-| `config` | all | A configuration file inside the source to include (§6.8). Repeat for several. |
-| `check_every` | all | How often the source is checked for changes to its `config` files. Default `5m`. |
+| `ref` | `git` | The tag, commit or branch everything from this source is taken at. Required. |
+| `check_every` | all | How often the source is checked for changes. Default `5m`. |
 | `timeout` | all | Limit for one fetch from the source. Default `60s`. |
 | `header_name`, `header_value` | `https` | An authentication header. `header_value` is a credential (`env:NAME`, §6.5). |
 
-**Scripts.** A job with `source` names a script inside that source: `file` is a relative path with `/` separators, without `..` segments. Its `runner`, `arg`, `{file}` substitution and extension mapping work as for a local file, applied to the locally cached copy. A job without `source` is local, wherever its section came from.
+**Scripts.** A job with `source` runs a script from that source; `file` is then a relative path inside it, with `/` separators and without `..` segments. Its `runner`, `arg`, `{file}` substitution and extension mapping work as for a local file, applied to the locally cached copy. A job without `source` runs a local file.
 
-**Pinning.** The configuration decides which version of a script runs; publishing a new script version changes nothing on a host until its configuration names it. So a script reference must identify fixed content:
+**Versions.** The version is set once, on the source; a job only names the file. Upgrading every job from a source is a one-line change to its `ref`. To run two versions side by side, for example to trial a release candidate on one job, define a second source with the other `ref`.
 
 | Source type | Fixed by |
 | --- | --- |
-| `git` | A commit or tag in `ref`. A branch is accepted but reported as unpinned (`W_SCRIPT_UNPINNED`) unless `sha256` is set, since the branch can move. |
-| `https`, `sftp` | `sha256`, required: these sources have no versions. |
-| `local` | `sha256` if set; otherwise reported as unpinned. |
+| `git` | A tag or commit in `ref`. A branch follows the branch: changes are picked up every `check_every`, and the script is reported as unpinned (`W_SCRIPT_UNPINNED`) unless the job sets `sha256`. |
+| `https`, `sftp` | The job's `sha256`, required: these sources have no versions. |
+| `local` | The job's `sha256` if set; otherwise changes in the directory are picked up every `check_every`, and the script is reported as unpinned. |
 
-An unpinned script is fetched once when its reference first appears or changes, not each time the source changes, so it still cannot change underneath a running host. Fleet hosts that fetched it at different times may hold different content, which is why pinning is recommended.
-
-Configuration files are different: a source's `config` files are what a fleet tracks, so their `ref` is usually a branch (`main`, `production`), and changes to them are picked up every `check_every`. Releasing a new script version is then a reviewed one-line change to `ref` or `sha256` in that branch.
+A job's `sha256` always wins: if the content in its source changes, the new content is rejected and the last verified copy keeps running until the digest is updated (§16.5).
 
 **Single files.** `https` and `sftp` sources deliver the one file named, so a script that needs files beside it should come from a `git` or `local` source. A `git` reference delivers the repository's whole tree at that commit.
 
@@ -897,8 +913,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
   app/                    Vigil's own scripts - replaced on upgrade
   vendor/nssm/            Windows only
   config/
-    vigil.config          the operator's - never overwritten
-    jobs.d/<name>.config  drop-in job files (§6.8)
+    vigil.config          the configuration, or a pointer to it (§6.8); never overwritten
     vigil.env             credential variables (systemd EnvironmentFile), owner-only
   scripts/                the operator's job scripts - never overwritten
   cache/                  fetched configuration and scripts (§16.5); Vigil-owned
@@ -1031,7 +1046,9 @@ Logs never contain secret values. Environment values are never dumped. A full di
 
 ### 14.1 Naming
 
-Metric names are dotted (`dba.dump_databases.failures`). Backends translate to their native conventions (for example dots to underscores for Prometheus).
+Metric names are written with dots (`db.backup_full.failures`), and underscores are allowed within a part (`backup_full`). There is no setting for the separator: each backend translates names to its own convention. Backends using the Prometheus format (`file`, `prometheus`, `victoriametrics`) allow only underscores, so dots become underscores there; every other backend keeps the dots. A name written with underscores only (`x_y_z`) is sent unchanged everywhere.
+
+Two different names can become the same name after that translation (`app.queue_depth` and `app_queue.depth` are both `app_queue_depth`). When two jobs with such base names send to the same Prometheus-format backend, validation reports `W_METRIC_COLLISION`. Jobs sharing one `metric_name` are not a collision: their `job` tag tells them apart.
 
 ### 14.2 Per-Job Metrics
 
@@ -1209,7 +1226,7 @@ A backend can never consume unbounded memory or disk (VIGIL-009, VIGIL-014).
 
 ### 16.1 Hot Reload
 
-The local configuration files (`vigil.config` and `jobs.d`, §6.8) are checked every tick and parsed again when a file was added, removed or modified. Changes to jobs, schedules, runners, backends, tags and sources take effect within one tick without a restart, unless they need something fetched first (§16.5). Sources are checked every `check_every`. Only changes to Vigil's own scripts require a service restart.
+`config/vigil.config` is checked every tick and parsed again when it was modified. In remote mode, the configuration's source is checked every `check_every` (§6.8). Changes to jobs, schedules, runners, backends, tags and sources take effect without a restart, once anything they need has been fetched (§16.5). Only changes to Vigil's own scripts require a service restart.
 
 Removing a job, disabling it or changing it never stops a run already in progress: the run finishes under the settings and script it started with, and the change applies from the next run.
 
@@ -1220,7 +1237,7 @@ On Windows, environment variables named by `env:` and `require_env` are re-read 
 Adding a job never needs a restart:
 
 1. Copy the script into `<root>/scripts/`.
-2. Save its `[job.<id>]` block as `config/jobs.d/<id>.config` (or add it to `vigil.config`).
+2. Add its `[job.<id>]` block to `vigil.config`.
 3. On the next tick the config is reloaded and validated, and the job is scheduled.
 
 On a fleet, the same change is made in the configuration source instead, and each host adopts it at its next check (§16.5).
@@ -1233,20 +1250,20 @@ Copy the script before editing the config. A config saved with a mistake is reje
 - On reload, an invalid configuration is rejected as a whole; the last known valid configuration stays active and `vigil.supervisor.config_reload_failed` is posted (VIGIL-010).
 - A single invalid job does not invalidate the file: that job is skipped, shown as `INVALID` and reported via `invalid_config` until fixed. Other jobs keep running.
 - A job whose file disappears is shown as `FILE MISSING` and reported via `file_missing`; it resumes automatically when the file returns.
-- Validation is a pure function of the parsed files: it never reads the filesystem, the network or the environment (pre-flight and fetching do, §16.4, §16.5). Each problem is reported once, with its file and line; a problem in a `[job.*]` section makes only that job invalid, and any other problem rejects the configuration. Messages never contain a credential value.
+- Validation is a pure function of the parsed files: it never reads the filesystem, the network or the environment (pre-flight and fetching do, §16.4, §16.5). Each problem is reported once, with its line; a problem in a `[job.*]` section makes only that job invalid, and any other problem rejects the configuration. Messages never contain a credential value.
 
 Error codes, shared by both implementations and the conformance suite (`tests/conformance`):
 
 | Stage | Code | Meaning |
 | --- | --- | --- |
 | File | `E_FILE_NOT_FOUND`, `E_FILE_UNREADABLE`, `E_FILE_TOO_LARGE` | The file is missing, unreadable or over 1 MiB. |
-| | `E_TOO_MANY_FILES` | More than 256 configuration files (§6.8). |
 | Syntax | `E_INVALID_CHAR` | A character other than printable ASCII or tab. |
 | | `E_SECTION_SYNTAX`, `E_SECTION_DUPLICATE` | A malformed or repeated `[section]`; its keys are skipped. |
 | | `E_KEY_OUTSIDE_SECTION`, `E_KEY_SYNTAX`, `E_NO_EQUALS` | A key before any section, a malformed key, or a line that is none of the allowed forms. |
 | Structure | `E_SECTION_UNKNOWN` | A section Vigil does not define. |
-| | `E_SECTION_NOT_ALLOWED` | A section that file may not contain, such as `[vigil]` in a `jobs.d` file (§6.8). |
-| | `E_KEY_UNKNOWN`, `E_KEY_DUPLICATE`, `E_KEY_REQUIRED` | A key not allowed in that section (or not for that source type, §6.9), a single-valued key set twice, or a required key missing (`file`, a runner's `command`, a source's `type` and the keys its type needs). |
+| | `E_POINTER_ONLY` | A pointer file containing anything but `config_source`, `config_file`, `state_dir` and the source they name (§6.8). |
+| | `E_NOT_FROM_SOURCE` | A fetched configuration setting `config_source`, `config_file` or `state_dir` (§6.8). Checked when fetching. |
+| | `E_KEY_UNKNOWN`, `E_KEY_DUPLICATE`, `E_KEY_REQUIRED` | A key not allowed in that section (or not for that source type, §6.9), a single-valued key set twice, or a required key missing (`file`, a runner's `command`, a source's `type` and the keys its type needs, `config_source` and `config_file` together). |
 | | `E_KEY_NOT_DEFAULTABLE` | A job-only key in `[defaults]` (§6.6). |
 | Values | `E_VALUE_EMPTY` | An empty value (allowed only for `arg`). |
 | | `E_DURATION`, `E_INTEGER`, `E_BOOLEAN`, `E_ENUM` | Not a duration (`30s`, `5m`, `2h`, `7d`; zero only for `grace` and `late_start_window`), a whole number, `true`/`false`, or one of the listed words. |
@@ -1256,16 +1273,16 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | Tags and environment | `E_TAG_SYNTAX`, `E_TAG_RESERVED`, `E_TAG_DUPLICATE` | A malformed tag, a reserved tag key (§14.6), or a tag name repeated in one section. |
 | | `E_ENV_SYNTAX`, `E_ENV_NAME`, `E_ENV_LITERAL`, `E_ENV_DUPLICATE` | A malformed `NAME=value`, an invalid variable name, an `env` value starting with `env:` (§6.5), or a name repeated in one section. |
 | Secrets | `E_SECRET_RAW` | A credential key whose value is not `env:NAME`; the value is never shown. |
-| Sources | `E_SOURCE_UNKNOWN` | A job names a source that is not defined. |
-| | `E_SOURCE_PATH` | A `file` or `config` path inside a source that is absolute or contains a `..` segment. |
+| Sources | `E_SOURCE_UNKNOWN` | A job or `config_source` names a source that is not defined. |
+| | `E_SOURCE_PATH` | A `file` or `config_file` inside a source that is absolute, uses `\` or contains a `..` segment. |
 | | `E_URL` | A malformed URL, an `https` source URL not starting with `https://`, or a URL containing credentials (never shown). |
 | | `E_SHA256`, `E_SHA256_REQUIRED` | Not 64 hex digits, or missing for a script from an `https` or `sftp` source. |
-| | `E_REF_NOT_GIT` | A job sets `ref` but its source is not `git`. |
 | Jobs | `E_SCHEDULE_NONE`, `E_SCHEDULE_BOTH`, `E_SCHEDULE_DAYS_ONLY` | An invalid schedule combination (§7.5). |
 | | `E_JOB_ID_RESERVED` | A job id starting with `vigil_`. |
 | Command | `E_BATCH_ARG`, `E_BATCH_PATH` | A batch file argument or path containing a `cmd.exe` metacharacter (§6.4). |
 | Warnings | `W_BACKEND_DISABLED` | A job names a disabled backend. |
-| | `W_SCRIPT_UNPINNED` | A script from a `local` source without `sha256`. Also reported when fetching, for a `git` reference that turns out to be a branch (§6.9). |
+| | `W_SCRIPT_UNPINNED` | A script from a `local` source without `sha256`. Also reported when fetching, for a `git` source whose `ref` turns out to be a branch (§6.9). |
+| | `W_METRIC_COLLISION` | Two jobs' different base metric names become the same name in a Prometheus-format backend they both send to (§14.1). |
 
 Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rule on credential keys; the keys specific to each backend type are checked by that backend (§15).
 
@@ -1287,14 +1304,14 @@ Install and start abort with no changes if any check fails.
 
 ### 16.5 Sources and Reconciliation
 
-Vigil watches configuration, not scripts. A new script version is adopted only when the configuration names it (§6.9), and nothing is activated until everything it needs is present and verified.
+Vigil watches the configuration and the sources it names. A source pinned to a tag, a commit or a digest never changes; one following a branch or a directory is picked up at its next check (§6.9). Nothing is activated until everything it needs is present and verified.
 
 **Fetcher.** Fetching is done by a worker, `vigil_fetch`, started and supervised like `vigil_sender` (§4.5): detached, with its own state, run token, log and identity checks. A slow or unreachable source therefore never delays a tick, and at most one fetcher runs at a time. The supervisor starts it when a source is due for its check, or when a local change references a script that is not yet cached.
 
 **Reconciliation.** One fetcher run:
 
-1. Checks each due source and fetches its `config` files into `cache/staging/`. If no source's files changed and every referenced script is cached and verifies, it stops: there is nothing to do.
-2. Builds the candidate configuration from the local files and the fetched files, and validates it (§16.3). An invalid candidate is rejected as a whole.
+1. In remote mode, fetches the configuration file from its source into `cache/staging/` when that source is due (§6.8). Checks each other due source for a new commit or new content. If nothing changed and every referenced script is cached and verifies, it stops: there is nothing to do.
+2. Takes the candidate configuration (the local file, or the fetched one) and validates it (§16.3); a fetched file is also checked for `E_NOT_FROM_SOURCE`. An invalid candidate is rejected as a whole.
 3. Lists the script references of the candidate's valid jobs, disabled jobs included, so re-enabling one never waits for a fetch.
 4. Fetches each reference not already cached, verifies its `sha256` where set, and moves it into the cache. A cached entry is complete or absent, never partial: it is assembled under `staging/` and renamed into place.
 5. When every reference is present and verified, writes the candidate's activation record to `state/config.active` atomically (§12.3).
@@ -1303,7 +1320,7 @@ The supervisor reads `state/config.active` each tick. When it changes, the super
 
 If anything fails — a source unreachable, a timeout, a rejected login, a digest mismatch, an invalid candidate — nothing changes: the previous activation record, and every file it names, stays in force. The failure is posted (`vigil.source.failures`, §14.5), shown in `jobs.log`, and retried at the next check. A host that loses its source keeps running its last valid configuration indefinitely.
 
-**Activation record.** Names every configuration file and every cached script of the active configuration, each with its digest, and the configuration revision. The revision is the first 12 hex digits of a SHA-256 over those names and digests. Two hosts with the same revision run the same configuration and the same script content. The record survives restarts, so a host that restarts while its source is unreachable starts with its last valid configuration. Purely local configurations have a revision too.
+**Activation record.** Names the configuration file and every cached script of the active configuration, each with its digest, and the configuration revision. The revision is the first 12 hex digits of a SHA-256 over those names and digests. Two hosts with the same revision run the same configuration and the same script content. The record survives restarts, so a host that restarts while its source is unreachable starts with its last valid configuration. Purely local configurations have a revision too.
 
 **Running jobs.** A run executes the cached copy named when it was launched, recorded in its launch record and state. Activating a new revision never touches a running run or its files.
 
@@ -1674,7 +1691,7 @@ Each invariant has a documented enforcement mechanism and regression tests.
 - A host cannot override a single setting of a job it receives from a source; each section is defined once (§6.8). Per-host differences are expressed by including different files from the source.
 - `https` and `sftp` sources deliver single files; scripts that need files beside them should come from `git` or `local` sources.
 - A `git` reference to a commit that is not the tip of a branch or a tag must be fetchable by its id; most hosted Git services allow this, a self-hosted server may need `uploadpack.allowReachableSHA1InWant`.
-- Script references without a digest, from a `local` source or a `git` branch, may differ between hosts that fetched them at different times (§6.9).
+- Scripts without a digest, from a `local` source or a `git` branch, may briefly differ between hosts until each has made its next check (§6.9).
 
 ---
 
@@ -1686,7 +1703,7 @@ Vigil v1 is ready when:
 - [ ] User-mode and system-mode installation work on all three platforms.
 - [ ] The one-line installers and the reviewed manual path work on all three platforms, verify checksums, and never overwrite `config/` or `scripts/` on upgrade.
 - [ ] `vigil uninstall` removes everything (or keeps `config/` and `scripts/` with `--keep-config`) and is idempotent.
-- [ ] A job added by dropping in a script and its `jobs.d` file is scheduled without a restart.
+- [ ] A job added to `vigil.config` is scheduled without a restart, and a pointer file switches the instance to its fetched configuration.
 - [ ] Configuration and scripts are fetched from `local`, `git`, `https` and `sftp` sources; a failed fetch or an invalid candidate leaves the last valid configuration active, including across a restart.
 - [ ] A script version changes on a host only when its configuration changes; running jobs are never interrupted by an activation.
 - [ ] Hosts report their configuration revision, and the same revision means the same configuration and script content.
