@@ -10,9 +10,10 @@
     tests/conformance/effective holds the shared cases.
 
     Returns rows { Key; Value; Source } in a fixed key order. Source is one
-    of: job, defaults, scheduler, log, tags, runners, runner, built-in. List
-    keys (arg, tag, env, require_env) produce one row per item. List values
-    (run_at, run_on_days, backends) are normalised to "a, b".
+    of: job, defaults, scheduler, log, tags, runners, runner, source,
+    built-in. List keys (arg, tag, env, require_env) produce one row per
+    item. List values (run_at, run_on_days, backends) are normalised to
+    "a, b".
 
     Requires Config.ps1.
 #>
@@ -115,6 +116,17 @@ function Get-VigilEffectiveJob {
 
     $file = (Get-VigilIndexValue -Index $Index -Section $job -Key 'file').Value
     & $add 'file' $file 'job'
+
+    # A fetched script: its source, the source's ref (git) and the job's
+    # digest. Rows appear only when set.
+    $src = Get-VigilIndexValue -Index $Index -Section $job -Key 'source'
+    if ($src.Found) {
+        & $add 'source' $src.Value 'job'
+        $r = Get-VigilIndexValue -Index $Index -Section "source.$($src.Value)" -Key 'ref'
+        if ($r.Found) { & $add 'ref' $r.Value 'source' }
+        $r = Get-VigilIndexValue -Index $Index -Section $job -Key 'sha256'
+        if ($r.Found) { & $add 'sha256' $r.Value 'job' }
+    }
 
     # Runner: the job's key, else the file extension in [runners], else none
     # (the file is executed directly).

@@ -23,6 +23,9 @@
 #                                                 compared with comments and
 #                                                 blank lines dropped and
 #                                                 columns single-spaced
+#   tests/mocks/<path>.config                     the example configurations
+#   tests/conformance/mocks/<path>.expected       validate dump, then
+#                                                 vigil_config_effective_dump
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -57,6 +60,21 @@ table_rows() {
     done < "$1"
 }
 
+# compare <name> <expected> <actual>: counts and reports one case.
+compare() {
+    if [ "$3" = "$2" ]; then
+        pass=$((pass + 1))
+        printf '  PASS  %s\n' "$1"
+    else
+        fail=$((fail + 1))
+        printf '  FAIL  %s\n' "$1"
+        printf '%s\n' "$2" > "${TMPDIR:-/tmp}/vigil-expected.$$"
+        printf '%s\n' "$3" > "${TMPDIR:-/tmp}/vigil-actual.$$"
+        diff "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$" | sed 's/^/        /'
+        rm -f "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$"
+    fi
+}
+
 for suite in parser validate effective command schedule; do
     for cfg in "$here"/conformance/$suite/*.config; do
         name=$(basename "$cfg" .config)
@@ -87,18 +105,17 @@ for suite in parser validate effective command schedule; do
             expected=$(cat "$expected_file")
         fi
 
-        if [ "$actual" = "$expected" ]; then
-            pass=$((pass + 1))
-            printf '  PASS  %s/%s\n' "$suite" "$name"
-        else
-            fail=$((fail + 1))
-            printf '  FAIL  %s/%s\n' "$suite" "$name"
-            printf '%s\n' "$expected" > "${TMPDIR:-/tmp}/vigil-expected.$$"
-            printf '%s\n' "$actual" > "${TMPDIR:-/tmp}/vigil-actual.$$"
-            diff "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$" | sed 's/^/        /'
-            rm -f "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$"
-        fi
+        compare "$suite/$name" "$expected" "$actual"
     done
+done
+
+# The example configurations in tests/mocks, every tier: each must give the
+# validate dump and vigil_config_effective_dump recorded in
+# tests/conformance/mocks/<path>.expected.
+for cfg in $(find "$here/mocks" -name '*.config' | LC_ALL=C sort); do
+    rel=${cfg#"$here/mocks/"}
+    actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump; vigil_config_effective_dump)
+    compare "mocks/${rel%.config}" "$(cat "$here/conformance/mocks/${rel%.config}.expected")" "$actual"
 done
 
 # File-level cases need inputs that cannot be committed as fixtures: a

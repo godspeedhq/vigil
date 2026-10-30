@@ -26,6 +26,9 @@
                                                     compared with comments and
                                                     blank lines dropped and
                                                     columns single-spaced
+      tests/mocks/<path>.config                     the example configurations
+      tests/conformance/mocks/<path>.expected       validation dump, then
+                                                    Format-VigilEffectiveDump
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -43,6 +46,30 @@ $pass = 0
 $fail = 0
 
 Write-Host "PowerShell $($PSVersionTable.PSVersion)"
+
+# Counts and reports one case, comparing without trailing newlines as the
+# bash runner's $(...) does.
+function Compare-Case {
+    param([string]$Name, [string]$Expected, [string]$Actual)
+    if ($Actual.TrimEnd("`n") -ceq $Expected.TrimEnd("`n")) {
+        $Script:pass++
+        Write-Host "  PASS  $Name"
+        return
+    }
+    $Script:fail++
+    Write-Host "  FAIL  $Name"
+    $exp = $Expected.TrimEnd("`n").Split("`n")
+    $act = $Actual.TrimEnd("`n").Split("`n")
+    $max = [Math]::Max($exp.Length, $act.Length)
+    for ($i = 0; $i -lt $max; $i++) {
+        $e = if ($i -lt $exp.Length) { $exp[$i] } else { '<none>' }
+        $a = if ($i -lt $act.Length) { $act[$i] } else { '<none>' }
+        if ($e -cne $a) {
+            Write-Host "        line $($i + 1): expected [$($e -replace "`t", '\t')]"
+            Write-Host "                 actual   [$($a -replace "`t", '\t')]"
+        }
+    }
+}
 
 foreach ($suite in @('parser', 'validate', 'effective', 'command', 'schedule')) {
     $cases = Get-ChildItem -LiteralPath (Join-Path $here "conformance\$suite") -Filter '*.config' |
@@ -83,27 +110,24 @@ foreach ($suite in @('parser', 'validate', 'effective', 'command', 'schedule')) 
             $expected = [System.IO.File]::ReadAllText($expectedPath)
         }
 
-        # Compare without trailing newlines, as the bash runner's $(...) does.
-        if ($actual.TrimEnd("`n") -ceq $expected.TrimEnd("`n")) {
-            $pass++
-            Write-Host "  PASS  $suite/$name"
-        }
-        else {
-            $fail++
-            Write-Host "  FAIL  $suite/$name"
-            $exp = $expected.TrimEnd("`n").Split("`n")
-            $act = $actual.TrimEnd("`n").Split("`n")
-            $max = [Math]::Max($exp.Length, $act.Length)
-            for ($i = 0; $i -lt $max; $i++) {
-                $e = if ($i -lt $exp.Length) { $exp[$i] } else { '<none>' }
-                $a = if ($i -lt $act.Length) { $act[$i] } else { '<none>' }
-                if ($e -cne $a) {
-                    Write-Host "        line $($i + 1): expected [$($e -replace "`t", '\t')]"
-                    Write-Host "                 actual   [$($a -replace "`t", '\t')]"
-                }
-            }
-        }
+        Compare-Case "$suite/$name" $expected $actual
     }
+}
+
+# The example configurations in tests/mocks, every tier: each must give the
+# validation and effective dumps recorded in tests/conformance/mocks.
+$mockRoot = Join-Path $here 'mocks'
+$mocks = Get-ChildItem -LiteralPath $mockRoot -Filter '*.config' -Recurse |
+    ForEach-Object { $_.FullName.Substring($mockRoot.Length + 1).Replace('\', '/') } |
+    Sort-Object
+foreach ($rel in $mocks) {
+    $name = $rel.Substring(0, $rel.Length - '.config'.Length)
+    $parsed = ConvertFrom-VigilConfig -Path (Join-Path $mockRoot $rel)
+    $records = Test-VigilConfig -Parsed $parsed
+    $actual = (Format-VigilValidationDump -Parsed $parsed -Records $records) +
+        (Format-VigilEffectiveDump -Parsed $parsed -Records $records)
+    $expected = [System.IO.File]::ReadAllText((Join-Path $here "conformance\mocks\$name.expected"))
+    Compare-Case "mocks/$name" $expected $actual
 }
 
 # File-level cases need inputs that cannot be committed as fixtures: a
