@@ -1,0 +1,4 @@
+1793304000 export.duration_seconds 61 gauge host=app02 os=windows instance=vigil job=export
+1793304000 export.runs 1 count host=app02 os=windows instance=vigil job=export
+1793304000 export.failures 1 count host=app02 os=windows instance=vigil job=export exit_code=2
+1793304000 export.rows 0 gauge host=app02 os=windows instance=vigil job=export

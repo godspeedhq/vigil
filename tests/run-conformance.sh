@@ -32,6 +32,10 @@
 #                                                 name parses perfdata, a
 #                                                 trailing -cap<n> sets the cap
 #   tests/conformance/metrics/<case>.expected     vigil_metrics_dump output
+#   tests/conformance/events/<case>.config        a configuration, with the run
+#                                                 in <case>.run and its output
+#                                                 in <case>.stdout
+#   tests/conformance/events/<case>.expected      vigil_run_events_dump output
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -54,6 +58,8 @@ root=$(dirname "$here")
 . "$root/app/lib/outcome.sh"
 # shellcheck source=../app/lib/metrics.sh
 . "$root/app/lib/metrics.sh"
+# shellcheck source=../app/lib/events.sh
+. "$root/app/lib/events.sh"
 
 pass=0
 fail=0
@@ -158,6 +164,25 @@ for out in "$here"/conformance/metrics/*.stdout; do
     case $name in *-cap[0-9]*) cap=${name##*-cap} ;; esac
     actual=$(vigil_metrics_parse "$mode" "$cap" "$out"; vigil_metrics_dump)
     compare "metrics/$name" "$(cat "$here/conformance/metrics/$name.expected")" "$actual"
+done
+
+# Run events: <case>.config, the run in <case>.run ("<key> <value>" lines:
+# job, epoch, mode, outcome, exit_code, duration, host, os) and its output
+# in <case>.stdout.
+for cfg in "$here"/conformance/events/*.config; do
+    name=$(basename "$cfg" .config)
+    while read -r key value || [ -n "$key" ]; do
+        case $key in
+            job) r_job=$value ;; epoch) r_epoch=$value ;; mode) r_mode=$value ;;
+            outcome) r_outcome=$value ;; exit_code) r_code=$value ;;
+            duration) r_duration=$value ;; host) r_host=$value ;; os) r_os=$value ;;
+        esac
+    done < "${cfg%.config}.run"
+    actual=$(vigil_config_parse "$cfg"; vigil_config_validate
+             vigil_metrics_parse "$r_mode" "$VIGIL_METRIC_LINES_MAX" "${cfg%.config}.stdout"
+             vigil_run_events "$r_job" "$r_epoch" "$r_outcome" "$r_code" "$r_duration" "$r_host" "$r_os"
+             vigil_run_events_dump)
+    compare "events/$name" "$(cat "${cfg%.config}.expected")" "$actual"
 done
 
 # File-level cases need inputs that cannot be committed as fixtures: a

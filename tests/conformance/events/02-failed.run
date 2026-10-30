@@ -1,0 +1,8 @@
+job export
+epoch 1793304000
+mode standard
+outcome failed
+exit_code 2
+duration 61
+host app02
+os windows

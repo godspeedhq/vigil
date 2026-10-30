@@ -35,6 +35,10 @@
                                                     name parses perfdata, a
                                                     trailing -cap<n> sets the cap
       tests/conformance/metrics/<case>.expected     Format-VigilMetricsDump output
+      tests/conformance/events/<case>.config        a configuration, with the run
+                                                    in <case>.run and its output
+                                                    in <case>.stdout
+      tests/conformance/events/<case>.expected      Get-VigilRunEvents output
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -49,6 +53,7 @@ $root = Split-Path -Parent $here
 . (Join-Path $root 'app\lib\Schedule.ps1')
 . (Join-Path $root 'app\lib\Outcome.ps1')
 . (Join-Path $root 'app\lib\Metrics.ps1')
+. (Join-Path $root 'app\lib\Events.ps1')
 
 $pass = 0
 $fail = 0
@@ -162,6 +167,23 @@ foreach ($out in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\metri
     $actual = Format-VigilMetricsDump (ConvertFrom-VigilJobOutput -Mode $mode -Cap $cap -Path $out.FullName)
     $expected = [System.IO.File]::ReadAllText([System.IO.Path]::ChangeExtension($out.FullName, '.expected'))
     Compare-Case "metrics/$name" $expected $actual
+}
+
+# Run events: <case>.config, the run in <case>.run ("<key> <value>" lines:
+# job, epoch, mode, outcome, exit_code, duration, host, os) and its output
+# in <case>.stdout.
+foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\events') -Filter '*.config' | Sort-Object Name)) {
+    $run = @{}
+    foreach ($line in [System.IO.File]::ReadAllLines([System.IO.Path]::ChangeExtension($case.FullName, '.run'))) {
+        $kv = $line.Split([char[]]@(' ', "`t"), 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+        if ($kv.Count -eq 2) { $run[$kv[0]] = $kv[1].Trim() }
+    }
+    $parsed = ConvertFrom-VigilConfig -Path $case.FullName
+    $output = ConvertFrom-VigilJobOutput -Mode $run.mode -Cap $Script:VigilMetricLinesMax -Path ([System.IO.Path]::ChangeExtension($case.FullName, '.stdout'))
+    $events = Get-VigilRunEvents -Parsed $parsed -Id $run.job -Epoch $run.epoch -Outcome $run.outcome -ExitCode $run.exit_code `
+        -Duration $run.duration -HostName $run.host -Os $run.os -Output $output
+    $actual = ($events | ForEach-Object { "$_`n" }) -join ''
+    Compare-Case "events/$($case.BaseName)" ([System.IO.File]::ReadAllText([System.IO.Path]::ChangeExtension($case.FullName, '.expected'))) $actual
 }
 
 # File-level cases need inputs that cannot be committed as fixtures: a
