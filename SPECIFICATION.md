@@ -1246,7 +1246,7 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | | `E_KEY_OUTSIDE_SECTION`, `E_KEY_SYNTAX`, `E_NO_EQUALS` | A key before any section, a malformed key, or a line that is none of the allowed forms. |
 | Structure | `E_SECTION_UNKNOWN` | A section Vigil does not define. |
 | | `E_SECTION_NOT_ALLOWED` | A section that file may not contain, such as `[vigil]` in a `jobs.d` file (§6.8). |
-| | `E_KEY_UNKNOWN`, `E_KEY_DUPLICATE`, `E_KEY_REQUIRED` | A key not allowed in that section, a single-valued key set twice, or a required key missing (`file`, a runner's `command`). |
+| | `E_KEY_UNKNOWN`, `E_KEY_DUPLICATE`, `E_KEY_REQUIRED` | A key not allowed in that section (or not for that source type, §6.9), a single-valued key set twice, or a required key missing (`file`, a runner's `command`, a source's `type` and the keys its type needs). |
 | | `E_KEY_NOT_DEFAULTABLE` | A job-only key in `[defaults]` (§6.6). |
 | Values | `E_VALUE_EMPTY` | An empty value (allowed only for `arg`). |
 | | `E_DURATION`, `E_INTEGER`, `E_BOOLEAN`, `E_ENUM` | Not a duration (`30s`, `5m`, `2h`, `7d`; zero only for `grace` and `late_start_window`), a whole number, `true`/`false`, or one of the listed words. |

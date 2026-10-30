@@ -35,25 +35,76 @@
 #>
 
 $Script:VigilConfigMaxBytes = 1048576
+$Script:VigilConfigMaxFiles = 256
 
-function ConvertFrom-VigilConfig {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    $result = [pscustomobject]@{
+function New-VigilConfigResult {
+    return [pscustomobject]@{
         Entries  = New-Object 'System.Collections.Generic.List[object]'
         # Accepted section headers, including empty ones, in file order.
         Sections = New-Object 'System.Collections.Generic.List[object]'
         Errors   = New-Object 'System.Collections.Generic.List[object]'
+        # { Role; Label } per file read.
+        Files    = New-Object 'System.Collections.Generic.List[object]'
+        # Section name -> index in Sections, across all files.
+        SectionIndex = New-Object 'System.Collections.Generic.Dictionary[string,int]' ([System.StringComparer]::Ordinal)
     }
+}
 
+# Parses one file as the main configuration file.
+function ConvertFrom-VigilConfig {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $result = New-VigilConfigResult
+    Read-VigilConfigFile -Result $result -Role 'main' -Label '' -Path $Path
+    return $result
+}
+
+<#
+    Parses several files as one configuration (spec 6.8), in the order given.
+    Files is a list of @{ Role; Label; Path }: Role is main, dropin or fetched;
+    Label names the file in locations and is empty for the main file, whose
+    locations are plain line numbers - elsewhere they are "<label>:<line>".
+    Each section may be defined once across all files.
+#>
+function ConvertFrom-VigilConfigFiles {
+    param([Parameter(Mandatory = $true)]$Files)
+    $result = New-VigilConfigResult
+    if ($Files.Count -gt $Script:VigilConfigMaxFiles) {
+        $result.Errors.Add([pscustomobject]@{
+            Line = 0; Code = 'E_TOO_MANY_FILES'
+            Message = "$($Files.Count) configuration files; the limit is $($Script:VigilConfigMaxFiles)"
+        })
+        return $result
+    }
+    foreach ($f in $Files) {
+        Read-VigilConfigFile -Result $result -Role $f.Role -Label $f.Label -Path $f.Path
+    }
+    return $result
+}
+
+# Appends one file to a parse result.
+function Read-VigilConfigFile {
+    param($Result, [string]$Role, [string]$Label, [string]$Path)
+
+    $result = $Result
+    $fileIndex = $result.Files.Count
+    $result.Files.Add([pscustomobject]@{ Role = $Role; Label = $Label })
+    # Prefix that turns a line number into a location.
+    $loc = if ($Label.Length -gt 0) { "${Label}:" } else { '' }
+
+    # A plain number in the main file, so single-file results are unchanged.
+    $locate = {
+        param([int]$N)
+        if ($loc.Length -gt 0) { return "$loc$N" }
+        return $N
+    }
     $addError = {
         param([int]$Line, [string]$Code, [string]$Message)
-        $result.Errors.Add([pscustomobject]@{ Line = $Line; Code = $Code; Message = $Message })
+        $result.Errors.Add([pscustomobject]@{ Line = (& $locate $Line); Code = $Code; Message = $Message })
     }
 
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         & $addError 0 'E_FILE_NOT_FOUND' "config file not found: $Path"
-        return $result
+        return
     }
 
     try {
@@ -61,12 +112,12 @@ function ConvertFrom-VigilConfig {
     }
     catch {
         & $addError 0 'E_FILE_UNREADABLE' "config file not readable: $Path"
-        return $result
+        return
     }
 
     if ($bytes.Length -gt $Script:VigilConfigMaxBytes) {
         & $addError 0 'E_FILE_TOO_LARGE' "config file is $($bytes.Length) bytes; the limit is $($Script:VigilConfigMaxBytes)"
-        return $result
+        return
     }
 
     $offset = 0
@@ -85,7 +136,6 @@ function ConvertFrom-VigilConfig {
     $reInvalid = '[^\t -~]'
     $trimChars = [char[]]@(' ', "`t")
 
-    $seen     = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
     $section  = ''
     $skipping = $false
 
@@ -108,13 +158,18 @@ function ConvertFrom-VigilConfig {
         if ($line.StartsWith('[')) {
             if ($line -cmatch $reSection) {
                 $section = $Matches[1]
-                if ($seen.Add($section)) {
-                    $skipping = $false
-                    $result.Sections.Add([pscustomobject]@{ Name = $section; Line = $n; First = $result.Entries.Count; Count = 0 })
+                $first = 0
+                if ($result.SectionIndex.TryGetValue($section, [ref]$first)) {
+                    # Repeated in this file or defined by an earlier one.
+                    & $addError $n 'E_SECTION_DUPLICATE' "section [$section] appears more than once; first at $($result.Sections[$first].Line)"
+                    $skipping = $true
                 }
                 else {
-                    & $addError $n 'E_SECTION_DUPLICATE' "section [$section] appears more than once"
-                    $skipping = $true
+                    $skipping = $false
+                    $result.SectionIndex[$section] = $result.Sections.Count
+                    $result.Sections.Add([pscustomobject]@{
+                        Name = $section; Line = (& $locate $n); First = $result.Entries.Count; Count = 0; File = $fileIndex
+                    })
                 }
             }
             else {
@@ -150,13 +205,11 @@ function ConvertFrom-VigilConfig {
             Section = $section
             Key     = $key
             Value   = $value
-            Line    = $n
+            Line    = (& $locate $n)
         })
         # A section's keys are contiguous, so lookups can scan only its range.
         $result.Sections[$result.Sections.Count - 1].Count++
     }
-
-    return $result
 }
 
 # Formats a parse result in the conformance format, one record per line:

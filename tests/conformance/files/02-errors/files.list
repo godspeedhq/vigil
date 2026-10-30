@@ -1,0 +1,6 @@
+# Mistakes spread over several files; locations name the file.
+main    -                          vigil.config
+dropin  jobs.d/a.config            jobs.d/a.config
+dropin  jobs.d/b.config            jobs.d/b.config
+fetched fleet:fleet/x.config       fetched/fleet/x.config
+fetched fleet:fleet/missing.config fetched/fleet/missing.config

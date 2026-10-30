@@ -46,6 +46,40 @@ $Script:VigilValRe = @{
     TagPair  = '^([a-z0-9_]+)=([^\s]+)$'
     Cred     = '^env:([A-Za-z_][A-Za-z0-9_]*)$'
     Ext      = '^\.[a-z0-9_]+$'
+    Scp      = '^([A-Za-z0-9._-]+@)?[A-Za-z0-9.-]{2,}:.+$'
+    Sha256   = '^[0-9A-Fa-f]{64}$'
+}
+$Script:VigilSourceTypes = @('local', 'git', 'https', 'sftp')
+
+# Whether a key applies to a source of the given type (spec 6.9).
+function Test-VigilSourceKey {
+    param([string]$Type, [string]$Key)
+    if (@('type', 'config', 'check_every', 'timeout') -ccontains $Key) { return $true }
+    return @('local:path', 'git:url', 'git:ref', 'https:url', 'https:header_name', 'https:header_value',
+        'sftp:host', 'sftp:port', 'sftp:user', 'sftp:path') -ccontains "${Type}:$Key"
+}
+
+# The first value of a key in a section, or ''.
+function Get-VigilFirstValue {
+    param($Parsed, $Section, [string]$Key)
+    for ($i = $Section.First; $i -lt $Section.First + $Section.Count; $i++) {
+        if ($Parsed.Entries[$i].Key -ceq $Key) { return $Parsed.Entries[$i].Value }
+    }
+    return ''
+}
+
+# Checks the authority of a URL (after the scheme) for a host and for
+# credentials. Returns @{ Code; Message }; never shows the URL.
+function Test-VigilUrlAuthority {
+    param([string]$Rest, [string]$Scheme)
+    $auth = $Rest.Split('/')[0]
+    if ($auth.Length -eq 0) { return @{ Code = 'E_URL'; Message = "'url' has no host" } }
+    # As bash's "*:*@*": a ':' anywhere before an '@' is a password.
+    $at = $auth.LastIndexOf('@')
+    if ($at -ge 0 -and ($Scheme -ceq 'https' -or $auth.Substring(0, $at).Contains(':'))) {
+        return @{ Code = 'E_URL'; Message = "'url' must not contain credentials; the value is not shown" }
+    }
+    return @{ Code = ''; Message = '' }
 }
 
 function New-VigilNameSet {
@@ -64,16 +98,32 @@ function Split-VigilList {
 
 # Returns @{ Type; List } for a key in a section kind; Type '' = unknown.
 function Get-VigilKeyType {
-    param([string]$Kind, [string]$Key)
+    param([string]$Kind, [string]$Key, [string]$JobSource = '')
 
     $t = ''
     $list = $false
     $credential = @('username', 'password', 'token', 'api_key', 'api_token', 'api_key_id',
         'header_value', 'access_key_id', 'client_id', 'tenant_id')
-    $jobOnly = @('file', 'arg', 'metric_name', 'run_every', 'run_at', 'run_on_days',
-        'runner', 'tag', 'env', 'require_env')
+    $jobOnly = @('file', 'source', 'ref', 'sha256', 'arg', 'metric_name', 'run_every', 'run_at',
+        'run_on_days', 'runner', 'tag', 'env', 'require_env')
 
     switch -CaseSensitive ($Kind) {
+        'source' {
+            switch -CaseSensitive ($Key) {
+                'type' { $t = 'source_type' }
+                'path' { $t = 'path' }
+                'url' { $t = 'url' }
+                'host' { $t = 'text' }
+                'user' { $t = 'text' }
+                'ref' { $t = 'text' }
+                'header_name' { $t = 'text' }
+                'port' { $t = 'port' }
+                'config' { $t = 'srcpath'; $list = $true }
+                'check_every' { $t = 'dur' }
+                'timeout' { $t = 'dur' }
+                'header_value' { $t = 'credential' }
+            }
+        }
         'vigil' {
             switch -CaseSensitive ($Key) {
                 'instance' { $t = 'name' }
@@ -126,7 +176,11 @@ function Get-VigilKeyType {
                 break
             }
             switch -CaseSensitive ($Key) {
-                'file' { $t = 'path' }
+                # Inside a source, file is a relative path in that source.
+                'file' { if ($JobSource.Length -gt 0) { $t = 'srcpath' } else { $t = 'path' } }
+                'source' { $t = 'source_ref' }
+                'ref' { $t = 'git_ref' }
+                'sha256' { $t = 'sha256' }
                 'working_dir' { $t = 'path' }
                 'runner' { $t = 'runner_ref' }
                 'arg' { $t = 'arg'; $list = $true }
@@ -288,6 +342,67 @@ function Test-VigilValue {
                 }
             }
         }
+        'source_type' {
+            if ($Script:VigilSourceTypes -cnotcontains $Value) {
+                $r.Code = 'E_ENUM'; $r.Message = "'$Key' must be local, git, https or sftp: $Value"
+            }
+        }
+        'port' {
+            if ($Value -cnotmatch $re.Int -or [int]$Value -lt 1 -or [int]$Value -gt 65535) {
+                $r.Code = 'E_INTEGER'; $r.Message = "'$Key' must be a port number from 1 to 65535: $Value"
+            }
+        }
+        'url' {
+            # Checked against the source's type; the URL itself is never
+            # shown, since a mistaken one may carry a password.
+            $u = @{ Code = ''; Message = '' }
+            $gitForms = "a git 'url' must be https://, ssh:// or user@host:path"
+            if ($Ctx.SType -ceq 'https') {
+                if ($Value.StartsWith('https://', [System.StringComparison]::Ordinal)) {
+                    $u = Test-VigilUrlAuthority $Value.Substring(8) 'https'
+                }
+                else { $u = @{ Code = 'E_URL'; Message = "the 'url' of an https source must start with https://" } }
+            }
+            elseif ($Ctx.SType -ceq 'git') {
+                if ($Value.StartsWith('https://', [System.StringComparison]::Ordinal)) {
+                    $u = Test-VigilUrlAuthority $Value.Substring(8) 'https'
+                }
+                elseif ($Value.StartsWith('ssh://', [System.StringComparison]::Ordinal)) {
+                    $u = Test-VigilUrlAuthority $Value.Substring(6) 'ssh'
+                }
+                elseif ($Value.Contains('://') -or $Value -cnotmatch $re.Scp) {
+                    $u = @{ Code = 'E_URL'; Message = $gitForms }
+                }
+            }
+            $r.Code = $u.Code; $r.Message = $u.Message
+        }
+        'srcpath' {
+            if ($Value.StartsWith('/') -or $Value.Contains('\') -or $Value -cmatch '^[A-Za-z]:' -or
+                "/$Value/".Contains('/../')) {
+                $r.Code = 'E_SOURCE_PATH'
+                $r.Message = "'$Key' must be a relative path inside the source, with / separators and no .. segments: $Value"
+            }
+        }
+        'source_ref' {
+            if (-not $Ctx.Sources.ContainsKey($Value)) {
+                $r.Code = 'E_SOURCE_UNKNOWN'; $r.Message = "no [source.$Value] section"
+            }
+        }
+        'git_ref' {
+            # A job's ref needs a git source. An undefined source, or one with
+            # an invalid type, is reported on its own line instead.
+            if ($Ctx.JSource.Length -eq 0) {
+                $r.Code = 'E_REF_NOT_GIT'; $r.Message = "'$Key' needs a git source"
+            }
+            elseif ($Ctx.JType.Length -gt 0 -and $Ctx.JType -cne 'git') {
+                $r.Code = 'E_REF_NOT_GIT'; $r.Message = "'$Key' needs a git source; [source.$($Ctx.JSource)] is $($Ctx.JType)"
+            }
+        }
+        'sha256' {
+            if ($Value -cnotmatch $re.Sha256) {
+                $r.Code = 'E_SHA256'; $r.Message = "'$Key' must be 64 hexadecimal digits"
+            }
+        }
         'credential' {
             if ($Value.StartsWith('env:', [System.StringComparison]::Ordinal)) {
                 if ($Value -cnotmatch $re.Cred) {
@@ -310,22 +425,29 @@ function Test-VigilConfig {
     $records = New-Object 'System.Collections.Generic.List[object]'
     $state = @{ Job = '' }
 
+    # Line is a location: a line number, or "<label>:<line>" outside the
+    # main file (spec 6.8).
     $add = {
-        param([string]$Kind, [string]$Job, [int]$Line, [string]$Code, [string]$Message)
+        param([string]$Kind, [string]$Job, $Line, [string]$Code, [string]$Message)
         $records.Add([pscustomobject]@{ Kind = $Kind; Job = $Job; Line = $Line; Code = $Code; Message = $Message })
     }
     # Reports against the current section: INVALID inside a job, ERROR elsewhere.
     $report = {
-        param([int]$Line, [string]$Code, [string]$Message)
+        param($Line, [string]$Code, [string]$Message)
         if ($state.Job.Length -gt 0) { & $add 'INVALID' $state.Job $Line $Code $Message }
         else { & $add 'ERROR' '' $Line $Code $Message }
     }
 
-    # Names that references may point at.
+    # Names that references may point at, and each source's type (empty when
+    # not valid). SType, JSource and JType describe the current section.
     $ctx = @{
         Runners  = New-VigilNameSet @()
         Backends = New-VigilNameSet @()
         Disabled = New-VigilNameSet @()
+        Sources  = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([System.StringComparer]::Ordinal)
+        SType    = ''
+        JSource  = ''
+        JType    = ''
     }
     foreach ($sec in $Parsed.Sections) {
         if ($sec.Name.StartsWith('runner.', [System.StringComparison]::Ordinal)) {
@@ -333,6 +455,11 @@ function Test-VigilConfig {
         }
         elseif ($sec.Name.StartsWith('backend.', [System.StringComparison]::Ordinal)) {
             [void]$ctx.Backends.Add($sec.Name.Substring(8))
+        }
+        elseif ($sec.Name.StartsWith('source.', [System.StringComparison]::Ordinal)) {
+            $type = Get-VigilFirstValue $Parsed $sec 'type'
+            if ($Script:VigilSourceTypes -cnotcontains $type) { $type = '' }
+            $ctx.Sources[$sec.Name.Substring(7)] = $type
         }
     }
     foreach ($en in $Parsed.Entries) {
@@ -356,7 +483,7 @@ function Test-VigilConfig {
         if ($singletons -ccontains $name) {
             $kind = $name
         }
-        elseif ($dot -gt 0 -and @('backend', 'runner', 'job') -ccontains $name.Substring(0, $dot)) {
+        elseif ($dot -gt 0 -and @('backend', 'runner', 'job', 'source') -ccontains $name.Substring(0, $dot)) {
             $kind = $name.Substring(0, $dot)
             $sub = $name.Substring($dot + 1)
         }
@@ -365,16 +492,48 @@ function Test-VigilConfig {
         }
         if ($kind -ceq 'job') { $state.Job = $sub }
 
+        # Which sections each kind of file may hold (spec 6.8).
+        $role = 'main'
+        if ($null -ne $sec.File -and $sec.File -lt $Parsed.Files.Count) { $role = $Parsed.Files[$sec.File].Role }
+        $skip = $false
         if ($kind.Length -eq 0) {
             & $report $sline 'E_SECTION_UNKNOWN' "unknown section [$name]"
+            $skip = $true
+        }
+        elseif ($role -ceq 'dropin' -and $kind -cne 'job' -and $kind -cne 'runner') {
+            & $report $sline 'E_SECTION_NOT_ALLOWED' "[$name] cannot be in a jobs.d file, which holds [job.*] and [runner.*] only"
+            $skip = $true
+        }
+        elseif ($role -ceq 'fetched' -and ($kind -ceq 'vigil' -or $kind -ceq 'source')) {
+            & $report $sline 'E_SECTION_NOT_ALLOWED' "[$name] cannot come from a source; only this host's vigil.config can set it"
+            $skip = $true
+        }
+        if ($skip) {
+            # The section is rejected as a whole; its keys are not checked.
             while ($e -lt $count -and $entries[$e].Section -ceq $name) { $e++ }
             continue
+        }
+
+        # What the section's keys are checked against: a job's source and
+        # its type, or a source's own type.
+        $ctx.SType = ''
+        $ctx.JSource = ''
+        $ctx.JType = ''
+        if ($kind -ceq 'job') {
+            $ctx.JSource = Get-VigilFirstValue $Parsed $sec 'source'
+            if ($ctx.JSource.Length -gt 0 -and $ctx.Sources.ContainsKey($ctx.JSource)) {
+                $ctx.JType = $ctx.Sources[$ctx.JSource]
+            }
+        }
+        elseif ($kind -ceq 'source') {
+            $type = Get-VigilFirstValue $Parsed $sec 'type'
+            if ($Script:VigilSourceTypes -ccontains $type) { $ctx.SType = $type }
         }
 
         $seen = New-VigilNameSet @()
         $tagKeys = New-VigilNameSet @()
         $envNames = New-VigilNameSet @()
-        $has = @{ file = $false; run_every = $false; run_at = $false; run_on_days = $false; command = $false; type = $false }
+        $has = @{ file = $false; run_every = $false; run_at = $false; run_on_days = $false; command = $false; type = $false; sha256 = $false }
 
         while ($e -lt $count -and $entries[$e].Section -ceq $name) {
             $key = $entries[$e].Key
@@ -403,11 +562,15 @@ function Test-VigilConfig {
                 $kt = @{ Type = 'runner_ref'; List = $false }
             }
             else {
-                $kt = Get-VigilKeyType -Kind $kind -Key $key
+                $kt = Get-VigilKeyType -Kind $kind -Key $key -JobSource $ctx.JSource
             }
 
             if ($kt.Type.Length -eq 0) {
                 & $report $line 'E_KEY_UNKNOWN' "unknown key '$key' in [$name]"
+                continue
+            }
+            if ($ctx.SType.Length -gt 0 -and -not (Test-VigilSourceKey $ctx.SType $key)) {
+                & $report $line 'E_KEY_UNKNOWN' "'$key' does not apply to a $($ctx.SType) source"
                 continue
             }
             if ($kt.Type -ceq 'job_only') {
@@ -476,6 +639,34 @@ function Test-VigilConfig {
                     else {
                         & $report $sline 'E_SCHEDULE_NONE' "[$name] needs run_every or run_at"
                     }
+                }
+                # Scripts from versionless sources are pinned by digest (6.9).
+                if (-not $has.sha256) {
+                    if ($ctx.JType -ceq 'https' -or $ctx.JType -ceq 'sftp') {
+                        & $report $sline 'E_SHA256_REQUIRED' "[$name] needs 'sha256': scripts from $($ctx.JType) sources are pinned by digest"
+                    }
+                    elseif ($ctx.JType -ceq 'local') {
+                        & $add 'WARN' '' $sline 'W_SCRIPT_UNPINNED' "[$name] has no 'sha256'; its script is copied once, and hosts may hold different versions"
+                    }
+                }
+            }
+            'source' {
+                $req = ''
+                if (-not $has.type) { $req = 'type' }
+                else {
+                    $needed = @()
+                    switch -CaseSensitive ($ctx.SType) {
+                        'local' { $needed = @('path') }
+                        'git' { $needed = @('url', 'ref') }
+                        'https' { $needed = @('url') }
+                        'sftp' { $needed = @('host', 'path') }
+                    }
+                    foreach ($k in $needed) {
+                        if (-not $seen.Contains($k)) { $req = $k; break }
+                    }
+                }
+                if ($req.Length -gt 0) {
+                    & $report $sline 'E_KEY_REQUIRED' "[$name] needs '$req'"
                 }
             }
             'runner' {

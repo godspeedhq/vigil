@@ -18,6 +18,10 @@
 #   tests/conformance/command/<case>.expected     validate dump, then
 #                                                 vigil_job_command_dump
 #   tests/conformance/schedule/<case>.config      input
+#   tests/conformance/files/<case>/files.list     several files read as one
+#                                                 configuration, in order
+#   tests/conformance/files/<case>/case.expected  validate dump, then
+#                                                 vigil_config_effective_dump
 #   tests/conformance/schedule/<case>.table       decisions table, inputs and
 #                                                 expected decisions per row;
 #                                                 compared with comments and
@@ -57,6 +61,21 @@ table_rows() {
     done < "$1"
 }
 
+# compare <name> <expected> <actual>: counts and reports one case.
+compare() {
+    if [ "$3" = "$2" ]; then
+        pass=$((pass + 1))
+        printf '  PASS  %s\n' "$1"
+    else
+        fail=$((fail + 1))
+        printf '  FAIL  %s\n' "$1"
+        printf '%s\n' "$2" > "${TMPDIR:-/tmp}/vigil-expected.$$"
+        printf '%s\n' "$3" > "${TMPDIR:-/tmp}/vigil-actual.$$"
+        diff "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$" | sed 's/^/        /'
+        rm -f "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$"
+    fi
+}
+
 for suite in parser validate effective command schedule; do
     for cfg in "$here"/conformance/$suite/*.config; do
         name=$(basename "$cfg" .config)
@@ -87,18 +106,22 @@ for suite in parser validate effective command schedule; do
             expected=$(cat "$expected_file")
         fi
 
-        if [ "$actual" = "$expected" ]; then
-            pass=$((pass + 1))
-            printf '  PASS  %s/%s\n' "$suite" "$name"
-        else
-            fail=$((fail + 1))
-            printf '  FAIL  %s/%s\n' "$suite" "$name"
-            printf '%s\n' "$expected" > "${TMPDIR:-/tmp}/vigil-expected.$$"
-            printf '%s\n' "$actual" > "${TMPDIR:-/tmp}/vigil-actual.$$"
-            diff "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$" | sed 's/^/        /'
-            rm -f "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$"
-        fi
+        compare "$suite/$name" "$expected" "$actual"
     done
+done
+
+# Multi-file cases: a folder per case, with files.list naming each file in
+# order as "<role> <label> <path>" (label - for the main file), and
+# case.expected holding the validate dump, then vigil_config_effective_dump.
+for dir in "$here"/conformance/files/*/; do
+    dir=${dir%/}
+    set --
+    while read -r role label path || [ -n "$role" ]; do
+        case $role in '' | '#'*) continue ;; esac
+        set -- "$@" "$role" "$label" "$dir/$path"
+    done < "$dir/files.list"
+    actual=$(vigil_config_parse_files "$@"; vigil_config_validate; vigil_config_validate_dump; vigil_config_effective_dump)
+    compare "files/$(basename "$dir")" "$(cat "$dir/case.expected")" "$actual"
 done
 
 # File-level cases need inputs that cannot be committed as fixtures: a
@@ -122,6 +145,15 @@ for check in "missing	ERROR	0	E_FILE_NOT_FOUND" \
         printf '  FAIL  file/%s: expected [%s] actual [%s]\n' "$name" "$expected" "$actual"
     fi
 done
+# One file over the limit on the number of configuration files.
+printf '[job.a]\n' > "$tmp/small.config"
+set -- main - "$tmp/small.config"
+i=1
+while [ "$i" -le "$VIGIL_CFG_MAX_FILES" ]; do
+    set -- "$@" dropin "jobs.d/$i.config" "$tmp/small.config"
+    i=$((i + 1))
+done
+compare file/too-many-files "ERROR	0	E_TOO_MANY_FILES" "$(vigil_config_parse_files "$@"; vigil_config_dump)"
 rm -rf "$tmp"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"

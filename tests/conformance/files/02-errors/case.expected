@@ -1,0 +1,8 @@
+ERROR	jobs.d/a.config:5	E_SECTION_DUPLICATE
+ERROR	jobs.d/b.config:1	E_KEY_OUTSIDE_SECTION
+ERROR	jobs.d/b.config:4	E_NO_EQUALS
+ERROR	fleet:fleet/x.config:2	E_SECTION_DUPLICATE
+ERROR	fleet:fleet/missing.config:0	E_FILE_NOT_FOUND
+ERROR	jobs.d/a.config:2	E_SECTION_NOT_ALLOWED
+INVALID	mem	jobs.d/b.config:2	E_SCHEDULE_NONE
+ERROR	fleet:fleet/x.config:5	E_SECTION_NOT_ALLOWED

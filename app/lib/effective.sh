@@ -9,7 +9,7 @@
 #
 # Result, in a fixed key order, as parallel arrays:
 #   VIGIL_EFF_KEY[i]  VIGIL_EFF_VALUE[i]  VIGIL_EFF_SOURCE[i]
-# Source is one of: job, defaults, scheduler, log, tags, runners, runner,
+# Source is one of: job, defaults, scheduler, log, tags, runners, runner, source,
 # built-in. List keys (arg, tag, env, require_env) produce one row per item.
 # List values (run_at, run_on_days, backends) are normalised to "a, b".
 #
@@ -202,6 +202,23 @@ vigil_config_effective() {
     _vigil_eff_get "$job" file
     local file=$_ve_value
     _vigil_eff_add file "$file" job
+
+    # A fetched script: its source, the ref it is taken from (the job's, else
+    # the source's) and its digest. Rows appear only when set.
+    _vigil_eff_get "$job" source
+    if [ "$_ve_found" -eq 1 ]; then
+        value=$_ve_value
+        _vigil_eff_add source "$value" job
+        _vigil_eff_get "$job" ref
+        if [ "$_ve_found" -eq 1 ]; then
+            _vigil_eff_add ref "$_ve_value" job
+        else
+            _vigil_eff_get "source.$value" ref
+            if [ "$_ve_found" -eq 1 ]; then _vigil_eff_add ref "$_ve_value" source; fi
+        fi
+        _vigil_eff_get "$job" sha256
+        if [ "$_ve_found" -eq 1 ]; then _vigil_eff_add sha256 "$_ve_value" job; fi
+    fi
 
     # Runner: the job's key, else the file extension in [runners], else none
     # (the file is executed directly).

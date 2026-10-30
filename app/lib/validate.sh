@@ -40,6 +40,8 @@ _vigil_val_re_tagvalue='^[^[:space:]]+$'
 _vigil_val_re_tagpair='^([a-z0-9_]+)=([^[:space:]]+)$'
 _vigil_val_re_cred='^env:([A-Za-z_][A-Za-z0-9_]*)$'
 _vigil_val_re_ext='^\.[a-z0-9_]+$'
+_vigil_val_re_scp='^([A-Za-z0-9._-]+@)?[A-Za-z0-9.-]{2,}:.+$'
+_vigil_val_re_sha256='^[0-9A-Fa-f]{64}$'
 
 _vigil_val_add() {
     local i=${#VIGIL_VAL_KIND[@]}
@@ -104,10 +106,26 @@ _vigil_val_keytype() {
         backend:*_secret | backend:*_key | backend:*_token | backend:*_password)
             _vv_type=credential ;;
         backend:*) _vv_type=text ;;
-        defaults:file | defaults:arg | defaults:metric_name | defaults:run_every | \
+        source:type) _vv_type=source_type ;;
+        source:path) _vv_type=path ;;
+        source:url) _vv_type=url ;;
+        source:host | source:user | source:ref | source:header_name) _vv_type=text ;;
+        source:port) _vv_type=port ;;
+        source:config) _vv_type=srcpath; _vv_list=1 ;;
+        source:check_every | source:timeout) _vv_type=dur ;;
+        source:header_value) _vv_type=credential ;;
+        defaults:file | defaults:source | defaults:ref | defaults:sha256 | \
+        defaults:arg | defaults:metric_name | defaults:run_every | \
         defaults:run_at | defaults:run_on_days | defaults:runner | defaults:tag | \
         defaults:env | defaults:require_env)
             _vv_type=job_only ;;
+        job:file)
+            # Inside a source, file is a relative path in that source.
+            if [ -n "$_vv_jsource" ]; then _vv_type=srcpath; else _vv_type=path; fi
+            ;;
+        job:source) _vv_type=source_ref ;;
+        job:ref) _vv_type=git_ref ;;
+        job:sha256) _vv_type=sha256 ;;
         job:* | defaults:*)
             case $2 in
                 file | working_dir) _vv_type=path ;;
@@ -128,6 +146,65 @@ _vigil_val_keytype() {
                 require_env) _vv_type=envnames; _vv_list=1 ;;
                 log_retain_days) _vv_type=int1 ;;
             esac
+            ;;
+    esac
+}
+
+# Whether key $2 applies to a source of type $1 (spec 6.9).
+_vigil_val_source_key() {
+    case $2 in
+        type | config | check_every | timeout) return 0 ;;
+    esac
+    case $1:$2 in
+        local:path | git:url | git:ref | https:url | https:header_name | https:header_value | \
+        sftp:host | sftp:port | sftp:user | sftp:path) return 0 ;;
+    esac
+    return 1
+}
+
+# The type of source $1, or empty when it is not defined or its type is not
+# valid. Sets _vv_found (1 when the source is defined) and _vv_srctype.
+_vigil_val_source_type() {
+    local i=0
+    _vv_found=0
+    _vv_srctype=''
+    while [ "$i" -lt "${#_vv_src_names[@]}" ]; do
+        if [ "${_vv_src_names[$i]}" = "$1" ]; then
+            _vv_found=1
+            _vv_srctype=${_vv_src_types[$i]}
+            return 0
+        fi
+        i=$((i + 1))
+    done
+}
+
+# The first value of key $2 in section index $1, or empty. Result in _vv_first.
+_vigil_val_first() {
+    local i=${VIGIL_CFG_SEC_FIRST[$1]} end
+    end=$((i + VIGIL_CFG_SEC_COUNT[$1]))
+    _vv_first=''
+    while [ "$i" -lt "$end" ]; do
+        if [ "${VIGIL_CFG_KEY[$i]}" = "$2" ]; then
+            _vv_first=${VIGIL_CFG_VALUE[$i]}
+            return 0
+        fi
+        i=$((i + 1))
+    done
+}
+
+# Checks the authority of a URL (after the scheme) for a host and for
+# credentials. Sets _vv_code/_vv_msg; never shows the URL.
+_vigil_val_authority() {
+    local auth=${1%%/*}
+    if [ -z "$auth" ]; then
+        _vv_code=E_URL
+        _vv_msg="'url' has no host"
+        return
+    fi
+    case $2:$auth in
+        https:*@* | ssh:*:*@*)
+            _vv_code=E_URL
+            _vv_msg="'url' must not contain credentials; the value is not shown"
             ;;
     esac
 }
@@ -314,6 +391,78 @@ _vigil_val_check() {
                 fi
             done
             ;;
+        source_type)
+            case $value in
+                local | git | https | sftp) ;;
+                *) _vv_code=E_ENUM; _vv_msg="'$key' must be local, git, https or sftp: $value" ;;
+            esac
+            ;;
+        port)
+            if ! [[ $value =~ $_vigil_val_re_int ]] || [ $((10#$value)) -lt 1 ] || [ $((10#$value)) -gt 65535 ]; then
+                _vv_code=E_INTEGER
+                _vv_msg="'$key' must be a port number from 1 to 65535: $value"
+            fi
+            ;;
+        url)
+            # Checked against the source's type; the URL itself is never
+            # shown, since a mistaken one may carry a password.
+            case $_vv_stype in
+                https)
+                    case $value in
+                        https://*) _vigil_val_authority "${value#https://}" https ;;
+                        *) _vv_code=E_URL; _vv_msg="the 'url' of an https source must start with https://" ;;
+                    esac
+                    ;;
+                git)
+                    case $value in
+                        https://*) _vigil_val_authority "${value#https://}" https ;;
+                        ssh://*) _vigil_val_authority "${value#ssh://}" ssh ;;
+                        *://*) _vv_code=E_URL; _vv_msg="a git 'url' must be https://, ssh:// or user@host:path" ;;
+                        *)
+                            if ! [[ $value =~ $_vigil_val_re_scp ]]; then
+                                _vv_code=E_URL
+                                _vv_msg="a git 'url' must be https://, ssh:// or user@host:path"
+                            fi
+                            ;;
+                    esac
+                    ;;
+            esac
+            ;;
+        srcpath)
+            case $value in
+                /* | *\\* | [A-Za-z]:*) _vv_code=E_SOURCE_PATH ;;
+            esac
+            case /$value/ in
+                */../*) _vv_code=E_SOURCE_PATH ;;
+            esac
+            if [ -n "$_vv_code" ]; then
+                _vv_msg="'$key' must be a relative path inside the source, with / separators and no .. segments: $value"
+            fi
+            ;;
+        source_ref)
+            _vigil_val_source_type "$value"
+            if [ "$_vv_found" -eq 0 ]; then
+                _vv_code=E_SOURCE_UNKNOWN
+                _vv_msg="no [source.$value] section"
+            fi
+            ;;
+        git_ref)
+            # A job's ref needs a git source. An undefined source, or one with
+            # an invalid type, is reported on its own line instead.
+            if [ -z "$_vv_jsource" ]; then
+                _vv_code=E_REF_NOT_GIT
+                _vv_msg="'$key' needs a git source"
+            elif [ -n "$_vv_jtype" ] && [ "$_vv_jtype" != git ]; then
+                _vv_code=E_REF_NOT_GIT
+                _vv_msg="'$key' needs a git source; [source.$_vv_jsource] is $_vv_jtype"
+            fi
+            ;;
+        sha256)
+            if ! [[ $value =~ $_vigil_val_re_sha256 ]]; then
+                _vv_code=E_SHA256
+                _vv_msg="'$key' must be 64 hexadecimal digits"
+            fi
+            ;;
         credential)
             case $value in
                 env:*)
@@ -345,20 +494,32 @@ vigil_config_validate() {
     local LC_ALL=C
     local nl=$'\n'
     local count=${#VIGIL_CFG_KEY[@]}
-    local s e name sline kind sub key value line seen
-    local has_file has_every has_at has_days has_command has_type
+    local s si e name sline kind sub key value line seen role req
+    local has_file has_every has_at has_days has_command has_type has_sha256
     local tag_keys env_names
 
-    # Names that references may point at.
+    # Names that references may point at, and each source's type (empty
+    # when not valid).
     _vv_runners=$nl
     _vv_backends=$nl
     _vv_disabled=$nl
+    _vv_src_names=()
+    _vv_src_types=()
     s=0
     while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
         name=${VIGIL_CFG_SEC_NAME[$s]}
         case $name in
             runner.*) _vv_runners="$_vv_runners${name#runner.}$nl" ;;
             backend.*) _vv_backends="$_vv_backends${name#backend.}$nl" ;;
+            source.*)
+                _vigil_val_first "$s" type
+                case $_vv_first in
+                    local | git | https | sftp) ;;
+                    *) _vv_first='' ;;
+                esac
+                _vv_src_names[${#_vv_src_names[@]}]=${name#source.}
+                _vv_src_types[${#_vv_src_types[@]}]=$_vv_first
+                ;;
         esac
         s=$((s + 1))
     done
@@ -379,30 +540,72 @@ vigil_config_validate() {
     while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
         name=${VIGIL_CFG_SEC_NAME[$s]}
         sline=${VIGIL_CFG_SEC_LINE[$s]}
+        si=$s
         s=$((s + 1))
         sub=''
         _vv_job=''
         case $name in
             vigil | scheduler | log | tags | spool | defaults | runners) kind=$name ;;
-            backend.* | runner.* | job.*) kind=${name%%.*}; sub=${name#*.} ;;
+            backend.* | runner.* | job.* | source.*) kind=${name%%.*}; sub=${name#*.} ;;
             *) kind='' ;;
         esac
         if [ "$kind" = job ]; then
             _vv_job=$sub
         fi
 
+        # Which sections each kind of file may hold (spec 6.8).
+        role=${VIGIL_CFG_FILE_ROLE[${VIGIL_CFG_SEC_FILE[$si]:-0}]:-main}
+        req=ok
         if [ -z "$kind" ]; then
             _vigil_val_report "$sline" E_SECTION_UNKNOWN "unknown section [$name]"
+            req=skip
+        else
+            case $role:$kind in
+                dropin:job | dropin:runner | main:*) ;;
+                dropin:*)
+                    _vigil_val_report "$sline" E_SECTION_NOT_ALLOWED "[$name] cannot be in a jobs.d file, which holds [job.*] and [runner.*] only"
+                    req=skip
+                    ;;
+                fetched:vigil | fetched:source)
+                    _vigil_val_report "$sline" E_SECTION_NOT_ALLOWED "[$name] cannot come from a source; only this host's vigil.config can set it"
+                    req=skip
+                    ;;
+            esac
+        fi
+        if [ "$req" = skip ]; then
+            # The section is rejected as a whole; its keys are not checked.
             while [ "$e" -lt "$count" ] && [ "${VIGIL_CFG_SECTION[$e]}" = "$name" ]; do
                 e=$((e + 1))
             done
             continue
         fi
 
+        # What the section's keys are checked against: a job's source and
+        # its type, or a source's own type.
+        _vv_jsource=''
+        _vv_jtype=''
+        _vv_stype=''
+        case $kind in
+            job)
+                _vigil_val_first "$si" source
+                _vv_jsource=$_vv_first
+                if [ -n "$_vv_jsource" ]; then
+                    _vigil_val_source_type "$_vv_jsource"
+                    _vv_jtype=$_vv_srctype
+                fi
+                ;;
+            source)
+                _vigil_val_first "$si" type
+                case $_vv_first in
+                    local | git | https | sftp) _vv_stype=$_vv_first ;;
+                esac
+                ;;
+        esac
+
         seen=$nl
         tag_keys=$nl
         env_names=$nl
-        has_file=0 has_every=0 has_at=0 has_days=0 has_command=0 has_type=0
+        has_file=0 has_every=0 has_at=0 has_days=0 has_command=0 has_type=0 has_sha256=0
 
         while [ "$e" -lt "$count" ] && [ "${VIGIL_CFG_SECTION[$e]}" = "$name" ]; do
             key=${VIGIL_CFG_KEY[$e]}
@@ -417,6 +620,7 @@ vigil_config_validate() {
                 run_on_days) has_days=1 ;;
                 command) has_command=1 ;;
                 type) has_type=1 ;;
+                sha256) has_sha256=1 ;;
             esac
 
             case $kind in
@@ -449,6 +653,10 @@ vigil_config_validate() {
 
             if [ -z "$_vv_type" ]; then
                 _vigil_val_report "$line" E_KEY_UNKNOWN "unknown key '$key' in [$name]"
+                continue
+            fi
+            if [ -n "$_vv_stype" ] && ! _vigil_val_source_key "$_vv_stype" "$key"; then
+                _vigil_val_report "$line" E_KEY_UNKNOWN "'$key' does not apply to a $_vv_stype source"
                 continue
             fi
             if [ "$_vv_type" = job_only ]; then
@@ -528,6 +736,40 @@ vigil_config_validate() {
                     else
                         _vigil_val_report "$sline" E_SCHEDULE_NONE "[$name] needs run_every or run_at"
                     fi
+                fi
+                # Scripts from versionless sources are pinned by digest (6.9).
+                if [ "$has_sha256" -eq 0 ]; then
+                    case $_vv_jtype in
+                        https | sftp)
+                            _vigil_val_report "$sline" E_SHA256_REQUIRED "[$name] needs 'sha256': scripts from $_vv_jtype sources are pinned by digest"
+                            ;;
+                        local)
+                            _vigil_val_add WARN '' "$sline" W_SCRIPT_UNPINNED "[$name] has no 'sha256'; its script is copied once, and hosts may hold different versions"
+                            ;;
+                    esac
+                fi
+                ;;
+            source)
+                req=''
+                if [ "$has_type" -eq 0 ]; then
+                    req=type
+                else
+                    case $_vv_stype in
+                        local) req='path' ;;
+                        git) req='url ref' ;;
+                        https) req='url' ;;
+                        sftp) req='host path' ;;
+                    esac
+                    for key in $req; do
+                        case $seen in
+                            *$nl"$key"$nl*) ;;
+                            *) req=$key; break ;;
+                        esac
+                        req=''
+                    done
+                fi
+                if [ -n "$req" ]; then
+                    _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs '$req'"
                 fi
                 ;;
             runner)
