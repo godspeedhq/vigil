@@ -226,6 +226,8 @@ vigil_config_section() {
 
 # Lowercases ASCII letters without starting a process (tr costs a fork,
 # which is slow on Windows bash). Result in _vigil_lowered.
+# The letters are listed, not [A-Z]: in bash 3.2 a range follows the locale's
+# collation order, where [A-Z] also matches lowercase letters.
 _vigil_lower() {
     local s=$1 c rest upper=ABCDEFGHIJKLMNOPQRSTUVWXYZ lower=abcdefghijklmnopqrstuvwxyz
     _vigil_lowered=''
@@ -233,7 +235,7 @@ _vigil_lower() {
         c=${s:0:1}
         s=${s:1}
         case $c in
-            [A-Z])
+            [ABCDEFGHIJKLMNOPQRSTUVWXYZ])
                 rest=${upper%%"$c"*}
                 c=${lower:${#rest}:1}
                 ;;

@@ -163,8 +163,6 @@ _vigil_sched_job() {
 }
 
 # Whether day number $1 (days since 1970-01-01, a Thursday) is allowed.
-# The weekday is computed first: bash 3.2 misreads arithmetic inside a
-# ${var:offset:length} expansion.
 _vigil_sched_day_ok() {
     local w=$((($1 + 4) % 7))
     [ "${_vs_mask:$w:1}" = 1 ]
@@ -240,6 +238,8 @@ _vigil_sched_next() {
 # Returns 1 (decision error) when the job is unknown or an input is malformed.
 vigil_schedule_decide() {
     local now_e now_off now_s prev_e='' prev_s='' cur='' kind slot age ontime
+    # Byte-wise matching, whatever the caller's locale.
+    local LC_ALL=C
     VIGIL_SCHED_DECISION=error
     VIGIL_SCHED_SLOT=-
     VIGIL_SCHED_NEXT=-
