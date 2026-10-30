@@ -1,5 +1,5 @@
-WARN	1170	W_SCRIPT_UNPINNED
-WARN	1222	W_SCRIPT_UNPINNED
+WARN	1274	W_SCRIPT_UNPINNED
+WARN	1326	W_SCRIPT_UNPINNED
 disk_usage	file	checks/posix/disk_usage.sh	job
 disk_usage	runner	bash	runners
 disk_usage	metric_name	os.disk	job
@@ -194,8 +194,8 @@ backup_log	tag	client=CLIENT	tags
 backup_log	tag	environment=dev	tags
 backup_log	tag	product=platform	tags
 backup_log	tag	host_type=app	tags
-backup_log	require_env	DB_DBA_USER	runner
-backup_log	require_env	DB_DBA_PASSWORD	runner
+backup_log	secret	DB_DBA_USER=secret:DB_DBA_USER	runner
+backup_log	secret	DB_DBA_PASSWORD=secret:DB_DBA_PASSWORD	runner
 backup_log	require_env	DB_SERVER	runner
 pg_replication	file	checks/sql/pg_replication_lag.sql	job
 pg_replication	runner	psql	runners
@@ -331,7 +331,7 @@ legacy_export	tag	product=platform	tags
 legacy_export	tag	host_type=app	tags
 legacy_export	tag	team=finance	job
 legacy_export	env	JAVA_TOOL_OPTIONS=-Xmx4g	job
-legacy_export	require_env	EXPORT_SFTP_PASSWORD	job
+legacy_export	secret	EXPORT_SFTP_PASSWORD=secret:EXPORT_SFTP_PASSWORD	job
 rabbitmq_queues	file	checks/python/rabbitmq_queues.py	job
 rabbitmq_queues	runner	python	runners
 rabbitmq_queues	metric_name	rabbitmq.queues	job
@@ -912,7 +912,7 @@ legacy_export_fleet	tag	product=platform	tags
 legacy_export_fleet	tag	host_type=app	tags
 legacy_export_fleet	tag	team=finance	job
 legacy_export_fleet	env	JAVA_TOOL_OPTIONS=-Xmx4g	job
-legacy_export_fleet	require_env	EXPORT_SFTP_PASSWORD	job
+legacy_export_fleet	secret	EXPORT_SFTP_PASSWORD=store:hv/finance/export-sftp-password	job
 offsite_sync_check	file	checks/posix/offsite_sync_check.sh	job
 offsite_sync_check	source	sftp	job
 offsite_sync_check	sha256	9f2c4e7a1b3d5f7092a4c6e8f0b1d3f5a7c9e1b3d5f7a9c1e3f5b7d9f1a3c5e7	job

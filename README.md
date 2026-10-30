@@ -82,6 +82,8 @@ Vigil's guiding rules:
 | Installers, service registration, `vigil init`, `vigil precheck` | Specified, not built |
 | Fetching configuration and scripts from git, https, sftp, shares | Validated, not fetched yet |
 | Forwarding Vigil's own logs (OTLP) | Specified, not built |
+| Secrets: `env:` references | Done |
+| Secrets: `secret:` (Vigil's store), `store:` (Key Vault, Vault, AWS, GCP, helper) | Validated, not resolved yet |
 
 ---
 
@@ -585,8 +587,56 @@ Comments are whole lines starting with `#` or `;`. There are no inline comments:
 | `[defaults]` | Defaults for any overridable job key |
 | `[job.<id>]` | One scheduled job |
 | `[log_forward]`, `[log_destination.<name>]` | Optional forwarding of Vigil's own logs |
+| `[secret_store.<name>]` | An external secret store, for `store:` references |
 
-**Secrets are never written in the file.** Every credential is a reference to an environment variable (`api_key = env:DATADOG_API_KEY`). A raw value is rejected at validation, and the rejected value is never echoed.
+### Secrets
+
+Secrets are never written in the configuration file. Every credential is a **reference** that names where its value comes from:
+
+```ini
+# From the service's environment.
+[backend.datadog]
+api_key = env:DATADOG_API_KEY
+
+# From Vigil's own secret store on the host.
+[backend.splunk]
+token = secret:SPLUNK_HEC_TOKEN
+
+# From an external secret store.
+[backend.datadog_eu]
+type    = datadog
+api_key = store:ops_kv/datadog-eu-key
+
+[secret_store.ops_kv]
+type  = azure_keyvault
+vault = https://ops-kv.vault.azure.net/
+auth  = managed_identity
+
+# A secret put into one job's environment when it runs.
+[job.backup]
+file      = sql/backup.sql
+run_every = 1h
+secret    = PGPASSWORD=secret:PGPASSWORD
+```
+
+```text
+                       where the value lives               a changed value is used
+ env:NAME     -->  the service's environment          --> Windows: next run (read from the registry)
+                                                           Linux/macOS: when Vigil is next started
+ secret:NAME  -->  config/secrets/NAME, owner-only;   --> next run, every platform
+                   DPAPI-encrypted on Windows;
+                   set with `vigil secret set NAME`
+ store:S/NAME -->  Azure Key Vault, HashiCorp Vault,  --> next run, every platform
+                   AWS, GCP, or a helper command
+```
+
+- **The source is always explicit.** Vigil never searches several sources for a name, so anyone reading the configuration knows where each secret comes from.
+- **Secrets are resolved when each run or delivery starts,** held in memory only, and never written to logs, state, the spool or a command line. That's why `secret:` and `store:` values can be rotated without restarting anything.
+- **`env:` is the simplest.** On Linux and macOS, though, a running service can't see a changed environment variable (systemd and launchd read it once, at start), so use `secret:` or `store:` for anything you rotate.
+- **A raw value is rejected at validation,** and the rejected value is never echoed.
+- **A store's own credentials** must be `env:` or `secret:`, so one store never needs another to unlock it.
+
+The configuration side of all three (references, `[secret_store.*]` sections and the job `secret` key) is validated today. Resolving `secret:` and `store:` at run time, and the `vigil secret` command, are the next milestone.
 
 **Changes apply without a restart.** The file is checked every tick. A valid change becomes active at once; an invalid one is rejected with every error listed, and the last valid configuration keeps running. A single invalid job is skipped and reported, while the others keep running.
 
@@ -601,6 +651,7 @@ The full reference is in [`SPECIFICATION.md`](SPECIFICATION.md) (§6), and [`tes
 | `vigil supervise [--once]` | The supervisor: what the service runs. `--once` runs a single tick. |
 | `vigil run <job>` | Runs one job now, in the foreground, recorded exactly as a scheduled run would be. Exits 0 succeeded, 1 warning, 2 failed, 3 unknown, 4 not run. |
 | `vigil resolve <job>` | Confirms that the uncertain run holding a job is over. Never kills anything. |
+| `vigil secret set <NAME>` / `list` / `delete <NAME>` | Manages Vigil's own secret store. `set` prompts without echoing, or reads `--stdin` for deployment tools; `list` never shows values. *(Next milestone.)* |
 
 On Linux and macOS the command is `app/vigil`; on Windows it is `app\vigil.ps1`. All take `--root <dir>` (`-Root <dir>` on Windows), defaulting to the folder that contains `app/`.
 
@@ -618,6 +669,7 @@ Everything lives under one root, so uninstalling is a single delete:
     lib/windows/                  the PowerShell implementation
   config/
     vigil.config                  your configuration (never overwritten)
+    secrets/<NAME>                Vigil's secret store: owner-only; DPAPI-encrypted on Windows
   scripts/                      your job scripts (never overwritten)
   state/
     supervisor.lock               held open by the live supervisor

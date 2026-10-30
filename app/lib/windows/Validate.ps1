@@ -52,6 +52,46 @@ $Script:VigilValRe = @{
 $Script:VigilSourceTypes = @('local', 'git', 'https', 'sftp')
 
 # Whether a key applies to a source of the given type (spec 6.9).
+# Checks a secret reference (6.5): env:NAME, secret:NAME or, when allowed,
+# store:STORE/NAME. Returns @{ Code; Message }; never shows the value.
+function Test-VigilSecretRef {
+    param([string]$Key, [string]$Value, [bool]$AllowStore, $Stores)
+    $re = $Script:VigilValRe
+    if ($Value.StartsWith('env:', [System.StringComparison]::Ordinal)) {
+        if ($Value -cnotmatch $re.Cred) { return @{ Code = 'E_ENV_NAME'; Message = "'$Key' must be env:NAME with a valid variable name" } }
+    }
+    elseif ($Value.StartsWith('secret:', [System.StringComparison]::Ordinal)) {
+        if ($Value.Substring(7) -cnotmatch $re.EnvName) { return @{ Code = 'E_SECRET_REF'; Message = "'$Key' must be secret:NAME with a valid name" } }
+    }
+    elseif ($Value.StartsWith('store:', [System.StringComparison]::Ordinal)) {
+        if (-not $AllowStore) { return @{ Code = 'E_SECRET_REF'; Message = "'$Key' of a secret store must be env: or secret:, never another store" } }
+        $rest = $Value.Substring(6)
+        $slash = $rest.IndexOf('/')
+        if ($slash -lt 0 -or $slash -eq $rest.Length - 1 -or $rest.Substring(0, [Math]::Max($slash, 0)) -cnotmatch '^[a-z0-9_]+$') {
+            return @{ Code = 'E_SECRET_REF'; Message = "'$Key' must be store:STORE/NAME" }
+        }
+        $store = $rest.Substring(0, $slash)
+        if (-not $Stores.Contains($store)) { return @{ Code = 'E_SECRET_STORE_UNKNOWN'; Message = "no [secret_store.$store] section" } }
+    }
+    else {
+        # Never echo the value: it may be a pasted secret.
+        return @{ Code = 'E_SECRET_RAW'; Message = "'$Key' must be an env:, secret: or store: reference; the value is not shown" }
+    }
+    return @{ Code = ''; Message = '' }
+}
+
+# Whether a key applies to a secret store of the given type (6.5.3).
+function Test-VigilStoreKey {
+    param([string]$Type, [string]$Key)
+    if ($Key -ceq 'type' -or $Key -ceq 'timeout') { return $true }
+    return @('helper:command', 'helper:arg', 'azure_keyvault:vault', 'azure_keyvault:auth', 'azure_keyvault:tenant_id',
+        'azure_keyvault:client_id', 'azure_keyvault:client_secret', 'hashicorp_vault:url', 'hashicorp_vault:mount',
+        'hashicorp_vault:field', 'hashicorp_vault:auth', 'hashicorp_vault:token', 'hashicorp_vault:role_id',
+        'hashicorp_vault:secret_id', 'aws_secrets_manager:region', 'aws_secrets_manager:auth',
+        'aws_secrets_manager:access_key_id', 'aws_secrets_manager:secret_access_key', 'gcp_secret_manager:project',
+        'gcp_secret_manager:auth', 'gcp_secret_manager:service_account_key') -ccontains "${Type}:$Key"
+}
+
 function Test-VigilSourceKey {
     param([string]$Type, [string]$Key)
     if (@('type', 'check_every', 'timeout') -ccontains $Key) { return $true }
@@ -105,7 +145,7 @@ function Get-VigilKeyType {
     $credential = @('username', 'password', 'token', 'api_key', 'api_token', 'api_key_id',
         'header_value', 'access_key_id', 'client_id', 'tenant_id')
     $jobOnly = @('file', 'source', 'sha256', 'arg', 'metric_name', 'run_every', 'run_at',
-        'run_on_days', 'runner', 'tag', 'env', 'require_env')
+        'run_on_days', 'runner', 'tag', 'env', 'secret', 'require_env')
 
     switch -CaseSensitive ($Kind) {
         'source' {
@@ -165,6 +205,21 @@ function Get-VigilKeyType {
                 'max_pending_mb' { $t = 'int1' }
             }
         }
+        'secret_store' {
+            switch -CaseSensitive ($Key) {
+                'type' { $t = 'store_type' }
+                'command' { $t = 'path' }
+                'arg' { $t = 'arg'; $list = $true }
+                'vault' { $t = 'https_url' }
+                'url' { $t = 'https_url' }
+                'auth' { $t = 'store_auth' }
+                'timeout' { $t = 'dur' }
+                default {
+                    if (@('mount', 'field', 'region', 'project', 'tenant_id', 'client_id', 'role_id', 'access_key_id') -ccontains $Key) { $t = 'text' }
+                    elseif (@('client_secret', 'token', 'secret_id', 'secret_access_key', 'service_account_key') -ccontains $Key) { $t = 'credential' }
+                }
+            }
+        }
         'log_destination' {
             switch -CaseSensitive ($Key) {
                 'type' { $t = 'log_dest_type' }
@@ -179,6 +234,7 @@ function Get-VigilKeyType {
                 'command' { $t = 'path' }
                 'arg' { $t = 'arg'; $list = $true }
                 'env' { $t = 'envpair'; $list = $true }
+                'secret' { $t = 'secretpair'; $list = $true }
                 'require_env' { $t = 'envnames'; $list = $true }
             }
         }
@@ -218,6 +274,7 @@ function Get-VigilKeyType {
                 'backends' { $t = 'backend_refs' }
                 'tag' { $t = 'tagpair'; $list = $true }
                 'env' { $t = 'envpair'; $list = $true }
+                'secret' { $t = 'secretpair'; $list = $true }
                 'require_env' { $t = 'envnames'; $list = $true }
                 'log_retain_days' { $t = 'int1' }
                 'forward_output' { $t = 'bool' }
@@ -378,6 +435,11 @@ function Test-VigilValue {
                 $r.Code = 'E_ENV_LITERAL'
                 $r.Message = "'$Key' values are literal; the job already inherits $($Matches[2].Substring(4)) from the service environment"
             }
+            elseif ($Matches[2].StartsWith('secret:', [System.StringComparison]::Ordinal) -or
+                $Matches[2].StartsWith('store:', [System.StringComparison]::Ordinal)) {
+                $r.Code = 'E_ENV_LITERAL'
+                $r.Message = "'$Key' values are literal and never secrets; use secret = NAME=<reference>"
+            }
         }
         'envnames' {
             foreach ($item in (Split-VigilList $Value)) {
@@ -439,14 +501,30 @@ function Test-VigilValue {
             }
         }
         'credential' {
-            if ($Value.StartsWith('env:', [System.StringComparison]::Ordinal)) {
-                if ($Value -cnotmatch $re.Cred) {
-                    $r.Code = 'E_ENV_NAME'; $r.Message = "'$Key' must be env:NAME with a valid variable name"
-                }
+            # A secret store's own credentials cannot come from a store.
+            $c = Test-VigilSecretRef -Key $Key -Value $Value -AllowStore ($Ctx.Kind -cne 'secret_store') -Stores $Ctx.Stores
+            $r.Code = $c.Code; $r.Message = $c.Message
+        }
+        'secretpair' {
+            if ($Value -cnotmatch $re.EnvPair) {
+                $r.Code = 'E_ENV_SYNTAX'; $r.Message = "'$Key' must be NAME=<env:, secret: or store: reference>"
             }
             else {
-                # Never echo the value: it may be a pasted secret.
-                $r.Code = 'E_SECRET_RAW'; $r.Message = "'$Key' must be an env:NAME reference; the value is not shown"
+                $c = Test-VigilSecretRef -Key $Key -Value $Matches[2] -AllowStore $true -Stores $Ctx.Stores
+                $r.Code = $c.Code; $r.Message = $c.Message
+            }
+        }
+        'store_type' {
+            if (@('helper', 'azure_keyvault', 'hashicorp_vault', 'aws_secrets_manager', 'gcp_secret_manager') -cnotcontains $Value) {
+                $r.Code = 'E_ENUM'; $r.Message = "'$Key' must be helper, azure_keyvault, hashicorp_vault, aws_secrets_manager or gcp_secret_manager: $Value"
+            }
+        }
+        'store_auth' {
+            $ok = @('azure_keyvault:managed_identity', 'azure_keyvault:service_principal', 'hashicorp_vault:token',
+                'hashicorp_vault:approle', 'aws_secrets_manager:instance_profile', 'aws_secrets_manager:access_keys',
+                'gcp_secret_manager:metadata', 'gcp_secret_manager:service_account_key')
+            if ($ok -cnotcontains "$($Ctx.SSType):$Value") {
+                $r.Code = 'E_ENUM'; $r.Message = "'$Key' is not an authentication method of a $($Ctx.SSType) secret store: $Value"
             }
         }
     }
@@ -541,6 +619,9 @@ function Test-VigilConfig {
         Runners  = New-VigilNameSet @()
         Backends = New-VigilNameSet @()
         Destinations = New-VigilNameSet @()
+        Stores       = New-VigilNameSet @()
+        Kind         = ''
+        SSType       = ''
         Disabled = New-VigilNameSet @()
         Sources  = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([System.StringComparer]::Ordinal)
         SType    = ''
@@ -558,6 +639,9 @@ function Test-VigilConfig {
         }
         elseif ($sec.Name.StartsWith('backend.', [System.StringComparison]::Ordinal)) {
             [void]$ctx.Backends.Add($sec.Name.Substring(8))
+        }
+        elseif ($sec.Name.StartsWith('secret_store.', [System.StringComparison]::Ordinal)) {
+            [void]$ctx.Stores.Add($sec.Name.Substring(13))
         }
         elseif ($sec.Name.StartsWith('log_destination.', [System.StringComparison]::Ordinal)) {
             [void]$ctx.Destinations.Add($sec.Name.Substring(16))
@@ -589,7 +673,7 @@ function Test-VigilConfig {
         if ($singletons -ccontains $name) {
             $kind = $name
         }
-        elseif ($dot -gt 0 -and @('backend', 'runner', 'job', 'source', 'log_destination') -ccontains $name.Substring(0, $dot)) {
+        elseif ($dot -gt 0 -and @('backend', 'runner', 'job', 'source', 'log_destination', 'secret_store') -ccontains $name.Substring(0, $dot)) {
             $kind = $name.Substring(0, $dot)
             $sub = $name.Substring($dot + 1)
         }
@@ -617,6 +701,8 @@ function Test-VigilConfig {
         # What the section's keys are checked against: a job's source and
         # its type, or a source's own type.
         $ctx.SType = ''
+        $ctx.SSType = ''
+        $ctx.Kind = $kind
         $ctx.JSource = ''
         $ctx.JType = ''
         if ($kind -ceq 'job') {
@@ -624,6 +710,10 @@ function Test-VigilConfig {
             if ($ctx.JSource.Length -gt 0 -and $ctx.Sources.ContainsKey($ctx.JSource)) {
                 $ctx.JType = $ctx.Sources[$ctx.JSource]
             }
+        }
+        elseif ($kind -ceq 'secret_store') {
+            $type = Get-VigilFirstValue $Parsed $sec 'type'
+            if (@('helper', 'azure_keyvault', 'hashicorp_vault', 'aws_secrets_manager', 'gcp_secret_manager') -ccontains $type) { $ctx.SSType = $type }
         }
         elseif ($kind -ceq 'source') {
             $type = Get-VigilFirstValue $Parsed $sec 'type'
@@ -673,6 +763,10 @@ function Test-VigilConfig {
                 & $report $line 'E_POINTER_ONLY' "'$key' belongs in the configuration fetched from [source.$pointer], not in this file"
                 continue
             }
+            if ($ctx.SSType.Length -gt 0 -and -not (Test-VigilStoreKey $ctx.SSType $key)) {
+                & $report $line 'E_KEY_UNKNOWN' "'$key' does not apply to a $($ctx.SSType) secret store"
+                continue
+            }
             if ($ctx.SType.Length -gt 0 -and -not (Test-VigilSourceKey $ctx.SType $key)) {
                 & $report $line 'E_KEY_UNKNOWN' "'$key' does not apply to a $($ctx.SType) source"
                 continue
@@ -712,7 +806,7 @@ function Test-VigilConfig {
                         & $report $line 'E_TAG_DUPLICATE' "tag '$pairName' is set more than once in [$name]"
                     }
                 }
-                'envpair' {
+                { $_ -ceq 'envpair' -or $_ -ceq 'secretpair' } {
                     if (-not $envNames.Add($pairName)) {
                         & $report $line 'E_ENV_DUPLICATE' "env '$pairName' is set more than once in [$name]"
                     }
@@ -771,6 +865,16 @@ function Test-VigilConfig {
                 }
                 if ($req.Length -gt 0) {
                     & $report $sline 'E_KEY_REQUIRED' "[$name] needs '$req'"
+                }
+            }
+            'secret_store' {
+                # Required keys (6.5.3).
+                $needed = switch ($ctx.SSType) {
+                    'helper' { @('type', 'command') } 'azure_keyvault' { @('type', 'vault') } 'hashicorp_vault' { @('type', 'url') }
+                    'aws_secrets_manager' { @('type', 'region') } 'gcp_secret_manager' { @('type', 'project') } default { @('type') }
+                }
+                foreach ($k in $needed) {
+                    if (-not $seen.Contains($k)) { & $report $sline 'E_KEY_REQUIRED' "[$name] needs '$k'"; break }
                 }
             }
             { $_ -ceq 'log_forward' -or $_ -ceq 'log_destination' } {

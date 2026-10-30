@@ -39,6 +39,7 @@ _vigil_val_re_tagkey='^[a-z0-9_]+$'
 _vigil_val_re_tagvalue='^[^[:space:]]+$'
 _vigil_val_re_tagpair='^([a-z0-9_]+)=([^[:space:]]+)$'
 _vigil_val_re_cred='^env:([A-Za-z_][A-Za-z0-9_]*)$'
+_vigil_val_re_storename='^[a-z0-9_]+$'
 _vigil_val_re_ext='^\.[a-z0-9_]+$'
 _vigil_val_re_scp='^([A-Za-z0-9._-]+@)?[A-Za-z0-9.-]{2,}:.+$'
 _vigil_val_re_sha256='^[0-9A-Fa-f]{64}$'
@@ -105,9 +106,20 @@ _vigil_val_keytype() {
         log_destination:timeout) _vv_type=dur ;;
         log_destination:header_name) _vv_type=text ;;
         log_destination:header_value) _vv_type=credential ;;
+        secret_store:type) _vv_type=store_type ;;
+        secret_store:command) _vv_type=path ;;
+        secret_store:arg) _vv_type=arg; _vv_list=1 ;;
+        secret_store:vault | secret_store:url) _vv_type=https_url ;;
+        secret_store:auth) _vv_type=store_auth ;;
+        secret_store:mount | secret_store:field | secret_store:region | secret_store:project | \
+        secret_store:tenant_id | secret_store:client_id | secret_store:role_id | secret_store:access_key_id) _vv_type=text ;;
+        secret_store:client_secret | secret_store:token | secret_store:secret_id | \
+        secret_store:secret_access_key | secret_store:service_account_key) _vv_type=credential ;;
+        secret_store:timeout) _vv_type=dur ;;
         runner:command) _vv_type=path ;;
         runner:arg) _vv_type=arg; _vv_list=1 ;;
         runner:env) _vv_type=envpair; _vv_list=1 ;;
+        runner:secret) _vv_type=secretpair; _vv_list=1 ;;
         runner:require_env) _vv_type=envnames; _vv_list=1 ;;
         backend:type) _vv_type=backend_type ;;
         backend:enabled) _vv_type=bool ;;
@@ -128,7 +140,7 @@ _vigil_val_keytype() {
         defaults:file | defaults:source | defaults:sha256 | \
         defaults:arg | defaults:metric_name | defaults:run_every | \
         defaults:run_at | defaults:run_on_days | defaults:runner | defaults:tag | \
-        defaults:env | defaults:require_env)
+        defaults:env | defaults:secret | defaults:require_env)
             _vv_type=job_only ;;
         job:file)
             # Inside a source, file is a relative path in that source.
@@ -153,6 +165,7 @@ _vigil_val_keytype() {
                 backends) _vv_type=backend_refs ;;
                 tag) _vv_type=tagpair; _vv_list=1 ;;
                 env) _vv_type=envpair; _vv_list=1 ;;
+                secret) _vv_type=secretpair; _vv_list=1 ;;
                 require_env) _vv_type=envnames; _vv_list=1 ;;
                 log_retain_days) _vv_type=int1 ;;
                 forward_output) _vv_type=bool ;;
@@ -162,6 +175,67 @@ _vigil_val_keytype() {
 }
 
 # Whether key $2 applies to a source of type $1 (spec 6.9).
+# Checks secret reference $2 of key $1 (6.5): env:NAME, secret:NAME or, when
+# $3 is 1, store:STORE/NAME. Sets _vv_code/_vv_msg; never shows the value.
+_vigil_val_secret_ref() {
+    local key=$1 value=$2 rest store
+    case $value in
+        env:*)
+            if ! [[ $value =~ $_vigil_val_re_cred ]]; then
+                _vv_code=E_ENV_NAME
+                _vv_msg="'$key' must be env:NAME with a valid variable name"
+            fi
+            ;;
+        secret:*)
+            if ! [[ ${value#secret:} =~ $_vigil_val_re_envname ]]; then
+                _vv_code=E_SECRET_REF
+                _vv_msg="'$key' must be secret:NAME with a valid name"
+            fi
+            ;;
+        store:*)
+            if [ "$3" -eq 0 ]; then
+                _vv_code=E_SECRET_REF
+                _vv_msg="'$key' of a secret store must be env: or secret:, never another store"
+                return
+            fi
+            rest=${value#store:}
+            store=${rest%%/*}
+            if [ "$store" = "$rest" ] || [ -z "${rest#*/}" ] || ! [[ $store =~ $_vigil_val_re_storename ]]; then
+                _vv_code=E_SECRET_REF
+                _vv_msg="'$key' must be store:STORE/NAME"
+                return
+            fi
+            case $_vv_stores in
+                *$'\n'"$store"$'\n'*) ;;
+                *) _vv_code=E_SECRET_STORE_UNKNOWN; _vv_msg="no [secret_store.$store] section" ;;
+            esac
+            ;;
+        *)
+            # Never echo the value: it may be a pasted secret.
+            _vv_code=E_SECRET_RAW
+            _vv_msg="'$key' must be an env:, secret: or store: reference; the value is not shown"
+            ;;
+    esac
+}
+
+# Whether key $2 applies to a secret store of type $1 (6.5.3).
+_vigil_val_store_key() {
+    case $2 in
+        type | timeout) return 0 ;;
+    esac
+    case $1:$2 in
+        helper:command | helper:arg | \
+        azure_keyvault:vault | azure_keyvault:auth | azure_keyvault:tenant_id | \
+        azure_keyvault:client_id | azure_keyvault:client_secret | \
+        hashicorp_vault:url | hashicorp_vault:mount | hashicorp_vault:field | hashicorp_vault:auth | \
+        hashicorp_vault:token | hashicorp_vault:role_id | hashicorp_vault:secret_id | \
+        aws_secrets_manager:region | aws_secrets_manager:auth | \
+        aws_secrets_manager:access_key_id | aws_secrets_manager:secret_access_key | \
+        gcp_secret_manager:project | gcp_secret_manager:auth | gcp_secret_manager:service_account_key) return 0 ;;
+    esac
+    return 1
+}
+
 _vigil_val_source_key() {
     case $2 in
         type | check_every | timeout) return 0 ;;
@@ -422,6 +496,10 @@ _vigil_val_check() {
                     _vv_code=E_ENV_LITERAL
                     _vv_msg="'$key' values are literal; the job already inherits ${BASH_REMATCH[2]#env:} from the service environment"
                     ;;
+                secret:* | store:*)
+                    _vv_code=E_ENV_LITERAL
+                    _vv_msg="'$key' values are literal and never secrets; use secret = NAME=<reference>"
+                    ;;
             esac
             ;;
         envnames)
@@ -496,18 +574,34 @@ _vigil_val_check() {
             fi
             ;;
         credential)
+            # A secret store's own credentials cannot come from a store.
+            if [ "$_vv_kind" = secret_store ]; then
+                _vigil_val_secret_ref "$key" "$value" 0
+            else
+                _vigil_val_secret_ref "$key" "$value" 1
+            fi
+            ;;
+        secretpair)
+            if ! [[ $value =~ $_vigil_val_re_envpair ]]; then
+                _vv_code=E_ENV_SYNTAX
+                _vv_msg="'$key' must be NAME=<env:, secret: or store: reference>"
+                return
+            fi
+            _vigil_val_secret_ref "$key" "${BASH_REMATCH[2]}" 1
+            ;;
+        store_type)
             case $value in
-                env:*)
-                    if ! [[ $value =~ $_vigil_val_re_cred ]]; then
-                        _vv_code=E_ENV_NAME
-                        _vv_msg="'$key' must be env:NAME with a valid variable name"
-                    fi
-                    ;;
-                *)
-                    # Never echo the value: it may be a pasted secret.
-                    _vv_code=E_SECRET_RAW
-                    _vv_msg="'$key' must be an env:NAME reference; the value is not shown"
-                    ;;
+                helper | azure_keyvault | hashicorp_vault | aws_secrets_manager | gcp_secret_manager) ;;
+                *) _vv_code=E_ENUM; _vv_msg="'$key' must be helper, azure_keyvault, hashicorp_vault, aws_secrets_manager or gcp_secret_manager: $value" ;;
+            esac
+            ;;
+        store_auth)
+            case $_vv_sstype:$value in
+                azure_keyvault:managed_identity | azure_keyvault:service_principal | \
+                hashicorp_vault:token | hashicorp_vault:approle | \
+                aws_secrets_manager:instance_profile | aws_secrets_manager:access_keys | \
+                gcp_secret_manager:metadata | gcp_secret_manager:service_account_key) ;;
+                *) _vv_code=E_ENUM; _vv_msg="'$key' is not an authentication method of a $_vv_sstype secret store: $value" ;;
             esac
             ;;
     esac
@@ -536,6 +630,7 @@ vigil_config_validate() {
     _vv_runners=$nl
     _vv_backends=$nl
     _vv_destinations=$nl
+    _vv_stores=$nl
     _vv_disabled=$nl
     _vv_src_names=()
     _vv_src_types=()
@@ -546,6 +641,7 @@ vigil_config_validate() {
             runner.*) _vv_runners="$_vv_runners${name#runner.}$nl" ;;
             backend.*) _vv_backends="$_vv_backends${name#backend.}$nl" ;;
             log_destination.*) _vv_destinations="$_vv_destinations${name#log_destination.}$nl" ;;
+            secret_store.*) _vv_stores="$_vv_stores${name#secret_store.}$nl" ;;
             vigil)
                 # A config_source makes this file a pointer to the real one.
                 _vigil_val_first "$s" config_source
@@ -586,7 +682,7 @@ vigil_config_validate() {
         _vv_job=''
         case $name in
             vigil | scheduler | log | tags | spool | defaults | runners | log_forward) kind=$name ;;
-            backend.* | runner.* | job.* | source.* | log_destination.*) kind=${name%%.*}; sub=${name#*.} ;;
+            backend.* | runner.* | job.* | source.* | log_destination.* | secret_store.*) kind=${name%%.*}; sub=${name#*.} ;;
             *) kind='' ;;
         esac
         if [ "$kind" = job ]; then
@@ -615,6 +711,8 @@ vigil_config_validate() {
         _vv_jsource=''
         _vv_jtype=''
         _vv_stype=''
+        _vv_sstype=''
+        _vv_kind=$kind
         case $kind in
             job)
                 _vigil_val_first "$si" source
@@ -623,6 +721,12 @@ vigil_config_validate() {
                     _vigil_val_source_type "$_vv_jsource"
                     _vv_jtype=$_vv_srctype
                 fi
+                ;;
+            secret_store)
+                _vigil_val_first "$si" type
+                case $_vv_first in
+                    helper | azure_keyvault | hashicorp_vault | aws_secrets_manager | gcp_secret_manager) _vv_sstype=$_vv_first ;;
+                esac
                 ;;
             source)
                 _vigil_val_first "$si" type
@@ -696,6 +800,10 @@ vigil_config_validate() {
                         ;;
                 esac
             fi
+            if [ -n "$_vv_sstype" ] && ! _vigil_val_store_key "$_vv_sstype" "$key"; then
+                _vigil_val_report "$line" E_KEY_UNKNOWN "'$key' does not apply to a $_vv_sstype secret store"
+                continue
+            fi
             if [ -n "$_vv_stype" ] && ! _vigil_val_source_key "$_vv_stype" "$key"; then
                 _vigil_val_report "$line" E_KEY_UNKNOWN "'$key' does not apply to a $_vv_stype source"
                 continue
@@ -742,7 +850,7 @@ vigil_config_validate() {
                     esac
                     tag_keys="$tag_keys${value%%=*}$nl"
                     ;;
-                envpair)
+                envpair | secretpair)
                     case $env_names in
                         *$nl"${value%%=*}"$nl*)
                             _vigil_val_report "$line" E_ENV_DUPLICATE "env '${value%%=*}' is set more than once in [$name]"
@@ -812,6 +920,23 @@ vigil_config_validate() {
                 if [ -n "$req" ]; then
                     _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs '$req'"
                 fi
+                ;;
+            secret_store)
+                # Required keys (6.5.3).
+                req=type
+                case $_vv_sstype in
+                    helper) req='type command' ;;
+                    azure_keyvault) req='type vault' ;;
+                    hashicorp_vault) req='type url' ;;
+                    aws_secrets_manager) req='type region' ;;
+                    gcp_secret_manager) req='type project' ;;
+                esac
+                for key in $req; do
+                    case $seen in
+                        *$nl"$key"$nl*) ;;
+                        *) _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs '$key'"; break ;;
+                    esac
+                done
                 ;;
             log_forward | log_destination)
                 # Required keys (13.4.1).

@@ -10,7 +10,7 @@
 # Result, in a fixed key order, as parallel arrays:
 #   VIGIL_EFF_KEY[i]  VIGIL_EFF_VALUE[i]  VIGIL_EFF_SOURCE[i]
 # Source is one of: job, defaults, scheduler, log, tags, runners, runner, source,
-# built-in. List keys (arg, tag, env, require_env) produce one row per item.
+# built-in. List keys (arg, tag, env, secret, require_env) produce one row per item.
 # List values (run_at, run_on_days, backends) are normalised to "a, b".
 #
 # Requires config.sh.
@@ -295,6 +295,11 @@ vigil_config_effective() {
         _vigil_eff_pairs env runner "$job" "runner.$runner" env
     else
         _vigil_eff_pairs env runner "$job" '' ''
+    fi
+    if [ -n "$runner" ]; then
+        _vigil_eff_pairs secret runner "$job" "runner.$runner" secret
+    else
+        _vigil_eff_pairs secret runner "$job" '' ''
     fi
 
     # require_env: the runner's names, then the job's, each name once.

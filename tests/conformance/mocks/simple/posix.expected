@@ -192,8 +192,8 @@ backup_log	tag	client=CLIENT	tags
 backup_log	tag	environment=dev	tags
 backup_log	tag	product=platform	tags
 backup_log	tag	host_type=app	tags
-backup_log	require_env	DB_DBA_USER	runner
-backup_log	require_env	DB_DBA_PASSWORD	runner
+backup_log	secret	DB_DBA_USER=secret:DB_DBA_USER	runner
+backup_log	secret	DB_DBA_PASSWORD=secret:DB_DBA_PASSWORD	runner
 backup_log	require_env	DB_SERVER	runner
 pg_replication	file	checks/sql/pg_replication_lag.sql	job
 pg_replication	runner	psql	runners
@@ -329,7 +329,7 @@ legacy_export	tag	product=platform	tags
 legacy_export	tag	host_type=app	tags
 legacy_export	tag	team=finance	job
 legacy_export	env	JAVA_TOOL_OPTIONS=-Xmx4g	job
-legacy_export	require_env	EXPORT_SFTP_PASSWORD	job
+legacy_export	secret	EXPORT_SFTP_PASSWORD=secret:EXPORT_SFTP_PASSWORD	job
 rabbitmq_queues	file	checks/python/rabbitmq_queues.py	job
 rabbitmq_queues	runner	python	runners
 rabbitmq_queues	metric_name	rabbitmq.queues	job

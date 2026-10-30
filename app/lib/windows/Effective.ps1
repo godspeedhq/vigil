@@ -11,7 +11,7 @@
 
     Returns rows { Key; Value; Source } in a fixed key order. Source is one
     of: job, defaults, scheduler, log, tags, runners, runner, source,
-    built-in. List keys (arg, tag, env, require_env) produce one row per
+    built-in. List keys (arg, tag, env, secret, require_env) produce one row per
     item. List values (run_at, run_on_days, backends) are normalised to
     "a, b".
 
@@ -198,6 +198,15 @@ function Get-VigilEffectiveJob {
         }
     }
     & $pairs 'env' 'runner' $runnerEnv
+
+    $runnerSecret = New-Object 'System.Collections.Generic.List[object]'
+    if ($runner.Length -gt 0) {
+        foreach ($v in (Get-VigilIndexValues -Index $Index -Section "runner.$runner" -Key 'secret')) {
+            $eq = $v.IndexOf('=')
+            $runnerSecret.Add(@{ Name = $v.Substring(0, $eq); Value = $v.Substring($eq + 1) })
+        }
+    }
+    & $pairs 'secret' 'runner' $runnerSecret
 
     # require_env: the runner's names, then the job's, each name once.
     $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)

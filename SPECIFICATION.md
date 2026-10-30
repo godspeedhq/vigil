@@ -308,6 +308,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `[tags]` | Tags attached to every metric. |
 | `[spool]` | Spool directory, size cap, overflow policy. |
 | `[backend.<name>]` | One metrics destination (§15). |
+| `[secret_store.<name>]` | An external secret store, for `store:` references (§6.5.3). |
 | `[log_forward]` | Optional forwarding of Vigil's logs (§13.4). |
 | `[log_destination.<name>]` | One log destination (§13.4.1). |
 | `[runner.<name>]` | A reusable command prefix (§6.4). |
@@ -338,6 +339,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `backends` | No | Comma-separated backend names. Default: all enabled backends. |
 | `tag` | No | Extra metric tag, `key=value`. Repeat per tag. Merged with `[tags]` (§14.6). |
 | `env` | No | Environment variable for the job, `NAME=value`, literal. Repeat per variable. Merged with the runner's `env`. Never a secret. |
+| `secret` | No | A secret for the job's environment, `NAME=<reference>` with an `env:`, `secret:` or `store:` reference, resolved when the run starts (§6.5.4). Repeat per variable. Merged with the runner's `secret`. |
 | `require_env` | No | Comma-separated variables that must exist before the job may start. Combined with the runner's `require_env`. |
 | `late_start_window` | No | Overrides `[scheduler] late_start_window` for this job (§7.7). |
 | `log_retain_days` | No | Overrides `[log] retain_days` for this job's log (§13.1). |
@@ -390,17 +392,98 @@ The encoding is verified on every change: `tests/Test-CommandLineRoundTrip.ps1` 
 
 ### 6.5 Secrets
 
-Secrets are never written in configuration. Every credential value has the form `env:NAME`:
+Secrets are never written in configuration. Every credential is a **reference** that names where its value comes from:
+
+| Reference | The value lives in | A changed value takes effect | Typical use |
+| --- | --- | --- | --- |
+| `env:NAME` | Vigil's environment | Windows: at the next run. Linux/macOS: when Vigil is next started. | The simplest setup; values set by the service definition |
+| `secret:NAME` | Vigil's own secret store on the host (§6.5.2) | At the next run | Rotating secrets without a restart on any platform |
+| `store:STORE/NAME` | An external secret store (§6.5.3) | At the next run | Secrets kept off the machine, even when everything else is local |
 
 ```ini
+[backend.datadog]
 api_key = env:DATADOG_API_KEY
+
+[backend.splunk]
+token = secret:SPLUNK_HEC_TOKEN
+
+[backend.datadog_eu]
+api_key = store:ops_kv/datadog-eu-api-key
+
+[secret_store.ops_kv]
+type  = azure_keyvault
+vault = https://ops-kv.vault.azure.net/
+auth  = managed_identity
 ```
 
-Credential keys (`api_key`, `token`, `username`, `password`, `*_secret`, `*_key`, `header_value`, …) reject any value that does not start with `env:`. A pasted raw secret fails validation; the rejected value is never echoed in errors or logs.
+The source is always explicit: Vigil never searches several sources for a name, so a reviewer can tell where every secret comes from, and one source can never silently shadow another.
 
-Vigil reads the variable only at the moment it needs it, and never logs it, persists it, writes it to the spool or passes it on a command line. On Linux/macOS secrets are passed to curl on stdin (`curl -K -`), never as arguments. Secrets go in headers, never URL query strings.
+Credential keys (`api_key`, `token`, `username`, `password`, `*_secret`, `*_key`, `header_value`, …) reject any value that is not one of the three references. A pasted raw secret fails validation; the rejected value is never echoed in errors or logs.
 
-Jobs receive the service environment, plus the literal `env` entries of their runner and job (§6.6). An `env` entry whose value starts with `env:` is a validation error: `env` values are literal, and the job already inherits the variable it names. Job tools that need credentials should use their own credential store (Windows integrated auth, pgpass, MySQL option files, Oracle Wallet) or a wrapper script that reads environment variables. Credentials should not be placed on a job's command line, where other users can see them in the process list.
+#### 6.5.1 Environment: `env:`
+
+`env:NAME` is read from Vigil's environment when it is needed: when a worker starts its run, or when the sender starts a delivery.
+
+- **Windows:** the machine scope, then the user scope, are read from the registry at that moment, falling back to the inherited environment. A variable changed with System Properties, `setx` or `[Environment]::SetEnvironmentVariable` is used by the next run, without a restart.
+- **Linux and macOS:** the environment the service was started with: the systemd unit's `Environment=` and `EnvironmentFile=`, or the launchd plist's `EnvironmentVariables`. These systems keep no live store a running process could read again, so **a changed value takes effect only when Vigil is next started.** Restarting Vigil never stops running jobs (§10.4), but the new value reaches only runs started after it. Use `secret:` or `store:` for anything that will be rotated.
+
+#### 6.5.2 Vigil's secret store: `secret:`
+
+A store on the host, managed with the `vigil secret` command and read afresh by every worker and sender when it starts, so a changed value is used by the very next run on every platform.
+
+| Command | Purpose |
+| --- | --- |
+| `vigil secret set <NAME>` | Prompts for the value without echoing it, so it never reaches shell history. With `--stdin`, reads it from standard input instead, for scripts and deployment tools (Ansible, Puppet, Jamf, Intune). |
+| `vigil secret list` | The names and when each was last changed. Never the values. |
+| `vigil secret delete <NAME>` | Removes one. |
+
+- **Names:** `[A-Za-z_][A-Za-z0-9_]*`, like environment variables.
+- **Linux and macOS:** one file per secret, `config/secrets/<NAME>`. The folder is `0700` and each file `0600`, owned by the service account. Vigil refuses to read a secret, and says why without the value, when the folder or file is accessible to anyone else or owned by another account.
+- **Windows:** one file per secret, `config\secrets\<NAME>`, holding the value encrypted with DPAPI for the service account (.NET `ProtectedData`, no extra software), with an owner-only ACL. Only that account on that machine can decrypt it.
+- `vigil secret set` writes a temporary file and renames it over the old one, so a run reads either the old value or the new one, never part of one. A single trailing newline is not part of the value.
+- Run `vigil secret` as the service account (or as an administrator, who the command sets ownership for), so the files belong to the account that reads them.
+
+#### 6.5.3 External secret stores: `store:`
+
+`store:STORE/NAME` names a `[secret_store.<STORE>]` section and a secret in it. Everything after the first `/` is the secret's name or path in that store, passed as written.
+
+| Type | Keys | Authentication |
+| --- | --- | --- |
+| `helper` | `command`, `arg` (repeatable) | Whatever the command does. Vigil runs `command arg… get <NAME>` directly, never through a shell, and reads the value from its stdout; exit 0 means success. The usual adapter for a store Vigil does not support natively (CyberArk, 1Password CLI, an internal tool). |
+| `azure_keyvault` | `vault` (the vault URL) | `auth = managed_identity` (no secret on the host), or `service_principal` with `tenant_id`, `client_id` and `client_secret` |
+| `hashicorp_vault` | `url`, `mount` (default `secret`), `field` (default `value`) | `auth = token` with `token`, or `approle` with `role_id` and `secret_id`. KV version 2. |
+| `aws_secrets_manager` | `region` | `auth = instance_profile` (no secret on the host), or `access_keys` with `access_key_id` and `secret_access_key` |
+| `gcp_secret_manager` | `project` | `auth = metadata` (no secret on the host), or `service_account_key` |
+
+Every store also takes `timeout` (default `10s`).
+
+- **A store's own credentials** (`client_secret`, `token`, `secret_id`, …) must be `env:` or `secret:` references, never `store:`: one store cannot unlock another, so there is never a chain to untangle.
+- **Fetched fresh** when each run or delivery starts, held in memory only for that run, never written to disk. A rotated secret is used by the next run.
+- **Failure:** a job whose secret cannot be fetched fails before its command starts, with a reason that names the reference and the kind of failure, never a value (`secret store:ops_kv/backup-api-token unavailable: not found`). A backend whose credential cannot be fetched fails that delivery and backs off (§4.5).
+- **`https` only**, with certificate verification never disabled. Secret store credentials are sent in headers or request bodies, never in URLs.
+- Store types are implemented one at a time, starting with `helper`. Until a type is implemented, a reference to a store of that type fails as above with `unavailable: store type not implemented yet`.
+
+#### 6.5.4 Secrets for Jobs
+
+A job (or runner) receives secrets in its environment with the repeatable `secret` key:
+
+```ini
+[job.backup]
+file   = sql/backup.sql
+env    = PGHOST=db01.example.com
+secret = PGPASSWORD=secret:PGPASSWORD
+secret = API_TOKEN=store:ops_kv/backup-api-token
+```
+
+- `secret = NAME=<reference>` resolves the reference when the run starts and sets `NAME` in the job's environment only. It is merged with the runner's `secret` entries like `env` (§6.6); the same `NAME` in a job's `env` and `secret` is a validation error.
+- `env` entries stay literal and are never secrets. An `env` value starting with `env:`, `secret:` or `store:` is a validation error: use `secret` instead.
+- `require_env` is checked after secrets are added, so it can name a variable a `secret` entry provides.
+- Jobs also receive the service environment, as before. Tools with their own credential stores (Windows integrated authentication, pgpass, MySQL option files, Oracle Wallet) need none of this.
+- Secrets never go on a job's command line, where other users can see them in the process list. A job receives them in its environment, readable while it runs only by its own account and administrators: that is the nature of environment variables, and the window lasts one run.
+
+#### 6.5.5 Handling
+
+Vigil resolves a secret only at the moment it needs it, and never logs it, persists it outside the stores above, writes it to state or the spool, or passes it on a command line. On Linux/macOS secrets are passed to curl on stdin (`curl -K -`), never as arguments. Secrets go in headers or request bodies, never in URL query strings.
 
 ### 6.6 Precedence and Overrides
 
@@ -420,14 +503,15 @@ For a single-valued key the first value found wins, in this order:
 | `log_retain_days` | `[defaults]`, then `[log] retain_days` | Job wins |
 | `tag` | `[tags]` | Merged by key; the job's value wins on a clash |
 | `env` | The resolved runner's `env` | Merged by name; the job's value wins on a clash |
+| `secret` | The resolved runner's `secret` | Merged by name; the job's value wins on a clash |
 | `require_env` | The resolved runner's `require_env` | Combined |
 
 Rules:
 
 - `backends` replaces the global choice; it is not merged. A job that lists backends sends only to those.
-- Job-only keys may not appear in `[defaults]`: `file`, `source`, `ref`, `sha256`, `arg`, `metric_name`, `run_every`, `run_at`, `run_on_days`, `runner`, `tag`, `env` and `require_env`. A default schedule would silently schedule every job that forgot its own; a default runner, tag or environment belongs in `[runners]`, `[tags]` or a runner. Setting one is a validation error.
+- Job-only keys may not appear in `[defaults]`: `file`, `source`, `sha256`, `arg`, `metric_name`, `run_every`, `run_at`, `run_on_days`, `runner`, `tag`, `env`, `secret` and `require_env`. A default schedule would silently schedule every job that forgot its own; a default runner, tag or environment belongs in `[runners]`, `[tags]` or a runner. Setting one is a validation error.
 - Global-only settings cannot be set on a job: `[vigil]` (instance, state directory, `max_concurrent`), `[scheduler]` `tick` and `max_pending`, `[log]` `dir`, `stdout` and `max_file_mb`, `[spool]` and the `[backend.*]` definitions. A job chooses *which* backends receive its metrics, not how they connect.
-- In `env` and `tag`, a repeated name within the same section is a validation error; repeating one across layers is an override.
+- In `env`, `secret` and `tag`, a repeated name within the same section is a validation error, and so is a name in both `env` and `secret`; repeating one across layers is an override.
 - Relative `working_dir` paths resolve against the install root; the directory must exist (checked by pre-flight).
 - Merged `tag` and `env` lists keep the global order: a job value with the same name replaces the global one in place, and the job's other names follow in job order. `require_env` lists the runner's names, then the job's, each once.
 - The runner from the extension map is found by the file's extension, compared case-insensitively, after the last `/` or `\`.
@@ -930,7 +1014,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
   vendor/nssm/            Windows only
   config/
     vigil.config          the configuration, or a pointer to it (§6.8); never overwritten
-    vigil.env             credential variables (systemd EnvironmentFile), owner-only
+    secrets/<NAME>        Vigil's secret store (§6.5.2): owner-only; encrypted with DPAPI on Windows
   scripts/                the operator's job scripts - never overwritten
   cache/                  fetched configuration and scripts (§16.5); Vigil-owned
     <source>/repo.git       git: bare mirror, never checked out
@@ -1390,7 +1474,7 @@ A backend can never consume unbounded memory or disk (VIGIL-009, VIGIL-014).
 
 Removing a job, disabling it or changing it never stops a run already in progress: the run finishes under the settings and script it started with, and the change applies from the next run.
 
-On Windows, environment variables named by `env:` and `require_env` are re-read from the machine and user scopes every tick, so rotated secrets take effect without a restart. On Linux/macOS, environment changes require a service restart.
+Secrets are resolved when each run starts (§6.5): a value changed in Vigil's secret store (`secret:`) or an external store (`store:`) is used by the next run on every platform, and so is a changed environment variable on Windows, which is read from the registry. On Linux/macOS, a changed environment variable (`env:`) takes effect only when Vigil is next started, because those systems keep no live environment a running process could read again.
 
 ### 16.2 Adding a Job
 
@@ -1433,7 +1517,9 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | | `E_DESTINATION_UNKNOWN` | `[log_forward] destination` names a `[log_destination.*]` that is not defined (§13.4.1). |
 | Tags and environment | `E_TAG_SYNTAX`, `E_TAG_RESERVED`, `E_TAG_DUPLICATE` | A malformed tag, a reserved tag key (§14.6), or a tag name repeated in one section. |
 | | `E_ENV_SYNTAX`, `E_ENV_NAME`, `E_ENV_LITERAL`, `E_ENV_DUPLICATE` | A malformed `NAME=value`, an invalid variable name, an `env` value starting with `env:` (§6.5), or a name repeated in one section. |
-| Secrets | `E_SECRET_RAW` | A credential key whose value is not `env:NAME`; the value is never shown. |
+| Secrets | `E_SECRET_RAW` | A credential key whose value is not an `env:`, `secret:` or `store:` reference; the value is never shown. |
+| | `E_SECRET_REF` | A malformed reference (a bad name, `store:` without a secret name), or a secret store's own credential given as a `store:` reference. |
+| | `E_SECRET_STORE_UNKNOWN` | A `store:` reference naming a `[secret_store.*]` that is not defined. |
 | Sources | `E_SOURCE_UNKNOWN` | A job or `config_source` names a source that is not defined. |
 | | `E_SOURCE_PATH` | A `file` or `config_file` inside a source that is absolute, uses `\` or contains a `..` segment. |
 | | `E_URL` | A malformed URL, an `https` source URL not starting with `https://`, or a URL containing credentials (never shown). |
@@ -1452,7 +1538,7 @@ Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rul
 Before install or start, and on demand, Vigil checks without starting anything:
 
 - Configuration parses and validates.
-- Every `env:` and `require_env` variable is set (names only are printed).
+- Every `env:` and `require_env` variable is set, every `secret:` exists with safe permissions, and every secret store answers (names only are printed, never values).
 - Every job file exists and is runnable through its resolved runner.
 - Every runner `command` exists.
 - Every job `working_dir` exists.
@@ -1503,7 +1589,7 @@ Every fetch is bounded by the source's `timeout`; a fetched configuration file l
 ## 17. Security
 
 - **Least privilege:** Vigil runs as an ordinary user in user mode. Jobs run with Vigil's identity; Vigil never elevates.
-- **Secrets by reference:** credentials are `env:` references only (§6.5).
+- **Secrets by reference:** credentials are `env:`, `secret:` or `store:` references only, never values (§6.5). Vigil's own secret store is owner-only, and encrypted with DPAPI on Windows.
 - **No secrets on command lines** constructed by Vigil.
 - **Script trust:** jobs run with Vigil's permissions. Vigil is not a sandbox; untrusted scripts need OS-level isolation.
 - **Sources are trusted code paths:** a configuration source decides what runs on every host that uses it, so it deserves the same review and access control as production code. Vigil relies on the organisation's own controls there (repository permissions, reviews, protected branches, file server access) rather than reproducing them. Vigil adds pinning (§6.9), digest verification, last-known-good fallback, and the rule that fetched configuration can never change where configuration comes from (§6.8).
@@ -1567,6 +1653,7 @@ Each service manager is configured so stopping the service stops only the superv
 | `supervise [--once]` | The supervisor itself (§4.1), as the service manager runs it: ticks until stopped (TERM or INT on Linux/macOS, stopping the process on Windows), or a single tick with `--once`. Running workers are never stopped with it. Refuses to start while another supervisor owns the state directory, or when the configuration is invalid and no earlier valid one exists. |
 | `run <job>` | Run one job once now, in the foreground, for testing: launched, claimed and recorded exactly as the supervisor would. Exits 0 succeeded, 1 warning, 2 failed, 3 unknown, 4 not run (another run may be in progress, the job is unknown or invalid, or the configuration has errors). |
 | `resolve <job>` | Confirm that an uncertain run is over so the job can be scheduled again (§11.4). Never kills anything; the supervisor concludes the run at its next tick. Exits 1 when the job is not held. |
+| `secret set <NAME>` / `secret list` / `secret delete <NAME>` | Manage Vigil's secret store (§6.5.2). `set` prompts without echo, or reads `--stdin`; `list` shows names and change times, never values. |
 | `uninstall` | Remove Vigil completely (§18.8). |
 
 ### 18.6 Install Locations
@@ -1871,6 +1958,8 @@ Each invariant has a documented enforcement mechanism and regression tests.
 - A `git` reference to a commit that is not the tip of a branch or a tag must be fetchable by its id; most hosted Git services allow this, a self-hosted server may need `uploadpack.allowReachableSHA1InWant`.
 - Scripts without a digest, from a `local` source or a `git` branch, may briefly differ between hosts until each has made its next check (§6.9).
 - A worker reads `config/vigil.config` when it starts. If that file was saved with an error after the supervisor launched the run, the worker refuses to run, and the launch is abandoned after the 120-second launch grace (§11.3); the job runs again at its next slot once the file is fixed.
+- A changed environment variable (`env:`) reaches Linux and macOS runs only after Vigil is next started (§6.5.1); use `secret:` or `store:` for anything rotated.
+- A secret given to a job is in its environment, readable while it runs by its own account and administrators (§6.5.4).
 
 ---
 
