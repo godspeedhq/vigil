@@ -17,6 +17,12 @@
 #                                                 posix and /opt/vigil
 #   tests/conformance/command/<case>.expected     validate dump, then
 #                                                 vigil_job_command_dump
+#   tests/conformance/schedule/<case>.config      input
+#   tests/conformance/schedule/<case>.table       decisions table, inputs and
+#                                                 expected decisions per row;
+#                                                 compared with comments and
+#                                                 blank lines dropped and
+#                                                 columns single-spaced
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -33,13 +39,25 @@ root=$(dirname "$here")
 . "$root/app/lib/effective.sh"
 # shellcheck source=../app/lib/command.sh
 . "$root/app/lib/command.sh"
+# shellcheck source=../app/lib/schedule.sh
+. "$root/app/lib/schedule.sh"
 
 pass=0
 fail=0
 
 printf 'bash %s\n' "$BASH_VERSION"
 
-for suite in parser validate effective command; do
+# A decisions table as the runner expects it: no comments or blank lines,
+# columns separated by one space.
+table_rows() {
+    local a b c d e f g h
+    while read -r a b c d e f g h || [ -n "$a" ]; do
+        case $a in '' | '#'*) continue ;; esac
+        printf '%s %s %s %s %s %s %s %s\n' "$a" "$b" "$c" "$d" "$e" "$f" "$g" "$h"
+    done < "$1"
+}
+
+for suite in parser validate effective command schedule; do
     for cfg in "$here"/conformance/$suite/*.config; do
         name=$(basename "$cfg" .config)
         expected_file=${cfg%.config}.expected
@@ -58,8 +76,16 @@ for suite in parser validate effective command; do
                 esac
                 actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump
                          vigil_job_command_dump "$platform" "$install_root") ;;
+            schedule)
+                expected_file=${cfg%.config}.table
+                actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump
+                         vigil_schedule_table_dump "$expected_file") ;;
         esac
-        expected=$(cat "$expected_file")
+        if [ "$suite" = schedule ]; then
+            expected=$(table_rows "$expected_file")
+        else
+            expected=$(cat "$expected_file")
+        fi
 
         if [ "$actual" = "$expected" ]; then
             pass=$((pass + 1))

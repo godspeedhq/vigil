@@ -20,6 +20,12 @@
                                                     posix and /opt/vigil
       tests/conformance/command/<case>.expected     validation dump, then
                                                     Format-VigilCommandDump
+      tests/conformance/schedule/<case>.config      input
+      tests/conformance/schedule/<case>.table       decisions table, inputs and
+                                                    expected decisions per row;
+                                                    compared with comments and
+                                                    blank lines dropped and
+                                                    columns single-spaced
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -31,13 +37,14 @@ $root = Split-Path -Parent $here
 . (Join-Path $root 'app\lib\Validate.ps1')
 . (Join-Path $root 'app\lib\Effective.ps1')
 . (Join-Path $root 'app\lib\Command.ps1')
+. (Join-Path $root 'app\lib\Schedule.ps1')
 
 $pass = 0
 $fail = 0
 
 Write-Host "PowerShell $($PSVersionTable.PSVersion)"
 
-foreach ($suite in @('parser', 'validate', 'effective', 'command')) {
+foreach ($suite in @('parser', 'validate', 'effective', 'command', 'schedule')) {
     $cases = Get-ChildItem -LiteralPath (Join-Path $here "conformance\$suite") -Filter '*.config' |
         Sort-Object Name
 
@@ -60,8 +67,21 @@ foreach ($suite in @('parser', 'validate', 'effective', 'command')) {
                 else { $platform = 'posix'; $installRoot = '/opt/vigil' }
                 $actual += Format-VigilCommandDump -Parsed $parsed -Records $records -Platform $platform -Root $installRoot
             }
+            elseif ($suite -eq 'schedule') {
+                $expectedPath = [System.IO.Path]::ChangeExtension($case.FullName, '.table')
+                $actual += Format-VigilScheduleTableDump -Parsed $parsed -Path $expectedPath
+            }
         }
-        $expected = [System.IO.File]::ReadAllText($expectedPath)
+        if ($suite -eq 'schedule') {
+            $rows = foreach ($line in [System.IO.File]::ReadAllLines($expectedPath)) {
+                $c = Split-VigilScheduleRow $line
+                if ($null -ne $c) { $c -join ' ' }
+            }
+            $expected = ($rows -join "`n") + "`n"
+        }
+        else {
+            $expected = [System.IO.File]::ReadAllText($expectedPath)
+        }
 
         # Compare without trailing newlines, as the bash runner's $(...) does.
         if ($actual.TrimEnd("`n") -ceq $expected.TrimEnd("`n")) {

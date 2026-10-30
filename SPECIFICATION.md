@@ -478,6 +478,8 @@ run_every = 5m
 
 Intervals use scheduled-time semantics: the next run is due one interval after the previous **scheduled** time, not after the previous run finished. A long run does not shift the schedule; overlap is handled by the overlap policy (§9).
 
+Interval slots are aligned to the Unix epoch: a job with `run_every = 5m` is scheduled at every UTC time that is a whole multiple of five minutes since 1970-01-01T00:00:00Z. This makes the schedule independent of when the job was added or the supervisor started, the same on every host, and unaffected by daylight saving, since intervals measure elapsed time. In a time zone whose offset is not a whole number of hours, `run_every = 1h` therefore runs at half past the local hour; use `run_at` for times tied to the local clock.
+
 ### 7.3 Time-of-Day Scheduling
 
 ```ini
@@ -528,6 +530,40 @@ A worker that crashed is not respawned immediately; the job runs again at its ne
 - A backwards clock change never re-runs a run that already completed for the same scheduled time.
 - A forwards jump is treated as missed runs, subject to §7.7.
 - Daylight-saving: a `run_at` time that does not exist on the transition day fires at the first tick after it; a time that occurs twice fires once.
+
+### 7.9 Schedule Decisions
+
+Each tick, the supervisor reaches exactly one decision per job. The decision is a pure function of the inputs below, so it is tested as a table (§22.1) without waiting for real time to pass.
+
+**Slots.** A scheduled time is a *slot*. `run_every` slots are UTC instants (§7.2). `run_at` slots are local wall-clock times: the local date and time with no offset, so a time that occurs twice is the same slot both times. `run_on_days` keeps only slots whose local date falls on a listed day; for `run_every` the day is taken at the current UTC offset.
+
+**Cursor.** The last slot the job has dealt with — run, skipped, queued or missed — in the same form as its slots. A slot is due when it is at or before now and after the cursor; when several are due, only the latest counts and the earlier ones are passed over (VIGIL-008). The cursor is supervisor-owned, kept in `state/schedule/<job id>.cursor` and written atomically (§12.3) whenever it moves. A job with no cursor is new; a disabled job's cursor is deleted, so re-enabling it makes it new again, and a change between `run_every` and `run_at` does the same.
+
+**Inputs.**
+
+| Input | Meaning |
+| --- | --- |
+| now | Current UTC time and UTC offset. |
+| previous tick | UTC time and offset of the supervisor's previous tick, or none after a start. |
+| cursor | As above, or none. |
+| active | `none`, `running` (a run of the job is active) or `queued` (active, and one run held by `queue_one`). |
+| settings | The job's effective `run_every` or `run_at`, `run_on_days`, `late_start_window`, `overlap` and `enabled` (§6.6), and `[scheduler] tick`. |
+
+**On time.** A due slot is on time when the supervisor was ticking normally — a previous tick exists, at most two ticks ago, not in the future — and the slot came after that tick; this is the first tick at or after the slot (§7.1). Otherwise the supervisor was down or the clock jumped, and the slot is on time only when it is at most `late_start_window` old, measured in elapsed time. A local slot's age uses the current UTC offset. So a `run_at` time skipped by a daylight-saving change fires at the next tick, while a forwards clock jump or a resume from sleep is subject to the window.
+
+**Decisions.** Evaluated in this order:
+
+| Decision | When | Cursor afterwards |
+| --- | --- | --- |
+| `disabled` | `enabled = false` | deleted |
+| `new` | No cursor (§7.6) | now |
+| `wait` | No slot is due | unchanged |
+| `missed` | The due slot is not on time | the slot |
+| `run` | On time, and no run of the job is active | the slot |
+| `queue` | On time, a run is active, `overlap = queue_one` and none is queued | the slot |
+| `skip` | On time and a run is active, otherwise | the slot |
+
+Every decision except `disabled` also reports the next slot that can run — the first after both now and the cursor — shown as `NEXT` in `jobs.log`. `run` and `queue` hand the slot to admission (§8), which may still hold it as pending for capacity.
 
 ---
 
@@ -789,6 +825,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
     locks/<job id>.<run id>.token held open by the live worker after its claim
     quarantine/<job id>.<epoch>.state   unreadable state, kept as evidence
     recovery/<job id>.recovery    supervisor-owned record of a held job (§11.4)
+    schedule/<job id>.cursor      the last slot the job dealt with (§7.9)
   spool/
     incoming/<epoch>-<job id>-<run id>.events
     fanout/<file>, <file>.targets, <file>.<backend>.done   fan-out in progress (§4.5)
@@ -1345,7 +1382,7 @@ Where an outcome cannot be determined, Vigil reports the uncertainty rather than
 
 ### 22.1 Shared Conformance Suite
 
-The scheduling decision logic is tested as a table of inputs and expected decisions. The same table is executed against both the PowerShell and bash implementations, which must produce identical results. The config parser is tested the same way.
+The scheduling decision logic (§7.9) is tested as a table of inputs and expected decisions. The same table is executed against both the PowerShell and bash implementations, which must produce identical results. The config parser is tested the same way.
 
 ### 22.2 Unit Tests
 

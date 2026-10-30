@@ -1,0 +1,60 @@
+# Schedule decisions for run_every jobs (SPECIFICATION.md 7.9).
+# One row per tick. now and prev are local time with UTC offset; prev is the
+# supervisor's previous tick (- after a start). cursor, slot and next are UTC
+# slots. active is - (none), running or queued.
+# 2026-10-29 is a Thursday; [scheduler] tick is 60s, so a previous tick at
+# most 120s ago means the supervisor was ticking normally.
+#
+# job              now                       prev                      cursor                active   decision  slot                  next
+
+# A new job never runs immediately (7.6); its cursor becomes now.
+every5             2026-10-29T14:02:10+0000  -                         -                     -        new       -                     2026-10-29T14:05:00Z
+every5             2026-10-29T14:03:10+0000  2026-10-29T14:02:10+0000  2026-10-29T14:02:10Z  -        wait      -                     2026-10-29T14:05:00Z
+# The first tick at or after a slot runs it.
+every5             2026-10-29T14:05:10+0000  2026-10-29T14:04:10+0000  2026-10-29T14:02:10Z  -        run       2026-10-29T14:05:00Z  2026-10-29T14:10:00Z
+every5             2026-10-29T14:06:10+0000  2026-10-29T14:05:10+0000  2026-10-29T14:05:00Z  -        wait      -                     2026-10-29T14:10:00Z
+every5             2026-10-29T14:15:00+0000  2026-10-29T14:14:00+0000  2026-10-29T14:10:00Z  -        run       2026-10-29T14:15:00Z  2026-10-29T14:20:00Z
+# A tick two ticks after the previous one still counts as ticking normally.
+every5             2026-10-29T14:30:10+0000  2026-10-29T14:28:10+0000  2026-10-29T14:25:00Z  -        run       2026-10-29T14:30:00Z  2026-10-29T14:35:00Z
+# Overlap: skip is the default.
+every5             2026-10-29T14:10:10+0000  2026-10-29T14:09:10+0000  2026-10-29T14:05:00Z  running  skip      2026-10-29T14:10:00Z  2026-10-29T14:15:00Z
+# Restart after downtime: only the latest due slot counts, the rest are
+# passed over (VIGIL-008). It is 4m30s old, inside the 15m window.
+every5             2026-10-29T14:24:30+0000  -                         2026-10-29T14:05:00Z  -        run       2026-10-29T14:20:00Z  2026-10-29T14:25:00Z
+# The clock went back 31 minutes: nothing up to the cursor runs again, and
+# the next slot is the first after the cursor.
+every5             2026-10-29T14:00:10+0000  2026-10-29T14:31:10+0000  2026-10-29T14:30:00Z  -        wait      -                     2026-10-29T14:35:00Z
+
+# queue_one holds one run while another is active, never two.
+every5_queue       2026-10-29T14:10:10+0000  2026-10-29T14:09:10+0000  2026-10-29T14:05:00Z  running  queue     2026-10-29T14:10:00Z  2026-10-29T14:15:00Z
+every5_queue       2026-10-29T14:15:10+0000  2026-10-29T14:14:10+0000  2026-10-29T14:10:00Z  queued   skip      2026-10-29T14:15:00Z  2026-10-29T14:20:00Z
+every5_queue       2026-10-29T14:20:10+0000  2026-10-29T14:19:10+0000  2026-10-29T14:15:00Z  -        run       2026-10-29T14:20:00Z  2026-10-29T14:25:00Z
+
+# late_start_window = 0s: runs on normal ticks, never late after downtime.
+strict             2026-10-29T14:05:10+0000  2026-10-29T14:04:10+0000  2026-10-29T14:00:00Z  -        run       2026-10-29T14:05:00Z  2026-10-29T14:10:00Z
+strict             2026-10-29T14:05:10+0000  -                         2026-10-29T14:00:00Z  -        missed    2026-10-29T14:05:00Z  2026-10-29T14:10:00Z
+strict             2026-10-29T14:05:00+0000  -                         2026-10-29T14:00:00Z  -        run       2026-10-29T14:05:00Z  2026-10-29T14:10:00Z
+# Resumed from sleep: the previous tick is an hour old, so the window applies.
+strict             2026-10-29T14:05:10+0000  2026-10-29T13:00:10+0000  2026-10-29T13:00:00Z  -        missed    2026-10-29T14:05:00Z  2026-10-29T14:10:00Z
+# A missed slot moves the cursor; the next tick waits.
+strict             2026-10-29T14:06:10+0000  2026-10-29T14:05:10+0000  2026-10-29T14:05:00Z  -        wait      -                     2026-10-29T14:10:00Z
+
+off                2026-10-29T14:05:10+0000  2026-10-29T14:04:10+0000  2026-10-29T14:00:00Z  -        disabled  -                     -
+
+# +0530: hourly UTC slots fall at half past the local hour (7.2).
+hourly             2026-10-29T14:30:10+0530  2026-10-29T14:29:10+0530  2026-10-29T08:00:00Z  -        run       2026-10-29T09:00:00Z  2026-10-29T10:00:00Z
+
+# Weekdays only. Saturday: nothing new is due; the next slot is Monday 00:00.
+hourly_weekdays    2026-10-31T10:00:30+0000  2026-10-31T09:59:30+0000  2026-10-30T23:00:00Z  -        wait      -                     2026-11-02T00:00:00Z
+# Back on Monday 20 minutes after midnight: older than 15m, so missed.
+hourly_weekdays    2026-11-02T00:20:00+0000  -                         2026-10-30T23:00:00Z  -        missed    2026-11-02T00:00:00Z  2026-11-02T01:00:00Z
+# The day is the local one: at +0100 it is already Monday while UTC is still
+# Sunday, so the 23:00Z slot (Monday 00:00 local) runs.
+hourly_weekdays    2026-11-02T00:00:10+0100  2026-11-01T23:59:10+0100  2026-10-30T22:00:00Z  -        run       2026-11-01T23:00:00Z  2026-11-02T00:00:00Z
+# The same instant at +0000 is Sunday 23:00: not a weekday.
+hourly_weekdays    2026-11-01T23:00:10+0000  2026-11-01T22:59:10+0000  2026-10-30T23:00:00Z  -        wait      -                     2026-11-02T00:00:00Z
+
+# Malformed input is an error, never a guess: no offset on now, and a local
+# cursor for a run_every job.
+every5             2026-10-29T14:05:10       -                         -                     -        error     -                     -
+every5             2026-10-29T14:05:10+0000  -                         2026-10-29T14:00:00   -        error     -                     -
