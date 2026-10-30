@@ -922,6 +922,9 @@ Everything lives under one install root (§18.6 gives the root per platform):
 ```text
 <root>/
   app/                    Vigil's own scripts - replaced on upgrade
+    vigil, vigil.ps1        the vigil command (Linux/macOS, Windows)
+    lib/posix/              the bash implementation (Linux, macOS)
+    lib/windows/            the PowerShell implementation (Windows); each file has a twin of the same name in lib/posix
   vendor/nssm/            Windows only
   config/
     vigil.config          the configuration, or a pointer to it (§6.8); never overwritten

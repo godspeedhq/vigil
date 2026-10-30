@@ -29,7 +29,7 @@ root=$(dirname "$app")
 
 for lib in config validate effective command schedule outcome metrics events recovery prom worker sender supervisor; do
     # shellcheck source=/dev/null
-    . "$app/lib/$lib.sh"
+    . "$app/lib/posix/$lib.sh"
 done
 
 usage() {

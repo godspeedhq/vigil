@@ -20,10 +20,10 @@
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = Split-Path -Parent $here
 
-. (Join-Path $root 'app\lib\Config.ps1')
-. (Join-Path $root 'app\lib\Validate.ps1')
-. (Join-Path $root 'app\lib\Effective.ps1')
-. (Join-Path $root 'app\lib\Command.ps1')
+. (Join-Path $root 'app\lib\windows\Config.ps1')
+. (Join-Path $root 'app\lib\windows\Validate.ps1')
+. (Join-Path $root 'app\lib\windows\Effective.ps1')
+. (Join-Path $root 'app\lib\windows\Command.ps1')
 
 Add-Type -Namespace VigilTest -Name Native -MemberDefinition @'
 [DllImport("shell32.dll", SetLastError = true)]

@@ -48,16 +48,16 @@
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = Split-Path -Parent $here
 
-. (Join-Path $root 'app\lib\Config.ps1')
-. (Join-Path $root 'app\lib\Validate.ps1')
-. (Join-Path $root 'app\lib\Effective.ps1')
-. (Join-Path $root 'app\lib\Command.ps1')
-. (Join-Path $root 'app\lib\Schedule.ps1')
-. (Join-Path $root 'app\lib\Outcome.ps1')
-. (Join-Path $root 'app\lib\Metrics.ps1')
-. (Join-Path $root 'app\lib\Events.ps1')
-. (Join-Path $root 'app\lib\Recovery.ps1')
-. (Join-Path $root 'app\lib\Prom.ps1')
+. (Join-Path $root 'app\lib\windows\Config.ps1')
+. (Join-Path $root 'app\lib\windows\Validate.ps1')
+. (Join-Path $root 'app\lib\windows\Effective.ps1')
+. (Join-Path $root 'app\lib\windows\Command.ps1')
+. (Join-Path $root 'app\lib\windows\Schedule.ps1')
+. (Join-Path $root 'app\lib\windows\Outcome.ps1')
+. (Join-Path $root 'app\lib\windows\Metrics.ps1')
+. (Join-Path $root 'app\lib\windows\Events.ps1')
+. (Join-Path $root 'app\lib\windows\Recovery.ps1')
+. (Join-Path $root 'app\lib\windows\Prom.ps1')
 
 $pass = 0
 $fail = 0
