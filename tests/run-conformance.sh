@@ -49,26 +49,26 @@ set -u
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
 
-# shellcheck source=../app/lib/config.sh
-. "$root/app/lib/config.sh"
-# shellcheck source=../app/lib/validate.sh
-. "$root/app/lib/validate.sh"
-# shellcheck source=../app/lib/effective.sh
-. "$root/app/lib/effective.sh"
-# shellcheck source=../app/lib/command.sh
-. "$root/app/lib/command.sh"
-# shellcheck source=../app/lib/schedule.sh
-. "$root/app/lib/schedule.sh"
-# shellcheck source=../app/lib/outcome.sh
-. "$root/app/lib/outcome.sh"
-# shellcheck source=../app/lib/metrics.sh
-. "$root/app/lib/metrics.sh"
-# shellcheck source=../app/lib/events.sh
-. "$root/app/lib/events.sh"
-# shellcheck source=../app/lib/recovery.sh
-. "$root/app/lib/recovery.sh"
-# shellcheck source=../app/lib/prom.sh
-. "$root/app/lib/prom.sh"
+# shellcheck source=../app/lib/posix/config.sh
+. "$root/app/lib/posix/config.sh"
+# shellcheck source=../app/lib/posix/validate.sh
+. "$root/app/lib/posix/validate.sh"
+# shellcheck source=../app/lib/posix/effective.sh
+. "$root/app/lib/posix/effective.sh"
+# shellcheck source=../app/lib/posix/command.sh
+. "$root/app/lib/posix/command.sh"
+# shellcheck source=../app/lib/posix/schedule.sh
+. "$root/app/lib/posix/schedule.sh"
+# shellcheck source=../app/lib/posix/outcome.sh
+. "$root/app/lib/posix/outcome.sh"
+# shellcheck source=../app/lib/posix/metrics.sh
+. "$root/app/lib/posix/metrics.sh"
+# shellcheck source=../app/lib/posix/events.sh
+. "$root/app/lib/posix/events.sh"
+# shellcheck source=../app/lib/posix/recovery.sh
+. "$root/app/lib/posix/recovery.sh"
+# shellcheck source=../app/lib/posix/prom.sh
+. "$root/app/lib/posix/prom.sh"
 
 pass=0
 fail=0
