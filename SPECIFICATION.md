@@ -178,7 +178,7 @@ The spool is a local outbox: a directory of small text files. There is no broker
 
 Workers never talk to backends. A worker writes its run's metric events to one spool file and exits, so a slow or unreachable backend can never delay a job, cause it to overrun its next run, or lose its metrics.
 
-**Producers.** At the end of a run, the worker writes all of the run's events to `spool/incoming/<epoch>-<job id>-<run id>.events`. The supervisor writes its own events (heartbeat, `.running`, `invalid_config`, …) once per tick to `spool/incoming/<epoch>-supervisor.events`. Files are written to a temporary name and renamed, so a reader never sees a partial file.
+**Producers.** At the end of a run, the worker writes all of the run's events to `spool/incoming/<epoch>-<job id>-<run id>.events`. The supervisor writes its own events (heartbeat, `.running`, `invalid_config`, …) once per tick to `spool/incoming/<epoch>-vigil_supervisor.events`, and the sender its own (spool size, drops, backend failures) to `<epoch>-vigil_sender.events`; job ids cannot start with `vigil_`, so these names never collide with a job's. Files are written to a temporary name and renamed, so a reader never sees a partial file. A job's events go to the job's `backends` (§6.6); Vigil's own go to every enabled backend.
 
 **Event file format.** One event per line: a Unix timestamp, the full metric name, the value, its type (`gauge` or `count`), then every tag already applied, in order: `host`, `os`, `instance`, `job`, then `[tags]` and the job's tags (§6.6), then the event's own (a metric line's tags replace same-named ones in place):
 
@@ -203,10 +203,10 @@ On every sender start, unfinished fan-outs in `fanout/` are resumed before new i
 
 **Delivery.** For each backend in turn, the sender:
 
-1. Takes the oldest queued files, up to a batch limit.
+1. Takes the oldest queued files, up to 500 per run.
 2. Sends them as **one request** for the whole batch, with the backend's timeout.
 3. On success, deletes those files.
-4. On failure, leaves them, records the failure, and backs off for that backend only (exponential, capped at 5 minutes). It then moves on to the next backend.
+4. On failure, leaves them, records the failure (`vigil.backend.failures`), and backs off for that backend only: 5 seconds after the first failure, doubling, capped at 5 minutes, kept in `state/backends/<name>.state` so it survives restarts. It then moves on to the next backend.
 
 So a dead Datadog delays only Datadog's queue; Splunk and the local file still receive everything on time.
 
@@ -940,6 +940,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
     jobs/vigil_sender.state
     jobs/vigil_fetch.state
     jobs/vigil_logs.state
+    backends/<name>.state        a failing backend's backoff (§4.5)
     logs/<encoded file path>.checkpoint   log forwarding progress (§13.4.4)
     locks/<job id>.<run id>.launch  written by the supervisor before the worker starts
     locks/<job id>.<run id>.token held open by the live worker after its claim
@@ -1012,7 +1013,7 @@ Field rules:
 
 - **Atomic publication.** Every state and recovery-record write goes to a temporary file in the same directory, `<name>.tmp.<pid>`, which is then renamed over the target: `mv -f` on POSIX; on Windows `File.Replace`, or `File.Move` when the target does not exist yet (`File.Replace` requires it). Same directory, so the rename never crosses filesystems. Readers only ever open the exact target name, so a temporary file is never mistaken for state.
 - **Durability.** On Windows the temporary file is flushed to disk (`FileStream.Flush($true)`) before the rename. bash has no portable per-file flush, so on Linux/macOS a power loss can leave an empty or truncated state file; that is handled as unreadable state (§11.3), never trusted. Atomic replacement prevents partially published state; it does not prevent every corruption, which is why state is evidence, not authority (§11).
-- **Leftover temporary files** (from a writer that died mid-write) are deleted by the supervisor only once the run they belong to is concluded, never while their writer might be alive.
+- **Leftover temporary files** (from a writer that died mid-write) are deleted by the supervisor only once the run they belong to is concluded, never while their writer might be alive. The supervisor's own temporary files (cursors, `config.valid`, `jobs.log`, its events) are deleted when it starts, once it holds the supervisor lock.
 - **One writer at a time (VIGIL-005).** While a run may be alive, its worker is the only writer of the job's state file. The supervisor writes it only to create the initial `waiting` state of a new job, or to record a concluded run (`crashed`, `timed_out`, or an outcome reconciled from the spool, §11.3) — and only after it has established that the worker can no longer write: the run token is no longer held **and** no process carries the run id on its command line. A passed deadline, a missing PID or an unreadable state file is never, by itself, that proof. While ownership is uncertain, the supervisor writes only its own recovery record (§11.4).
 - An unreadable or unsupported state file is reported and handled per §11.3: never silently discarded, and quarantined only once the run is concluded.
 - Deleting a state file resets the job to "new" only when no run of it is alive (§11.3). Deleting the state of a live run changes nothing: the run is still found through its token and run id, and its final write recreates the file. Editing a state file is not supported.
@@ -1287,7 +1288,7 @@ This works for every plugin, whether its labels are fixed names (`rta`, `pl`, `t
 | `vigil.source.check_age` | gauge, seconds since the last successful check, tagged by source |
 | `vigil.source.failures` | count, tagged by source and `reason` (unreachable, timeout, auth, digest, invalid, unpinned) |
 | `vigil.spool.bytes` | gauge |
-| `vigil.spool.dropped` | count |
+| `vigil.spool.dropped` | count, tagged by backend and `reason` (spool_full, backend_removed, not_implemented) |
 | `vigil.backend.failures` | count, tagged by backend |
 
 The absence of `vigil.supervisor.up` is how a backend detects that Vigil itself is down.
@@ -1328,7 +1329,7 @@ Every request has a timeout. Retries are bounded with backoff. Delivery is from 
 
 | Type | Protocol | Auth |
 | --- | --- | --- |
-| `file` | Prometheus text format on local disk | none |
+| `file` | Prometheus text format on local disk (below) | none |
 | `datadog` | Series API | API key |
 | `otel` | OTLP/HTTP JSON | optional bearer |
 | `prometheus` | Pushgateway | optional basic |
@@ -1345,6 +1346,14 @@ Every request has a timeout. Retries are bounded with backoff. Delivery is from 
 | `newrelic` | Metric API | license key |
 | `dynatrace` | Metrics ingest line protocol | API token |
 | `webhook` | Generic JSON POST | optional header |
+
+**File backend.** Writes one Prometheus text file, `path` (default `metrics/vigil.prom` under the install root), for node_exporter's or windows_exporter's textfile collector. The file holds the current value of every series, so it stays small however long Vigil runs:
+
+- A gauge keeps its latest value. A count becomes a counter, named with `_total`, holding the running total of every count delivered.
+- Names: dots become underscores; a name or label key starting with a digit gets a leading underscore. Labels are the event's tags, sorted by key, with `\` and `"` escaped. A count whose value is not a whole number is written as a gauge.
+- No timestamps: the textfile collector rejects them. Series are sorted, so the same state always gives the same file, and each update replaces the file atomically.
+
+**Implemented so far:** `file`. Events for an enabled backend of any other type are not queued; they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
 
 ### 15.4 Platform Notes
 
@@ -1699,6 +1708,8 @@ Both implementations run the same cases from `tests/conformance/` and must produ
 | `outcome` | A table of `exit_codes`, exit code and outcome | The run outcome for each row (§10.2). |
 | `metrics` | A run's captured stdout | Its metrics and perfdata, invalid lines and the run summary (§14.3, §14.4). |
 | `events` | A configuration, a finished run and its stdout | The spool events of the run, with their tags (§4.5, §14). |
+| `recovery` | A table of run evidence and conclusions | What the supervisor concludes about a run (§11.3). |
+| `prom` | A file backend file and a batch of events | The merged file (§15.3). |
 | `mocks` | The example configurations in `tests/mocks/` (§6.7) | Their validation and effective settings. |
 
 CI runs every suite on Windows PowerShell 5.1, Linux bash and macOS bash 3.2 (§22.5).

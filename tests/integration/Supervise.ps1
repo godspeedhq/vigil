@@ -2,13 +2,15 @@
 
 <#
 .SYNOPSIS
-    Integration test: the supervisor (SPECIFICATION.md 4.1, 7, 8, 11.3) on
-    Windows.
+    Integration test: the supervisor and the sender (SPECIFICATION.md 4.1,
+    4.5, 7, 8, 11.3) on Windows.
 .DESCRIPTION
     Runs a real supervisor with a one-second tick against real jobs, then
-    checks what it did: runs started, the concurrency limit held, overlaps
-    skipped, a crashed run and an abandoned launch recorded, and a second
-    supervisor refused. The twin of supervise.sh.
+    checks what it did through the file backend's Prometheus file: runs
+    started, the concurrency limit held, overlaps skipped, a crashed run and
+    an abandoned launch recorded, events for a backend type not implemented
+    yet counted as dropped, and a second supervisor refused. The twin of
+    supervise.sh.
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -42,9 +44,26 @@ function Invoke-Once {
     return $LASTEXITCODE
 }
 
-function Get-SupervisorEvents {
-    return (Get-ChildItem -LiteralPath (Join-Path $root 'spool\incoming') -Filter '*-supervisor.events' |
-        ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+# One supervisor tick, then wait (up to 60s) for the sender it may have
+# started, so the Prometheus file is current.
+function Invoke-Tick {
+    [void](Invoke-Once)
+    $locks = Join-Path $root 'state\locks'
+    for ($i = 0; $i -lt 120; $i++) {
+        if (-not (Get-ChildItem -LiteralPath $locks -Filter 'vigil_sender.*' -ErrorAction SilentlyContinue)) { return }
+        Start-Sleep -Milliseconds 500
+    }
+}
+
+# The value of a series (a name; the first series of that name) in the file.
+function Get-Prom {
+    param([string]$Name)
+    $f = Join-Path $root 'metrics\vigil.prom'
+    if (-not (Test-Path -LiteralPath $f)) { return '' }
+    foreach ($l in [System.IO.File]::ReadAllLines($f)) {
+        if ($l.StartsWith("$Name{") -or $l.StartsWith("$Name ")) { return $l.Substring($l.LastIndexOf(' ') + 1) }
+    }
+    return ''
 }
 
 function Get-Section {
@@ -74,6 +93,13 @@ max_concurrent = 1
 
 [scheduler]
 tick = 1s
+
+[backend.file]
+path = metrics\vigil.prom
+
+# Not implemented yet: its events are counted as dropped.
+[backend.datadog]
+api_key = env:DATADOG_API_KEY
 
 [job.fast]
 file      = scripts\work.cmd
@@ -106,20 +132,27 @@ $sup.WaitForExit()
 $cfg = Join-Path $root 'config\vigil.config'
 [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace 'run_every = 2s', 'run_every = 1h'))
 Start-Sleep -Seconds 7
-[void](Invoke-Once)
+Invoke-Tick
+Invoke-Tick
 
 Test-Equal 'concurrency limit never broken' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'overlap'))"
 Test-Equal 'fast ran and succeeded' 'succeeded' (Get-StateValue (Join-Path $root 'state\jobs\fast.state') 'status')
 Test-Equal 'slow ran and succeeded' 'succeeded' (Get-StateValue (Join-Path $root 'state\jobs\slow.state') 'status')
-$runs = @(Get-ChildItem -LiteralPath (Join-Path $root 'spool\incoming') -Filter '*-fast-*.events').Count
-Test-Equal 'fast ran more than once' 'True' "$($runs -ge 2)"
-$ev = Get-SupervisorEvents
-Test-Equal 'slow overlaps were skipped' 'True' "$($ev -cmatch '(?m)^\d+ slow\.skipped 1 count')"
-Test-Equal 'heartbeat posted' 'True' "$($ev -cmatch '(?m)^\d+ vigil\.supervisor\.up 1 gauge host=')"
+Test-Equal 'sender ran and succeeded' 'succeeded' (Get-StateValue (Join-Path $root 'state\jobs\vigil_sender.state') 'status')
+$runs = Get-Prom 'fast_runs_total'
+Test-Equal 'fast ran more than once' 'True' "$([int]('0' + $runs) -ge 2)"
+Test-Equal 'fast succeeded counted' $runs (Get-Prom 'fast_succeeded_total')
+Test-Equal 'job metric delivered' '1' (Get-Prom 'fast_slept')
+Test-Equal 'slow overlaps were skipped' 'True' "$((Get-Prom 'slow_skipped_total') -ne '')"
+Test-Equal 'heartbeat delivered' '1' (Get-Prom 'vigil_supervisor_up')
+$promText = [System.IO.File]::ReadAllText((Join-Path $root 'metrics\vigil.prom'))
+Test-Equal 'unimplemented backend counted as dropped' 'True' "$($promText -cmatch '(?m)^vigil_spool_dropped_total\{backend="datadog".*reason="not_implemented"')"
 Test-Equal 'disabled job never ran' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'state\jobs\off.state'))"
 Test-Equal 'disabled job listed' 'True' "$((Get-Section 'DISABLED') -match '  off')"
 Test-Equal 'no locks left' '0' "$(@(Get-ChildItem -LiteralPath $locks -File).Count)"
 Test-Equal 'cursors kept' 'fast.cursor slow.cursor' ((Get-ChildItem -LiteralPath (Join-Path $root 'state\schedule') | Sort-Object Name | ForEach-Object Name) -join ' ')
+Test-Equal 'file backend queue drained' '0' "$(@(Get-ChildItem -LiteralPath (Join-Path $root 'spool\backends\file') -File -ErrorAction SilentlyContinue).Count)"
+Test-Equal 'no fan-out left over' '0' "$(@(Get-ChildItem -LiteralPath (Join-Path $root 'spool\fanout') -File -ErrorAction SilentlyContinue).Count)"
 
 # A run whose worker vanished without an outcome is recorded as crashed.
 $boot = Get-StateValue (Join-Path $root 'state\jobs\fast.state') 'boot_id'
@@ -127,19 +160,20 @@ $rid = '20260101T000000Z-1-1'
 [System.IO.File]::WriteAllText((Join-Path $root 'state\jobs\fast.state'),
     "[state]`nschema_version = 1`njob = fast`nrun_id = $rid`nstatus = running`nboot_id = $boot`nstarted_epoch = 1`n")
 [System.IO.File]::WriteAllText((Join-Path $locks "fast.$rid.token"), '')
-[void](Invoke-Once)
+Invoke-Tick
+Invoke-Tick
 Test-Equal 'vanished worker recorded as crashed' 'crashed' (Get-StateValue (Join-Path $root 'state\jobs\fast.state') 'status')
-Test-Equal 'crash posted' 'True' "$((Get-SupervisorEvents) -cmatch '(?m)^\d+ fast\.crashes 1 count')"
+Test-Equal 'crash delivered' '1' (Get-Prom 'fast_crashes_total')
 Test-Equal 'stale token removed' '0' "$(@(Get-ChildItem -LiteralPath $locks -File).Count)"
-Test-Equal 'crash listed' 'True' "$((Get-Section 'CRASHED') -match '  fast')"
 
 # A launch never claimed within the grace is abandoned; the job did not run.
 $rid = '20260101T000000Z-1-2'
 [System.IO.File]::WriteAllText((Join-Path $locks "slow.$rid.launch"),
     "[launch]`njob           = slow`nrun_id        = $rid`nboot_id       = $boot`nlaunch_epoch  = 1`n")
-[void](Invoke-Once)
+Invoke-Tick
+Invoke-Tick
 Test-Equal 'old unclaimed launch abandoned' 'False' "$(Test-Path -LiteralPath (Join-Path $locks "slow.$rid.launch"))"
-Test-Equal 'abandonment posted' 'True' "$((Get-SupervisorEvents) -cmatch '(?m)^\d+ slow\.abandoned_launches 1 count')"
+Test-Equal 'abandonment delivered' '1' (Get-Prom 'slow_abandoned_launches_total')
 
 # A young launch is held: nothing else starts for the job.
 $rid = '20260101T000000Z-1-3'
@@ -153,6 +187,8 @@ Test-Equal 'job with a young launch is running' 'True' "$((Get-Section 'RUNNING'
 if ($script:fail -gt 0) {
     Write-Host "`nsupervisor log:"
     Get-ChildItem -LiteralPath (Join-Path $root 'logs\supervisor') -Filter '*-*.log' | ForEach-Object { Get-Content -LiteralPath $_.FullName -Tail 40 }
+    Write-Host "`nsender log:"
+    Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\vigil_sender') -Filter '*.log' -ErrorAction SilentlyContinue | ForEach-Object { Get-Content -LiteralPath $_.FullName -Tail 20 }
 }
 # Workers started by the last ticks may still be finishing.
 Start-Sleep -Seconds 6

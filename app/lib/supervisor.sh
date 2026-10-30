@@ -381,7 +381,7 @@ _vigil_sup_start() {
     ( trap '' HUP; exec 8>&-; exec "$BASH" "$_su_app/vigil" --root "$_su_root" worker "$job" --run-id "$rid" ) \
         < /dev/null > /dev/null 2>&1 &
     _su_running=$((_su_running + 1))
-    _vigil_sup_log INFO "job $job: run $rid started"
+    [ "$job" = vigil_sender ] || _vigil_sup_log INFO "job $job: run $rid started"
 }
 
 _vigil_sup_contains() {
@@ -512,12 +512,25 @@ _vigil_sup_tick() {
 
     # The supervisor's events for this tick (4.5).
     mkdir -p "$_su_spooldir/incoming"
-    i="$_su_spooldir/incoming/$_su_epoch-supervisor.events"
+    i="$_su_spooldir/incoming/$_su_epoch-vigil_supervisor.events"
     s=0
     while [ "$s" -lt "${#_su_events[@]}" ]; do
         printf '%s\n' "${_su_events[$s]}"
         s=$((s + 1))
     done > "$i.tmp.$$" && mv -f "$i.tmp.$$" "$i"
+
+    # The sender (4.5): one at a time, started whenever the spool holds
+    # anything. It is Vigil's own worker and does not count against
+    # max_concurrent.
+    _vigil_sup_account vigil_sender
+    if [ "$_su_active" = - ]; then
+        for i in "$_su_spooldir"/incoming/*.events "$_su_spooldir"/fanout/*.events "$_su_spooldir"/backends/*/*.events; do
+            if [ -f "$i" ]; then
+                _vigil_sup_start vigil_sender
+                break
+            fi
+        done
+    fi
 
     _vigil_sup_status
     _su_prev=$_su_now
@@ -606,6 +619,10 @@ vigil_supervise() {
         fi
     fi
     exec 8> "$_su_statedir/supervisor.lock"
+    # Temporary files a killed supervisor left mid-write (12.3). Only the
+    # supervisor writes these, and it now holds the lock, so none is live.
+    rm -f "$_su_statedir"/schedule/*.tmp.* "$_su_statedir"/config.valid.tmp.* \
+        "$_su_logdir"/supervisor/jobs.log.tmp.* "$_su_spooldir"/incoming/*-vigil_supervisor.events.tmp.*
     printf 'pid = %s\nstarted_epoch = %s\n' "$$" "$(date '+%s')" >&8
     _vigil_sup_log INFO "supervisor started, pid $$"
 

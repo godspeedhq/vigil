@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
-# Integration test: the supervisor (SPECIFICATION.md 4.1, 7, 8, 11.3) on
-# Linux and macOS. Runs a real supervisor with a one-second tick against
-# real jobs, then checks what it did: runs started, the concurrency limit
-# held, overlaps skipped, a crashed run and an abandoned launch recorded,
-# and a second supervisor refused.
+# Integration test: the supervisor and the sender (SPECIFICATION.md 4.1,
+# 4.5, 7, 8, 11.3) on Linux and macOS. Runs a real supervisor with a
+# one-second tick against real jobs, then checks what it did through the
+# file backend's Prometheus file: runs started, the concurrency limit held,
+# overlaps skipped, a crashed run and an abandoned launch recorded, events
+# for a backend type not implemented yet counted as dropped, and a second
+# supervisor refused.
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -35,6 +37,23 @@ vigil() {
     "$BASH" "$vigil_cmd" --root "$root" "$@"
 }
 
+# One supervisor tick, then wait (up to 60s) for the sender it may have
+# started, so the Prometheus file is current.
+tick() {
+    local i=0
+    vigil supervise --once > /dev/null 2>&1
+    while ls "$root/state/locks" 2>/dev/null | grep '^vigil_sender\.' > /dev/null; do
+        i=$((i + 1))
+        [ "$i" -ge 120 ] && break
+        sleep 0.5
+    done
+}
+
+# The value of series $1 (a name, or name{labels} prefix) in the file.
+prom() {
+    grep "^$1[{ ]" "$root/metrics/vigil.prom" 2>/dev/null | head -n 1 | sed 's/.* //'
+}
+
 printf 'bash %s\n' "$BASH_VERSION"
 mkdir -p "$root/config" "$root/scripts"
 root=$(cd "$root" && pwd)
@@ -55,6 +74,13 @@ max_concurrent = 1
 
 [scheduler]
 tick = 1s
+
+[backend.file]
+path = metrics/vigil.prom
+
+# Not implemented yet: its events are counted as dropped.
+[backend.datadog]
+api_key = env:DATADOG_API_KEY
 
 [runner.sh]
 command = /bin/sh
@@ -93,37 +119,45 @@ check "supervisor exits cleanly on TERM" 0 "$?"
 # 2-second cursors. Let the last workers finish; one more tick reconciles them.
 sed -i.bak "s/^run_every = 2s$/run_every = 1h/" "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
 sleep 5
-vigil supervise --once > /dev/null 2>&1
+tick
+tick
 
 check "concurrency limit never broken" "" "$(cat "$root/overlap" 2>/dev/null)"
 check "fast ran and succeeded" succeeded "$(state_value "$root/state/jobs/fast.state" status)"
 check "slow ran and succeeded" succeeded "$(state_value "$root/state/jobs/slow.state" status)"
-runs=$(ls "$root/spool/incoming" | grep -c -- '-fast-')
-check "fast ran more than once" yes "$([ "$runs" -ge 2 ] && echo yes || echo "no ($runs)")"
-check "slow overlaps were skipped" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep '^[0-9]* slow.skipped 1 count' > /dev/null && echo yes || echo no)"
-check "heartbeat posted" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep '^[0-9]* vigil.supervisor.up 1 gauge host=' > /dev/null && echo yes || echo no)"
+check "sender ran and succeeded" succeeded "$(state_value "$root/state/jobs/vigil_sender.state" status)"
+runs=$(prom fast_runs_total)
+check "fast ran more than once" yes "$([ "${runs:-0}" -ge 2 ] && echo yes || echo "no (${runs:-0})")"
+check "fast succeeded counted" "$runs" "$(prom fast_succeeded_total)"
+check "job metric delivered" 0 "$(prom fast_slept)"
+check "slow overlaps were skipped" yes "$([ -n "$(prom slow_skipped_total)" ] && echo yes || echo no)"
+check "heartbeat delivered" 1 "$(prom vigil_supervisor_up)"
+check "unimplemented backend counted as dropped" yes "$(grep '^vigil_spool_dropped_total{backend="datadog".*reason="not_implemented"' "$root/metrics/vigil.prom" > /dev/null && echo yes || echo no)"
 check "disabled job never ran" "" "$(ls "$root/state/jobs" | grep '^off')"
 check "disabled job listed" yes "$(sed -n '/^DISABLED/,/^$/p' "$root/logs/supervisor/jobs.log" | grep '  off' > /dev/null && echo yes || echo no)"
 check "no locks left" "" "$(ls "$root/state/locks")"
 check "cursors kept" "fast.cursor slow.cursor" "$(ls "$root/state/schedule" | tr '\n' ' ' | sed 's/ $//')"
+check "file backend queue drained" "" "$(ls "$root/spool/backends/file" 2>/dev/null)"
+check "no fan-out left over" "" "$(ls "$root/spool/fanout" 2>/dev/null)"
 
 # A run whose worker vanished without an outcome is recorded as crashed.
 boot=$(state_value "$root/state/jobs/fast.state" boot_id)
 rid=20260101T000000Z-1-1
 printf '[state]\nschema_version = 1\njob = fast\nrun_id = %s\nstatus = running\nboot_id = %s\nstarted_epoch = 1\n' "$rid" "$boot" > "$root/state/jobs/fast.state"
 : > "$root/state/locks/fast.$rid.token"
-vigil supervise --once > /dev/null 2>&1
+tick
+tick
 check "vanished worker recorded as crashed" crashed "$(state_value "$root/state/jobs/fast.state" status)"
-check "crash posted" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep '^[0-9]* fast.crashes 1 count' > /dev/null && echo yes || echo no)"
+check "crash delivered" 1 "$(prom fast_crashes_total)"
 check "stale token removed" "" "$(ls "$root/state/locks")"
-check "crash listed" yes "$(sed -n '/^CRASHED/,/^$/p' "$root/logs/supervisor/jobs.log" | grep '  fast' > /dev/null && echo yes || echo no)"
 
 # A launch never claimed within the grace is abandoned; the job did not run.
 rid=20260101T000000Z-1-2
 printf '[launch]\njob           = slow\nrun_id        = %s\nboot_id       = %s\nlaunch_epoch  = 1\n' "$rid" "$boot" > "$root/state/locks/slow.$rid.launch"
-vigil supervise --once > /dev/null 2>&1
+tick
+tick
 check "old unclaimed launch abandoned" "" "$(ls "$root/state/locks" | grep "^slow.$rid")"
-check "abandonment posted" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep '^[0-9]* slow.abandoned_launches 1 count' > /dev/null && echo yes || echo no)"
+check "abandonment delivered" 1 "$(prom slow_abandoned_launches_total)"
 
 # A young launch is held: nothing else starts for the job.
 now=$(date '+%s')
@@ -137,7 +171,13 @@ rm -f "$root/state/locks/slow.$rid.launch"
 if [ "$fail" -gt 0 ]; then
     printf '\nsupervisor log:\n'
     cat "$root/logs/supervisor/"*.log | tail -40
+    printf '\nprom file:\n'
+    cat "$root/metrics/vigil.prom" 2>/dev/null | head -60
+    printf '\nsender log:\n'
+    cat "$root/logs/jobs/vigil_sender/"*.log 2>/dev/null | tail -20
 fi
+# Let a sender started by the last tick finish before cleaning up.
+sleep 3
 rm -rf "$root"
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

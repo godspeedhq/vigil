@@ -27,7 +27,7 @@ done
 app=$(cd "$(dirname "$self")" && pwd)
 root=$(dirname "$app")
 
-for lib in config validate effective command schedule outcome metrics events recovery worker supervisor; do
+for lib in config validate effective command schedule outcome metrics events recovery prom worker sender supervisor; do
     # shellcheck source=/dev/null
     . "$app/lib/$lib.sh"
 done
