@@ -146,7 +146,8 @@ _vigil_sched_job() {
                         sun) k=0 ;; mon) k=1 ;; tue) k=2 ;; wed) k=3 ;;
                         thu) k=4 ;; fri) k=5 ;; sat) k=6 ;;
                     esac
-                    _vs_mask=${_vs_mask:0:k}1${_vs_mask:k+1}
+                    j=$((k + 1))
+                    _vs_mask=${_vs_mask:0:$k}1${_vs_mask:$j}
                 done
                 ;;
         esac
@@ -162,8 +163,11 @@ _vigil_sched_job() {
 }
 
 # Whether day number $1 (days since 1970-01-01, a Thursday) is allowed.
+# The weekday is computed first: bash 3.2 misreads arithmetic inside a
+# ${var:offset:length} expansion.
 _vigil_sched_day_ok() {
-    [ "${_vs_mask:$((($1 + 4) % 7)):1}" = 1 ]
+    local w=$((($1 + 4) % 7))
+    [ "${_vs_mask:$w:1}" = 1 ]
 }
 
 # The latest slot at or before $1 (schedule seconds), or -1. Result in _vs_slot.
