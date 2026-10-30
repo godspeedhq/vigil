@@ -465,7 +465,15 @@ job.legacy_export
 
 ### 6.7 Example
 
-A complete annotated example configuration for each platform, covering common databases, checks, runners and backends, ships in `examples/`.
+Annotated example configurations live in `tests/mocks/`, one tier per folder, each for Windows and for Linux/macOS:
+
+| Tier | Folder | Shows |
+| --- | --- | --- |
+| Simple | `simple/` | Everything local: every runner, schedule, override, exit-code mode and backend, with local scripts only. |
+| Mixed | `mixed/` | A local configuration whose jobs fetch some scripts from sources, every source type and form. |
+| Advanced | `advanced/` | Pointer files for every source type, and the fetched configurations they name (`advanced/fetched/`). |
+
+They are part of the conformance suite (§22.1), so every example always validates, with identical results on both implementations.
 
 ### 6.8 Where the Configuration Comes From
 
@@ -1541,7 +1549,18 @@ Where an outcome cannot be determined, Vigil reports the uncertainty rather than
 
 ### 22.1 Shared Conformance Suite
 
-The scheduling decision logic (§7.9) is tested as a table of inputs and expected decisions. The same table is executed against both the PowerShell and bash implementations, which must produce identical results. The config parser is tested the same way.
+Both implementations run the same cases from `tests/conformance/` and must produce identical results, byte for byte. Each suite feeds an input to both and compares the output with a recorded expectation:
+
+| Suite | Input | Checks |
+| --- | --- | --- |
+| `parser` | A configuration file | The parsed sections, keys and values, and parse errors. |
+| `validate` | A configuration file | Every error and warning, with its line and code (§16.3). |
+| `effective` | A configuration file | Each job's effective settings and where each value came from (§6.6). |
+| `command` | A configuration file | The command line built for each job, per platform (§6.4). |
+| `schedule` | A configuration and a decisions table | The scheduling decision for each row of inputs (§7.9). |
+| `mocks` | The example configurations in `tests/mocks/` (§6.7) | Their validation and effective settings. |
+
+CI runs every suite on Windows PowerShell 5.1, Linux bash and macOS bash 3.2 (§22.5).
 
 ### 22.2 Unit Tests
 
@@ -1707,7 +1726,7 @@ Vigil v1 is ready when:
 - [ ] Configuration and scripts are fetched from `local`, `git`, `https` and `sftp` sources; a failed fetch or an invalid candidate leaves the last valid configuration active, including across a restart.
 - [ ] A script version changes on a host only when its configuration changes; running jobs are never interrupted by an activation.
 - [ ] Hosts report their configuration revision, and the same revision means the same configuration and script content.
-- [ ] The config parser behaves identically on PowerShell and bash (shared conformance suite).
+- [ ] The config parser and validator behave identically on PowerShell and bash (shared conformance suite), and every example configuration in `tests/mocks/` validates.
 - [ ] `run_every`, `run_at` (lists) and `run_on_days` schedule correctly, including missed-run handling.
 - [ ] Runners, the extension map, `{file}` substitution and direct execution work.
 - [ ] Per-job overrides follow §6.6 identically on PowerShell and bash, and `vigil precheck <job>` shows each effective value's source.
