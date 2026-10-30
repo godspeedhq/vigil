@@ -34,6 +34,8 @@ state_value() {
 
 printf 'bash %s\n' "$BASH_VERSION"
 mkdir -p "$root/config" "$root/scripts"
+# Canonical form, as vigil prints it (TMPDIR may end in /).
+root=$(cd "$root" && pwd)
 
 cat > "$root/scripts/ok.sh" <<'EOF'
 #!/bin/sh

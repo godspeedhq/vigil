@@ -36,6 +36,8 @@ function Get-StateValue {
 
 function Invoke-Vigil {
     param([string[]]$Arguments)
+    # Expected messages on stderr must not stop the test (CI runs with Stop).
+    $ErrorActionPreference = 'Continue'
     $out = & $shell -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root @Arguments 2>&1
     return @{ Code = $LASTEXITCODE; Output = ($out | Out-String) }
 }
