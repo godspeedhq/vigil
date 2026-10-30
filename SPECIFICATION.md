@@ -1095,10 +1095,10 @@ timeout      = 10s
 
 | Job key | Description |
 | --- | --- |
-| `forward_output` | `false` keeps this job's stdout and stderr local even when `include` names them. Its `run` lines are still forwarded. Default `true`. |
+| `forward_output` | `false` keeps this job's stdout and stderr local even when `include` names them. Its `run` lines are still forwarded. Default `true`; may also be set in `[defaults]`. |
 
 - **Job output is opt-in.** stdout and stderr are where secrets and personal data leak, so they are forwarded only when `include` names them, and any job can keep its output local with `forward_output = false`.
-- **`[log_destination.*]` is separate from `[backend.*]`.** A metrics endpoint is never assumed to accept logs, even when both point at the same product. A log destination takes `type`, `endpoint`, `timeout` and the credential keys of §15, under the same `env:` rule (§6.5).
+- **`[log_destination.*]` is separate from `[backend.*]`.** A metrics endpoint is never assumed to accept logs, even when both point at the same product. A log destination takes `type` (`otel` in v1), `endpoint` (`https://` only, without credentials), `timeout` (default `10s`) and an optional `header_name` and `header_value`, the value under the `env:` rule (§6.5). `type` and `endpoint` are required.
 - Changes take effect at the next tick, like any configuration change (§16.1). Turning forwarding on or off, or changing what it includes, needs no restart. An invalid `[log_forward]` or `[log_destination.*]` is a configuration error like any other (§16.3): the last valid configuration stays active, and local logging is never affected.
 
 #### 13.4.2 What Is Forwarded
@@ -1413,6 +1413,7 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | | `E_TIME`, `E_DAY`, `E_EXIT_CODES` | Not `HH:MM`, a weekday, or `standard`/`nagios`/codes `0-255`. |
 | | `E_NAME`, `E_METRIC_NAME` | An instance name or metric name with characters outside its set. |
 | References | `E_RUNNER_UNKNOWN`, `E_BACKEND_UNKNOWN`, `E_BACKEND_TYPE`, `E_EXTENSION` | A runner or backend that is not defined, an unknown backend type, or a `[runners]` key that is not an extension. |
+| | `E_DESTINATION_UNKNOWN` | `[log_forward] destination` names a `[log_destination.*]` that is not defined (§13.4.1). |
 | Tags and environment | `E_TAG_SYNTAX`, `E_TAG_RESERVED`, `E_TAG_DUPLICATE` | A malformed tag, a reserved tag key (§14.6), or a tag name repeated in one section. |
 | | `E_ENV_SYNTAX`, `E_ENV_NAME`, `E_ENV_LITERAL`, `E_ENV_DUPLICATE` | A malformed `NAME=value`, an invalid variable name, an `env` value starting with `env:` (§6.5), or a name repeated in one section. |
 | Secrets | `E_SECRET_RAW` | A credential key whose value is not `env:NAME`; the value is never shown. |

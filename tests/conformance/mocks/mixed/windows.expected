@@ -1,4 +1,4 @@
-WARN	1525	W_SCRIPT_UNPINNED
+WARN	1594	W_SCRIPT_UNPINNED
 backup_log	file	sql\backup_log.sql	job
 backup_log	runner	dbsql	runners
 backup_log	metric_name	db.backup_log	job
