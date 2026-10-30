@@ -180,10 +180,10 @@ Workers never talk to backends. A worker writes its run's metric events to one s
 
 **Producers.** At the end of a run, the worker writes all of the run's events to `spool/incoming/<epoch>-<job id>-<run id>.events`. The supervisor writes its own events (heartbeat, `.running`, `invalid_config`, …) once per tick to `spool/incoming/<epoch>-supervisor.events`. Files are written to a temporary name and renamed, so a reader never sees a partial file.
 
-**Event file format.** One event per line, the same shape as a job metric line (§14.3) with a Unix timestamp in front and all tags already applied:
+**Event file format.** One event per line: a Unix timestamp, the full metric name, the value, its type (`gauge` or `count`), then every tag already applied, in order: `host`, `os`, `instance`, `job`, then `[tags]` and the job's tags (§6.6), then the event's own (a metric line's tags replace same-named ones in place):
 
 ```text
-1793282403 dba.dump_databases.duration_seconds 867 host=dbprod01 os=windows instance=ops-windows job=dump_databases environment=production
+1793282403 db.backup_full.duration_seconds 867 gauge host=db01 os=windows instance=db-windows job=backup_full environment=production
 ```
 
 **Sender.** The sender is a worker like any other, with one fixed job id, `vigil_sender`:
@@ -1023,7 +1023,7 @@ The supervisor holds `state/supervisor.lock` open for its whole life, the same w
 ### 13.1 Logs
 
 - **Supervisor log:** daily file, one line per event: timestamp, level, component, message.
-- **Job log:** one daily file per job, containing lifecycle events plus the job's captured stdout and stderr.
+- **Job log:** one daily file per job, `logs/jobs/<job id>/yyyy-MM-dd.log`. Each run adds a `START run <run id>` line, the job's stdout and stderr as `out:` and `err:` lines, and an `END run <run id> <outcome> [(<reason>)] in <n>s` line, each prefixed with the UTC time.
 - **stdout mirroring:** optional, so service managers (NSSM, journald, launchd) capture the supervisor's output.
 
 Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014). A job may keep its own log for a different number of days with `log_retain_days` (§6.6); the size cap is global.
@@ -1080,6 +1080,8 @@ Posted for each job under its `metric_name`:
 | `<m>.running` | gauge | Elapsed seconds, every tick while running. |
 | `<m>.invalid_config` | gauge | `1` every tick while the job fails validation. |
 | `<m>.file_missing` | gauge | `1` every tick while the job's file is missing. |
+| `<m>.invalid_metric_lines` | count | A run printed metric lines or perfdata items that did not parse (§14.3). |
+| `<m>.dropped_metric_lines` | count | A run printed more metric lines and perfdata items than the cap (§14.3). |
 
 ### 14.3 Job-Emitted Metrics
 
@@ -1162,7 +1164,7 @@ Fleet convergence is read from the backend, not from a Vigil dashboard: hosts re
 
 ### 14.6 Tags
 
-Every metric carries the `[tags]` section plus automatic tags: `host`, `os`, `instance` and, for job metrics, `job`. Run ids are never attached to metrics, to keep cardinality bounded. Variable dimensions (database, drive, tablespace) belong in tags, not in metric names.
+Every metric carries the `[tags]` section plus automatic tags: `host` (the short host name in lower case), `os` (`windows`, `linux` or `macos`), `instance` (`[vigil] instance`, default `vigil`) and, for job metrics, `job`. Run ids are never attached to metrics, to keep cardinality bounded. Variable dimensions (database, drive, tablespace) belong in tags, not in metric names.
 
 `[tags]` accepts any number of tags:
 
@@ -1413,7 +1415,7 @@ Each service manager is configured so stopping the service stops only the superv
 | `service install` / `service remove` | Register or unregister the service without touching files (for example to switch mode). |
 | `start` / `stop` / `restart` | Service control. Stop leaves workers running. |
 | `status` | Print `jobs.log`. |
-| `run <job>` | Run one job once now, in the foreground, for testing. |
+| `run <job>` | Run one job once now, in the foreground, for testing: launched, claimed and recorded exactly as the supervisor would. Exits 0 succeeded, 1 warning, 2 failed, 3 unknown, 4 not run (another run may be in progress, the job is unknown or invalid, or the configuration has errors). |
 | `resolve <job>` | Confirm that an uncertain run is over so the job can be scheduled again (§11.4). Never kills anything. |
 | `uninstall` | Remove Vigil completely (§18.8). |
 
@@ -1562,6 +1564,7 @@ Both implementations run the same cases from `tests/conformance/` and must produ
 | `schedule` | A configuration and a decisions table | The scheduling decision for each row of inputs (§7.9). |
 | `outcome` | A table of `exit_codes`, exit code and outcome | The run outcome for each row (§10.2). |
 | `metrics` | A run's captured stdout | Its metrics and perfdata, invalid lines and the run summary (§14.3, §14.4). |
+| `events` | A configuration, a finished run and its stdout | The spool events of the run, with their tags (§4.5, §14). |
 | `mocks` | The example configurations in `tests/mocks/` (§6.7) | Their validation and effective settings. |
 
 CI runs every suite on Windows PowerShell 5.1, Linux bash and macOS bash 3.2 (§22.5).
