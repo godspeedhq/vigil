@@ -7,6 +7,9 @@
     vigil [-Root <dir>] run <job>
         Runs one job once now, in the foreground, for testing. Exits 0
         succeeded, 1 warning, 2 failed, 3 unknown, 4 not run.
+    vigil [-Root <dir>] resolve <job>
+        Confirms that the uncertain run holding <job> is over (11.4). Never
+        kills anything; the supervisor concludes the run at its next tick.
     vigil [-Root <dir>] supervise [--once]
         The supervisor (4.1): ticks until stopped, or once with --once.
         Running workers are never stopped with it.
@@ -32,7 +35,7 @@ foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Ou
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine('usage: vigil [-Root <dir>] run <job> | supervise [--once]')
+    [Console]::Error.WriteLine('usage: vigil [-Root <dir>] run <job> | resolve <job> | supervise [--once]')
     exit 64
 }
 
@@ -59,6 +62,20 @@ switch ($Command) {
             else { Write-Output "${Job}: $($r.Outcome) in $($r.Duration)s, run $rid" }
         }
         exit $r.Code
+    }
+    'resolve' {
+        if (-not $Job -or $Rest) { Exit-Usage }
+        $ctx = Get-VigilWorkerContext -Root $Root -Job $Job
+        if ($ctx.Error) { [Console]::Error.WriteLine("vigil: $($ctx.Error)"); exit 1 }
+        $rec = Read-VigilRecoveryRecord $ctx.State $Job
+        if (-not $rec.RunId) { [Console]::Error.WriteLine("vigil: $Job is not held: there is no uncertain run to resolve"); exit 1 }
+        $who = $env:USERNAME
+        $at = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture)
+        # A file of its own, so the supervisor rewriting the record cannot
+        # lose it (11.4). Nothing is killed.
+        Write-VigilFileAtomic -Path (Join-Path $ctx.State "recovery\$Job.resolved") -Text "[resolved]`nresolved_by = $who`nresolved_at = $at`n"
+        Write-Output "${Job}: run $($rec.RunId) marked as over by $who; the supervisor concludes it and releases the job at its next tick"
+        exit 0
     }
     'supervise' {
         # PowerShell binds "--once" to the remaining arguments.

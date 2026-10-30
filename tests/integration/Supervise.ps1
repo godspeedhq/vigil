@@ -125,6 +125,8 @@ $supErr = Join-Path $root 'supervise.err'
 $sup = Start-Process -FilePath $shell -PassThru -NoNewWindow -RedirectStandardOutput $supOut -RedirectStandardError $supErr -ArgumentList @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'supervise')
 Start-Sleep -Seconds 25
+# A loaded machine gives fast fewer chances: wait up to 40s more for a second run.
+for ($i = 0; $i -lt 40 -and [int]('0' + (Get-Prom 'fast_runs_total')) -lt 2; $i++) { Start-Sleep -Seconds 1 }
 Test-Equal 'supervisor still running' 'False' "$($sup.HasExited)"
 if ($sup.HasExited) {
     Write-Host "  supervisor exited with $($sup.ExitCode); its output:"

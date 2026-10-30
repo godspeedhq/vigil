@@ -106,6 +106,44 @@ function Find-VigilSpoolOutcome {
     return $r
 }
 
+# Reads a job's recovery record (11.4) and any resolution vigil resolve left
+# beside it: @{ RunId (empty when none); Conclusion; Reason; First; Policy;
+# ResolvedBy; ResolvedAt }.
+function Read-VigilRecoveryRecord {
+    param([string]$State, [string]$Job)
+    $r = @{ RunId = ''; Conclusion = ''; Reason = ''; First = ''; Policy = ''; ResolvedBy = ''; ResolvedAt = '' }
+    foreach ($f in @((Join-Path $State "recovery\$Job.recovery"), (Join-Path $State "recovery\$Job.resolved"))) {
+        if (-not [System.IO.File]::Exists($f)) { continue }
+        try { $lines = [System.IO.File]::ReadAllLines($f) } catch { continue }
+        foreach ($l in $lines) {
+            $eq = $l.IndexOf('=')
+            if ($eq -lt 1) { continue }
+            $v = $l.Substring($eq + 1).Trim()
+            switch -CaseSensitive ($l.Substring(0, $eq).Trim()) {
+                'run_id' { $r.RunId = $v }
+                'conclusion' { $r.Conclusion = $v }
+                'reason' { $r.Reason = $v }
+                'first_seen' { $r.First = $v }
+                'policy' { $r.Policy = $v }
+                'resolved_by' { $r.ResolvedBy = $v }
+                'resolved_at' { $r.ResolvedAt = $v }
+            }
+        }
+    }
+    return $r
+}
+
+# Writes a job's recovery record, keeping first_seen and any resolution.
+function Write-VigilRecoveryRecord {
+    param([string]$State, [string]$Job, [string]$RunId, [string]$Conclusion, [string]$Reason, [string]$Policy, $Rec, [long]$Epoch)
+    $dir = Join-Path $State 'recovery'
+    [void](New-Item -ItemType Directory -Force -Path $dir)
+    $first = if ($Rec.First) { $Rec.First } else { "$Epoch" }
+    Write-VigilFileAtomic -Path (Join-Path $dir "$Job.recovery") -Text (
+        "[recovery]`njob          = $Job`nrun_id       = $RunId`nconclusion   = $Conclusion`nreason       = $Reason`n" +
+        "first_seen   = $first`nlast_checked = $Epoch`npolicy       = $Policy`nresolved_by  = $($Rec.ResolvedBy)`nresolved_at  = $($Rec.ResolvedAt)`n")
+}
+
 function Invoke-VigilSupervisor {
     param([string]$Root, [string]$App, [switch]$Once)
 
@@ -193,7 +231,7 @@ function Invoke-VigilSupervisor {
 
     # Records a concluded run whose worker can no longer write (12.3).
     $record = {
-        param([string]$Job, [string]$RunId, [string]$Conclusion, $St, $Spool)
+        param([string]$Job, [string]$RunId, [string]$Conclusion, $St, $Spool, [string]$Why)
         $path = Join-Path $sv.State "jobs\$Job.state"
         if ($St.Kind -ceq 'unreadable') {
             $q = Join-Path $sv.State 'quarantine'
@@ -218,7 +256,7 @@ function Invoke-VigilSupervisor {
         }
         else {
             $fields.status = 'crashed'
-            $fields.reason = 'worker vanished'
+            $fields.reason = $(if ($Why) { $Why } else { 'worker vanished' })
             & $event $Job 'crashes' '1' 'count'
             & $log 'WARN' "job ${Job}: run $RunId crashed: worker vanished without an outcome"
             $sv.Crashed.Add($Job)
@@ -280,18 +318,62 @@ function Invoke-VigilSupervisor {
         $c = Get-VigilRecoveryConclusion -Launch $lstate -Token $tstate -Process $proc -Boot $boot -State $st.Kind `
             -Spool $(if ($spool.Found) { 'yes' } else { 'no' })
         $active = '-'
-        switch ($c) {
-            { $_ -ceq 'alive' -or $_ -ceq 'launching' } {
-                $active = 'running'
-                if ($c -ceq 'alive' -and $st.Kind -ceq 'running' -and $st.Deadline -and $sv.Epoch -ge [long]$st.Deadline) {
-                    & $timeout $Job $rid $st
+        $reason = ''
+        if ($c -ceq 'alive' -and $st.Kind -ceq 'running' -and $st.Deadline -and $sv.Epoch -ge [long]$st.Deadline) {
+            if (-not (& $timeout $Job $rid $st)) {
+                # Never kill what cannot be proven to be the run's (VIGIL-007).
+                $c = 'uncertain'
+                $reason = "past max_runtime, but its job process cannot be proven to be the run's"
+            }
+        }
+        if ($c -ceq 'uncertain' -and -not $reason) { $reason = 'its liveness cannot be established: a probe failed or the evidence conflicts' }
+
+        # Uncertain runs (11.4): a supervisor-owned recovery record holds the
+        # job, survives restarts, and is resolved by the evidence or by
+        # vigil resolve.
+        $recPath = Join-Path $sv.State "recovery\$Job.recovery"
+        $rec = Read-VigilRecoveryRecord $sv.State $Job
+        $hold = $false
+        if ($c -ceq 'uncertain') {
+            if ($rec.ResolvedAt -and $rec.RunId -ceq $rid) {
+                # An operator confirmed the run is over. Nothing is killed.
+                if ($st.Kind -cne 'final') {
+                    if ($spool.Found) { & $record $Job $rid 'finished' $st $spool }
+                    else { & $record $Job $rid 'crashed' $st $spool "concluded by vigil resolve ($($rec.ResolvedBy))" }
+                }
+                if ($token) { try { [System.IO.File]::Delete($token) } catch { } }
+                foreach ($f in @((Join-Path $sv.State "locks\$Job.$rid.timeout"), $recPath, (Join-Path $sv.State "recovery\$Job.resolved"))) {
+                    if ([System.IO.File]::Exists($f)) { try { [System.IO.File]::Delete($f) } catch { } }
+                }
+                & $log 'INFO' "job ${Job}: uncertain run $rid concluded, resolved by $($rec.ResolvedBy)"
+                return @{ Active = '-'; State = $st }
+            }
+            $policy = 'wait'
+            foreach ($row in (Get-VigilEffectiveJob -Index $sv.Index -Id $Job)) { if ($row.Key -ceq 'on_uncertain') { $policy = $row.Value } }
+            if ($rec.RunId -cne $rid) { $rec.First = '' }
+            if (-not $rec.First) { & $log 'WARN' "job ${Job}: run $rid is uncertain ($reason); holding it, killing nothing (on_uncertain = $policy)" }
+            Write-VigilRecoveryRecord $sv.State $Job $rid 'uncertain' $reason $policy $rec $sv.Epoch
+            $sv.Uncertain.Add("${Job}: $reason")
+            & $event $Job 'uncertain' '1' 'gauge'
+            if ($policy -ceq 'replace') { [void]$sv.Replacing.Add($Job) } else { $active = 'running' }
+            return @{ Active = $active; State = $st }
+        }
+        if ($rec.RunId) {
+            if ($rec.Policy -ceq 'manual' -and -not $rec.ResolvedAt) {
+                # The evidence cleared; the run is concluded below, but the job
+                # stays held until an operator confirms it (11.4).
+                $hold = $true
+            }
+            else {
+                if ($rec.ResolvedAt) { & $log 'INFO' "job ${Job}: hold on run $($rec.RunId) released, resolved by $($rec.ResolvedBy)" }
+                foreach ($f in @($recPath, (Join-Path $sv.State "recovery\$Job.resolved"))) {
+                    if ([System.IO.File]::Exists($f)) { try { [System.IO.File]::Delete($f) } catch { } }
                 }
             }
-            'uncertain' {
-                $active = 'running'
-                $sv.Uncertain.Add($Job)
-                & $event $Job 'uncertain' '1' 'gauge'
-            }
+        }
+
+        switch ($c) {
+            { $_ -ceq 'alive' -or $_ -ceq 'launching' } { $active = 'running' }
             'abandon' {
                 # Abandon by deleting the launch record: Windows refuses while
                 # a worker holds it, so only one of the two can win (11.2).
@@ -308,6 +390,14 @@ function Invoke-VigilSupervisor {
                 $marker = Join-Path $sv.State "locks\$Job.$rid.timeout"
                 if ([System.IO.File]::Exists($marker)) { try { [System.IO.File]::Delete($marker) } catch { } }
             }
+        }
+        if ($hold) {
+            if ($c -cne 'alive' -and $c -cne 'launching') {
+                Write-VigilRecoveryRecord $sv.State $Job $rec.RunId $c $rec.Reason 'manual' $rec $sv.Epoch
+            }
+            $active = 'running'
+            $sv.Uncertain.Add("${Job}: run $($rec.RunId) $c; held until vigil resolve (on_uncertain = manual)")
+            & $event $Job 'uncertain' '1' 'gauge'
         }
         return @{ Active = $active; State = $st }
     }
@@ -330,19 +420,15 @@ function Invoke-VigilSupervisor {
             }
         }
         catch { $proven = $false }
-        if (-not $proven) {
-            # Never kill what cannot be proven to be the run's (VIGIL-007).
-            & $log 'WARN' "job ${Job}: run $RunId is past max_runtime, but its job process cannot be proven to be the run's; not stopping it"
-            $sv.Uncertain.Add($Job)
-            & $event $Job 'uncertain' '1' 'gauge'
-            return
-        }
+        # Unproven: the caller holds the run as uncertain.
+        if (-not $proven) { return $false }
         $marker = Join-Path $sv.State "locks\$Job.$RunId.timeout"
         if (-not [System.IO.File]::Exists($marker)) {
             Write-VigilFileAtomic -Path $marker -Text "term_epoch = $($sv.Epoch)`n"
             & $log 'WARN' "job ${Job}: run $RunId passed max_runtime; ending its process tree"
         }
         & taskkill.exe /T /F /PID $St.JobPid 2>&1 | Out-Null
+        return $true
     }
 
     # Starts a launched run as a detached worker.
@@ -364,6 +450,11 @@ function Invoke-VigilSupervisor {
         [void][System.Diagnostics.Process]::Start($psi)
         $sv.Running++
         if ($Job -cne 'vigil_sender') { & $log 'INFO' "job ${Job}: run $rid started" }
+        # Started beside an uncertain run under on_uncertain = replace (11.4).
+        if ($sv.Replacing.Contains($Job)) {
+            & $event $Job 'possible_duplicates' '1' 'count'
+            & $log 'WARN' "job ${Job}: run $rid started beside an uncertain run (on_uncertain = replace)"
+        }
     }
 
     $tick = {
@@ -375,6 +466,7 @@ function Invoke-VigilSupervisor {
         $sv.Events = New-Object 'System.Collections.Generic.List[string]'
         $sv.Running = 0
         $sv.Uncertain = New-Object 'System.Collections.Generic.List[string]'
+        $sv.Replacing = New-Object 'System.Collections.Generic.HashSet[string]'
         $sv.Crashed = New-Object 'System.Collections.Generic.List[string]'
         $status = @{ Running = @(); Waiting = @(); Disabled = @(); Invalid = @(); Last = @() }
 
