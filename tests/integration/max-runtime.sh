@@ -37,7 +37,7 @@ vigil() {
 # One supervisor tick, then wait (up to 60s) for the sender it may start.
 tick() {
     local i=0
-    vigil supervise --once > /dev/null 2>&1
+    vigil supervise --once >> "$root/once.out" 2>&1; echo "rc=$?" >> "$root/once.out"
     while ls "$root/state/locks" 2>/dev/null | grep '^vigil_sender\.' > /dev/null; do
         i=$((i + 1))
         [ "$i" -ge 120 ] && break
@@ -128,6 +128,14 @@ check "stubborn's process did not survive" "" "$(ls "$root" | grep '^stubborn.fi
 if [ "$fail" -gt 0 ]; then
     printf '\nsupervisor log:\n'
     cat "$root/logs/supervisor/"*.log | tail -30
+    printf '
+--once output:
+'
+    cat "$root/once.out" 2>/dev/null
+    printf '
+processes:
+'
+    ps -ef 2>/dev/null | grep -v grep | grep -e vigil -e sleep | head -20
 fi
 rm -rf "$root"
 printf '%d passed, %d failed\n' "$pass" "$fail"
