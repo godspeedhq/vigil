@@ -95,6 +95,16 @@ compare() {
     fi
 }
 
+# A seven-column table without comments or blank lines, single-spaced. A
+# function, not inline: bash 3.2 cannot parse a case inside $(...).
+table_rows7() {
+    local a b c d e f g
+    while read -r a b c d e f g || [ -n "$a" ]; do
+        case $a in '' | '#'*) continue ;; esac
+        printf '%s %s %s %s %s %s %s\n' "$a" "$b" "$c" "$d" "$e" "$f" "$g"
+    done < "$1"
+}
+
 # A three-column table without comments or blank lines, single-spaced.
 table_rows3() {
     local a b c
@@ -161,10 +171,7 @@ done
 # Recovery conclusions: each table row is the evidence and the expected
 # conclusion; the case passes when every row gives its conclusion.
 for table in "$here"/conformance/recovery/*.table; do
-    expected=$(while read -r a b c d e f g || [ -n "$a" ]; do
-        case $a in '' | '#'*) continue ;; esac
-        printf '%s %s %s %s %s %s %s\n' "$a" "$b" "$c" "$d" "$e" "$f" "$g"
-    done < "$table")
+    expected=$(table_rows7 "$table")
     compare "recovery/$(basename "$table" .table)" "$expected" "$(vigil_recovery_table_dump "$table")"
 done
 
