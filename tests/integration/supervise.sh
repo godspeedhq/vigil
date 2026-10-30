@@ -100,10 +100,10 @@ check "fast ran and succeeded" succeeded "$(state_value "$root/state/jobs/fast.s
 check "slow ran and succeeded" succeeded "$(state_value "$root/state/jobs/slow.state" status)"
 runs=$(ls "$root/spool/incoming" | grep -c -- '-fast-')
 check "fast ran more than once" yes "$([ "$runs" -ge 2 ] && echo yes || echo "no ($runs)")"
-check "slow overlaps were skipped" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep -q '^[0-9]* slow.skipped 1 count' && echo yes || echo no)"
-check "heartbeat posted" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep -q '^[0-9]* vigil.supervisor.up 1 gauge host=' && echo yes || echo no)"
+check "slow overlaps were skipped" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep '^[0-9]* slow.skipped 1 count' > /dev/null && echo yes || echo no)"
+check "heartbeat posted" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep '^[0-9]* vigil.supervisor.up 1 gauge host=' > /dev/null && echo yes || echo no)"
 check "disabled job never ran" "" "$(ls "$root/state/jobs" | grep '^off')"
-check "disabled job listed" yes "$(sed -n '/^DISABLED/,/^$/p' "$root/logs/supervisor/jobs.log" | grep -q '  off' && echo yes || echo no)"
+check "disabled job listed" yes "$(sed -n '/^DISABLED/,/^$/p' "$root/logs/supervisor/jobs.log" | grep '  off' > /dev/null && echo yes || echo no)"
 check "no locks left" "" "$(ls "$root/state/locks")"
 check "cursors kept" "fast.cursor slow.cursor" "$(ls "$root/state/schedule" | tr '\n' ' ' | sed 's/ $//')"
 
@@ -114,16 +114,16 @@ printf '[state]\nschema_version = 1\njob = fast\nrun_id = %s\nstatus = running\n
 : > "$root/state/locks/fast.$rid.token"
 vigil supervise --once > /dev/null 2>&1
 check "vanished worker recorded as crashed" crashed "$(state_value "$root/state/jobs/fast.state" status)"
-check "crash posted" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep -q '^[0-9]* fast.crashes 1 count' && echo yes || echo no)"
+check "crash posted" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep '^[0-9]* fast.crashes 1 count' > /dev/null && echo yes || echo no)"
 check "stale token removed" "" "$(ls "$root/state/locks")"
-check "crash listed" yes "$(sed -n '/^CRASHED/,/^$/p' "$root/logs/supervisor/jobs.log" | grep -q '  fast' && echo yes || echo no)"
+check "crash listed" yes "$(sed -n '/^CRASHED/,/^$/p' "$root/logs/supervisor/jobs.log" | grep '  fast' > /dev/null && echo yes || echo no)"
 
 # A launch never claimed within the grace is abandoned; the job did not run.
 rid=20260101T000000Z-1-2
 printf '[launch]\njob           = slow\nrun_id        = %s\nboot_id       = %s\nlaunch_epoch  = 1\n' "$rid" "$boot" > "$root/state/locks/slow.$rid.launch"
 vigil supervise --once > /dev/null 2>&1
 check "old unclaimed launch abandoned" "" "$(ls "$root/state/locks" | grep "^slow.$rid")"
-check "abandonment posted" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep -q '^[0-9]* slow.abandoned_launches 1 count' && echo yes || echo no)"
+check "abandonment posted" yes "$(cat "$root/spool/incoming/"*-supervisor.events | grep '^[0-9]* slow.abandoned_launches 1 count' > /dev/null && echo yes || echo no)"
 
 # A young launch is held: nothing else starts for the job.
 now=$(date '+%s')
@@ -131,7 +131,7 @@ rid=20260101T000000Z-1-3
 printf '[launch]\njob           = slow\nrun_id        = %s\nboot_id       = %s\nlaunch_epoch  = %s\n' "$rid" "$boot" "$now" > "$root/state/locks/slow.$rid.launch"
 vigil supervise --once > /dev/null 2>&1
 check "young launch kept" "slow.$rid.launch" "$(ls "$root/state/locks" | grep "^slow\.")"
-check "job with a young launch is running" yes "$(sed -n '/^RUNNING/,/^$/p' "$root/logs/supervisor/jobs.log" | grep -q '  slow' && echo yes || echo no)"
+check "job with a young launch is running" yes "$(sed -n '/^RUNNING/,/^$/p' "$root/logs/supervisor/jobs.log" | grep '  slow' > /dev/null && echo yes || echo no)"
 rm -f "$root/state/locks/slow.$rid.launch"
 
 if [ "$fail" -gt 0 ]; then

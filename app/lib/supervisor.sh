@@ -56,7 +56,7 @@ _vigil_sup_held() {
 # Whether a process carries run id $1 on its command line. Sets _su_proc to
 # yes, no or error.
 _vigil_sup_proc() {
-    local d a
+    local d a out
     _su_proc=no
     case $_su_platform in
         linux)
@@ -68,11 +68,15 @@ _vigil_sup_proc() {
             done 2>/dev/null
             ;;
         macos)
-            if ps -axww -o args= 2>/dev/null | grep -F -e "--run-id $1" > /dev/null; then
-                _su_proc=yes
-            elif ! ps -p $$ > /dev/null 2>&1; then
+            # Matched in the shell, not with grep: a grep for the run id would
+            # find its own command line.
+            if ! out=$(ps -axww -o args= 2>/dev/null); then
                 _su_proc=error
+                return 0
             fi
+            case $out in
+                *"--run-id $1"*) _su_proc=yes ;;
+            esac
             ;;
         *) _su_proc=error ;;
     esac
