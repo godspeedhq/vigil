@@ -29,6 +29,12 @@
       tests/mocks/<path>.config                     the example configurations
       tests/conformance/mocks/<path>.expected       validation dump, then
                                                     Format-VigilEffectiveDump
+      tests/conformance/outcome/<case>.table        rows of exit_codes, exit code
+                                                    and expected Get-VigilOutcome
+      tests/conformance/metrics/<case>.stdout       a run's stdout; -nagios in the
+                                                    name parses perfdata, a
+                                                    trailing -cap<n> sets the cap
+      tests/conformance/metrics/<case>.expected     Format-VigilMetricsDump output
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -41,6 +47,8 @@ $root = Split-Path -Parent $here
 . (Join-Path $root 'app\lib\Effective.ps1')
 . (Join-Path $root 'app\lib\Command.ps1')
 . (Join-Path $root 'app\lib\Schedule.ps1')
+. (Join-Path $root 'app\lib\Outcome.ps1')
+. (Join-Path $root 'app\lib\Metrics.ps1')
 
 $pass = 0
 $fail = 0
@@ -130,6 +138,32 @@ foreach ($rel in $mocks) {
     Compare-Case "mocks/$name" $expected $actual
 }
 
+# Exit code classification: each table row is "<exit_codes> <code>
+# <outcome>", and the case passes when every row gives its outcome.
+foreach ($table in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\outcome') -Filter '*.table' | Sort-Object Name)) {
+    $exp = New-Object System.Text.StringBuilder
+    $act = New-Object System.Text.StringBuilder
+    foreach ($line in [System.IO.File]::ReadAllLines($table.FullName)) {
+        $c = @($line.Split([char[]]@(' ', "`t"), [System.StringSplitOptions]::RemoveEmptyEntries))
+        if ($c.Count -eq 0 -or $c[0].StartsWith('#')) { continue }
+        [void]$exp.Append("$($c[0]) $($c[1]) $($c[2])`n")
+        [void]$act.Append("$($c[0]) $($c[1]) $(Get-VigilOutcome -ExitCodes $c[0] -Code $c[1])`n")
+    }
+    Compare-Case "outcome/$($table.BaseName)" $exp.ToString() $act.ToString()
+}
+
+# Job output: <case>.stdout parsed with mode nagios when the name contains
+# -nagios, and with the cap given by a trailing -cap<n>, else the default.
+foreach ($out in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\metrics') -Filter '*.stdout' | Sort-Object Name)) {
+    $name = $out.BaseName
+    $mode = if ($name.Contains('-nagios')) { 'nagios' } else { 'standard' }
+    $cap = $Script:VigilMetricLinesMax
+    if ($name -cmatch '-cap([0-9]+)$') { $cap = [int]$Matches[1] }
+    $actual = Format-VigilMetricsDump (ConvertFrom-VigilJobOutput -Mode $mode -Cap $cap -Path $out.FullName)
+    $expected = [System.IO.File]::ReadAllText([System.IO.Path]::ChangeExtension($out.FullName, '.expected'))
+    Compare-Case "metrics/$name" $expected $actual
+}
+
 # File-level cases need inputs that cannot be committed as fixtures: a
 # missing file, and files at and over the 1 MiB limit (all "a", no newline,
 # so a file at the limit is read and reports one E_NO_EQUALS).
@@ -154,6 +188,12 @@ foreach ($check in $checks) {
         Write-Host "  FAIL  file/$($check[0]): expected [$($check[1])] actual [$actual]"
     }
 }
+# A run printing more metric lines than the default cap: the excess is
+# dropped and counted.
+$flood = Join-Path $tmp 'flood.stdout'
+[System.IO.File]::WriteAllText($flood, ("metric m 1`n" * ($Script:VigilMetricLinesMax + 5)))
+$summary = (Format-VigilMetricsDump (ConvertFrom-VigilJobOutput -Mode 'standard' -Cap $Script:VigilMetricLinesMax -Path $flood)).TrimEnd("`n").Split("`n")[-1]
+Compare-Case 'file/metric-flood' "SUMMARY metric_lines=$($Script:VigilMetricLinesMax) invalid_lines=0 dropped_lines=5" $summary
 Remove-Item -Recurse -Force -LiteralPath $tmp
 
 Write-Host "$pass passed, $fail failed"

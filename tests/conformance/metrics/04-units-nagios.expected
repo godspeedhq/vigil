@@ -1,0 +1,24 @@
+METRIC perf 0.0008 gauge label=rta
+METRIC perf.warn 0.1 gauge label=rta
+METRIC perf.crit 0.5 gauge label=rta
+METRIC perf.min 0 gauge label=rta
+METRIC perf 0 gauge label=pl
+METRIC perf.warn 20 gauge label=pl
+METRIC perf.crit 60 gauge label=pl
+METRIC perf.min 0 gauge label=pl
+METRIC perf 0.25 gauge label=time
+METRIC perf 1024 gauge label=size
+METRIC perf.min 0 gauge label=size
+METRIC perf 3 gauge label=t2
+METRIC perf 0.0015 gauge label=t3
+METRIC perf 12 count label=up
+METRIC perf 5 gauge label=conns
+METRIC perf 37.5 gauge label=temp uom=C
+METRIC perf 0.25 gauge label=load
+METRIC perf 5 gauge label=range
+METRIC perf 1 gauge label=it's
+METRIC perf 2 gauge label=a=b
+METRIC perf 3 gauge label=x_y_z
+METRIC perf -1536 gauge label=neg
+METRIC perf 0 gauge label=zero
+SUMMARY metric_lines=16 invalid_lines=0 dropped_lines=0

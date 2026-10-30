@@ -1,0 +1,31 @@
+Checking queue depth
+metric depth 42
+metric depth 7 queue=orders region=eu
+metric latency_ms 012.500
+metric neg -3.0
+metric zero -0.000
+metric	tabbed	1	k=v
+metric  spaced   2   k=v
+metric a.b.c 1
+metric big 123456789012345678901234567890
+metric eq 1 url=a=b
+not a metric line: metric x 1
+ metric indented 1
+metrics plural 1
+metric
+metric name_only
+metric bad.name. 1
+metric .lead 1
+metric x 1.
+metric x .5
+metric x 1e3
+metric x 0x10
+metric x 1 badtag
+metric x 1 =v
+metric x 1 k=
+metric x 1 host=a
+metric x 1 job=a
+metric x 1 k=a k=b
+metric x 1 bad-key=v
+a line with | a bar is not perfdata here
+Done

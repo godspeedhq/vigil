@@ -1,0 +1,26 @@
+METRIC depth 42 gauge
+METRIC depth 7 gauge queue=orders region=eu
+METRIC latency_ms 12.5 gauge
+METRIC neg -3 gauge
+METRIC zero 0 gauge
+METRIC tabbed 1 gauge k=v
+METRIC spaced 2 gauge k=v
+METRIC a.b.c 1 gauge
+METRIC big 123456789012345678901234567890 gauge
+METRIC eq 1 gauge url=a=b
+INVALID 15
+INVALID 16
+INVALID 17
+INVALID 18
+INVALID 19
+INVALID 20
+INVALID 21
+INVALID 22
+INVALID 23
+INVALID 24
+INVALID 25
+INVALID 26
+INVALID 27
+INVALID 28
+INVALID 29
+SUMMARY metric_lines=10 invalid_lines=15 dropped_lines=0
