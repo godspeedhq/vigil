@@ -95,6 +95,16 @@ _vigil_val_keytype() {
         spool:dir) _vv_type=path ;;
         spool:max_mb) _vv_type=int1 ;;
         spool:when_full) _vv_type=when_full ;;
+        log_forward:enabled) _vv_type=bool ;;
+        log_forward:destination) _vv_type=destination_ref ;;
+        log_forward:include) _vv_type=log_include ;;
+        log_forward:check_every) _vv_type=dur ;;
+        log_forward:batch_lines | log_forward:batch_kb | log_forward:max_pending_mb) _vv_type=int1 ;;
+        log_destination:type) _vv_type=log_dest_type ;;
+        log_destination:endpoint) _vv_type=https_url ;;
+        log_destination:timeout) _vv_type=dur ;;
+        log_destination:header_name) _vv_type=text ;;
+        log_destination:header_value) _vv_type=credential ;;
         runner:command) _vv_type=path ;;
         runner:arg) _vv_type=arg; _vv_list=1 ;;
         runner:env) _vv_type=envpair; _vv_list=1 ;;
@@ -145,6 +155,7 @@ _vigil_val_keytype() {
                 env) _vv_type=envpair; _vv_list=1 ;;
                 require_env) _vv_type=envnames; _vv_list=1 ;;
                 log_retain_days) _vv_type=int1 ;;
+                forward_output) _vv_type=bool ;;
             esac
             ;;
     esac
@@ -331,6 +342,38 @@ _vigil_val_check() {
                 *) _vv_code=E_BACKEND_TYPE; _vv_msg="unknown backend type: $value" ;;
             esac
             ;;
+        destination_ref)
+            case $_vv_destinations in
+                *$'\n'"$value"$'\n'*) ;;
+                *) _vv_code=E_DESTINATION_UNKNOWN; _vv_msg="no [log_destination.$value] section" ;;
+            esac
+            ;;
+        log_include)
+            _vigil_val_split "$value"
+            for item in "${_vv_items[@]}"; do
+                case $item in
+                    supervisor | run | stdout | stderr) ;;
+                    *)
+                        _vv_code=E_ENUM
+                        _vv_msg="'$key' items must be supervisor, run, stdout or stderr: '$item'"
+                        return
+                        ;;
+                esac
+            done
+            ;;
+        log_dest_type)
+            case $value in
+                otel) ;;
+                *) _vv_code=E_ENUM; _vv_msg="'$key' must be otel: $value" ;;
+            esac
+            ;;
+        https_url)
+            # The URL itself is never shown, since a mistaken one may carry a password.
+            case $value in
+                https://*) _vigil_val_authority "${value#https://}" https ;;
+                *) _vv_code=E_URL; _vv_msg="'$key' must start with https://" ;;
+            esac
+            ;;
         runner_ref)
             case $_vv_runners in
                 *$'\n'"$value"$'\n'*) ;;
@@ -492,6 +535,7 @@ vigil_config_validate() {
     # when not valid).
     _vv_runners=$nl
     _vv_backends=$nl
+    _vv_destinations=$nl
     _vv_disabled=$nl
     _vv_src_names=()
     _vv_src_types=()
@@ -501,6 +545,7 @@ vigil_config_validate() {
         case $name in
             runner.*) _vv_runners="$_vv_runners${name#runner.}$nl" ;;
             backend.*) _vv_backends="$_vv_backends${name#backend.}$nl" ;;
+            log_destination.*) _vv_destinations="$_vv_destinations${name#log_destination.}$nl" ;;
             vigil)
                 # A config_source makes this file a pointer to the real one.
                 _vigil_val_first "$s" config_source
@@ -540,8 +585,8 @@ vigil_config_validate() {
         sub=''
         _vv_job=''
         case $name in
-            vigil | scheduler | log | tags | spool | defaults | runners) kind=$name ;;
-            backend.* | runner.* | job.* | source.*) kind=${name%%.*}; sub=${name#*.} ;;
+            vigil | scheduler | log | tags | spool | defaults | runners | log_forward) kind=$name ;;
+            backend.* | runner.* | job.* | source.* | log_destination.*) kind=${name%%.*}; sub=${name#*.} ;;
             *) kind='' ;;
         esac
         if [ "$kind" = job ]; then
@@ -767,6 +812,17 @@ vigil_config_validate() {
                 if [ -n "$req" ]; then
                     _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs '$req'"
                 fi
+                ;;
+            log_forward | log_destination)
+                # Required keys (13.4.1).
+                req='destination'
+                [ "$kind" = log_destination ] && req='type endpoint'
+                for key in $req; do
+                    case $seen in
+                        *$nl"$key"$nl*) ;;
+                        *) _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs '$key'"; break ;;
+                    esac
+                done
                 ;;
             vigil)
                 # config_source and config_file go together.

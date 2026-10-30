@@ -1,0 +1,11 @@
+1793304870 os.disk.duration_seconds 3 gauge host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=dba
+1793304870 os.disk.runs 1 count host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=dba
+1793304870 os.disk.warnings 1 count host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=dba
+1793304870 os.disk.perf 12268339200 gauge host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=dba label=/
+1793304870 os.disk.perf.warn 16357785600 gauge host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=dba label=/
+1793304870 os.disk.perf.crit 18402508800 gauge host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=dba label=/
+1793304870 os.disk.perf.min 0 gauge host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=dba label=/
+1793304870 os.disk.perf.max 20447232000 gauge host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=dba label=/
+1793304870 os.disk.perf 2147483648 gauge host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=dba label=data_vol
+1793304870 os.disk.files 1200 gauge host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=ops mount=/data
+1793304870 os.disk.invalid_metric_lines 1 count host=db01 os=linux instance=ops-linux job=disk env=prod site=ny team=dba

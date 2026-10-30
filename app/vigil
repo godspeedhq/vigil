@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# vigil - the Vigil command on Linux and macOS (SPECIFICATION.md 18.5).
+#
+#   vigil [--root <dir>] run <job>
+#       Runs one job once now, in the foreground, for testing. Exits 0
+#       succeeded, 1 warning, 2 failed, 3 unknown, 4 not run.
+#   vigil [--root <dir>] worker <job> --run-id <run id>
+#       Internal: the worker the supervisor starts for a launched run.
+#
+# The install root defaults to the folder that contains this app/ folder.
+
+set -u
+
+# Follow links (the vigil command in ~/.local/bin is one) to find app/.
+self=$0
+while [ -L "$self" ]; do
+    link=$(readlink "$self")
+    case $link in
+        /*) self=$link ;;
+        *) self="$(dirname "$self")/$link" ;;
+    esac
+done
+app=$(cd "$(dirname "$self")" && pwd)
+root=$(dirname "$app")
+
+for lib in config validate effective command outcome metrics events worker; do
+    # shellcheck source=/dev/null
+    . "$app/lib/$lib.sh"
+done
+
+usage() {
+    printf 'usage: vigil [--root <dir>] run <job>\n' >&2
+    exit 64
+}
+
+if [ "${1-}" = --root ]; then
+    [ "$#" -ge 2 ] || usage
+    root=$(cd "$2" && pwd) || exit 64
+    shift 2
+fi
+
+case ${1-} in
+    run)
+        [ "$#" -eq 2 ] || usage
+        job=$2
+        # Refuse while any run of the job may be in progress.
+        state=$root/state
+        if _vw_root=$root _vw_job=$job _vigil_wk_config 2>/dev/null; then state=$_vw_statedir; fi
+        for f in "$state/locks/$job".*.launch "$state/locks/$job".*.token; do
+            if [ -e "$f" ]; then
+                printf 'vigil: a run of %s may be in progress (%s); not starting\n' "$job" "$f" >&2
+                exit 4
+            fi
+        done
+        vigil_launch "$root" "$job" || exit 4
+        vigil_worker "$root" "$job" "$VIGIL_RUN_ID"
+        rc=$?
+        if [ "$rc" -le 3 ]; then
+            if [ -n "$VIGIL_RUN_REASON" ]; then
+                printf '%s: %s (%s) in %ss, run %s\n' "$job" "$VIGIL_RUN_OUTCOME" "$VIGIL_RUN_REASON" "$VIGIL_RUN_DURATION" "$VIGIL_RUN_ID"
+            else
+                printf '%s: %s in %ss, run %s\n' "$job" "$VIGIL_RUN_OUTCOME" "$VIGIL_RUN_DURATION" "$VIGIL_RUN_ID"
+            fi
+        fi
+        exit "$rc"
+        ;;
+    worker)
+        [ "$#" -eq 4 ] && [ "$3" = --run-id ] || usage
+        vigil_worker "$root" "$2" "$4"
+        exit $?
+        ;;
+    *)
+        usage
+        ;;
+esac

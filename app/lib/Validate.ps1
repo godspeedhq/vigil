@@ -154,6 +154,26 @@ function Get-VigilKeyType {
                 'when_full' { $t = 'when_full' }
             }
         }
+        'log_forward' {
+            switch -CaseSensitive ($Key) {
+                'enabled' { $t = 'bool' }
+                'destination' { $t = 'destination_ref' }
+                'include' { $t = 'log_include' }
+                'check_every' { $t = 'dur' }
+                'batch_lines' { $t = 'int1' }
+                'batch_kb' { $t = 'int1' }
+                'max_pending_mb' { $t = 'int1' }
+            }
+        }
+        'log_destination' {
+            switch -CaseSensitive ($Key) {
+                'type' { $t = 'log_dest_type' }
+                'endpoint' { $t = 'https_url' }
+                'timeout' { $t = 'dur' }
+                'header_name' { $t = 'text' }
+                'header_value' { $t = 'credential' }
+            }
+        }
         'runner' {
             switch -CaseSensitive ($Key) {
                 'command' { $t = 'path' }
@@ -200,6 +220,7 @@ function Get-VigilKeyType {
                 'env' { $t = 'envpair'; $list = $true }
                 'require_env' { $t = 'envnames'; $list = $true }
                 'log_retain_days' { $t = 'int1' }
+                'forward_output' { $t = 'bool' }
             }
         }
     }
@@ -302,6 +323,30 @@ function Test-VigilValue {
             if ($Script:VigilBackendTypes -cnotcontains $Value) {
                 $r.Code = 'E_BACKEND_TYPE'; $r.Message = "unknown backend type: $Value"
             }
+        }
+        'destination_ref' {
+            if (-not $Ctx.Destinations.Contains($Value)) {
+                $r.Code = 'E_DESTINATION_UNKNOWN'; $r.Message = "no [log_destination.$Value] section"
+            }
+        }
+        'log_include' {
+            foreach ($item in (Split-VigilList $Value)) {
+                if (@('supervisor', 'run', 'stdout', 'stderr') -cnotcontains $item) {
+                    $r.Code = 'E_ENUM'; $r.Message = "'$Key' items must be supervisor, run, stdout or stderr: '$item'"
+                    break
+                }
+            }
+        }
+        'log_dest_type' {
+            if ($Value -cne 'otel') { $r.Code = 'E_ENUM'; $r.Message = "'$Key' must be otel: $Value" }
+        }
+        'https_url' {
+            # The URL itself is never shown, since a mistaken one may carry a password.
+            if ($Value.StartsWith('https://', [System.StringComparison]::Ordinal)) {
+                $a = Test-VigilUrlAuthority $Value.Substring(8) 'https'
+                $r.Code = $a.Code; $r.Message = $a.Message
+            }
+            else { $r.Code = 'E_URL'; $r.Message = "'$Key' must start with https://" }
         }
         'runner_ref' {
             if (-not $Ctx.Runners.Contains($Value)) {
@@ -495,6 +540,7 @@ function Test-VigilConfig {
     $ctx = @{
         Runners  = New-VigilNameSet @()
         Backends = New-VigilNameSet @()
+        Destinations = New-VigilNameSet @()
         Disabled = New-VigilNameSet @()
         Sources  = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([System.StringComparer]::Ordinal)
         SType    = ''
@@ -513,6 +559,9 @@ function Test-VigilConfig {
         elseif ($sec.Name.StartsWith('backend.', [System.StringComparison]::Ordinal)) {
             [void]$ctx.Backends.Add($sec.Name.Substring(8))
         }
+        elseif ($sec.Name.StartsWith('log_destination.', [System.StringComparison]::Ordinal)) {
+            [void]$ctx.Destinations.Add($sec.Name.Substring(16))
+        }
         elseif ($sec.Name.StartsWith('source.', [System.StringComparison]::Ordinal)) {
             $type = Get-VigilFirstValue $Parsed $sec 'type'
             if ($Script:VigilSourceTypes -cnotcontains $type) { $type = '' }
@@ -526,7 +575,7 @@ function Test-VigilConfig {
         }
     }
 
-    $singletons = @('vigil', 'scheduler', 'log', 'tags', 'spool', 'defaults', 'runners')
+    $singletons = @('vigil', 'scheduler', 'log', 'tags', 'spool', 'defaults', 'runners', 'log_forward')
     $entries = $Parsed.Entries
     $count = $entries.Count
     $e = 0
@@ -540,7 +589,7 @@ function Test-VigilConfig {
         if ($singletons -ccontains $name) {
             $kind = $name
         }
-        elseif ($dot -gt 0 -and @('backend', 'runner', 'job', 'source') -ccontains $name.Substring(0, $dot)) {
+        elseif ($dot -gt 0 -and @('backend', 'runner', 'job', 'source', 'log_destination') -ccontains $name.Substring(0, $dot)) {
             $kind = $name.Substring(0, $dot)
             $sub = $name.Substring($dot + 1)
         }
@@ -722,6 +771,13 @@ function Test-VigilConfig {
                 }
                 if ($req.Length -gt 0) {
                     & $report $sline 'E_KEY_REQUIRED' "[$name] needs '$req'"
+                }
+            }
+            { $_ -ceq 'log_forward' -or $_ -ceq 'log_destination' } {
+                # Required keys (13.4.1).
+                $needed = if ($kind -ceq 'log_destination') { @('type', 'endpoint') } else { @('destination') }
+                foreach ($k in $needed) {
+                    if (-not $seen.Contains($k)) { & $report $sline 'E_KEY_REQUIRED' "[$name] needs '$k'"; break }
                 }
             }
             'vigil' {
