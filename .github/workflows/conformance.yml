@@ -2,9 +2,14 @@
 # runners ship /bin/bash 3.2, the oldest bash Vigil must run on.
 name: conformance
 
+# Pull requests are tested once, as pull_request runs; pushes are tested only
+# on main. Any other branch can be run by hand:
+#   gh workflow run conformance --ref <branch>
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
