@@ -168,8 +168,13 @@ _vigil_wk_config() {
     fi
     vigil_config_section "job.$_vw_job"
     if [ "$VIGIL_CFG_SEC" -lt 0 ]; then
-        _vw_error="no job '$_vw_job' in the configuration"
-        return 1
+        case $_vw_job in
+            vigil_sender) ;;
+            *)
+                _vw_error="no job '$_vw_job' in the configuration"
+                return 1
+                ;;
+        esac
     fi
     i=0
     while [ "$i" -lt "${#VIGIL_VAL_KIND[@]}" ]; do
@@ -208,6 +213,48 @@ vigil_launch() {
         mv -f "$_vw_statedir/locks/$_vw_job.$VIGIL_RUN_ID.launch.tmp.$$" "$_vw_statedir/locks/$_vw_job.$VIGIL_RUN_ID.launch"
 }
 
+# Runs one of Vigil's own workers, already claimed: running state, the
+# function $4 (which returns 0 on success and may set _vw_reason), final
+# state, then the token released. Returns 0 succeeded or 2 failed.
+_vigil_wk_internal() {
+    local rid=$1 token=$2 started=$3 status=succeeded
+    _vw_state=()
+    _vigil_wk_set schema_version 1
+    _vigil_wk_set job "$_vw_job"
+    _vigil_wk_set run_id "$rid"
+    _vigil_wk_set status running
+    _vigil_wk_set reason ''
+    _vigil_wk_set boot_id "$_vw_boot"
+    _vigil_wk_set started_epoch "$started"
+    _vigil_wk_set started_at "$_vw_iso"
+    _vigil_wk_set worker_pid $$
+    _vigil_wk_set worker_name bash
+    _vigil_wk_set worker_start "$_vw_start"
+    _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
+    _vigil_wk_log "$rid run start"
+    _vw_reason=''
+    "$4" || status=failed
+    _vigil_wk_now
+    _vigil_wk_set status "$status"
+    _vigil_wk_set reason "$_vw_reason"
+    _vigil_wk_set ended_epoch "$_vw_epoch"
+    _vigil_wk_set ended_at "$_vw_iso"
+    _vigil_wk_set duration_seconds $((_vw_epoch - started))
+    _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
+    if [ -n "$_vw_reason" ]; then
+        _vigil_wk_log "$rid run end $status ($_vw_reason) in $((_vw_epoch - started))s"
+    else
+        _vigil_wk_log "$rid run end $status in $((_vw_epoch - started))s"
+    fi
+    exec 9<&-
+    rm -f "$token"
+    VIGIL_RUN_OUTCOME=$status
+    VIGIL_RUN_REASON=$_vw_reason
+    VIGIL_RUN_DURATION=$((_vw_epoch - started))
+    [ "$status" = succeeded ] && return 0
+    return 2
+}
+
 vigil_worker() {
     _vw_root=$1
     _vw_job=$2
@@ -241,6 +288,14 @@ vigil_worker() {
     _vigil_wk_start_time $$
     _vigil_wk_now
     started=$_vw_epoch
+
+    # Vigil's own workers run a function, not a job command (4.5).
+    case $_vw_job in
+        vigil_sender)
+            _vigil_wk_internal "$rid" "$token" "$started" vigil_send
+            return $?
+            ;;
+    esac
 
     vigil_config_effective "$_vw_job"
     exit_codes=standard

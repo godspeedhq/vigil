@@ -102,7 +102,7 @@ function Get-VigilWorkerContext {
     if ((Get-VigilConfigValue $parsed 'vigil' 'config_source' '').Length -gt 0) {
         return @{ Error = 'remote configuration needs the fetcher, which is not available yet' }
     }
-    if (-not ($parsed.Sections | Where-Object { $_.Name -ceq "job.$Job" })) {
+    if ($Job -cne 'vigil_sender' -and -not ($parsed.Sections | Where-Object { $_.Name -ceq "job.$Job" })) {
         return @{ Error = "no job '$Job' in the configuration" }
     }
     foreach ($r in $records) {
@@ -179,6 +179,33 @@ function Invoke-VigilWorker {
     $now = Get-VigilNow
     $started = $now.Epoch
     $self = Get-Process -Id $PID
+
+    # Vigil's own workers run a function, not a job command (4.5).
+    if ($Job -ceq 'vigil_sender') {
+        $state = [ordered]@{
+            schema_version = 1; job = $Job; run_id = $RunId; status = 'running'; reason = ''
+            boot_id = Get-VigilBootId; started_epoch = $started; started_at = $now.Iso
+            worker_pid = $PID; worker_name = "$($self.ProcessName).exe"; worker_start = ConvertTo-VigilEpoch $self.StartTime
+        }
+        Write-VigilStateFile -Path $statePath -Fields $state
+        [System.IO.File]::AppendAllText($log, "$($now.Iso) $RunId run start`r`n")
+        try { $r = Invoke-VigilSend -Ctx $ctx -HostName $hostName -Root $Root }
+        catch { $r = @{ Ok = $false; Reason = "sender error: $($_.Exception.Message)" } }
+        $status = if ($r.Ok) { 'succeeded' } else { 'failed' }
+        $now = Get-VigilNow
+        $duration = $now.Epoch - $started
+        $state.status = $status
+        $state.reason = $r.Reason
+        $state.ended_epoch = $now.Epoch
+        $state.ended_at = $now.Iso
+        $state.duration_seconds = $duration
+        Write-VigilStateFile -Path $statePath -Fields $state
+        $why = if ($r.Reason) { " ($($r.Reason))" } else { '' }
+        [System.IO.File]::AppendAllText($log, "$($now.Iso) $RunId run end $status$why in ${duration}s`r`n")
+        $tokenStream.Dispose()
+        [System.IO.File]::Delete($token)
+        return @{ Code = $(if ($r.Ok) { 0 } else { 2 }); Outcome = $status; Reason = $r.Reason; Duration = $duration }
+    }
 
     $index = New-VigilConfigIndex -Parsed $ctx.Parsed
     $eff = Get-VigilEffectiveJob -Index $index -Id $Job

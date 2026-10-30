@@ -26,6 +26,9 @@
 #   tests/mocks/<path>.config                     the example configurations
 #   tests/conformance/mocks/<path>.expected       validate dump, then
 #                                                 vigil_config_effective_dump
+#   tests/conformance/prom/<case>.prom            a file backend file before; with
+#                                                 <case>.events, vigil_prom_merge
+#                                                 must give <case>.expected
 #   tests/conformance/recovery/<case>.table       rows of evidence and expected
 #                                                 vigil_recovery_conclude
 #   tests/conformance/outcome/<case>.table        rows of exit_codes, exit code
@@ -64,6 +67,8 @@ root=$(dirname "$here")
 . "$root/app/lib/events.sh"
 # shellcheck source=../app/lib/recovery.sh
 . "$root/app/lib/recovery.sh"
+# shellcheck source=../app/lib/prom.sh
+. "$root/app/lib/prom.sh"
 
 pass=0
 fail=0
@@ -204,6 +209,13 @@ for cfg in "$here"/conformance/events/*.config; do
              vigil_run_events "$r_job" "$r_epoch" "$r_outcome" "$r_code" "$r_duration" "$r_host" "$r_os"
              vigil_run_events_dump)
     compare "events/$name" "$(cat "${cfg%.config}.expected")" "$actual"
+done
+
+# File backend: <case>.prom (the file before, may be empty) merged with
+# <case>.events must give <case>.expected.
+for old in "$here"/conformance/prom/*.prom; do
+    name=$(basename "$old" .prom)
+    compare "prom/$name" "$(cat "${old%.prom}.expected")" "$(vigil_prom_merge "$old" "${old%.prom}.events")"
 done
 
 # File-level cases need inputs that cannot be committed as fixtures: a

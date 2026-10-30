@@ -1,0 +1,6 @@
+# TYPE db_backup_duration_seconds gauge
+db_backup_duration_seconds{env="prod",host="db01",instance="it",job="backup",os="linux"} 4
+# TYPE db_backup_runs_total counter
+db_backup_runs_total{env="prod",host="db01",instance="it",job="backup",os="linux"} 42
+# TYPE old_series gauge
+old_series{host="db01"} 7

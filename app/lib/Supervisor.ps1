@@ -87,7 +87,9 @@ function Find-VigilSpoolOutcome {
     foreach ($d in $dirs) {
         if (-not [System.IO.Directory]::Exists($d)) { continue }
         foreach ($f in [System.IO.Directory]::GetFiles($d, "*-$Job-$RunId.events")) {
-            foreach ($l in [System.IO.File]::ReadAllLines($f)) {
+            # The sender may move the file on between listing and reading.
+            try { $lines = [System.IO.File]::ReadAllLines($f) } catch { continue }
+            foreach ($l in $lines) {
                 $name = ($l.Split(' '))[1]
                 if ($name.EndsWith('.succeeded')) { $r.Outcome = 'succeeded' }
                 elseif ($name.EndsWith('.warnings')) { $r.Outcome = 'warning' }
@@ -229,12 +231,16 @@ function Invoke-VigilSupervisor {
         $lstate = 'none'; $tstate = 'none'; $boot = 'same'; $proc = '-'; $rid = ''
         if ($launch) {
             $rid = [System.IO.Path]::GetFileName($launch).Substring($Job.Length + 1) -replace '\.launch$', ''
-            $epoch = ''; $lboot = ''
-            foreach ($l in [System.IO.File]::ReadAllLines($launch)) {
+            $epoch = ''; $lboot = ''; $unread = $false
+            # A worker holds the record exclusively while it claims it, then
+            # deletes it: either makes the read fail, and both mean held.
+            try { $llines = [System.IO.File]::ReadAllLines($launch) } catch { $llines = @(); $unread = $true }
+            foreach ($l in $llines) {
                 if ($l -cmatch '^launch_epoch *= *(\S*)') { $epoch = $Matches[1] }
                 elseif ($l -cmatch '^boot_id *= *(\S*)') { $lboot = $Matches[1] }
             }
-            if ($lboot -and $lboot -cne $sv.Boot) { $lstate = 'prevboot' }
+            if ($unread) { $lstate = 'held' }
+            elseif ($lboot -and $lboot -cne $sv.Boot) { $lstate = 'prevboot' }
             elseif ($epoch -and ($sv.Epoch - [long]$epoch) -lt $Script:VigilLaunchGrace) {
                 # A young launch is never opened: probing it could make a
                 # claiming worker's exclusive open fail.
@@ -305,7 +311,7 @@ function Invoke-VigilSupervisor {
         $psi.CreateNoWindow = $true
         [void][System.Diagnostics.Process]::Start($psi)
         $sv.Running++
-        & $log 'INFO' "job ${Job}: run $rid started"
+        if ($Job -cne 'vigil_sender') { & $log 'INFO' "job ${Job}: run $rid started" }
     }
 
     $tick = {
@@ -406,7 +412,25 @@ function Invoke-VigilSupervisor {
         & $event '' 'config_reload_failed' "$($sv.ReloadFailed)" 'gauge'
         $incoming = Join-Path $sv.Spool 'incoming'
         [void](New-Item -ItemType Directory -Force -Path $incoming)
-        Write-VigilFileAtomic -Path (Join-Path $incoming "$($sv.Epoch)-supervisor.events") -Text (($sv.Events | ForEach-Object { "$_`n" }) -join '')
+        Write-VigilFileAtomic -Path (Join-Path $incoming "$($sv.Epoch)-vigil_supervisor.events") -Text (($sv.Events | ForEach-Object { "$_`n" }) -join '')
+
+        # The sender (4.5): one at a time, started whenever the spool holds
+        # anything. It is Vigil's own worker and does not count against
+        # max_concurrent.
+        $acc = & $account 'vigil_sender'
+        if ($acc.Active -ceq '-') {
+            $queued = $false
+            foreach ($d in @((Join-Path $sv.Spool 'incoming'), (Join-Path $sv.Spool 'fanout'))) {
+                if ([System.IO.Directory]::Exists($d) -and [System.IO.Directory]::GetFiles($d, '*.events').Count -gt 0) { $queued = $true }
+            }
+            $be = Join-Path $sv.Spool 'backends'
+            if (-not $queued -and [System.IO.Directory]::Exists($be)) {
+                foreach ($d in [System.IO.Directory]::GetDirectories($be)) {
+                    if ([System.IO.Directory]::GetFiles($d, '*.events').Count -gt 0) { $queued = $true; break }
+                }
+            }
+            if ($queued) { & $start 'vigil_sender' }
+        }
 
         # jobs.log (13.2), rewritten every tick.
         $sb = New-Object System.Text.StringBuilder
@@ -446,9 +470,20 @@ function Invoke-VigilSupervisor {
         $bytes = [System.Text.Encoding]::ASCII.GetBytes("pid = $PID`r`n")
         $lock.Write($bytes, 0, $bytes.Length)
         $lock.Flush()
+        # Temporary files a killed supervisor left mid-write (12.3). Only the
+        # supervisor writes these, and it now holds the lock, so none is live.
+        foreach ($p in @(@((Join-Path $sv.State 'schedule'), '*.tmp.*'), @($sv.State, 'config.valid.tmp.*'),
+                @((Join-Path $sv.Logs 'supervisor'), 'jobs.log.tmp.*'), @((Join-Path $sv.Spool 'incoming'), '*-vigil_supervisor.events.tmp.*'))) {
+            if ([System.IO.Directory]::Exists($p[0])) {
+                foreach ($f in [System.IO.Directory]::GetFiles($p[0], $p[1])) { try { [System.IO.File]::Delete($f) } catch { } }
+            }
+        }
         & $log 'INFO' "supervisor started, pid $PID"
         while ($true) {
-            & $tick
+            # A failing tick is logged, never fatal: the supervisor keeps
+            # ticking (13.3).
+            try { & $tick }
+            catch { & $log 'ERROR' "tick failed: $($_.Exception.Message) at $($_.InvocationInfo.PositionMessage -replace '\s+', ' ')" }
             if ($Once) { break }
             $wait = $sv.Epoch + $sv.Tick - [DateTimeOffset]::Now.ToUnixTimeSeconds()
             if ($wait -gt 0) { Start-Sleep -Seconds $wait }

@@ -57,6 +57,7 @@ $root = Split-Path -Parent $here
 . (Join-Path $root 'app\lib\Metrics.ps1')
 . (Join-Path $root 'app\lib\Events.ps1')
 . (Join-Path $root 'app\lib\Recovery.ps1')
+. (Join-Path $root 'app\lib\Prom.ps1')
 
 $pass = 0
 $fail = 0
@@ -202,6 +203,13 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\even
         -Duration $run.duration -HostName $run.host -Os $run.os -Output $output
     $actual = ($events | ForEach-Object { "$_`n" }) -join ''
     Compare-Case "events/$($case.BaseName)" ([System.IO.File]::ReadAllText([System.IO.Path]::ChangeExtension($case.FullName, '.expected'))) $actual
+}
+
+# File backend: <case>.prom (the file before, may be empty) merged with
+# <case>.events must give <case>.expected.
+foreach ($old in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\prom') -Filter '*.prom' | Sort-Object Name)) {
+    $actual = Merge-VigilProm -Old $old.FullName -Events @([System.IO.Path]::ChangeExtension($old.FullName, '.events'))
+    Compare-Case "prom/$($old.BaseName)" ([System.IO.File]::ReadAllText([System.IO.Path]::ChangeExtension($old.FullName, '.expected'))) $actual
 }
 
 # File-level cases need inputs that cannot be committed as fixtures: a
