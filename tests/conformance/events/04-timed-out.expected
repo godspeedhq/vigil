@@ -1,0 +1,4 @@
+1793304300 export.duration_seconds 300 gauge host=app02 os=linux instance=vigil job=export
+1793304300 export.runs 1 count host=app02 os=linux instance=vigil job=export
+1793304300 export.timeouts 1 count host=app02 os=linux instance=vigil job=export
+1793304300 export.rows 10 gauge host=app02 os=linux instance=vigil job=export

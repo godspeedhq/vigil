@@ -60,6 +60,18 @@ function Write-VigilFileAtomic {
     else { [System.IO.File]::Move($tmp, $Path) }
 }
 
+# Seconds in a validated duration (30s, 5m, 2h, 7d).
+function ConvertTo-VigilSeconds {
+    param([string]$Duration)
+    $n = [long]$Duration.Substring(0, $Duration.Length - 1)
+    switch -CaseSensitive ($Duration[-1]) {
+        's' { return $n }
+        'm' { return $n * 60 }
+        'h' { return $n * 3600 }
+    }
+    return $n * 86400
+}
+
 function Get-VigilNow {
     $now = [DateTime]::UtcNow
     $epoch = ConvertTo-VigilEpoch $now
@@ -143,6 +155,7 @@ function Invoke-VigilWorker {
     if ($ctx.Error) { [Console]::Error.WriteLine("vigil: $($ctx.Error)"); return @{ Code = 4 } }
     $launch = Join-Path $ctx.State "locks\$Job.$RunId.launch"
     $token = Join-Path $ctx.State "locks\$Job.$RunId.token"
+    $timeoutMarker = Join-Path $ctx.State "locks\$Job.$RunId.timeout"
 
     # Claim (11.2), hand over hand: hold the launch record exclusively,
     # create and hold the token exclusively, then close and delete the
@@ -210,11 +223,13 @@ function Invoke-VigilWorker {
     $index = New-VigilConfigIndex -Parsed $ctx.Parsed
     $eff = Get-VigilEffectiveJob -Index $index -Id $Job
     $exitCodes = 'standard'
+    $maxRuntime = ''
     $missing = @()
     $envPairs = @()
     foreach ($row in $eff) {
         switch -CaseSensitive ($row.Key) {
             'exit_codes' { $exitCodes = $row.Value }
+            'max_runtime' { $maxRuntime = $row.Value }
             'require_env' {
                 if ($null -eq [Environment]::GetEnvironmentVariable($row.Value)) { $missing += $row.Value }
             }
@@ -233,6 +248,7 @@ function Invoke-VigilWorker {
         boot_id        = Get-VigilBootId
         started_epoch  = $started
         started_at     = $now.Iso
+        deadline_epoch = $(if ($maxRuntime) { $started + (ConvertTo-VigilSeconds $maxRuntime) } else { '' })
         worker_pid     = $PID
         worker_name    = "$($self.ProcessName).exe"
         worker_start   = ConvertTo-VigilEpoch $self.StartTime
@@ -288,7 +304,9 @@ function Invoke-VigilWorker {
             $outTask = $p.StandardOutput.ReadToEndAsync()
             $errTask = $p.StandardError.ReadToEndAsync()
             $state.job_pid = $p.Id
-            $state.job_name = [System.IO.Path]::GetFileName($cmd.Program)
+            # The process's own name (cmd.exe for a .cmd file), which is what
+            # ownership is checked against before any kill (11.5).
+            try { $state.job_name = "$($p.ProcessName).exe" } catch { $state.job_name = [System.IO.Path]::GetFileName($cmd.Program) }
             try { $state.job_start = ConvertTo-VigilEpoch $p.StartTime } catch { $state.job_start = '' }
             Write-VigilStateFile -Path $statePath -Fields $state
             $p.WaitForExit()
@@ -297,6 +315,9 @@ function Invoke-VigilWorker {
             $code = "$($p.ExitCode)"
             $outcome = Get-VigilOutcome -ExitCodes $exitCodes -Code $code
             if ($outcome -cne 'succeeded') { $reason = "exit code $code" }
+            # The supervisor writes a marker before it stops a run for
+            # overrunning max_runtime (11.6): whatever the exit code, it timed out.
+            if ([System.IO.File]::Exists($timeoutMarker)) { $outcome = 'timed_out'; $reason = "stopped after max_runtime $maxRuntime" }
         }
     }
 
@@ -335,6 +356,7 @@ function Invoke-VigilWorker {
     else { [void]$logLines.Append("$($now.Iso) $RunId run end $outcome in ${duration}s`r`n") }
     [System.IO.File]::AppendAllText($log, $logLines.ToString())
     [System.IO.File]::Delete($out)
+    if ([System.IO.File]::Exists($timeoutMarker)) { [System.IO.File]::Delete($timeoutMarker) }
 
     # Release the token: close it, then delete it (4.3, step 9).
     $tokenStream.Dispose()

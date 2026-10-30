@@ -54,7 +54,7 @@ function Test-VigilRunProcess {
 # Status; RunId; Boot; Started }.
 function Read-VigilRunState {
     param([string]$Path)
-    $r = @{ Kind = 'missing'; Status = ''; RunId = ''; Boot = ''; Started = '' }
+    $r = @{ Kind = 'missing'; Status = ''; RunId = ''; Boot = ''; Started = ''; Deadline = ''; JobPid = ''; JobName = ''; JobStart = ''; WorkerPid = '' }
     if (-not [System.IO.File]::Exists($Path)) { return $r }
     $r.Kind = 'unreadable'
     try { $lines = [System.IO.File]::ReadAllLines($Path) } catch { return $r }
@@ -70,6 +70,11 @@ function Read-VigilRunState {
             'run_id' { $r.RunId = $v }
             'boot_id' { $r.Boot = $v }
             'started_epoch' { $r.Started = $v }
+            'deadline_epoch' { $r.Deadline = $v }
+            'job_pid' { $r.JobPid = $v }
+            'job_name' { $r.JobName = $v }
+            'job_start' { $r.JobStart = $v }
+            'worker_pid' { $r.WorkerPid = $v }
         }
     }
     if ($r.Status -ceq 'running') { $r.Kind = 'running' }
@@ -204,6 +209,13 @@ function Invoke-VigilSupervisor {
             $fields.spool_file = $Spool.File
             & $log 'INFO' "job ${Job}: run $RunId finished ($($Spool.Outcome)), reconciled from its spool file"
         }
+        elseif ([System.IO.File]::Exists((Join-Path $sv.State "locks\$Job.$RunId.timeout"))) {
+            # Stopped for max_runtime, and its worker went too.
+            $fields.status = 'timed_out'
+            $fields.reason = 'stopped after max_runtime; its worker exited without a final state'
+            & $event $Job 'timeouts' '1' 'count'
+            & $log 'WARN' "job ${Job}: run $RunId timed out"
+        }
         else {
             $fields.status = 'crashed'
             $fields.reason = 'worker vanished'
@@ -269,7 +281,12 @@ function Invoke-VigilSupervisor {
             -Spool $(if ($spool.Found) { 'yes' } else { 'no' })
         $active = '-'
         switch ($c) {
-            { $_ -ceq 'alive' -or $_ -ceq 'launching' } { $active = 'running' }
+            { $_ -ceq 'alive' -or $_ -ceq 'launching' } {
+                $active = 'running'
+                if ($c -ceq 'alive' -and $st.Kind -ceq 'running' -and $st.Deadline -and $sv.Epoch -ge [long]$st.Deadline) {
+                    & $timeout $Job $rid $st
+                }
+            }
             'uncertain' {
                 $active = 'running'
                 $sv.Uncertain.Add($Job)
@@ -288,9 +305,44 @@ function Invoke-VigilSupervisor {
             { $_ -ceq 'finished' -or $_ -ceq 'crashed' } {
                 if ($st.Kind -cne 'final') { & $record $Job $rid $c $st $spool }
                 if ($token) { try { [System.IO.File]::Delete($token) } catch { } }
+                $marker = Join-Path $sv.State "locks\$Job.$rid.timeout"
+                if ([System.IO.File]::Exists($marker)) { try { [System.IO.File]::Delete($marker) } catch { } }
             }
         }
         return @{ Active = $active; State = $st }
+    }
+
+    # Stops a run past its deadline (10.3, 11.5, 11.6), only once its job
+    # process is proven to be the run's: its PID, name and start time match
+    # the state file and, while the worker lives, its parent is the worker.
+    # A marker written first tells the worker its job timed out. Windows has
+    # no TERM for console programs: the process tree is ended at once.
+    $timeout = {
+        param([string]$Job, [string]$RunId, $St)
+        $proven = $false
+        try {
+            $p = @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$St.JobPid)" -ErrorAction Stop)[0]
+            if ($p -and $St.JobName -and $p.Name -ieq $St.JobName) {
+                $startOk = (-not $St.JobStart) -or ([Math]::Abs((ConvertTo-VigilEpoch $p.CreationDate) - [long]$St.JobStart) -le 1)
+                $w = @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$St.WorkerPid)" -ErrorAction Stop)[0]
+                $parentOk = (-not $w) -or ($w.CommandLine -notlike "*--run-id $RunId*") -or ($p.ParentProcessId -eq [int]$St.WorkerPid)
+                $proven = $startOk -and $parentOk
+            }
+        }
+        catch { $proven = $false }
+        if (-not $proven) {
+            # Never kill what cannot be proven to be the run's (VIGIL-007).
+            & $log 'WARN' "job ${Job}: run $RunId is past max_runtime, but its job process cannot be proven to be the run's; not stopping it"
+            $sv.Uncertain.Add($Job)
+            & $event $Job 'uncertain' '1' 'gauge'
+            return
+        }
+        $marker = Join-Path $sv.State "locks\$Job.$RunId.timeout"
+        if (-not [System.IO.File]::Exists($marker)) {
+            Write-VigilFileAtomic -Path $marker -Text "term_epoch = $($sv.Epoch)`n"
+            & $log 'WARN' "job ${Job}: run $RunId passed max_runtime; ending its process tree"
+        }
+        & taskkill.exe /T /F /PID $St.JobPid 2>&1 | Out-Null
     }
 
     # Starts a launched run as a detached worker.
@@ -473,6 +525,7 @@ function Invoke-VigilSupervisor {
         # Temporary files a killed supervisor left mid-write (12.3). Only the
         # supervisor writes these, and it now holds the lock, so none is live.
         foreach ($p in @(@((Join-Path $sv.State 'schedule'), '*.tmp.*'), @($sv.State, 'config.valid.tmp.*'),
+                @((Join-Path $sv.State 'locks'), '*.launch.tmp.*'),
                 @((Join-Path $sv.Logs 'supervisor'), 'jobs.log.tmp.*'), @((Join-Path $sv.Spool 'incoming'), '*-vigil_supervisor.events.tmp.*'))) {
             if ([System.IO.Directory]::Exists($p[0])) {
                 foreach ($f in [System.IO.Directory]::GetFiles($p[0], $p[1])) { try { [System.IO.File]::Delete($f) } catch { } }

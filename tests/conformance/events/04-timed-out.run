@@ -1,0 +1,8 @@
+job export
+epoch 1793304300
+mode standard
+outcome timed_out
+exit_code 143
+duration 300
+host app02
+os linux

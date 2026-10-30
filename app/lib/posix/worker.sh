@@ -57,6 +57,18 @@ _vigil_wk_set() {
     _vw_state[${#_vw_state[@]}]="$1 $2"
 }
 
+# Seconds in a validated duration (30s, 5m, 2h, 7d). Result in _vw_secs.
+_vigil_wk_secs() {
+    local n=${1%?}
+    n=$((10#$n))
+    case $1 in
+        *s) _vw_secs=$n ;;
+        *m) _vw_secs=$((n * 60)) ;;
+        *h) _vw_secs=$((n * 3600)) ;;
+        *d) _vw_secs=$((n * 86400)) ;;
+    esac
+}
+
 # The current time as "<epoch> <ISO 8601 UTC>", read once so both agree.
 _vigil_wk_now() {
     set -- $(date -u '+%s %Y-%m-%dT%H:%M:%SZ')
@@ -259,7 +271,7 @@ vigil_worker() {
     _vw_root=$1
     _vw_job=$2
     local rid=$3 launch token code=- outcome=failed reason='' rc mode exit_codes
-    local i key value missing='' prog pid started duration out err stem spool
+    local i key value missing='' prog pid started duration out err stem spool maxrt='' deadline
     local LC_ALL=C
     _vw_state=()
 
@@ -305,6 +317,7 @@ vigil_worker() {
         value=${VIGIL_EFF_VALUE[$i]}
         case $key in
             exit_codes) exit_codes=$value ;;
+            max_runtime) maxrt=$value ;;
             require_env)
                 if ! eval "[ -n \"\${$value+set}\" ]"; then
                     missing="$missing $value"
@@ -326,6 +339,13 @@ vigil_worker() {
     _vigil_wk_set boot_id "$_vw_boot"
     _vigil_wk_set started_epoch "$started"
     _vigil_wk_set started_at "$_vw_iso"
+    # The deadline the supervisor enforces (10.3); empty without max_runtime.
+    deadline=''
+    if [ -n "$maxrt" ]; then
+        _vigil_wk_secs "$maxrt"
+        deadline=$((started + _vw_secs))
+    fi
+    _vigil_wk_set deadline_epoch "$deadline"
     _vigil_wk_set worker_pid $$
     _vigil_wk_set worker_name bash
     _vigil_wk_set worker_start "$_vw_start"
@@ -393,6 +413,12 @@ vigil_worker() {
             succeeded) reason='' ;;
             *) reason="exit code $code" ;;
         esac
+        # The supervisor writes a marker before it stops a run for
+        # overrunning max_runtime (11.6): whatever the exit code, it timed out.
+        if [ -e "$_vw_statedir/locks/$_vw_job.$rid.timeout" ]; then
+            outcome=timed_out
+            reason="stopped after max_runtime $maxrt"
+        fi
     fi
 
     _vigil_wk_now
@@ -430,7 +456,7 @@ vigil_worker() {
     else
         _vigil_wk_log "$rid run end $outcome in ${duration}s"
     fi
-    rm -f "$out" "$err"
+    rm -f "$out" "$err" "$_vw_statedir/locks/$_vw_job.$rid.timeout"
 
     # Release the token: close it, then delete it (4.3, step 9).
     exec 9<&-

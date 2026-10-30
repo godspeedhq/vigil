@@ -31,6 +31,8 @@ jobs:
         run: /bin/bash tests/integration/run-job.sh
       - name: supervisor (/bin/bash)
         run: /bin/bash tests/integration/supervise.sh
+      - name: max_runtime (/bin/bash)
+        run: /bin/bash tests/integration/max-runtime.sh
 
   windows:
     runs-on: windows-latest
@@ -54,9 +56,15 @@ jobs:
       - name: supervisor (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Supervise.ps1
+      - name: max_runtime (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/integration/Max-Runtime.ps1
       - name: integration (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Run-Job.ps1
       - name: supervisor (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Supervise.ps1
+      - name: max_runtime (PowerShell 7)
+        shell: pwsh
+        run: ./tests/integration/Max-Runtime.ps1
