@@ -26,6 +26,8 @@
 #   tests/mocks/<path>.config                     the example configurations
 #   tests/conformance/mocks/<path>.expected       validate dump, then
 #                                                 vigil_config_effective_dump
+#   tests/conformance/recovery/<case>.table       rows of evidence and expected
+#                                                 vigil_recovery_conclude
 #   tests/conformance/outcome/<case>.table        rows of exit_codes, exit code
 #                                                 and expected vigil_outcome
 #   tests/conformance/metrics/<case>.stdout       a run's stdout; -nagios in the
@@ -60,6 +62,8 @@ root=$(dirname "$here")
 . "$root/app/lib/metrics.sh"
 # shellcheck source=../app/lib/events.sh
 . "$root/app/lib/events.sh"
+# shellcheck source=../app/lib/recovery.sh
+. "$root/app/lib/recovery.sh"
 
 pass=0
 fail=0
@@ -89,6 +93,16 @@ compare() {
         diff "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$" | sed 's/^/        /'
         rm -f "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$"
     fi
+}
+
+# A seven-column table without comments or blank lines, single-spaced. A
+# function, not inline: bash 3.2 cannot parse a case inside $(...).
+table_rows7() {
+    local a b c d e f g
+    while read -r a b c d e f g || [ -n "$a" ]; do
+        case $a in '' | '#'*) continue ;; esac
+        printf '%s %s %s %s %s %s %s\n' "$a" "$b" "$c" "$d" "$e" "$f" "$g"
+    done < "$1"
 }
 
 # A three-column table without comments or blank lines, single-spaced.
@@ -152,6 +166,13 @@ for table in "$here"/conformance/outcome/*.table; do
         printf '%s %s %s\n' "$spec" "$code" "$VIGIL_OUTCOME"
     done)
     compare "outcome/$(basename "$table" .table)" "$expected" "$actual"
+done
+
+# Recovery conclusions: each table row is the evidence and the expected
+# conclusion; the case passes when every row gives its conclusion.
+for table in "$here"/conformance/recovery/*.table; do
+    expected=$(table_rows7 "$table")
+    compare "recovery/$(basename "$table" .table)" "$expected" "$(vigil_recovery_table_dump "$table")"
 done
 
 # Job output: <case>.stdout parsed with mode nagios when the name contains

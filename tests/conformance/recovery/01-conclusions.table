@@ -1,0 +1,53 @@
+# Recovery conclusions (SPECIFICATION.md 11.3): what a job's latest run is,
+# from the evidence the supervisor gathered.
+#
+# launch    token  process  boot     state       spool  conclusion
+
+# Launch records are checked before anything else.
+held        none   -        same     missing     no     alive
+held        none   -        same     final       no     alive
+young       none   -        same     missing     no     launching
+young       none   -        same     final       yes    launching
+old         none   yes      same     missing     no     launching
+old         none   no       same     missing     no     abandon
+old         none   error    same     missing     no     uncertain
+prevboot    none   -        changed  missing     no     abandon
+prevboot    none   -        changed  final       no     abandon
+
+# Nothing to account for: no launch, no token, state final or missing.
+none        none   -        same     final       no     idle
+none        none   -        same     missing     no     idle
+none        none   -        changed  final       yes    idle
+
+# Readable running state.
+none        held   -        same     running     no     alive
+none        free   yes      same     running     no     alive
+none        free   no       same     running     yes    finished
+none        free   no       same     running     no     crashed
+none        free   error    same     running     no     uncertain
+none        none   no       same     running     no     crashed
+none        none   no       same     running     yes    finished
+none        none   yes      same     running     no     alive
+
+# A run from an earlier boot is over, whatever its token says.
+none        held   -        changed  running     no     crashed
+none        free   -        changed  running     yes    finished
+none        free   -        changed  final       no     finished
+
+# Unreadable state: never concluded over while anything may be alive.
+none        held   -        same     unreadable  no     alive
+none        none   yes      same     unreadable  no     alive
+none        none   no       same     unreadable  yes    finished
+none        none   no       same     unreadable  no     crashed
+none        none   error    same     unreadable  no     uncertain
+none        none   -        changed  unreadable  no     crashed
+
+# Missing state with a token: a run of this job exists, so it is not new.
+none        held   -        same     missing     no     alive
+none        free   no       same     missing     yes    finished
+none        free   no       same     missing     no     crashed
+
+# Final state with a token left behind: the worker was stopped after its
+# final write; the run is finished and the token is cleaned up.
+none        free   no       same     final       no     finished
+none        held   -        same     final       no     alive

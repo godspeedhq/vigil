@@ -220,7 +220,7 @@ function Get-VigilScheduleDecision {
         $Job
     )
 
-    $result = @{ Decision = 'error'; Slot = '-'; Next = '-' }
+    $result = @{ Decision = 'error'; Slot = '-'; Next = '-'; Cursor = '-' }
 
     if ($null -eq $Job) { $Job = Get-VigilScheduleJob -Index $Index -Id $Id }
     if ($null -eq $Job) { return $result }
@@ -262,15 +262,19 @@ function Get-VigilScheduleDecision {
 
     if ($null -eq $cur) {
         $result.Decision = 'new'
+        $result.Cursor = Format-VigilSlot $nowS $utc
         return $result
     }
 
     $slot = Get-VigilLatestSlot $Job $nowS $nowOff
     if ($slot -lt 0 -or $slot -le $cur) {
         $result.Decision = 'wait'
+        $result.Cursor = $Cursor
         return $result
     }
     $result.Slot = Format-VigilSlot $slot $utc
+    # Every decision from here on moves the cursor to the slot.
+    $result.Cursor = $result.Slot
 
     # Ticking normally and the slot came after the previous tick: this is the
     # first tick at or after it. Otherwise the late-start window applies.

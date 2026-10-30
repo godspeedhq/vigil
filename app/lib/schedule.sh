@@ -15,7 +15,8 @@
 #     active  - (none), running or queued
 #   Sets VIGIL_SCHED_DECISION (disabled, new, wait, missed, run, queue, skip,
 #   or error for malformed input), VIGIL_SCHED_SLOT (the due slot or -) and
-#   VIGIL_SCHED_NEXT (the next slot after now and the cursor, or -), slots in
+#   VIGIL_SCHED_NEXT (the next slot after now and the cursor, or -) and
+#   VIGIL_SCHED_CURSOR (the cursor after this decision: - when deleted), slots in
 #   cursor form.
 #
 # Times are handled as whole seconds with civil-date arithmetic, because
@@ -243,6 +244,7 @@ vigil_schedule_decide() {
     VIGIL_SCHED_DECISION=error
     VIGIL_SCHED_SLOT=-
     VIGIL_SCHED_NEXT=-
+    VIGIL_SCHED_CURSOR=-
 
     _vigil_sched_job "$1" || return 1
     if [ "$_vs_every" -gt 0 ]; then kind=utc; else kind=local; fi
@@ -285,6 +287,8 @@ vigil_schedule_decide() {
 
     if [ -z "$cur" ]; then
         VIGIL_SCHED_DECISION=new
+        _vigil_sched_format "$now_s" "$kind"
+        VIGIL_SCHED_CURSOR=$_vs_text
         return 0
     fi
 
@@ -292,10 +296,13 @@ vigil_schedule_decide() {
     slot=$_vs_slot
     if [ "$slot" -lt 0 ] || [ "$slot" -le "$cur" ]; then
         VIGIL_SCHED_DECISION=wait
+        VIGIL_SCHED_CURSOR=$4
         return 0
     fi
     _vigil_sched_format "$slot" "$kind"
     VIGIL_SCHED_SLOT=$_vs_text
+    # Every decision from here on moves the cursor to the slot.
+    VIGIL_SCHED_CURSOR=$_vs_text
 
     # Ticking normally and the slot came after the previous tick: this is the
     # first tick at or after it. Otherwise the late-start window applies.

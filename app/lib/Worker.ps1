@@ -150,7 +150,15 @@ function Invoke-VigilWorker {
     # does not run.
     $tokenStream = $null
     try {
-        $launchStream = [System.IO.File]::Open($launch, 'Open', 'Read', 'None')
+        # Another process may have the launch record open for a moment (an
+        # antivirus scan, a supervisor probe): retry briefly. A missing
+        # record means the launch was abandoned, and fails at once.
+        $launchStream = $null
+        for ($try = 1; -not $launchStream; $try++) {
+            try { $launchStream = [System.IO.File]::Open($launch, 'Open', 'Read', 'None') }
+            catch [System.IO.FileNotFoundException] { throw }
+            catch [System.IO.IOException] { if ($try -ge 20) { throw }; Start-Sleep -Milliseconds 100 }
+        }
         try { $tokenStream = [System.IO.File]::Open($token, 'CreateNew', 'ReadWrite', 'None') }
         finally { $launchStream.Dispose() }
         [System.IO.File]::Delete($launch)

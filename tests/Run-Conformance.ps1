@@ -29,6 +29,8 @@
       tests/mocks/<path>.config                     the example configurations
       tests/conformance/mocks/<path>.expected       validation dump, then
                                                     Format-VigilEffectiveDump
+      tests/conformance/recovery/<case>.table       rows of evidence and expected
+                                                    Get-VigilRecoveryConclusion
       tests/conformance/outcome/<case>.table        rows of exit_codes, exit code
                                                     and expected Get-VigilOutcome
       tests/conformance/metrics/<case>.stdout       a run's stdout; -nagios in the
@@ -54,6 +56,7 @@ $root = Split-Path -Parent $here
 . (Join-Path $root 'app\lib\Outcome.ps1')
 . (Join-Path $root 'app\lib\Metrics.ps1')
 . (Join-Path $root 'app\lib\Events.ps1')
+. (Join-Path $root 'app\lib\Recovery.ps1')
 
 $pass = 0
 $fail = 0
@@ -155,6 +158,21 @@ foreach ($table in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\out
         [void]$act.Append("$($c[0]) $($c[1]) $(Get-VigilOutcome -ExitCodes $c[0] -Code $c[1])`n")
     }
     Compare-Case "outcome/$($table.BaseName)" $exp.ToString() $act.ToString()
+}
+
+# Recovery conclusions: each table row is the evidence and the expected
+# conclusion; the case passes when every row gives its conclusion.
+foreach ($table in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\recovery') -Filter '*.table' | Sort-Object Name)) {
+    $exp = New-Object System.Text.StringBuilder
+    $act = New-Object System.Text.StringBuilder
+    foreach ($line in [System.IO.File]::ReadAllLines($table.FullName)) {
+        $c = @($line.Split([char[]]@(' ', "`t"), [System.StringSplitOptions]::RemoveEmptyEntries))
+        if ($c.Count -eq 0 -or $c[0].StartsWith('#')) { continue }
+        [void]$exp.Append(($c[0..6] -join ' ') + "`n")
+        $got = Get-VigilRecoveryConclusion -Launch $c[0] -Token $c[1] -Process $c[2] -Boot $c[3] -State $c[4] -Spool $c[5]
+        [void]$act.Append(($c[0..5] -join ' ') + " $got`n")
+    }
+    Compare-Case "recovery/$($table.BaseName)" $exp.ToString() $act.ToString()
 }
 
 # Job output: <case>.stdout parsed with mode nagios when the name contains
