@@ -697,6 +697,7 @@ vigil_supervise() {
     # Temporary files a killed supervisor left mid-write (12.3). Only the
     # supervisor writes these, and it now holds the lock, so none is live.
     rm -f "$_su_statedir"/schedule/*.tmp.* "$_su_statedir"/config.valid.tmp.* \
+        "$_su_statedir"/locks/*.launch.tmp.* \
         "$_su_logdir"/supervisor/jobs.log.tmp.* "$_su_spooldir"/incoming/*-vigil_supervisor.events.tmp.*
     printf 'pid = %s\nstarted_epoch = %s\n' "$$" "$(date '+%s')" >&8
     _vigil_sup_log INFO "supervisor started, pid $$"

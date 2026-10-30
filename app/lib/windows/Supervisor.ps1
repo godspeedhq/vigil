@@ -525,6 +525,7 @@ function Invoke-VigilSupervisor {
         # Temporary files a killed supervisor left mid-write (12.3). Only the
         # supervisor writes these, and it now holds the lock, so none is live.
         foreach ($p in @(@((Join-Path $sv.State 'schedule'), '*.tmp.*'), @($sv.State, 'config.valid.tmp.*'),
+                @((Join-Path $sv.State 'locks'), '*.launch.tmp.*'),
                 @((Join-Path $sv.Logs 'supervisor'), 'jobs.log.tmp.*'), @((Join-Path $sv.Spool 'incoming'), '*-vigil_supervisor.events.tmp.*'))) {
             if ([System.IO.Directory]::Exists($p[0])) {
                 foreach ($f in [System.IO.Directory]::GetFiles($p[0], $p[1])) { try { [System.IO.File]::Delete($f) } catch { } }

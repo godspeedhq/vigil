@@ -104,8 +104,14 @@ wait "$sup"
 
 # No new runs from here on; let everything settle.
 sed -i.bak "s/^run_every   = 2s$/run_every   = 1h/" "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
-sleep 3
-tick
+# Tick until no run is left: a run started just before the supervisor
+# stopped still needs its TERM and, after grace, its KILL.
+i=0
+while [ "$i" -lt 15 ] && ls "$root/state/locks" 2>/dev/null | grep -e '^long.' -e '^stubborn.' > /dev/null; do
+    tick
+    sleep 1
+    i=$((i + 1))
+done
 tick
 
 check "long recorded as timed_out" timed_out "$(state_value "$root/state/jobs/long.state" status)"
