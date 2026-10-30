@@ -308,6 +308,8 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `[tags]` | Tags attached to every metric. |
 | `[spool]` | Spool directory, size cap, overflow policy. |
 | `[backend.<name>]` | One metrics destination (§15). |
+| `[log_forward]` | Optional forwarding of Vigil's logs (§13.4). |
+| `[log_destination.<name>]` | One log destination (§13.4.1). |
 | `[runner.<name>]` | A reusable command prefix (§6.4). |
 | `[runners]` | File extension → runner map (§6.4). |
 | `[source.<name>]` | A place the configuration or scripts are fetched from (§6.9). |
@@ -339,6 +341,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `require_env` | No | Comma-separated variables that must exist before the job may start. Combined with the runner's `require_env`. |
 | `late_start_window` | No | Overrides `[scheduler] late_start_window` for this job (§7.7). |
 | `log_retain_days` | No | Overrides `[log] retain_days` for this job's log (§13.1). |
+| `forward_output` | No | `false` keeps this job's stdout and stderr out of log forwarding (§13.4). Default `true`. |
 | `working_dir` | No | Working directory of the job process. Default: the install root. |
 
 Where each key may also be set, and which value wins, is defined in §6.6.
@@ -935,6 +938,8 @@ Everything lives under one install root (§18.6 gives the root per platform):
     jobs/<job id>.state
     jobs/vigil_sender.state
     jobs/vigil_fetch.state
+    jobs/vigil_logs.state
+    logs/<encoded file path>.checkpoint   log forwarding progress (§13.4.4)
     locks/<job id>.<run id>.launch  written by the supervisor before the worker starts
     locks/<job id>.<run id>.token held open by the live worker after its claim
     quarantine/<job id>.<epoch>.state   unreadable state, kept as evidence
@@ -1023,10 +1028,19 @@ The supervisor holds `state/supervisor.lock` open for its whole life, the same w
 ### 13.1 Logs
 
 - **Supervisor log:** daily file, one line per event: timestamp, level, component, message.
-- **Job log:** one daily file per job, `logs/jobs/<job id>/yyyy-MM-dd.log`. Each run adds a `START run <run id>` line, the job's stdout and stderr as `out:` and `err:` lines, and an `END run <run id> <outcome> [(<reason>)] in <n>s` line, each prefixed with the UTC time.
+- **Job log:** one daily file per job, `logs/jobs/<job id>/yyyy-MM-dd.log`, append-only. Every line is `<UTC time> <run id> <stream> <text>`, so each line names its run and can be read, grepped or forwarded on its own (§13.4):
+
+  ```text
+  2026-10-30T15:07:34Z 20261030T150733Z-16052 run start
+  2026-10-30T15:07:35Z 20261030T150733Z-16052 out metric rows 5 table=orders
+  2026-10-30T15:07:35Z 20261030T150733Z-16052 err to stderr
+  2026-10-30T15:07:35Z 20261030T150733Z-16052 run end succeeded in 1s
+  ```
+
+  `run` lines are Vigil's own (`start`, then `end <outcome> [(<reason>)] in <n>s`); `out` and `err` lines are the job's stdout and stderr, one line each, unchanged except that a trailing carriage return is removed.
 - **stdout mirroring:** optional, so service managers (NSSM, journald, launchd) capture the supervisor's output.
 
-Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014). A job may keep its own log for a different number of days with `log_retain_days` (§6.6); the size cap is global.
+Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014). A job may keep its own log for a different number of days with `log_retain_days` (§6.6); the size cap is global. A file that reaches the cap is never truncated or renamed: writing continues in a new file with the next sequence number, `yyyy-MM-dd.1.log`, `yyyy-MM-dd.2.log` and so on. Log files are therefore append-only and their names are never reused; retention deletes whole files only.
 
 ### 13.2 Status File
 
@@ -1046,7 +1060,124 @@ A healthy system shows only `WAITING`, `RUNNING` and `LAST RUN`.
 
 ### 13.3 Log Safety
 
-Logs never contain secret values. Environment values are never dumped. A full disk or unwritable log location is reported and never crashes the supervisor.
+Vigil never writes secret values or environment values to its logs. A job's own output is logged as the job printed it (§13.4.7). A full disk or unwritable log location is reported and never crashes the supervisor.
+
+### 13.4 Log Forwarding
+
+Vigil can forward the logs it writes to an organisation's logging service, so its activity is visible without logging in to each host. It forwards only its own logs; it is not a host log collector. Forwarding is off by default.
+
+**Local logs are authoritative; forwarding is optional and asynchronous.** The supervisor and workers write their local logs exactly as they would without forwarding, and never wait for, or talk to, a log destination. Forwarding never modifies, truncates, renames or deletes a log file, and a destination that is down never affects scheduling, jobs, recovery or metrics delivery.
+
+#### 13.4.1 Configuration
+
+```ini
+[log_forward]
+destination = ops_logs
+include     = supervisor, run, stdout, stderr
+
+[log_destination.ops_logs]
+type         = otel
+endpoint     = https://collector.example.com:4318/v1/logs
+header_name  = Authorization
+header_value = env:OTEL_LOGS_AUTH
+timeout      = 10s
+```
+
+| `[log_forward]` key | Description |
+| --- | --- |
+| `enabled` | `true` or `false`. Default `true` when the section exists, so turning forwarding off keeps its settings. |
+| `destination` | The `[log_destination.*]` to send to. Required. One destination in v1. |
+| `include` | Which records to forward: `supervisor` (the supervisor log), `run` (Vigil's own lines in job logs: start, end, outcome), `stdout`, `stderr`. Default `supervisor, run`. |
+| `check_every` | How often the forwarder looks for new log lines. Default `30s`. |
+| `batch_lines` | Most lines per request. Default `500`. |
+| `batch_kb` | Most kilobytes per request. Default `512`. |
+| `max_pending_mb` | Most unsent log data the forwarder works through in one run. Default `64`. |
+
+| Job key | Description |
+| --- | --- |
+| `forward_output` | `false` keeps this job's stdout and stderr local even when `include` names them. Its `run` lines are still forwarded. Default `true`. |
+
+- **Job output is opt-in.** stdout and stderr are where secrets and personal data leak, so they are forwarded only when `include` names them, and any job can keep its output local with `forward_output = false`.
+- **`[log_destination.*]` is separate from `[backend.*]`.** A metrics endpoint is never assumed to accept logs, even when both point at the same product. A log destination takes `type`, `endpoint`, `timeout` and the credential keys of §15, under the same `env:` rule (§6.5).
+- Changes take effect at the next tick, like any configuration change (§16.1). Turning forwarding on or off, or changing what it includes, needs no restart. An invalid `[log_forward]` or `[log_destination.*]` is a configuration error like any other (§16.3): the last valid configuration stays active, and local logging is never affected.
+
+#### 13.4.2 What Is Forwarded
+
+| Category | Source | Severity |
+| --- | --- | --- |
+| `supervisor` | `logs/supervisor/*.log` | The line's own level. |
+| `run` | `run` lines of `logs/jobs/<job id>/*.log` | `info`; an `end` line with an outcome other than `succeeded` is `warn` (warning) or `error` (failed, unknown, timed_out, crashed). |
+| `stdout` | `out` lines of job logs | Unspecified: Vigil never guesses the severity of a job's output. |
+| `stderr` | `err` lines of job logs | Unspecified. |
+
+The internal workers `vigil_sender` and `vigil_fetch` write job logs like any job and are forwarded with them. **The forwarder's own log, `logs/jobs/vigil_logs/`, is never forwarded**, so a failing destination cannot produce errors that are themselves forwarded, fail, and produce more. Its failures are reported as metrics instead (§13.4.6).
+
+Every record carries: the time from the line, `host`, `os`, `instance` and the `[tags]` section (§14.6), the component (`supervisor` or `job`), for job lines the job id and run id, the category, the severity when there is one, the message (the line's text, unchanged), the source file name, and the active configuration revision (§16.5). Run ids are fine in log records, unlike metric tags: logs are not aggregated into series.
+
+#### 13.4.3 The Forwarder
+
+Forwarding is done by a third internal worker, `vigil_logs`, started and supervised exactly like `vigil_sender` (§4.5): detached, with its own state file, run token, log and identity checks, one at a time, with a fixed internal `max_runtime` of 5 minutes. The supervisor starts it, when forwarding is enabled, on each `check_every` where a log has grown since its last checkpoint. A forwarder that fails or is killed never affects the supervisor or other workers, and the next one resumes from the checkpoints.
+
+It is separate from the metrics sender on purpose: metrics and logs have independent progress, failures and backlogs, and neither can delay the other.
+
+#### 13.4.4 Checkpoints
+
+The forwarder keeps one checkpoint per log file, `state/logs/<encoded file path>.checkpoint`, in the `key = value` format with a single `[checkpoint]` section, written atomically (§12.3):
+
+```ini
+[checkpoint]
+file        = logs/jobs/backup_full/2026-10-30.log
+fingerprint = 3816409027 64
+offset      = 827391
+```
+
+- **File identity.** Log files are append-only and their names are never reused (§13.1), so a file is identified by its name plus a fingerprint: the `cksum` of its first 64 bytes, and the number of bytes fingerprinted (fewer for a file shorter than 64 bytes, completed once it grows). A file whose fingerprint no longer matches has been replaced or edited: it is forwarded again from the start, and a `replaced` gap is reported, since some of its old content may never have been sent.
+- **Truncation.** A file shorter than its checkpoint's offset is treated as replaced, never as "nothing new".
+- **Whole lines only.** The offset only ever points just past a newline; an incomplete last line is left for the next run.
+- **Advanced only on acceptance.** A checkpoint moves past a batch only after the destination has accepted that batch (§13.4.5).
+- **Unreadable checkpoint.** The file is forwarded again from the start (duplicates rather than loss), and a `checkpoint_reset` is reported. Vigil never assumes a file was delivered because it cannot tell.
+- **Deleted files.** When retention deletes a file whose checkpoint is behind its end, the undelivered bytes are reported as a `deleted` gap, and the checkpoint is removed. A deleted file is never reported as delivered. Retention is never delayed for the forwarder: local retention settings stay authoritative.
+- **Changing destination.** Checkpoints belong to the destination they were written for. When `destination` changes, the new destination starts from the current end of every file (it does not receive history), and the records the old destination had not accepted are reported as a `destination_changed` gap.
+- Files are processed oldest first, so the end of one day's file is sent before the next day's begins.
+
+#### 13.4.5 Delivery
+
+Delivery is **at least once** while a file still exists: a crash between a destination accepting a batch and the checkpoint being written resends that batch. Duplicates are possible; exactly-once is not promised.
+
+- **Acceptance, not transport.** Each destination type defines what counts as accepted: for `otel`, an HTTP 2xx whose response reports no rejected records. A partial success advances the checkpoint only past the leading records that were accepted; the rest are retried. A response Vigil cannot interpret is a failure, never a success.
+- **Retries.** A failed request is retried in the next forwarder run, with exponential backoff between runs up to 15 minutes. Authentication failures are reported separately, since retrying does not fix them. Every request is bounded by the destination's `timeout`.
+- **Bounds.** One forwarder run sends at most `max_pending_mb` of log data, in requests of at most `batch_lines` lines and `batch_kb` kilobytes, one request at a time. It reads files line by line, so its memory use is bounded by one batch whatever the size of the logs. Lines longer than 64 KB are truncated, and the truncation is marked in the record.
+- **Content.** Records are sent as text in the destination's encoding (for `otel`, OTLP/HTTP JSON). Control characters and invalid UTF-8 in job output are escaped, never sent raw. The forwarder never interprets or executes what a record says.
+
+Destination types in v1: `otel` (OTLP/HTTP, JSON encoding), which a collector can route to almost any logging service. Native `splunk` (HEC) and `datadog` (logs intake) adapters follow, each only once its acceptance, rejection and error responses are covered by tests (§22).
+
+#### 13.4.6 Health Metrics
+
+Posted through the normal metrics path (§14), so they reach the metrics backends even while log forwarding is failing:
+
+| Metric | Type |
+| --- | --- |
+| `vigil.logs.enabled` | gauge, `1` every tick while forwarding is enabled |
+| `vigil.logs.records_sent` | count |
+| `vigil.logs.bytes_sent` | count |
+| `vigil.logs.pending_bytes` | gauge, unsent bytes across all files |
+| `vigil.logs.failures` | count, tagged `reason` (unreachable, timeout, auth, rejected, invalid_response) |
+| `vigil.logs.gaps` | count, tagged `reason` (deleted, replaced, checkpoint_reset, destination_changed) |
+| `vigil.logs.gap_bytes` | count, with the same `reason` tag |
+
+A growing `pending_bytes` with recurring `failures` means the destination is unhealthy; any `gaps` means log records were lost and will not arrive.
+
+#### 13.4.7 Security
+
+- Forwarding happens only when configured. Job output is opt-in, and opt-out per job (§13.4.1).
+- Credentials follow the `env:` rule (§6.5) and never appear in logs, checkpoints or state. Credentials in endpoint URLs are rejected, as for sources (§16.3).
+- `https` only, with certificate verification never disabled, as for backends (§15.2).
+- Checkpoints get the same owner-only permissions as the rest of `state/` (§17).
+- Nothing is redacted, because there is nothing to redact: Vigil's own lines say only what it ran and how it ended, and never contain credentials (§6.5, §13.3). A job's output is the job's own; it is forwarded only when asked for, and a job whose output should stay on the host sets `forward_output = false`.
+
+#### 13.4.8 Non-Goals
+
+Vigil does not collect operating-system or application logs, scan the system for logs, index or search logs, alert on them, or replace Fluent Bit, Vector or an organisation's log pipeline. Its logs go to that pipeline; the pipeline does the rest.
 
 ---
 
@@ -1763,6 +1894,7 @@ Vigil v1 is ready when:
 - [ ] Backend failures do not block jobs; the spool is bounded.
 - [ ] Fault-injection tests cover §22.4.
 - [ ] `init`, installation and configuration are documented.
+- [ ] Optional log forwarding (§13.4) sends supervisor and job logs to an OTLP destination, resumes from its checkpoints after any restart, reports every gap, and never affects jobs, scheduling or metrics delivery.
 - [ ] Known limitations are published.
 
 Not every backend type is required for v1. Reliable scheduling and supervision come before breadth of backends.
@@ -1777,6 +1909,7 @@ Not every backend type is required for v1. Reliable scheduling and supervision c
 - Stronger process containment: Windows Job Objects and Linux cgroups (`systemd-run --scope`) for complete tree termination. Deferred from v1 because Job Objects need compiled code from PowerShell 5.1 and cgroup scopes differ between user and system mode; the run token and run id already establish ownership without them.
 - Package-manager distribution (winget, Chocolatey, Homebrew, apt, dnf).
 - Signature verification of configuration revisions (signed Git tags or commits, signed manifests) before activation.
+- Log forwarding: native Splunk HEC and Datadog log adapters, and more than one destination (§13.4).
 - Per-host overrides of jobs received from a source.
 - Further source types where they can be secured, such as FTPS or object storage, and archive sources that deliver a folder over `https`.
 - Additional backend types.
