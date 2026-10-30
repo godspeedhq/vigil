@@ -1,0 +1,21 @@
+# TYPE _9lives_count_total counter
+_9lives_count_total{_1st="a",host="db01",instance="it",job="x",os="linux"} 2
+# TYPE db_backup_duration_seconds gauge
+db_backup_duration_seconds{env="prod",host="db01",instance="it",job="backup",os="linux"} 5
+# TYPE db_backup_failures_total counter
+db_backup_failures_total{env="prod",exit_code="2",host="db01",instance="it",job="backup",os="linux"} 1
+# TYPE db_backup_perf gauge
+db_backup_perf{env="prod",host="db01",instance="it",job="backup",label="/",os="linux"} 12268339200
+db_backup_perf{env="prod",host="db01",instance="it",job="backup",label="/data",os="linux"} 2147483648
+# TYPE db_backup_runs_total counter
+db_backup_runs_total{env="prod",host="db01",instance="it",job="backup",os="linux"} 2
+# TYPE db_backup_succeeded_total counter
+db_backup_succeeded_total{env="prod",host="db01",instance="it",job="backup",os="linux"} 1
+# TYPE frac_count gauge
+frac_count{host="db01",instance="it",job="x",os="linux"} 1.5
+# TYPE odd_label gauge
+odd_label{host="db01",instance="it",job="x",os="linux",path="C:\\temp\\\"x\""} 1
+# TYPE up_c_total counter
+up_c_total{host="db01",instance="it",job="x",label="up",os="linux"} 12
+# TYPE vigil_supervisor_up gauge
+vigil_supervisor_up{host="db01",instance="it",os="linux"} 1

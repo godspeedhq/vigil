@@ -1,0 +1,15 @@
+1793304870 db.backup.duration_seconds 3 gauge host=db01 os=linux instance=it job=backup env=prod
+1793304870 db.backup.runs 1 count host=db01 os=linux instance=it job=backup env=prod
+1793304870 db.backup.succeeded 1 count host=db01 os=linux instance=it job=backup env=prod
+1793304870 db.backup.perf 12268339200 gauge host=db01 os=linux instance=it job=backup env=prod label=/
+1793304870 db.backup.perf 2147483648 gauge host=db01 os=linux instance=it job=backup env=prod label=/data
+1793304930 db.backup.duration_seconds 5 gauge host=db01 os=linux instance=it job=backup env=prod
+1793304930 db.backup.runs 1 count host=db01 os=linux instance=it job=backup env=prod
+1793304930 db.backup.failures 1 count host=db01 os=linux instance=it job=backup env=prod exit_code=2
+1793304930 vigil.supervisor.up 1 gauge host=db01 os=linux instance=it
+1793304930 9lives.count 2 count host=db01 os=linux instance=it job=x 1st=a
+1793304930 odd.label 1 gauge host=db01 os=linux instance=it job=x path=C:\temp\"x"
+1793304930 frac.count 1.5 count host=db01 os=linux instance=it job=x
+1793304930 up.c 12 count host=db01 os=linux instance=it job=x label=up
+not an event line
+1793304930 bad.type 1 sum host=db01
