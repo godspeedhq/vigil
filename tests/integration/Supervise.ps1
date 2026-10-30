@@ -120,11 +120,18 @@ enabled   = false
 "@
 
 # Run a real supervisor for a while, then stop it.
-$sup = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @(
+$supOut = Join-Path $root 'supervise.out'
+$supErr = Join-Path $root 'supervise.err'
+$sup = Start-Process -FilePath $shell -PassThru -NoNewWindow -RedirectStandardOutput $supOut -RedirectStandardError $supErr -ArgumentList @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'supervise')
 Start-Sleep -Seconds 25
+Test-Equal 'supervisor still running' 'False' "$($sup.HasExited)"
+if ($sup.HasExited) {
+    Write-Host "  supervisor exited with $($sup.ExitCode); its output:"
+    Get-Content -LiteralPath $supOut, $supErr -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "    $_" }
+}
 Test-Equal 'a second supervisor is refused' '1' "$(Invoke-Once)"
-Stop-Process -Id $sup.Id -Force
+if (-not $sup.HasExited) { Stop-Process -Id $sup.Id -Force }
 $sup.WaitForExit()
 
 # From here on nothing new may start: hourly slots are never due before the
@@ -184,9 +191,15 @@ $now = [DateTimeOffset]::Now.ToUnixTimeSeconds()
 Test-Equal 'young launch kept' "slow.$rid.launch" ((Get-ChildItem -LiteralPath $locks -Filter 'slow.*' | ForEach-Object Name) -join ' ')
 Test-Equal 'job with a young launch is running' 'True' "$((Get-Section 'RUNNING') -match '  slow')"
 
+# A failing tick is survived, but must never happen here.
+$supLog = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\supervisor') -Filter '*-*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+Test-Equal 'no tick failed' '' (([regex]::Matches($supLog, '(?m)^.* ERROR supervisor tick failed.*$') | Select-Object -First 1).Value)
+
 if ($script:fail -gt 0) {
     Write-Host "`nsupervisor log:"
     Get-ChildItem -LiteralPath (Join-Path $root 'logs\supervisor') -Filter '*-*.log' | ForEach-Object { Get-Content -LiteralPath $_.FullName -Tail 40 }
+    Write-Host "`nsupervisor stderr:"
+    Get-Content -LiteralPath $supErr -ErrorAction SilentlyContinue | Select-Object -First 30 | ForEach-Object { Write-Host "    $_" }
     Write-Host "`nsender log:"
     Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\vigil_sender') -Filter '*.log' -ErrorAction SilentlyContinue | ForEach-Object { Get-Content -LiteralPath $_.FullName -Tail 20 }
 }

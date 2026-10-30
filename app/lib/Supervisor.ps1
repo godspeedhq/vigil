@@ -87,7 +87,9 @@ function Find-VigilSpoolOutcome {
     foreach ($d in $dirs) {
         if (-not [System.IO.Directory]::Exists($d)) { continue }
         foreach ($f in [System.IO.Directory]::GetFiles($d, "*-$Job-$RunId.events")) {
-            foreach ($l in [System.IO.File]::ReadAllLines($f)) {
+            # The sender may move the file on between listing and reading.
+            try { $lines = [System.IO.File]::ReadAllLines($f) } catch { continue }
+            foreach ($l in $lines) {
                 $name = ($l.Split(' '))[1]
                 if ($name.EndsWith('.succeeded')) { $r.Outcome = 'succeeded' }
                 elseif ($name.EndsWith('.warnings')) { $r.Outcome = 'warning' }
@@ -229,12 +231,16 @@ function Invoke-VigilSupervisor {
         $lstate = 'none'; $tstate = 'none'; $boot = 'same'; $proc = '-'; $rid = ''
         if ($launch) {
             $rid = [System.IO.Path]::GetFileName($launch).Substring($Job.Length + 1) -replace '\.launch$', ''
-            $epoch = ''; $lboot = ''
-            foreach ($l in [System.IO.File]::ReadAllLines($launch)) {
+            $epoch = ''; $lboot = ''; $unread = $false
+            # A worker holds the record exclusively while it claims it, then
+            # deletes it: either makes the read fail, and both mean held.
+            try { $llines = [System.IO.File]::ReadAllLines($launch) } catch { $llines = @(); $unread = $true }
+            foreach ($l in $llines) {
                 if ($l -cmatch '^launch_epoch *= *(\S*)') { $epoch = $Matches[1] }
                 elseif ($l -cmatch '^boot_id *= *(\S*)') { $lboot = $Matches[1] }
             }
-            if ($lboot -and $lboot -cne $sv.Boot) { $lstate = 'prevboot' }
+            if ($unread) { $lstate = 'held' }
+            elseif ($lboot -and $lboot -cne $sv.Boot) { $lstate = 'prevboot' }
             elseif ($epoch -and ($sv.Epoch - [long]$epoch) -lt $Script:VigilLaunchGrace) {
                 # A young launch is never opened: probing it could make a
                 # claiming worker's exclusive open fail.
@@ -474,7 +480,10 @@ function Invoke-VigilSupervisor {
         }
         & $log 'INFO' "supervisor started, pid $PID"
         while ($true) {
-            & $tick
+            # A failing tick is logged, never fatal: the supervisor keeps
+            # ticking (13.3).
+            try { & $tick }
+            catch { & $log 'ERROR' "tick failed: $($_.Exception.Message) at $($_.InvocationInfo.PositionMessage -replace '\s+', ' ')" }
             if ($Once) { break }
             $wait = $sv.Epoch + $sv.Tick - [DateTimeOffset]::Now.ToUnixTimeSeconds()
             if ($wait -gt 0) { Start-Sleep -Seconds $wait }
