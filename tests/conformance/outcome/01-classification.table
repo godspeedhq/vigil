@@ -1,0 +1,43 @@
+# Exit code classification (SPECIFICATION.md 10.2).
+# exit_codes   code         outcome
+
+# standard: 0 succeeds, anything else fails.
+standard       0            succeeded
+standard       1            failed
+standard       2            failed
+standard       255          failed
+standard       -1           failed
+standard       -1073741819  failed
+standard       00           succeeded
+
+# nagios: 0 OK, 1 WARNING, 2 CRITICAL, 3 and anything else UNKNOWN.
+nagios         0            succeeded
+nagios         1            warning
+nagios         2            failed
+nagios         3            unknown
+nagios         4            unknown
+nagios         127          unknown
+nagios         -1           unknown
+
+# Lists: listed codes succeed, anything else fails.
+0              0            succeeded
+0              1            failed
+0,24           24           succeeded
+0,24           23           failed
+0-7            0            succeeded
+0-7            7            succeeded
+0-7            8            failed
+0-7            -1           failed
+0-3,8,16-31    2            succeeded
+0-3,8,16-31    8            succeeded
+0-3,8,16-31    9            failed
+0-3,8,16-31    31           succeeded
+0-3,8,16-31    32           failed
+0,255          255          succeeded
+1              0            failed
+010            10           succeeded
+
+# Malformed input.
+standard       x            error
+standard       1.5          error
+standard       --1          error

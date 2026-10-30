@@ -1,0 +1,5 @@
+DISK OK - free space: / 7800 MB (40%) | /=11700MB;15600;17550;0;19500 '/var log'=2.5GB;;;0;10
+Second line of long output
+/boot is fine | /boot=512KB;;;; 
+metric extra 1 src=line
+metric withbar 2 | x=1

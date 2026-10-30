@@ -10,5 +10,6 @@
 # contain CRLF or a BOM - never let git touch them.
 tests/conformance/**/*.config  -text
 tests/conformance/**/*.expected -text
+tests/conformance/**/*.stdout   -text
 
 *.exe binary

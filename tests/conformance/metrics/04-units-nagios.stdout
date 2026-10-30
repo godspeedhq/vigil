@@ -1,0 +1,6 @@
+PING OK - Packet loss = 0%, RTA = 0.80 ms|rta=0.800000ms;100.000000;500.000000;0.000000 pl=0%;20;60;0
+| time=250ms;;; size=1024B;;;0 t2=3s t3=1500us
+| up=12c conns=5 temp=37.5C load=0.25
+| range=5;10:20;@10:20;~:5 u=U u2=U;1;2
+| 'it''s'=1 'a=b'=2 'x y z'=3
+| neg=-1.5KB;-2KB zero=0MB

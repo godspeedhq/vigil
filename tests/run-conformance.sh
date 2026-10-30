@@ -26,6 +26,12 @@
 #   tests/mocks/<path>.config                     the example configurations
 #   tests/conformance/mocks/<path>.expected       validate dump, then
 #                                                 vigil_config_effective_dump
+#   tests/conformance/outcome/<case>.table        rows of exit_codes, exit code
+#                                                 and expected vigil_outcome
+#   tests/conformance/metrics/<case>.stdout       a run's stdout; -nagios in the
+#                                                 name parses perfdata, a
+#                                                 trailing -cap<n> sets the cap
+#   tests/conformance/metrics/<case>.expected     vigil_metrics_dump output
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -44,6 +50,10 @@ root=$(dirname "$here")
 . "$root/app/lib/command.sh"
 # shellcheck source=../app/lib/schedule.sh
 . "$root/app/lib/schedule.sh"
+# shellcheck source=../app/lib/outcome.sh
+. "$root/app/lib/outcome.sh"
+# shellcheck source=../app/lib/metrics.sh
+. "$root/app/lib/metrics.sh"
 
 pass=0
 fail=0
@@ -73,6 +83,15 @@ compare() {
         diff "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$" | sed 's/^/        /'
         rm -f "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$"
     fi
+}
+
+# A three-column table without comments or blank lines, single-spaced.
+table_rows3() {
+    local a b c
+    while read -r a b c || [ -n "$a" ]; do
+        case $a in '' | '#'*) continue ;; esac
+        printf '%s %s %s\n' "$a" "$b" "$c"
+    done < "$1"
 }
 
 for suite in parser validate effective command schedule; do
@@ -118,6 +137,29 @@ for cfg in $(find "$here/mocks" -name '*.config' | LC_ALL=C sort); do
     compare "mocks/${rel%.config}" "$(cat "$here/conformance/mocks/${rel%.config}.expected")" "$actual"
 done
 
+# Exit code classification: each table row is "<exit_codes> <code>
+# <outcome>", and the case passes when every row gives its outcome.
+for table in "$here"/conformance/outcome/*.table; do
+    expected=$(table_rows3 "$table")
+    actual=$(table_rows3 "$table" | while read -r spec code want; do
+        vigil_outcome "$spec" "$code"
+        printf '%s %s %s\n' "$spec" "$code" "$VIGIL_OUTCOME"
+    done)
+    compare "outcome/$(basename "$table" .table)" "$expected" "$actual"
+done
+
+# Job output: <case>.stdout parsed with mode nagios when the name contains
+# -nagios, and with the cap given by a trailing -cap<n>, else the default.
+for out in "$here"/conformance/metrics/*.stdout; do
+    name=$(basename "$out" .stdout)
+    mode=standard
+    case $name in *-nagios*) mode=nagios ;; esac
+    cap=$VIGIL_METRIC_LINES_MAX
+    case $name in *-cap[0-9]*) cap=${name##*-cap} ;; esac
+    actual=$(vigil_metrics_parse "$mode" "$cap" "$out"; vigil_metrics_dump)
+    compare "metrics/$name" "$(cat "$here/conformance/metrics/$name.expected")" "$actual"
+done
+
 # File-level cases need inputs that cannot be committed as fixtures: a
 # missing file, and files at and over the 1 MiB limit (all "a", no newline,
 # so a file at the limit is read and reports one E_NO_EQUALS).
@@ -139,6 +181,15 @@ for check in "missing	ERROR	0	E_FILE_NOT_FOUND" \
         printf '  FAIL  file/%s: expected [%s] actual [%s]\n' "$name" "$expected" "$actual"
     fi
 done
+# A run printing more metric lines than the default cap: the excess is
+# dropped and counted.
+i=0
+while [ "$i" -lt $((VIGIL_METRIC_LINES_MAX + 5)) ]; do
+    printf 'metric m 1\n'
+    i=$((i + 1))
+done > "$tmp/flood.stdout"
+compare file/metric-flood "SUMMARY metric_lines=$VIGIL_METRIC_LINES_MAX invalid_lines=0 dropped_lines=5" \
+    "$(vigil_metrics_parse standard "$VIGIL_METRIC_LINES_MAX" "$tmp/flood.stdout"; vigil_metrics_dump | tail -n 1)"
 rm -rf "$tmp"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"

@@ -1,0 +1,12 @@
+METRIC perf 12268339200 gauge label=/
+METRIC perf.warn 16357785600 gauge label=/
+METRIC perf.crit 18402508800 gauge label=/
+METRIC perf.min 0 gauge label=/
+METRIC perf.max 20447232000 gauge label=/
+METRIC perf 2684354560 gauge label=/var_log
+METRIC perf.min 0 gauge label=/var_log
+METRIC perf.max 10737418240 gauge label=/var_log
+METRIC perf 524288 gauge label=/boot
+METRIC extra 1 gauge src=line
+INVALID 5
+SUMMARY metric_lines=4 invalid_lines=1 dropped_lines=0

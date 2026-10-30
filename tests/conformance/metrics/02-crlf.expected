@@ -1,0 +1,4 @@
+METRIC crlf 5 gauge k=v
+METRIC crlf2 6 gauge
+METRIC last 9 gauge
+SUMMARY metric_lines=3 invalid_lines=0 dropped_lines=0
