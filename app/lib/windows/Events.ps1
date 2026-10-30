@@ -63,6 +63,7 @@ function Get-VigilRunEvents {
     & $add 'runs' '1' 'count' $base
     if ($Outcome -ceq 'succeeded') { & $add 'succeeded' '1' 'count' $base }
     elseif ($Outcome -ceq 'warning') { & $add 'warnings' '1' 'count' $base }
+    elseif ($Outcome -ceq 'timed_out') { & $add 'timeouts' '1' 'count' $base }
     elseif ($ExitCode -ceq '-') { & $add 'failures' '1' 'count' $base }
     else { & $add 'failures' '1' 'count' "$base exit_code=$ExitCode" }
 

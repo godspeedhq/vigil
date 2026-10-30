@@ -53,6 +53,68 @@ _vigil_sup_held() {
     esac
 }
 
+# Whether process $1 holds file $2 open: yes, no or error. Result in _su_held.
+_vigil_sup_holds() {
+    local f out pid
+    _su_held=no
+    case $_su_platform in
+        linux)
+            [ -d "/proc/$1/fd" ] || return 0
+            for f in /proc/"$1"/fd/*; do
+                if [ "$f" -ef "$2" ]; then _su_held=yes; return 0; fi
+            done 2>/dev/null
+            ;;
+        macos)
+            if ! command -v lsof > /dev/null 2>&1; then _su_held=error; return 0; fi
+            out=$(lsof -t -- "$2" 2>/dev/null)
+            for pid in $out; do
+                if [ "$pid" = "$1" ]; then _su_held=yes; return 0; fi
+            done
+            ;;
+        *) _su_held=error ;;
+    esac
+}
+
+# Stops run $2 of job $1, past its deadline (10.3, 11.5, 11.6): only once
+# its job process is proven to belong to the run, by holding run token $3.
+# TERM goes to the job's process group first, KILL after grace. A marker
+# written before the first signal tells the worker its job timed out.
+_vigil_sup_timeout() {
+    local job=$1 rid=$2 token=$3 marker="$_su_statedir/locks/$1.$2.timeout" term='' line grace=30s i
+    if [ -z "$_ss_job_pid" ] || [ -z "$token" ]; then
+        _su_held=no
+    else
+        _vigil_sup_holds "$_ss_job_pid" "$token"
+    fi
+    if [ "$_su_held" != yes ]; then
+        # Never kill what cannot be proven to be the run's (VIGIL-007).
+        _vigil_sup_log WARN "job $job: run $rid is past max_runtime, but its job process cannot be proven to be the run's; not stopping it"
+        _su_uncertain="$_su_uncertain $job"
+        _vigil_sup_event "$job" uncertain 1 gauge
+        return 0
+    fi
+    if [ ! -f "$marker" ]; then
+        printf 'term_epoch = %s\n' "$_su_epoch" > "$marker"
+        kill -TERM -- "-$_ss_job_pid" 2>/dev/null || kill -TERM "$_ss_job_pid" 2>/dev/null
+        _vigil_sup_log WARN "job $job: run $rid passed max_runtime; sent TERM to its job"
+        return 0
+    fi
+    while IFS= read -r line || [ -n "$line" ]; do
+        case $line in 'term_epoch = '*) term=${line#*= } ;; esac
+    done < "$marker"
+    vigil_config_effective "$job"
+    i=0
+    while [ "$i" -lt "${#VIGIL_EFF_KEY[@]}" ]; do
+        [ "${VIGIL_EFF_KEY[$i]}" = grace ] && grace=${VIGIL_EFF_VALUE[$i]}
+        i=$((i + 1))
+    done
+    _vigil_wk_secs "$grace"
+    if [ -n "$term" ] && [ $((_su_epoch - term)) -ge "$_vw_secs" ]; then
+        kill -KILL -- "-$_ss_job_pid" 2>/dev/null || kill -KILL "$_ss_job_pid" 2>/dev/null
+        _vigil_sup_log WARN "job $job: run $rid still running $grace after TERM; sent KILL"
+    fi
+}
+
 # Whether a process carries run id $1 on its command line. Sets _su_proc to
 # yes, no or error.
 _vigil_sup_proc() {
@@ -86,7 +148,7 @@ _vigil_sup_proc() {
 # _ss_status, _ss_run_id, _ss_boot and _ss_started.
 _vigil_sup_read_state() {
     local line key value header=0
-    _ss=missing _ss_status='' _ss_run_id='' _ss_boot='' _ss_started=''
+    _ss=missing _ss_status='' _ss_run_id='' _ss_boot='' _ss_started='' _ss_deadline='' _ss_job_pid=''
     [ -e "$1" ] || return 0
     _ss=unreadable
     [ -r "$1" ] || return 0
@@ -107,6 +169,8 @@ _vigil_sup_read_state() {
             run_id) _ss_run_id=$value ;;
             boot_id) _ss_boot=$value ;;
             started_epoch) _ss_started=$value ;;
+            deadline_epoch) _ss_deadline=$value ;;
+            job_pid) _ss_job_pid=$value ;;
         esac
     done < "$1"
     [ "$header" -eq 1 ] || return 0
@@ -159,6 +223,12 @@ _vigil_sup_record() {
         _vigil_wk_set reason 'reconciled from the spool file'
         _vigil_wk_set spool_file "$_su_spool_file"
         _vigil_sup_log INFO "job $job: run $rid finished ($_su_spool_outcome), reconciled from its spool file"
+    elif [ -f "$_su_statedir/locks/$job.$rid.timeout" ]; then
+        # Stopped for max_runtime, and its worker went too.
+        _vigil_wk_set status timed_out
+        _vigil_wk_set reason 'stopped after max_runtime; its worker exited without a final state'
+        _vigil_sup_event "$job" timeouts 1 count
+        _vigil_sup_log WARN "job $job: run $rid timed out"
     else
         _vigil_wk_set status crashed
         _vigil_wk_set reason 'worker vanished'
@@ -235,6 +305,10 @@ _vigil_sup_account() {
     case $VIGIL_RECOVERY in
         alive | launching)
             _su_active=running
+            if [ "$VIGIL_RECOVERY" = alive ] && [ "$_ss" = running ] && [ -n "$_ss_deadline" ] &&
+                [ "$_su_epoch" -ge "$_ss_deadline" ]; then
+                _vigil_sup_timeout "$job" "$rid" "$token"
+            fi
             ;;
         uncertain)
             _su_active=running
@@ -258,6 +332,7 @@ _vigil_sup_account() {
                 _vigil_sup_record "$job" "$rid" "$VIGIL_RECOVERY"
             fi
             [ -n "$token" ] && rm -f "$token"
+            rm -f "$_su_statedir/locks/$job.$rid.timeout"
             ;;
     esac
 }

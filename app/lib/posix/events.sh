@@ -10,7 +10,7 @@
 #
 #   vigil_run_events <job id> <ended epoch> <outcome> <exit code|-> \
 #                    <duration seconds> <host> <os>
-#     outcome  succeeded, warning, failed or unknown (10.2)
+#     outcome  succeeded, warning, failed, unknown (10.2) or timed_out (10.3)
 #     Uses the job's effective settings and VIGIL_MET_* from
 #     vigil_metrics_parse.
 #   Sets VIGIL_EVT[i]: "<epoch> <name> <value> <gauge|count> <key=value>..."
@@ -83,6 +83,7 @@ vigil_run_events() {
     case $outcome in
         succeeded) _vigil_evt_add succeeded 1 count "$base" ;;
         warning) _vigil_evt_add warnings 1 count "$base" ;;
+        timed_out) _vigil_evt_add timeouts 1 count "$base" ;;
         *)
             if [ "$code" = - ]; then
                 _vigil_evt_add failures 1 count "$base"
