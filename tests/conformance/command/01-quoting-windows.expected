@@ -1,0 +1,20 @@
+matrix	program	C:\tools\echoargs.exe
+matrix	arg	C:\Program Files\Vigil\scripts\check.ps1
+matrix	arg	plain
+matrix	arg	two words
+matrix	arg	tab	inside
+matrix	arg	
+matrix	arg	say "hi"
+matrix	arg	C:\path with space\
+matrix	arg	C:\trailing\
+matrix	arg	a\"b
+matrix	arg	a\\"b
+matrix	arg	\\server\share
+matrix	arg	*.log
+matrix	arg	?
+matrix	arg	%PATH%
+matrix	arg	a&b|c<d>e^f!
+matrix	arg	""
+matrix	arg	\
+matrix	cwd	C:\Program Files\Vigil
+matrix	cmdline	"C:\Program Files\Vigil\scripts\check.ps1" "plain" "two words" "tab	inside" "" "say \"hi\"" "C:\path with space\\" "C:\trailing\\" "a\\\"b" "a\\\\\"b" "\\server\share" "*.log" "?" "%PATH%" "a&b|c<d>e^f!" "\"\"" "\\"

@@ -1,0 +1,9 @@
+job.x	url	https://h/p?a=1&b=2#frag
+job.x	comment	value ; not a comment # neither
+job.x	arg	--execute=source {file}
+job.x	api_key	env:DATADOG_API_KEY
+job.x	home	$HOME/~/%PATH%
+job.x	quoted	"kept" 'as is'
+job.x	win	C:\Program Files\x\y.exe
+job.x	unc	\\srv\share\
+job.x	tabbed	a	b

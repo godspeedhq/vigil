@@ -1,0 +1,15 @@
+batch_safe	program	C:\tools\run.CMD
+batch_safe	arg	C:\Program Files\Vigil\scripts\a.ps1
+batch_safe	arg	plain
+batch_safe	arg	two words
+batch_safe	arg	
+batch_safe	cwd	C:\Program Files\Vigil
+batch_safe	cmdline	"C:\Program Files\Vigil\scripts\a.ps1" plain "two words" ""
+INVALID	batch_ampersand	E_BATCH_ARG
+INVALID	batch_percent	E_BATCH_ARG
+INVALID	batch_quote	E_BATCH_ARG
+INVALID	batch_caret_in_file_path	E_BATCH_PATH
+not_batch_ampersand_is_fine	program	C:\Program Files\Vigil\scripts\c.exe
+not_batch_ampersand_is_fine	arg	a&b
+not_batch_ampersand_is_fine	cwd	C:\Program Files\Vigil
+not_batch_ampersand_is_fine	cmdline	"a&b"

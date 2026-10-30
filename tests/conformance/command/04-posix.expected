@@ -1,0 +1,18 @@
+matrix	program	/opt/vigil/scripts/check.sh
+matrix	arg	two words
+matrix	arg	tab	inside
+matrix	arg	
+matrix	arg	say "hi"
+matrix	arg	$HOME
+matrix	arg	*.log
+matrix	arg	back\slash
+matrix	cwd	/opt/vigil
+mapped_psql	program	/usr/bin/psql
+mapped_psql	arg	-X
+mapped_psql	arg	-f
+mapped_psql	arg	/opt/vigil/sql/q.sql
+mapped_psql	cwd	/opt/vigil/sql
+relative_command	program	/opt/vigil/bin/runner
+relative_command	arg	--
+relative_command	arg	/srv/x.sh
+relative_command	cwd	/tmp
