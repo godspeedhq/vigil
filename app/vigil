@@ -5,6 +5,9 @@
 #   vigil [--root <dir>] run <job>
 #       Runs one job once now, in the foreground, for testing. Exits 0
 #       succeeded, 1 warning, 2 failed, 3 unknown, 4 not run.
+#   vigil [--root <dir>] resolve <job>
+#       Confirms that the uncertain run holding <job> is over (11.4). Never
+#       kills anything; the supervisor concludes the run at its next tick.
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
@@ -33,7 +36,7 @@ for lib in config validate effective command schedule outcome metrics events rec
 done
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | supervise [--once]\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | supervise [--once]\n' >&2
     exit 64
 }
 
@@ -67,6 +70,30 @@ case ${1-} in
             fi
         fi
         exit "$rc"
+        ;;
+    resolve)
+        [ "$#" -eq 2 ] || usage
+        job=$2
+        _vw_root=$root
+        _vw_job=$job
+        if ! _vigil_wk_config; then
+            printf 'vigil: %s\n' "$_vw_error" >&2
+            exit 1
+        fi
+        rec="$_vw_statedir/recovery/$job.recovery"
+        if [ ! -f "$rec" ]; then
+            printf 'vigil: %s is not held: there is no uncertain run to resolve\n' "$job" >&2
+            exit 1
+        fi
+        rid=$(sed -n 's/^run_id *= *//p' "$rec")
+        who=${USER:-$(id -un 2>/dev/null)}
+        _vigil_wk_now
+        # A file of its own, so the supervisor rewriting the record cannot
+        # lose it (11.4). Nothing is killed.
+        printf '[resolved]\nresolved_by = %s\nresolved_at = %s\n' "$who" "$_vw_iso" > "$rec.tmp.$$" &&
+            mv -f "$rec.tmp.$$" "${rec%.recovery}.resolved" || exit 1
+        printf '%s: run %s marked as over by %s; the supervisor concludes it and releases the job at its next tick\n' "$job" "$rid" "$who"
+        exit 0
         ;;
     supervise)
         once=0

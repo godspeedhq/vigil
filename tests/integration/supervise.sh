@@ -110,6 +110,14 @@ EOF
 "$BASH" "$vigil_cmd" --root "$root" supervise > "$root/supervise.out" 2>&1 &
 sup=$!
 sleep 20
+# A loaded machine gives fast fewer chances: wait up to 40s more for a second run.
+i=0
+while [ "$i" -lt 40 ]; do
+    runs=$(prom fast_runs_total)
+    [ "${runs:-0}" -ge 2 ] && break
+    sleep 1
+    i=$((i + 1))
+done
 check "a second supervisor is refused" 1 "$(vigil supervise --once > /dev/null 2>&1; echo $?)"
 kill -TERM "$sup"
 wait "$sup"

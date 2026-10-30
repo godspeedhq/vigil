@@ -86,13 +86,8 @@ _vigil_sup_timeout() {
     else
         _vigil_sup_holds "$_ss_job_pid" "$token"
     fi
-    if [ "$_su_held" != yes ]; then
-        # Never kill what cannot be proven to be the run's (VIGIL-007).
-        _vigil_sup_log WARN "job $job: run $rid is past max_runtime, but its job process cannot be proven to be the run's; not stopping it"
-        _su_uncertain="$_su_uncertain $job"
-        _vigil_sup_event "$job" uncertain 1 gauge
-        return 0
-    fi
+    # Unproven: the caller holds the run as uncertain.
+    [ "$_su_held" = yes ] || return 1
     if [ ! -f "$marker" ]; then
         printf 'term_epoch = %s\n' "$_su_epoch" > "$marker"
         kill -TERM -- "-$_ss_job_pid" 2>/dev/null || kill -TERM "$_ss_job_pid" 2>/dev/null
@@ -206,7 +201,7 @@ _vigil_sup_spool() {
 # finished (from its spool file) or crashed. Quarantines an unreadable state
 # file first.
 _vigil_sup_record() {
-    local job=$1 rid=$2 conclusion=$3 path="$_su_statedir/jobs/$1.state"
+    local job=$1 rid=$2 conclusion=$3 why=${4-} path="$_su_statedir/jobs/$1.state"
     if [ "$_ss" = unreadable ]; then
         mkdir -p "$_su_statedir/quarantine"
         mv -f "$path" "$_su_statedir/quarantine/$job.$_su_epoch.state" 2>/dev/null
@@ -231,7 +226,7 @@ _vigil_sup_record() {
         _vigil_sup_log WARN "job $job: run $rid timed out"
     else
         _vigil_wk_set status crashed
-        _vigil_wk_set reason 'worker vanished'
+        _vigil_wk_set reason "${why:-worker vanished}"
         _vigil_sup_event "$job" crashes 1 count
         _vigil_sup_log WARN "job $job: run $rid crashed: worker vanished without an outcome"
         _su_crashed="$_su_crashed $job"
@@ -302,18 +297,54 @@ _vigil_sup_account() {
 
     _vigil_sup_spool "$job" "$rid"
     vigil_recovery_conclude "$lstate" "$tstate" "$proc" "$boot" "$_ss" "$_su_spool"
+    local reason='' rec="$_su_statedir/recovery/$job.recovery" hold=0
+    if [ "$VIGIL_RECOVERY" = alive ] && [ "$_ss" = running ] && [ -n "$_ss_deadline" ] &&
+        [ "$_su_epoch" -ge "$_ss_deadline" ]; then
+        if ! _vigil_sup_timeout "$job" "$rid" "$token"; then
+            # Never kill what cannot be proven to be the run's (VIGIL-007).
+            VIGIL_RECOVERY=uncertain
+            reason="past max_runtime, but its job process cannot be proven to be the run's"
+        fi
+    fi
+    if [ "$VIGIL_RECOVERY" = uncertain ] && [ -z "$reason" ]; then
+        reason='its liveness cannot be established: a probe failed or the evidence conflicts'
+    fi
+
+    # Uncertain runs (11.4): a supervisor-owned recovery record holds the job,
+    # survives restarts, and is resolved by the evidence or by vigil resolve.
+    _vigil_sup_rec_read "$job"
+    if [ "$VIGIL_RECOVERY" = uncertain ]; then
+        if [ -n "$_rr_resolved_at" ] && [ "$_rr_run_id" = "$rid" ]; then
+            _vigil_sup_resolve "$job" "$rid" "$token"
+            return 0
+        fi
+        _vigil_sup_policy "$job"
+        [ "$_rr_run_id" = "$rid" ] || _rr_first=''
+        [ -n "$_rr_first" ] || _vigil_sup_log WARN "job $job: run $rid is uncertain ($reason); holding it, killing nothing (on_uncertain = $_su_policy)"
+        _vigil_sup_rec_write "$job" "$rid" uncertain "$reason" "$_su_policy"
+        _su_uncertain="$_su_uncertain$job: $reason"$'\n'
+        _vigil_sup_event "$job" uncertain 1 gauge
+        if [ "$_su_policy" = replace ]; then
+            _su_replacing="$_su_replacing $job"
+        else
+            _su_active=running
+        fi
+        return 0
+    fi
+    if [ -n "$_rr_run_id" ]; then
+        if [ "$_rr_policy" = manual ] && [ -z "$_rr_resolved_at" ]; then
+            # The evidence cleared; the run is concluded below, but the job
+            # stays held until an operator confirms it (11.4).
+            hold=1
+        else
+            [ -n "$_rr_resolved_at" ] && _vigil_sup_log INFO "job $job: hold on run $_rr_run_id released, resolved by $_rr_resolved_by"
+            rm -f "$rec" "$_su_statedir/recovery/$job.resolved"
+        fi
+    fi
+
     case $VIGIL_RECOVERY in
         alive | launching)
             _su_active=running
-            if [ "$VIGIL_RECOVERY" = alive ] && [ "$_ss" = running ] && [ -n "$_ss_deadline" ] &&
-                [ "$_su_epoch" -ge "$_ss_deadline" ]; then
-                _vigil_sup_timeout "$job" "$rid" "$token"
-            fi
-            ;;
-        uncertain)
-            _su_active=running
-            _su_uncertain="$_su_uncertain $job"
-            _vigil_sup_event "$job" uncertain 1 gauge
             ;;
         abandon)
             # Abandon by renaming the launch record: only one of this and the
@@ -335,6 +366,89 @@ _vigil_sup_account() {
             rm -f "$_su_statedir/locks/$job.$rid.timeout"
             ;;
     esac
+    if [ "$hold" -eq 1 ]; then
+        case $VIGIL_RECOVERY in
+            alive | launching) ;;
+            *) _vigil_sup_rec_write "$job" "$_rr_run_id" "$VIGIL_RECOVERY" "$_rr_reason" manual ;;
+        esac
+        _su_active=running
+        _su_uncertain="$_su_uncertain$job: run $_rr_run_id $VIGIL_RECOVERY; held until vigil resolve (on_uncertain = manual)"$'\n'
+        _vigil_sup_event "$job" uncertain 1 gauge
+    fi
+}
+
+# Reads job $1's recovery record (11.4) and any resolution vigil resolve
+# left beside it. Sets _rr_run_id (empty when there is none), _rr_conclusion,
+# _rr_reason, _rr_first, _rr_policy, _rr_resolved_by and _rr_resolved_at.
+_vigil_sup_rec_read() {
+    local line key value f
+    _rr_run_id='' _rr_conclusion='' _rr_reason='' _rr_first='' _rr_policy='' _rr_resolved_by='' _rr_resolved_at=''
+    for f in "$_su_statedir/recovery/$1.recovery" "$_su_statedir/recovery/$1.resolved"; do
+        [ -f "$f" ] || continue
+        while IFS= read -r line || [ -n "$line" ]; do
+            case $line in *' = '* | *' =') ;; *) continue ;; esac
+            key=${line%%=*}
+            key=${key%"${key##*[! ]}"}
+            value=${line#*=}
+            value=${value# }
+            case $key in
+                run_id) _rr_run_id=$value ;;
+                conclusion) _rr_conclusion=$value ;;
+                reason) _rr_reason=$value ;;
+                first_seen) _rr_first=$value ;;
+                policy) _rr_policy=$value ;;
+                resolved_by) _rr_resolved_by=$value ;;
+                resolved_at) _rr_resolved_at=$value ;;
+            esac
+        done < "$f"
+    done
+}
+
+# Writes job $1's recovery record: run $2, conclusion $3, reason $4, policy
+# $5, keeping first_seen and any resolution.
+_vigil_sup_rec_write() {
+    local f="$_su_statedir/recovery/$1.recovery"
+    mkdir -p "$_su_statedir/recovery"
+    {
+        printf '[recovery]\n'
+        printf 'job          = %s\n' "$1"
+        printf 'run_id       = %s\n' "$2"
+        printf 'conclusion   = %s\n' "$3"
+        printf 'reason       = %s\n' "$4"
+        printf 'first_seen   = %s\n' "${_rr_first:-$_su_epoch}"
+        printf 'last_checked = %s\n' "$_su_epoch"
+        printf 'policy       = %s\n' "$5"
+        printf 'resolved_by  = %s\n' "$_rr_resolved_by"
+        printf 'resolved_at  = %s\n' "$_rr_resolved_at"
+    } > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+}
+
+# Job $1's on_uncertain policy (6.6). Result in _su_policy.
+_vigil_sup_policy() {
+    local i=0
+    _su_policy=wait
+    vigil_config_effective "$1"
+    while [ "$i" -lt "${#VIGIL_EFF_KEY[@]}" ]; do
+        [ "${VIGIL_EFF_KEY[$i]}" = on_uncertain ] && _su_policy=${VIGIL_EFF_VALUE[$i]}
+        i=$((i + 1))
+    done
+}
+
+# An operator confirmed with vigil resolve that uncertain run $2 of job $1
+# is over: record it as such and release the hold. Nothing is killed.
+_vigil_sup_resolve() {
+    local job=$1 rid=$2 token=$3
+    if [ "$_ss" != final ]; then
+        if [ "$_su_spool" = yes ]; then
+            _vigil_sup_record "$job" "$rid" finished
+        else
+            _su_spool_outcome=''
+            _vigil_sup_record "$job" "$rid" crashed "concluded by vigil resolve ($_rr_resolved_by)"
+        fi
+    fi
+    [ -n "$token" ] && rm -f "$token"
+    rm -f "$_su_statedir/locks/$job.$rid.timeout" "$_su_statedir/recovery/$job.recovery" "$_su_statedir/recovery/$job.resolved"
+    _vigil_sup_log INFO "job $job: uncertain run $rid concluded, resolved by $_rr_resolved_by"
 }
 
 # Queues one event of job $1 (or the supervisor's own when $1 is empty):
@@ -457,6 +571,11 @@ _vigil_sup_start() {
         < /dev/null > /dev/null 2>&1 &
     _su_running=$((_su_running + 1))
     [ "$job" = vigil_sender ] || _vigil_sup_log INFO "job $job: run $rid started"
+    # Started beside an uncertain run under on_uncertain = replace (11.4).
+    if _vigil_sup_contains "$_su_replacing" "$job"; then
+        _vigil_sup_event "$job" possible_duplicates 1 count
+        _vigil_sup_log WARN "job $job: run $rid started beside an uncertain run (on_uncertain = replace)"
+    fi
 }
 
 _vigil_sup_contains() {
@@ -483,6 +602,7 @@ _vigil_sup_tick() {
     _su_events=()
     _su_running=0
     _su_uncertain=''
+    _su_replacing=''
     _su_crashed=''
     _su_status_running=''
     _su_status_waiting=''
@@ -620,7 +740,7 @@ _vigil_sup_status() {
         [ "$_su_reload_failed" -eq 1 ] && printf '\nCONFIGURATION REJECTED - the last valid configuration is active\n'
         if [ -n "$_su_uncertain" ]; then
             printf '\nUNCERTAIN\n'
-            for j in $_su_uncertain; do printf '  %s\n' "$j"; done
+            printf '%s' "$_su_uncertain" | sed 's/^/  /'
         fi
         if [ -n "$_su_crashed" ]; then
             printf '\nCRASHED\n'
