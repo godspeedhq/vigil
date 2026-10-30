@@ -934,6 +934,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
     staging/                fetches in progress
   state/
     config.active                 the active configuration record (§16.5)
+    config.valid                  a copy of the last valid local configuration, kept active while a newer one is rejected (§16.3)
     supervisor.lock               held open by the live supervisor
     jobs/<job id>.state
     jobs/vigil_sender.state
@@ -944,7 +945,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
     locks/<job id>.<run id>.token held open by the live worker after its claim
     quarantine/<job id>.<epoch>.state   unreadable state, kept as evidence
     recovery/<job id>.recovery    supervisor-owned record of a held job (§11.4)
-    schedule/<job id>.cursor      the last slot the job dealt with (§7.9)
+    schedule/<job id>.cursor      the last slot the job dealt with (§7.9): one line, the slot
   spool/
     incoming/<epoch>-<job id>-<run id>.events
     fanout/<file>, <file>.targets, <file>.<backend>.done   fan-out in progress (§4.5)
@@ -1027,7 +1028,7 @@ The supervisor holds `state/supervisor.lock` open for its whole life, the same w
 
 ### 13.1 Logs
 
-- **Supervisor log:** daily file, one line per event: timestamp, level, component, message.
+- **Supervisor log:** `logs/supervisor/yyyy-MM-dd.log`, one line per event: `<UTC time> <level> supervisor <message>`, the level being `INFO`, `WARN` or `ERROR`: configuration loaded or rejected, runs started, slots missed or skipped, launches abandoned, runs reconciled or crashed, start and stop.
 - **Job log:** one daily file per job, `logs/jobs/<job id>/yyyy-MM-dd.log`, append-only. Every line is `<UTC time> <run id> <stream> <text>`, so each line names its run and can be read, grepped or forwarded on its own (§13.4):
 
   ```text
@@ -1547,6 +1548,7 @@ Each service manager is configured so stopping the service stops only the superv
 | `service install` / `service remove` | Register or unregister the service without touching files (for example to switch mode). |
 | `start` / `stop` / `restart` | Service control. Stop leaves workers running. |
 | `status` | Print `jobs.log`. |
+| `supervise [--once]` | The supervisor itself (§4.1), as the service manager runs it: ticks until stopped (TERM or INT on Linux/macOS, stopping the process on Windows), or a single tick with `--once`. Running workers are never stopped with it. Refuses to start while another supervisor owns the state directory, or when the configuration is invalid and no earlier valid one exists. |
 | `run <job>` | Run one job once now, in the foreground, for testing: launched, claimed and recorded exactly as the supervisor would. Exits 0 succeeded, 1 warning, 2 failed, 3 unknown, 4 not run (another run may be in progress, the job is unknown or invalid, or the configuration has errors). |
 | `resolve <job>` | Confirm that an uncertain run is over so the job can be scheduled again (§11.4). Never kills anything. |
 | `uninstall` | Remove Vigil completely (§18.8). |
@@ -1850,6 +1852,7 @@ Each invariant has a documented enforcement mechanism and regression tests.
 - `https` and `sftp` sources deliver single files; scripts that need files beside them should come from `git` or `local` sources.
 - A `git` reference to a commit that is not the tip of a branch or a tag must be fetchable by its id; most hosted Git services allow this, a self-hosted server may need `uploadpack.allowReachableSHA1InWant`.
 - Scripts without a digest, from a `local` source or a `git` branch, may briefly differ between hosts until each has made its next check (§6.9).
+- A worker reads `config/vigil.config` when it starts. If that file was saved with an error after the supervisor launched the run, the worker refuses to run, and the launch is abandoned after the 120-second launch grace (§11.3); the job runs again at its next slot once the file is fixed.
 
 ---
 

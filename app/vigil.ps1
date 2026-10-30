@@ -7,6 +7,9 @@
     vigil [-Root <dir>] run <job>
         Runs one job once now, in the foreground, for testing. Exits 0
         succeeded, 1 warning, 2 failed, 3 unknown, 4 not run.
+    vigil [-Root <dir>] supervise [--once]
+        The supervisor (4.1): ticks until stopped, or once with --once.
+        Running workers are never stopped with it.
     vigil [-Root <dir>] worker <job> --run-id <run id>
         Internal: the worker the supervisor starts for a launched run.
 
@@ -24,12 +27,12 @@ $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Split-Path -Parent $app }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Outcome', 'Metrics', 'Events', 'Worker')) {
+foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Worker', 'Supervisor')) {
     . (Join-Path $app "lib\$lib.ps1")
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine('usage: vigil [-Root <dir>] run <job>')
+    [Console]::Error.WriteLine('usage: vigil [-Root <dir>] run <job> | supervise [--once]')
     exit 64
 }
 
@@ -56,6 +59,12 @@ switch ($Command) {
             else { Write-Output "${Job}: $($r.Outcome) in $($r.Duration)s, run $rid" }
         }
         exit $r.Code
+    }
+    'supervise' {
+        # PowerShell binds "--once" to the remaining arguments.
+        $flags = @(@($Job) + @($Rest) | Where-Object { $_ })
+        if ($flags.Count -gt 1 -or ($flags.Count -eq 1 -and $flags[0] -cne '--once')) { Exit-Usage }
+        exit (Invoke-VigilSupervisor -Root $Root -App $app -Once:($flags.Count -eq 1))
     }
     'worker' {
         if (-not $Job -or $Rest.Count -ne 2 -or $Rest[0] -cne '--run-id') { Exit-Usage }
