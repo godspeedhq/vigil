@@ -204,7 +204,7 @@ function Invoke-VigilWorker {
     }
     Write-VigilStateFile -Path $statePath -Fields $state
     $logLines = New-Object System.Text.StringBuilder
-    [void]$logLines.Append("$($now.Iso) START run $RunId`r`n")
+    [void]$logLines.Append("$($now.Iso) $RunId run start`r`n")
     [System.IO.File]::AppendAllText($log, $logLines.ToString())
 
     $code = '-'
@@ -268,13 +268,13 @@ function Invoke-VigilWorker {
     $now = Get-VigilNow
     $duration = $now.Epoch - $started
 
-    # The job log: its output, then how it ended.
+    # The job log (13.1): its output, then how it ended.
     $out = Join-Path $jobLogs "$RunId.out"
     [System.IO.File]::WriteAllText($out, $stdout, (New-Object System.Text.UTF8Encoding $false))
     $logLines = New-Object System.Text.StringBuilder
     foreach ($pair in @(@('out', $stdout), @('err', $stderr))) {
         if ($pair[1].Length -eq 0) { continue }
-        foreach ($l in $pair[1].TrimEnd("`n").Split("`n")) { [void]$logLines.Append("$($now.Iso) $($pair[0]): $($l.TrimEnd("`r"))`r`n") }
+        foreach ($l in $pair[1].TrimEnd("`n").Split("`n")) { [void]$logLines.Append("$($now.Iso) $RunId $($pair[0]) $($l.TrimEnd("`r"))`r`n") }
     }
 
     $output = ConvertFrom-VigilJobOutput -Mode $mode -Cap $Script:VigilMetricLinesMax -Path $out
@@ -296,8 +296,8 @@ function Invoke-VigilWorker {
     $state.dropped_lines = $output.Dropped
     $state.spool_file = $stem
     Write-VigilStateFile -Path $statePath -Fields $state
-    if ($reason) { [void]$logLines.Append("$($now.Iso) END run $RunId $outcome ($reason) in ${duration}s`r`n") }
-    else { [void]$logLines.Append("$($now.Iso) END run $RunId $outcome in ${duration}s`r`n") }
+    if ($reason) { [void]$logLines.Append("$($now.Iso) $RunId run end $outcome ($reason) in ${duration}s`r`n") }
+    else { [void]$logLines.Append("$($now.Iso) $RunId run end $outcome in ${duration}s`r`n") }
     [System.IO.File]::AppendAllText($log, $logLines.ToString())
     [System.IO.File]::Delete($out)
 

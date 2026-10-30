@@ -134,9 +134,9 @@ ok.rows 5 gauge instance=it job=ok env=test table=orders
 ok.invalid_metric_lines 1 count instance=it job=ok env=test" "$(events ok | sed 's/duration_seconds [0-9]*/duration_seconds 0/')"
 check "ok state summary" "1 1 0" "$(st="$root/state/jobs/ok.state"; echo "$(state_value "$st" metric_lines) $(state_value "$st" invalid_lines) $(state_value "$st" dropped_lines)")"
 log=$(cat "$root/logs/jobs/ok/"*.log)
-check "ok log has stdout" 1 "$(printf '%s\n' "$log" | grep -c ' out: metric rows 5 table=orders$')"
-check "ok log has stderr" 1 "$(printf '%s\n' "$log" | grep -c ' err: to stderr$')"
-check "ok log has end" 1 "$(printf '%s\n' "$log" | grep -c ' END run .* succeeded in ')"
+check "ok log has stdout" 1 "$(printf '%s\n' "$log" | grep -c ' out metric rows 5 table=orders$')"
+check "ok log has stderr" 1 "$(printf '%s\n' "$log" | grep -c ' err to stderr$')"
+check "ok log has end" 1 "$(printf '%s\n' "$log" | grep -c ' run end succeeded in ')"
 
 run disk 1 warning 'exit code 1'
 check "disk perf event" "os.disk.perf 12268339200 gauge instance=it job=disk env=test label=/" "$(events disk | grep '^os.disk.perf ')"

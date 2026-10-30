@@ -136,9 +136,9 @@ Test-Equal 'ok events' ("ok.duration_seconds 0 gauge instance=it job=ok env=test
 $st = Join-Path $root 'state\jobs\ok.state'
 Test-Equal 'ok state summary' '1 1 0' "$(Get-StateValue $st 'metric_lines') $(Get-StateValue $st 'invalid_lines') $(Get-StateValue $st 'dropped_lines')"
 $log = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\ok') -Filter '*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
-Test-Equal 'ok log has stdout' '1' "$(([regex]::Matches($log, ' out: metric rows 5 table=orders\r?$', 'Multiline')).Count)"
-Test-Equal 'ok log has stderr' '1' "$(([regex]::Matches($log, ' err: to stderr\r?$', 'Multiline')).Count)"
-Test-Equal 'ok log has end' '1' "$(([regex]::Matches($log, ' END run .* succeeded in ')).Count)"
+Test-Equal 'ok log has stdout' '1' "$(([regex]::Matches($log, ' out metric rows 5 table=orders\r?$', 'Multiline')).Count)"
+Test-Equal 'ok log has stderr' '1' "$(([regex]::Matches($log, ' err to stderr\r?$', 'Multiline')).Count)"
+Test-Equal 'ok log has end' '1' "$(([regex]::Matches($log, ' run end succeeded in ')).Count)"
 
 Test-Run 'disk' 1 'warning' 'exit code 1'
 Test-Equal 'disk perf event' 'os.disk.perf 12268339200 gauge instance=it job=disk env=test label=C:' (((Get-Events 'disk') -split "`n") | Where-Object { $_.StartsWith('os.disk.perf ') })

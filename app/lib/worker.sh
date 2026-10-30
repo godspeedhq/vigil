@@ -275,7 +275,7 @@ vigil_worker() {
     _vigil_wk_set worker_name bash
     _vigil_wk_set worker_start "$_vw_start"
     _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
-    _vigil_wk_log "START run $rid"
+    _vigil_wk_log "$rid run start"
 
     out="$_vw_logdir/jobs/$_vw_job/$rid.out"
     err="$_vw_logdir/jobs/$_vw_job/$rid.err"
@@ -343,12 +343,12 @@ vigil_worker() {
     _vigil_wk_now
     duration=$((_vw_epoch - started))
 
-    # The job log: its output, then how it ended.
+    # The job log (13.1): its output, then how it ended.
     while IFS= read -r value || [ -n "$value" ]; do
-        printf '%s out: %s\n' "$_vw_iso" "${value%$'\r'}"
+        printf '%s %s out %s\n' "$_vw_iso" "$rid" "${value%$'\r'}"
     done < "$out" >> "$_vw_log"
     while IFS= read -r value || [ -n "$value" ]; do
-        printf '%s err: %s\n' "$_vw_iso" "${value%$'\r'}"
+        printf '%s %s err %s\n' "$_vw_iso" "$rid" "${value%$'\r'}"
     done < "$err" >> "$_vw_log"
 
     vigil_metrics_parse "$mode" "$VIGIL_METRIC_LINES_MAX" "$out"
@@ -371,9 +371,9 @@ vigil_worker() {
     _vigil_wk_set spool_file "$stem"
     _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
     if [ -n "$reason" ]; then
-        _vigil_wk_log "END run $rid $outcome ($reason) in ${duration}s"
+        _vigil_wk_log "$rid run end $outcome ($reason) in ${duration}s"
     else
-        _vigil_wk_log "END run $rid $outcome in ${duration}s"
+        _vigil_wk_log "$rid run end $outcome in ${duration}s"
     fi
     rm -f "$out" "$err"
 
