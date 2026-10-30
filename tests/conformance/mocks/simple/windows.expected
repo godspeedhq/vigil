@@ -16,8 +16,8 @@ backup_log	tag	client=CLIENT	tags
 backup_log	tag	environment=dev	tags
 backup_log	tag	product=scf	tags
 backup_log	tag	host_type=db	tags
-backup_log	require_env	DB_DBA_USER	runner
-backup_log	require_env	DB_DBA_PASSWORD	runner
+backup_log	secret	DB_DBA_USER=secret:DB_DBA_USER	runner
+backup_log	secret	DB_DBA_PASSWORD=secret:DB_DBA_PASSWORD	runner
 backup_log	require_env	DB_SERVER	runner
 blocking	file	scripts\blocking.ps1	job
 blocking	runner	ps	runners
@@ -55,8 +55,8 @@ connections	tag	client=CLIENT	tags
 connections	tag	environment=dev	tags
 connections	tag	product=scf	tags
 connections	tag	host_type=db	tags
-connections	require_env	DB_DBA_USER	runner
-connections	require_env	DB_DBA_PASSWORD	runner
+connections	secret	DB_DBA_USER=secret:DB_DBA_USER	runner
+connections	secret	DB_DBA_PASSWORD=secret:DB_DBA_PASSWORD	runner
 connections	require_env	DB_SERVER	runner
 perf	file	scripts\perf_counters.ps1	job
 perf	runner	ps	runners
@@ -166,8 +166,8 @@ backup_differential	tag	client=CLIENT	tags
 backup_differential	tag	environment=dev	tags
 backup_differential	tag	product=scf	tags
 backup_differential	tag	host_type=db	tags
-backup_differential	require_env	DB_DBA_USER	runner
-backup_differential	require_env	DB_DBA_PASSWORD	runner
+backup_differential	secret	DB_DBA_USER=secret:DB_DBA_USER	runner
+backup_differential	secret	DB_DBA_PASSWORD=secret:DB_DBA_PASSWORD	runner
 backup_differential	require_env	DB_SERVER	runner
 backup_full	file	sql\backup_full.sql	job
 backup_full	runner	dbsql	runners
@@ -187,8 +187,8 @@ backup_full	tag	client=CLIENT	tags
 backup_full	tag	environment=dev	tags
 backup_full	tag	product=scf	tags
 backup_full	tag	host_type=db	tags
-backup_full	require_env	DB_DBA_USER	runner
-backup_full	require_env	DB_DBA_PASSWORD	runner
+backup_full	secret	DB_DBA_USER=secret:DB_DBA_USER	runner
+backup_full	secret	DB_DBA_PASSWORD=secret:DB_DBA_PASSWORD	runner
 backup_full	require_env	DB_SERVER	runner
 audit_cleanup	file	sql\audit_cleanup.sql	job
 audit_cleanup	runner	dbsql	runners
@@ -208,8 +208,8 @@ audit_cleanup	tag	client=CLIENT	tags
 audit_cleanup	tag	environment=dev	tags
 audit_cleanup	tag	product=scf	tags
 audit_cleanup	tag	host_type=db	tags
-audit_cleanup	require_env	DB_DBA_USER	runner
-audit_cleanup	require_env	DB_DBA_PASSWORD	runner
+audit_cleanup	secret	DB_DBA_USER=secret:DB_DBA_USER	runner
+audit_cleanup	secret	DB_DBA_PASSWORD=secret:DB_DBA_PASSWORD	runner
 audit_cleanup	require_env	DB_SERVER	runner
 update_statistics	file	scripts\update_statistics.ps1	job
 update_statistics	runner	ps	runners
@@ -268,8 +268,8 @@ prune_backup_history	tag	client=CLIENT	tags
 prune_backup_history	tag	environment=dev	tags
 prune_backup_history	tag	product=scf	tags
 prune_backup_history	tag	host_type=db	tags
-prune_backup_history	require_env	DB_DBA_USER	runner
-prune_backup_history	require_env	DB_DBA_PASSWORD	runner
+prune_backup_history	secret	DB_DBA_USER=secret:DB_DBA_USER	runner
+prune_backup_history	secret	DB_DBA_PASSWORD=secret:DB_DBA_PASSWORD	runner
 prune_backup_history	require_env	DB_SERVER	runner
 cycle_errorlog	file	sql\cycle_errorlog.sql	job
 cycle_errorlog	runner	dbsql	runners
@@ -290,8 +290,8 @@ cycle_errorlog	tag	client=CLIENT	tags
 cycle_errorlog	tag	environment=dev	tags
 cycle_errorlog	tag	product=scf	tags
 cycle_errorlog	tag	host_type=db	tags
-cycle_errorlog	require_env	DB_DBA_USER	runner
-cycle_errorlog	require_env	DB_DBA_PASSWORD	runner
+cycle_errorlog	secret	DB_DBA_USER=secret:DB_DBA_USER	runner
+cycle_errorlog	secret	DB_DBA_PASSWORD=secret:DB_DBA_PASSWORD	runner
 cycle_errorlog	require_env	DB_SERVER	runner
 heap_check	file	checks\HeapCheck.java	job
 heap_check	runner	java	runners
@@ -335,7 +335,7 @@ legacy_export	tag	product=scf	tags
 legacy_export	tag	host_type=db	tags
 legacy_export	tag	team=finance	job
 legacy_export	env	JAVA_TOOL_OPTIONS=-Xmx4g	job
-legacy_export	require_env	EXPORT_SFTP_PASSWORD	job
+legacy_export	secret	EXPORT_SFTP_PASSWORD=secret:EXPORT_SFTP_PASSWORD	job
 mssql_backup_age	file	checks\mssql_backup_age.sql	job
 mssql_backup_age	runner	mssql	job
 mssql_backup_age	metric_name	mssql.backup_age	job
