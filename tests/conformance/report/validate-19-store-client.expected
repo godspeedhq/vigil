@@ -1,0 +1,4 @@
+ERROR    line 32: [secret_store.kv_sp_cli] client = cli cannot use auth = service_principal: az login would keep the client secret on disk (E_STORE_CLIENT)
+ERROR    line 40: [secret_store.gcp_key_cli] client = cli cannot use auth = service_account_key: gcloud reads a key only from a file (E_STORE_CLIENT)
+ERROR    line 50: 'client' must be auto, cli or http: sdk (E_ENUM)
+ERROR    line 56: 'client' does not apply to a hashicorp_vault secret store (E_KEY_UNKNOWN)

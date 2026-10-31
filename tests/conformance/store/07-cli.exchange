@@ -1,0 +1,41 @@
+# No CLI installed: auto uses Vigil's own HTTPS; cli cannot.
+reply 200 {"access_token":"t"}
+reply 200 {"value":"over-https"}
+fetch store:kv/dd
+fetch store:kv_cli/dd
+cli az aws gcloud
+# Installed: auto uses the CLI, run directly, its answer read as the API's.
+reply 0 {"attributes":{"enabled":true},"id":"https://ops-kv.vault.azure.net/secrets/dd/0abc","value":"from-az"}
+fetch store:kv/dd
+reply 0 {"value":"version"}
+fetch store:kv/dd/0abc
+fetch store:kv/bad_name
+# A sign-in the CLI cannot do without keeping a secret on disk: HTTPS.
+env VIGIL_CT_SP sp-secret
+reply 200 {"access_token":"t"}
+reply 200 {"value":"sp-https"}
+fetch store:kv_sp/dd
+# AWS: access keys reach the CLI in its environment, never its arguments.
+env VIGIL_CT_AWS_SECRET wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY
+reply 0 {"ARN":"arn:aws:secretsmanager:eu-west-2:1:secret:prod/db-AbCdEf","Name":"prod/db","SecretString":"from-aws"}
+fetch store:aws_keys/prod/db
+reply 0 {"SecretString":"{\"username\":\"app\",\"password\":\"p@ss\"}"}
+fetch store:aws_role/app/json
+# gcloud: payload.data in URL-safe base64, unpadded.
+reply 0 {"name":"projects/1/secrets/db/versions/3","payload":{"data":"fn5-Pz8","dataCrc32c":"1"}}
+fetch store:gcp/db/3
+reply 200 {"access_token":"t"}
+reply 200 {"payload":{"data":"aHR0cA=="}}
+fetch store:gcp_http/db
+# The CLI fails, is stopped, or answers what is not JSON.
+reply 1 ERROR: (gcloud) NOT_FOUND
+fetch store:aws_keys/gone
+fail timeout
+fetch store:gcp/db
+reply 254 x
+fetch store:aws_role/app/json
+reply 0 not json
+fetch store:kv/dd
+unenv VIGIL_CT_AWS_SECRET
+fetch store:aws_keys/prod/db
+unenv VIGIL_CT_SP

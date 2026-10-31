@@ -167,7 +167,38 @@ subjectAltName = DNS:localhost,IP:127.0.0.1
         'Write-Output "metric e_ok $(Same $env:E e)"',
         'Write-Output "metric f_ok $(Same $env:F f)"',
         'Write-Output "metric g_ok $(Same $env:G g)"',
-        'Write-Output "metric h_ok $(Same $env:H h)"')
+        'Write-Output "metric h_ok $(Same $env:H h)"',
+        'Write-Output "metric k_ok $(Same $env:K k)"',
+        'Write-Output "metric l_ok $(Same $env:L l)"',
+        'Write-Output "metric m_ok $(Same $env:M m)"')
+
+    # Fake vendor CLIs, first on PATH for the runs that use them (GitHub's
+    # runners have the real ones), as .cmd files like the real az and
+    # gcloud. Each logs its arguments, answers from <cli>.json, and the aws
+    # one answers only when the access key reached it in its environment.
+    $bin = Join-Path $root 'bin'
+    $fake = Join-Path $root 'fake'
+    [void](New-Item -ItemType Directory -Force -Path $bin, $fake)
+    $env:IT_FAKE = $fake
+    foreach ($c in @('az', 'aws', 'gcloud')) {
+        Set-Content -LiteralPath (Join-Path $bin "$c.cmd") -Encoding ASCII -Value @(
+            '@echo off',
+            'echo %~n0 %*>>"%IT_FAKE%\argv.log"',
+            "if /i `"%~n0`"==`"aws`" if not `"%AWS_SECRET_ACCESS_KEY%`"==`"aws-cli-key-$PID`" exit /b 255",
+            'if exist "%IT_FAKE%\%~n0-slow" ping -n 31 127.0.0.1 >nul',
+            'type "%IT_FAKE%\%~n0.json"')
+    }
+    $utf8 = [System.Text.Encoding]::UTF8
+    [System.IO.File]::WriteAllText("$fake\az.json", "{`"id`":`"https://cli-kv.vault.azure.net/secrets/dd/1`",`"value`":`"az-cli-$PID`"}")
+    [System.IO.File]::WriteAllText("$fake\aws.json", "{`"Name`":`"prod/db`",`"SecretString`":`"aws-cli-$PID`"}")
+    # gcloud answers in URL-safe base64, unpadded.
+    $b64 = [Convert]::ToBase64String($utf8.GetBytes("gcloud-cli $PID ~~?")).Replace('+', '-').Replace('/', '_').TrimEnd('=')
+    [System.IO.File]::WriteAllText("$fake\gcloud.json", "{`"payload`":{`"data`":`"$b64`"}}")
+    [System.IO.File]::WriteAllText((Join-Path $root 'expect\k'), "az-cli-$PID")
+    [System.IO.File]::WriteAllText((Join-Path $root 'expect\l'), "aws-cli-$PID")
+    [System.IO.File]::WriteAllText((Join-Path $root 'expect\m'), "gcloud-cli $PID ~~?")
+    $plainPath = $env:PATH
+    $fakePath = "$bin;$env:PATH"
 
     Set-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value @"
 [runner.ps]
@@ -209,12 +240,14 @@ ca_file   = $tls\ca.pem
 
 [secret_store.kv]
 type    = azure_keyvault
+client = http
 vault   = https://127.0.0.1:$hport
 auth    = managed_identity
 ca_file = tls\ca.pem
 
 [secret_store.kv_sp]
 type          = azure_keyvault
+client = http
 vault         = https://127.0.0.1:$hport
 auth          = service_principal
 tenant_id     = test-tenant
@@ -231,6 +264,7 @@ token = secret:VAULT_TOKEN
 
 [secret_store.aws_keys]
 type              = aws_secrets_manager
+client = http
 region            = eu-west-2
 auth              = access_keys
 access_key_id     = AKIAVIGILTEST
@@ -240,6 +274,7 @@ ca_file           = tls\ca.pem
 
 [secret_store.aws_role]
 type     = aws_secrets_manager
+client = http
 region   = us-east-1
 auth     = instance_profile
 field    = password
@@ -248,6 +283,7 @@ ca_file  = tls\ca.pem
 
 [secret_store.gcp]
 type     = gcp_secret_manager
+client = http
 project  = test-project
 auth     = metadata
 endpoint = https://127.0.0.1:$hport
@@ -255,11 +291,40 @@ ca_file  = tls\ca.pem
 
 [secret_store.gcp_key]
 type                = gcp_secret_manager
+client = http
 project             = test-project
 auth                = service_account_key
 service_account_key = secret:GCP_KEY
 endpoint            = https://127.0.0.1:$hport
 ca_file             = tls\ca.pem
+
+[secret_store.kv_cli]
+type  = azure_keyvault
+vault = https://cli-kv.vault.azure.net/
+auth  = managed_identity
+
+[secret_store.aws_cli]
+type              = aws_secrets_manager
+region            = eu-west-2
+auth              = access_keys
+access_key_id     = AKIAVIGILCLI
+secret_access_key = secret:AWS_CLI_KEY
+client            = cli
+
+[secret_store.gcp_cli]
+type    = gcp_secret_manager
+project = test-project
+auth    = metadata
+client  = cli
+timeout = 2s
+
+[job.cli]
+file      = scripts\show.ps1
+run_every = 1h
+env       = IT_ROOT=$root
+secret    = K=store:kv_cli/dd
+secret    = L=store:aws_cli/prod/db
+secret    = M=store:gcp_cli/db
 
 [job.show]
 file      = scripts\show.ps1
@@ -370,15 +435,45 @@ secret    = X=store:kv/gone
     Test-Equal 'a wrong GCP key: the JWT is refused' "secret store:gcp_key/api_key unavailable: sign-in failed: HTTP 400 from 127.0.0.1:$hport" (Get-StateValue 'gcp_key' 'reason')
     [void](Invoke-Vigil @('secret', 'set', 'GCP_KEY', '--stdin') (& $gcpKeyJson "$tls\gcp.pem"))
 
-    # 4. precheck fetches them too, and shows only references.
-    $pre = Invoke-Vigil @('precheck', 'show')
+    # 4. The vendor CLIs: client = auto finds az first on PATH; client = cli.
+    [void](Invoke-Vigil @('secret', 'set', 'AWS_CLI_KEY', '--stdin') "aws-cli-key-$PID")
+    $env:PATH = $fakePath
+    [void](Invoke-Vigil @('run', 'cli'))
+    Test-Equal 'cli: run succeeds' 'succeeded' (Get-StateValue 'cli' 'status')
+    if ((Get-StateValue 'cli' 'status') -cne 'succeeded') { Write-Host "        reason: $(Get-StateValue 'cli' 'reason')" }
+    Test-Equal 'az (client = auto): delivered exactly' '1' (Get-Metric 'cli' 'k_ok')
+    Test-Equal 'aws (client = cli, key in its environment): delivered exactly' '1' (Get-Metric 'cli' 'l_ok')
+    Test-Equal 'gcloud (URL-safe base64): delivered exactly' '1' (Get-Metric 'cli' 'm_ok')
+    $argv = [System.IO.File]::ReadAllLines("$fake\argv.log")
+    Test-Equal 'az run directly with the secret''s id' 'True' "$($argv -ccontains 'az keyvault secret show --id https://cli-kv.vault.azure.net/secrets/dd --output json')"
+    Test-Equal 'no secret in any CLI''s arguments' '' (@($argv | Where-Object { $_.Contains("aws-cli-key-$PID") }) -join ' ')
+    $env:PATH = $plainPath
+    [void](Invoke-Vigil @('secret', 'set', 'AWS_CLI_KEY', '--stdin') 'wrong')
+    $env:PATH = $fakePath
+    [void](Invoke-Vigil @('run', 'cli'))
+    Test-Equal 'the CLI fails' 'secret store:aws_cli/prod/db unavailable: the aws CLI failed (exit code 255)' (Get-StateValue 'cli' 'reason')
+    $env:PATH = $plainPath
+    [void](Invoke-Vigil @('secret', 'set', 'AWS_CLI_KEY', '--stdin') "aws-cli-key-$PID")
+    [System.IO.File]::WriteAllText("$fake\gcloud-slow", '')
+    $env:PATH = $fakePath
+    [void](Invoke-Vigil @('run', 'cli'))
+    Test-Equal 'the CLI is stopped at the store''s timeout' 'secret store:gcp_cli/db unavailable: the gcloud CLI was stopped after 2s' (Get-StateValue 'cli' 'reason')
+    [System.IO.File]::Delete("$fake\gcloud-slow")
+
+    # 5. precheck fetches them too, shows only references, and says which
+    # client each cloud store uses.
+    $pre = Invoke-Vigil @('precheck')
+    $env:PATH = $plainPath
     Test-Equal 'precheck: the job' 'True' "$(@($pre.Output | Where-Object { $_ -ceq '  ok    job.show' }).Count -gt 0)"
+    Test-Equal 'precheck: auto with the CLI' 'True' "$(@($pre.Output | Where-Object { $_ -ceq '  ok    secret_store.kv_cli: uses the az CLI (client = auto)' }).Count -gt 0)"
+    Test-Equal 'precheck: http' 'True' "$(@($pre.Output | Where-Object { $_ -ceq '  ok    secret_store.kv: uses Vigil''s own HTTPS client (client = http)' }).Count -gt 0)"
 
     # No value or credential ever in a URL, a log, state or spool file.
     $values = @("vault-pw-1 $PID", "approle-pw-1 $PID", "kv-mi-1 $PID", "kv-sp-1 $PID", "vault-pw-2 $PID", "kv-mi-2 $PID",
         "s.vault-token-$PID", "sid-$PID", "s.approle-token-$PID", "imds-token-$PID", "sp-token-$PID", "secret/$PID=", "secret%2F$PID",
         "aws-keys-1 $PID", "aws-role-1 $PID", "aws-keys-2 $PID", "aws-secret-key-$PID", "imds-session-$PID", "aws-ip-secret-$PID", "aws-ip-session-$PID",
-        "gcp-md-1 $PID", "gcp-key-1 $PID", "gcp-md-2 $PID", "gcp-md-token-$PID", "gcp-sa-token-$PID", "PRIVATE KEY")
+        "gcp-md-1 $PID", "gcp-key-1 $PID", "gcp-md-2 $PID", "gcp-md-token-$PID", "gcp-sa-token-$PID", "PRIVATE KEY",
+        "az-cli-$PID", "aws-cli-$PID", "aws-cli-key-$PID", "gcloud-cli $PID")
     $urls = [System.IO.File]::ReadAllText("$root\mock\urls.log")
     Test-Equal 'no secret in any URL' '' (($values | Where-Object { $urls.Contains($_) }) -join ' ')
     $leaks = foreach ($d in @('logs', 'state', 'spool')) {
@@ -393,7 +488,8 @@ secret    = X=store:kv/gone
 }
 finally {
     if ($mock) { try { Stop-Process -Id $mock.Id -Force -ErrorAction Stop } catch { } }
-    Remove-Item Env:\VIGIL_TEST_IMDS, Env:\IT_SECRET_ID -ErrorAction SilentlyContinue
+    if ($plainPath) { $env:PATH = $plainPath }
+    Remove-Item Env:\VIGIL_TEST_IMDS, Env:\IT_SECRET_ID, Env:\IT_FAKE -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
 }
 

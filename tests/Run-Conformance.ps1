@@ -239,9 +239,24 @@ foreach ($old in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\prom'
 # <a.b.c> <document>"; "now <amz date>", the time AWS requests are signed
 # at; "sigv4 <secret> <key id> <amz date> <region> <service> <method> <path>
 # <header>...", one signature of an empty payload; "epoch <seconds>", the
-# time GCP sign-ins are made at. The output must be
-# <case>.expected. No request leaves the machine: Invoke-VigilHttpSend is
+# time GCP sign-ins are made at; "cli <name>...", the vendor CLIs installed
+# from then on (none at first), each run answered by the next reply, its
+# status the exit code ("fail timeout": stopped). The output must be
+# <case>.expected. No request leaves the machine and no CLI runs:
+# Invoke-VigilHttpSend, Test-VigilCliFound and Invoke-VigilCliRun are
 # replaced.
+function Test-VigilCliFound { param([string]$Name) return $Script:storeClis -ccontains $Name }
+function Invoke-VigilCliRun {
+    param([int]$Timeout, [string]$Command, [string[]]$Arguments, [string[]]$Env)
+    $Script:storeOut.Add("> $Command $($Arguments -join ' ') (${Timeout}s)")
+    foreach ($e in $Env) { $Script:storeOut.Add(">   $e") }
+    if ($Script:storeNext -ge $Script:storeReplies.Count) { return @{ Out = ''; Rc = 1; Stopped = $false } }
+    $r = $Script:storeReplies[$Script:storeNext]
+    $Script:storeNext++
+    if ($r.StartsWith('!')) { return @{ Out = ''; Rc = 1; Stopped = $true } }
+    $sp = $r.IndexOf(' ')
+    return @{ Out = $r.Substring($sp + 1); Rc = [int]$r.Substring(0, $sp); Stopped = $false }
+}
 $Script:storeNow = '20260101T000000Z'
 function Get-VigilAwsTime { return $Script:storeNow }
 $Script:storeEpoch = 1767225600
@@ -266,6 +281,7 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\stor
     $Script:storeOut = New-Object 'System.Collections.Generic.List[string]'
     $Script:storeReplies = New-Object 'System.Collections.Generic.List[string]'
     $Script:storeNext = 0
+    $Script:storeClis = @()
     foreach ($line in [System.IO.File]::ReadAllLines([System.IO.Path]::ChangeExtension($case.FullName, '.exchange'))) {
         if ($line -ceq '' -or $line.StartsWith('#')) { continue }
         $sp = $line.IndexOf(' ')
@@ -290,6 +306,7 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\stor
             }
             'now' { $Script:storeNow = $rest }
             'epoch' { $Script:storeEpoch = [long]$rest }
+            'cli' { $Script:storeClis = $rest.Split(' ') }
             'sigv4' {
                 $a = $rest.Split(' ')
                 $Script:storeOut.Add("sigv4 $($a[2])")

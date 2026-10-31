@@ -283,11 +283,35 @@ rm -rf "$tmp"
 # <a.b.c> <document>"; "now <amz date>", the time AWS requests are signed
 # at; "sigv4 <secret> <key id> <amz date> <region> <service> <method> <path>
 # <header>...", one signature of an empty payload; "epoch <seconds>", the
-# time GCP sign-ins are made at. The output must be <case>.expected. No
-# request leaves the machine: _vigil_http_send is replaced. A case named
-# -unix is not run by Git Bash or Cygwin (spec 6.5.3).
+# time GCP sign-ins are made at; "cli <name>...", the vendor CLIs installed
+# from then on (none at first), each run answered by the next reply, its
+# status the exit code ("fail timeout": stopped). The output must be
+# <case>.expected. No request leaves the machine and no CLI runs:
+# _vigil_http_send, _vigil_cli_found and _vigil_cli_run are replaced. A case
+# named -unix is not run by Git Bash or Cygwin (spec 6.5.3).
 _st_replies=()
 _st_next=0
+_st_clis=' '
+_vigil_cli_found() {
+    case $_st_clis in *" $1 "*) return 0 ;; esac
+    return 1
+}
+_vigil_cli_run() {
+    local t=$1 e r
+    shift
+    printf '> %s (%ss)\n' "$*" "$t"
+    for e in ${_vc_env[@]+"${_vc_env[@]}"}; do printf '>   %s\n' "$e"; done
+    _vc_out=''
+    _vc_rc=1
+    _vc_stopped=0
+    [ "$_st_next" -lt "${#_st_replies[@]}" ] || return 0
+    r=${_st_replies[$_st_next]}
+    _st_next=$((_st_next + 1))
+    case $r in
+        '!'*) _vc_rc=143; _vc_stopped=1 ;;
+        *) _vc_rc=${r%% *}; _vc_out=${r#* } ;;
+    esac
+}
 _st_now=20260101T000000Z
 _st_epoch=1767225600
 _vigil_gcp_epoch() {
@@ -348,6 +372,7 @@ store_case_dump() {
                 ;;
             now) _st_now=$rest ;;
             epoch) _st_epoch=$rest ;;
+            cli) _st_clis=" $rest " ;;
             sigv4)
                 read -r -a keys <<< "$rest"
                 _va_headers=("${keys[@]:7}")

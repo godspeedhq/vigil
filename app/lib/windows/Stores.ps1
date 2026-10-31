@@ -318,7 +318,7 @@ function Get-VigilStoreKeys {
     $k = @{
         url = ''; vault = ''; mount = 'secret'; field = ''; auth = ''; token = ''; role_id = ''; secret_id = ''
         tenant_id = ''; client_id = ''; client_secret = ''; authority = 'https://login.microsoftonline.com'; ca_file = ''; timeout = 10
-        region = ''; access_key_id = ''; secret_access_key = ''; endpoint = ''; project = ''; service_account_key = ''
+        region = ''; access_key_id = ''; secret_access_key = ''; endpoint = ''; project = ''; service_account_key = ''; client = 'auto'
     }
     foreach ($e in $Parsed.Entries) {
         if ($e.Section -cne "secret_store.$Store") { continue }
@@ -571,9 +571,15 @@ function Get-VigilAwsSecret {
         }
         return @{ Ok = $false; Why = $r.Why }
     }
-    $value = Get-VigilStoreAnswer '' $r.Body @('SecretString')
+    return Get-VigilAwsValue $Keys $r.Body
+}
+
+# The value in a GetSecretValue answer: its SecretString, or with field,
+# one key of it stored as JSON.
+function Get-VigilAwsValue {
+    param($Keys, [string]$Body)
+    $value = Get-VigilStoreAnswer '' $Body @('SecretString')
     if (-not $value.Ok -or -not $Keys.field) { return $value }
-    # field picks one key of a secret stored as JSON.
     $f = Get-VigilJsonString -Json $value.Value -Path @($Keys.field)
     if (-not $f.Ok) { return @{ Ok = $false; Why = "the secret's value: $($f.Why)" } }
     return $f
@@ -702,15 +708,35 @@ function Get-VigilGcpSaToken {
     return Get-VigilStoreAnswer 'sign-in failed: ' $r.Body @('access_token')
 }
 
+# A Secret Manager name, NAME or NAME/<version>: @{ Ok; Name; Version }.
+function Split-VigilGcpName {
+    param([string]$Name)
+    if ($Name -cnotmatch '^[A-Za-z0-9_-]+(/([0-9]+|latest))?$') { return @{ Ok = $false; Why = 'not a valid Secret Manager secret name' } }
+    if (-not $Name.Contains('/')) { return @{ Ok = $true; Name = $Name; Version = 'latest' } }
+    return @{ Ok = $true; Name = $Name.Substring(0, $Name.IndexOf('/')); Version = $Name.Substring($Name.IndexOf('/') + 1) }
+}
+
+# The value in an access answer: its payload, decoded from base64, exactly
+# as stored. The API answers in standard base64, gcloud in its URL-safe
+# form; both are read.
+function Get-VigilGcpPayload {
+    param([string]$Body)
+    $data = Get-VigilStoreAnswer '' $Body @('payload', 'data')
+    if (-not $data.Ok) { return $data }
+    if ($data.Value -cnotmatch '^[A-Za-z0-9+/_-]*={0,2}$') { return @{ Ok = $false; Why = 'unexpected answer: payload.data is not base64' } }
+    $b64 = $data.Value.Replace('-', '+').Replace('_', '/')
+    while ($b64.Length % 4) { $b64 += '=' }
+    try { return @{ Ok = $true; Value = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64)) } }
+    catch { return @{ Ok = $false; Why = 'unexpected answer: payload.data is not base64' } }
+}
+
 # GCP Secret Manager.
 function Get-VigilGcpSecret {
     param([string]$Root, $Parsed, $Keys, [string]$Name)
-    if ($Name -cnotmatch '^[A-Za-z0-9_-]+(/([0-9]+|latest))?$') { return @{ Ok = $false; Why = 'not a valid Secret Manager secret name' } }
-    $version = 'latest'
-    if ($Name.Contains('/')) {
-        $version = $Name.Substring($Name.IndexOf('/') + 1)
-        $Name = $Name.Substring(0, $Name.IndexOf('/'))
-    }
+    $n = Split-VigilGcpName $Name
+    if (-not $n.Ok) { return $n }
+    $Name = $n.Name
+    $version = $n.Version
     if ($Keys.auth -ceq 'metadata') {
         $r = Invoke-VigilStoreRequest $Keys 'sign-in failed: ' 'GET' "$(Get-VigilImdsBase)/computeMetadata/v1/instance/service-accounts/default/token" $true @('Metadata-Flavor: Google') ''
         if (-not $r.Ok) { return $r }
@@ -723,17 +749,154 @@ function Get-VigilGcpSecret {
     $r = Invoke-VigilStoreRequest $Keys '' 'GET' "$url/v1/projects/$(ConvertTo-VigilPercent $Keys.project)/secrets/$Name/versions/${version}:access" $false @("Authorization: Bearer $($token.Value)") ''
     $token = $null
     if (-not $r.Ok) { return $r }
-    $data = Get-VigilStoreAnswer '' $r.Body @('payload', 'data')
-    if (-not $data.Ok) { return $data }
-    # The value is base64.
-    if ($data.Value -cnotmatch '^[A-Za-z0-9+/]*={0,2}$') { return @{ Ok = $false; Why = 'unexpected answer: payload.data is not base64' } }
-    try { return @{ Ok = $true; Value = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($data.Value)) } }
-    catch { return @{ Ok = $false; Why = 'unexpected answer: payload.data is not base64' } }
+    return Get-VigilGcpPayload $r.Body
+}
+
+# --- The vendor CLIs ---------------------------------------------------------
+
+# Whether a command is installed. The conformance suite replaces it.
+function Test-VigilCliFound {
+    param([string]$Name)
+    return $null -ne (Get-Command $Name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1)
+}
+
+<#
+    Runs a vendor CLI directly, with no input, within the timeout, with Env
+    ("NAME=value" each) added to its environment, never its command line.
+    Returns @{ Out; Rc; Stopped }, Stopped true when it had to be stopped
+    (exit codes alone cannot tell: aws exits 254). The conformance suite
+    replaces it. A .cmd or .bat CLI (az and gcloud are) runs through cmd.exe,
+    which interprets some characters even inside quotes: an argument with
+    one is refused, Rc -1.
+#>
+function Invoke-VigilCliRun {
+    param([int]$Timeout, [string]$Command, [string[]]$Arguments, [string[]]$Env)
+    $path = (Get-Command $Command -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+    if ($path -match '\.(cmd|bat)$' -and @($Arguments | Where-Object { $_ -match '["%^&|<>!]' }).Count -gt 0) { return @{ Out = ''; Rc = -1; Stopped = $false } }
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $path
+    $psi.Arguments = ($Arguments | ForEach-Object { ConvertTo-VigilQuotedArg -Arg $_ -Always $false }) -join ' '
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.RedirectStandardInput = $true
+    foreach ($e in $Env) {
+        $i = $e.IndexOf('=')
+        $psi.EnvironmentVariables[$e.Substring(0, $i)] = $e.Substring($i + 1)
+    }
+    $p = New-Object System.Diagnostics.Process
+    $p.StartInfo = $psi
+    try { [void]$p.Start() }
+    catch { return @{ Out = ''; Rc = 127; Stopped = $false } }
+    $p.StandardInput.Close()
+    $outTask = $p.StandardOutput.ReadToEndAsync()
+    $errTask = $p.StandardError.ReadToEndAsync()
+    if (-not $p.WaitForExit($Timeout * 1000)) {
+        try { & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null } catch { }
+        return @{ Out = ''; Rc = 1; Stopped = $true }
+    }
+    $p.WaitForExit()
+    [void]$errTask.Result
+    return @{ Out = $outTask.Result; Rc = $p.ExitCode; Stopped = $false }
+}
+
+# Runs the store's CLI: @{ Ok; Body } with its JSON answer, or @{ Ok; Why }.
+function Invoke-VigilStoreCli {
+    param($Keys, [string]$Cli, [string[]]$Arguments, [string[]]$Env)
+    $r = Invoke-VigilCliRun -Timeout $Keys.timeout -Command $Cli -Arguments $Arguments -Env $Env
+    if ($r.Rc -eq -1) { return @{ Ok = $false; Why = "an argument for the $Cli CLI has a character cmd.exe would interpret" } }
+    if ($r.Stopped) { return @{ Ok = $false; Why = "the $Cli CLI was stopped after $($Keys.timeout)s" } }
+    if ($r.Rc -ne 0) { return @{ Ok = $false; Why = "the $Cli CLI failed (exit code $($r.Rc))" } }
+    return @{ Ok = $true; Body = $r.Out }
+}
+
+# Which client a store uses (6.5.3): @{ Client (cli or http); Cli; Why }.
+function Get-VigilStoreClient {
+    param($Keys, [string]$Type)
+    $cli = switch -CaseSensitive ($Type) { 'azure_keyvault' { 'az' } 'aws_secrets_manager' { 'aws' } 'gcp_secret_manager' { 'gcloud' } default { '' } }
+    if (-not $cli) { return @{ Client = 'http'; Cli = ''; Why = '' } }
+    if ($Keys.client -ceq 'cli' -or $Keys.client -ceq 'http') { return @{ Client = $Keys.client; Cli = $cli; Why = "client = $($Keys.client)" } }
+    # auto: the CLI when it is installed and can sign in that way.
+    if (@('azure_keyvault:service_principal', 'gcp_secret_manager:service_account_key') -ccontains "${Type}:$($Keys.auth)") {
+        return @{ Client = 'http'; Cli = $cli; Why = "client = auto; $cli cannot sign in with auth = $($Keys.auth)" }
+    }
+    if (Test-VigilCliFound $cli) { return @{ Client = 'cli'; Cli = $cli; Why = 'client = auto' } }
+    return @{ Client = 'http'; Cli = $cli; Why = "client = auto; $cli is not installed" }
+}
+
+# Azure Key Vault with az, signed in as the service account
+# (az login --identity).
+function Get-VigilCliKeyVaultSecret {
+    param([string]$Root, $Parsed, $Keys, [string]$Name)
+    if ($Name -cnotmatch '^[0-9A-Za-z-]+(/[0-9A-Za-z]+)?$') { return @{ Ok = $false; Why = 'not a valid Key Vault secret name' } }
+    $cenv = @()
+    if ($Keys.ca_file) { $cenv = @("REQUESTS_CA_BUNDLE=$($Keys.ca_file)") }
+    $r = Invoke-VigilStoreCli $Keys 'az' @('keyvault', 'secret', 'show', '--id', "$($Keys.vault.TrimEnd('/'))/secrets/$Name", '--output', 'json') $cenv
+    if (-not $r.Ok) { return $r }
+    return Get-VigilStoreAnswer '' $r.Body @('value')
+}
+
+# AWS Secrets Manager with aws. Access keys reach it in its environment.
+function Get-VigilCliAwsSecret {
+    param([string]$Root, $Parsed, $Keys, [string]$Name)
+    if ($Name -cnotmatch '^[A-Za-z0-9/_+=.@:-]+$') { return @{ Ok = $false; Why = 'not a valid Secrets Manager secret name' } }
+    $cenv = @()
+    if ($Keys.auth -ceq 'access_keys') {
+        $akid = $Keys.access_key_id
+        if ($akid -cmatch '^(env|secret):') {
+            $r = Get-VigilStoreCredential $Root $Parsed 'access_key_id' $akid
+            if (-not $r.Ok) { return $r }
+            $akid = $r.Value
+        }
+        $r = Get-VigilStoreCredential $Root $Parsed 'secret_access_key' $Keys.secret_access_key
+        if (-not $r.Ok) { return $r }
+        $cenv = @("AWS_ACCESS_KEY_ID=$akid", "AWS_SECRET_ACCESS_KEY=$($r.Value)")
+    }
+    $a = @('secretsmanager', 'get-secret-value', '--secret-id', $Name, '--region', $Keys.region, '--output', 'json')
+    if ($Keys.endpoint) { $a += @('--endpoint-url', $Keys.endpoint) }
+    if ($Keys.ca_file) { $a += @('--ca-bundle', $Keys.ca_file) }
+    $r = Invoke-VigilStoreCli $Keys 'aws' $a $cenv
+    $cenv = $null
+    if (-not $r.Ok) { return $r }
+    return Get-VigilAwsValue $Keys $r.Body
+}
+
+# GCP Secret Manager with gcloud, as the instance's service account.
+function Get-VigilCliGcpSecret {
+    param([string]$Root, $Parsed, $Keys, [string]$Name)
+    $n = Split-VigilGcpName $Name
+    if (-not $n.Ok) { return $n }
+    $cenv = @('CLOUDSDK_CORE_DISABLE_PROMPTS=1')
+    if ($Keys.endpoint) { $cenv += "CLOUDSDK_API_ENDPOINT_OVERRIDES_SECRETMANAGER=$($Keys.endpoint.TrimEnd('/'))/" }
+    if ($Keys.ca_file) { $cenv += "CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE=$($Keys.ca_file)" }
+    $r = Invoke-VigilStoreCli $Keys 'gcloud' @('secrets', 'versions', 'access', $n.Version, "--secret=$($n.Name)", "--project=$($Keys.project)", '--format=json') $cenv
+    if (-not $r.Ok) { return $r }
+    return Get-VigilGcpPayload $r.Body
+}
+
+# For vigil precheck: which client a store uses and why. @{ Ok; Text }, Ok
+# false when client = cli and the CLI is not installed.
+function Get-VigilStoreClientReport {
+    param([string]$Root, $Parsed, [string]$Store, [string]$Type)
+    $c = Get-VigilStoreClient (Get-VigilStoreKeys $Root $Parsed $Store) $Type
+    if ($c.Client -ceq 'cli') {
+        if (-not (Test-VigilCliFound $c.Cli)) { return @{ Ok = $false; Text = "client = cli, but $($c.Cli) is not installed" } }
+        return @{ Ok = $true; Text = "uses the $($c.Cli) CLI ($($c.Why))" }
+    }
+    return @{ Ok = $true; Text = "uses Vigil's own HTTPS client ($($c.Why))" }
 }
 
 function Get-VigilStoreSecret {
     param([string]$Root, $Parsed, [string]$Store, [string]$Type, [string]$Name)
     $keys = Get-VigilStoreKeys $Root $Parsed $Store
+    $c = Get-VigilStoreClient $keys $Type
+    if ($c.Client -ceq 'cli') {
+        if (-not (Test-VigilCliFound $c.Cli)) { return @{ Ok = $false; Why = "the $($c.Cli) CLI is not installed (client = cli)" } }
+        if ($Type -ceq 'azure_keyvault') { return Get-VigilCliKeyVaultSecret $Root $Parsed $keys $Name }
+        if ($Type -ceq 'aws_secrets_manager') { return Get-VigilCliAwsSecret $Root $Parsed $keys $Name }
+        return Get-VigilCliGcpSecret $Root $Parsed $keys $Name
+    }
     if ($Type -ceq 'hashicorp_vault') { return Get-VigilVaultSecret $Root $Parsed $keys $Name }
     if ($Type -ceq 'aws_secrets_manager') { return Get-VigilAwsSecret $Root $Parsed $keys $Name }
     if ($Type -ceq 'gcp_secret_manager') { return Get-VigilGcpSecret $Root $Parsed $keys $Name }

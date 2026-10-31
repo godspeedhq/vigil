@@ -355,7 +355,7 @@ _vigil_store_keys() {
     _vs_tenant_id='' _vs_client_id='' _vs_client_secret=''
     _vs_authority=https://login.microsoftonline.com _vs_ca_file='' _vs_timeout=10
     _vs_region='' _vs_access_key_id='' _vs_secret_access_key='' _vs_endpoint=''
-    _vs_project='' _vs_service_account_key=''
+    _vs_project='' _vs_service_account_key='' _vs_client_key=auto
     i=${VIGIL_CFG_SEC_FIRST[$sec]}
     end=$((i + VIGIL_CFG_SEC_COUNT[sec]))
     while [ "$i" -lt "$end" ]; do
@@ -379,6 +379,7 @@ _vigil_store_keys() {
             endpoint) _vs_endpoint=${VIGIL_CFG_VALUE[$i]} ;;
             project) _vs_project=${VIGIL_CFG_VALUE[$i]} ;;
             service_account_key) _vs_service_account_key=${VIGIL_CFG_VALUE[$i]} ;;
+            client) _vs_client_key=${VIGIL_CFG_VALUE[$i]} ;;
             timeout) _vigil_wk_secs "${VIGIL_CFG_VALUE[$i]}"; _vs_timeout=$_vw_secs ;;
         esac
         i=$((i + 1))
@@ -739,8 +740,13 @@ _vigil_store_aws_secrets_manager() {
         fi
         return 1
     fi
+    _vigil_aws_value
+}
+
+# The value in a GetSecretValue answer in _vh_resp: its SecretString, or
+# with field, one key of it stored as JSON.
+_vigil_aws_value() {
     _vigil_store_answer '' SecretString || return 1
-    # field picks one key of a secret stored as JSON.
     if [ -n "$_vs_field" ]; then
         if ! vigil_json_get "$_vs_got" "$_vs_field"; then
             _vs_got=''
@@ -824,20 +830,46 @@ _vigil_gcp_sa_token() {
     _vigil_store_answer 'sign-in failed: ' access_token
 }
 
-# GCP Secret Manager.
-_vigil_store_gcp_secret_manager() {
-    local root=$1 name=$2 version=latest url data
-    local re='^[A-Za-z0-9_-]+(/([0-9]+|latest))?$' re64='^[A-Za-z0-9+/]*={0,2}$'
-    if ! [[ $name =~ $re ]]; then
+# A Secret Manager name, NAME or NAME/<version>, into _vg_name and
+# _vg_version.
+_vigil_gcp_name() {
+    local re='^[A-Za-z0-9_-]+(/([0-9]+|latest))?$'
+    if ! [[ $1 =~ $re ]]; then
         VIGIL_SECRET_WHY='not a valid Secret Manager secret name'
         return 1
     fi
-    case $name in
-        */*)
-            version=${name#*/}
-            name=${name%%/*}
-            ;;
-    esac
+    _vg_name=${1%%/*}
+    _vg_version=latest
+    case $1 in */*) _vg_version=${1#*/} ;; esac
+}
+
+# The value in an access answer in _vh_resp: its payload, decoded from
+# base64, exactly as stored. The API answers in standard base64, gcloud in
+# its URL-safe form; both are read.
+_vigil_gcp_payload() {
+    local data re64='^[A-Za-z0-9+/_-]*={0,2}$'
+    _vigil_store_answer '' payload data || return 1
+    data=$_vs_got
+    _vs_got=''
+    if ! [[ $data =~ $re64 ]]; then
+        VIGIL_SECRET_WHY='unexpected answer: payload.data is not base64'
+        return 1
+    fi
+    if ! command -v openssl > /dev/null 2>&1; then
+        VIGIL_SECRET_WHY='openssl is not installed'
+        return 1
+    fi
+    while [ $((${#data} % 4)) -ne 0 ]; do data=$data=; done
+    VIGIL_SECRET_VALUE=$(printf '%s' "$data" | tr '_-' '/+' | openssl base64 -d -A; printf x)
+    VIGIL_SECRET_VALUE=${VIGIL_SECRET_VALUE%x}
+}
+
+# GCP Secret Manager.
+_vigil_store_gcp_secret_manager() {
+    local root=$1 name version url
+    _vigil_gcp_name "$2" || return 1
+    name=$_vg_name
+    version=$_vg_version
     if ! command -v openssl > /dev/null 2>&1; then
         VIGIL_SECRET_WHY='openssl is not installed'
         return 1
@@ -862,18 +894,158 @@ _vigil_store_gcp_secret_manager() {
     url=${_vs_endpoint:-https://secretmanager.googleapis.com}
     _vigil_http_encode "$_vs_project" 0
     _vigil_store_request '' GET "${url%/}/v1/projects/$_vh_enc/secrets/$name/versions/$version:access" 0 || return 1
-    _vigil_store_answer '' payload data || return 1
-    # The value is base64.
-    data=$_vs_got
-    _vs_got=''
-    if ! [[ $data =~ $re64 ]]; then
-        data=''
-        VIGIL_SECRET_WHY='unexpected answer: payload.data is not base64'
+    _vigil_gcp_payload
+}
+
+# --- The vendor CLIs ---------------------------------------------------------
+
+# Whether a command is installed. The conformance suite replaces it.
+_vigil_cli_found() {
+    command -v "$1" > /dev/null 2>&1
+}
+
+# _vigil_cli_run <timeout> <command> <arg>...
+# Runs a vendor CLI directly, never through a shell, with no input, within
+# the timeout, with the variables in _vc_env ("NAME=value" each) added to its
+# environment, never its command line. Sets _vc_out to its stdout and _vc_rc
+# to its exit code, and _vc_stopped to 1 when it had to be stopped. The
+# conformance suite replaces it.
+_vigil_cli_run() {
+    local t=$1 e
+    shift
+    # The output ends with a marker: x when the CLI exited, t when the
+    # watchdog had to stop it (exit codes alone cannot tell: aws exits 254).
+    _vc_out=$(
+        for e in ${_vc_env[@]+"${_vc_env[@]}"}; do export "${e?}"; done
+        "$@" 2> /dev/null < /dev/null &
+        p=$!
+        ( sleep "$t"; kill "$p" 2> /dev/null ) > /dev/null 2>&1 &
+        w=$!
+        wait "$p"
+        rc=$?
+        if kill "$w" 2> /dev/null; then printf x; else printf t; fi
+        exit "$rc"
+    )
+    _vc_rc=$?
+    _vc_stopped=0
+    case $_vc_out in *t) _vc_stopped=1 ;; esac
+    _vc_out=${_vc_out%?}
+}
+
+# Runs the store's CLI with arguments $@; its JSON answer into _vh_resp.
+_vigil_store_cli() {
+    _vigil_cli_run "$_vs_timeout" "$_vs_cli" "$@"
+    _vc_env=()
+    _vh_resp=$_vc_out
+    _vc_out=''
+    if [ "$_vc_stopped" = 1 ]; then
+        _vh_resp=''
+        VIGIL_SECRET_WHY="the $_vs_cli CLI was stopped after ${_vs_timeout}s"
+        return 1
+    elif [ "$_vc_rc" -ne 0 ]; then
+        _vh_resp=''
+        VIGIL_SECRET_WHY="the $_vs_cli CLI failed (exit code $_vc_rc)"
         return 1
     fi
-    VIGIL_SECRET_VALUE=$(printf '%s' "$data" | openssl base64 -d -A; printf x)
-    VIGIL_SECRET_VALUE=${VIGIL_SECRET_VALUE%x}
-    data=''
+}
+
+# Which client a store uses (6.5.3), into _vs_client (cli or http), with
+# the CLI's name in _vs_cli and, for vigil precheck, why in _vs_why.
+_vigil_store_client() {
+    local type=$1
+    _vs_client=http
+    _vs_why="client = $_vs_client_key"
+    case $type in
+        azure_keyvault) _vs_cli=az ;;
+        aws_secrets_manager) _vs_cli=aws ;;
+        gcp_secret_manager) _vs_cli=gcloud ;;
+        *) _vs_cli=''; _vs_why=''; return 0 ;;
+    esac
+    case $_vs_client_key in
+        cli | http) _vs_client=$_vs_client_key; return 0 ;;
+    esac
+    # auto: the CLI when it is installed and can sign in that way.
+    case $type:$_vs_auth in
+        azure_keyvault:service_principal | gcp_secret_manager:service_account_key)
+            _vs_why="client = auto; $_vs_cli cannot sign in with auth = $_vs_auth"
+            return 0
+            ;;
+    esac
+    if _vigil_cli_found "$_vs_cli"; then
+        _vs_client=cli
+    else
+        _vs_why="client = auto; $_vs_cli is not installed"
+    fi
+}
+
+# Azure Key Vault with az, signed in as the service account
+# (az login --identity).
+_vigil_cli_azure_keyvault() {
+    local re='^[0-9A-Za-z-]+(/[0-9A-Za-z]+)?$'
+    if ! [[ $2 =~ $re ]]; then
+        VIGIL_SECRET_WHY='not a valid Key Vault secret name'
+        return 1
+    fi
+    _vc_env=()
+    [ -n "$_vs_ca_file" ] && _vc_env=("REQUESTS_CA_BUNDLE=$_vs_ca_file")
+    _vigil_store_cli keyvault secret show --id "${_vs_vault%/}/secrets/$2" --output json || return 1
+    _vigil_store_answer '' value || return 1
+    VIGIL_SECRET_VALUE=$_vs_got
+}
+
+# AWS Secrets Manager with aws. Access keys reach it in its environment.
+_vigil_cli_aws_secrets_manager() {
+    local root=$1 re='^[A-Za-z0-9/_+=.@:-]+$'
+    local -a args
+    if ! [[ $2 =~ $re ]]; then
+        VIGIL_SECRET_WHY='not a valid Secrets Manager secret name'
+        return 1
+    fi
+    _vc_env=()
+    if [ "$_vs_auth" = access_keys ]; then
+        case $_vs_access_key_id in
+            env:* | secret:*)
+                _vigil_store_cred "$root" access_key_id "$_vs_access_key_id" || return 1
+                _vc_env=("AWS_ACCESS_KEY_ID=$_vs_cred")
+                ;;
+            *) _vc_env=("AWS_ACCESS_KEY_ID=$_vs_access_key_id") ;;
+        esac
+        _vigil_store_cred "$root" secret_access_key "$_vs_secret_access_key" || { _vc_env=(); return 1; }
+        _vc_env[${#_vc_env[@]}]="AWS_SECRET_ACCESS_KEY=$_vs_cred"
+        _vs_cred=''
+    fi
+    args=(secretsmanager get-secret-value --secret-id "$2" --region "$_vs_region" --output json)
+    [ -n "$_vs_endpoint" ] && args[${#args[@]}]=--endpoint-url && args[${#args[@]}]=$_vs_endpoint
+    [ -n "$_vs_ca_file" ] && args[${#args[@]}]=--ca-bundle && args[${#args[@]}]=$_vs_ca_file
+    _vigil_store_cli "${args[@]}" || return 1
+    _vigil_aws_value
+}
+
+# GCP Secret Manager with gcloud, as the instance's service account.
+_vigil_cli_gcp_secret_manager() {
+    _vigil_gcp_name "$2" || return 1
+    _vc_env=('CLOUDSDK_CORE_DISABLE_PROMPTS=1')
+    [ -n "$_vs_endpoint" ] && _vc_env[${#_vc_env[@]}]="CLOUDSDK_API_ENDPOINT_OVERRIDES_SECRETMANAGER=${_vs_endpoint%/}/"
+    [ -n "$_vs_ca_file" ] && _vc_env[${#_vc_env[@]}]="CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE=$_vs_ca_file"
+    _vigil_store_cli secrets versions access "$_vg_version" "--secret=$_vg_name" "--project=$_vs_project" --format=json || return 1
+    _vigil_gcp_payload
+}
+
+# vigil_store_client_report <root> <section index> <type>
+# For vigil precheck: which client a store uses and why, in VIGIL_STORE_CLIENT.
+# Returns 1 when client = cli and the CLI is not installed.
+vigil_store_client_report() {
+    _vigil_store_keys "$1" "$2"
+    _vigil_store_client "$3"
+    if [ "$_vs_client" = cli ]; then
+        if ! _vigil_cli_found "$_vs_cli"; then
+            VIGIL_STORE_CLIENT="client = cli, but $_vs_cli is not installed"
+            return 1
+        fi
+        VIGIL_STORE_CLIENT="uses the $_vs_cli CLI ($_vs_why)"
+    else
+        VIGIL_STORE_CLIENT="uses Vigil's own HTTPS client ($_vs_why)"
+    fi
 }
 
 vigil_store_fetch() {
@@ -883,8 +1055,20 @@ vigil_store_fetch() {
     VIGIL_SECRET_WHY=''
     _vh_headers=()
     _vh_body=''
-    "_vigil_store_$3" "$1" "$4"
-    rc=$?
+    _vigil_store_client "$3"
+    if [ "$_vs_client" = cli ]; then
+        if _vigil_cli_found "$_vs_cli"; then
+            "_vigil_cli_$3" "$1" "$4"
+            rc=$?
+        else
+            VIGIL_SECRET_WHY="the $_vs_cli CLI is not installed (client = cli)"
+            rc=1
+        fi
+    else
+        "_vigil_store_$3" "$1" "$4"
+        rc=$?
+    fi
+    _vc_env=()
     _vh_headers=()
     _vh_body=''
     _vh_resp=''
