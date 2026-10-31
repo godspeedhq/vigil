@@ -196,6 +196,8 @@ title: Vigil
 description: A lightweight cross-platform job scheduler, supervisor and metrics forwarder, built only from OS-native scripts.
 baseurl: /vigil
 remote_theme: just-the-docs/just-the-docs@v0.10.1
+# Just the Docs' built-in dark scheme.
+color_scheme: dark
 plugins:
   - jekyll-remote-theme
 search_enabled: true
