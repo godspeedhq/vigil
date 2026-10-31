@@ -176,6 +176,15 @@ url     = https://127.0.0.1:$hport
 auth    = token
 token   = secret:VAULT_TOKEN
 ca_file = tls\ca.pem
+
+# Only for the slow check: a short timeout would also catch the first,
+# cold, request of a busy CI runner.
+[secret_store.hv_slow]
+type    = hashicorp_vault
+url     = https://127.0.0.1:$hport
+auth    = token
+token   = secret:VAULT_TOKEN
+ca_file = tls\ca.pem
 timeout = 2s
 
 [secret_store.hv_role]
@@ -256,7 +265,7 @@ secret    = X=store:untrusted/db/password
 [job.slow]
 file      = scripts\show.ps1
 run_every = 1h
-secret    = X=store:hv/slow
+secret    = X=store:hv_slow/slow
 
 [job.kv_missing]
 file      = scripts\show.ps1
@@ -293,7 +302,7 @@ secret    = X=store:kv/gone
     [void](Invoke-Vigil @('run', 'untrusted'))
     Test-Equal 'a certificate not trusted is refused' "secret store:untrusted/db/password unavailable: the certificate of 127.0.0.1:$hport is not trusted" (Get-StateValue 'untrusted' 'reason')
     [void](Invoke-Vigil @('run', 'slow'))
-    Test-Equal 'a slow store is given up on' "secret store:hv/slow unavailable: no answer from 127.0.0.1:$hport within 2s" (Get-StateValue 'slow' 'reason')
+    Test-Equal 'a slow store is given up on' "secret store:hv_slow/slow unavailable: no answer from 127.0.0.1:$hport within 2s" (Get-StateValue 'slow' 'reason')
     [void](Invoke-Vigil @('secret', 'set', 'VAULT_TOKEN', '--stdin') 'wrong')
     [void](Invoke-Vigil @('run', 'missing'))
     Test-Equal 'a wrong token' 'secret store:hv/no/such/secret unavailable: permission denied (HTTP 403)' (Get-StateValue 'missing' 'reason')

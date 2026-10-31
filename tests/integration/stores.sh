@@ -154,6 +154,15 @@ url     = https://127.0.0.1:$hport
 auth    = token
 token   = secret:VAULT_TOKEN
 ca_file = tls/ca.pem
+
+# Only for the slow check: a short timeout would also catch the first,
+# cold, request of a busy CI runner.
+[secret_store.hv_slow]
+type    = hashicorp_vault
+url     = https://127.0.0.1:$hport
+auth    = token
+token   = secret:VAULT_TOKEN
+ca_file = tls/ca.pem
 timeout = 2s
 
 [secret_store.hv_role]
@@ -234,7 +243,7 @@ secret    = X=store:untrusted/db/password
 [job.slow]
 file      = scripts/show.sh
 run_every = 1h
-secret    = X=store:hv/slow
+secret    = X=store:hv_slow/slow
 
 [job.kv_missing]
 file      = scripts/show.sh
@@ -248,8 +257,7 @@ printf 'aws-secret-key-%s' "$$" | vigil secret set AWS_SECRET --stdin > /dev/nul
 # 1. A run receives every store's secret, exactly.
 vigil run show > /dev/null 2>&1
 check "run with store secrets succeeds" succeeded "$(state_value show status)"
-[ "$(state_value show status)" = succeeded ] || printf '        reason: %s
-' "$(state_value show reason)"
+[ "$(state_value show status)" = succeeded ] || printf '        reason: %s\n' "$(state_value show reason)"
 check "hashicorp_vault, token: delivered exactly" 1 "$(metric show a_ok)"
 check "hashicorp_vault, approle: delivered exactly" 1 "$(metric show b_ok)"
 check "azure_keyvault, managed identity: delivered exactly" 1 "$(metric show c_ok)"
@@ -273,7 +281,7 @@ vigil run untrusted > /dev/null 2>&1
 check "a certificate not trusted is refused" "secret store:untrusted/db/password unavailable: the certificate of 127.0.0.1:$hport is not trusted" \
     "$(state_value untrusted reason)"
 vigil run slow > /dev/null 2>&1
-check "a slow store is given up on" "secret store:hv/slow unavailable: no answer from 127.0.0.1:$hport within 2s" "$(state_value slow reason)"
+check "a slow store is given up on" "secret store:hv_slow/slow unavailable: no answer from 127.0.0.1:$hport within 2s" "$(state_value slow reason)"
 printf 'wrong' | vigil secret set VAULT_TOKEN --stdin > /dev/null
 vigil run missing > /dev/null 2>&1
 check "a wrong token" "secret store:hv/no/such/secret unavailable: permission denied (HTTP 403)" "$(state_value missing reason)"
