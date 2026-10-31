@@ -112,6 +112,7 @@ _vigil_val_keytype() {
         secret_store:vault | secret_store:url | secret_store:authority | secret_store:endpoint) _vv_type=https_url ;;
         secret_store:ca_file) _vv_type=path ;;
         secret_store:auth) _vv_type=store_auth ;;
+        secret_store:client) _vv_type=store_client ;;
         secret_store:mount | secret_store:field | secret_store:region | secret_store:project | \
         secret_store:tenant_id | secret_store:client_id | secret_store:role_id | secret_store:access_key_id) _vv_type=text ;;
         secret_store:client_secret | secret_store:token | secret_store:secret_id | \
@@ -228,14 +229,14 @@ _vigil_val_store_key() {
         helper:command | helper:arg | \
         azure_keyvault:vault | azure_keyvault:auth | azure_keyvault:tenant_id | \
         azure_keyvault:client_id | azure_keyvault:client_secret | \
-        azure_keyvault:authority | azure_keyvault:ca_file | \
+        azure_keyvault:authority | azure_keyvault:ca_file | azure_keyvault:client | \
         hashicorp_vault:url | hashicorp_vault:mount | hashicorp_vault:field | hashicorp_vault:auth | \
         hashicorp_vault:token | hashicorp_vault:role_id | hashicorp_vault:secret_id | hashicorp_vault:ca_file | \
         aws_secrets_manager:region | aws_secrets_manager:auth | aws_secrets_manager:field | \
-        aws_secrets_manager:endpoint | aws_secrets_manager:ca_file | \
+        aws_secrets_manager:endpoint | aws_secrets_manager:ca_file | aws_secrets_manager:client | \
         aws_secrets_manager:access_key_id | aws_secrets_manager:secret_access_key | \
         gcp_secret_manager:project | gcp_secret_manager:auth | gcp_secret_manager:service_account_key | \
-        gcp_secret_manager:endpoint | gcp_secret_manager:ca_file) return 0 ;;
+        gcp_secret_manager:endpoint | gcp_secret_manager:ca_file | gcp_secret_manager:client) return 0 ;;
     esac
     return 1
 }
@@ -608,6 +609,12 @@ _vigil_val_check() {
                 *) _vv_code=E_ENUM; _vv_msg="'$key' is not an authentication method of a $_vv_sstype secret store: $value" ;;
             esac
             ;;
+        store_client)
+            case $value in
+                auto | cli | http) ;;
+                *) _vv_code=E_ENUM; _vv_msg="'$key' must be auto, cli or http: $value" ;;
+            esac
+            ;;
     esac
 }
 
@@ -624,7 +631,7 @@ vigil_config_validate() {
     local LC_ALL=C
     local nl=$'\n'
     local count=${#VIGIL_CFG_KEY[@]}
-    local s si e name sline kind sub key value line seen req pointer=''
+    local s si e name sline kind sub key value line seen req auth pointer=''
     local has_file has_every has_at has_days has_command has_type has_sha256
     local has_config_file
     local tag_keys env_names
@@ -958,6 +965,20 @@ vigil_config_validate() {
                             *) _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs '$key' for auth = $_vv_first"; break ;;
                         esac
                     done
+                    # The vendor CLI only signs in where it keeps no
+                    # credential on disk (6.5.3).
+                    auth=$_vv_first
+                    _vigil_val_first "$si" client
+                    if [ "$_vv_first" = cli ]; then
+                        case $_vv_sstype:$auth in
+                            azure_keyvault:service_principal)
+                                _vigil_val_report "$sline" E_STORE_CLIENT "[$name] client = cli cannot use auth = $auth: az login would keep the client secret on disk"
+                                ;;
+                            gcp_secret_manager:service_account_key)
+                                _vigil_val_report "$sline" E_STORE_CLIENT "[$name] client = cli cannot use auth = $auth: gcloud reads a key only from a file"
+                                ;;
+                        esac
+                    fi
                 fi
                 ;;
             log_forward | log_destination)

@@ -456,13 +456,38 @@ A store on the host, managed with the `vigil secret` command and read afresh by 
 | `aws_secrets_manager` | `region`, `field` (one key of a secret stored as JSON; default: the whole `SecretString`), `endpoint` (default `https://secretsmanager.<region>.amazonaws.com`; a VPC or FIPS endpoint, scheme and host only), `ca_file` | `auth = instance_profile` (no secret on the host), or `access_keys` with `access_key_id` (not secret: written as is, or as an `env:` or `secret:` reference) and `secret_access_key` |
 | `gcp_secret_manager` | `project`, `endpoint` (default `https://secretmanager.googleapis.com`; a Private Service Connect endpoint), `ca_file` | `auth = metadata` (no secret on the host), or `service_account_key`: a reference to the contents of the account's JSON key file, as Google issues it (`vigil secret set GCP_KEY --stdin < key.json`) |
 
-Every store also takes `timeout` (default `10s`), the limit for each request. Every type but `helper` needs `auth`, and the keys its method lists.
+Every store also takes `timeout` (default `10s`), the limit for each request; the three cloud types also take `client`, the vendor's CLI or Vigil's own HTTPS (below). Every type but `helper` needs `auth`, and the keys its method lists.
 
 - **A store's own credentials** (`client_secret`, `token`, `secret_id`, …) must be `env:` or `secret:` references, never `store:`: one store cannot unlock another, so there is never a chain to untangle.
 - **Fetched fresh** when each run or delivery starts, held in memory only for that run, never written to disk. A rotated secret is used by the next run. A sign-in token is fetched with it and never kept.
 - **Failure:** a job whose secret cannot be fetched fails before its command starts, with a reason that names the reference and the kind of failure, never a value (`secret store:ops_kv/backup-api-token unavailable: not found (HTTP 404)`). A backend whose credential cannot be fetched fails that delivery and backs off (§4.5).
 - **`https` only**, with certificate verification never disabled. Secret store credentials are sent in headers or request bodies, never in URLs.
 - `helper`, `hashicorp_vault`, `azure_keyvault`, `aws_secrets_manager` and `gcp_secret_manager` are all implemented.
+
+
+##### `client`: the vendor's CLI, or Vigil's own HTTPS
+
+`azure_keyvault`, `aws_secrets_manager` and `gcp_secret_manager` take `client`, which says what fetches their secrets. The vendor's CLI is preferred; Vigil's own HTTPS client (below) is the fallback that needs nothing installed.
+
+| `client` | Fetches with | Needs on the host |
+| --- | --- | --- |
+| `auto` (default) | The vendor's CLI (`az`, `aws`, `gcloud`) when it is on Vigil's `PATH` and can sign in with the store's `auth`, otherwise Vigil's own HTTPS. | Nothing more than `http` does; the CLI only if it is to be used. |
+| `cli` | The vendor's CLI, always. | **The vendor's CLI, installed for and on the `PATH` of the account Vigil runs as, and signed in where it needs to be.** Without it, every fetch fails, and `vigil precheck` says so. |
+| `http` | Vigil's own HTTPS, always. | Linux and macOS: `curl`, and `openssl` for AWS and GCP. Windows: nothing. |
+
+A CLI is used only where it signs in without keeping a credential on disk:
+
+| Type | `auth` the CLI can use | Run as |
+| --- | --- | --- |
+| `azure_keyvault` | `managed_identity` | `az keyvault secret show --id {vault}/secrets/{NAME} --output json`. az must be signed in as the service account: run `az login --identity` once as that account (`--username <client_id>` for a user-assigned identity). `ca_file` is given as `REQUESTS_CA_BUNDLE`. |
+| `aws_secrets_manager` | `instance_profile`, `access_keys` | `aws secretsmanager get-secret-value --secret-id {NAME} --region {region} --output json`, with `--endpoint-url` and `--ca-bundle` when set. Access keys are given in its environment (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`), never its arguments; with `instance_profile`, the CLI's own credential chain applies. |
+| `gcp_secret_manager` | `metadata` | `gcloud secrets versions access {version} --secret={NAME} --project={project} --format=json`, as the account gcloud is configured with (by default the instance's service account). `endpoint` and `ca_file` are given in its environment. |
+
+`client = cli` with `service_principal` (az login would keep the client secret on disk) or `service_account_key` (gcloud reads a key only from a file) is rejected (`E_STORE_CLIENT`); `auto` uses Vigil's own HTTPS for them.
+
+- The CLI runs directly, never through a shell, with no input and within the store's `timeout`; its answer is read exactly as the API's. On Windows, `az` and `gcloud` are `.cmd` files, which cmd.exe runs: an argument with a character cmd.exe would interpret (`" % ^ & | < > !`) is refused.
+- **Failure:** `the <cli> CLI failed (exit code <n>)`, `the <cli> CLI was stopped after <n>s`, or `the <cli> CLI is not installed (client = cli)`.
+- `vigil precheck` prints which one each store uses, and why: `uses the az CLI (client = auto)`, or `uses Vigil's own HTTPS client (client = auto; gcloud is not installed)`.
 
 ##### The built-in stores
 
@@ -1560,6 +1585,7 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | Secrets | `E_SECRET_RAW` | A credential key whose value is not an `env:`, `secret:` or `store:` reference; the value is never shown. |
 | | `E_SECRET_REF` | A malformed reference (a bad name, `store:` without a secret name), or a secret store's own credential given as a `store:` reference. |
 | | `E_SECRET_STORE_UNKNOWN` | A `store:` reference naming a `[secret_store.*]` that is not defined. |
+| | `E_STORE_CLIENT` | `client = cli` with an `auth` the vendor's CLI could only use by keeping a credential on disk (§6.5.3). |
 | Sources | `E_SOURCE_UNKNOWN` | A job or `config_source` names a source that is not defined. |
 | | `E_SOURCE_PATH` | A `file` or `config_file` inside a source that is absolute, uses `\` or contains a `..` segment. |
 | | `E_URL` | A malformed URL, an `https` source URL not starting with `https://`, or a URL containing credentials (never shown). |
@@ -1579,7 +1605,7 @@ Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rul
 
 - Configuration parses and validates. Every problem is listed in file order, with its line, message and code; a rejected configuration stops here.
 - Every job file exists and is runnable through its resolved runner, its runner `command` exists, and its `working_dir` exists: the checks a worker makes before a run (§4.3).
-- Every `secret` of every job resolves, and every `require_env` variable is set (or provided by a `secret`). Backend and secret store credentials (`env:`, `secret:` references) resolve. Values are fetched and thrown away; only references are printed.
+- Every `secret` of every job resolves, and every `require_env` variable is set (or provided by a `secret`). Backend and secret store credentials (`env:`, `secret:` references) resolve, and each cloud secret store says whether it uses its vendor's CLI or Vigil's own HTTPS (§6.5.3). Values are fetched and thrown away; only references are printed.
 - State, log and spool directories are writable: each, or the nearest folder above it that exists, since precheck creates nothing.
 - `VIGIL_FAULT` and `VIGIL_TEST_IMDS` are not set (§22.4.1, §22.4.2).
 

@@ -23,7 +23,7 @@
         thrown away: only their references are printed.
 
     Requires Config.ps1, Validate.ps1, Effective.ps1, Command.ps1,
-    Secrets.ps1 and Worker.ps1.
+    Secrets.ps1, Stores.ps1 and Worker.ps1.
 #>
 
 function Format-VigilConfigRecord {
@@ -168,13 +168,25 @@ function Invoke-VigilPrecheck {
     }
 
     # Credentials of backends and secret stores: resolved, never shown.
-    foreach ($e in $parsed.Entries) {
-        if (-not ($e.Section.StartsWith('backend.', [System.StringComparison]::Ordinal) -or $e.Section.StartsWith('secret_store.', [System.StringComparison]::Ordinal))) { continue }
-        if ($e.Value -cnotmatch '^(env|secret|store):') { continue }
-        $r = Resolve-VigilSecret -Root $Root -Parsed $parsed -Reference $e.Value
-        if ($r.Ok) { & $ok "$($e.Section): $($e.Key) $($e.Value)" }
-        else { & $fail "$($e.Section): $($e.Key) $($e.Value) unavailable: $($r.Why)" }
-        $r = $null
+    foreach ($sec in $parsed.Sections) {
+        $isStore = $sec.Name.StartsWith('secret_store.', [System.StringComparison]::Ordinal)
+        if (-not ($sec.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) -or $isStore)) { continue }
+        for ($i = $sec.First; $i -lt $sec.First + $sec.Count; $i++) {
+            $e = $parsed.Entries[$i]
+            if ($e.Value -cnotmatch '^(env|secret|store):') { continue }
+            $r = Resolve-VigilSecret -Root $Root -Parsed $parsed -Reference $e.Value
+            if ($r.Ok) { & $ok "$($sec.Name): $($e.Key) $($e.Value)" }
+            else { & $fail "$($sec.Name): $($e.Key) $($e.Value) unavailable: $($r.Why)" }
+            $r = $null
+        }
+        # Which client a cloud store uses: its CLI, or Vigil's own.
+        if ($isStore) {
+            $type = Get-VigilConfigValue $parsed $sec.Name 'type' ''
+            if (@('azure_keyvault', 'aws_secrets_manager', 'gcp_secret_manager') -ccontains $type) {
+                $c = Get-VigilStoreClientReport -Root $Root -Parsed $parsed -Store $sec.Name.Substring(13) -Type $type
+                if ($c.Ok) { & $ok "$($sec.Name): $($c.Text)" } else { & $fail "$($sec.Name): $($c.Text)" }
+            }
+        }
     }
 
     $ctx = @{

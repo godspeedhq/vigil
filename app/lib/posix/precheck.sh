@@ -21,8 +21,8 @@
 #     nothing failed (warnings are allowed), 1 otherwise. Secrets are
 #     resolved and thrown away: only their references are printed.
 #
-# Requires config.sh, validate.sh, effective.sh, command.sh, secrets.sh and
-# worker.sh.
+# Requires config.sh, validate.sh, effective.sh, command.sh, secrets.sh,
+# stores.sh and worker.sh.
 
 # One record: ERROR, INVALID or WARN, its line, message and code.
 _vigil_pc_record() {
@@ -269,6 +269,21 @@ vigil_precheck() {
                     esac
                     i=$((i + 1))
                 done
+                # Which client a cloud store uses: its CLI, or Vigil's own.
+                case $sec in
+                    secret_store.*)
+                        _vigil_val_first "$s" type
+                        case $_vv_first in
+                            azure_keyvault | aws_secrets_manager | gcp_secret_manager)
+                                if vigil_store_client_report "$_vw_root" "$s" "$_vv_first"; then
+                                    _vigil_pc_ok "$sec: $VIGIL_STORE_CLIENT"
+                                else
+                                    _vigil_pc_fail "$sec: $VIGIL_STORE_CLIENT"
+                                fi
+                                ;;
+                        esac
+                        ;;
+                esac
                 ;;
         esac
         s=$((s + 1))

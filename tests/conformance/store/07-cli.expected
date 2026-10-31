@@ -1,0 +1,60 @@
+fetch store:kv/dd
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net (10s, metadata)
+>   Metadata: true
+> GET https://ops-kv.vault.azure.net/secrets/dd?api-version=7.4 (10s)
+>   Authorization: Bearer t
+= over-https
+fetch store:kv_cli/dd
+! the az CLI is not installed (client = cli)
+fetch store:kv/dd
+> az keyvault secret show --id https://ops-kv.vault.azure.net/secrets/dd --output json (10s)
+= from-az
+fetch store:kv/dd/0abc
+> az keyvault secret show --id https://ops-kv.vault.azure.net/secrets/dd/0abc --output json (10s)
+= version
+fetch store:kv/bad_name
+! not a valid Key Vault secret name
+fetch store:kv_sp/dd
+> POST https://login.microsoftonline.com/2222-tenant/oauth2/v2.0/token (10s)
+>   Content-Type: application/x-www-form-urlencoded
+>   grant_type=client_credentials&client_id=3333-client&client_secret=sp-secret&scope=https%3A%2F%2Fvault.azure.net%2F.default
+> GET https://ops-kv.vault.azure.net/secrets/dd?api-version=7.4 (10s)
+>   Authorization: Bearer t
+= sp-https
+fetch store:aws_keys/prod/db
+> aws secretsmanager get-secret-value --secret-id prod/db --region eu-west-2 --output json --ca-bundle /etc/vigil/ca.pem (10s)
+>   AWS_ACCESS_KEY_ID=AKIDEXAMPLE
+>   AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY
+= from-aws
+fetch store:aws_role/app/json
+> aws secretsmanager get-secret-value --secret-id app/json --region us-east-1 --output json --endpoint-url https://vpce-0abc.secretsmanager.us-east-1.vpce.amazonaws.com (30s)
+= p@ss
+fetch store:gcp/db/3
+> gcloud secrets versions access 3 --secret=db --project=ops-prod --format=json (10s)
+>   CLOUDSDK_CORE_DISABLE_PROMPTS=1
+>   CLOUDSDK_API_ENDPOINT_OVERRIDES_SECRETMANAGER=https://secretmanager-ops.p.googleapis.com/
+= ~~~??
+fetch store:gcp_http/db
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (10s, metadata)
+>   Metadata-Flavor: Google
+> GET https://secretmanager.googleapis.com/v1/projects/ops-prod/secrets/db/versions/latest:access (10s)
+>   Authorization: Bearer t
+= http
+fetch store:aws_keys/gone
+> aws secretsmanager get-secret-value --secret-id gone --region eu-west-2 --output json --ca-bundle /etc/vigil/ca.pem (10s)
+>   AWS_ACCESS_KEY_ID=AKIDEXAMPLE
+>   AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY
+! the aws CLI failed (exit code 1)
+fetch store:gcp/db
+> gcloud secrets versions access latest --secret=db --project=ops-prod --format=json (10s)
+>   CLOUDSDK_CORE_DISABLE_PROMPTS=1
+>   CLOUDSDK_API_ENDPOINT_OVERRIDES_SECRETMANAGER=https://secretmanager-ops.p.googleapis.com/
+! the gcloud CLI was stopped after 10s
+fetch store:aws_role/app/json
+> aws secretsmanager get-secret-value --secret-id app/json --region us-east-1 --output json --endpoint-url https://vpce-0abc.secretsmanager.us-east-1.vpce.amazonaws.com (30s)
+! the aws CLI failed (exit code 254)
+fetch store:kv/dd
+> az keyvault secret show --id https://ops-kv.vault.azure.net/secrets/dd --output json (10s)
+! unexpected answer: not a JSON object
+fetch store:aws_keys/prod/db
+! secret_access_key env:VIGIL_CT_AWS_SECRET: not set in the environment

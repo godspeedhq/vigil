@@ -641,7 +641,17 @@ secret    = PGPASSWORD=secret:PGPASSWORD
 
 All three are resolved for jobs today. `store:` works with HashiCorp Vault (token or AppRole), Azure Key Vault (managed identity or service principal), AWS Secrets Manager (instance role or access keys), GCP Secret Manager (the instance's service account, or a service account key) and a `helper` command for anything else.
 
-None of the four needs a vendor CLI: Vigil calls their HTTPS APIs itself, with `curl` on Linux and macOS (plus `openssl` for AWS and GCP signatures; tokens and keys reach them through pipes, never a command line or a file) and .NET on Windows. For a Vault behind a private CA, point `ca_file` at the CA's certificate:
+For Azure, AWS and GCP, the vendor's CLI (`az`, `aws`, `gcloud`) is preferred when it's installed, and Vigil's own HTTPS client is the fallback. The store's `client` key says which:
+
+| `client` | Fetches with | Prerequisite on the server |
+| --- | --- | --- |
+| `auto` (default) | The vendor's CLI if it's on Vigil's `PATH` and can sign in that way, otherwise Vigil's own HTTPS | Nothing beyond `http`'s |
+| `cli` | The vendor's CLI, always | **The vendor's CLI, installed and signed in as the service account** (for az: `az login --identity`) |
+| `http` | Vigil's own HTTPS, always | Linux and macOS: `curl`, plus `openssl` for AWS and GCP. Windows: nothing |
+
+The CLI is used only where it can sign in without keeping a credential on disk: Azure managed identity, AWS instance role or access keys (passed in its environment, never its arguments), GCP instance service account. `vigil precheck` shows which one each store uses and why. HashiCorp Vault always uses Vigil's own HTTPS.
+
+Vigil's own HTTPS client needs no vendor CLI: it calls the APIs itself, with `curl` on Linux and macOS (tokens and keys reach curl and openssl through pipes, never a command line or a file) and .NET on Windows. For a Vault behind a private CA, point `ca_file` at the CA's certificate:
 
 ```ini
 [secret_store.vault]
