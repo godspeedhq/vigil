@@ -44,6 +44,8 @@ jobs:
       - name: service registration (/bin/bash)
         run: /bin/bash tests/integration/service.sh
         timeout-minutes: 15
+      - name: init and uninstall (/bin/bash)
+        run: /bin/bash tests/integration/init-uninstall.sh
 
   windows:
     runs-on: windows-latest
@@ -86,6 +88,9 @@ jobs:
         shell: powershell
         run: ./tests/integration/Service.ps1
         timeout-minutes: 15
+      - name: init and uninstall (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/integration/Init-Uninstall.ps1
       - name: integration (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Run-Job.ps1
@@ -111,6 +116,9 @@ jobs:
         shell: pwsh
         run: ./tests/integration/Service.ps1
         timeout-minutes: 15
+      - name: init and uninstall (PowerShell 7)
+        shell: pwsh
+        run: ./tests/integration/Init-Uninstall.ps1
       - name: secrets (Git Bash)
         shell: bash
         run: bash tests/integration/secrets.sh

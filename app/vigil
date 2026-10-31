@@ -27,6 +27,15 @@
 #       Service control. Stopping leaves running workers alone (18.3).
 #   vigil [--root <dir>] status
 #       The service's state, then jobs.log.
+#   vigil [--root <dir>] init [--instance <name>] [--backend file,datadog,otel] [--no-sample]
+#       Writes a starting configuration (19): runners for the shells found
+#       here, the backends with env: placeholders, and a sample job. Asks
+#       for what is not given when run at a terminal. Never overwrites a
+#       configuration, never asks for a secret value.
+#   vigil [--root <dir>] uninstall [--yes] [--keep-config]
+#       Removes Vigil (18.8): the service, the running workers proven to be
+#       Vigil's, the root (or all but config/ and scripts/) and the command
+#       link. Lists what it will remove and asks first, unless --yes.
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
@@ -49,13 +58,13 @@ done
 app=$(cd "$(dirname "$self")" && pwd)
 root=$(dirname "$app")
 
-for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker sender supervisor precheck service; do
+for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker sender supervisor precheck service init; do
     # shellcheck source=/dev/null
     . "$app/lib/posix/$lib.sh"
 done
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]\n' >&2
     exit 64
 }
 
@@ -146,6 +155,53 @@ case ${1-} in
             mv -f "$rec.tmp.$$" "${rec%.recovery}.resolved" || exit 1
         printf '%s: run %s marked as over by %s; the supervisor concludes it and releases the job at its next tick\n' "$job" "$rid" "$who"
         exit 0
+        ;;
+    init)
+        shift
+        instance='' backends='' sample=1 asked=0
+        while [ "$#" -gt 0 ]; do
+            case $1 in
+                --instance | --backend)
+                    [ "$#" -ge 2 ] || usage
+                    if [ "$1" = --instance ]; then instance=$2; else backends=$2; fi
+                    shift
+                    ;;
+                --no-sample) sample=0 ;;
+                *) usage ;;
+            esac
+            shift
+        done
+        # Defaults: the host name, and the file backend.
+        host=$(hostname 2> /dev/null | sed 's/\..*//; s/[^A-Za-z0-9_.-]/-/g')
+        if [ -t 0 ] && [ -z "$instance" ]; then
+            printf 'Instance name [%s]: ' "${host:-vigil}"
+            IFS= read -r instance
+            asked=1
+        fi
+        if [ -t 0 ] && [ -z "$backends" ]; then
+            printf 'Backends, comma-separated: file, datadog, otel [file]: '
+            IFS= read -r backends
+            asked=1
+        fi
+        [ -n "$instance" ] || instance=${host:-vigil}
+        [ -n "$backends" ] || backends=file
+        [ "$asked" = 1 ] && printf '\n'
+        vigil_init "$root" "$instance" "$(printf '%s' "$backends" | tr -d ' ')" "$sample"
+        exit $?
+        ;;
+    uninstall)
+        shift
+        yes=0 keep=0
+        while [ "$#" -gt 0 ]; do
+            case $1 in
+                --yes) yes=1 ;;
+                --keep-config) keep=1 ;;
+                *) usage ;;
+            esac
+            shift
+        done
+        vigil_uninstall "$root" "$yes" "$keep"
+        exit $?
         ;;
     service)
         case ${2-} in

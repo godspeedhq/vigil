@@ -81,7 +81,8 @@ Vigil's guiding rules:
 | Backends: Datadog, OTLP, Splunk and the rest | Specified, not built |
 | `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done |
 | Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done |
-| Installers, `vigil init`, `vigil uninstall` | Specified, not built |
+| `vigil init` (a starting configuration) and `vigil uninstall` | Done |
+| One-line installers (`install.sh`, `install.ps1`) and release archives | Specified, not built |
 | Fetching configuration and scripts from git, https, sftp, shares | Validated, not fetched yet |
 | Forwarding Vigil's own logs (OTLP) | Specified, not built |
 | Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
@@ -92,6 +93,8 @@ Vigil's guiding rules:
 ## Quick start
 
 Vigil does not have installers yet. You can run it straight from a clone: every command takes `--root` (`-Root` on Windows), the folder holding `config/`, `state/`, `logs/` and so on.
+
+The fastest start is `vigil init`, which writes a commented configuration with runners for the shells it finds, your backends and a sample disk job: `app/vigil --root ~/vigil-demo init` (add `--backend file,datadog` and `--instance <name>` to skip the questions). The steps below build the same thing by hand.
 
 **1. Make a root and a job.**
 
@@ -717,6 +720,8 @@ The full reference is in [`SPECIFICATION.md`](SPECIFICATION.md) (§6), and [`tes
 | `vigil service remove` | Unregisters it. Running jobs carry on. |
 | `vigil start` / `stop` / `restart` | Service control. Stopping never stops running jobs. |
 | `vigil status` | The service's state, then `jobs.log`. |
+| `vigil init [--instance <name>] [--backend file,datadog,otel] [--no-sample]` | Writes a starting configuration: runners for the shells found here, the backends with `env:` placeholders, a sample job. Asks for what is not given at a terminal. Never overwrites a configuration, never asks for a secret value. |
+| `vigil uninstall [--yes] [--keep-config]` | Removes Vigil: the service, the running workers proven to be Vigil's (never anything else), the root (or all but `config/` and `scripts/`) and the command link or `PATH` entry. Lists what it will remove and asks first. |
 
 On Linux and macOS the command is `app/vigil`; on Windows it is `app\vigil.ps1`. All take `--root <dir>` (`-Root <dir>` on Windows), defaulting to the folder that contains `app/`.
 

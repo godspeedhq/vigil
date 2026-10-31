@@ -1803,6 +1803,9 @@ Before deleting, it lists what will be removed — including how many scripts ar
 
 - `--yes` skips the confirmation, for unattended use.
 - `--keep-config` keeps `config/` and `scripts/`, so a reinstall picks up where it left off.
+- Without `--yes`, and with no terminal to ask at, it refuses and removes nothing.
+
+It refuses a folder that holds no `app/vigil` (`app\vigil.ps1`), so a mistyped `--root` deletes nothing. A worker is proven by its command line naming the run and the root (`worker <job> --run-id <run id>`) and by being the `worker_pid` of that run's state; a job process by holding the run token (Linux, macOS) or by its PID, name, start time and parent matching the state file (Windows, as for `max_runtime`, §11.5). Proven processes get TERM, then KILL after 10 seconds (on Windows the tree ends at once); a process the state names but that cannot be proven is listed as left running, and nothing else is ever touched.
 
 Environment variables set outside Vigil (machine environment, `vigil.env` aside) are left untouched. Uninstall is idempotent: running it on a clean machine succeeds and changes nothing. On Windows, when the root cannot be deleted because the uninstall itself is running from inside it, deletion is completed by a short-lived detached process after Vigil exits.
 
@@ -1840,6 +1843,8 @@ The supervisor's command line is `<bash> <app>/vigil --root <root> supervise`, o
 2. Asks which backend(s) the organisation uses.
 3. Writes a commented config with the correct runners, paths, `env:` placeholders and one sample job.
 4. Prints the environment variable names that must be set.
+
+Flags: `--instance <name>` (default: the host name), `--backend <list>` from `file`, `datadog` and `otel` (default: `file`; other backends are added by hand) and `--no-sample` (no sample job). At a terminal, `init` asks for the instance and backends it was not given; otherwise it uses the defaults. It refuses when `config/vigil.config` exists. The sample job is `scripts/disk.sh` (`scripts\disk.ps1`): the system disk's use as `used_pct`, failing above 95%.
 
 `init` never asks for or stores secret values. Every prompt has a flag equivalent so it can run unattended from deployment tooling.
 

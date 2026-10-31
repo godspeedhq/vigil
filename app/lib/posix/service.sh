@@ -400,3 +400,114 @@ vigil_service_status() {
     fi
     return 0
 }
+
+# A value from a state file.
+_vigil_svc_state_value() {
+    sed -n "s/^$2 *= \{0,1\}//p" "$1" 2> /dev/null | head -n 1
+}
+
+# The runs in progress, proven to be this root's: for each token in
+# locks/, the job process holding the token and the worker whose command
+# line names the run (11.5). Sets _vs_pids (proven) and _vs_unproven.
+_vigil_svc_runs() {
+    local statedir=$1 t base job rid st wpid jpid args
+    _vs_pids=''
+    _vs_unproven=''
+    case $(uname -s) in
+        Darwin) _su_platform=macos ;;
+        *) _su_platform=linux ;;
+    esac
+    for t in "$statedir"/locks/*.token; do
+        [ -e "$t" ] || continue
+        base=${t##*/}
+        base=${base%.token}
+        rid=${base##*.}
+        job=${base%.*}
+        st=$statedir/jobs/$job.state
+        wpid=$(_vigil_svc_state_value "$st" worker_pid)
+        jpid=$(_vigil_svc_state_value "$st" job_pid)
+        if [ -n "$jpid" ] && [ "$(_vigil_svc_state_value "$st" run_id)" = "$rid" ]; then
+            _vigil_sup_holds "$jpid" "$t"
+            if [ "$_su_held" = yes ]; then _vs_pids="$_vs_pids $jpid"; else _vs_unproven="$_vs_unproven $jpid"; fi
+        fi
+        if [ -n "$wpid" ]; then
+            args=$(ps -o args= -p "$wpid" 2> /dev/null)
+            case $args in
+                *" worker $job --run-id $rid"*) _vs_pids="$_vs_pids $wpid" ;;
+                '') ;;
+                *) _vs_unproven="$_vs_unproven $wpid" ;;
+            esac
+        fi
+    done
+}
+
+# vigil uninstall (18.8): the service, the proven workers, then the root
+# (all of it, or all but config/ and scripts/), and the command link.
+vigil_uninstall() {
+    local root=$1 yes=$2 keep=$3 statedir=$root/state n link answer p i alive
+    if [ ! -f "$root/app/vigil" ] || [ "$root" = / ] || [ "$root" = "$HOME" ]; then
+        _vigil_svc_err "$root does not look like a Vigil install root (no app/vigil); nothing removed"
+        return 1
+    fi
+    if _vw_root=$root _vw_job=vigil_sender _vigil_wk_config 2> /dev/null; then statedir=$_vw_statedir; fi
+    _vigil_svc_runs "$statedir"
+    link=''
+    for p in /usr/local/bin/vigil "$HOME/.local/bin/vigil"; do
+        if [ -L "$p" ] && [ "$(readlink "$p")" = "$root/app/vigil" ]; then link="$link $p"; fi
+    done
+    n=$(find "$root/scripts" -type f 2> /dev/null | wc -l | tr -d ' ')
+
+    printf 'vigil uninstall will remove:\n'
+    _vigil_svc_os 2> /dev/null && _vigil_svc_find "$root" && [ -n "$_vs_mode" ] &&
+        printf '  the %s service registration (%s mode)\n' "$_vs_os" "$_vs_mode"
+    [ -n "$_vs_pids" ] && printf '  running Vigil processes:%s\n' "$_vs_pids"
+    if [ "$keep" = 1 ]; then
+        printf '  %s, except config/ and scripts/ (%s scripts kept)\n' "$root" "$n"
+    else
+        printf '  %s, including config/ and scripts/ (%s scripts)\n' "$root" "$n"
+    fi
+    [ -n "$link" ] && printf '  the vigil command:%s\n' "$link"
+    [ -n "$_vs_unproven" ] && printf 'and leave running, since they cannot be proven to be Vigil'"'"'s:%s\n' "$_vs_unproven"
+    if [ "$yes" != 1 ]; then
+        if [ ! -t 0 ]; then
+            _vigil_svc_err 'not a terminal: confirm with --yes'
+            return 1
+        fi
+        printf 'Remove? [y/N] '
+        IFS= read -r answer
+        case $answer in
+            y | Y | yes | YES) ;;
+            *)
+                printf 'nothing removed\n'
+                return 1
+                ;;
+        esac
+    fi
+
+    vigil_service_remove "$root" > /dev/null || return 1
+    if [ -n "$_vs_pids" ]; then
+        # TERM, then KILL whatever is still alive after 10 seconds.
+        for p in $_vs_pids; do kill -TERM -- "-$p" 2> /dev/null || kill -TERM "$p" 2> /dev/null; done
+        i=0
+        while [ "$i" -lt 20 ]; do
+            alive=''
+            for p in $_vs_pids; do kill -0 "$p" 2> /dev/null && alive="$alive $p"; done
+            [ -z "$alive" ] && break
+            sleep 0.5
+            i=$((i + 1))
+        done
+        for p in $alive; do kill -KILL -- "-$p" 2> /dev/null || kill -KILL "$p" 2> /dev/null; done
+    fi
+    for p in $link; do rm -f "$p"; done
+    if [ "$keep" = 1 ]; then
+        for p in "$root"/* "$root"/.[!.]*; do
+            [ -e "$p" ] || continue
+            case ${p##*/} in config | scripts) ;; *) rm -rf "$p" ;; esac
+        done
+        printf 'removed Vigil; kept %s/config and %s/scripts\n' "$root" "$root"
+    else
+        rm -rf "$root" || return 1
+        printf 'removed Vigil\n'
+    fi
+    return 0
+}
