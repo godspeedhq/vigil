@@ -424,7 +424,7 @@ Credential keys (`api_key`, `token`, `username`, `password`, `*_secret`, `*_key`
 
 `env:NAME` is read from Vigil's environment when it is needed: when a worker starts its run, or when the sender starts a delivery.
 
-- **Windows:** the machine scope, then the user scope, are read from the registry at that moment, falling back to the inherited environment. A variable changed with System Properties, `setx` or `[Environment]::SetEnvironmentVariable` is used by the next run, without a restart.
+- **Windows:** the user scope, then the machine scope, are read from the registry at that moment, as a new logon would see them (an empty value counts as unset), falling back to the inherited environment. A variable changed with System Properties, `setx` or `[Environment]::SetEnvironmentVariable` is used by the next run, without a restart. `require_env` reads the registry the same way, and a variable found there is passed to the job.
 - **Linux and macOS:** the environment the service was started with: the systemd unit's `Environment=` and `EnvironmentFile=`, or the launchd plist's `EnvironmentVariables`. These systems keep no live store a running process could read again, so **a changed value takes effect only when Vigil is next started.** Restarting Vigil never stops running jobs (§10.4), but the new value reaches only runs started after it. Use `secret:` or `store:` for anything that will be rotated.
 
 #### 6.5.2 Vigil's secret store: `secret:`
@@ -439,9 +439,10 @@ A store on the host, managed with the `vigil secret` command and read afresh by 
 
 - **Names:** `[A-Za-z_][A-Za-z0-9_]*`, like environment variables.
 - **Linux and macOS:** one file per secret, `config/secrets/<NAME>`. The folder is `0700` and each file `0600`, owned by the service account. Vigil refuses to read a secret, and says why without the value, when the folder or file is accessible to anyone else or owned by another account.
-- **Windows:** one file per secret, `config\secrets\<NAME>`, holding the value encrypted with DPAPI for the service account (.NET `ProtectedData`, no extra software), with an owner-only ACL. Only that account on that machine can decrypt it.
+- **Windows:** one file per secret, `config\secrets\<NAME>`, holding the value encrypted with DPAPI for the service account (`ConvertFrom-SecureString`, no extra software). The folder's ACL is owner-only, with inheritance removed. Only that account on that machine can decrypt it; a secret it cannot decrypt is refused with a reason saying so.
 - `vigil secret set` writes a temporary file and renames it over the old one, so a run reads either the old value or the new one, never part of one. A single trailing newline is not part of the value.
-- Run `vigil secret` as the service account (or as an administrator, who the command sets ownership for), so the files belong to the account that reads them.
+- Run `vigil secret` as the service account, so the files belong to, and on Windows are encrypted for, the account that reads them.
+- **Filesystems without Unix permissions:** Git Bash and Cygwin on Windows cannot enforce them, so the check is skipped there; they are for development only, and Windows runs the PowerShell implementation. Under WSL, a Linux filesystem (ext4) enforces them, but Windows drives under `/mnt/c` show every file as accessible to all by default, so Vigil refuses secrets kept there: install Vigil inside the Linux filesystem.
 
 #### 6.5.3 External secret stores: `store:`
 
@@ -461,7 +462,7 @@ Every store also takes `timeout` (default `10s`).
 - **Fetched fresh** when each run or delivery starts, held in memory only for that run, never written to disk. A rotated secret is used by the next run.
 - **Failure:** a job whose secret cannot be fetched fails before its command starts, with a reason that names the reference and the kind of failure, never a value (`secret store:ops_kv/backup-api-token unavailable: not found`). A backend whose credential cannot be fetched fails that delivery and backs off (§4.5).
 - **`https` only**, with certificate verification never disabled. Secret store credentials are sent in headers or request bodies, never in URLs.
-- Store types are implemented one at a time, starting with `helper`. Until a type is implemented, a reference to a store of that type fails as above with `unavailable: store type not implemented yet`.
+- Store types are implemented one at a time, starting with `helper`. Until a type is implemented, a reference to a store of that type fails as above with `unavailable: store type <type> not implemented yet`.
 
 #### 6.5.4 Secrets for Jobs
 

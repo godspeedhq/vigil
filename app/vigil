@@ -8,6 +8,9 @@
 #   vigil [--root <dir>] resolve <job>
 #       Confirms that the uncertain run holding <job> is over (11.4). Never
 #       kills anything; the supervisor concludes the run at its next tick.
+#   vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>
+#       Vigil's own secret store (6.5.2). set prompts without echo, or reads
+#       the value from stdin; list never shows values.
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
@@ -30,13 +33,13 @@ done
 app=$(cd "$(dirname "$self")" && pwd)
 root=$(dirname "$app")
 
-for lib in config validate effective command schedule outcome metrics events recovery prom worker sender supervisor; do
+for lib in config validate effective command schedule outcome metrics events recovery prom secrets worker sender supervisor; do
     # shellcheck source=/dev/null
     . "$app/lib/posix/$lib.sh"
 done
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | supervise [--once]\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n' >&2
     exit 64
 }
 
@@ -70,6 +73,34 @@ case ${1-} in
             fi
         fi
         exit "$rc"
+        ;;
+    secret)
+        # Vigil's own secret store (6.5.2). Values are read from the terminal
+        # without echo, or from stdin with --stdin; never from arguments.
+        case ${2-}:$# in
+            set:3 | set:4)
+                name=$3
+                if [ "$#" -eq 4 ]; then
+                    [ "$4" = --stdin ] || usage
+                    value=''
+                    IFS= read -r -d '' value || true
+                else
+                    [ -t 0 ] || { printf 'vigil: not a terminal; use --stdin\n' >&2; exit 64; }
+                    printf 'Value for %s (not echoed): ' "$name" >&2
+                    IFS= read -r -s value
+                    printf '\n' >&2
+                fi
+                _vsec_v=$value
+                _vigil_secret_chomp
+                vigil_secret_set "$root" "$name" "$_vsec_v" || exit 1
+                _vsec_v='' value=''
+                printf '%s set; runs started from now on use it\n' "$name"
+                ;;
+            list:2) vigil_secret_list "$root" ;;
+            delete:3) vigil_secret_delete "$root" "$3" || exit 1 ;;
+            *) usage ;;
+        esac
+        exit 0
         ;;
     resolve)
         [ "$#" -eq 2 ] || usage

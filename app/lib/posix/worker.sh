@@ -272,6 +272,9 @@ vigil_worker() {
     _vw_job=$2
     local rid=$3 launch token code=- outcome=failed reason='' rc mode exit_codes
     local i key value missing='' prog pid started duration out err stem spool maxrt='' deadline
+    local required='' secret_error=''
+    local -a secrets snames svalues
+    secrets=()
     local LC_ALL=C
     _vw_state=()
 
@@ -318,13 +321,32 @@ vigil_worker() {
         case $key in
             exit_codes) exit_codes=$value ;;
             max_runtime) maxrt=$value ;;
-            require_env)
-                if ! eval "[ -n \"\${$value+set}\" ]"; then
-                    missing="$missing $value"
-                fi
-                ;;
+            secret) secrets[${#secrets[@]}]=$value ;;
+            require_env) required="$required $value" ;;
         esac
         i=$((i + 1))
+    done
+
+    # Secrets for the job (6.5.4), resolved now, for this run only. A secret
+    # that cannot be resolved fails the run before it starts; the reason
+    # names the reference, never a value.
+    snames=() svalues=()
+    for value in ${secrets[@]+"${secrets[@]}"}; do
+        if vigil_secret_resolve "$_vw_root" "${value#*=}"; then
+            snames[${#snames[@]}]=${value%%=*}
+            svalues[${#svalues[@]}]=$VIGIL_SECRET_VALUE
+        else
+            secret_error="secret ${value#*=} unavailable: $VIGIL_SECRET_WHY"
+            break
+        fi
+    done
+    VIGIL_SECRET_VALUE=''
+    # require_env counts the variables those secrets provide.
+    for value in $required; do
+        case " ${snames[*]-} " in *" $value "*) continue ;; esac
+        if ! eval "[ -n \"\${$value+set}\" ]"; then
+            missing="$missing $value"
+        fi
     done
     mode=standard
     [ "$exit_codes" = nagios ] && mode=nagios
@@ -361,6 +383,8 @@ vigil_worker() {
     prog=$VIGIL_CMD_PROGRAM
     if [ -n "$VIGIL_CMD_ERROR" ]; then
         reason=$VIGIL_CMD_MESSAGE
+    elif [ -n "$secret_error" ]; then
+        reason=$secret_error
     elif [ -n "$missing" ]; then
         reason="missing environment variable${missing}"
     elif [ ! -d "$VIGIL_CMD_CWD" ]; then
@@ -394,6 +418,11 @@ vigil_worker() {
                 if [ "${VIGIL_EFF_KEY[$i]}" = env ]; then
                     export "${VIGIL_EFF_VALUE[$i]%%=*}=${VIGIL_EFF_VALUE[$i]#*=}"
                 fi
+                i=$((i + 1))
+            done
+            i=0
+            while [ "$i" -lt "${#snames[@]}" ]; do
+                export "${snames[$i]}=${svalues[$i]}"
                 i=$((i + 1))
             done
             exec "$prog" ${VIGIL_CMD_ARGS[@]+"${VIGIL_CMD_ARGS[@]}"}
