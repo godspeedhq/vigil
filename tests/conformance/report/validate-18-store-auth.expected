@@ -7,3 +7,4 @@ ERROR    line 52: [secret_store.no_sa_key] needs 'service_account_key' for auth 
 ERROR    line 61: 'ca_file' does not apply to a helper secret store (E_KEY_UNKNOWN)
 ERROR    line 67: 'authority' does not apply to a hashicorp_vault secret store (E_KEY_UNKNOWN)
 ERROR    line 75: 'authority' must start with https:// (E_URL)
+ERROR    line 89: 'endpoint' must start with https:// (E_URL)

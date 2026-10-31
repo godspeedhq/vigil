@@ -88,7 +88,8 @@ function Test-VigilStoreKey {
         'azure_keyvault:client_id', 'azure_keyvault:client_secret', 'azure_keyvault:authority', 'azure_keyvault:ca_file',
         'hashicorp_vault:url', 'hashicorp_vault:mount',
         'hashicorp_vault:field', 'hashicorp_vault:auth', 'hashicorp_vault:token', 'hashicorp_vault:role_id',
-        'hashicorp_vault:secret_id', 'hashicorp_vault:ca_file','aws_secrets_manager:region', 'aws_secrets_manager:auth',
+        'hashicorp_vault:secret_id', 'hashicorp_vault:ca_file', 'aws_secrets_manager:region', 'aws_secrets_manager:auth', 'aws_secrets_manager:field',
+        'aws_secrets_manager:endpoint', 'aws_secrets_manager:ca_file',
         'aws_secrets_manager:access_key_id', 'aws_secrets_manager:secret_access_key', 'gcp_secret_manager:project',
         'gcp_secret_manager:auth', 'gcp_secret_manager:service_account_key') -ccontains "${Type}:$Key"
 }
@@ -214,6 +215,7 @@ function Get-VigilKeyType {
                 'vault' { $t = 'https_url' }
                 'url' { $t = 'https_url' }
                 'authority' { $t = 'https_url' }
+                'endpoint' { $t = 'https_url' }
                 'ca_file' { $t = 'path' }
                 'auth' { $t = 'store_auth' }
                 'timeout' { $t = 'dur' }

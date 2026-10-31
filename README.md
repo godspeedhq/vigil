@@ -84,8 +84,8 @@ Vigil's guiding rules:
 | Fetching configuration and scripts from git, https, sftp, shares | Validated, not fetched yet |
 | Forwarding Vigil's own logs (OTLP) | Specified, not built |
 | Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
-| Secret stores: HashiCorp Vault and Azure Key Vault, over HTTPS with curl or .NET | Done |
-| Secret stores: AWS Secrets Manager, GCP Secret Manager | Validated, not resolved yet |
+| Secret stores: HashiCorp Vault, Azure Key Vault, AWS Secrets Manager, over HTTPS with curl (and openssl) or .NET | Done |
+| Secret stores: GCP Secret Manager | Validated, not resolved yet |
 
 ---
 
@@ -640,9 +640,9 @@ secret    = PGPASSWORD=secret:PGPASSWORD
 - **A raw value is rejected at validation,** and the rejected value is never echoed.
 - **A store's own credentials** must be `env:` or `secret:`, so one store never needs another to unlock it.
 
-All three are resolved for jobs today. `store:` works with HashiCorp Vault (token or AppRole), Azure Key Vault (managed identity or service principal) and a `helper` command. The AWS and GCP store types are validated, and a reference to one fails the run with `store type <type> not implemented yet` until they land; until then, a `helper` running the vendor's CLI covers them.
+All three are resolved for jobs today. `store:` works with HashiCorp Vault (token or AppRole), Azure Key Vault (managed identity or service principal), AWS Secrets Manager (instance role or access keys) and a `helper` command. The GCP store type is validated, and a reference to one fails the run with `store type gcp_secret_manager not implemented yet` until it lands. Until then, using GCP means a `helper` running `gcloud`, so **the gcloud CLI is a prerequisite on the server**.
 
-Vault and Key Vault need nothing installed: Vigil calls their HTTPS APIs itself, with `curl` on Linux and macOS (tokens go on curl's standard input, never its command line) and .NET on Windows. For a Vault behind a private CA, point `ca_file` at the CA's certificate:
+Vault, Key Vault and AWS need no vendor CLI: Vigil calls their HTTPS APIs itself, with `curl` on Linux and macOS (plus `openssl` for AWS's request signatures; tokens and keys go on their standard input, never a command line) and .NET on Windows. For a Vault behind a private CA, point `ca_file` at the CA's certificate:
 
 ```ini
 [secret_store.vault]

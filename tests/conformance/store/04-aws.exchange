@@ -1,0 +1,55 @@
+# The signer, against AWS's published test vector (get-vanilla).
+sigv4 wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY AKIDEXAMPLE 20150830T123600Z us-east-1 service GET / host:example.amazonaws.com x-amz-date:20150830T123600Z
+# Access keys: one signed request; the secret key is never sent.
+now 20261031T120000Z
+env VIGIL_CT_AWS_SECRET wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY
+reply 200 {"ARN":"arn:aws:secretsmanager:eu-west-2:123456789012:secret:prod/db-AbCdEf","Name":"prod/db","SecretString":"pw-1","VersionId":"v1"}
+fetch store:aws/prod/db
+# An ARN is a name too.
+reply 200 {"SecretString":"by-arn"}
+fetch store:aws/arn:aws:secretsmanager:eu-west-2:123456789012:secret:prod/db-AbCdEf
+fetch store:aws/bad name
+# A key ID from a reference; a VPC endpoint; field picks one key of a JSON secret.
+env VIGIL_CT_AWS_KEY_ID AKIAREFERENCE
+reply 200 {"SecretString":"{\"username\":\"app\",\"password\":\"p@ss \\\"q\\\"\"}"}
+fetch store:aws_json/prod/db
+reply 200 {"SecretString":"{\"username\":\"app\"}"}
+fetch store:aws_json/prod/db
+reply 200 {"SecretString":"plain text"}
+fetch store:aws_json/prod/db
+# Errors name their type.
+reply 400 {"__type":"ResourceNotFoundException","message":"Secrets Manager can't find the specified secret."}
+fetch store:aws/gone
+reply 400 {"__type":"com.amazon.coral.service#UnrecognizedClientException","message":"The security token included in the request is invalid."}
+fetch store:aws/prod/db
+reply 400 {"__type":"InvalidSignatureException"}
+fetch store:aws/prod/db
+reply 400 {"__type":"AccessDeniedException"}
+fetch store:aws/prod/db
+reply 400 {"__type":"DecryptionFailure"}
+fetch store:aws/prod/db
+reply 503 <html>unavailable</html>
+fetch store:aws/prod/db
+reply 200 {"ARN":"x","SecretBinary":"AAEC"}
+fetch store:aws/binary
+fail timeout
+fetch store:aws/prod/db
+unenv VIGIL_CT_AWS_SECRET
+fetch store:aws/prod/db
+unenv VIGIL_CT_AWS_KEY_ID
+# The instance's role: IMDSv2 token, role, credentials, then the signed request.
+reply 200 AQAEAtoken==
+reply 200 vigil-role
+reply 200 {"Code":"Success","AccessKeyId":"ASIAINSTANCE","SecretAccessKey":"instance/secret+key","Token":"IQoJb3JpZ2luX2VjE+/session=","Expiration":"2026-10-31T18:00:00Z"}
+reply 200 {"SecretString":"from-role"}
+fetch store:aws_ip/app/key
+# Not on EC2, or no role.
+fail connect
+fetch store:aws_ip/app/key
+reply 200 tok
+reply 404 <?xml version="1.0"?><Error>Not Found</Error>
+fetch store:aws_ip/app/key
+reply 200 tok
+reply 200 vigil-role
+reply 200 {"Code":"Success"}
+fetch store:aws_ip/app/key
