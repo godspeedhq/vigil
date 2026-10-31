@@ -782,11 +782,19 @@ tests/
   conformance/          the shared cases: inputs and expected outputs
   integration/          end-to-end tests that run real jobs and a real supervisor
   mocks/                annotated example configurations, also tested
+tools/docs/             the documentation site generator (build.sh) and publisher (publish.sh)
 SPECIFICATION.md        the full design: what Vigil does and why
 VISION.md               the product vision
 ```
 
 Every file in `lib/posix/` has a twin of the same name in `lib/windows/` (`config.sh` and `Config.ps1`). Each follows its own platform's naming convention, and the two must behave identically.
+
+**Documentation site.** <https://godspeedhq.github.io/vigil/> is generated from the repository: this README, the specification (a page per section), the commands from their own usage text, every validator error code with its meaning and the tests that cover it, the test inventory, the example configurations and the backlog. Nothing on it is edited by hand. To update it after merging to main:
+
+```sh
+bash tools/docs/build.sh            # optional: generate into .site/ to look at locally
+bash tools/docs/publish.sh          # regenerate from main and publish (needs gh)
+```
 
 ---
 
