@@ -85,9 +85,10 @@ function Test-VigilStoreKey {
     param([string]$Type, [string]$Key)
     if ($Key -ceq 'type' -or $Key -ceq 'timeout') { return $true }
     return @('helper:command', 'helper:arg', 'azure_keyvault:vault', 'azure_keyvault:auth', 'azure_keyvault:tenant_id',
-        'azure_keyvault:client_id', 'azure_keyvault:client_secret', 'hashicorp_vault:url', 'hashicorp_vault:mount',
+        'azure_keyvault:client_id', 'azure_keyvault:client_secret', 'azure_keyvault:authority', 'azure_keyvault:ca_file',
+        'hashicorp_vault:url', 'hashicorp_vault:mount',
         'hashicorp_vault:field', 'hashicorp_vault:auth', 'hashicorp_vault:token', 'hashicorp_vault:role_id',
-        'hashicorp_vault:secret_id', 'aws_secrets_manager:region', 'aws_secrets_manager:auth',
+        'hashicorp_vault:secret_id', 'hashicorp_vault:ca_file','aws_secrets_manager:region', 'aws_secrets_manager:auth',
         'aws_secrets_manager:access_key_id', 'aws_secrets_manager:secret_access_key', 'gcp_secret_manager:project',
         'gcp_secret_manager:auth', 'gcp_secret_manager:service_account_key') -ccontains "${Type}:$Key"
 }
@@ -212,6 +213,8 @@ function Get-VigilKeyType {
                 'arg' { $t = 'arg'; $list = $true }
                 'vault' { $t = 'https_url' }
                 'url' { $t = 'https_url' }
+                'authority' { $t = 'https_url' }
+                'ca_file' { $t = 'path' }
                 'auth' { $t = 'store_auth' }
                 'timeout' { $t = 'dur' }
                 default {
@@ -870,11 +873,27 @@ function Test-VigilConfig {
             'secret_store' {
                 # Required keys (6.5.3).
                 $needed = switch ($ctx.SSType) {
-                    'helper' { @('type', 'command') } 'azure_keyvault' { @('type', 'vault') } 'hashicorp_vault' { @('type', 'url') }
-                    'aws_secrets_manager' { @('type', 'region') } 'gcp_secret_manager' { @('type', 'project') } default { @('type') }
+                    'helper' { @('type', 'command') } 'azure_keyvault' { @('type', 'vault', 'auth') } 'hashicorp_vault' { @('type', 'url', 'auth') }
+                    'aws_secrets_manager' { @('type', 'region', 'auth') } 'gcp_secret_manager' { @('type', 'project', 'auth') } default { @('type') }
                 }
+                $missing = $false
                 foreach ($k in $needed) {
-                    if (-not $seen.Contains($k)) { & $report $sline 'E_KEY_REQUIRED' "[$name] needs '$k'"; break }
+                    if (-not $seen.Contains($k)) { & $report $sline 'E_KEY_REQUIRED' "[$name] needs '$k'"; $missing = $true; break }
+                }
+                # And the keys its authentication method needs.
+                if (-not $missing) {
+                    $auth = Get-VigilFirstValue $Parsed $sec 'auth'
+                    $needed = switch -CaseSensitive ("$($ctx.SSType):$auth") {
+                        'azure_keyvault:service_principal' { @('tenant_id', 'client_id', 'client_secret') }
+                        'hashicorp_vault:token' { @('token') }
+                        'hashicorp_vault:approle' { @('role_id', 'secret_id') }
+                        'aws_secrets_manager:access_keys' { @('access_key_id', 'secret_access_key') }
+                        'gcp_secret_manager:service_account_key' { @('service_account_key') }
+                        default { @() }
+                    }
+                    foreach ($k in $needed) {
+                        if (-not $seen.Contains($k)) { & $report $sline 'E_KEY_REQUIRED' "[$name] needs '$k' for auth = $auth"; break }
+                    }
                 }
             }
             { $_ -ceq 'log_forward' -or $_ -ceq 'log_destination' } {

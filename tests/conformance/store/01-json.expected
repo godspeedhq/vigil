@@ -1,0 +1,42 @@
+json a
+= x
+json data.data.value
+= p"w\/é😀
+json c
+= y
+json a
+= spaced
+json a
+= one
+json a
+= tab	here
+json a
+! a is not a string
+json a
+! a is not a string
+json a.b
+! no a.b
+json b
+! no b
+json a
+! not a JSON object
+json a
+! not a JSON object
+json b
+! not valid JSON
+json b
+! not valid JSON
+json a
+! not valid JSON
+json a
+! not valid JSON
+json a
+! not valid JSON
+json a
+! not valid JSON
+json a
+! not valid JSON
+json b
+! not valid JSON
+json a
+! not valid JSON

@@ -1,0 +1,256 @@
+#!/usr/bin/env bash
+#
+# Integration test: HashiCorp Vault and Azure Key Vault over HTTPS with curl
+# (SPECIFICATION.md 6.5.3) on Linux and macOS, against mock-store.py and a
+# CA made for this run. Jobs receive each store's secrets exactly, a rotated
+# value is used by the very next run, failures fail the run with a reason,
+# and no value ever travels in a URL or reaches a log, state or spool file.
+#
+# Needs python3 (or python) and openssl, as GitHub's runners have.
+#
+# Exit code: 0 all passed, 1 any failed.
+
+set -u
+
+here=$(cd "$(dirname "$0")" && pwd)
+repo=$(dirname "$(dirname "$here")")
+vigil_cmd=$repo/app/vigil
+root=${TMPDIR:-/tmp}/vigil-stores.$$
+pass=0
+fail=0
+mock_pid=''
+
+check() {
+    if [ "$2" = "$3" ]; then
+        pass=$((pass + 1))
+        printf '  PASS  %s\n' "$1"
+    else
+        fail=$((fail + 1))
+        printf '  FAIL  %s: expected [%s] actual [%s]\n' "$1" "$2" "$3"
+    fi
+}
+
+state_value() {
+    sed -n "s/^$2 *= \{0,1\}//p" "$root/state/jobs/$1.state"
+}
+
+vigil() {
+    "$BASH" "$vigil_cmd" --root "$root" "$@"
+}
+
+# The value of metric $2 in job $1's latest events.
+metric() {
+    local f
+    f=$(ls "$root/spool/incoming/"*"-$1-"*.events 2>/dev/null | tail -n 1)
+    [ -n "$f" ] && sed -n "s/^[0-9]* $1\\.$2 \\([^ ]*\\) .*/\\1/p" "$f"
+}
+
+cleanup() {
+    [ -n "$mock_pid" ] && kill "$mock_pid" 2>/dev/null
+    rm -rf "$root"
+}
+trap cleanup EXIT
+
+printf 'bash %s\n' "$BASH_VERSION"
+# The first Python that runs: on Windows, python3 may be only a placeholder.
+python=''
+for p in python3 python; do
+    if "$p" -c 'import ssl' > /dev/null 2>&1; then
+        python=$p
+        break
+    fi
+done
+[ -n "$python" ] || { echo "needs python3"; exit 1; }
+command -v openssl > /dev/null || { echo "needs openssl"; exit 1; }
+mkdir -p "$root/config" "$root/scripts" "$root/expect" "$root/mock" "$root/tls"
+root=$(cd "$root" && pwd)
+
+# A CA for this run only, and the mock's certificate from it.
+tls=$root/tls
+# An openssl configuration of its own, for LibreSSL (macOS) and OpenSSL
+# alike. MSYS2_ARG_CONV_EXCL keeps Git Bash from rewriting -subj as a path.
+cat > "$tls/openssl.cnf" <<'EOF'
+[req]
+distinguished_name = dn
+[dn]
+[ca]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign
+[server]
+basicConstraints = CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = DNS:localhost,IP:127.0.0.1
+EOF
+MSYS2_ARG_CONV_EXCL='/CN' openssl req -x509 -newkey rsa:2048 -nodes -keyout "$tls/ca.key" -out "$tls/ca.pem" -days 2 \
+    -subj '/CN=Vigil test CA' -config "$tls/openssl.cnf" -extensions ca > /dev/null 2>&1
+MSYS2_ARG_CONV_EXCL='/CN' openssl req -new -newkey rsa:2048 -nodes -keyout "$tls/server.key" -out "$tls/server.csr" \
+    -subj '/CN=localhost' -config "$tls/openssl.cnf" > /dev/null 2>&1
+openssl x509 -req -in "$tls/server.csr" -CA "$tls/ca.pem" -CAkey "$tls/ca.key" -CAcreateserial \
+    -out "$tls/server.pem" -days 2 -extfile "$tls/openssl.cnf" -extensions server > /dev/null 2>&1
+check "test CA and certificate made" yes "$([ -s "$tls/server.pem" ] && echo yes || echo no)"
+
+# What the mock serves; rewritten to rotate.
+mock_data() {
+    cat > "$root/mock/data.json" <<EOF
+{
+  "vault_token": "s.vault-token-$$", "role_id": "role-$$", "secret_id": "sid-$$",
+  "approle_token": "s.approle-token-$$",
+  "imds_token": "imds-token-$$", "sp_secret": "sp+secret/$$=", "sp_token": "sp-token-$$",
+  "vault": {"secret/data/db/password": {"value": "$1"}, "ops/data/app": {"password": "$2"}},
+  "kv": {"dd": "$3", "api": "$4"}
+}
+EOF
+    printf '%s' "$1" > "$root/expect/a"
+    printf '%s' "$2" > "$root/expect/b"
+    printf '%s' "$3" > "$root/expect/c"
+    printf '%s' "$4" > "$root/expect/d"
+}
+mock_data "vault-pw-1 $$" "approle-pw-1 $$" "kv-mi-1 $$" "kv-sp-1 $$"
+"$python" "$here/mock-store.py" "$root/mock" "$tls/server.pem" "$tls/server.key" 2> "$root/mock/stderr" &
+mock_pid=$!
+i=0
+while [ ! -f "$root/mock/ports" ] && [ "$i" -lt 300 ]; do
+    sleep 0.1
+    i=$((i + 1))
+done
+if [ ! -f "$root/mock/ports" ]; then
+    echo "the mock did not start:"
+    cat "$root/mock/stderr"
+    exit 1
+fi
+read -r hport mport < "$root/mock/ports"
+export VIGIL_TEST_IMDS=http://127.0.0.1:$mport
+export IT_SECRET_ID=sid-$$
+
+# The job reports, for each secret, whether it received exactly the value
+# the test expects - never the value itself.
+cat > "$root/scripts/show.sh" <<'EOF'
+same() { if [ "$1" = "$(cat "$IT_ROOT/expect/$2")" ]; then echo 1; else echo 0; fi; }
+echo "metric a_ok $(same "${A-}" a)"
+echo "metric b_ok $(same "${B-}" b)"
+echo "metric c_ok $(same "${C-}" c)"
+echo "metric d_ok $(same "${D-}" d)"
+EOF
+
+cat > "$root/config/vigil.config" <<EOF
+[runner.sh]
+command = /bin/sh
+
+[runners]
+.sh = sh
+
+[secret_store.hv]
+type    = hashicorp_vault
+url     = https://127.0.0.1:$hport
+auth    = token
+token   = secret:VAULT_TOKEN
+ca_file = tls/ca.pem
+timeout = 2s
+
+[secret_store.hv_role]
+type      = hashicorp_vault
+url       = https://127.0.0.1:$hport/
+mount     = ops
+field     = password
+auth      = approle
+role_id   = role-$$
+secret_id = env:IT_SECRET_ID
+ca_file   = $tls/ca.pem
+
+[secret_store.kv]
+type    = azure_keyvault
+vault   = https://127.0.0.1:$hport
+auth    = managed_identity
+ca_file = tls/ca.pem
+
+[secret_store.kv_sp]
+type          = azure_keyvault
+vault         = https://127.0.0.1:$hport
+auth          = service_principal
+tenant_id     = test-tenant
+client_id     = test-client
+client_secret = secret:SP_SECRET
+authority     = https://127.0.0.1:$hport
+ca_file       = tls/ca.pem
+
+[secret_store.untrusted]
+type  = hashicorp_vault
+url   = https://127.0.0.1:$hport
+auth  = token
+token = secret:VAULT_TOKEN
+
+[job.show]
+file      = scripts/show.sh
+run_every = 1h
+env       = IT_ROOT=$root
+secret    = A=store:hv/db/password
+secret    = B=store:hv_role/app
+secret    = C=store:kv/dd
+secret    = D=store:kv_sp/api
+
+[job.missing]
+file      = scripts/show.sh
+run_every = 1h
+secret    = X=store:hv/no/such/secret
+
+[job.untrusted]
+file      = scripts/show.sh
+run_every = 1h
+secret    = X=store:untrusted/db/password
+
+[job.slow]
+file      = scripts/show.sh
+run_every = 1h
+secret    = X=store:hv/slow
+
+[job.kv_missing]
+file      = scripts/show.sh
+run_every = 1h
+secret    = X=store:kv/gone
+EOF
+printf 's.vault-token-%s' "$$" | vigil secret set VAULT_TOKEN --stdin > /dev/null
+printf 'sp+secret/%s=' "$$" | vigil secret set SP_SECRET --stdin > /dev/null
+
+# 1. A run receives every store's secret, exactly.
+vigil run show > /dev/null 2>&1
+check "run with store secrets succeeds" succeeded "$(state_value show status)"
+check "hashicorp_vault, token: delivered exactly" 1 "$(metric show a_ok)"
+check "hashicorp_vault, approle: delivered exactly" 1 "$(metric show b_ok)"
+check "azure_keyvault, managed identity: delivered exactly" 1 "$(metric show c_ok)"
+check "azure_keyvault, service principal: delivered exactly" 1 "$(metric show d_ok)"
+
+# 2. Rotated in the stores: the very next run uses the new values.
+mock_data "vault-pw-2 $$" "approle-pw-2 $$" "kv-mi-2 $$" "kv-sp-2 $$"
+vigil run show > /dev/null 2>&1
+check "rotated: hashicorp_vault" 1 "$(metric show a_ok)"
+check "rotated: azure_keyvault" 1 "$(metric show c_ok)"
+
+# 3. Failures fail the run before it starts, with a reason.
+vigil run missing > /dev/null 2>&1
+check "not in the store" "secret store:hv/no/such/secret unavailable: not found (HTTP 404)" "$(state_value missing reason)"
+vigil run kv_missing > /dev/null 2>&1
+check "not in the key vault" "secret store:kv/gone unavailable: not found (HTTP 404)" "$(state_value kv_missing reason)"
+vigil run untrusted > /dev/null 2>&1
+check "a certificate not trusted is refused" "secret store:untrusted/db/password unavailable: the certificate of 127.0.0.1:$hport is not trusted" \
+    "$(state_value untrusted reason)"
+vigil run slow > /dev/null 2>&1
+check "a slow store is given up on" "secret store:hv/slow unavailable: no answer from 127.0.0.1:$hport within 2s" "$(state_value slow reason)"
+printf 'wrong' | vigil secret set VAULT_TOKEN --stdin > /dev/null
+vigil run missing > /dev/null 2>&1
+check "a wrong token" "secret store:hv/no/such/secret unavailable: permission denied (HTTP 403)" "$(state_value missing reason)"
+printf 's.vault-token-%s' "$$" | vigil secret set VAULT_TOKEN --stdin > /dev/null
+
+# 4. precheck fetches them too, and shows only references.
+out=$(vigil precheck show 2>&1)
+check "precheck: the job" yes "$(printf '%s\n' "$out" | grep -x '  ok    job.show' > /dev/null && echo yes || echo no)"
+
+# No value or credential ever in a URL, a log, state or spool file.
+values="vault-pw-1 $$|approle-pw-1 $$|kv-mi-1 $$|kv-sp-1 $$|vault-pw-2 $$|kv-mi-2 $$|s.vault-token-$$|sid-$$|s.approle-token-$$|imds-token-$$|sp-token-$$|secret/$$=|secret%2F$$"
+check "no secret in any URL" "" "$(grep -E -e "$values" "$root/mock/urls.log")"
+check "no secret in any log, state or spool file" "" \
+    "$(grep -r -l -E -e "$values" "$root/logs" "$root/state" "$root/spool" 2>/dev/null)"
+check "no secret printed by precheck" "" "$(printf '%s\n' "$out" | grep -E -e "$values")"
+
+printf '%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

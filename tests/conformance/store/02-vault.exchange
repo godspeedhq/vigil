@@ -1,0 +1,56 @@
+# A token: one request.
+env VIGIL_CT_VAULT_TOKEN s.token-1
+reply 200 {"request_id":"r1","data":{"data":{"value":"pw-1","other":"o"},"metadata":{"version":3}}}
+fetch store:hv/db/password
+# The path as written, encoded; never a value in the URL.
+reply 200 {"data":{"data":{"value":"v"}}}
+fetch store:hv/team a/b?c#d%
+reply 200 {"data":{"data":{"value":"über"}}}
+fetch store:hv/café/ünïcode
+# Paths that could reach another endpoint are refused, with no request.
+fetch store:hv/../sys/seal-status
+fetch store:hv/a/./b
+fetch store:hv/a//b
+# Answers that are not a value.
+reply 404 {"errors":[]}
+fetch store:hv/missing
+reply 403 {"errors":["permission denied"]}
+fetch store:hv/forbidden
+reply 401 {"errors":["missing client token"]}
+fetch store:hv/unauthorised
+reply 200 {"data":{"data":{"other":"o"}}}
+fetch store:hv/no-field
+reply 200 {"data":{"data":{"value":42}}}
+fetch store:hv/number
+reply 200 <html>proxy login</html>
+fetch store:hv/html
+reply 503 {"errors":["Vault is sealed"]}
+fetch store:hv/sealed
+# The connection.
+fail resolve
+fetch store:hv/x
+fail connect
+fetch store:hv/x
+fail timeout
+fetch store:hv/x
+fail untrusted
+fetch store:hv/x
+fail tls
+fetch store:hv/x
+fail other
+fetch store:hv/x
+# The store's own credential.
+unenv VIGIL_CT_VAULT_TOKEN
+fetch store:hv/db/password
+# AppRole: sign in, then fetch with the token it gives.
+env VIGIL_CT_SECRET_ID sid"\1
+reply 200 {"auth":{"client_token":"s.from-role","policies":["ops"]}}
+reply 200 {"data":{"data":{"password":"p@ss \"quoted\" é"}}}
+fetch store:hv_role/db
+reply 400 {"errors":["invalid secret id"]}
+fetch store:hv_role/db
+reply 200 {"auth":null}
+fetch store:hv_role/db
+fail connect
+fetch store:hv_role/db
+unenv VIGIL_CT_SECRET_ID

@@ -1,0 +1,70 @@
+fetch store:kv/dd
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net (10s, metadata)
+>   Metadata: true
+> GET https://ops-kv.vault.azure.net/secrets/dd?api-version=7.4 (10s)
+>   Authorization: Bearer eyJ.mi
+= datadog-key
+fetch store:kv/dd/0123abcdef
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net (10s, metadata)
+>   Metadata: true
+> GET https://ops-kv.vault.azure.net/secrets/dd/0123abcdef?api-version=7.4 (10s)
+>   Authorization: Bearer t
+= v2
+fetch store:kv/bad_name
+! not a valid Key Vault secret name
+fetch store:kv/a/b/c
+! not a valid Key Vault secret name
+fetch store:kv/dd
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net (10s, metadata)
+>   Metadata: true
+! sign-in failed: cannot connect to 169.254.169.254
+fetch store:kv/dd
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net (10s, metadata)
+>   Metadata: true
+! sign-in failed: no answer from 169.254.169.254 within 10s
+fetch store:kv/dd
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net (10s, metadata)
+>   Metadata: true
+! sign-in failed: HTTP 400 from 169.254.169.254
+fetch store:kv/dd
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net (10s, metadata)
+>   Metadata: true
+! sign-in failed: unexpected answer: no access_token
+fetch store:kv/gone
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net (10s, metadata)
+>   Metadata: true
+> GET https://ops-kv.vault.azure.net/secrets/gone?api-version=7.4 (10s)
+>   Authorization: Bearer t
+! not found (HTTP 404)
+fetch store:kv/dd
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net (10s, metadata)
+>   Metadata: true
+> GET https://ops-kv.vault.azure.net/secrets/dd?api-version=7.4 (10s)
+>   Authorization: Bearer t
+! permission denied (HTTP 403)
+fetch store:kv/dd
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net (10s, metadata)
+>   Metadata: true
+> GET https://ops-kv.vault.azure.net/secrets/dd?api-version=7.4 (10s)
+>   Authorization: Bearer t
+! unexpected answer: no value
+fetch store:kv_user/dd
+> GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net&client_id=1111-user (10s, metadata)
+>   Metadata: true
+> GET https://ops-kv.vault.azure.net/secrets/dd?api-version=7.4 (10s)
+>   Authorization: Bearer t-user
+= u
+fetch store:kv_sp/x
+> POST https://login.microsoftonline.us/2222-tenant/oauth2/v2.0/token (60s)
+>   Content-Type: application/x-www-form-urlencoded
+>   grant_type=client_credentials&client_id=3333-client&client_secret=a%2Bb%2Fc%3Dd%26e%20f~%22%5C&scope=https%3A%2F%2Fvault.usgovcloudapi.net%2F.default
+> GET https://gov-kv.vault.usgovcloudapi.net/secrets/x?api-version=7.4 (60s)
+>   Authorization: Bearer t-sp
+= gov
+fetch store:kv_sp/x
+> POST https://login.microsoftonline.us/2222-tenant/oauth2/v2.0/token (60s)
+>   Content-Type: application/x-www-form-urlencoded
+>   grant_type=client_credentials&client_id=3333-client&client_secret=a%2Bb%2Fc%3Dd%26e%20f~%22%5C&scope=https%3A%2F%2Fvault.usgovcloudapi.net%2F.default
+! sign-in failed: permission denied (HTTP 401)
+fetch store:kv_sp/x
+! client_secret env:VIGIL_CT_CLIENT_SECRET: not set in the environment

@@ -281,6 +281,7 @@ vigil_precheck() {
     _vigil_wk_dir spool dir spool
     _vigil_pc_dir 'spool directory' "$_vw_dir"
     [ -z "${VIGIL_FAULT-}" ] || _vigil_pc_fail 'VIGIL_FAULT is set: fault injection is for tests only (22.4.1)'
+    [ -z "${VIGIL_TEST_IMDS-}" ] || _vigil_pc_fail 'VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)'
 
     printf '\n'
     if [ "$_pc_failed" -gt 0 ]; then

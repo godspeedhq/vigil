@@ -190,6 +190,7 @@ function Invoke-VigilPrecheck {
         if ($w.Ok) { & $ok "${what}: $d" } else { & $fail "${what}: not writable: $($w.Dir)" }
     }
     if ($env:VIGIL_FAULT) { & $fail 'VIGIL_FAULT is set: fault injection is for tests only (22.4.1)' }
+    if ($env:VIGIL_TEST_IMDS) { & $fail 'VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)' }
 
     $out.Add('')
     if ($failed -gt 0) { $out.Add("precheck failed: $failed problem(s)") }

@@ -109,7 +109,8 @@ _vigil_val_keytype() {
         secret_store:type) _vv_type=store_type ;;
         secret_store:command) _vv_type=path ;;
         secret_store:arg) _vv_type=arg; _vv_list=1 ;;
-        secret_store:vault | secret_store:url) _vv_type=https_url ;;
+        secret_store:vault | secret_store:url | secret_store:authority) _vv_type=https_url ;;
+        secret_store:ca_file) _vv_type=path ;;
         secret_store:auth) _vv_type=store_auth ;;
         secret_store:mount | secret_store:field | secret_store:region | secret_store:project | \
         secret_store:tenant_id | secret_store:client_id | secret_store:role_id | secret_store:access_key_id) _vv_type=text ;;
@@ -227,8 +228,9 @@ _vigil_val_store_key() {
         helper:command | helper:arg | \
         azure_keyvault:vault | azure_keyvault:auth | azure_keyvault:tenant_id | \
         azure_keyvault:client_id | azure_keyvault:client_secret | \
+        azure_keyvault:authority | azure_keyvault:ca_file | \
         hashicorp_vault:url | hashicorp_vault:mount | hashicorp_vault:field | hashicorp_vault:auth | \
-        hashicorp_vault:token | hashicorp_vault:role_id | hashicorp_vault:secret_id | \
+        hashicorp_vault:token | hashicorp_vault:role_id | hashicorp_vault:secret_id | hashicorp_vault:ca_file | \
         aws_secrets_manager:region | aws_secrets_manager:auth | \
         aws_secrets_manager:access_key_id | aws_secrets_manager:secret_access_key | \
         gcp_secret_manager:project | gcp_secret_manager:auth | gcp_secret_manager:service_account_key) return 0 ;;
@@ -926,17 +928,35 @@ vigil_config_validate() {
                 req=type
                 case $_vv_sstype in
                     helper) req='type command' ;;
-                    azure_keyvault) req='type vault' ;;
-                    hashicorp_vault) req='type url' ;;
-                    aws_secrets_manager) req='type region' ;;
-                    gcp_secret_manager) req='type project' ;;
+                    azure_keyvault) req='type vault auth' ;;
+                    hashicorp_vault) req='type url auth' ;;
+                    aws_secrets_manager) req='type region auth' ;;
+                    gcp_secret_manager) req='type project auth' ;;
                 esac
                 for key in $req; do
                     case $seen in
                         *$nl"$key"$nl*) ;;
-                        *) _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs '$key'"; break ;;
+                        *) _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs '$key'"; req=''; break ;;
                     esac
                 done
+                # And the keys its authentication method needs.
+                if [ -n "$req" ]; then
+                    _vigil_val_first "$si" auth
+                    case $_vv_sstype:$_vv_first in
+                        azure_keyvault:service_principal) req='tenant_id client_id client_secret' ;;
+                        hashicorp_vault:token) req='token' ;;
+                        hashicorp_vault:approle) req='role_id secret_id' ;;
+                        aws_secrets_manager:access_keys) req='access_key_id secret_access_key' ;;
+                        gcp_secret_manager:service_account_key) req='service_account_key' ;;
+                        *) req='' ;;
+                    esac
+                    for key in $req; do
+                        case $seen in
+                            *$nl"$key"$nl*) ;;
+                            *) _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs '$key' for auth = $_vv_first"; break ;;
+                        esac
+                    done
+                fi
                 ;;
             log_forward | log_destination)
                 # Required keys (13.4.1).

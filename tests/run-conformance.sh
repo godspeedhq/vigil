@@ -44,6 +44,10 @@
 #   tests/conformance/report/<suite>-<case>.expected
 #                                                 vigil_precheck_report_dump of
 #                                                 each validate and effective case
+#   tests/conformance/store/<case>.config         secret stores, with the requests
+#   tests/conformance/store/<case>.exchange       to answer and the references to
+#   tests/conformance/store/<case>.expected       fetch; every request made, and
+#                                                 each result
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -72,6 +76,12 @@ root=$(dirname "$here")
 . "$root/app/lib/posix/recovery.sh"
 # shellcheck source=../app/lib/posix/prom.sh
 . "$root/app/lib/posix/prom.sh"
+# shellcheck source=../app/lib/posix/secrets.sh
+. "$root/app/lib/posix/secrets.sh"
+# shellcheck source=../app/lib/posix/stores.sh
+. "$root/app/lib/posix/stores.sh"
+# shellcheck source=../app/lib/posix/worker.sh
+. "$root/app/lib/posix/worker.sh"
 # shellcheck source=../app/lib/posix/precheck.sh
 . "$root/app/lib/posix/precheck.sh"
 
@@ -264,6 +274,74 @@ done > "$tmp/flood.stdout"
 compare file/metric-flood "SUMMARY metric_lines=$VIGIL_METRIC_LINES_MAX invalid_lines=0 dropped_lines=5" \
     "$(vigil_metrics_parse standard "$VIGIL_METRIC_LINES_MAX" "$tmp/flood.stdout"; vigil_metrics_dump | tail -n 1)"
 rm -rf "$tmp"
+
+
+# Secret stores: tests/conformance/store/<case>.config defines the stores and
+# <case>.exchange lists, in order: "env NAME value" and "unenv NAME";
+# "reply <status> <body>" or "fail <kind>", the answers to the next requests;
+# "fetch <reference>", resolved with the requests it makes shown; "json
+# <a.b.c> <document>". The output must be <case>.expected. No request
+# leaves the machine: _vigil_http_send is replaced.
+_st_replies=()
+_st_next=0
+_vigil_http_send() {
+    local h r
+    printf '> %s %s (%ss%s%s)\n' "$2" "$3" "$1" "${4:+, ca_file $4}" "$([ "$5" = 1 ] && printf ', metadata')"
+    for h in ${_vh_headers[@]+"${_vh_headers[@]}"}; do printf '>   %s\n' "$h"; done
+    [ "$2" = POST ] && printf '>   %s\n' "$_vh_body"
+    _vh_status=''
+    _vh_resp=''
+    if [ "$_st_next" -ge "${#_st_replies[@]}" ]; then
+        _vh_fail=connect
+        return 1
+    fi
+    r=${_st_replies[$_st_next]}
+    _st_next=$((_st_next + 1))
+    case $r in
+        '!'*) _vh_fail=${r#!}; return 1 ;;
+    esac
+    _vh_status=${r%% *}
+    _vh_resp=${r#* }
+}
+store_case_dump() {
+    local line word rest path
+    local -a keys
+    vigil_config_parse "$1"
+    while IFS= read -r line || [ -n "$line" ]; do
+        case $line in '' | '#'*) continue ;; esac
+        word=${line%% *}
+        rest=${line#* }
+        case $word in
+            env) export "${rest%% *}=${rest#* }" ;;
+            unenv) unset "$rest" ;;
+            reply) _st_replies[${#_st_replies[@]}]=$rest ;;
+            fail) _st_replies[${#_st_replies[@]}]="!$rest" ;;
+            fetch)
+                printf 'fetch %s\n' "$rest"
+                if vigil_secret_resolve /opt/vigil "$rest"; then
+                    printf '= %s\n' "$VIGIL_SECRET_VALUE"
+                else
+                    printf '! %s\n' "$VIGIL_SECRET_WHY"
+                fi
+                ;;
+            json)
+                path=${rest%% *}
+                IFS=. read -r -a keys <<< "$path"
+                printf 'json %s\n' "$path"
+                if vigil_json_get "${rest#* }" "${keys[@]}"; then
+                    printf '= %s\n' "$VIGIL_JSON_VALUE"
+                else
+                    printf '! %s\n' "$VIGIL_JSON_WHY"
+                fi
+                ;;
+        esac
+    done < "${1%.config}.exchange"
+    [ "$_st_next" -eq "${#_st_replies[@]}" ] || printf 'unused replies: %d\n' $((${#_st_replies[@]} - _st_next))
+}
+for cfg in "$here"/conformance/store/*.config; do
+    name=$(basename "$cfg" .config)
+    compare "store/$name" "$(cat "${cfg%.config}.expected")" "$(store_case_dump "$cfg")"
+done
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

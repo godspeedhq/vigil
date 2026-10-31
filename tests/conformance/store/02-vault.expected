@@ -1,0 +1,94 @@
+fetch store:hv/db/password
+> GET https://vault.example.com:8200/v1/secret/data/db/password (5s)
+>   X-Vault-Token: s.token-1
+= pw-1
+fetch store:hv/team a/b?c#d%
+> GET https://vault.example.com:8200/v1/secret/data/team%20a/b%3Fc%23d%25 (5s)
+>   X-Vault-Token: s.token-1
+= v
+fetch store:hv/café/ünïcode
+> GET https://vault.example.com:8200/v1/secret/data/caf%C3%A9/%C3%BCn%C3%AFcode (5s)
+>   X-Vault-Token: s.token-1
+= über
+fetch store:hv/../sys/seal-status
+! not a valid secret path
+fetch store:hv/a/./b
+! not a valid secret path
+fetch store:hv/a//b
+! not a valid secret path
+fetch store:hv/missing
+> GET https://vault.example.com:8200/v1/secret/data/missing (5s)
+>   X-Vault-Token: s.token-1
+! not found (HTTP 404)
+fetch store:hv/forbidden
+> GET https://vault.example.com:8200/v1/secret/data/forbidden (5s)
+>   X-Vault-Token: s.token-1
+! permission denied (HTTP 403)
+fetch store:hv/unauthorised
+> GET https://vault.example.com:8200/v1/secret/data/unauthorised (5s)
+>   X-Vault-Token: s.token-1
+! permission denied (HTTP 401)
+fetch store:hv/no-field
+> GET https://vault.example.com:8200/v1/secret/data/no-field (5s)
+>   X-Vault-Token: s.token-1
+! unexpected answer: no data.data.value
+fetch store:hv/number
+> GET https://vault.example.com:8200/v1/secret/data/number (5s)
+>   X-Vault-Token: s.token-1
+! unexpected answer: data.data.value is not a string
+fetch store:hv/html
+> GET https://vault.example.com:8200/v1/secret/data/html (5s)
+>   X-Vault-Token: s.token-1
+! unexpected answer: not a JSON object
+fetch store:hv/sealed
+> GET https://vault.example.com:8200/v1/secret/data/sealed (5s)
+>   X-Vault-Token: s.token-1
+! HTTP 503 from vault.example.com:8200
+fetch store:hv/x
+> GET https://vault.example.com:8200/v1/secret/data/x (5s)
+>   X-Vault-Token: s.token-1
+! cannot resolve vault.example.com:8200
+fetch store:hv/x
+> GET https://vault.example.com:8200/v1/secret/data/x (5s)
+>   X-Vault-Token: s.token-1
+! cannot connect to vault.example.com:8200
+fetch store:hv/x
+> GET https://vault.example.com:8200/v1/secret/data/x (5s)
+>   X-Vault-Token: s.token-1
+! no answer from vault.example.com:8200 within 5s
+fetch store:hv/x
+> GET https://vault.example.com:8200/v1/secret/data/x (5s)
+>   X-Vault-Token: s.token-1
+! the certificate of vault.example.com:8200 is not trusted
+fetch store:hv/x
+> GET https://vault.example.com:8200/v1/secret/data/x (5s)
+>   X-Vault-Token: s.token-1
+! no secure connection to vault.example.com:8200
+fetch store:hv/x
+> GET https://vault.example.com:8200/v1/secret/data/x (5s)
+>   X-Vault-Token: s.token-1
+! the request to vault.example.com:8200 failed
+fetch store:hv/db/password
+! token env:VIGIL_CT_VAULT_TOKEN: not set in the environment
+fetch store:hv_role/db
+> POST https://vault.example.com/v1/auth/approle/login (10s)
+>   Content-Type: application/json
+>   {"role_id":"role \"1\"","secret_id":"sid\"\\1"}
+> GET https://vault.example.com/v1/kv/ops%20team/data/db (10s)
+>   X-Vault-Token: s.from-role
+= p@ss "quoted" é
+fetch store:hv_role/db
+> POST https://vault.example.com/v1/auth/approle/login (10s)
+>   Content-Type: application/json
+>   {"role_id":"role \"1\"","secret_id":"sid\"\\1"}
+! sign-in failed: HTTP 400 from vault.example.com
+fetch store:hv_role/db
+> POST https://vault.example.com/v1/auth/approle/login (10s)
+>   Content-Type: application/json
+>   {"role_id":"role \"1\"","secret_id":"sid\"\\1"}
+! sign-in failed: unexpected answer: no auth.client_token
+fetch store:hv_role/db
+> POST https://vault.example.com/v1/auth/approle/login (10s)
+>   Content-Type: application/json
+>   {"role_id":"role \"1\"","secret_id":"sid\"\\1"}
+! sign-in failed: cannot connect to vault.example.com

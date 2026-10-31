@@ -62,6 +62,7 @@ $root = Split-Path -Parent $here
 . (Join-Path $root 'app\lib\windows\Recovery.ps1')
 . (Join-Path $root 'app\lib\windows\Prom.ps1')
 . (Join-Path $root 'app\lib\windows\Secrets.ps1')
+. (Join-Path $root 'app\lib\windows\Stores.ps1')
 . (Join-Path $root 'app\lib\windows\Worker.ps1')
 . (Join-Path $root 'app\lib\windows\Precheck.ps1')
 
@@ -229,6 +230,60 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\even
 foreach ($old in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\prom') -Filter '*.prom' | Sort-Object Name)) {
     $actual = Merge-VigilProm -Old $old.FullName -Events @([System.IO.Path]::ChangeExtension($old.FullName, '.events'))
     Compare-Case "prom/$($old.BaseName)" ([System.IO.File]::ReadAllText([System.IO.Path]::ChangeExtension($old.FullName, '.expected'))) $actual
+}
+
+# Secret stores: tests/conformance/store/<case>.config defines the stores and
+# <case>.exchange lists, in order: "env NAME value" and "unenv NAME";
+# "reply <status> <body>" or "fail <kind>", the answers to the next requests;
+# "fetch <reference>", resolved with the requests it makes shown; "json
+# <a.b.c> <document>". The output must be <case>.expected. No request
+# leaves the machine: Invoke-VigilHttpSend is replaced.
+function Invoke-VigilHttpSend {
+    param([int]$Timeout, [string]$Method, [string]$Url, [string]$CaFile, [bool]$Metadata, [string[]]$Headers, [string]$Body)
+    $note = "${Timeout}s"
+    if ($CaFile) { $note += ", ca_file $CaFile" }
+    if ($Metadata) { $note += ', metadata' }
+    $Script:storeOut.Add("> $Method $Url ($note)")
+    foreach ($h in $Headers) { $Script:storeOut.Add(">   $h") }
+    if ($Method -ceq 'POST') { $Script:storeOut.Add(">   $Body") }
+    if ($Script:storeNext -ge $Script:storeReplies.Count) { return @{ Ok = $false; Fail = 'connect' } }
+    $r = $Script:storeReplies[$Script:storeNext]
+    $Script:storeNext++
+    if ($r.StartsWith('!')) { return @{ Ok = $false; Fail = $r.Substring(1) } }
+    $sp = $r.IndexOf(' ')
+    return @{ Ok = $true; Status = [int]$r.Substring(0, $sp); Body = $r.Substring($sp + 1) }
+}
+foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\store') -Filter '*.config' | Sort-Object Name)) {
+    $parsed = ConvertFrom-VigilConfig -Path $case.FullName
+    $Script:storeOut = New-Object 'System.Collections.Generic.List[string]'
+    $Script:storeReplies = New-Object 'System.Collections.Generic.List[string]'
+    $Script:storeNext = 0
+    foreach ($line in [System.IO.File]::ReadAllLines([System.IO.Path]::ChangeExtension($case.FullName, '.exchange'))) {
+        if ($line -ceq '' -or $line.StartsWith('#')) { continue }
+        $sp = $line.IndexOf(' ')
+        $word = $line.Substring(0, $sp)
+        $rest = $line.Substring($sp + 1)
+        switch -CaseSensitive ($word) {
+            'env' { $i = $rest.IndexOf(' '); [Environment]::SetEnvironmentVariable($rest.Substring(0, $i), $rest.Substring($i + 1), 'Process') }
+            'unenv' { [Environment]::SetEnvironmentVariable($rest, [NullString]::Value, 'Process') }
+            'reply' { $Script:storeReplies.Add($rest) }
+            'fail' { $Script:storeReplies.Add("!$rest") }
+            'fetch' {
+                $Script:storeOut.Add("fetch $rest")
+                $r = Resolve-VigilSecret -Root '/opt/vigil' -Parsed $parsed -Reference $rest
+                if ($r.Ok) { $Script:storeOut.Add("= $($r.Value)") } else { $Script:storeOut.Add("! $($r.Why)") }
+            }
+            'json' {
+                $i = $rest.IndexOf(' ')
+                $path = $rest.Substring(0, $i)
+                $Script:storeOut.Add("json $path")
+                $r = Get-VigilJsonString -Json $rest.Substring($i + 1) -Path $path.Split('.')
+                if ($r.Ok) { $Script:storeOut.Add("= $($r.Value)") } else { $Script:storeOut.Add("! $($r.Why)") }
+            }
+        }
+    }
+    if ($Script:storeNext -ne $Script:storeReplies.Count) { $Script:storeOut.Add("unused replies: $($Script:storeReplies.Count - $Script:storeNext)") }
+    Compare-Case "store/$($case.BaseName)" ([System.IO.File]::ReadAllText([System.IO.Path]::ChangeExtension($case.FullName, '.expected'))) (($Script:storeOut -join "`n") + "`n")
 }
 
 # File-level cases need inputs that cannot be committed as fixtures: a
