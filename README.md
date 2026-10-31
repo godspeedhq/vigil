@@ -80,7 +80,8 @@ Vigil's guiding rules:
 | Backend: `file` (Prometheus text format, for node_exporter / windows_exporter) | Done |
 | Backends: Datadog, OTLP, Splunk and the rest | Specified, not built |
 | `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done |
-| Installers, service registration, `vigil init` | Specified, not built |
+| Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done |
+| Installers, `vigil init`, `vigil uninstall` | Specified, not built |
 | Fetching configuration and scripts from git, https, sftp, shares | Validated, not fetched yet |
 | Forwarding Vigil's own logs (OTLP) | Specified, not built |
 | Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
@@ -158,6 +159,31 @@ os_disk_runs_total{host="web01",instance="demo",job="disk",os="linux"} 12
 # TYPE os_disk_succeeded_total counter
 os_disk_succeeded_total{host="web01",instance="demo",job="disk",os="linux"} 12
 ```
+
+**5. Run it as a service.**
+
+`vigil service install` runs the pre-flight checks, registers nothing if one fails, then registers the supervisor and starts it. Stopping or removing the service stops only the supervisor; jobs that are running carry on.
+
+```sh
+app/vigil --root ~/vigil-demo service install             # user mode: systemd --user, or a LaunchAgent
+sudo /opt/vigil/app/vigil service install --system        # system mode, root /opt/vigil
+app/vigil --root ~/vigil-demo status                      # the service's state, then jobs.log
+```
+
+```powershell
+.\app\vigil.ps1 -Root C:\ProgramData\Vigil service install --system              # NSSM service (elevated prompt)
+.\app\vigil.ps1 -Root C:\ProgramData\Vigil service install --system --host pwsh  # the same, on PowerShell 7
+```
+
+| | User mode (no admin) | System mode (admin) |
+| --- | --- | --- |
+| Linux | `systemd --user` unit; runs while you are logged in, or always with `loginctl enable-linger` | `/etc/systemd/system/vigil.service`, running as a `vigil` account (created when missing; `--account` picks another) |
+| macOS | LaunchAgent; runs while you are logged in | LaunchDaemon `/Library/LaunchDaemons/vigil.plist`, running as root (`--account` picks another) |
+| Windows | Run entry starting the supervisor hidden at logon; **no restart if it stops**: for trying Vigil out | NSSM service `Vigil`, running as LocalSystem, restarted on failure; the root is made accessible to SYSTEM and Administrators only |
+
+The default is system mode when run as root or from an elevated prompt, user mode otherwise. On Windows the host is your choice, never guessed: Windows PowerShell 5.1 (`--host powershell`, the default, built into every supported Windows) or PowerShell 7 (`--host pwsh`). The supervisor starts its jobs' workers with the same host. On Linux and macOS the root may hold only letters, digits and `. _ - + @ /`, so the unit file and plist need no quoting.
+
+To give the service environment variables, use `systemctl edit vigil` (Linux), the plist's `EnvironmentVariables` (macOS) or the machine environment (Windows). Secrets in Vigil's own store must be set as the account the service runs as (`sudo -u vigil app/vigil secret set NAME`); on Windows, a LocalSystem service cannot read a store set from your account, so give it `env:` or `store:` references.
 
 Annotated example configurations covering every feature are in [`tests/mocks/`](tests/mocks/): `simple/` (everything local), `mixed/` (some scripts fetched) and `advanced/` (configuration fetched from a source).
 
@@ -687,6 +713,10 @@ The full reference is in [`SPECIFICATION.md`](SPECIFICATION.md) (§6), and [`tes
 | `vigil resolve <job>` | Confirms that the uncertain run holding a job is over. Never kills anything. |
 | `vigil precheck [<job>]` | Checks everything without starting or changing anything: every configuration problem with its line, then each job's file, runner, working folder, secrets and required variables, store credentials and writable folders. With a job, also its effective settings and where each came from. Exits 0 when nothing failed. |
 | `vigil secret set <NAME>` / `list` / `delete <NAME>` | Manages Vigil's own secret store. `set` prompts without echoing, or reads `--stdin` for deployment tools; `list` never shows values. |
+| `vigil service install [--user \| --system]` | Runs the pre-flight checks, then registers the supervisor with systemd, launchd or NSSM and starts it. `--account <name>` (Linux, macOS), `--host powershell \| pwsh` (Windows), `--no-start`. |
+| `vigil service remove` | Unregisters it. Running jobs carry on. |
+| `vigil start` / `stop` / `restart` | Service control. Stopping never stops running jobs. |
+| `vigil status` | The service's state, then `jobs.log`. |
 
 On Linux and macOS the command is `app/vigil`; on Windows it is `app\vigil.ps1`. All take `--root <dir>` (`-Root <dir>` on Windows), defaulting to the folder that contains `app/`.
 
@@ -702,6 +732,7 @@ Everything lives under one root, so uninstalling is a single delete:
     vigil, vigil.ps1              the command (Linux/macOS, Windows)
     lib/posix/                    the bash implementation
     lib/windows/                  the PowerShell implementation
+  vendor/nssm/                  NSSM, for the Windows service (Windows only)
   config/
     vigil.config                  your configuration (never overwritten)
     secrets/<NAME>                Vigil's secret store: owner-only; DPAPI-encrypted on Windows
@@ -744,6 +775,7 @@ app/
   vigil.ps1             the command, Windows (PowerShell)
   lib/posix/            bash implementation        config.sh, schedule.sh, worker.sh, ...
   lib/windows/          PowerShell implementation  Config.ps1, Schedule.ps1, Worker.ps1, ...
+vendor/nssm/            NSSM 2.24-101 (public domain), registers the Windows service; NOTICE gives its source and hashes
 tests/
   run-conformance.sh    shared conformance suite, bash runner
   Run-Conformance.ps1   shared conformance suite, PowerShell runner
@@ -775,7 +807,8 @@ powershell -File tests\Run-Conformance.ps1 # Windows PowerShell 5.1
 - concurrency limits and overlap;
 - crashes and abandoned launches;
 - `max_runtime` stopping a job that ignores TERM;
-- uncertain runs under each policy, with an unrelated process that must never be killed.
+- uncertain runs under each policy, with an unrelated process that must never be killed;
+- service registration in system and user mode, with a running job that must outlive `vigil stop` and `vigil service remove`.
 
 CI runs everything on macOS (with the system bash 3.2), Linux, Windows PowerShell 5.1 and PowerShell 7 for every pull request.
 

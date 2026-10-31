@@ -1732,9 +1732,9 @@ Each service manager is configured so stopping the service stops only the superv
 | --- | --- |
 | `init` | Onboarding (§19). |
 | `precheck [<job>]` | Pre-flight checks (§16.4); with a job, also its effective settings (§6.6). |
-| `service install` / `service remove` | Register or unregister the service without touching files (for example to switch mode). |
+| `service install [--user \| --system] [--account <name>] [--host powershell \| pwsh] [--no-start]` / `service remove` | Register or unregister the service without touching files (for example to switch mode). See §18.9. |
 | `start` / `stop` / `restart` | Service control. Stop leaves workers running. |
-| `status` | Print `jobs.log`. |
+| `status` | Print the service's state (`service: active, pid <n> (<manager>, <mode> mode)`, `inactive` or `not registered`), then `jobs.log`. |
 | `supervise [--once]` | The supervisor itself (§4.1), as the service manager runs it: ticks until stopped (TERM or INT on Linux/macOS, stopping the process on Windows), or a single tick with `--once`. Running workers are never stopped with it. Refuses to start while another supervisor owns the state directory, or when the configuration is invalid and no earlier valid one exists. |
 | `run <job>` | Run one job once now, in the foreground, for testing: launched, claimed and recorded exactly as the supervisor would. Exits 0 succeeded, 1 warning, 2 failed, 3 unknown, 4 not run (another run may be in progress, the job is unknown or invalid, or the configuration has errors). |
 | `resolve <job>` | Confirm that an uncertain run is over so the job can be scheduled again (§11.4). Never kills anything; the supervisor concludes the run at its next tick. Exits 1 when the job is not held. |
@@ -1805,6 +1805,30 @@ Before deleting, it lists what will be removed — including how many scripts ar
 - `--keep-config` keeps `config/` and `scripts/`, so a reinstall picks up where it left off.
 
 Environment variables set outside Vigil (machine environment, `vigil.env` aside) are left untouched. Uninstall is idempotent: running it on a clean machine succeeds and changes nothing. On Windows, when the root cannot be deleted because the uninstall itself is running from inside it, deletion is completed by a short-lived detached process after Vigil exits.
+
+### 18.9 Service Registration
+
+`vigil service install` registers the root it is run for:
+
+1. Chooses the mode: `--system` or `--user`, by default system when run as root or from an elevated prompt and user otherwise. System mode without admin, and user mode as root, are refused.
+2. Refuses when the service name is already registered for another root, or this root in the other mode (`vigil service remove` first).
+3. Creates `config/`, `scripts/`, `state/`, `spool/`, `logs/`, `cache/` and `metrics/` when missing.
+4. Runs the pre-flight checks (§16.4) — on Linux and macOS as the service account — and registers nothing if any fails.
+5. Writes the registration and, unless `--no-start`, starts the supervisor. Installing again over the same root rewrites it.
+
+| | Name | Definition | Account |
+| --- | --- | --- | --- |
+| Linux | `vigil.service` | `/etc/systemd/system/` (system), `~/.config/systemd/user/` (user). `Restart=on-failure`, `RestartSec=10`, at most 5 starts in 300 seconds, `KillMode=process`, `TimeoutStopSec=30`. The environment is set with `systemctl edit vigil`, which survives a reinstall. | System: `--account`, by default `vigil`, a system account with no login shell, created when missing; `config/`, `scripts/`, `state/`, `spool/`, `logs/`, `cache/` and `metrics/` are given to it, `app/` is not. User: the installing account. |
+| macOS | label `vigil` | `/Library/LaunchDaemons/vigil.plist` (system, `launchctl bootstrap system`), `~/Library/LaunchAgents/vigil.plist` (user, the `gui/<uid>` domain). `RunAtLoad`, `KeepAlive` on unsuccessful exit, `ThrottleInterval` 10, `AbandonProcessGroup`, output to `logs/supervisor/service.log`. | System: `--account` (`UserName`), by default root. User: the installing account. |
+| Windows | service `Vigil` / Run value `Vigil` | System: an NSSM service, automatic start, configured through its registry parameters (never through a command line): restart on exit with `AppThrottle` and `AppRestartDelay` 10 seconds, stop by Ctrl+C with 15 seconds to finish the tick, `AppKillProcessTree = 0`, output appended to `logs\supervisor\service.log`, rotated at 10 MB. The root's ACL is replaced by full control for SYSTEM and Administrators only, inherited, with entries set below it (the secret store's) kept. User: `HKCU\...\Run`, the supervisor started hidden. | System: LocalSystem. User: the installing account. |
+
+The supervisor's command line is `<bash> <app>/vigil --root <root> supervise`, or `<host> -NoProfile -NonInteractive -ExecutionPolicy Bypass -File <app>\vigil.ps1 -Root <root> supervise` on Windows. On Linux and macOS the root may contain only letters, digits and `. _ - + @ /`, so a unit file and a plist carry it unquoted; on Windows it may not contain `"`.
+
+**Windows host.** `--host` chooses, and nothing guesses: `powershell` (Windows PowerShell 5.1, `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`; the default, built into every supported Windows) or `pwsh` (PowerShell 7, found on the `PATH`; refused when it is not installed). The supervisor starts its workers with the host it runs on, so the choice covers every run. A machine where policy blocks Windows PowerShell 5.1 installs with `--host pwsh`.
+
+**Control.** `start`, `stop` and `restart` use the service manager: `systemctl [--user]`; `launchctl kill TERM` (the supervisor exits 0, which `KeepAlive` does not restart) and `launchctl kickstart`; `Start-Service` and `Stop-Service`. Windows user mode has no manager: `stop` terminates the supervisor once its ownership is proven — it holds `state\supervisor.lock`, the lock records its pid, and that process's command line is `vigil.ps1 ... -Root <root> supervise` — and `start` launches the Run entry's command through `Win32_Process.Create`, detached and hidden, as logon would. A supervisor stopped mid-tick leaves nothing a restart does not clean up (§12.3).
+
+**Removal.** `vigil service remove` stops the supervisor and deletes the registration; the `vigil` system account, the root and running workers are left alone. Removing when nothing is registered succeeds and changes nothing.
 
 ---
 

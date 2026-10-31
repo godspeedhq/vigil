@@ -15,6 +15,18 @@
 #   vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>
 #       Vigil's own secret store (6.5.2). set prompts without echo, or reads
 #       the value from stdin; list never shows values.
+#   vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start]
+#       Registers the supervisor with systemd or launchd (18.1) after the
+#       pre-flight checks pass, and starts it. System mode needs root and
+#       runs as --account (Linux default: a vigil account, created when
+#       missing; macOS default: root). The default mode is system for root,
+#       user otherwise.
+#   vigil [--root <dir>] service remove
+#       Unregisters it. Running workers continue.
+#   vigil [--root <dir>] start | stop | restart
+#       Service control. Stopping leaves running workers alone (18.3).
+#   vigil [--root <dir>] status
+#       The service's state, then jobs.log.
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
@@ -37,13 +49,13 @@ done
 app=$(cd "$(dirname "$self")" && pwd)
 root=$(dirname "$app")
 
-for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker sender supervisor precheck; do
+for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker sender supervisor precheck service; do
     # shellcheck source=/dev/null
     . "$app/lib/posix/$lib.sh"
 done
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n' >&2
     exit 64
 }
 
@@ -134,6 +146,46 @@ case ${1-} in
             mv -f "$rec.tmp.$$" "${rec%.recovery}.resolved" || exit 1
         printf '%s: run %s marked as over by %s; the supervisor concludes it and releases the job at its next tick\n' "$job" "$rid" "$who"
         exit 0
+        ;;
+    service)
+        case ${2-} in
+            install)
+                shift 2
+                mode='' account='' start=1
+                while [ "$#" -gt 0 ]; do
+                    case $1 in
+                        --user) mode=user ;;
+                        --system) mode=system ;;
+                        --no-start) start=0 ;;
+                        --account)
+                            [ "$#" -ge 2 ] || usage
+                            account=$2
+                            shift
+                            ;;
+                        *) usage ;;
+                    esac
+                    shift
+                done
+                vigil_service_install "$root" "$app" "$mode" "$account" "$start"
+                exit $?
+                ;;
+            remove)
+                [ "$#" -eq 2 ] || usage
+                vigil_service_remove "$root"
+                exit $?
+                ;;
+            *) usage ;;
+        esac
+        ;;
+    start | stop | restart)
+        [ "$#" -eq 1 ] || usage
+        vigil_service_control "$root" "$1"
+        exit $?
+        ;;
+    status)
+        [ "$#" -eq 1 ] || usage
+        vigil_service_status "$root"
+        exit $?
         ;;
     supervise)
         once=0
