@@ -17,6 +17,19 @@
     vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>
         Vigil's own secret store (6.5.2), encrypted with DPAPI. set prompts
         without echo, or reads the value from stdin; list never shows values.
+    vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start]
+        Registers the supervisor (18.1) after the pre-flight checks pass, and
+        starts it: an NSSM service running as LocalSystem (--system, needs an
+        elevated prompt), or a per-user Run entry (--user). The default mode
+        is system when elevated, user otherwise. --host picks Windows
+        PowerShell 5.1 (the default) or PowerShell 7 for the supervisor and
+        its workers.
+    vigil [-Root <dir>] service remove
+        Unregisters it. Running workers continue.
+    vigil [-Root <dir>] start | stop | restart
+        Service control. Stopping leaves running workers alone (18.3).
+    vigil [-Root <dir>] status
+        The service's state, then jobs.log.
     vigil [-Root <dir>] supervise [--once]
         The supervisor (4.1): ticks until stopped, or once with --once.
         Running workers are never stopped with it.
@@ -37,12 +50,12 @@ $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Split-Path -Parent $app }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Sender', 'Supervisor', 'Precheck')) {
+foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Sender', 'Supervisor', 'Precheck', 'Service')) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status")
     exit 64
 }
 
@@ -119,6 +132,45 @@ switch ($Command) {
             exit 0
         }
         Exit-Usage
+    }
+    'service' {
+        $argv = @($Rest | Where-Object { $null -ne $_ })
+        try {
+            if ($Job -ceq 'install') {
+                $mode = ''
+                $hostName = 'powershell'
+                $start = $true
+                for ($i = 0; $i -lt $argv.Count; $i++) {
+                    switch -CaseSensitive ($argv[$i]) {
+                        '--user' { $mode = 'user' }
+                        '--system' { $mode = 'system' }
+                        '--no-start' { $start = $false }
+                        '--host' {
+                            if ($i + 1 -ge $argv.Count) { Exit-Usage }
+                            $i++
+                            $hostName = $argv[$i]
+                        }
+                        default { Exit-Usage }
+                    }
+                }
+                Install-VigilService -Root $Root -App $app -Mode $mode -HostName $hostName -Start $start
+                exit 0
+            }
+            if ($Job -ceq 'remove' -and $argv.Count -eq 0) { Remove-VigilService -Root $Root; exit 0 }
+        }
+        catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
+        Exit-Usage
+    }
+    { $_ -ceq 'start' -or $_ -ceq 'stop' -or $_ -ceq 'restart' } {
+        if ($Job -or $Rest) { Exit-Usage }
+        try { Invoke-VigilServiceControl -Root $Root -Action $Command }
+        catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
+        exit 0
+    }
+    'status' {
+        if ($Job -or $Rest) { Exit-Usage }
+        Get-VigilServiceStatus -Root $Root
+        exit 0
     }
     'supervise' {
         # PowerShell binds "--once" to the remaining arguments.

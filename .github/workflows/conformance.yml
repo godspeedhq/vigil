@@ -41,6 +41,8 @@ jobs:
         run: /bin/bash tests/integration/precheck.sh
       - name: secret stores (/bin/bash)
         run: /bin/bash tests/integration/stores.sh
+      - name: service registration (/bin/bash)
+        run: /bin/bash tests/integration/service.sh
 
   windows:
     runs-on: windows-latest
@@ -79,6 +81,9 @@ jobs:
       - name: secret stores (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Stores.ps1
+      - name: service registration (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/integration/Service.ps1
       - name: integration (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Run-Job.ps1
@@ -100,6 +105,9 @@ jobs:
       - name: secret stores (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Stores.ps1
+      - name: service registration (PowerShell 7)
+        shell: pwsh
+        run: ./tests/integration/Service.ps1
       - name: secrets (Git Bash)
         shell: bash
         run: bash tests/integration/secrets.sh
