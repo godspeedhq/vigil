@@ -50,11 +50,15 @@ function Set-VigilSecret {
     param([string]$Root, [string]$Name, [System.Security.SecureString]$Value)
     if ($Name -cnotmatch $Script:VigilSecretName) { throw "not a valid secret name: $Name" }
     $dir = Get-VigilSecretDir $Root
-    if (-not [System.IO.Directory]::Exists($dir)) {
-        [void](New-Item -ItemType Directory -Force -Path $dir)
-        # Owner-only: no inherited access, full control for this account.
-        & icacls.exe $dir /inheritance:r /grant:r "$([Security.Principal.WindowsIdentity]::GetCurrent().Name):(OI)(CI)F" 2>&1 | Out-Null
-    }
+    if (-not [System.IO.Directory]::Exists($dir)) { [void](New-Item -ItemType Directory -Force -Path $dir) }
+    # Owner-only, set in full every time: no inherited access and no other
+    # entries (an elevated token adds Administrators and SYSTEM by default),
+    # only full control for this account, inherited by the files.
+    $acl = New-Object System.Security.AccessControl.DirectorySecurity
+    $acl.SetAccessRuleProtection($true, $false)
+    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+                [Security.Principal.WindowsIdentity]::GetCurrent().User, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+    Set-Acl -LiteralPath $dir -AclObject $acl
     # DPAPI, tied to this account on this machine.
     $text = ConvertFrom-SecureString -SecureString $Value
     $tmp = Join-Path $dir ".$Name.tmp.$PID"
