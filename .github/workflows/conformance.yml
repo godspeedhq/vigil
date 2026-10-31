@@ -37,6 +37,8 @@ jobs:
         run: /bin/bash tests/integration/uncertain.sh
       - name: secrets (/bin/bash)
         run: /bin/bash tests/integration/secrets.sh
+      - name: precheck (/bin/bash)
+        run: /bin/bash tests/integration/precheck.sh
 
   windows:
     runs-on: windows-latest
@@ -69,6 +71,9 @@ jobs:
       - name: secrets (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Secrets.ps1
+      - name: precheck (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/integration/Precheck.ps1
       - name: integration (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Run-Job.ps1
@@ -84,6 +89,9 @@ jobs:
       - name: secrets (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Secrets.ps1
+      - name: precheck (PowerShell 7)
+        shell: pwsh
+        run: ./tests/integration/Precheck.ps1
       - name: secrets (Git Bash)
         shell: bash
         run: bash tests/integration/secrets.sh

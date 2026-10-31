@@ -41,6 +41,9 @@
                                                     in <case>.run and its output
                                                     in <case>.stdout
       tests/conformance/events/<case>.expected      Get-VigilRunEvents output
+      tests/conformance/report/<suite>-<case>.expected
+                                                    Format-VigilPrecheckReportDump
+                                                    of each validate and effective case
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -58,6 +61,9 @@ $root = Split-Path -Parent $here
 . (Join-Path $root 'app\lib\windows\Events.ps1')
 . (Join-Path $root 'app\lib\windows\Recovery.ps1')
 . (Join-Path $root 'app\lib\windows\Prom.ps1')
+. (Join-Path $root 'app\lib\windows\Secrets.ps1')
+. (Join-Path $root 'app\lib\windows\Worker.ps1')
+. (Join-Path $root 'app\lib\windows\Precheck.ps1')
 
 $pass = 0
 $fail = 0
@@ -128,6 +134,19 @@ foreach ($suite in @('parser', 'validate', 'effective', 'command', 'schedule')) 
         }
 
         Compare-Case "$suite/$name" $expected $actual
+    }
+}
+
+# The report vigil precheck prints, for every validate and effective case:
+# tests/conformance/report/<suite>-<case>.expected holds
+# Format-VigilPrecheckReportDump.
+foreach ($suite in @('validate', 'effective')) {
+    foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here "conformance\$suite") -Filter '*.config' | Sort-Object Name)) {
+        $name = "$suite-$([System.IO.Path]::GetFileNameWithoutExtension($case.Name))"
+        $parsed = ConvertFrom-VigilConfig -Path $case.FullName
+        $records = Test-VigilConfig -Parsed $parsed
+        $actual = Format-VigilPrecheckReportDump -Parsed $parsed -Records $records
+        Compare-Case "report/$name" ([System.IO.File]::ReadAllText((Join-Path $here "conformance\report\$name.expected"))) $actual
     }
 }
 

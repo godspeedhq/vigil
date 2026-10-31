@@ -1,0 +1,2 @@
+ERROR    line 2: [vigil] needs 'config_source' with 'config_file' (E_KEY_REQUIRED)
+ERROR    line 3: 'config_file' must be a relative path inside the source, with / separators and no .. segments: ../hosts/db01.config (E_SOURCE_PATH)

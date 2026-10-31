@@ -8,6 +8,10 @@
 #   vigil [--root <dir>] resolve <job>
 #       Confirms that the uncertain run holding <job> is over (11.4). Never
 #       kills anything; the supervisor concludes the run at its next tick.
+#   vigil [--root <dir>] precheck [<job>]
+#       Pre-flight checks (16.4), changing nothing: the configuration's
+#       problems, then everything runs need. With a job, also its effective
+#       settings (6.6). Exits 0 when nothing failed, 1 otherwise.
 #   vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>
 #       Vigil's own secret store (6.5.2). set prompts without echo, or reads
 #       the value from stdin; list never shows values.
@@ -33,13 +37,13 @@ done
 app=$(cd "$(dirname "$self")" && pwd)
 root=$(dirname "$app")
 
-for lib in config validate effective command schedule outcome metrics events recovery prom secrets worker sender supervisor; do
+for lib in config validate effective command schedule outcome metrics events recovery prom secrets worker sender supervisor precheck; do
     # shellcheck source=/dev/null
     . "$app/lib/posix/$lib.sh"
 done
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n' >&2
     exit 64
 }
 
@@ -73,6 +77,11 @@ case ${1-} in
             fi
         fi
         exit "$rc"
+        ;;
+    precheck)
+        [ "$#" -le 2 ] || usage
+        vigil_precheck "$root" "${2-}"
+        exit $?
         ;;
     secret)
         # Vigil's own secret store (6.5.2). Values are read from the terminal

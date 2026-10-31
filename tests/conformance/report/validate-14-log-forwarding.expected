@@ -1,0 +1,7 @@
+ERROR    line 21: 'type' must be otel: splunk (E_ENUM)
+ERROR    line 27: 'endpoint' must start with https:// (E_URL)
+ERROR    line 31: 'url' must not contain credentials; the value is not shown (E_URL)
+ERROR    line 38: 'header_value' must be an env:, secret: or store: reference; the value is not shown (E_SECRET_RAW)
+ERROR    line 43: unknown key 'api_key' in [log_destination.unknown_key] (E_KEY_UNKNOWN)
+ERROR    line 45: [log_destination.no_endpoint] needs 'endpoint' (E_KEY_REQUIRED)
+INVALID  job.bad_flag, line 59: 'forward_output' must be true or false: maybe (E_BOOLEAN)

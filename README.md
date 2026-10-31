@@ -79,7 +79,8 @@ Vigil's guiding rules:
 | Spool with write-ahead fan-out, size cap, per-backend backoff | Done |
 | Backend: `file` (Prometheus text format, for node_exporter / windows_exporter) | Done |
 | Backends: Datadog, OTLP, Splunk and the rest | Specified, not built |
-| Installers, service registration, `vigil init`, `vigil precheck` | Specified, not built |
+| `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done |
+| Installers, service registration, `vigil init` | Specified, not built |
 | Fetching configuration and scripts from git, https, sftp, shares | Validated, not fetched yet |
 | Forwarding Vigil's own logs (OTLP) | Specified, not built |
 | Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
@@ -123,10 +124,11 @@ run_every   = 1m
 max_runtime = 30s
 ```
 
-**3. Run the job once, then start the supervisor.**
+**3. Check it, run the job once, then start the supervisor.**
 
 ```sh
 cd vigil                                   # the clone
+app/vigil --root ~/vigil-demo precheck     # every problem, changing nothing
 app/vigil --root ~/vigil-demo run disk     # one run, in the foreground
 app/vigil --root ~/vigil-demo supervise    # tick until stopped (Ctrl+C)
 ```
@@ -134,6 +136,7 @@ app/vigil --root ~/vigil-demo supervise    # tick until stopped (Ctrl+C)
 On Windows the steps are the same, with a Windows job. For example, `scripts\disk.ps1` run through a `powershell.exe` runner mapped to `.ps1` (see [`tests/mocks/simple/windows.config`](tests/mocks/simple/windows.config)):
 
 ```powershell
+.\app\vigil.ps1 -Root C:\vigil-demo precheck
 .\app\vigil.ps1 -Root C:\vigil-demo run disk
 .\app\vigil.ps1 -Root C:\vigil-demo supervise
 ```
@@ -653,6 +656,7 @@ The full reference is in [`SPECIFICATION.md`](SPECIFICATION.md) (§6), and [`tes
 | `vigil supervise [--once]` | The supervisor: what the service runs. `--once` runs a single tick. |
 | `vigil run <job>` | Runs one job now, in the foreground, recorded exactly as a scheduled run would be. Exits 0 succeeded, 1 warning, 2 failed, 3 unknown, 4 not run. |
 | `vigil resolve <job>` | Confirms that the uncertain run holding a job is over. Never kills anything. |
+| `vigil precheck [<job>]` | Checks everything without starting or changing anything: every configuration problem with its line, then each job's file, runner, working folder, secrets and required variables, store credentials and writable folders. With a job, also its effective settings and where each came from. Exits 0 when nothing failed. |
 | `vigil secret set <NAME>` / `list` / `delete <NAME>` | Manages Vigil's own secret store. `set` prompts without echoing, or reads `--stdin` for deployment tools; `list` never shows values. |
 
 On Linux and macOS the command is `app/vigil`; on Windows it is `app\vigil.ps1`. All take `--root <dir>` (`-Root <dir>` on Windows), defaulting to the folder that contains `app/`.
