@@ -136,10 +136,11 @@ Test-Equal 'a second supervisor is refused' '1' "$(Invoke-Once)"
 if (-not $sup.HasExited) { Stop-Process -Id $sup.Id -Force }
 $sup.WaitForExit()
 
-# From here on nothing new may start: hourly slots are never due before the
-# 2-second cursors. Let the last workers finish; one more tick reconciles them.
+# From here on nothing new may start: 3650-day slots (the next one in
+# 2029) are never due before the 2-second cursors. An hour would be crossed
+# by a run at hh:59. Let the last workers finish; one more tick reconciles them.
 $cfg = Join-Path $root 'config\vigil.config'
-[System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace 'run_every = 2s', 'run_every = 1h'))
+[System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace 'run_every = 2s', 'run_every = 3650d'))
 Start-Sleep -Seconds 7
 Invoke-Tick
 Invoke-Tick

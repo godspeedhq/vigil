@@ -123,9 +123,10 @@ kill -TERM "$sup"
 wait "$sup"
 check "supervisor exits cleanly on TERM" 0 "$?"
 
-# From here on nothing new may start: hourly slots are never due before the
-# 2-second cursors. Let the last workers finish; one more tick reconciles them.
-sed -i.bak "s/^run_every = 2s$/run_every = 1h/" "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
+# From here on nothing new may start: 3650-day slots (the next one in
+# 2029) are never due before the 2-second cursors. An hour would be crossed
+# by a run at hh:59. Let the last workers finish; one more tick reconciles them.
+sed -i.bak "s/^run_every = 2s$/run_every = 3650d/" "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
 sleep 5
 tick
 tick

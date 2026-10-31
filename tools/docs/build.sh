@@ -113,6 +113,11 @@ done
     printf '```\n\n## Windows\n\n```text\n'
     awk '/^\.DESCRIPTION/ { on = 1; next } /^#>/ { exit } on { sub(/^    /, ""); print }' "$repo/app/vigil.ps1"
     printf '```\n'
+    if [ -f "$repo/install.sh" ]; then
+        printf '\n## Installers\n\n[`install.sh`](%s/install.sh) for Linux and macOS; [`install.ps1`](%s/install.ps1) for Windows takes the same options as `-User`, `-System`, `-Prefix` and so on, plus `-ShellHost powershell | pwsh`.\n\n```text\n' "$blob" "$blob"
+        awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$repo/install.sh" | awk 'NF || seen { seen = 1; print }'
+        printf '```\n'
+    fi
 } | page reference/commands.md 'title: Commands' 'parent: Reference' 'nav_order: 1' 'permalink: /reference/commands/'
 
 # --- Error codes --------------------------------------------------------------
