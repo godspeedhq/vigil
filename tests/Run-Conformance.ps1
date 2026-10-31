@@ -236,8 +236,13 @@ foreach ($old in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\prom'
 # <case>.exchange lists, in order: "env NAME value" and "unenv NAME";
 # "reply <status> <body>" or "fail <kind>", the answers to the next requests;
 # "fetch <reference>", resolved with the requests it makes shown; "json
-# <a.b.c> <document>". The output must be <case>.expected. No request
-# leaves the machine: Invoke-VigilHttpSend is replaced.
+# <a.b.c> <document>"; "now <amz date>", the time AWS requests are signed
+# at; "sigv4 <secret> <key id> <amz date> <region> <service> <method> <path>
+# <header>...", one signature of an empty payload. The output must be
+# <case>.expected. No request leaves the machine: Invoke-VigilHttpSend is
+# replaced.
+$Script:storeNow = '20260101T000000Z'
+function Get-VigilAwsTime { return $Script:storeNow }
 function Invoke-VigilHttpSend {
     param([int]$Timeout, [string]$Method, [string]$Url, [string]$CaFile, [bool]$Metadata, [string[]]$Headers, [string]$Body)
     $note = "${Timeout}s"
@@ -279,6 +284,12 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\stor
                 $Script:storeOut.Add("json $path")
                 $r = Get-VigilJsonString -Json $rest.Substring($i + 1) -Path $path.Split('.')
                 if ($r.Ok) { $Script:storeOut.Add("= $($r.Value)") } else { $Script:storeOut.Add("! $($r.Why)") }
+            }
+            'now' { $Script:storeNow = $rest }
+            'sigv4' {
+                $a = $rest.Split(' ')
+                $Script:storeOut.Add("sigv4 $($a[2])")
+                $Script:storeOut.Add('= ' + (New-VigilAwsSignature $a[0] $a[1] $a[2] $a[3] $a[4] $a[5] $a[6] $a[7..($a.Length - 1)] ''))
             }
         }
     }

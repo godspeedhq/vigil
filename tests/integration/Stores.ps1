@@ -67,18 +67,22 @@ function Get-Metric {
 
 # What the mock serves; written again to rotate.
 function Set-MockData {
-    param([string]$A, [string]$B, [string]$C, [string]$D)
+    param([string]$A, [string]$B, [string]$C, [string]$D, [string]$E, [string]$F)
     $data = @"
 {
   "vault_token": "s.vault-token-$PID", "role_id": "role-$PID", "secret_id": "sid-$PID",
   "approle_token": "s.approle-token-$PID",
   "imds_token": "imds-token-$PID", "sp_secret": "sp+secret/$PID=", "sp_token": "sp-token-$PID",
+  "aws_key_id": "AKIAVIGILTEST", "aws_secret": "aws-secret-key-$PID",
+  "imds_session": "imds-session-$PID", "aws_ip_key_id": "ASIAVIGILTEST",
+  "aws_ip_secret": "aws-ip-secret-$PID", "aws_ip_session": "aws-ip-session-$PID",
   "vault": {"secret/data/db/password": {"value": "$A"}, "ops/data/app": {"password": "$B"}},
-  "kv": {"dd": "$C", "api": "$D"}
+  "kv": {"dd": "$C", "api": "$D"},
+  "aws": {"prod/db": "$E", "app/json": "{\"username\": \"app\", \"password\": \"$F\"}"}
 }
 "@
     [System.IO.File]::WriteAllText((Join-Path $root 'mock\data.json'), $data)
-    foreach ($p in @(@('a', $A), @('b', $B), @('c', $C), @('d', $D))) {
+    foreach ($p in @(@('a', $A), @('b', $B), @('c', $C), @('d', $D), @('e', $E), @('f', $F))) {
         [System.IO.File]::WriteAllText((Join-Path $root "expect\$($p[0])"), $p[1])
     }
 }
@@ -130,7 +134,7 @@ subjectAltName = DNS:localhost,IP:127.0.0.1
     & $openssl x509 -req -in "$tls\server.csr" -CA "$tls\ca.pem" -CAkey "$tls\ca.key" -CAcreateserial -out "$tls\server.pem" -days 2 -extfile $cnf -extensions server 2>&1 | Out-Null
     Test-Equal 'test CA and certificate made' 'True' "$(Test-Path -LiteralPath "$tls\server.pem")"
 
-    Set-MockData "vault-pw-1 $PID" "approle-pw-1 $PID" "kv-mi-1 $PID" "kv-sp-1 $PID"
+    Set-MockData "vault-pw-1 $PID" "approle-pw-1 $PID" "kv-mi-1 $PID" "kv-sp-1 $PID" "aws-keys-1 $PID" "aws-role-1 $PID"
     $mockArgs = @("$here\mock-store.py", "$root\mock", "$tls\server.pem", "$tls\server.key") | ForEach-Object { "`"$_`"" }
     $mock = Start-Process -FilePath $python -ArgumentList $mockArgs -PassThru -NoNewWindow -RedirectStandardError "$root\mock\stderr"
     $ports = Join-Path $root 'mock\ports'
@@ -151,7 +155,9 @@ subjectAltName = DNS:localhost,IP:127.0.0.1
         'Write-Output "metric a_ok $(Same $env:A a)"',
         'Write-Output "metric b_ok $(Same $env:B b)"',
         'Write-Output "metric c_ok $(Same $env:C c)"',
-        'Write-Output "metric d_ok $(Same $env:D d)"')
+        'Write-Output "metric d_ok $(Same $env:D d)"',
+        'Write-Output "metric e_ok $(Same $env:E e)"',
+        'Write-Output "metric f_ok $(Same $env:F f)"')
 
     Set-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value @"
 [runner.ps]
@@ -165,6 +171,15 @@ arg     = -File
 .ps1 = ps
 
 [secret_store.hv]
+type    = hashicorp_vault
+url     = https://127.0.0.1:$hport
+auth    = token
+token   = secret:VAULT_TOKEN
+ca_file = tls\ca.pem
+
+# Only for the slow check: a short timeout would also catch the first,
+# cold, request of a busy CI runner.
+[secret_store.hv_slow]
 type    = hashicorp_vault
 url     = https://127.0.0.1:$hport
 auth    = token
@@ -204,6 +219,23 @@ url   = https://127.0.0.1:$hport
 auth  = token
 token = secret:VAULT_TOKEN
 
+[secret_store.aws_keys]
+type              = aws_secrets_manager
+region            = eu-west-2
+auth              = access_keys
+access_key_id     = AKIAVIGILTEST
+secret_access_key = secret:AWS_SECRET
+endpoint          = https://127.0.0.1:$hport
+ca_file           = tls\ca.pem
+
+[secret_store.aws_role]
+type     = aws_secrets_manager
+region   = us-east-1
+auth     = instance_profile
+field    = password
+endpoint = https://127.0.0.1:$hport
+ca_file  = tls\ca.pem
+
 [job.show]
 file      = scripts\show.ps1
 run_every = 1h
@@ -212,6 +244,13 @@ secret    = A=store:hv/db/password
 secret    = B=store:hv_role/app
 secret    = C=store:kv/dd
 secret    = D=store:kv_sp/api
+secret    = E=store:aws_keys/prod/db
+secret    = F=store:aws_role/app/json
+
+[job.aws_missing]
+file      = scripts\show.ps1
+run_every = 1h
+secret    = X=store:aws_keys/gone
 
 [job.missing]
 file      = scripts\show.ps1
@@ -226,7 +265,7 @@ secret    = X=store:untrusted/db/password
 [job.slow]
 file      = scripts\show.ps1
 run_every = 1h
-secret    = X=store:hv/slow
+secret    = X=store:hv_slow/slow
 
 [job.kv_missing]
 file      = scripts\show.ps1
@@ -235,20 +274,25 @@ secret    = X=store:kv/gone
 "@
     [void](Invoke-Vigil @('secret', 'set', 'VAULT_TOKEN', '--stdin') "s.vault-token-$PID")
     [void](Invoke-Vigil @('secret', 'set', 'SP_SECRET', '--stdin') "sp+secret/$PID=")
+    [void](Invoke-Vigil @('secret', 'set', 'AWS_SECRET', '--stdin') "aws-secret-key-$PID")
 
     # 1. A run receives every store's secret, exactly.
     [void](Invoke-Vigil @('run', 'show'))
     Test-Equal 'run with store secrets succeeds' 'succeeded' (Get-StateValue 'show' 'status')
+    if ((Get-StateValue 'show' 'status') -cne 'succeeded') { Write-Host "        reason: $(Get-StateValue 'show' 'reason')" }
     Test-Equal 'hashicorp_vault, token: delivered exactly' '1' (Get-Metric 'show' 'a_ok')
     Test-Equal 'hashicorp_vault, approle: delivered exactly' '1' (Get-Metric 'show' 'b_ok')
     Test-Equal 'azure_keyvault, managed identity: delivered exactly' '1' (Get-Metric 'show' 'c_ok')
     Test-Equal 'azure_keyvault, service principal: delivered exactly' '1' (Get-Metric 'show' 'd_ok')
+    Test-Equal 'aws_secrets_manager, access keys (signature checked): delivered exactly' '1' (Get-Metric 'show' 'e_ok')
+    Test-Equal 'aws_secrets_manager, instance role, field: delivered exactly' '1' (Get-Metric 'show' 'f_ok')
 
     # 2. Rotated in the stores: the very next run uses the new values.
-    Set-MockData "vault-pw-2 $PID" "approle-pw-2 $PID" "kv-mi-2 $PID" "kv-sp-2 $PID"
+    Set-MockData "vault-pw-2 $PID" "approle-pw-2 $PID" "kv-mi-2 $PID" "kv-sp-2 $PID" "aws-keys-2 $PID" "aws-role-2 $PID"
     [void](Invoke-Vigil @('run', 'show'))
     Test-Equal 'rotated: hashicorp_vault' '1' (Get-Metric 'show' 'a_ok')
     Test-Equal 'rotated: azure_keyvault' '1' (Get-Metric 'show' 'c_ok')
+    Test-Equal 'rotated: aws_secrets_manager' '1' (Get-Metric 'show' 'e_ok')
 
     # 3. Failures fail the run before it starts, with a reason.
     [void](Invoke-Vigil @('run', 'missing'))
@@ -258,11 +302,17 @@ secret    = X=store:kv/gone
     [void](Invoke-Vigil @('run', 'untrusted'))
     Test-Equal 'a certificate not trusted is refused' "secret store:untrusted/db/password unavailable: the certificate of 127.0.0.1:$hport is not trusted" (Get-StateValue 'untrusted' 'reason')
     [void](Invoke-Vigil @('run', 'slow'))
-    Test-Equal 'a slow store is given up on' "secret store:hv/slow unavailable: no answer from 127.0.0.1:$hport within 2s" (Get-StateValue 'slow' 'reason')
+    Test-Equal 'a slow store is given up on' "secret store:hv_slow/slow unavailable: no answer from 127.0.0.1:$hport within 2s" (Get-StateValue 'slow' 'reason')
     [void](Invoke-Vigil @('secret', 'set', 'VAULT_TOKEN', '--stdin') 'wrong')
     [void](Invoke-Vigil @('run', 'missing'))
     Test-Equal 'a wrong token' 'secret store:hv/no/such/secret unavailable: permission denied (HTTP 403)' (Get-StateValue 'missing' 'reason')
     [void](Invoke-Vigil @('secret', 'set', 'VAULT_TOKEN', '--stdin') "s.vault-token-$PID")
+    [void](Invoke-Vigil @('run', 'aws_missing'))
+    Test-Equal 'not in secrets manager' 'secret store:aws_keys/gone unavailable: not found (ResourceNotFoundException)' (Get-StateValue 'aws_missing' 'reason')
+    [void](Invoke-Vigil @('secret', 'set', 'AWS_SECRET', '--stdin') 'wrong')
+    [void](Invoke-Vigil @('run', 'aws_missing'))
+    Test-Equal 'a wrong AWS secret key: the signature is refused' 'secret store:aws_keys/gone unavailable: permission denied (InvalidSignatureException)' (Get-StateValue 'aws_missing' 'reason')
+    [void](Invoke-Vigil @('secret', 'set', 'AWS_SECRET', '--stdin') "aws-secret-key-$PID")
 
     # 4. precheck fetches them too, and shows only references.
     $pre = Invoke-Vigil @('precheck', 'show')
@@ -270,7 +320,8 @@ secret    = X=store:kv/gone
 
     # No value or credential ever in a URL, a log, state or spool file.
     $values = @("vault-pw-1 $PID", "approle-pw-1 $PID", "kv-mi-1 $PID", "kv-sp-1 $PID", "vault-pw-2 $PID", "kv-mi-2 $PID",
-        "s.vault-token-$PID", "sid-$PID", "s.approle-token-$PID", "imds-token-$PID", "sp-token-$PID", "secret/$PID=", "secret%2F$PID")
+        "s.vault-token-$PID", "sid-$PID", "s.approle-token-$PID", "imds-token-$PID", "sp-token-$PID", "secret/$PID=", "secret%2F$PID",
+        "aws-keys-1 $PID", "aws-role-1 $PID", "aws-keys-2 $PID", "aws-secret-key-$PID", "imds-session-$PID", "aws-ip-secret-$PID", "aws-ip-session-$PID")
     $urls = [System.IO.File]::ReadAllText("$root\mock\urls.log")
     Test-Equal 'no secret in any URL' '' (($values | Where-Object { $urls.Contains($_) }) -join ' ')
     $leaks = foreach ($d in @('logs', 'state', 'spool')) {

@@ -453,7 +453,7 @@ A store on the host, managed with the `vigil secret` command and read afresh by 
 | `helper` | `command`, `arg` (repeatable) | Whatever the command does. Vigil runs `command arg… get <NAME>` directly, never through a shell, and reads the value from its stdout; exit 0 means success. The usual adapter for a store Vigil does not support natively (CyberArk, 1Password CLI, an internal tool). |
 | `azure_keyvault` | `vault` (the vault URL), `authority` (default `https://login.microsoftonline.com`; another cloud's, such as `https://login.microsoftonline.us`), `ca_file` | `auth = managed_identity` (no secret on the host; `client_id` picks a user-assigned identity), or `service_principal` with `tenant_id`, `client_id` and `client_secret` |
 | `hashicorp_vault` | `url`, `mount` (default `secret`), `field` (default `value`), `ca_file` | `auth = token` with `token`, or `approle` with `role_id` and `secret_id`. KV version 2. |
-| `aws_secrets_manager` | `region` | `auth = instance_profile` (no secret on the host), or `access_keys` with `access_key_id` and `secret_access_key` |
+| `aws_secrets_manager` | `region`, `field` (one key of a secret stored as JSON; default: the whole `SecretString`), `endpoint` (default `https://secretsmanager.<region>.amazonaws.com`; a VPC or FIPS endpoint, scheme and host only), `ca_file` | `auth = instance_profile` (no secret on the host), or `access_keys` with `access_key_id` (not secret: written as is, or as an `env:` or `secret:` reference) and `secret_access_key` |
 | `gcp_secret_manager` | `project` | `auth = metadata` (no secret on the host), or `service_account_key` |
 
 Every store also takes `timeout` (default `10s`), the limit for each request. Every type but `helper` needs `auth`, and the keys its method lists.
@@ -462,13 +462,13 @@ Every store also takes `timeout` (default `10s`), the limit for each request. Ev
 - **Fetched fresh** when each run or delivery starts, held in memory only for that run, never written to disk. A rotated secret is used by the next run. A sign-in token is fetched with it and never kept.
 - **Failure:** a job whose secret cannot be fetched fails before its command starts, with a reason that names the reference and the kind of failure, never a value (`secret store:ops_kv/backup-api-token unavailable: not found (HTTP 404)`). A backend whose credential cannot be fetched fails that delivery and backs off (§4.5).
 - **`https` only**, with certificate verification never disabled. Secret store credentials are sent in headers or request bodies, never in URLs.
-- `helper`, `hashicorp_vault` and `azure_keyvault` are implemented. A reference to a store of a type not implemented yet fails as above with `unavailable: store type <type> not implemented yet`.
+- `helper`, `hashicorp_vault`, `azure_keyvault` and `aws_secrets_manager` are implemented. A reference to a store of a type not implemented yet fails as above with `unavailable: store type <type> not implemented yet`.
 
 ##### The built-in stores
 
-`hashicorp_vault` and `azure_keyvault` speak each service's HTTPS API directly, so nothing but Vigil goes on the host: no vendor command-line tool, SDK or agent.
+`hashicorp_vault`, `azure_keyvault` and `aws_secrets_manager` speak each service's HTTPS API directly, so nothing but Vigil goes on the host: no vendor command-line tool, SDK or agent.
 
-- **Linux and macOS:** `curl`, which every supported system has. Everything sensitive (tokens, `secret_id`, `client_secret`) reaches curl on its standard input, as configuration (`curl -K -`), never on its command line, where other accounts could see it. `curl -q` keeps any `.curlrc` from changing how Vigil connects. **Windows:** .NET's HTTP client, built in.
+- **Linux and macOS:** `curl`, which every supported system has, and for `aws_secrets_manager`, `openssl`, for the request signature. Everything sensitive (tokens, `secret_id`, `client_secret`, AWS keys) reaches curl and openssl on their standard input, curl's as configuration (`curl -K -`), never on a command line, where other accounts could see it. `curl -q` keeps any `.curlrc` from changing how Vigil connects. **Windows:** .NET's HTTP client and cryptography, built in.
 - The system's proxy settings apply, except to the instance metadata endpoint. Redirects are never followed.
 - **`ca_file`:** a PEM certificate authority that the store's certificate must chain to, instead of the system's, for a store behind a private CA. Its certificates are not checked for revocation. On Windows PowerShell 7 it needs 7.3 or later.
 
@@ -476,6 +476,7 @@ Every store also takes `timeout` (default `10s`), the limit for each request. Ev
 | --- | --- |
 | `hashicorp_vault` | `GET {url}/v1/{mount}/data/{NAME}` with the token in `X-Vault-Token`; the value is the secret's `field`. With `approle`, first `POST {url}/v1/auth/approle/login`, `role_id` and `secret_id` in the body; the token it returns expires on Vault's own schedule. A path with an empty, `.` or `..` segment is refused without a request. |
 | `azure_keyvault` | A token, then `GET {vault}/secrets/{NAME}?api-version=7.4` with it as `Authorization: Bearer`. `NAME` is a Key Vault secret name, optionally `/<version>`. The token is for the vault's cloud (`vault.azure.net` for `ops-kv.vault.azure.net`). `managed_identity`: from the Azure VM instance metadata endpoint, `http://169.254.169.254`, plain HTTP to a link-local address that never leaves the host, never through a proxy, carrying no credential. `service_principal`: `POST {authority}/{tenant_id}/oauth2/v2.0/token`, the client secret in the body. |
+| `aws_secrets_manager` | `POST {endpoint}/` with `X-Amz-Target: secretsmanager.GetSecretValue` and `{"SecretId":"<NAME>"}`, signed with AWS Signature Version 4 (HMAC-SHA256 from the host's clock, so it must be within five minutes of the right time). `NAME` is a secret name or ARN. The value is the `SecretString`; a binary secret is not supported. `instance_profile`: IMDSv2 on `http://169.254.169.254`, like Azure's endpoint: a session token (`PUT /latest/api/token`), the instance's role, then its temporary credentials, whose session token is sent as `X-Amz-Security-Token`. |
 
 Managed identities of App Service, Azure Functions and Azure Arc use other endpoints, not supported yet: use `service_principal`, or `helper` with the Azure CLI.
 
@@ -483,13 +484,14 @@ What a failure reads as, after `secret <reference> unavailable:` (a failure sign
 
 | Reason | Meaning |
 | --- | --- |
-| `not found (HTTP 404)` | No such secret, or for Vault, no such path. |
-| `permission denied (HTTP 401)`, `(HTTP 403)` | The credential is wrong, expired, or not allowed to read it. |
+| `not found (HTTP 404)`, `not found (ResourceNotFoundException)` | No such secret, or for Vault, no such path. |
+| `permission denied (HTTP 401)`, `(HTTP 403)`, `(<AWS error type>)` | The credential is wrong, expired, or not allowed to read it. For AWS, a wrong secret key reads `permission denied (InvalidSignatureException)`; another AWS error is shown as its type, such as `DecryptionFailure (HTTP 400)`. |
 | `HTTP <code> from <host>` | Any other answer, such as a sealed Vault (503). |
 | `unexpected answer: <what>` | The answer is not JSON, or lacks the value (`no data.data.password`: no such `field`). |
+| `the secret's value: <what>` | AWS, with `field`: the secret is not JSON, or has no such key. |
 | `cannot resolve <host>`, `cannot connect to <host>`, `no answer from <host> within <n>s` | The network. |
 | `the certificate of <host> is not trusted`, `no secure connection to <host>` | TLS. For a private CA, set `ca_file`. |
-| `cannot read ca_file <path>`, `curl is not installed` | The host. |
+| `cannot read ca_file <path>`, `curl is not installed`, `openssl is not installed` | The host. |
 
 #### 6.5.4 Secrets for Jobs
 

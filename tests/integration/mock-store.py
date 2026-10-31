@@ -1,5 +1,7 @@
-"""A stand-in for HashiCorp Vault, Azure Key Vault, Microsoft Entra ID and the
-Azure instance metadata endpoint, for the secret store integration tests.
+"""A stand-in for HashiCorp Vault, Azure Key Vault, Microsoft Entra ID, AWS
+Secrets Manager (checking every request's SigV4 signature) and the
+Azure and AWS instance metadata endpoints, for the secret store integration
+tests.
 
     mock-store.py <dir> <cert.pem> <key.pem>
 
@@ -13,6 +15,8 @@ ever travels in a URL. A path containing "slow" is answered after 5s.
 Test only: never use it for anything else.
 """
 
+import hashlib
+import hmac
 import json
 import os
 import ssl
@@ -31,6 +35,34 @@ def data():
         return json.load(f)
 
 
+def sigv4_valid(handler, body, keys):
+    """Whether a request carries a valid AWS Signature Version 4, for a key
+    pair in keys: {access key id: (secret key, session token or None)}.
+    Written from AWS's documentation, independently of Vigil's signer."""
+    auth = handler.headers.get("Authorization", "")
+    if not auth.startswith("AWS4-HMAC-SHA256 "):
+        return "IncompleteSignature"
+    parts = dict(p.strip().split("=", 1) for p in auth[len("AWS4-HMAC-SHA256 "):].split(","))
+    akid, date, region, service, _ = parts["Credential"].split("/")
+    if akid not in keys:
+        return "UnrecognizedClientException"
+    secret, session = keys[akid]
+    if session is not None and handler.headers.get("X-Amz-Security-Token") != session:
+        return "UnrecognizedClientException"
+    signed = parts["SignedHeaders"].split(";")
+    canon = "".join(f"{n}:{handler.headers.get(n, '').strip()}\n" for n in signed)
+    amzdate = handler.headers.get("X-Amz-Date", "")
+    creq = f"{handler.command}\n/\n\n{canon}\n{parts['SignedHeaders']}\n{hashlib.sha256(body).hexdigest()}"
+    sts = f"AWS4-HMAC-SHA256\n{amzdate}\n{date}/{region}/{service}/aws4_request\n{hashlib.sha256(creq.encode()).hexdigest()}"
+    k = ("AWS4" + secret).encode()
+    for m in (date, region, service, "aws4_request"):
+        k = hmac.new(k, m.encode(), hashlib.sha256).digest()
+    want = hmac.new(k, sts.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(want, parts["Signature"]) or "host" not in signed or "x-amz-date" not in signed:
+        return "InvalidSignatureException"
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -39,6 +71,14 @@ class Handler(BaseHTTPRequestHandler):
         raw = json.dumps(body).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def text(self, status, body):
+        raw = body.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/plain")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
@@ -60,7 +100,30 @@ class Handler(BaseHTTPRequestHandler):
             # The instance metadata endpoint: a token for the managed identity.
             if method == "GET" and path == "/metadata/identity/oauth2/token" and self.headers.get("Metadata") == "true":
                 return self.answer(200, {"access_token": d["imds_token"], "token_type": "Bearer"})
+            # AWS IMDSv2: a session token first, then the role and its credentials.
+            if method == "PUT" and path == "/latest/api/token" and self.headers.get("X-aws-ec2-metadata-token-ttl-seconds"):
+                return self.text(200, d["imds_session"])
+            if path.startswith("/latest/meta-data/iam/security-credentials/"):
+                if self.headers.get("X-aws-ec2-metadata-token") != d["imds_session"]:
+                    return self.text(401, "")
+                role = path[len("/latest/meta-data/iam/security-credentials/"):]
+                if role == "":
+                    return self.text(200, "vigil-role")
+                if role == "vigil-role":
+                    return self.answer(200, {"Code": "Success", "AccessKeyId": d["aws_ip_key_id"],
+                                             "SecretAccessKey": d["aws_ip_secret"], "Token": d["aws_ip_session"]})
+                return self.text(404, "")
             return self.answer(400, {"error": "invalid_request"})
+        if method == "POST" and path == "/" and self.headers.get("X-Amz-Target") == "secretsmanager.GetSecretValue":
+            body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            error = sigv4_valid(self, body, {d["aws_key_id"]: (d["aws_secret"], None),
+                                             d["aws_ip_key_id"]: (d["aws_ip_secret"], d["aws_ip_session"])})
+            if error:
+                return self.answer(400, {"__type": error})
+            value = d["aws"].get(json.loads(body)["SecretId"])
+            if value is None:
+                return self.answer(400, {"__type": "ResourceNotFoundException"})
+            return self.answer(200, {"Name": json.loads(body)["SecretId"], "SecretString": value})
         if method == "POST" and path == "/v1/auth/approle/login":
             b = json.loads(self.body())
             if b.get("role_id") == d["role_id"] and b.get("secret_id") == d["secret_id"]:
@@ -92,6 +155,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self.route("POST")
+
+    def do_PUT(self):
+        self.route("PUT")
 
 
 def serve(tls):

@@ -97,16 +97,22 @@ mock_data() {
   "vault_token": "s.vault-token-$$", "role_id": "role-$$", "secret_id": "sid-$$",
   "approle_token": "s.approle-token-$$",
   "imds_token": "imds-token-$$", "sp_secret": "sp+secret/$$=", "sp_token": "sp-token-$$",
+  "aws_key_id": "AKIAVIGILTEST", "aws_secret": "aws-secret-key-$$",
+  "imds_session": "imds-session-$$", "aws_ip_key_id": "ASIAVIGILTEST",
+  "aws_ip_secret": "aws-ip-secret-$$", "aws_ip_session": "aws-ip-session-$$",
   "vault": {"secret/data/db/password": {"value": "$1"}, "ops/data/app": {"password": "$2"}},
-  "kv": {"dd": "$3", "api": "$4"}
+  "kv": {"dd": "$3", "api": "$4"},
+  "aws": {"prod/db": "$5", "app/json": "{\"username\": \"app\", \"password\": \"$6\"}"}
 }
 EOF
     printf '%s' "$1" > "$root/expect/a"
     printf '%s' "$2" > "$root/expect/b"
     printf '%s' "$3" > "$root/expect/c"
     printf '%s' "$4" > "$root/expect/d"
+    printf '%s' "$5" > "$root/expect/e"
+    printf '%s' "$6" > "$root/expect/f"
 }
-mock_data "vault-pw-1 $$" "approle-pw-1 $$" "kv-mi-1 $$" "kv-sp-1 $$"
+mock_data "vault-pw-1 $$" "approle-pw-1 $$" "kv-mi-1 $$" "kv-sp-1 $$" "aws-keys-1 $$" "aws-role-1 $$"
 "$python" "$here/mock-store.py" "$root/mock" "$tls/server.pem" "$tls/server.key" 2> "$root/mock/stderr" &
 mock_pid=$!
 i=0
@@ -131,6 +137,8 @@ echo "metric a_ok $(same "${A-}" a)"
 echo "metric b_ok $(same "${B-}" b)"
 echo "metric c_ok $(same "${C-}" c)"
 echo "metric d_ok $(same "${D-}" d)"
+echo "metric e_ok $(same "${E-}" e)"
+echo "metric f_ok $(same "${F-}" f)"
 EOF
 
 cat > "$root/config/vigil.config" <<EOF
@@ -141,6 +149,15 @@ command = /bin/sh
 .sh = sh
 
 [secret_store.hv]
+type    = hashicorp_vault
+url     = https://127.0.0.1:$hport
+auth    = token
+token   = secret:VAULT_TOKEN
+ca_file = tls/ca.pem
+
+# Only for the slow check: a short timeout would also catch the first,
+# cold, request of a busy CI runner.
+[secret_store.hv_slow]
 type    = hashicorp_vault
 url     = https://127.0.0.1:$hport
 auth    = token
@@ -180,6 +197,23 @@ url   = https://127.0.0.1:$hport
 auth  = token
 token = secret:VAULT_TOKEN
 
+[secret_store.aws_keys]
+type              = aws_secrets_manager
+region            = eu-west-2
+auth              = access_keys
+access_key_id     = AKIAVIGILTEST
+secret_access_key = secret:AWS_SECRET
+endpoint          = https://127.0.0.1:$hport
+ca_file           = tls/ca.pem
+
+[secret_store.aws_role]
+type     = aws_secrets_manager
+region   = us-east-1
+auth     = instance_profile
+field    = password
+endpoint = https://127.0.0.1:$hport
+ca_file  = tls/ca.pem
+
 [job.show]
 file      = scripts/show.sh
 run_every = 1h
@@ -188,6 +222,13 @@ secret    = A=store:hv/db/password
 secret    = B=store:hv_role/app
 secret    = C=store:kv/dd
 secret    = D=store:kv_sp/api
+secret    = E=store:aws_keys/prod/db
+secret    = F=store:aws_role/app/json
+
+[job.aws_missing]
+file      = scripts/show.sh
+run_every = 1h
+secret    = X=store:aws_keys/gone
 
 [job.missing]
 file      = scripts/show.sh
@@ -202,7 +243,7 @@ secret    = X=store:untrusted/db/password
 [job.slow]
 file      = scripts/show.sh
 run_every = 1h
-secret    = X=store:hv/slow
+secret    = X=store:hv_slow/slow
 
 [job.kv_missing]
 file      = scripts/show.sh
@@ -211,20 +252,25 @@ secret    = X=store:kv/gone
 EOF
 printf 's.vault-token-%s' "$$" | vigil secret set VAULT_TOKEN --stdin > /dev/null
 printf 'sp+secret/%s=' "$$" | vigil secret set SP_SECRET --stdin > /dev/null
+printf 'aws-secret-key-%s' "$$" | vigil secret set AWS_SECRET --stdin > /dev/null
 
 # 1. A run receives every store's secret, exactly.
 vigil run show > /dev/null 2>&1
 check "run with store secrets succeeds" succeeded "$(state_value show status)"
+[ "$(state_value show status)" = succeeded ] || printf '        reason: %s\n' "$(state_value show reason)"
 check "hashicorp_vault, token: delivered exactly" 1 "$(metric show a_ok)"
 check "hashicorp_vault, approle: delivered exactly" 1 "$(metric show b_ok)"
 check "azure_keyvault, managed identity: delivered exactly" 1 "$(metric show c_ok)"
 check "azure_keyvault, service principal: delivered exactly" 1 "$(metric show d_ok)"
+check "aws_secrets_manager, access keys (signature checked): delivered exactly" 1 "$(metric show e_ok)"
+check "aws_secrets_manager, instance role, field: delivered exactly" 1 "$(metric show f_ok)"
 
 # 2. Rotated in the stores: the very next run uses the new values.
-mock_data "vault-pw-2 $$" "approle-pw-2 $$" "kv-mi-2 $$" "kv-sp-2 $$"
+mock_data "vault-pw-2 $$" "approle-pw-2 $$" "kv-mi-2 $$" "kv-sp-2 $$" "aws-keys-2 $$" "aws-role-2 $$"
 vigil run show > /dev/null 2>&1
 check "rotated: hashicorp_vault" 1 "$(metric show a_ok)"
 check "rotated: azure_keyvault" 1 "$(metric show c_ok)"
+check "rotated: aws_secrets_manager" 1 "$(metric show e_ok)"
 
 # 3. Failures fail the run before it starts, with a reason.
 vigil run missing > /dev/null 2>&1
@@ -235,18 +281,25 @@ vigil run untrusted > /dev/null 2>&1
 check "a certificate not trusted is refused" "secret store:untrusted/db/password unavailable: the certificate of 127.0.0.1:$hport is not trusted" \
     "$(state_value untrusted reason)"
 vigil run slow > /dev/null 2>&1
-check "a slow store is given up on" "secret store:hv/slow unavailable: no answer from 127.0.0.1:$hport within 2s" "$(state_value slow reason)"
+check "a slow store is given up on" "secret store:hv_slow/slow unavailable: no answer from 127.0.0.1:$hport within 2s" "$(state_value slow reason)"
 printf 'wrong' | vigil secret set VAULT_TOKEN --stdin > /dev/null
 vigil run missing > /dev/null 2>&1
 check "a wrong token" "secret store:hv/no/such/secret unavailable: permission denied (HTTP 403)" "$(state_value missing reason)"
 printf 's.vault-token-%s' "$$" | vigil secret set VAULT_TOKEN --stdin > /dev/null
+vigil run aws_missing > /dev/null 2>&1
+check "not in secrets manager" "secret store:aws_keys/gone unavailable: not found (ResourceNotFoundException)" "$(state_value aws_missing reason)"
+printf 'wrong' | vigil secret set AWS_SECRET --stdin > /dev/null
+vigil run aws_missing > /dev/null 2>&1
+check "a wrong AWS secret key: the signature is refused" "secret store:aws_keys/gone unavailable: permission denied (InvalidSignatureException)" \
+    "$(state_value aws_missing reason)"
+printf 'aws-secret-key-%s' "$$" | vigil secret set AWS_SECRET --stdin > /dev/null
 
 # 4. precheck fetches them too, and shows only references.
 out=$(vigil precheck show 2>&1)
 check "precheck: the job" yes "$(printf '%s\n' "$out" | grep -x '  ok    job.show' > /dev/null && echo yes || echo no)"
 
 # No value or credential ever in a URL, a log, state or spool file.
-values="vault-pw-1 $$|approle-pw-1 $$|kv-mi-1 $$|kv-sp-1 $$|vault-pw-2 $$|kv-mi-2 $$|s.vault-token-$$|sid-$$|s.approle-token-$$|imds-token-$$|sp-token-$$|secret/$$=|secret%2F$$"
+values="vault-pw-1 $$|approle-pw-1 $$|kv-mi-1 $$|kv-sp-1 $$|vault-pw-2 $$|kv-mi-2 $$|s.vault-token-$$|sid-$$|s.approle-token-$$|imds-token-$$|sp-token-$$|secret/$$=|secret%2F$$|aws-keys-1 $$|aws-role-1 $$|aws-keys-2 $$|aws-secret-key-$$|imds-session-$$|aws-ip-secret-$$|aws-ip-session-$$"
 check "no secret in any URL" "" "$(grep -E -e "$values" "$root/mock/urls.log")"
 check "no secret in any log, state or spool file" "" \
     "$(grep -r -l -E -e "$values" "$root/logs" "$root/state" "$root/spool" 2>/dev/null)"

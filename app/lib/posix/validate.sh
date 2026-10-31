@@ -109,7 +109,7 @@ _vigil_val_keytype() {
         secret_store:type) _vv_type=store_type ;;
         secret_store:command) _vv_type=path ;;
         secret_store:arg) _vv_type=arg; _vv_list=1 ;;
-        secret_store:vault | secret_store:url | secret_store:authority) _vv_type=https_url ;;
+        secret_store:vault | secret_store:url | secret_store:authority | secret_store:endpoint) _vv_type=https_url ;;
         secret_store:ca_file) _vv_type=path ;;
         secret_store:auth) _vv_type=store_auth ;;
         secret_store:mount | secret_store:field | secret_store:region | secret_store:project | \
@@ -231,7 +231,8 @@ _vigil_val_store_key() {
         azure_keyvault:authority | azure_keyvault:ca_file | \
         hashicorp_vault:url | hashicorp_vault:mount | hashicorp_vault:field | hashicorp_vault:auth | \
         hashicorp_vault:token | hashicorp_vault:role_id | hashicorp_vault:secret_id | hashicorp_vault:ca_file | \
-        aws_secrets_manager:region | aws_secrets_manager:auth | \
+        aws_secrets_manager:region | aws_secrets_manager:auth | aws_secrets_manager:field | \
+        aws_secrets_manager:endpoint | aws_secrets_manager:ca_file | \
         aws_secrets_manager:access_key_id | aws_secrets_manager:secret_access_key | \
         gcp_secret_manager:project | gcp_secret_manager:auth | gcp_secret_manager:service_account_key) return 0 ;;
     esac

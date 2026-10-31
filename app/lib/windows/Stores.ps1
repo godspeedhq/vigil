@@ -4,8 +4,9 @@
 .SYNOPSIS
     Vigil's built-in secret stores - Windows PowerShell 5.1 compatible.
 .DESCRIPTION
-    HashiCorp Vault and Azure Key Vault over HTTPS with .NET, so nothing else
-    needs installing (SPECIFICATION.md 6.5.3). The twin of stores.sh.
+    HashiCorp Vault, Azure Key Vault and AWS Secrets Manager over HTTPS with
+    .NET, so nothing else needs installing (SPECIFICATION.md 6.5.3). The twin
+    of stores.sh.
     Credentials and tokens are sent in headers or request bodies, never in
     URLs, and live only in variables.
 
@@ -293,6 +294,7 @@ function Invoke-VigilHttpSend {
             $s.Write($bytes, 0, $bytes.Length)
             $s.Close()
         }
+        elseif ($Method -ceq 'PUT') { $req.ContentLength = 0 }
         $resp = $req.GetResponse()
     }
     catch {
@@ -315,8 +317,9 @@ function Invoke-VigilHttpSend {
 function Get-VigilStoreKeys {
     param([string]$Root, $Parsed, [string]$Store)
     $k = @{
-        url = ''; vault = ''; mount = 'secret'; field = 'value'; auth = ''; token = ''; role_id = ''; secret_id = ''
+        url = ''; vault = ''; mount = 'secret'; field = ''; auth = ''; token = ''; role_id = ''; secret_id = ''
         tenant_id = ''; client_id = ''; client_secret = ''; authority = 'https://login.microsoftonline.com'; ca_file = ''; timeout = 10
+        region = ''; access_key_id = ''; secret_access_key = ''; endpoint = ''
     }
     foreach ($e in $Parsed.Entries) {
         if ($e.Section -cne "secret_store.$Store") { continue }
@@ -338,7 +341,8 @@ function Get-VigilStoreCredential {
 }
 
 # One request of a store: @{ Ok; Body } on HTTP 200, else @{ Ok; Why } with
-# Why starting with the prefix.
+# Why starting with the prefix, and after any other HTTP status, the
+# answer's Status and Body.
 function Invoke-VigilStoreRequest {
     param($Keys, [string]$Prefix, [string]$Method, [string]$Url, [bool]$Metadata, [string[]]$Headers, [string]$Body)
     $hostPart = $Url.Substring($Url.IndexOf('://') + 3)
@@ -360,6 +364,7 @@ function Invoke-VigilStoreRequest {
     elseif ($r.Status -eq 404) { $why = 'not found (HTTP 404)' }
     elseif ($r.Status -eq 401 -or $r.Status -eq 403) { $why = "permission denied (HTTP $($r.Status))" }
     else { $why = "HTTP $($r.Status) from $hostPart" }
+    if ($r.Ok) { return @{ Ok = $false; Why = "$Prefix$why"; Status = $r.Status; Body = $r.Body } }
     return @{ Ok = $false; Why = "$Prefix$why" }
 }
 
@@ -396,7 +401,8 @@ function Get-VigilVaultSecret {
     $r = Invoke-VigilStoreRequest $Keys '' 'GET' $path $false @("X-Vault-Token: $($token.Value)") ''
     $token = $null
     if (-not $r.Ok) { return $r }
-    return Get-VigilStoreAnswer '' $r.Body @('data', 'data', $Keys.field)
+    $field = if ($Keys.field) { $Keys.field } else { 'value' }
+    return Get-VigilStoreAnswer '' $r.Body @('data', 'data', $field)
 }
 
 # Azure Key Vault.
@@ -409,9 +415,8 @@ function Get-VigilKeyVaultSecret {
     $hostName = $vault.Substring(8).Split('/')[0].Split(':')[0]
     $resource = if ($hostName -match '^[^.]*\.[^.]*\.') { $hostName.Substring($hostName.IndexOf('.') + 1) } else { $hostName }
     if ($Keys.auth -ceq 'managed_identity') {
-        $imds = 'http://169.254.169.254'
-        if ($env:VIGIL_TEST_IMDS -and $env:VIGIL_TEST_IMDS -cmatch '^http://127\.0\.0\.1:[0-9]+$') { $imds = $env:VIGIL_TEST_IMDS }
-        $q = "api-version=2018-02-01&resource=$(ConvertTo-VigilPercent "https://$resource")"
+        $imds = Get-VigilImdsBase
+        $q ="api-version=2018-02-01&resource=$(ConvertTo-VigilPercent "https://$resource")"
         if ($Keys.client_id) { $q += "&client_id=$(ConvertTo-VigilPercent $Keys.client_id)" }
         $r = Invoke-VigilStoreRequest $Keys 'sign-in failed: ' 'GET' "$imds/metadata/identity/oauth2/token?$q" $true @('Metadata: true') ''
     }
@@ -435,9 +440,150 @@ function Get-VigilKeyVaultSecret {
     return Get-VigilStoreAnswer '' $r.Body @('value')
 }
 
+# --- AWS Signature Version 4 -------------------------------------------------
+
+function ConvertTo-VigilHex {
+    param([byte[]]$Bytes)
+    return -join ($Bytes | ForEach-Object { $_.ToString('x2') })
+}
+
+function Get-VigilSha256Hex {
+    param([string]$Text)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return ConvertTo-VigilHex $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Text)) }
+    finally { $sha.Dispose() }
+}
+
+function Get-VigilHmac {
+    param([byte[]]$Key, [string]$Message)
+    $h = New-Object System.Security.Cryptography.HMACSHA256 -ArgumentList (, $Key)
+    try { return , $h.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Message)) }
+    finally { $h.Dispose() }
+}
+
+<#
+    The Authorization header of a request without a query string, signed with
+    AWS Signature Version 4. Headers: "name:value", lower-case names, in
+    order.
+#>
+function New-VigilAwsSignature {
+    param([string]$Secret, [string]$KeyId, [string]$AmzDate, [string]$Region, [string]$Service,
+        [string]$Method, [string]$Path, [string[]]$Headers, [string]$Payload)
+    $date = $AmzDate.Substring(0, 8)
+    $canon = -join ($Headers | ForEach-Object { "$_`n" })
+    $signed = ($Headers | ForEach-Object { $_.Substring(0, $_.IndexOf(':')) }) -join ';'
+    $request = "$Method`n$Path`n`n$canon`n$signed`n$(Get-VigilSha256Hex $Payload)"
+    $scope = "$date/$Region/$Service/aws4_request"
+    $k = Get-VigilHmac ([System.Text.Encoding]::UTF8.GetBytes("AWS4$Secret")) $date
+    $k = Get-VigilHmac $k $Region
+    $k = Get-VigilHmac $k $Service
+    $k = Get-VigilHmac $k 'aws4_request'
+    $sig = ConvertTo-VigilHex (Get-VigilHmac $k "AWS4-HMAC-SHA256`n$AmzDate`n$scope`n$(Get-VigilSha256Hex $request)")
+    return "AWS4-HMAC-SHA256 Credential=$KeyId/$scope, SignedHeaders=$signed, Signature=$sig"
+}
+
+# The time a request is signed at. The conformance suite replaces it.
+function Get-VigilAwsTime {
+    return [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ', [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+# The instance metadata endpoint: 169.254.169.254, or for tests only,
+# VIGIL_TEST_IMDS on 127.0.0.1 (spec 22.4.2).
+function Get-VigilImdsBase {
+    if ($env:VIGIL_TEST_IMDS -and $env:VIGIL_TEST_IMDS -cmatch '^http://127\.0\.0\.1:[0-9]+$') { return $env:VIGIL_TEST_IMDS }
+    return 'http://169.254.169.254'
+}
+
+# AWS Secrets Manager.
+function Get-VigilAwsSecret {
+    param([string]$Root, $Parsed, $Keys, [string]$Name)
+    if ($Name -cnotmatch '^[A-Za-z0-9/_+=.@:-]+$') { return @{ Ok = $false; Why = 'not a valid Secrets Manager secret name' } }
+    $session = ''
+    if ($Keys.auth -ceq 'access_keys') {
+        # The key ID is not secret: written as is, or as a reference.
+        $akid = $Keys.access_key_id
+        if ($akid -cmatch '^(env|secret):') {
+            $r = Get-VigilStoreCredential $Root $Parsed 'access_key_id' $akid
+            if (-not $r.Ok) { return $r }
+            $akid = $r.Value
+        }
+        $r = Get-VigilStoreCredential $Root $Parsed 'secret_access_key' $Keys.secret_access_key
+        if (-not $r.Ok) { return $r }
+        $secret = $r.Value
+    }
+    elseif ($Keys.auth -ceq 'instance_profile') {
+        # IMDSv2: a session token, the instance's role, its credentials.
+        $imds = Get-VigilImdsBase
+        $r = Invoke-VigilStoreRequest $Keys 'sign-in failed: ' 'PUT' "$imds/latest/api/token" $true @('X-aws-ec2-metadata-token-ttl-seconds: 300') ''
+        if (-not $r.Ok) { return $r }
+        $md = @("X-aws-ec2-metadata-token: $($r.Body)")
+        $r = Invoke-VigilStoreRequest $Keys 'sign-in failed: ' 'GET' "$imds/latest/meta-data/iam/security-credentials/" $true $md ''
+        if (-not $r.Ok) { return $r }
+        $role = $r.Body.Split("`n")[0].TrimEnd("`r")
+        if (-not $role) { return @{ Ok = $false; Why = 'sign-in failed: no IAM role on this instance' } }
+        $r = Invoke-VigilStoreRequest $Keys 'sign-in failed: ' 'GET' "$imds/latest/meta-data/iam/security-credentials/$(ConvertTo-VigilPercent $role)" $true $md ''
+        $md = $null
+        if (-not $r.Ok) { return $r }
+        $got = @{}
+        foreach ($k in @('AccessKeyId', 'SecretAccessKey', 'Token')) {
+            $a = Get-VigilStoreAnswer 'sign-in failed: ' $r.Body @($k)
+            if (-not $a.Ok) { return $a }
+            $got[$k] = $a.Value
+        }
+        $akid = $got.AccessKeyId
+        $secret = $got.SecretAccessKey
+        $session = $got.Token
+        $got = $null
+        if ("$akid$secret$session" -match '[\x00-\x1f\x7f]') { return @{ Ok = $false; Why = 'sign-in failed: unexpected answer: a control character' } }
+    }
+    else { return @{ Ok = $false; Why = "the store needs 'auth'" } }
+    $url = if ($Keys.endpoint) { $Keys.endpoint } else { "https://secretsmanager.$($Keys.region).amazonaws.com" }
+    $url = $url.TrimEnd('/')
+    $hostName = $url.Substring(8)
+    if ($hostName.EndsWith(':443')) { $hostName = $hostName.Substring(0, $hostName.Length - 4) }
+    $body = '{"SecretId":' + (ConvertTo-VigilJsonQuoted $Name) + '}'
+    $now = Get-VigilAwsTime
+    $sign = @('content-type:application/x-amz-json-1.1', "host:$hostName", "x-amz-date:$now")
+    if ($session) { $sign += "x-amz-security-token:$session" }
+    $sign += 'x-amz-target:secretsmanager.GetSecretValue'
+    $auth = New-VigilAwsSignature $secret $akid $now $Keys.region 'secretsmanager' 'POST' '/' $sign $body
+    $secret = $null
+    $headers = @('Content-Type: application/x-amz-json-1.1', "X-Amz-Date: $now")
+    if ($session) { $headers += "X-Amz-Security-Token: $session" }
+    $headers += 'X-Amz-Target: secretsmanager.GetSecretValue'
+    $headers += "Authorization: $auth"
+    $session = $null
+    $auth = $null
+    $r = Invoke-VigilStoreRequest $Keys '' 'POST' "$url/" $false $headers $body
+    $headers = $null
+    if (-not $r.Ok) {
+        # An error names its type: not found, or the credentials refused.
+        if ($r.Body) {
+            $t = Get-VigilJsonString -Json $r.Body -Path @('__type')
+            if ($t.Ok) {
+                $type = $t.Value.Substring($t.Value.LastIndexOf('#') + 1)
+                if ($type -ceq 'ResourceNotFoundException') { return @{ Ok = $false; Why = "not found ($type)" } }
+                if (@('AccessDeniedException', 'UnrecognizedClientException', 'InvalidSignatureException', 'IncompleteSignature',
+                        'InvalidClientTokenId', 'SignatureDoesNotMatch', 'ExpiredTokenException') -ccontains $type) {
+                    return @{ Ok = $false; Why = "permission denied ($type)" }
+                }
+                return @{ Ok = $false; Why = "$type (HTTP $($r.Status))" }
+            }
+        }
+        return @{ Ok = $false; Why = $r.Why }
+    }
+    $value = Get-VigilStoreAnswer '' $r.Body @('SecretString')
+    if (-not $value.Ok -or -not $Keys.field) { return $value }
+    # field picks one key of a secret stored as JSON.
+    $f = Get-VigilJsonString -Json $value.Value -Path @($Keys.field)
+    if (-not $f.Ok) { return @{ Ok = $false; Why = "the secret's value: $($f.Why)" } }
+    return $f
+}
+
 function Get-VigilStoreSecret {
     param([string]$Root, $Parsed, [string]$Store, [string]$Type, [string]$Name)
     $keys = Get-VigilStoreKeys $Root $Parsed $Store
     if ($Type -ceq 'hashicorp_vault') { return Get-VigilVaultSecret $Root $Parsed $keys $Name }
+    if ($Type -ceq 'aws_secrets_manager') { return Get-VigilAwsSecret $Root $Parsed $keys $Name }
     return Get-VigilKeyVaultSecret $Root $Parsed $keys $Name
 }

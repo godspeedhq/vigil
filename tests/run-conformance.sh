@@ -280,10 +280,17 @@ rm -rf "$tmp"
 # <case>.exchange lists, in order: "env NAME value" and "unenv NAME";
 # "reply <status> <body>" or "fail <kind>", the answers to the next requests;
 # "fetch <reference>", resolved with the requests it makes shown; "json
-# <a.b.c> <document>". The output must be <case>.expected. No request
-# leaves the machine: _vigil_http_send is replaced.
+# <a.b.c> <document>"; "now <amz date>", the time AWS requests are signed
+# at; "sigv4 <secret> <key id> <amz date> <region> <service> <method> <path>
+# <header>...", one signature of an empty payload. The output must be
+# <case>.expected. No request leaves the machine: _vigil_http_send is
+# replaced.
 _st_replies=()
 _st_next=0
+_st_now=20260101T000000Z
+_vigil_aws_now() {
+    _va_now=$_st_now
+}
 _vigil_http_send() {
     local h r
     printf '> %s %s (%ss%s%s)\n' "$2" "$3" "$1" "${4:+, ca_file $4}" "$([ "$5" = 1 ] && printf ', metadata')"
@@ -333,6 +340,14 @@ store_case_dump() {
                 else
                     printf '! %s\n' "$VIGIL_JSON_WHY"
                 fi
+                ;;
+            now) _st_now=$rest ;;
+            sigv4)
+                read -r -a keys <<< "$rest"
+                _va_headers=("${keys[@]:7}")
+                printf 'sigv4 %s\n' "${keys[2]}"
+                vigil_aws_sign "${keys[0]}" "${keys[1]}" "${keys[2]}" "${keys[3]}" "${keys[4]}" "${keys[5]}" "${keys[6]}" ''
+                printf '= %s\n' "$VIGIL_AWS_AUTH"
                 ;;
         esac
     done < "${1%.config}.exchange"

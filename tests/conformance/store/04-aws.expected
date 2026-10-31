@@ -1,0 +1,143 @@
+sigv4 20150830T123600Z
+= AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20150830/us-east-1/service/aws4_request, SignedHeaders=host;x-amz-date, Signature=5fa00fa31553b73ebf1942676e86291e8372ff2a2260956d9b8aae1d763fbf31
+fetch store:aws/prod/db
+> POST https://secretsmanager.eu-west-2.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=d3dd57aa514d857cf845d5c068bda7b13b5ebb95b3f9dcb9a046fc1eb00d51fd
+>   {"SecretId":"prod/db"}
+= pw-1
+fetch store:aws/arn:aws:secretsmanager:eu-west-2:123456789012:secret:prod/db-AbCdEf
+> POST https://secretsmanager.eu-west-2.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=5ba83f8d00fa9a1d1339ca6a8398649c0da0da8750c2f84d34642656ffe186c2
+>   {"SecretId":"arn:aws:secretsmanager:eu-west-2:123456789012:secret:prod/db-AbCdEf"}
+= by-arn
+fetch store:aws/bad name
+! not a valid Secrets Manager secret name
+fetch store:aws_json/prod/db
+> POST https://vpce-0abc.secretsmanager.eu-west-2.vpce.amazonaws.com:443/ (3s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIAREFERENCE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=3a060f6907d19fc010a2a9265fe4dac49f78b5226fa0baebe46b2666bc485c70
+>   {"SecretId":"prod/db"}
+= p@ss "q"
+fetch store:aws_json/prod/db
+> POST https://vpce-0abc.secretsmanager.eu-west-2.vpce.amazonaws.com:443/ (3s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIAREFERENCE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=3a060f6907d19fc010a2a9265fe4dac49f78b5226fa0baebe46b2666bc485c70
+>   {"SecretId":"prod/db"}
+! the secret's value: no password
+fetch store:aws_json/prod/db
+> POST https://vpce-0abc.secretsmanager.eu-west-2.vpce.amazonaws.com:443/ (3s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIAREFERENCE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=3a060f6907d19fc010a2a9265fe4dac49f78b5226fa0baebe46b2666bc485c70
+>   {"SecretId":"prod/db"}
+! the secret's value: not a JSON object
+fetch store:aws/gone
+> POST https://secretsmanager.eu-west-2.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=4a69c16cece869b75edd14e917cf4b798982206edc1d191addab09300476add8
+>   {"SecretId":"gone"}
+! not found (ResourceNotFoundException)
+fetch store:aws/prod/db
+> POST https://secretsmanager.eu-west-2.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=d3dd57aa514d857cf845d5c068bda7b13b5ebb95b3f9dcb9a046fc1eb00d51fd
+>   {"SecretId":"prod/db"}
+! permission denied (UnrecognizedClientException)
+fetch store:aws/prod/db
+> POST https://secretsmanager.eu-west-2.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=d3dd57aa514d857cf845d5c068bda7b13b5ebb95b3f9dcb9a046fc1eb00d51fd
+>   {"SecretId":"prod/db"}
+! permission denied (InvalidSignatureException)
+fetch store:aws/prod/db
+> POST https://secretsmanager.eu-west-2.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=d3dd57aa514d857cf845d5c068bda7b13b5ebb95b3f9dcb9a046fc1eb00d51fd
+>   {"SecretId":"prod/db"}
+! permission denied (AccessDeniedException)
+fetch store:aws/prod/db
+> POST https://secretsmanager.eu-west-2.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=d3dd57aa514d857cf845d5c068bda7b13b5ebb95b3f9dcb9a046fc1eb00d51fd
+>   {"SecretId":"prod/db"}
+! DecryptionFailure (HTTP 400)
+fetch store:aws/prod/db
+> POST https://secretsmanager.eu-west-2.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=d3dd57aa514d857cf845d5c068bda7b13b5ebb95b3f9dcb9a046fc1eb00d51fd
+>   {"SecretId":"prod/db"}
+! HTTP 503 from secretsmanager.eu-west-2.amazonaws.com
+fetch store:aws/binary
+> POST https://secretsmanager.eu-west-2.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=0f794cb1aa3613cdcd900f0cdb745cfedc789091371bf91b2ad0e6e5578b7ebf
+>   {"SecretId":"binary"}
+! unexpected answer: no SecretString
+fetch store:aws/prod/db
+> POST https://secretsmanager.eu-west-2.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261031/eu-west-2/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=d3dd57aa514d857cf845d5c068bda7b13b5ebb95b3f9dcb9a046fc1eb00d51fd
+>   {"SecretId":"prod/db"}
+! no answer from secretsmanager.eu-west-2.amazonaws.com within 10s
+fetch store:aws/prod/db
+! secret_access_key env:VIGIL_CT_AWS_SECRET: not set in the environment
+fetch store:aws_ip/app/key
+> PUT http://169.254.169.254/latest/api/token (10s, metadata)
+>   X-aws-ec2-metadata-token-ttl-seconds: 300
+> GET http://169.254.169.254/latest/meta-data/iam/security-credentials/ (10s, metadata)
+>   X-aws-ec2-metadata-token: AQAEAtoken==
+> GET http://169.254.169.254/latest/meta-data/iam/security-credentials/vigil-role (10s, metadata)
+>   X-aws-ec2-metadata-token: AQAEAtoken==
+> POST https://secretsmanager.us-east-1.amazonaws.com/ (10s)
+>   Content-Type: application/x-amz-json-1.1
+>   X-Amz-Date: 20261031T120000Z
+>   X-Amz-Security-Token: IQoJb3JpZ2luX2VjE+/session=
+>   X-Amz-Target: secretsmanager.GetSecretValue
+>   Authorization: AWS4-HMAC-SHA256 Credential=ASIAINSTANCE/20261031/us-east-1/secretsmanager/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-security-token;x-amz-target, Signature=4d05b8d4b85da30dc623350c3e4f94bc157e998a624066605977cccc8fe3b3c6
+>   {"SecretId":"app/key"}
+= from-role
+fetch store:aws_ip/app/key
+> PUT http://169.254.169.254/latest/api/token (10s, metadata)
+>   X-aws-ec2-metadata-token-ttl-seconds: 300
+! sign-in failed: cannot connect to 169.254.169.254
+fetch store:aws_ip/app/key
+> PUT http://169.254.169.254/latest/api/token (10s, metadata)
+>   X-aws-ec2-metadata-token-ttl-seconds: 300
+> GET http://169.254.169.254/latest/meta-data/iam/security-credentials/ (10s, metadata)
+>   X-aws-ec2-metadata-token: tok
+! sign-in failed: not found (HTTP 404)
+fetch store:aws_ip/app/key
+> PUT http://169.254.169.254/latest/api/token (10s, metadata)
+>   X-aws-ec2-metadata-token-ttl-seconds: 300
+> GET http://169.254.169.254/latest/meta-data/iam/security-credentials/ (10s, metadata)
+>   X-aws-ec2-metadata-token: tok
+> GET http://169.254.169.254/latest/meta-data/iam/security-credentials/vigil-role (10s, metadata)
+>   X-aws-ec2-metadata-token: tok
+! sign-in failed: unexpected answer: no AccessKeyId
