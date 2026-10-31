@@ -30,6 +30,15 @@
         Service control. Stopping leaves running workers alone (18.3).
     vigil [-Root <dir>] status
         The service's state, then jobs.log.
+    vigil [-Root <dir>] init [--instance <name>] [--backend file,datadog,otel] [--no-sample]
+        Writes a starting configuration (19): runners for the PowerShell
+        hosts found here, the backends with env: placeholders, and a sample
+        job. Asks for what is not given when run at a console. Never
+        overwrites a configuration, never asks for a secret value.
+    vigil [-Root <dir>] uninstall [--yes] [--keep-config]
+        Removes Vigil (18.8): the service, the running workers proven to be
+        Vigil's, the root (or all but config and scripts) and the PATH
+        entries. Lists what it will remove and asks first, unless --yes.
     vigil [-Root <dir>] supervise [--once]
         The supervisor (4.1): ticks until stopped, or once with --once.
         Running workers are never stopped with it.
@@ -50,12 +59,12 @@ $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Split-Path -Parent $app }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Sender', 'Supervisor', 'Precheck', 'Service')) {
+foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Sender', 'Supervisor', 'Precheck', 'Service', 'Init')) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]")
     exit 64
 }
 
@@ -166,6 +175,47 @@ switch ($Command) {
         try { Invoke-VigilServiceControl -Root $Root -Action $Command }
         catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
         exit 0
+    }
+    'init' {
+        # PowerShell binds the first flag to Job and the rest to Rest.
+        $argv = @(@($Job) + @($Rest) | Where-Object { $_ })
+        $instance = ''
+        $backends = ''
+        $sample = $true
+        for ($i = 0; $i -lt $argv.Count; $i++) {
+            switch -CaseSensitive ($argv[$i]) {
+                { $_ -ceq '--instance' -or $_ -ceq '--backend' } {
+                    if ($i + 1 -ge $argv.Count) { Exit-Usage }
+                    if ($argv[$i] -ceq '--instance') { $instance = $argv[$i + 1] } else { $backends = $argv[$i + 1] }
+                    $i++
+                }
+                '--no-sample' { $sample = $false }
+                default { Exit-Usage }
+            }
+        }
+        # Defaults: the computer name, and the file backend.
+        $hostName = ($env:COMPUTERNAME -replace '[^A-Za-z0-9_.-]', '-').ToLowerInvariant()
+        $asked = $false
+        if (-not [Console]::IsInputRedirected -and -not $instance) { $instance = Read-Host -Prompt "Instance name [$hostName]"; $asked = $true }
+        if (-not [Console]::IsInputRedirected -and -not $backends) { $backends = Read-Host -Prompt 'Backends, comma-separated: file, datadog, otel [file]'; $asked = $true }
+        if (-not $instance) { $instance = $hostName }
+        if (-not $backends) { $backends = 'file' }
+        if ($asked) { Write-Output '' }
+        try { Invoke-VigilInit -Root $Root -Instance $instance -Backends @($backends.Replace(' ', '').Split(',') | Where-Object { $_ }) -Sample $sample }
+        catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
+        exit 0
+    }
+    'uninstall' {
+        $argv = @(@($Job) + @($Rest) | Where-Object { $_ })
+        $yes = $false
+        $keep = $false
+        foreach ($a in $argv) {
+            if ($a -ceq '--yes') { $yes = $true } elseif ($a -ceq '--keep-config') { $keep = $true } else { Exit-Usage }
+        }
+        $code = 1
+        try { Invoke-VigilUninstall -Root $Root -App $app -Yes $yes -Keep $keep | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
+        catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
+        exit $code
     }
     'status' {
         if ($Job -or $Rest) { Exit-Usage }

@@ -297,3 +297,115 @@ function Get-VigilServiceStatus {
     if ([System.IO.File]::Exists($jl)) { foreach ($l in [System.IO.File]::ReadAllLines($jl)) { Write-Output $l } }
     else { Write-Output 'no jobs.log yet: the supervisor writes it every tick' }
 }
+
+# A value from a state file, or ''.
+function Read-VigilServiceStateValue {
+    param([string]$Path, [string]$Key)
+    if (-not [System.IO.File]::Exists($Path)) { return '' }
+    foreach ($l in [System.IO.File]::ReadAllLines($Path)) {
+        if ($l -cmatch "^$Key *=( (.*))?$") { return $Matches[2] }
+    }
+    return ''
+}
+
+# The runs in progress, proven to be this root's (11.5): for each token in
+# locks\, the worker whose command line names the run and this root, and
+# the job process whose PID, name and start time match the state file and
+# whose parent is that worker. Proven and Unproven list process ids.
+function Get-VigilServiceRuns {
+    param([string]$Root, [string]$State)
+    $r = @{ Proven = New-Object System.Collections.Generic.List[int]; Unproven = New-Object System.Collections.Generic.List[int] }
+    $locks = Join-Path $State 'locks'
+    if (-not [System.IO.Directory]::Exists($locks)) { return $r }
+    $rootArg = ConvertTo-VigilQuotedArg -Arg $Root -Always $false
+    foreach ($t in [System.IO.Directory]::GetFiles($locks, '*.token')) {
+        $base = [System.IO.Path]::GetFileNameWithoutExtension($t)
+        $i = $base.LastIndexOf('.')
+        if ($i -lt 1) { continue }
+        $job = $base.Substring(0, $i)
+        $rid = $base.Substring($i + 1)
+        $st = Join-Path $State "jobs\$job.state"
+        if ((Read-VigilServiceStateValue $st 'run_id') -cne $rid) { continue }
+        $wpid = Read-VigilServiceStateValue $st 'worker_pid'
+        $jpid = Read-VigilServiceStateValue $st 'job_pid'
+        $w = if ($wpid) { @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$wpid)" -ErrorAction SilentlyContinue)[0] }
+        $wOk = $w -and ([string]$w.CommandLine).Contains("$rootArg worker $job --run-id $rid")
+        if ($w) { if ($wOk) { $r.Proven.Add([int]$wpid) } else { $r.Unproven.Add([int]$wpid) } }
+        if ($jpid) {
+            $p = @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$jpid)" -ErrorAction SilentlyContinue)[0]
+            if ($p) {
+                $name = Read-VigilServiceStateValue $st 'job_name'
+                $start = Read-VigilServiceStateValue $st 'job_start'
+                $ok = $wOk -and $name -and $p.Name -ieq $name -and $p.ParentProcessId -eq [int]$wpid -and
+                    ((-not $start) -or [Math]::Abs((ConvertTo-VigilEpoch $p.CreationDate) - [long]$start) -le 1)
+                if ($ok) { $r.Proven.Add([int]$jpid) } else { $r.Unproven.Add([int]$jpid) }
+            }
+        }
+    }
+    return $r
+}
+
+# vigil uninstall (18.8): the service, the proven workers, then the root (all
+# of it, or all but config\ and scripts\), and the PATH entries.
+function Invoke-VigilUninstall {
+    param([string]$Root, [string]$App, [bool]$Yes, [bool]$Keep)
+    if (-not [System.IO.File]::Exists((Join-Path $Root 'app\vigil.ps1')) -or $Root.Length -le 3) {
+        throw "$Root does not look like a Vigil install root (no app\vigil.ps1); nothing removed"
+    }
+    $ctx = Get-VigilWorkerContext -Root $Root -Job 'vigil_sender'
+    $state = if ($ctx.Error) { Join-Path $Root 'state' } else { $ctx.State }
+    $runs = Get-VigilServiceRuns -Root $Root -State $state
+    $found = Find-VigilService -Root $Root
+    $appDir = Join-Path $Root 'app'
+    $paths = @(foreach ($scope in @('User', 'Machine')) {
+            $v = [Environment]::GetEnvironmentVariable('Path', $scope)
+            if ($v -and @($v.Split(';') | Where-Object { $_.TrimEnd('\') -ieq $appDir }).Count -gt 0) { $scope }
+        })
+    $scripts = Join-Path $Root 'scripts'
+    $n = if ([System.IO.Directory]::Exists($scripts)) { @([System.IO.Directory]::GetFiles($scripts, '*', 'AllDirectories')).Count } else { 0 }
+
+    Write-Output 'vigil uninstall will remove:'
+    if ($found.Mode) { Write-Output "  the Vigil $(if ($found.Mode -ceq 'system') { 'service' } else { 'Run entry' }) ($($found.Mode) mode)" }
+    if ($runs.Proven.Count -gt 0) { Write-Output "  running Vigil processes: $($runs.Proven -join ' ')" }
+    if ($Keep) { Write-Output "  $Root, except config and scripts ($n scripts kept)" }
+    else { Write-Output "  $Root, including config and scripts ($n scripts)" }
+    foreach ($s in $paths) { Write-Output "  $appDir from the $($s.ToLowerInvariant()) PATH" }
+    if ($runs.Unproven.Count -gt 0) { Write-Output "and leave running, since they cannot be proven to be Vigil's: $($runs.Unproven -join ' ')" }
+    if (-not $Yes) {
+        if ([Console]::IsInputRedirected) { throw 'not a console: confirm with --yes' }
+        $a = Read-Host -Prompt 'Remove? [y/N]'
+        if ($a -notmatch '^(y|yes)$') { Write-Output 'nothing removed'; return 1 }
+    }
+
+    if ($found.Mode -ceq 'system' -and -not (Test-VigilAdmin)) { throw 'the service is registered in system mode: run it from an elevated prompt' }
+    if ($found.Mode) { [void](Remove-VigilService -Root $Root) }
+    # Windows has no TERM for console programs: each proven tree ends at once.
+    foreach ($p in $runs.Proven) { & taskkill.exe /T /F /PID $p 2>&1 | Out-Null }
+    foreach ($s in $paths) {
+        if ($s -ceq 'Machine' -and -not (Test-VigilAdmin)) { Write-Output "  left $appDir in the machine PATH: removing it needs an elevated prompt"; continue }
+        $v = [Environment]::GetEnvironmentVariable('Path', $s)
+        [Environment]::SetEnvironmentVariable('Path', ((@($v.Split(';') | Where-Object { $_ -and $_.TrimEnd('\') -ine $appDir })) -join ';'), $s)
+    }
+
+    # Everything but what is kept; files still held (a process just ended,
+    # or this command itself) are retried, then left to a detached cleanup.
+    $targets = @(Get-ChildItem -LiteralPath $Root -Force | Where-Object { -not ($Keep -and ($_.Name -ieq 'config' -or $_.Name -ieq 'scripts')) })
+    $left = $targets
+    for ($i = 0; $i -lt 10 -and $left.Count -gt 0; $i++) {
+        foreach ($t in $left) { Remove-Item -LiteralPath $t.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+        $left = @($targets | Where-Object { Test-Path -LiteralPath $_.FullName })
+        if ($left.Count -gt 0) { Start-Sleep -Milliseconds 500 }
+    }
+    if (-not $Keep -and $left.Count -eq 0) { Remove-Item -LiteralPath $Root -Recurse -Force -ErrorAction SilentlyContinue }
+    if ((-not $Keep -and (Test-Path -LiteralPath $Root)) -or $left.Count -gt 0) {
+        # This command runs from app\, so app\ may only go once it exits: a
+        # short-lived detached cmd.exe finishes the job.
+        $what = if ($Keep) { ($left | ForEach-Object { "rmdir /s /q `"$($_.FullName)`" 2>nul & del /f /q `"$($_.FullName)`" 2>nul" }) -join ' & ' } else { "rmdir /s /q `"$Root`"" }
+        $cl = "cmd.exe /d /c ping -n 4 127.0.0.1 >nul & $what"
+        [void](Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cl; CurrentDirectory = $env:SystemRoot })
+        Write-Output 'removed Vigil; the last files go in a few seconds, once this command exits'
+    }
+    elseif ($Keep) { Write-Output "removed Vigil; kept $Root\config and $Root\scripts" }
+    else { Write-Output 'removed Vigil' }
+    return 0
+}
