@@ -104,8 +104,10 @@ lifecycle() {
     check "$mode: restart succeeds" 0 "$?"
     check "$mode: the service is active after restart" active "$(svc_state $vigil)"
 
-    $vigil service install "--$mode" > /dev/null 2>&1
-    check "$mode: installing again succeeds" 0 "$?"
+    $vigil service install "--$mode" > "$work/install.out" 2>&1
+    rc=$?
+    check "$mode: installing again succeeds" 0 "$rc"
+    [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/install.out"
 
     $vigil service remove > /dev/null 2>&1
     check "$mode: service remove succeeds" 0 "$?"

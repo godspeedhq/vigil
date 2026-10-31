@@ -183,6 +183,21 @@ _vigil_svc_running() {
     launchctl print "$_vs_target" 2> /dev/null | grep -q '^[[:space:]]*state = running'
 }
 
+# Unloads the launchd service and waits for it to be gone: bootout returns
+# before launchd has finished, and a bootstrap meanwhile fails.
+_vigil_svc_unload() {
+    local i=0
+    launchctl bootout "$_vs_target" > /dev/null 2>&1
+    while _vigil_svc_loaded && [ "$i" -lt 60 ]; do
+        sleep 0.5
+        i=$((i + 1))
+    done
+    if _vigil_svc_loaded; then
+        _vigil_svc_err "launchd did not unload $_vs_target within 30s"
+        return 1
+    fi
+}
+
 vigil_service_install() {
     local root=$1 app=$2 mode=$3 account=$4 start=$5 d
     case $root in
@@ -245,7 +260,7 @@ vigil_service_install() {
     fi
 
     if [ "$_vs_os" = launchd ] && _vigil_svc_loaded; then
-        launchctl bootout "$_vs_target" > /dev/null 2>&1
+        _vigil_svc_unload || return 1
     fi
     _vigil_svc_write "$root" "$app" "$account" || {
         _vigil_svc_err "could not write $_vs_file"
@@ -301,7 +316,7 @@ vigil_service_remove() {
         rm -f "$_vs_file" || return 1
         _vigil_svc_systemctl daemon-reload
     else
-        _vigil_svc_loaded && launchctl bootout "$_vs_target" > /dev/null 2>&1
+        if _vigil_svc_loaded; then _vigil_svc_unload || return 1; fi
         rm -f "$_vs_file" || return 1
     fi
     printf 'removed %s; running workers continue\n' "$_vs_file"
