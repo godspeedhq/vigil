@@ -67,7 +67,9 @@ function Get-Metric {
 
 # What the mock serves; written again to rotate.
 function Set-MockData {
-    param([string]$A, [string]$B, [string]$C, [string]$D, [string]$E, [string]$F)
+    param([string]$A, [string]$B, [string]$C, [string]$D, [string]$E, [string]$F, [string]$G, [string]$H)
+    $pub = "$tls\gcp.pub".Replace('\', '/')
+    $ssl = $openssl.Replace('\', '/')
     $data = @"
 {
   "vault_token": "s.vault-token-$PID", "role_id": "role-$PID", "secret_id": "sid-$PID",
@@ -78,11 +80,14 @@ function Set-MockData {
   "aws_ip_secret": "aws-ip-secret-$PID", "aws_ip_session": "aws-ip-session-$PID",
   "vault": {"secret/data/db/password": {"value": "$A"}, "ops/data/app": {"password": "$B"}},
   "kv": {"dd": "$C", "api": "$D"},
-  "aws": {"prod/db": "$E", "app/json": "{\"username\": \"app\", \"password\": \"$F\"}"}
+  "aws": {"prod/db": "$E", "app/json": "{\"username\": \"app\", \"password\": \"$F\"}"},
+  "gcp_md_token": "gcp-md-token-$PID", "gcp_sa_token": "gcp-sa-token-$PID",
+  "gcp_email": "vigil-test@ops.iam.gserviceaccount.com", "gcp_pub": "$pub", "openssl": "$ssl",
+  "gcp": {"db-password": "$G", "api_key": "$H"}
 }
 "@
     [System.IO.File]::WriteAllText((Join-Path $root 'mock\data.json'), $data)
-    foreach ($p in @(@('a', $A), @('b', $B), @('c', $C), @('d', $D), @('e', $E), @('f', $F))) {
+    foreach ($p in @(@('a', $A), @('b', $B), @('c', $C), @('d', $D), @('e', $E), @('f', $F), @('g', $G), @('h', $H))) {
         [System.IO.File]::WriteAllText((Join-Path $root "expect\$($p[0])"), $p[1])
     }
 }
@@ -133,8 +138,11 @@ subjectAltName = DNS:localhost,IP:127.0.0.1
     & $openssl req -new -newkey rsa:2048 -nodes -keyout "$tls\server.key" -out "$tls\server.csr" -subj '/CN=localhost' -config $cnf 2>&1 | Out-Null
     & $openssl x509 -req -in "$tls\server.csr" -CA "$tls\ca.pem" -CAkey "$tls\ca.key" -CAcreateserial -out "$tls\server.pem" -days 2 -extfile $cnf -extensions server 2>&1 | Out-Null
     Test-Equal 'test CA and certificate made' 'True' "$(Test-Path -LiteralPath "$tls\server.pem")"
+    # A GCP service account key for this run, and its public key for the mock.
+    & $openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$tls\gcp.pem" 2>&1 | Out-Null
+    & $openssl pkey -in "$tls\gcp.pem" -pubout -out "$tls\gcp.pub" 2>&1 | Out-Null
 
-    Set-MockData "vault-pw-1 $PID" "approle-pw-1 $PID" "kv-mi-1 $PID" "kv-sp-1 $PID" "aws-keys-1 $PID" "aws-role-1 $PID"
+    Set-MockData "vault-pw-1 $PID" "approle-pw-1 $PID" "kv-mi-1 $PID" "kv-sp-1 $PID" "aws-keys-1 $PID" "aws-role-1 $PID" "gcp-md-1 $PID" "gcp-key-1 $PID"
     $mockArgs = @("$here\mock-store.py", "$root\mock", "$tls\server.pem", "$tls\server.key") | ForEach-Object { "`"$_`"" }
     $mock = Start-Process -FilePath $python -ArgumentList $mockArgs -PassThru -NoNewWindow -RedirectStandardError "$root\mock\stderr"
     $ports = Join-Path $root 'mock\ports'
@@ -157,7 +165,9 @@ subjectAltName = DNS:localhost,IP:127.0.0.1
         'Write-Output "metric c_ok $(Same $env:C c)"',
         'Write-Output "metric d_ok $(Same $env:D d)"',
         'Write-Output "metric e_ok $(Same $env:E e)"',
-        'Write-Output "metric f_ok $(Same $env:F f)"')
+        'Write-Output "metric f_ok $(Same $env:F f)"',
+        'Write-Output "metric g_ok $(Same $env:G g)"',
+        'Write-Output "metric h_ok $(Same $env:H h)"')
 
     Set-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value @"
 [runner.ps]
@@ -236,6 +246,21 @@ field    = password
 endpoint = https://127.0.0.1:$hport
 ca_file  = tls\ca.pem
 
+[secret_store.gcp]
+type     = gcp_secret_manager
+project  = test-project
+auth     = metadata
+endpoint = https://127.0.0.1:$hport
+ca_file  = tls\ca.pem
+
+[secret_store.gcp_key]
+type                = gcp_secret_manager
+project             = test-project
+auth                = service_account_key
+service_account_key = secret:GCP_KEY
+endpoint            = https://127.0.0.1:$hport
+ca_file             = tls\ca.pem
+
 [job.show]
 file      = scripts\show.ps1
 run_every = 1h
@@ -246,6 +271,18 @@ secret    = C=store:kv/dd
 secret    = D=store:kv_sp/api
 secret    = E=store:aws_keys/prod/db
 secret    = F=store:aws_role/app/json
+secret    = G=store:gcp/db-password
+secret    = H=store:gcp_key/api_key
+
+[job.gcp_key]
+file      = scripts\show.ps1
+run_every = 1h
+secret    = H=store:gcp_key/api_key
+
+[job.gcp_missing]
+file      = scripts\show.ps1
+run_every = 1h
+secret    = X=store:gcp/gone
 
 [job.aws_missing]
 file      = scripts\show.ps1
@@ -275,6 +312,14 @@ secret    = X=store:kv/gone
     [void](Invoke-Vigil @('secret', 'set', 'VAULT_TOKEN', '--stdin') "s.vault-token-$PID")
     [void](Invoke-Vigil @('secret', 'set', 'SP_SECRET', '--stdin') "sp+secret/$PID=")
     [void](Invoke-Vigil @('secret', 'set', 'AWS_SECRET', '--stdin') "aws-secret-key-$PID")
+    # The service account key file's contents, as Google issues it: JSON with
+    # the private key's newlines escaped. Its token_uri is the mock's.
+    $gcpKeyJson = {
+        param([string]$Pem)
+        $esc = (([System.IO.File]::ReadAllText($Pem) -replace "`r", '').TrimEnd("`n") -split "`n" | ForEach-Object { "$_\n" }) -join ''
+        return '{"client_email":"vigil-test@ops.iam.gserviceaccount.com","private_key":"' + $esc + '","token_uri":"https://127.0.0.1:' + $hport + '/token"}'
+    }
+    [void](Invoke-Vigil @('secret', 'set', 'GCP_KEY', '--stdin') (& $gcpKeyJson "$tls\gcp.pem"))
 
     # 1. A run receives every store's secret, exactly.
     [void](Invoke-Vigil @('run', 'show'))
@@ -286,13 +331,16 @@ secret    = X=store:kv/gone
     Test-Equal 'azure_keyvault, service principal: delivered exactly' '1' (Get-Metric 'show' 'd_ok')
     Test-Equal 'aws_secrets_manager, access keys (signature checked): delivered exactly' '1' (Get-Metric 'show' 'e_ok')
     Test-Equal 'aws_secrets_manager, instance role, field: delivered exactly' '1' (Get-Metric 'show' 'f_ok')
+    Test-Equal 'gcp_secret_manager, metadata: delivered exactly' '1' (Get-Metric 'show' 'g_ok')
+    Test-Equal 'gcp_secret_manager, service account key (JWT checked): delivered exactly' '1' (Get-Metric 'show' 'h_ok')
 
     # 2. Rotated in the stores: the very next run uses the new values.
-    Set-MockData "vault-pw-2 $PID" "approle-pw-2 $PID" "kv-mi-2 $PID" "kv-sp-2 $PID" "aws-keys-2 $PID" "aws-role-2 $PID"
+    Set-MockData "vault-pw-2 $PID" "approle-pw-2 $PID" "kv-mi-2 $PID" "kv-sp-2 $PID" "aws-keys-2 $PID" "aws-role-2 $PID" "gcp-md-2 $PID" "gcp-key-2 $PID"
     [void](Invoke-Vigil @('run', 'show'))
     Test-Equal 'rotated: hashicorp_vault' '1' (Get-Metric 'show' 'a_ok')
     Test-Equal 'rotated: azure_keyvault' '1' (Get-Metric 'show' 'c_ok')
     Test-Equal 'rotated: aws_secrets_manager' '1' (Get-Metric 'show' 'e_ok')
+    Test-Equal 'rotated: gcp_secret_manager' '1' (Get-Metric 'show' 'g_ok')
 
     # 3. Failures fail the run before it starts, with a reason.
     [void](Invoke-Vigil @('run', 'missing'))
@@ -313,6 +361,14 @@ secret    = X=store:kv/gone
     [void](Invoke-Vigil @('run', 'aws_missing'))
     Test-Equal 'a wrong AWS secret key: the signature is refused' 'secret store:aws_keys/gone unavailable: permission denied (InvalidSignatureException)' (Get-StateValue 'aws_missing' 'reason')
     [void](Invoke-Vigil @('secret', 'set', 'AWS_SECRET', '--stdin') "aws-secret-key-$PID")
+    [void](Invoke-Vigil @('run', 'gcp_missing'))
+    Test-Equal 'not in secret manager' 'secret store:gcp/gone unavailable: not found (HTTP 404)' (Get-StateValue 'gcp_missing' 'reason')
+    # Another account's key: the mock checks the JWT's signature and refuses it.
+    & $openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$tls\other.pem" 2>&1 | Out-Null
+    [void](Invoke-Vigil @('secret', 'set', 'GCP_KEY', '--stdin') (& $gcpKeyJson "$tls\other.pem"))
+    [void](Invoke-Vigil @('run', 'gcp_key'))
+    Test-Equal 'a wrong GCP key: the JWT is refused' "secret store:gcp_key/api_key unavailable: sign-in failed: HTTP 400 from 127.0.0.1:$hport" (Get-StateValue 'gcp_key' 'reason')
+    [void](Invoke-Vigil @('secret', 'set', 'GCP_KEY', '--stdin') (& $gcpKeyJson "$tls\gcp.pem"))
 
     # 4. precheck fetches them too, and shows only references.
     $pre = Invoke-Vigil @('precheck', 'show')
@@ -321,7 +377,8 @@ secret    = X=store:kv/gone
     # No value or credential ever in a URL, a log, state or spool file.
     $values = @("vault-pw-1 $PID", "approle-pw-1 $PID", "kv-mi-1 $PID", "kv-sp-1 $PID", "vault-pw-2 $PID", "kv-mi-2 $PID",
         "s.vault-token-$PID", "sid-$PID", "s.approle-token-$PID", "imds-token-$PID", "sp-token-$PID", "secret/$PID=", "secret%2F$PID",
-        "aws-keys-1 $PID", "aws-role-1 $PID", "aws-keys-2 $PID", "aws-secret-key-$PID", "imds-session-$PID", "aws-ip-secret-$PID", "aws-ip-session-$PID")
+        "aws-keys-1 $PID", "aws-role-1 $PID", "aws-keys-2 $PID", "aws-secret-key-$PID", "imds-session-$PID", "aws-ip-secret-$PID", "aws-ip-session-$PID",
+        "gcp-md-1 $PID", "gcp-key-1 $PID", "gcp-md-2 $PID", "gcp-md-token-$PID", "gcp-sa-token-$PID", "PRIVATE KEY")
     $urls = [System.IO.File]::ReadAllText("$root\mock\urls.log")
     Test-Equal 'no secret in any URL' '' (($values | Where-Object { $urls.Contains($_) }) -join ' ')
     $leaks = foreach ($d in @('logs', 'state', 'spool')) {

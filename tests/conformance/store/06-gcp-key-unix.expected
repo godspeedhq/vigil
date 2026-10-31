@@ -1,0 +1,20 @@
+fetch store:gcp_key/api_key
+> POST https://oauth2.googleapis.com/token (10s)
+>   Content-Type: application/x-www-form-urlencoded
+>   grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ2aWdpbEBvcHMtcHJvZC5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbSIsInNjb3BlIjoiaHR0cHM6Ly93d3cuZ29vZ2xlYXBpcy5jb20vYXV0aC9jbG91ZC1wbGF0Zm9ybSIsImF1ZCI6Imh0dHBzOi8vb2F1dGgyLmdvb2dsZWFwaXMuY29tL3Rva2VuIiwiaWF0IjoxNzkzNDQ4MDAwLCJleHAiOjE3OTM0NTE2MDB9.VIHdZ24XUKH5g0enwivPqcYEki_uhpGBRtL3QmKlFVAeSk3leKgNfl5rLm4UvlzaOwNDVBtoGXJ1YhO6lTiqou4zRf8DNm6g2x1nJSZm11METB7QxQXIFMb9ZnDsNNfV75eh__2IZ9oobcK98FaXqR38K_Lv6ZLMbkKUn56-uFU
+> GET https://secretmanager.googleapis.com/v1/projects/ops-prod/secrets/api_key/versions/latest:access (10s)
+>   Authorization: Bearer ya29.from-key
+= key-value
+fetch store:gcp_key/api_key
+> POST https://oauth2.googleapis.com/token (10s)
+>   Content-Type: application/x-www-form-urlencoded
+>   grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ2aWdpbEBvcHMtcHJvZC5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbSIsInNjb3BlIjoiaHR0cHM6Ly93d3cuZ29vZ2xlYXBpcy5jb20vYXV0aC9jbG91ZC1wbGF0Zm9ybSIsImF1ZCI6Imh0dHBzOi8vb2F1dGgyLmdvb2dsZWFwaXMuY29tL3Rva2VuIiwiaWF0IjoxNzkzNDQ4MDAwLCJleHAiOjE3OTM0NTE2MDB9.VIHdZ24XUKH5g0enwivPqcYEki_uhpGBRtL3QmKlFVAeSk3leKgNfl5rLm4UvlzaOwNDVBtoGXJ1YhO6lTiqou4zRf8DNm6g2x1nJSZm11METB7QxQXIFMb9ZnDsNNfV75eh__2IZ9oobcK98FaXqR38K_Lv6ZLMbkKUn56-uFU
+! sign-in failed: HTTP 400 from oauth2.googleapis.com
+fetch store:gcp_bad/api_key
+! service_account_key env:VIGIL_CT_GCP_BAD: not a service account key (no private_key)
+fetch store:gcp_bad/api_key
+! service_account_key env:VIGIL_CT_GCP_BAD: its private_key cannot sign
+fetch store:gcp_bad/api_key
+! service_account_key env:VIGIL_CT_GCP_BAD: its token_uri is not https
+fetch store:gcp_bad/api_key
+! service_account_key env:VIGIL_CT_GCP_BAD: not set in the environment

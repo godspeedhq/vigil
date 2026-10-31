@@ -282,12 +282,17 @@ rm -rf "$tmp"
 # "fetch <reference>", resolved with the requests it makes shown; "json
 # <a.b.c> <document>"; "now <amz date>", the time AWS requests are signed
 # at; "sigv4 <secret> <key id> <amz date> <region> <service> <method> <path>
-# <header>...", one signature of an empty payload. The output must be
-# <case>.expected. No request leaves the machine: _vigil_http_send is
-# replaced.
+# <header>...", one signature of an empty payload; "epoch <seconds>", the
+# time GCP sign-ins are made at. The output must be <case>.expected. No
+# request leaves the machine: _vigil_http_send is replaced. A case named
+# -unix is not run by Git Bash or Cygwin (spec 6.5.3).
 _st_replies=()
 _st_next=0
 _st_now=20260101T000000Z
+_st_epoch=1767225600
+_vigil_gcp_epoch() {
+    _vg_epoch=$_st_epoch
+}
 _vigil_aws_now() {
     _va_now=$_st_now
 }
@@ -342,6 +347,7 @@ store_case_dump() {
                 fi
                 ;;
             now) _st_now=$rest ;;
+            epoch) _st_epoch=$rest ;;
             sigv4)
                 read -r -a keys <<< "$rest"
                 _va_headers=("${keys[@]:7}")
@@ -355,6 +361,9 @@ store_case_dump() {
 }
 for cfg in "$here"/conformance/store/*.config; do
     name=$(basename "$cfg" .config)
+    case $name:$(uname -s) in
+        *-unix:MINGW* | *-unix:MSYS* | *-unix:CYGWIN*) printf '  SKIP  store/%s\n' "$name"; continue ;;
+    esac
     compare "store/$name" "$(cat "${cfg%.config}.expected")" "$(store_case_dump "$cfg")"
 done
 

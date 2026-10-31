@@ -4,11 +4,10 @@
 .SYNOPSIS
     Vigil's built-in secret stores - Windows PowerShell 5.1 compatible.
 .DESCRIPTION
-    HashiCorp Vault, Azure Key Vault and AWS Secrets Manager over HTTPS with
-    .NET, so nothing else needs installing (SPECIFICATION.md 6.5.3). The twin
-    of stores.sh.
-    Credentials and tokens are sent in headers or request bodies, never in
-    URLs, and live only in variables.
+    HashiCorp Vault, Azure Key Vault, AWS Secrets Manager and GCP Secret Manager
+    over HTTPS with .NET, so nothing else needs installing (SPECIFICATION.md
+    6.5.3). The twin of stores.sh. Credentials and tokens are sent in headers
+    or request bodies, never in URLs, and live only in variables.
 
     Get-VigilJsonString -Json <text> -Path <key>...
         The string at that path of objects: @{ Ok; Value; Why }. Strict on
@@ -319,7 +318,7 @@ function Get-VigilStoreKeys {
     $k = @{
         url = ''; vault = ''; mount = 'secret'; field = ''; auth = ''; token = ''; role_id = ''; secret_id = ''
         tenant_id = ''; client_id = ''; client_secret = ''; authority = 'https://login.microsoftonline.com'; ca_file = ''; timeout = 10
-        region = ''; access_key_id = ''; secret_access_key = ''; endpoint = ''
+        region = ''; access_key_id = ''; secret_access_key = ''; endpoint = ''; project = ''; service_account_key = ''
     }
     foreach ($e in $Parsed.Entries) {
         if ($e.Section -cne "secret_store.$Store") { continue }
@@ -580,10 +579,163 @@ function Get-VigilAwsSecret {
     return $f
 }
 
+# --- GCP Secret Manager ------------------------------------------------------
+
+function ConvertTo-VigilB64Url {
+    param([byte[]]$Bytes)
+    return [Convert]::ToBase64String($Bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+# The time a sign-in is made at, in seconds since 1970. The conformance
+# suite replaces it.
+function Get-VigilEpoch {
+    return [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+}
+
+# One DER element at the position: @{ Tag; Start; Len }.
+function Read-VigilDer {
+    param($S)
+    $tag = $S.B[$S.P]
+    $len = [int]$S.B[$S.P + 1]
+    $S.P += 2
+    if ($len -band 0x80) {
+        $n = $len -band 0x7F
+        $len = 0
+        for ($i = 0; $i -lt $n; $i++) { $len = $len * 256 + $S.B[$S.P]; $S.P++ }
+    }
+    if ($S.P + $len -gt $S.B.Length) { throw 'truncated' }
+    return @{ Tag = $tag; Start = $S.P; Len = $len }
+}
+
+<#
+    An RSA private key from PEM: PKCS#8 (BEGIN PRIVATE KEY, as in Google's
+    key files) or PKCS#1 (BEGIN RSA PRIVATE KEY). Read here because Windows
+    PowerShell 5.1's .NET cannot import PEM. Returns RSAParameters, or $null.
+#>
+function ConvertFrom-VigilPemRsa {
+    param([string]$Pem)
+    $m = [regex]::Match($Pem, '-----BEGIN (RSA )?PRIVATE KEY-----([^-]*)-----END (RSA )?PRIVATE KEY-----')
+    if (-not $m.Success) { return $null }
+    try {
+        $S = @{ B = [Convert]::FromBase64String(($m.Groups[2].Value -replace '\s', '')); P = 0 }
+        $seq = Read-VigilDer $S
+        if (-not $m.Groups[1].Success) {
+            # PKCS#8: version, algorithm, then the PKCS#1 key in an OCTET STRING.
+            $v = Read-VigilDer $S; $S.P = $v.Start + $v.Len
+            $a = Read-VigilDer $S; $S.P = $a.Start + $a.Len
+            $o = Read-VigilDer $S
+            $seq = Read-VigilDer $S
+        }
+        $v = Read-VigilDer $S; $S.P = $v.Start + $v.Len
+        $ints = @()
+        for ($i = 0; $i -lt 8; $i++) {
+            $e = Read-VigilDer $S
+            $b = New-Object byte[] $e.Len
+            [Array]::Copy($S.B, $e.Start, $b, 0, $e.Len)
+            $S.P = $e.Start + $e.Len
+            $skip = 0
+            while ($skip -lt $b.Length - 1 -and $b[$skip] -eq 0) { $skip++ }
+            $ints += , ($b[$skip..($b.Length - 1)])
+        }
+        # .NET wants D the modulus' length and the CRT values half of it.
+        $pad = {
+            param([byte[]]$x, [int]$n)
+            if ($x.Length -ge $n) { return , $x }
+            $r = New-Object byte[] $n
+            [Array]::Copy($x, 0, $r, $n - $x.Length, $x.Length)
+            return , $r
+        }
+        $n = $ints[0].Length
+        $h = [int][Math]::Ceiling($n / 2)
+        $p = New-Object System.Security.Cryptography.RSAParameters
+        $p.Modulus = [byte[]]$ints[0]
+        $p.Exponent = [byte[]]$ints[1]
+        $p.D = & $pad $ints[2] $n
+        $p.P = & $pad $ints[3] $h
+        $p.Q = & $pad $ints[4] $h
+        $p.DP = & $pad $ints[5] $h
+        $p.DQ = & $pad $ints[6] $h
+        $p.InverseQ = & $pad $ints[7] $h
+        return $p
+    }
+    catch { return $null }
+}
+
+# A Google access token from a service account key (the reference to its
+# JSON key file's contents): a JWT signed RS256, exchanged at its token_uri.
+function Get-VigilGcpSaToken {
+    param([string]$Root, $Parsed, $Keys)
+    $ref = $Keys.service_account_key
+    $key = Get-VigilStoreCredential $Root $Parsed 'service_account_key' $ref
+    if (-not $key.Ok) { return $key }
+    $got = @{}
+    foreach ($k in @('client_email', 'private_key')) {
+        $j = Get-VigilJsonString -Json $key.Value -Path @($k)
+        if (-not $j.Ok) { return @{ Ok = $false; Why = "service_account_key ${ref}: not a service account key ($($j.Why))" } }
+        $got[$k] = $j.Value
+    }
+    $uri = 'https://oauth2.googleapis.com/token'
+    $j = Get-VigilJsonString -Json $key.Value -Path @('token_uri')
+    if ($j.Ok) { $uri = $j.Value }
+    $key = $null
+    if (-not $uri.StartsWith('https://', [System.StringComparison]::Ordinal)) {
+        return @{ Ok = $false; Why = "service_account_key ${ref}: its token_uri is not https" }
+    }
+    $params = ConvertFrom-VigilPemRsa $got.private_key
+    $got.private_key = $null
+    if ($null -eq $params) { return @{ Ok = $false; Why = "service_account_key ${ref}: its private_key cannot sign" } }
+    $now = Get-VigilEpoch
+    $utf8 = [System.Text.Encoding]::UTF8
+    $signing = (ConvertTo-VigilB64Url $utf8.GetBytes('{"alg":"RS256","typ":"JWT"}')) + '.' + (ConvertTo-VigilB64Url $utf8.GetBytes(
+            '{"iss":' + (ConvertTo-VigilJsonQuoted $got.client_email) + ',"scope":"https://www.googleapis.com/auth/cloud-platform","aud":' +
+            (ConvertTo-VigilJsonQuoted $uri) + ',"iat":' + $now + ',"exp":' + ($now + 3600) + '}'))
+    $rsa = if ($PSVersionTable.PSEdition -ceq 'Core') { [System.Security.Cryptography.RSA]::Create() } else { New-Object System.Security.Cryptography.RSACng }
+    try {
+        $rsa.ImportParameters($params)
+        $sig = $rsa.SignData($utf8.GetBytes($signing), [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+    }
+    catch { return @{ Ok = $false; Why = "service_account_key ${ref}: its private_key cannot sign" } }
+    finally { $rsa.Dispose(); $params = $null }
+    $body = "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=$signing.$(ConvertTo-VigilB64Url $sig)"
+    $r = Invoke-VigilStoreRequest $Keys 'sign-in failed: ' 'POST' $uri $false @('Content-Type: application/x-www-form-urlencoded') $body
+    if (-not $r.Ok) { return $r }
+    return Get-VigilStoreAnswer 'sign-in failed: ' $r.Body @('access_token')
+}
+
+# GCP Secret Manager.
+function Get-VigilGcpSecret {
+    param([string]$Root, $Parsed, $Keys, [string]$Name)
+    if ($Name -cnotmatch '^[A-Za-z0-9_-]+(/([0-9]+|latest))?$') { return @{ Ok = $false; Why = 'not a valid Secret Manager secret name' } }
+    $version = 'latest'
+    if ($Name.Contains('/')) {
+        $version = $Name.Substring($Name.IndexOf('/') + 1)
+        $Name = $Name.Substring(0, $Name.IndexOf('/'))
+    }
+    if ($Keys.auth -ceq 'metadata') {
+        $r = Invoke-VigilStoreRequest $Keys 'sign-in failed: ' 'GET' "$(Get-VigilImdsBase)/computeMetadata/v1/instance/service-accounts/default/token" $true @('Metadata-Flavor: Google') ''
+        if (-not $r.Ok) { return $r }
+        $token = Get-VigilStoreAnswer 'sign-in failed: ' $r.Body @('access_token')
+    }
+    elseif ($Keys.auth -ceq 'service_account_key') { $token = Get-VigilGcpSaToken $Root $Parsed $Keys }
+    else { return @{ Ok = $false; Why = "the store needs 'auth'" } }
+    if (-not $token.Ok) { return $token }
+    $url = if ($Keys.endpoint) { $Keys.endpoint.TrimEnd('/') } else { 'https://secretmanager.googleapis.com' }
+    $r = Invoke-VigilStoreRequest $Keys '' 'GET' "$url/v1/projects/$(ConvertTo-VigilPercent $Keys.project)/secrets/$Name/versions/${version}:access" $false @("Authorization: Bearer $($token.Value)") ''
+    $token = $null
+    if (-not $r.Ok) { return $r }
+    $data = Get-VigilStoreAnswer '' $r.Body @('payload', 'data')
+    if (-not $data.Ok) { return $data }
+    # The value is base64.
+    if ($data.Value -cnotmatch '^[A-Za-z0-9+/]*={0,2}$') { return @{ Ok = $false; Why = 'unexpected answer: payload.data is not base64' } }
+    try { return @{ Ok = $true; Value = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($data.Value)) } }
+    catch { return @{ Ok = $false; Why = 'unexpected answer: payload.data is not base64' } }
+}
+
 function Get-VigilStoreSecret {
     param([string]$Root, $Parsed, [string]$Store, [string]$Type, [string]$Name)
     $keys = Get-VigilStoreKeys $Root $Parsed $Store
     if ($Type -ceq 'hashicorp_vault') { return Get-VigilVaultSecret $Root $Parsed $keys $Name }
     if ($Type -ceq 'aws_secrets_manager') { return Get-VigilAwsSecret $Root $Parsed $keys $Name }
+    if ($Type -ceq 'gcp_secret_manager') { return Get-VigilGcpSecret $Root $Parsed $keys $Name }
     return Get-VigilKeyVaultSecret $Root $Parsed $keys $Name
 }

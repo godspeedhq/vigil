@@ -1,0 +1,36 @@
+# The metadata server's token, then the latest version.
+reply 200 {"access_token":"ya29.metadata","expires_in":3599,"token_type":"Bearer"}
+reply 200 {"name":"projects/123/secrets/db-password/versions/7","payload":{"data":"cGFzc3dvcmQtMQ==","dataCrc32c":"1234"}}
+fetch store:gcp/db-password
+# A version; a value with a trailing newline, kept as stored; UTF-8.
+reply 200 {"access_token":"t"}
+reply 200 {"payload":{"data":"dmVyc2lvbiAzIMO8YmVyCg=="}}
+fetch store:gcp/db-password/3
+reply 200 {"access_token":"t"}
+reply 200 {"payload":{"data":""}}
+fetch store:gcp/empty/latest
+# A Private Service Connect endpoint.
+reply 200 {"access_token":"t"}
+reply 200 {"payload":{"data":"cHNj"}}
+fetch store:gcp_psc/api_key
+# Names Secret Manager does not allow: no request.
+fetch store:gcp/a.b
+fetch store:gcp/db/v3
+fetch store:gcp/db/3/4
+# Failures.
+fail connect
+fetch store:gcp/db-password
+reply 404 {"error":{"code":404,"message":"Not Found"}}
+fetch store:gcp/db-password
+reply 200 {"access_token":"t"}
+reply 404 {"error":{"code":404,"message":"Secret [projects/123/secrets/gone] not found or has no versions.","status":"NOT_FOUND"}}
+fetch store:gcp/gone
+reply 200 {"access_token":"t"}
+reply 403 {"error":{"code":403,"status":"PERMISSION_DENIED"}}
+fetch store:gcp/db-password
+reply 200 {"access_token":"t"}
+reply 200 {"payload":{"data":"not base64!"}}
+fetch store:gcp/db-password
+reply 200 {"access_token":"t"}
+reply 200 {"name":"x"}
+fetch store:gcp/db-password

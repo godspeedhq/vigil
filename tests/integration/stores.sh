@@ -89,6 +89,14 @@ MSYS2_ARG_CONV_EXCL='/CN' openssl req -new -newkey rsa:2048 -nodes -keyout "$tls
 openssl x509 -req -in "$tls/server.csr" -CA "$tls/ca.pem" -CAkey "$tls/ca.key" -CAcreateserial \
     -out "$tls/server.pem" -days 2 -extfile "$tls/openssl.cnf" -extensions server > /dev/null 2>&1
 check "test CA and certificate made" yes "$([ -s "$tls/server.pem" ] && echo yes || echo no)"
+# A GCP service account key for this run, and its public key for the mock.
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$tls/gcp.pem" > /dev/null 2>&1
+openssl pkey -in "$tls/gcp.pem" -pubout -out "$tls/gcp.pub" > /dev/null 2>&1
+# Git Bash: the mock and its openssl are Windows programs, needing Windows paths.
+case $(uname -s) in
+    MINGW* | MSYS* | CYGWIN*) unixkey=0; gcp_pub=$(cygpath -m "$tls/gcp.pub") ;;
+    *) unixkey=1; gcp_pub=$tls/gcp.pub ;;
+esac
 
 # What the mock serves; rewritten to rotate.
 mock_data() {
@@ -102,7 +110,10 @@ mock_data() {
   "aws_ip_secret": "aws-ip-secret-$$", "aws_ip_session": "aws-ip-session-$$",
   "vault": {"secret/data/db/password": {"value": "$1"}, "ops/data/app": {"password": "$2"}},
   "kv": {"dd": "$3", "api": "$4"},
-  "aws": {"prod/db": "$5", "app/json": "{\"username\": \"app\", \"password\": \"$6\"}"}
+  "aws": {"prod/db": "$5", "app/json": "{\"username\": \"app\", \"password\": \"$6\"}"},
+  "gcp_md_token": "gcp-md-token-$$", "gcp_sa_token": "gcp-sa-token-$$",
+  "gcp_email": "vigil-test@ops.iam.gserviceaccount.com", "gcp_pub": "$gcp_pub", "openssl": "openssl",
+  "gcp": {"db-password": "$7", "api_key": "$8"}
 }
 EOF
     printf '%s' "$1" > "$root/expect/a"
@@ -111,8 +122,11 @@ EOF
     printf '%s' "$4" > "$root/expect/d"
     printf '%s' "$5" > "$root/expect/e"
     printf '%s' "$6" > "$root/expect/f"
+    printf '%s' "$7" > "$root/expect/g"
+    printf '%s' "$8" > "$root/expect/h"
 }
-mock_data "vault-pw-1 $$" "approle-pw-1 $$" "kv-mi-1 $$" "kv-sp-1 $$" "aws-keys-1 $$" "aws-role-1 $$"
+mock_data "vault-pw-1 $$" "approle-pw-1 $$" "kv-mi-1 $$" "kv-sp-1 $$" "aws-keys-1 $$" "aws-role-1 $$" \
+    "gcp-md-1 $$" "gcp-key-1 $$"
 "$python" "$here/mock-store.py" "$root/mock" "$tls/server.pem" "$tls/server.key" 2> "$root/mock/stderr" &
 mock_pid=$!
 i=0
@@ -139,6 +153,8 @@ echo "metric c_ok $(same "${C-}" c)"
 echo "metric d_ok $(same "${D-}" d)"
 echo "metric e_ok $(same "${E-}" e)"
 echo "metric f_ok $(same "${F-}" f)"
+echo "metric g_ok $(same "${G-}" g)"
+echo "metric h_ok $(same "${H-}" h)"
 EOF
 
 cat > "$root/config/vigil.config" <<EOF
@@ -214,6 +230,21 @@ field    = password
 endpoint = https://127.0.0.1:$hport
 ca_file  = tls/ca.pem
 
+[secret_store.gcp]
+type     = gcp_secret_manager
+project  = test-project
+auth     = metadata
+endpoint = https://127.0.0.1:$hport
+ca_file  = tls/ca.pem
+
+[secret_store.gcp_key]
+type                = gcp_secret_manager
+project             = test-project
+auth                = service_account_key
+service_account_key = secret:GCP_KEY
+endpoint            = https://127.0.0.1:$hport
+ca_file             = tls/ca.pem
+
 [job.show]
 file      = scripts/show.sh
 run_every = 1h
@@ -224,6 +255,18 @@ secret    = C=store:kv/dd
 secret    = D=store:kv_sp/api
 secret    = E=store:aws_keys/prod/db
 secret    = F=store:aws_role/app/json
+secret    = G=store:gcp/db-password
+
+[job.gcp_key]
+file      = scripts/show.sh
+run_every = 1h
+env       = IT_ROOT=$root
+secret    = H=store:gcp_key/api_key
+
+[job.gcp_missing]
+file      = scripts/show.sh
+run_every = 1h
+secret    = X=store:gcp/gone
 
 [job.aws_missing]
 file      = scripts/show.sh
@@ -253,6 +296,14 @@ EOF
 printf 's.vault-token-%s' "$$" | vigil secret set VAULT_TOKEN --stdin > /dev/null
 printf 'sp+secret/%s=' "$$" | vigil secret set SP_SECRET --stdin > /dev/null
 printf 'aws-secret-key-%s' "$$" | vigil secret set AWS_SECRET --stdin > /dev/null
+# The service account key file's contents, as Google issues it: JSON with the
+# private key's newlines escaped. Its token_uri is the mock's.
+gcp_key_json() {
+    local line esc=''
+    while IFS= read -r line; do esc=$esc$line'\n'; done < "$1"
+    printf '{"client_email":"vigil-test@ops.iam.gserviceaccount.com","private_key":"%s","token_uri":"https://127.0.0.1:%s/token"}' "$esc" "$hport"
+}
+gcp_key_json "$tls/gcp.pem" | vigil secret set GCP_KEY --stdin > /dev/null
 
 # 1. A run receives every store's secret, exactly.
 vigil run show > /dev/null 2>&1
@@ -264,13 +315,23 @@ check "azure_keyvault, managed identity: delivered exactly" 1 "$(metric show c_o
 check "azure_keyvault, service principal: delivered exactly" 1 "$(metric show d_ok)"
 check "aws_secrets_manager, access keys (signature checked): delivered exactly" 1 "$(metric show e_ok)"
 check "aws_secrets_manager, instance role, field: delivered exactly" 1 "$(metric show f_ok)"
+check "gcp_secret_manager, metadata: delivered exactly" 1 "$(metric show g_ok)"
+if [ "$unixkey" -eq 1 ]; then
+    vigil run gcp_key > /dev/null 2>&1
+    check "gcp_secret_manager, service account key (JWT checked): delivered exactly" 1 "$(metric gcp_key h_ok)"
+    [ "$(state_value gcp_key status)" = succeeded ] || printf '        reason: %s\n' "$(state_value gcp_key reason)"
+else
+    printf '  SKIP  gcp_secret_manager, service account key: Git Bash cannot pass openssl a key through a pipe\n'
+fi
 
 # 2. Rotated in the stores: the very next run uses the new values.
-mock_data "vault-pw-2 $$" "approle-pw-2 $$" "kv-mi-2 $$" "kv-sp-2 $$" "aws-keys-2 $$" "aws-role-2 $$"
+mock_data "vault-pw-2 $$" "approle-pw-2 $$" "kv-mi-2 $$" "kv-sp-2 $$" "aws-keys-2 $$" "aws-role-2 $$" \
+    "gcp-md-2 $$" "gcp-key-2 $$"
 vigil run show > /dev/null 2>&1
 check "rotated: hashicorp_vault" 1 "$(metric show a_ok)"
 check "rotated: azure_keyvault" 1 "$(metric show c_ok)"
 check "rotated: aws_secrets_manager" 1 "$(metric show e_ok)"
+check "rotated: gcp_secret_manager" 1 "$(metric show g_ok)"
 
 # 3. Failures fail the run before it starts, with a reason.
 vigil run missing > /dev/null 2>&1
@@ -293,13 +354,23 @@ vigil run aws_missing > /dev/null 2>&1
 check "a wrong AWS secret key: the signature is refused" "secret store:aws_keys/gone unavailable: permission denied (InvalidSignatureException)" \
     "$(state_value aws_missing reason)"
 printf 'aws-secret-key-%s' "$$" | vigil secret set AWS_SECRET --stdin > /dev/null
+vigil run gcp_missing > /dev/null 2>&1
+check "not in secret manager" "secret store:gcp/gone unavailable: not found (HTTP 404)" "$(state_value gcp_missing reason)"
+if [ "$unixkey" -eq 1 ]; then
+    # Another account's key: the mock checks the JWT's signature and refuses it.
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$tls/other.pem" > /dev/null 2>&1
+    gcp_key_json "$tls/other.pem" | vigil secret set GCP_KEY --stdin > /dev/null
+    vigil run gcp_key > /dev/null 2>&1
+    check "a wrong GCP key: the JWT is refused" "secret store:gcp_key/api_key unavailable: sign-in failed: HTTP 400 from 127.0.0.1:$hport" \
+        "$(state_value gcp_key reason)"
+fi
 
 # 4. precheck fetches them too, and shows only references.
 out=$(vigil precheck show 2>&1)
 check "precheck: the job" yes "$(printf '%s\n' "$out" | grep -x '  ok    job.show' > /dev/null && echo yes || echo no)"
 
 # No value or credential ever in a URL, a log, state or spool file.
-values="vault-pw-1 $$|approle-pw-1 $$|kv-mi-1 $$|kv-sp-1 $$|vault-pw-2 $$|kv-mi-2 $$|s.vault-token-$$|sid-$$|s.approle-token-$$|imds-token-$$|sp-token-$$|secret/$$=|secret%2F$$|aws-keys-1 $$|aws-role-1 $$|aws-keys-2 $$|aws-secret-key-$$|imds-session-$$|aws-ip-secret-$$|aws-ip-session-$$"
+values="vault-pw-1 $$|approle-pw-1 $$|kv-mi-1 $$|kv-sp-1 $$|vault-pw-2 $$|kv-mi-2 $$|s.vault-token-$$|sid-$$|s.approle-token-$$|imds-token-$$|sp-token-$$|secret/$$=|secret%2F$$|aws-keys-1 $$|aws-role-1 $$|aws-keys-2 $$|aws-secret-key-$$|imds-session-$$|aws-ip-secret-$$|aws-ip-session-$$|gcp-md-1 $$|gcp-key-1 $$|gcp-md-2 $$|gcp-md-token-$$|gcp-sa-token-$$|PRIVATE KEY"
 check "no secret in any URL" "" "$(grep -E -e "$values" "$root/mock/urls.log")"
 check "no secret in any log, state or spool file" "" \
     "$(grep -r -l -E -e "$values" "$root/logs" "$root/state" "$root/spool" 2>/dev/null)"

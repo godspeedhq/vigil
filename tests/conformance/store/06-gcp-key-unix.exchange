@@ -1,0 +1,20 @@
+# A JWT signed RS256 with a key made for these tests only, exchanged for a
+# token; RSA PKCS#1 v1.5 signatures are deterministic, so both twins must
+# send the very same assertion.
+epoch 1793448000
+env VIGIL_CT_GCP_KEY {"client_email":"vigil@ops-prod.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\nMIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAOmA8RViIuUxax79\nsVNAHFhzn3iiruuvJzsUdypUp2d2TJZ/T/0JJrwz/fR6K+90aB92jv8ivj42KE4b\nywgVUCu8xCGAF6O2HNJ4j4P6Tss6I6dzarDtlpKVbx3L55Unvd8SfLn9mPaJEXwB\nXvEYr88aMbpzLcwwbmVwi2qMzK3tAgMBAAECgYBn911gY/2dhs9nURWvN5BnYbPT\nhrvTfH0/NPGKC38t9eJL8AuxYm24xn2AaRU+3NmviJ5KwzFpibuQa5eO1c6HkQML\n49oW2uy41B18ARdWJL+Mis/aw5Q46pvmVBE3oWzmGWsRqVP3Da6I5Tf+xA9u0mds\n0yFHJcji1J3TAThagQJBAPyAuU8kDruLa4Sap4HmQcIook5YkRGBbSJLavylpnpy\n2nB6XTORLksxUeB/+TnD9321GGcesJGlq4GYWWgbRHkCQQDsvNq1MqeRpSBW5apD\n82ejg/mUIpqnRvksWcSRE9vGIkejpfjOnP4GK3xROH1KxsJdOvtM0kXGTEhlWI7R\nbJAVAkB8Hm5415miWPM+GKOUd/IFFeJKrsCIoV1bCUWK8YZ3FHQJ7CxaR9hAv/qm\nZ2HEIm9KzLU1I2HaBlza9F+mjBjJAkEAvaqIpsdQjVV4VWZnRU2LaOvhVxdqRD6O\nf0PkQj9gwprQPoJIlnAc7KCGVyQk7XXUXpFUqLWGhVq0Xc3Xjl2mCQJBANCZr5hE\nIG4+jjvMx9BC6mIYbQwYVb0+d9yvANyu/V5AdfPVfqwbZHOuYITa4nkVB5B1Iu2F\n0mc2AzSRDlBb2AE=\n-----END PRIVATE KEY-----\n","token_uri":"https://oauth2.googleapis.com/token"}
+reply 200 {"access_token":"ya29.from-key","expires_in":3599,"token_type":"Bearer"}
+reply 200 {"payload":{"data":"a2V5LXZhbHVl"}}
+fetch store:gcp_key/api_key
+reply 400 {"error":"invalid_grant","error_description":"Invalid JWT Signature."}
+fetch store:gcp_key/api_key
+# Not a key file, a key that cannot sign, a token_uri that is not https.
+env VIGIL_CT_GCP_BAD {"client_email":"x@y"}
+fetch store:gcp_bad/api_key
+env VIGIL_CT_GCP_BAD {"client_email":"x@y","private_key":"-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n"}
+fetch store:gcp_bad/api_key
+env VIGIL_CT_GCP_BAD {"client_email":"x@y","private_key":"-----BEGIN PRIVATE KEY-----\nMIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAOmA8RViIuUxax79\nsVNAHFhzn3iiruuvJzsUdypUp2d2TJZ/T/0JJrwz/fR6K+90aB92jv8ivj42KE4b\nywgVUCu8xCGAF6O2HNJ4j4P6Tss6I6dzarDtlpKVbx3L55Unvd8SfLn9mPaJEXwB\nXvEYr88aMbpzLcwwbmVwi2qMzK3tAgMBAAECgYBn911gY/2dhs9nURWvN5BnYbPT\nhrvTfH0/NPGKC38t9eJL8AuxYm24xn2AaRU+3NmviJ5KwzFpibuQa5eO1c6HkQML\n49oW2uy41B18ARdWJL+Mis/aw5Q46pvmVBE3oWzmGWsRqVP3Da6I5Tf+xA9u0mds\n0yFHJcji1J3TAThagQJBAPyAuU8kDruLa4Sap4HmQcIook5YkRGBbSJLavylpnpy\n2nB6XTORLksxUeB/+TnD9321GGcesJGlq4GYWWgbRHkCQQDsvNq1MqeRpSBW5apD\n82ejg/mUIpqnRvksWcSRE9vGIkejpfjOnP4GK3xROH1KxsJdOvtM0kXGTEhlWI7R\nbJAVAkB8Hm5415miWPM+GKOUd/IFFeJKrsCIoV1bCUWK8YZ3FHQJ7CxaR9hAv/qm\nZ2HEIm9KzLU1I2HaBlza9F+mjBjJAkEAvaqIpsdQjVV4VWZnRU2LaOvhVxdqRD6O\nf0PkQj9gwprQPoJIlnAc7KCGVyQk7XXUXpFUqLWGhVq0Xc3Xjl2mCQJBANCZr5hE\nIG4+jjvMx9BC6mIYbQwYVb0+d9yvANyu/V5AdfPVfqwbZHOuYITa4nkVB5B1Iu2F\n0mc2AzSRDlBb2AE=\n-----END PRIVATE KEY-----\n","token_uri":"http://oauth2.googleapis.com/token"}
+fetch store:gcp_bad/api_key
+unenv VIGIL_CT_GCP_BAD
+fetch store:gcp_bad/api_key
+unenv VIGIL_CT_GCP_KEY

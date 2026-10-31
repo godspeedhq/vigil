@@ -2,12 +2,12 @@
 #
 # Vigil's built-in secret stores - bash 3.2 compatible.
 #
-# HashiCorp Vault, Azure Key Vault and AWS Secrets Manager over HTTPS with
-# curl, and openssl for AWS signatures, so nothing else needs installing
-# (SPECIFICATION.md 6.5.3). Credentials and tokens reach curl and openssl on
-# their standard input, never on a command line, and are sent in headers or
-# request bodies, never in URLs. Values live only in shell variables, cleared
-# once used.
+# HashiCorp Vault, Azure Key Vault, AWS Secrets Manager and GCP Secret Manager
+# over HTTPS with curl, and openssl for signatures, so nothing else needs
+# installing (SPECIFICATION.md 6.5.3). Credentials, keys and tokens reach curl
+# and openssl through pipes, never on a command line or in a file, and are
+# sent in headers or request bodies, never in URLs. Values live only in shell
+# variables, cleared once used.
 #
 #   vigil_json_get <json> <key>...
 #     The string at that path of objects. Sets VIGIL_JSON_VALUE and returns
@@ -355,6 +355,7 @@ _vigil_store_keys() {
     _vs_tenant_id='' _vs_client_id='' _vs_client_secret=''
     _vs_authority=https://login.microsoftonline.com _vs_ca_file='' _vs_timeout=10
     _vs_region='' _vs_access_key_id='' _vs_secret_access_key='' _vs_endpoint=''
+    _vs_project='' _vs_service_account_key=''
     i=${VIGIL_CFG_SEC_FIRST[$sec]}
     end=$((i + VIGIL_CFG_SEC_COUNT[sec]))
     while [ "$i" -lt "$end" ]; do
@@ -376,6 +377,8 @@ _vigil_store_keys() {
             access_key_id) _vs_access_key_id=${VIGIL_CFG_VALUE[$i]} ;;
             secret_access_key) _vs_secret_access_key=${VIGIL_CFG_VALUE[$i]} ;;
             endpoint) _vs_endpoint=${VIGIL_CFG_VALUE[$i]} ;;
+            project) _vs_project=${VIGIL_CFG_VALUE[$i]} ;;
+            service_account_key) _vs_service_account_key=${VIGIL_CFG_VALUE[$i]} ;;
             timeout) _vigil_wk_secs "${VIGIL_CFG_VALUE[$i]}"; _vs_timeout=$_vw_secs ;;
         esac
         i=$((i + 1))
@@ -748,6 +751,129 @@ _vigil_store_aws_secrets_manager() {
         VIGIL_JSON_VALUE=''
     fi
     VIGIL_SECRET_VALUE=$_vs_got
+}
+
+# --- GCP Secret Manager ------------------------------------------------------
+
+# Base64url without padding, of standard input.
+_vigil_b64url() {
+    openssl base64 -A | tr '+/' '-_' | tr -d '='
+}
+
+# The time a sign-in is made at, in seconds since 1970, into _vg_epoch. The
+# conformance suite replaces it.
+_vigil_gcp_epoch() {
+    _vg_epoch=$(date -u '+%s')
+}
+
+# A Google access token from a service account key ($2, the reference to
+# its JSON key file's contents), into _vs_got. The JWT is signed RS256 by
+# openssl, which reads the private key from a pipe (/dev/fd/3), never a file
+# or its command line.
+_vigil_gcp_sa_token() {
+    local root=$1 ref=$2 key email pem uri input sig k
+    _vigil_store_cred "$root" service_account_key "$ref" || return 1
+    key=$_vs_cred
+    _vs_cred=''
+    for k in client_email private_key; do
+        if ! vigil_json_get "$key" "$k"; then
+            key=''
+            VIGIL_SECRET_WHY="service_account_key $ref: not a service account key ($VIGIL_JSON_WHY)"
+            return 1
+        fi
+        case $k in
+            client_email) email=$VIGIL_JSON_VALUE ;;
+            private_key) pem=$VIGIL_JSON_VALUE ;;
+        esac
+    done
+    uri=https://oauth2.googleapis.com/token
+    vigil_json_get "$key" token_uri && uri=$VIGIL_JSON_VALUE
+    key=''
+    VIGIL_JSON_VALUE=''
+    case $uri in
+        https://*) ;;
+        *)
+            pem=''
+            VIGIL_SECRET_WHY="service_account_key $ref: its token_uri is not https"
+            return 1
+            ;;
+    esac
+    case $(uname -s) in
+        MINGW* | MSYS* | CYGWIN*)
+            # A Windows openssl cannot read a key from a pipe.
+            pem=''
+            VIGIL_SECRET_WHY='service_account_key is not supported under Git Bash or Cygwin; on Windows, Vigil runs on PowerShell'
+            return 1
+            ;;
+    esac
+    _vigil_gcp_epoch
+    _vigil_json_quote "$email"
+    input=$(printf '%s' '{"alg":"RS256","typ":"JWT"}' | _vigil_b64url).
+    input=$input$(printf '{"iss":%s,"scope":"https://www.googleapis.com/auth/cloud-platform","aud":' "$_vh_enc" | _vigil_b64url)
+    _vigil_json_quote "$uri"
+    input=$input$(printf '%s,"iat":%s,"exp":%s}' "$_vh_enc" "$_vg_epoch" $((_vg_epoch + 3600)) | _vigil_b64url)
+    sig=$(printf '%s' "$input" | openssl dgst -sha256 -sign /dev/fd/3 3< <(printf '%s\n' "$pem") 2> /dev/null | _vigil_b64url)
+    pem=''
+    if [ -z "$sig" ]; then
+        VIGIL_SECRET_WHY="service_account_key $ref: its private_key cannot sign"
+        return 1
+    fi
+    _vh_body="grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=$input.$sig"
+    _vh_headers=('Content-Type: application/x-www-form-urlencoded')
+    _vigil_store_request 'sign-in failed: ' POST "$uri" 0 || return 1
+    _vigil_store_answer 'sign-in failed: ' access_token
+}
+
+# GCP Secret Manager.
+_vigil_store_gcp_secret_manager() {
+    local root=$1 name=$2 version=latest url data
+    local re='^[A-Za-z0-9_-]+(/([0-9]+|latest))?$' re64='^[A-Za-z0-9+/]*={0,2}$'
+    if ! [[ $name =~ $re ]]; then
+        VIGIL_SECRET_WHY='not a valid Secret Manager secret name'
+        return 1
+    fi
+    case $name in
+        */*)
+            version=${name#*/}
+            name=${name%%/*}
+            ;;
+    esac
+    if ! command -v openssl > /dev/null 2>&1; then
+        VIGIL_SECRET_WHY='openssl is not installed'
+        return 1
+    fi
+    case $_vs_auth in
+        metadata)
+            _vigil_store_imds
+            _vh_headers=('Metadata-Flavor: Google')
+            _vigil_store_request 'sign-in failed: ' GET "$_vs_imds/computeMetadata/v1/instance/service-accounts/default/token" 1 || return 1
+            _vigil_store_answer 'sign-in failed: ' access_token || return 1
+            ;;
+        service_account_key)
+            _vigil_gcp_sa_token "$root" "$_vs_service_account_key" || return 1
+            ;;
+        *)
+            VIGIL_SECRET_WHY="the store needs 'auth'"
+            return 1
+            ;;
+    esac
+    _vh_headers=("Authorization: Bearer $_vs_got")
+    _vs_got=''
+    url=${_vs_endpoint:-https://secretmanager.googleapis.com}
+    _vigil_http_encode "$_vs_project" 0
+    _vigil_store_request '' GET "${url%/}/v1/projects/$_vh_enc/secrets/$name/versions/$version:access" 0 || return 1
+    _vigil_store_answer '' payload data || return 1
+    # The value is base64.
+    data=$_vs_got
+    _vs_got=''
+    if ! [[ $data =~ $re64 ]]; then
+        data=''
+        VIGIL_SECRET_WHY='unexpected answer: payload.data is not base64'
+        return 1
+    fi
+    VIGIL_SECRET_VALUE=$(printf '%s' "$data" | openssl base64 -d -A; printf x)
+    VIGIL_SECRET_VALUE=${VIGIL_SECRET_VALUE%x}
+    data=''
 }
 
 vigil_store_fetch() {
