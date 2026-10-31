@@ -84,7 +84,8 @@ Vigil's guiding rules:
 | Fetching configuration and scripts from git, https, sftp, shares | Validated, not fetched yet |
 | Forwarding Vigil's own logs (OTLP) | Specified, not built |
 | Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
-| Secret stores: Azure Key Vault, HashiCorp Vault, AWS, GCP | Validated, not resolved yet |
+| Secret stores: HashiCorp Vault and Azure Key Vault, over HTTPS with curl or .NET | Done |
+| Secret stores: AWS Secrets Manager, GCP Secret Manager | Validated, not resolved yet |
 
 ---
 
@@ -639,7 +640,26 @@ secret    = PGPASSWORD=secret:PGPASSWORD
 - **A raw value is rejected at validation,** and the rejected value is never echoed.
 - **A store's own credentials** must be `env:` or `secret:`, so one store never needs another to unlock it.
 
-All three are resolved for jobs today, and `store:` works with a `helper` command; the native Azure Key Vault, HashiCorp Vault, AWS and GCP store types are validated, and a reference to one fails the run with `store type <type> not implemented yet` until it lands.
+All three are resolved for jobs today. `store:` works with HashiCorp Vault (token or AppRole), Azure Key Vault (managed identity or service principal) and a `helper` command. The AWS and GCP store types are validated, and a reference to one fails the run with `store type <type> not implemented yet` until they land; until then, a `helper` running the vendor's CLI covers them.
+
+Vault and Key Vault need nothing installed: Vigil calls their HTTPS APIs itself, with `curl` on Linux and macOS (tokens go on curl's standard input, never its command line) and .NET on Windows. For a Vault behind a private CA, point `ca_file` at the CA's certificate:
+
+```ini
+[secret_store.vault]
+type      = hashicorp_vault
+url       = https://vault.internal:8200
+auth      = approle
+role_id   = 0f6c2b7e-vigil
+secret_id = secret:VAULT_SECRET_ID
+ca_file   = config/vault-ca.pem
+
+[job.backup]
+file      = sql/backup.sql
+run_every = 1h
+secret    = PGPASSWORD=store:vault/db/backup
+```
+
+`vigil precheck` fetches every store secret a job uses, and shows only the references, so a wrong token or an unreachable vault shows up before the first run does.
 
 On Windows, keep in mind that the store is encrypted for the account that ran `vigil secret set`: run it as the service account. Under WSL, install Vigil inside the Linux filesystem, not under `/mnt/c`, where every file looks readable by everyone and Vigil refuses to use secrets kept there.
 

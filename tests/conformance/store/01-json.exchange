@@ -1,0 +1,22 @@
+# The JSON reader: the string at a path of objects (spec 6.5.3).
+json a {"a":"x"}
+json data.data.value {"data":{"data":{"value":"p\"w\\/é😀"}}}
+json c {"b":[1,{"x":"}\"{"},"]",true,null,-1.5e3], "c":"y"}
+json a { "z" : { "a" : "nested" } , "a" : "spaced" }
+json a {"a":"one","a":"two"}
+json a {"a":"tab\there"}
+json a {"a":1}
+json a {"a":{"b":"c"}}
+json a.b {"a":"x"}
+json b {"a":"x"}
+json a ["a"]
+json a <html>
+json b {"a":tru,"b":"x"}
+json b {"a":01,"b":"x"}
+json a {"a":"\ud800"}
+json a {"a":"\udc00x"}
+json a {"a":"x\u0000"}
+json a {"a":"\q"}
+json a {"a" "x"}
+json b {"a":"x"
+json a {"a":"x

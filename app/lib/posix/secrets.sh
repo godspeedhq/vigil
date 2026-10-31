@@ -163,6 +163,7 @@ vigil_secret_resolve() {
             done
             case $type in
                 helper) _vigil_secret_helper "$sec" "$name" "$root"; return $? ;;
+                hashicorp_vault | azure_keyvault) vigil_store_fetch "$root" "$sec" "$type" "$name"; return $? ;;
             esac
             VIGIL_SECRET_WHY="store type $type not implemented yet"
             return 1

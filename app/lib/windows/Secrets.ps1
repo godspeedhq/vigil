@@ -162,6 +162,9 @@ function Resolve-VigilSecret {
         }
         $type = Get-VigilConfigValue $Parsed "secret_store.$store" 'type' ''
         if ($type -ceq 'helper') { return Invoke-VigilSecretHelper $Root $Parsed $store $name }
+        if ($type -ceq 'hashicorp_vault' -or $type -ceq 'azure_keyvault') {
+            return Get-VigilStoreSecret -Root $Root -Parsed $Parsed -Store $store -Type $type -Name $name
+        }
         return @{ Ok = $false; Why = "store type $type not implemented yet" }
     }
     return @{ Ok = $false; Why = 'not a secret reference' }

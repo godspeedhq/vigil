@@ -451,18 +451,45 @@ A store on the host, managed with the `vigil secret` command and read afresh by 
 | Type | Keys | Authentication |
 | --- | --- | --- |
 | `helper` | `command`, `arg` (repeatable) | Whatever the command does. Vigil runs `command arg… get <NAME>` directly, never through a shell, and reads the value from its stdout; exit 0 means success. The usual adapter for a store Vigil does not support natively (CyberArk, 1Password CLI, an internal tool). |
-| `azure_keyvault` | `vault` (the vault URL) | `auth = managed_identity` (no secret on the host), or `service_principal` with `tenant_id`, `client_id` and `client_secret` |
-| `hashicorp_vault` | `url`, `mount` (default `secret`), `field` (default `value`) | `auth = token` with `token`, or `approle` with `role_id` and `secret_id`. KV version 2. |
+| `azure_keyvault` | `vault` (the vault URL), `authority` (default `https://login.microsoftonline.com`; another cloud's, such as `https://login.microsoftonline.us`), `ca_file` | `auth = managed_identity` (no secret on the host; `client_id` picks a user-assigned identity), or `service_principal` with `tenant_id`, `client_id` and `client_secret` |
+| `hashicorp_vault` | `url`, `mount` (default `secret`), `field` (default `value`), `ca_file` | `auth = token` with `token`, or `approle` with `role_id` and `secret_id`. KV version 2. |
 | `aws_secrets_manager` | `region` | `auth = instance_profile` (no secret on the host), or `access_keys` with `access_key_id` and `secret_access_key` |
 | `gcp_secret_manager` | `project` | `auth = metadata` (no secret on the host), or `service_account_key` |
 
-Every store also takes `timeout` (default `10s`).
+Every store also takes `timeout` (default `10s`), the limit for each request. Every type but `helper` needs `auth`, and the keys its method lists.
 
 - **A store's own credentials** (`client_secret`, `token`, `secret_id`, …) must be `env:` or `secret:` references, never `store:`: one store cannot unlock another, so there is never a chain to untangle.
-- **Fetched fresh** when each run or delivery starts, held in memory only for that run, never written to disk. A rotated secret is used by the next run.
-- **Failure:** a job whose secret cannot be fetched fails before its command starts, with a reason that names the reference and the kind of failure, never a value (`secret store:ops_kv/backup-api-token unavailable: not found`). A backend whose credential cannot be fetched fails that delivery and backs off (§4.5).
+- **Fetched fresh** when each run or delivery starts, held in memory only for that run, never written to disk. A rotated secret is used by the next run. A sign-in token is fetched with it and never kept.
+- **Failure:** a job whose secret cannot be fetched fails before its command starts, with a reason that names the reference and the kind of failure, never a value (`secret store:ops_kv/backup-api-token unavailable: not found (HTTP 404)`). A backend whose credential cannot be fetched fails that delivery and backs off (§4.5).
 - **`https` only**, with certificate verification never disabled. Secret store credentials are sent in headers or request bodies, never in URLs.
-- Store types are implemented one at a time, starting with `helper`. Until a type is implemented, a reference to a store of that type fails as above with `unavailable: store type <type> not implemented yet`.
+- `helper`, `hashicorp_vault` and `azure_keyvault` are implemented. A reference to a store of a type not implemented yet fails as above with `unavailable: store type <type> not implemented yet`.
+
+##### The built-in stores
+
+`hashicorp_vault` and `azure_keyvault` speak each service's HTTPS API directly, so nothing but Vigil goes on the host: no vendor command-line tool, SDK or agent.
+
+- **Linux and macOS:** `curl`, which every supported system has. Everything sensitive (tokens, `secret_id`, `client_secret`) reaches curl on its standard input, as configuration (`curl -K -`), never on its command line, where other accounts could see it. `curl -q` keeps any `.curlrc` from changing how Vigil connects. **Windows:** .NET's HTTP client, built in.
+- The system's proxy settings apply, except to the instance metadata endpoint. Redirects are never followed.
+- **`ca_file`:** a PEM certificate authority that the store's certificate must chain to, instead of the system's, for a store behind a private CA. Its certificates are not checked for revocation. On Windows PowerShell 7 it needs 7.3 or later.
+
+| Type | Requests |
+| --- | --- |
+| `hashicorp_vault` | `GET {url}/v1/{mount}/data/{NAME}` with the token in `X-Vault-Token`; the value is the secret's `field`. With `approle`, first `POST {url}/v1/auth/approle/login`, `role_id` and `secret_id` in the body; the token it returns expires on Vault's own schedule. A path with an empty, `.` or `..` segment is refused without a request. |
+| `azure_keyvault` | A token, then `GET {vault}/secrets/{NAME}?api-version=7.4` with it as `Authorization: Bearer`. `NAME` is a Key Vault secret name, optionally `/<version>`. The token is for the vault's cloud (`vault.azure.net` for `ops-kv.vault.azure.net`). `managed_identity`: from the Azure VM instance metadata endpoint, `http://169.254.169.254`, plain HTTP to a link-local address that never leaves the host, never through a proxy, carrying no credential. `service_principal`: `POST {authority}/{tenant_id}/oauth2/v2.0/token`, the client secret in the body. |
+
+Managed identities of App Service, Azure Functions and Azure Arc use other endpoints, not supported yet: use `service_principal`, or `helper` with the Azure CLI.
+
+What a failure reads as, after `secret <reference> unavailable:` (a failure signing in starts with `sign-in failed:`):
+
+| Reason | Meaning |
+| --- | --- |
+| `not found (HTTP 404)` | No such secret, or for Vault, no such path. |
+| `permission denied (HTTP 401)`, `(HTTP 403)` | The credential is wrong, expired, or not allowed to read it. |
+| `HTTP <code> from <host>` | Any other answer, such as a sealed Vault (503). |
+| `unexpected answer: <what>` | The answer is not JSON, or lacks the value (`no data.data.password`: no such `field`). |
+| `cannot resolve <host>`, `cannot connect to <host>`, `no answer from <host> within <n>s` | The network. |
+| `the certificate of <host> is not trusted`, `no secure connection to <host>` | TLS. For a private CA, set `ca_file`. |
+| `cannot read ca_file <path>`, `curl is not installed` | The host. |
 
 #### 6.5.4 Secrets for Jobs
 
@@ -1550,7 +1577,7 @@ Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rul
 - Every job file exists and is runnable through its resolved runner, its runner `command` exists, and its `working_dir` exists: the checks a worker makes before a run (§4.3).
 - Every `secret` of every job resolves, and every `require_env` variable is set (or provided by a `secret`). Backend and secret store credentials (`env:`, `secret:` references) resolve. Values are fetched and thrown away; only references are printed.
 - State, log and spool directories are writable: each, or the nearest folder above it that exists, since precheck creates nothing.
-- `VIGIL_FAULT` is not set (§22.4.1).
+- `VIGIL_FAULT` and `VIGIL_TEST_IMDS` are not set (§22.4.1, §22.4.2).
 
 `vigil precheck <job>` checks only that job, and also prints its effective settings and their sources (§6.6).
 
@@ -1893,6 +1920,10 @@ Timed kills cannot reliably land inside windows that last microseconds on three 
 Points: `launch.after_record`, `launch.after_spawn`, `worker.before_claim`, `worker.after_claim`, `worker.after_spool`, `worker.after_state`, `fanout.after_claim`, `fanout.after_targets`, `fanout.after_place:N`, `fanout.before_retire`, `sender.after_send`, `state.after_temp` (temporary file written, not yet renamed).
 
 A crash point only ever makes Vigil's own process exit; it cannot change behaviour otherwise. The supervisor logs a warning at startup and pre-flight fails if `VIGIL_FAULT` is set in the service environment, so it cannot be left on in production by accident.
+
+### 22.4.2 Test Endpoints
+
+The built-in secret stores (§6.5.3) are tested against a local mock of each service over real HTTPS, with a certificate authority made for the run and trusted only through `ca_file`. The one address no configuration can change is the instance metadata endpoint (`169.254.169.254`); the environment variable `VIGIL_TEST_IMDS` replaces it, and is accepted only as `http://127.0.0.1:<port>`. The metadata request carries no credential, so the override cannot leak one. Pre-flight fails if it is set, like `VIGIL_FAULT`.
 
 ### 22.5 Platform Matrix
 

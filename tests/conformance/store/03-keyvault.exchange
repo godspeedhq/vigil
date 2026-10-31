@@ -1,0 +1,43 @@
+# A managed identity: a token from the metadata endpoint, then the secret.
+reply 200 {"access_token":"eyJ.mi","expires_in":"86399","resource":"https://vault.azure.net","token_type":"Bearer"}
+reply 200 {"value":"datadog-key","id":"https://ops-kv.vault.azure.net/secrets/dd/0abc","attributes":{"enabled":true}}
+fetch store:kv/dd
+# A version.
+reply 200 {"access_token":"t"}
+reply 200 {"value":"v2"}
+fetch store:kv/dd/0123abcdef
+# Not a Key Vault name: no request.
+fetch store:kv/bad_name
+fetch store:kv/a/b/c
+# Signing in fails.
+fail connect
+fetch store:kv/dd
+fail timeout
+fetch store:kv/dd
+reply 400 {"error":"invalid_request","error_description":"Identity not found"}
+fetch store:kv/dd
+reply 200 {"token_type":"Bearer"}
+fetch store:kv/dd
+# The secret is not there, or not for us.
+reply 200 {"access_token":"t"}
+reply 404 {"error":{"code":"SecretNotFound","message":"A secret with (name/id) gone was not found in this key vault."}}
+fetch store:kv/gone
+reply 200 {"access_token":"t"}
+reply 403 {"error":{"code":"Forbidden"}}
+fetch store:kv/dd
+reply 200 {"access_token":"t"}
+reply 200 {"id":"x"}
+fetch store:kv/dd
+# A user-assigned identity.
+reply 200 {"access_token":"t-user"}
+reply 200 {"value":"u"}
+fetch store:kv_user/dd
+# A service principal, in another cloud.
+env VIGIL_CT_CLIENT_SECRET a+b/c=d&e f~"\
+reply 200 {"token_type":"Bearer","expires_in":3599,"access_token":"t-sp"}
+reply 200 {"value":"gov"}
+fetch store:kv_sp/x
+reply 401 {"error":"invalid_client"}
+fetch store:kv_sp/x
+unenv VIGIL_CT_CLIENT_SECRET
+fetch store:kv_sp/x

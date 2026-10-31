@@ -37,7 +37,7 @@ $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Split-Path -Parent $app }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Worker', 'Sender', 'Supervisor', 'Precheck')) {
+foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Sender', 'Supervisor', 'Precheck')) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }
 
