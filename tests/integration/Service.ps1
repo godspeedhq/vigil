@@ -29,11 +29,37 @@ function Test-Equal {
     else { $script:fail++; Write-Host "  FAIL  ${Name}: expected [$Expected] actual [$Actual]" }
 }
 
+# Runs vigil, giving up after two minutes with what can explain a hang.
 function Invoke-Vigil {
     param([string]$Root, [string[]]$Arguments)
-    $out = & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'app\vigil.ps1') -Root $Root @Arguments 2>&1
-    $script:lastOut = ($out | ForEach-Object { "$_" }) -join "`n"
-    return $LASTEXITCODE
+    $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $Root 'app\vigil.ps1'), '-Root', $Root) + $Arguments
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $shell
+    $psi.Arguments = ($argv | ForEach-Object { if ($_ -match '[ "]' -or $_ -eq '') { '"' + $_ + '"' } else { $_ } }) -join ' '
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $p = [System.Diagnostics.Process]::Start($psi)
+    $o = $p.StandardOutput.ReadToEndAsync()
+    $e = $p.StandardError.ReadToEndAsync()
+    if (-not $p.WaitForExit(120000)) {
+        Write-Host "  vigil $($Arguments -join ' ') did not finish within 120s"
+        Write-Host '  --- services'
+        Get-CimInstance Win32_Service -Filter "Name='Vigil'" | Format-List Name, State, ProcessId, StartName | Out-String | Write-Host
+        Write-Host '  --- processes'
+        Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'nssm|powershell|pwsh|cmd|ping' } |
+            Format-Table ProcessId, ParentProcessId, Name, CommandLine -AutoSize -Wrap | Out-String -Width 300 | Write-Host
+        Write-Host '  --- logs'
+        Get-ChildItem -LiteralPath (Join-Path $Root 'logs\supervisor') -File -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "  [$($_.Name)]"; Get-Content -LiteralPath $_.FullName -Tail 30 | Write-Host }
+        Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = 'nssm' } -MaxEvents 15 -ErrorAction SilentlyContinue |
+            Format-List TimeCreated, Message | Out-String | Write-Host
+        $p.Kill()
+        $script:lastOut = 'timed out'
+        return 124
+    }
+    $script:lastOut = ($o.Result + $e.Result).TrimEnd()
+    return $p.ExitCode
 }
 
 # active, inactive or not registered, from the first line of vigil status.

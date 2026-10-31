@@ -22,6 +22,17 @@ $Script:VigilServiceName = 'Vigil'
 $Script:VigilServiceKey = 'HKLM:\SYSTEM\CurrentControlSet\Services\Vigil'
 $Script:VigilRunKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 
+# Starts or stops the service and waits for it, at most 60 seconds: a
+# service that does not get there is reported, never waited on forever.
+function Set-VigilServiceState {
+    param([string]$Want)
+    $sc = Get-Service -Name $Script:VigilServiceName -ErrorAction Stop
+    if ($sc.Status -eq $Want) { return }
+    if ($Want -ceq 'Running') { $sc.Start() } else { $sc.Stop() }
+    try { $sc.WaitForStatus($Want, [TimeSpan]::FromSeconds(60)) }
+    catch { throw "the Vigil service did not reach $Want within 60s (it is $($sc.Status)); see logs\supervisor\service.log" }
+}
+
 function Test-VigilAdmin {
     $p = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     return $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -148,7 +159,7 @@ function Install-VigilService {
         Set-VigilRootAcl -Root $Root
         $svc = Get-Service -Name $Script:VigilServiceName -ErrorAction SilentlyContinue
         if ($svc) {
-            if ($svc.Status -ne 'Stopped') { Stop-Service -Name $Script:VigilServiceName -ErrorAction Stop }
+            if ($svc.Status -ne 'Stopped') { Set-VigilServiceState 'Stopped' }
             Set-ItemProperty -LiteralPath $Script:VigilServiceKey -Name 'ImagePath' -Value "`"$nssm`""
         }
         else {
@@ -176,7 +187,7 @@ function Install-VigilService {
         Set-ItemProperty -LiteralPath "$k\AppExit" -Name '(Default)' -Value 'Restart'
         Write-Output "registered the Vigil service (NSSM, LocalSystem, $exe)"
         if ($Start) {
-            Start-Service -Name $Script:VigilServiceName -ErrorAction Stop
+            Set-VigilServiceState 'Running'
             Write-Output 'started vigil'
         }
     }
@@ -197,7 +208,7 @@ function Remove-VigilService {
         'system' {
             if (-not (Test-VigilAdmin)) { throw 'the service is registered in system mode: run it from an elevated prompt' }
             $svc = Get-Service -Name $Script:VigilServiceName -ErrorAction SilentlyContinue
-            if ($svc -and $svc.Status -ne 'Stopped') { Stop-Service -Name $Script:VigilServiceName -ErrorAction Stop }
+            if ($svc -and $svc.Status -ne 'Stopped') { Set-VigilServiceState 'Stopped' }
             $out = & sc.exe delete $Script:VigilServiceName 2>&1
             if ($LASTEXITCODE -ne 0) { throw "sc.exe delete Vigil failed: $out" }
             Write-Output 'removed the Vigil service; running workers continue'
@@ -219,9 +230,9 @@ function Invoke-VigilServiceControl {
     if ($found.Mode -ceq 'system') {
         if (-not (Test-VigilAdmin)) { throw 'the service runs in system mode: run it from an elevated prompt' }
         switch ($Action) {
-            'start' { Start-Service -Name $Script:VigilServiceName -ErrorAction Stop }
-            'stop' { Stop-Service -Name $Script:VigilServiceName -ErrorAction Stop }
-            'restart' { Restart-Service -Name $Script:VigilServiceName -ErrorAction Stop }
+            'start' { Set-VigilServiceState 'Running' }
+            'stop' { Set-VigilServiceState 'Stopped' }
+            'restart' { Set-VigilServiceState 'Stopped'; Set-VigilServiceState 'Running' }
         }
     }
     else {
