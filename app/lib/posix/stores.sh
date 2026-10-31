@@ -240,7 +240,9 @@ _vigil_http_encode() {
                 if [ "$2" = 1 ]; then _vh_enc=$_vh_enc/; else _vh_enc=$_vh_enc%2F; fi
                 ;;
             *)
-                printf -v n '%%%02X' "'$c"
+                # bash 3.2 gives bytes over 127 as negative numbers.
+                printf -v n '%d' "'$c"
+                printf -v n '%%%02X' $((n & 255))
                 _vh_enc=$_vh_enc$n
                 ;;
         esac
