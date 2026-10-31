@@ -172,9 +172,12 @@ function Install-VigilService {
         foreach ($v in @(
                 @('Application', $exe, 'ExpandString'), @('AppParameters', $cl, 'ExpandString'), @('AppDirectory', $Root, 'ExpandString'),
                 @('AppStdout', $log, 'ExpandString'), @('AppStderr', $log, 'ExpandString'),
-                # Append (OPEN_ALWAYS); rotated at 10 MB.
+                # Append (OPEN_ALWAYS); rotated when the service starts, once over
+                # 10 MB. Never online: NSSM would then read the output through a
+                # pipe and, on stop, wait for it to close - which the workers,
+                # holding it open, never do.
                 @('AppStdoutCreationDisposition', 4, 'DWord'), @('AppStderrCreationDisposition', 4, 'DWord'),
-                @('AppRotateFiles', 1, 'DWord'), @('AppRotateOnline', 1, 'DWord'), @('AppRotateBytes', 10485760, 'DWord'),
+                @('AppRotateFiles', 1, 'DWord'), @('AppRotateOnline', 0, 'DWord'), @('AppRotateBytes', 10485760, 'DWord'),
                 # Restart on failure, throttled (18.4).
                 @('AppThrottle', 10000, 'DWord'), @('AppRestartDelay', 10000, 'DWord'),
                 # Graceful stop: Ctrl+C, up to 15s to finish the tick.
