@@ -1,0 +1,63 @@
+fetch store:gcp/db-password
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (10s, metadata)
+>   Metadata-Flavor: Google
+> GET https://secretmanager.googleapis.com/v1/projects/ops-prod/secrets/db-password/versions/latest:access (10s)
+>   Authorization: Bearer ya29.metadata
+= password-1
+fetch store:gcp/db-password/3
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (10s, metadata)
+>   Metadata-Flavor: Google
+> GET https://secretmanager.googleapis.com/v1/projects/ops-prod/secrets/db-password/versions/3:access (10s)
+>   Authorization: Bearer t
+= version 3 über
+
+fetch store:gcp/empty/latest
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (10s, metadata)
+>   Metadata-Flavor: Google
+> GET https://secretmanager.googleapis.com/v1/projects/ops-prod/secrets/empty/versions/latest:access (10s)
+>   Authorization: Bearer t
+= 
+fetch store:gcp_psc/api_key
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (3s, metadata)
+>   Metadata-Flavor: Google
+> GET https://secretmanager-ops.p.googleapis.com/v1/projects/123456789012/secrets/api_key/versions/latest:access (3s)
+>   Authorization: Bearer t
+= psc
+fetch store:gcp/a.b
+! not a valid Secret Manager secret name
+fetch store:gcp/db/v3
+! not a valid Secret Manager secret name
+fetch store:gcp/db/3/4
+! not a valid Secret Manager secret name
+fetch store:gcp/db-password
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (10s, metadata)
+>   Metadata-Flavor: Google
+! sign-in failed: cannot connect to 169.254.169.254
+fetch store:gcp/db-password
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (10s, metadata)
+>   Metadata-Flavor: Google
+! sign-in failed: not found (HTTP 404)
+fetch store:gcp/gone
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (10s, metadata)
+>   Metadata-Flavor: Google
+> GET https://secretmanager.googleapis.com/v1/projects/ops-prod/secrets/gone/versions/latest:access (10s)
+>   Authorization: Bearer t
+! not found (HTTP 404)
+fetch store:gcp/db-password
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (10s, metadata)
+>   Metadata-Flavor: Google
+> GET https://secretmanager.googleapis.com/v1/projects/ops-prod/secrets/db-password/versions/latest:access (10s)
+>   Authorization: Bearer t
+! permission denied (HTTP 403)
+fetch store:gcp/db-password
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (10s, metadata)
+>   Metadata-Flavor: Google
+> GET https://secretmanager.googleapis.com/v1/projects/ops-prod/secrets/db-password/versions/latest:access (10s)
+>   Authorization: Bearer t
+! unexpected answer: payload.data is not base64
+fetch store:gcp/db-password
+> GET http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token (10s, metadata)
+>   Metadata-Flavor: Google
+> GET https://secretmanager.googleapis.com/v1/projects/ops-prod/secrets/db-password/versions/latest:access (10s)
+>   Authorization: Bearer t
+! unexpected answer: no payload.data

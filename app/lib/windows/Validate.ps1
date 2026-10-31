@@ -91,7 +91,8 @@ function Test-VigilStoreKey {
         'hashicorp_vault:secret_id', 'hashicorp_vault:ca_file', 'aws_secrets_manager:region', 'aws_secrets_manager:auth', 'aws_secrets_manager:field',
         'aws_secrets_manager:endpoint', 'aws_secrets_manager:ca_file',
         'aws_secrets_manager:access_key_id', 'aws_secrets_manager:secret_access_key', 'gcp_secret_manager:project',
-        'gcp_secret_manager:auth', 'gcp_secret_manager:service_account_key') -ccontains "${Type}:$Key"
+        'gcp_secret_manager:auth', 'gcp_secret_manager:service_account_key', 'gcp_secret_manager:endpoint',
+        'gcp_secret_manager:ca_file') -ccontains "${Type}:$Key"
 }
 
 function Test-VigilSourceKey {
