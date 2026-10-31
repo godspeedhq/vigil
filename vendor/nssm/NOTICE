@@ -1,0 +1,19 @@
+NSSM - the Non-Sucking Service Manager
+Version 2.24-101-g897c7ad (pre-release build of 2017-04-26)
+
+Used by Vigil only to register its supervisor as a Windows service in system
+mode (SPECIFICATION.md 18.2). 2.24, the last release, is not used: it fails
+to start services on Windows 10 Creators Update and later. NSSM is no longer
+maintained upstream.
+
+Licence: public domain. From NSSM's README.txt: "NSSM is public domain. You
+may unconditionally use it and/or its source code for any purpose you wish."
+
+Source: https://nssm.cc/ci/nssm-2.24-101-g897c7ad.zip
+SHA-256 of that archive, as published by NSSM and confirmed against the
+Chocolatey package's verification record:
+  99f5045fffbffb745d67fe3a065a953c4a3d9c253b868892d9b685b0ee7d07b8
+
+SHA-256 of the files here, unchanged from the archive:
+  eee9c44c29c2be011f1f1e43bb8c3fca888cb81053022ec5a0060035de16d848  win64/nssm.exe
+  682f1025b4c410ae78b1c5bdc4de7ad315f2eff292c66947c13969930028c98d  win32/nssm.exe
