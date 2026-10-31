@@ -15,6 +15,7 @@ Test only: never use it for anything else.
 
 import json
 import os
+import socketserver
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -49,7 +50,16 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+class Server(ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer.server_bind looks up the host's full name, which can
+        # stall for many seconds on a CI machine; this server needs no name.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = "127.0.0.1"
+        self.server_port = self.server_address[1]
+
+
+server = Server(("127.0.0.1", 0), Handler)
 with open(os.path.join(DIR, "port.tmp"), "w", encoding="utf-8") as f:
     f.write(str(server.server_address[1]))
 os.replace(os.path.join(DIR, "port.tmp"), os.path.join(DIR, "port"))

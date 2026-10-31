@@ -91,9 +91,15 @@ esac
 "$python" "$here/mock-backend.py" "$mockdir" 2> "$root/mock/stderr" &
 mock_pid=$!
 i=0
-while [ ! -s "$root/mock/port" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+# A cold Python can take a while to start on a busy CI machine.
+while [ ! -s "$root/mock/port" ] && [ "$i" -lt 600 ]; do sleep 0.1; i=$((i + 1)); done
 port=$(cat "$root/mock/port" 2>/dev/null)
 check "mock started" yes "$([ -n "$port" ] && echo yes || echo no)"
+if [ -z "$port" ]; then
+    printf 'the mock did not start:\n'
+    cat "$root/mock/stderr"
+    exit 1
+fi
 : > "$root/mock/requests.log"
 
 dd_key="dd-it-key-$$"

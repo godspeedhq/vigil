@@ -103,9 +103,15 @@ $mock = $null
 try {
     $mock = Start-Process -FilePath $python -ArgumentList @("`"$here\mock-backend.py`"", "`"$root\mock`"") -PassThru -NoNewWindow -RedirectStandardError "$root\mock\stderr"
     $portFile = Join-Path $root 'mock\port'
-    for ($i = 0; $i -lt 100 -and -not (Test-Path -LiteralPath $portFile); $i++) { Start-Sleep -Milliseconds 100 }
+    # A cold Python can take a while to start on a busy CI machine.
+    for ($i = 0; $i -lt 600 -and -not (Test-Path -LiteralPath $portFile); $i++) { Start-Sleep -Milliseconds 100 }
     $port = if (Test-Path -LiteralPath $portFile) { [System.IO.File]::ReadAllText($portFile).Trim() } else { '' }
     Test-Equal 'mock started' 'True' ([string][bool]$port)
+    if (-not $port) {
+        Write-Host 'the mock did not start:'
+        Get-Content -LiteralPath "$root\mock\stderr"
+        throw 'the mock did not start'
+    }
     [System.IO.File]::WriteAllText("$root\mock\requests.log", '')
 
     $ddKey = "dd-it-key-$PID"
