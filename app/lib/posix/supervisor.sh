@@ -16,7 +16,7 @@
 # supervisor lock is held on file descriptor 8 for its whole life (12.4).
 #
 # Requires config.sh, validate.sh, effective.sh, command.sh, schedule.sh,
-# outcome.sh, metrics.sh, events.sh, recovery.sh and worker.sh.
+# outcome.sh, metrics.sh, events.sh, recovery.sh, worker.sh and precheck.sh.
 
 VIGIL_LAUNCH_GRACE=120
 
@@ -491,8 +491,15 @@ _vigil_sup_config() {
         _su_error='the configuration has errors; run vigil precheck'
     fi
     if [ -n "$_su_error" ]; then
+        # Every problem, each on its own line (16.3).
+        _su_report=$(vigil_config_report)
         if [ -f "${_su_valid-}" ]; then
             _vigil_sup_log ERROR "configuration rejected, the last valid one stays active: $_su_error"
+            while IFS= read -r _su_line; do
+                [ -n "$_su_line" ] && _vigil_sup_log ERROR "  $_su_line"
+            done <<EOF_REPORT
+$_su_report
+EOF_REPORT
             _su_reload_failed=1
             vigil_config_parse "$_su_valid" && vigil_config_validate
             return 0
@@ -801,6 +808,7 @@ vigil_supervise() {
 
     if ! _vigil_sup_config; then
         printf 'vigil: %s\n' "$_su_error" >&2
+        [ -z "${_su_report-}" ] || printf '%s\n' "$_su_report" | sed 's/^/  /' >&2
         return 1
     fi
 

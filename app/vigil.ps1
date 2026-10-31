@@ -10,6 +10,10 @@
     vigil [-Root <dir>] resolve <job>
         Confirms that the uncertain run holding <job> is over (11.4). Never
         kills anything; the supervisor concludes the run at its next tick.
+    vigil [-Root <dir>] precheck [<job>]
+        Pre-flight checks (16.4), changing nothing: the configuration's
+        problems, then everything runs need. With a job, also its effective
+        settings (6.6). Exits 0 when nothing failed, 1 otherwise.
     vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>
         Vigil's own secret store (6.5.2), encrypted with DPAPI. set prompts
         without echo, or reads the value from stdin; list never shows values.
@@ -33,12 +37,12 @@ $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Split-Path -Parent $app }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Worker', 'Sender', 'Supervisor')) {
+foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Worker', 'Sender', 'Supervisor', 'Precheck')) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>")
     exit 64
 }
 
@@ -79,6 +83,12 @@ switch ($Command) {
         Write-VigilFileAtomic -Path (Join-Path $ctx.State "recovery\$Job.resolved") -Text "[resolved]`nresolved_by = $who`nresolved_at = $at`n"
         Write-Output "${Job}: run $($rec.RunId) marked as over by $who; the supervisor concludes it and releases the job at its next tick"
         exit 0
+    }
+    'precheck' {
+        if ($Rest) { Exit-Usage }
+        $r = Invoke-VigilPrecheck -Root $Root -Job $Job
+        foreach ($l in $r.Lines) { Write-Output $l }
+        exit $r.Code
     }
     'secret' {
         # Vigil's own secret store (6.5.2). Values are read from the console

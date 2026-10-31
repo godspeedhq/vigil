@@ -41,6 +41,9 @@
 #                                                 in <case>.run and its output
 #                                                 in <case>.stdout
 #   tests/conformance/events/<case>.expected      vigil_run_events_dump output
+#   tests/conformance/report/<suite>-<case>.expected
+#                                                 vigil_precheck_report_dump of
+#                                                 each validate and effective case
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -69,6 +72,8 @@ root=$(dirname "$here")
 . "$root/app/lib/posix/recovery.sh"
 # shellcheck source=../app/lib/posix/prom.sh
 . "$root/app/lib/posix/prom.sh"
+# shellcheck source=../app/lib/posix/precheck.sh
+. "$root/app/lib/posix/precheck.sh"
 
 pass=0
 fail=0
@@ -151,6 +156,16 @@ for suite in parser validate effective command schedule; do
 
         compare "$suite/$name" "$expected" "$actual"
     done
+done
+
+# The report vigil precheck prints, for every validate and effective case:
+# tests/conformance/report/<suite>-<case>.expected holds
+# vigil_precheck_report_dump.
+for cfg in "$here"/conformance/validate/*.config "$here"/conformance/effective/*.config; do
+    suite=$(basename "$(dirname "$cfg")")
+    name="$suite-$(basename "$cfg" .config)"
+    actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_precheck_report_dump)
+    compare "report/$name" "$(cat "$here/conformance/report/$name.expected")" "$actual"
 done
 
 # The example configurations in tests/mocks, every tier: each must give the

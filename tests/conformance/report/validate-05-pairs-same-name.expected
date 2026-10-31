@@ -1,0 +1,5 @@
+ERROR    line 5: 'team' is set more than once in [tags] (E_KEY_DUPLICATE)
+ERROR    line 10: env 'LANG' is set more than once in [runner.java] (E_ENV_DUPLICATE)
+INVALID  job.tag_twice, line 16: tag 'team' is set more than once in [job.tag_twice] (E_TAG_DUPLICATE)
+INVALID  job.env_twice, line 22: env 'TZ' is set more than once in [job.env_twice] (E_ENV_DUPLICATE)
+INVALID  job.empty_value_is_still_a_name, line 28: env 'DEBUG' is set more than once in [job.empty_value_is_still_a_name] (E_ENV_DUPLICATE)

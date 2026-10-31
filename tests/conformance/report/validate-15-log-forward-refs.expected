@@ -1,0 +1,2 @@
+ERROR    line 4: no [log_destination.nowhere] section (E_DESTINATION_UNKNOWN)
+ERROR    line 5: 'include' items must be supervisor, run, stdout or stderr: 'everything' (E_ENUM)

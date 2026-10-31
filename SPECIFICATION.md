@@ -538,16 +538,24 @@ Built-in defaults, used when no layer sets a key:
 
 ```text
 job.legacy_export
+  file              = jobs\LegacyExport.jar  (job)
   runner            = java8                  (job)
+  metric_name       = legacy_export          (built-in)
+  run_at            = 02:00                  (job)
   max_runtime       = 2h                     (job)
   grace             = 30s                    (defaults)
   overlap           = skip                   (built-in)
+  exit_codes        = standard               (built-in)
+  enabled           = true                   (built-in)
+  on_uncertain      = wait                   (built-in)
+  backends          = file                   (built-in)
   late_start_window = 3h                     (job)
   log_retain_days   = 7                      (log)
-  working_dir       = C:\ProgramData\Vigil   (built-in)
+  working_dir       = .                      (built-in)
   tag               = team=dba               (tags)
   tag               = database=orders        (job)
-  env               = JAVA_TOOL_OPTIONS=-Xmx4g       (job)
+  env               = JAVA_TOOL_OPTIONS=-Xmx4g (job)
+  secret            = ORACLE_PWD=secret:ORACLE_PWD (job)
   require_env       = ORACLE_HOME            (runner)
 ```
 
@@ -1536,17 +1544,36 @@ Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rul
 
 ### 16.4 Pre-flight Checks
 
-Before install or start, and on demand, Vigil checks without starting anything:
+`vigil precheck` checks, without starting or changing anything, that everything runs need is there. Install and start run the same checks.
 
-- Configuration parses and validates.
-- Every `env:` and `require_env` variable is set, every `secret:` exists with safe permissions, and every secret store answers (names only are printed, never values).
-- Every job file exists and is runnable through its resolved runner.
-- Every runner `command` exists.
-- Every job `working_dir` exists.
+- Configuration parses and validates. Every problem is listed in file order, with its line, message and code; a rejected configuration stops here.
+- Every job file exists and is runnable through its resolved runner, its runner `command` exists, and its `working_dir` exists: the checks a worker makes before a run (§4.3).
+- Every `secret` of every job resolves, and every `require_env` variable is set (or provided by a `secret`). Backend and secret store credentials (`env:`, `secret:` references) resolve. Values are fetched and thrown away; only references are printed.
+- State, log and spool directories are writable: each, or the nearest folder above it that exists, since precheck creates nothing.
 - `VIGIL_FAULT` is not set (§22.4.1).
-- State, log and spool directories are writable.
 
-`vigil precheck <job>` also prints that job's effective settings and their sources (§6.6).
+`vigil precheck <job>` checks only that job, and also prints its effective settings and their sources (§6.6).
+
+```text
+Configuration /opt/vigil/config/vigil.config
+  WARN     line 49: backend 'off' is disabled (W_BACKEND_DISABLED)
+
+Checks
+  ok    job.backup
+  FAIL  job.report: secret secret:REPORT_TOKEN unavailable: not found in Vigil's secret store (vigil secret set REPORT_TOKEN)
+  FAIL  job.report: missing environment variable ORACLE_HOME
+  ok    secret_store.vault: token secret:VAULT_TOKEN
+  ok    state directory: /opt/vigil/state
+  ok    log directory: /opt/vigil/logs
+  ok    spool directory: /opt/vigil/spool
+
+precheck failed: 2 problem(s)
+```
+
+- Exit code 0 when nothing failed (warnings are allowed), 1 otherwise. An `INVALID` job counts as a failure.
+- The configuration report is the same on every platform, and is part of the conformance suite (`tests/conformance/report`).
+- On Linux and macOS, `env:` and `require_env` are checked against the environment precheck runs in. Run it as the service account with the service's environment to see what the service will see.
+- When the supervisor refuses to start, or rejects a reload (§16.3), it prints or logs the same configuration report.
 
 Install and start abort with no changes if any check fails.
 

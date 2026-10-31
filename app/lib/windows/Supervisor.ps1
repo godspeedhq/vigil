@@ -18,8 +18,8 @@
     supervisor lock is held open exclusively for its whole life (12.4).
 
     Requires Config.ps1, Validate.ps1, Effective.ps1, Command.ps1,
-    Schedule.ps1, Outcome.ps1, Metrics.ps1, Events.ps1, Recovery.ps1 and
-    Worker.ps1.
+    Schedule.ps1, Outcome.ps1, Metrics.ps1, Events.ps1, Recovery.ps1,
+    Worker.ps1 and Precheck.ps1.
 #>
 
 $Script:VigilLaunchGrace = 120
@@ -150,7 +150,7 @@ function Invoke-VigilSupervisor {
     $sv = @{
         Root = $Root; Prev = '-'; Pending = New-Object 'System.Collections.Generic.List[string]'
         Queued = New-Object 'System.Collections.Generic.HashSet[string]'; Seq = 0; Sum = ''
-        ReloadFailed = 0; Valid = ''; Parsed = $null; Records = $null; Index = $null
+        ReloadFailed = 0; Valid = ''; Parsed = $null; Records = $null; Index = $null; Report = @()
         HostName = $env:COMPUTERNAME.ToLowerInvariant(); Boot = Get-VigilBootId
     }
     $shell = (Get-Process -Id $PID).Path
@@ -184,8 +184,11 @@ function Invoke-VigilSupervisor {
         }
         if ($err) {
             $sv.Error = $err
+            # Every problem, each on its own line (16.3).
+            $sv.Report = @((Format-VigilConfigReport -Parsed $parsed -Records $records).Split("`n") | Where-Object { $_ })
             if ($sv.Parsed) {
                 & $log 'ERROR' "configuration rejected, the last valid one stays active: $err"
+                foreach ($l in $sv.Report) { & $log 'ERROR' "  $l" }
                 $sv.ReloadFailed = 1
                 return $true
             }
@@ -598,6 +601,7 @@ function Invoke-VigilSupervisor {
     $sv.Date = (Get-Date).ToString('yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
     if (-not (& $loadConfig)) {
         [Console]::Error.WriteLine("vigil: $($sv.Error)")
+        foreach ($l in $sv.Report) { [Console]::Error.WriteLine("  $l") }
         return 1
     }
 
