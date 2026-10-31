@@ -1,0 +1,21 @@
+# An hour before "now" is still sent; a second more is too old.
+env VIGIL_TEST_DD_KEY dd-test-key
+now 1793308470
+reply 202 {"errors":[]}
+send datadog
+reply 403 {"errors":["Forbidden"]}
+send datadog
+fail timeout
+send datadog
+# Malformed: dropped, never retried.
+reply 400 {"errors":["bad"]}
+send datadog_eu
+reply 503 unavailable
+send datadog_eu
+send datadog_nokey
+send datadog_plain
+unenv VIGIL_TEST_DD_KEY
+send datadog
+# Everything too old: nothing to send, no request.
+now 1793400000
+send datadog

@@ -48,6 +48,10 @@
 #   tests/conformance/store/<case>.exchange       to answer and the references to
 #   tests/conformance/store/<case>.expected       fetch; every request made, and
 #                                                 each result
+#   tests/conformance/backend/<case>.config       HTTP backends, a batch of
+#   tests/conformance/backend/<case>.events       events, and the answers and
+#   tests/conformance/backend/<case>.exchange     deliveries; every request
+#   tests/conformance/backend/<case>.expected     made, and each result
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -82,6 +86,8 @@ root=$(dirname "$here")
 . "$root/app/lib/posix/stores.sh"
 # shellcheck source=../app/lib/posix/worker.sh
 . "$root/app/lib/posix/worker.sh"
+# shellcheck source=../app/lib/posix/backends.sh
+. "$root/app/lib/posix/backends.sh"
 # shellcheck source=../app/lib/posix/precheck.sh
 . "$root/app/lib/posix/precheck.sh"
 
@@ -390,6 +396,52 @@ for cfg in "$here"/conformance/store/*.config; do
         *-unix:MINGW* | *-unix:MSYS* | *-unix:CYGWIN*) printf '  SKIP  store/%s\n' "$name"; continue ;;
     esac
     compare "store/$name" "$(cat "${cfg%.config}.expected")" "$(store_case_dump "$cfg")"
+done
+
+# HTTP backends: tests/conformance/backend/<case>.config defines backends and
+# <case>.exchange lists, in order: "env NAME value" and "unenv NAME"; "now
+# <epoch>", the time requests are made at; "reply <status> <body>" or "fail
+# <kind>", the answers to the next requests; "send <backend>", which delivers
+# <case>.events to that backend, with the request it makes shown and what
+# became of the batch. The output must be <case>.expected. The replacement
+# _vigil_http_send of the store cases answers; no request leaves the machine.
+_bk_now=0
+_vigil_backend_now() {
+    _vb_now=$_bk_now
+}
+backend_case_dump() {
+    local line word rest d
+    vigil_config_parse "$1"
+    while IFS= read -r line || [ -n "$line" ]; do
+        case $line in '' | '#'*) continue ;; esac
+        word=${line%% *}
+        rest=${line#* }
+        case $word in
+            env) export "${rest%% *}=${rest#* }" ;;
+            unenv) unset "$rest" ;;
+            now) _bk_now=$rest ;;
+            reply) _st_replies[${#_st_replies[@]}]=$rest ;;
+            fail) _st_replies[${#_st_replies[@]}]="!$rest" ;;
+            send)
+                printf 'send %s\n' "$rest"
+                _vigil_wk_get "backend.$rest" type "$rest"
+                if vigil_backend_send /opt/vigil "$rest" "$_vw_value" "${1%.config}.events"; then
+                    printf '= sent %s\n' "$_vb_sent"
+                    while read -r d; do
+                        [ -n "$d" ] && printf 'dropped %s\n' "$d"
+                    done <<EOT
+$_vb_drops
+EOT
+                else
+                    printf '! %s\n' "$_vb_why"
+                fi
+                ;;
+        esac
+    done < "${1%.config}.exchange"
+    [ "$_st_next" -eq "${#_st_replies[@]}" ] || printf 'unused replies: %d\n' $((${#_st_replies[@]} - _st_next))
+}
+for cfg in "$here"/conformance/backend/*.config; do
+    compare "backend/$(basename "$cfg" .config)" "$(cat "${cfg%.config}.expected")" "$(backend_case_dump "$cfg")"
 done
 
 printf '%d passed, %d failed\n' "$pass" "$fail"

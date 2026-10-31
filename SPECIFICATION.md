@@ -203,7 +203,7 @@ On every sender start, unfinished fan-outs in `fanout/` are resumed before new i
 
 **Delivery.** For each backend in turn, the sender:
 
-1. Takes the oldest queued files, up to 500 per run.
+1. Takes the oldest queued files, up to 500 per run (an HTTP backend: up to 160 KB of events per request, and up to 10 requests per run, §15.3).
 2. Sends them as **one request** for the whole batch, with the backend's timeout.
 3. On success, deletes those files.
 4. On failure, leaves them, records the failure (`vigil.backend.failures`), and backs off for that backend only: 5 seconds after the first failure, doubling, capped at 5 minutes, kept in `state/backends/<name>.state` so it survives restarts. It then moves on to the next backend.
@@ -1446,7 +1446,7 @@ This works for every plugin, whether its labels are fixed names (`rta`, `pl`, `t
 | `vigil.source.check_age` | gauge, seconds since the last successful check, tagged by source |
 | `vigil.source.failures` | count, tagged by source and `reason` (unreachable, timeout, auth, digest, invalid, unpinned) |
 | `vigil.spool.bytes` | gauge |
-| `vigil.spool.dropped` | count, tagged by backend and `reason` (spool_full, backend_removed, not_implemented) |
+| `vigil.spool.dropped` | count, tagged by backend and `reason` (spool_full, backend_removed, not_implemented, rejected, too_old, invalid) |
 | `vigil.backend.failures` | count, tagged by backend |
 
 The absence of `vigil.supervisor.up` is how a backend detects that Vigil itself is down.
@@ -1481,7 +1481,7 @@ Any number of backends may be enabled. By default every job's metrics go to ever
 - Windows: `Invoke-WebRequest` / .NET.
 - UDP backends (StatsD) use bash `/dev/udp` and .NET `UdpClient`; no curl.
 
-Every request has a timeout. Retries are bounded with backoff. Delivery is from the spool (§4.5).
+Every request has a timeout. Retries are bounded with backoff. Delivery is from the spool (§4.5). HTTPS only, with certificate verification never disabled; plain http only to a collector on the same host (§15.3).
 
 ### 15.3 Supported Types
 
@@ -1511,7 +1511,40 @@ Every request has a timeout. Retries are bounded with backoff. Delivery is from 
 - Names: dots become underscores; a name or label key starting with a digit gets a leading underscore. Labels are the event's tags, sorted by key, with `\` and `"` escaped. A count whose value is not a whole number is written as a gauge.
 - No timestamps: the textfile collector rejects them. Series are sorted, so the same state always gives the same file, and each update replaces the file atomically.
 
-**Implemented so far:** `file`. Events for an enabled backend of any other type are not queued; they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
+**Datadog backend** (`type = datadog`). Sends each batch as one request to the Series API v2, `POST <endpoint>/api/v2/series`, the API key in the `DD-API-KEY` header.
+
+| Key | Description |
+| --- | --- |
+| `endpoint` | The Datadog site's API address. Default `https://api.datadoghq.com`; for example `https://api.datadoghq.eu` or `https://api.us5.datadoghq.com`. |
+| `api_key` | Required. A secret reference (§6.5). |
+| `timeout` | Each request's limit. Default `10s`. |
+| `ca_file` | A CA to trust instead of the system's, for an intercepting proxy. |
+
+- Names keep their dots. A gauge is sent as type 3 (gauge), a count as type 1 (count).
+- The `host` tag becomes the series' host resource; every other tag is sent as `key:value`.
+- Datadog discards points more than an hour old without an error, so they are not sent: they are dropped and counted with `reason=too_old`.
+
+**OpenTelemetry backend** (`type = otel`). Sends each batch as one OTLP/HTTP request with JSON encoding, to an OpenTelemetry Collector or any service that accepts OTLP, so metrics can reach almost any observability platform.
+
+| Key | Description |
+| --- | --- |
+| `endpoint` | The full URL, normally ending in `/v1/metrics`; a bare address (`https://collector:4318`) gets `/v1/metrics` added. Default `http://localhost:4318/v1/metrics`, a collector on the same host. |
+| `api_key` | Optional. A secret reference, sent as `Authorization: Bearer <value>`. |
+| `timeout` | Each request's limit. Default `10s`. |
+| `ca_file` | A CA to trust instead of the system's, for a collector with a private certificate. |
+
+- Names keep their dots. A gauge is an OTLP gauge, a count a delta sum (monotonic), each value as a double. Tags are data point attributes; the resource carries `service.name = vigil`.
+- A partial success (`rejectedDataPoints`) drops the rejected points, counted with `reason=rejected`; the rest count as delivered.
+
+**Both HTTP backends:**
+
+- `https` only, with certificate verification never disabled. The one exception is a collector on the same host: `http://localhost`, `http://127.0.0.1` and `http://[::1]` may use plain http, since the request never leaves the machine; it never goes through a proxy. An endpoint with credentials in it (`https://user:pass@…`) is refused.
+- The credential is resolved afresh for each delivery (§6.5) and sent only in a header: on Linux and macOS it reaches curl on its standard input, never on its command line.
+- A batch is the oldest queued files, at most 160 KB of events, so a request stays within Datadog's 500 KB limit; a sender run makes at most 10 requests per backend, so a backlog drains steadily.
+- Responses: any 2xx is accepted. 400 and 413 mean the batch can never be accepted; it is dropped and counted with `reason=rejected`, never retried. 401 and 403 are reported as permission denied; they and every other failure (no answer, 429, 5xx) leave the batch queued and back the backend off (§4.5).
+- Events that are not valid (a damaged spool file) are dropped and counted with `reason=invalid`.
+
+**Implemented so far:** `file`, `datadog` and `otel`. Events for an enabled backend of any other type are not queued; they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
 
 ### 15.4 Platform Notes
 
@@ -1923,6 +1956,7 @@ Both implementations run the same cases from `tests/conformance/` and must produ
 | `events` | A configuration, a finished run and its stdout | The spool events of the run, with their tags (§4.5, §14). |
 | `recovery` | A table of run evidence and conclusions | What the supervisor concludes about a run (§11.3). |
 | `prom` | A file backend file and a batch of events | The merged file (§15.3). |
+| `backend` | HTTP backends, a batch of events and the answers to give | Every request made (URL, headers, body) and what became of the batch (§15.3). |
 | `mocks` | The example configurations in `tests/mocks/` (§6.7) | Their validation and effective settings. |
 
 CI runs every suite on Windows PowerShell 5.1, Linux bash and macOS bash 3.2 (§22.5).

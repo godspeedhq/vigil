@@ -1,0 +1,23 @@
+# OTLP has no age limit: a day-old batch is sent.
+now 1793400000
+reply 200 {}
+send otel
+env VIGIL_TEST_OTEL_TOKEN otel-test-token
+# Partial success: the rejected points are dropped, never retried.
+reply 200 {"partialSuccess":{"rejectedDataPoints":"2","errorMessage":"bad points"}}
+send otel_auth
+reply 200 {"partialSuccess":{"rejectedDataPoints":7}}
+send otel_auth
+reply 401 unauthorized
+send otel_auth
+reply 413 too large
+send otel_auth
+fail untrusted
+send otel_auth
+reply 200 {}
+send otel_default
+send otel_creds
+send otel_remote_http
+fail connect
+send otel
+unenv VIGIL_TEST_OTEL_TOKEN

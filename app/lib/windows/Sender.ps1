@@ -13,11 +13,16 @@
     Invoke-VigilSend -Ctx <worker context> -HostName <host>
     returns @{ Ok; Reason }.
 
-    Requires Config.ps1, Effective.ps1, Worker.ps1 and Prom.ps1.
+    Requires Config.ps1, Effective.ps1, Worker.ps1, Prom.ps1 and
+    Backends.ps1.
 #>
 
 $Script:VigilSendBatch = 500
-$Script:VigilSendTypes = @('file')
+$Script:VigilSendTypes = @('file', 'datadog', 'otel')
+# An HTTP backend's request: at most this many bytes of events, so the body
+# stays within Datadog's 500 KB, and at most this many requests per run.
+$Script:VigilSendHttpBytes = 160000
+$Script:VigilSendHttpRequests = 10
 
 function Invoke-VigilSend {
     param($Ctx, [string]$HostName, [string]$Root)
@@ -45,13 +50,17 @@ function Invoke-VigilSend {
         if ($Script:VigilSendTypes -ccontains (Get-VigilConfigValue $parsed $sec.Name 'type' $name)) { $ok.Add($name) } else { $todo.Add($name) }
     }
 
+    $dropn = {
+        param([string]$Backend, [string]$Reason, [long]$N)
+        if ($N -le 0) { return }
+        $key = "backend=$Backend reason=$Reason"
+        if ($drops.Contains($key)) { $drops[$key] += $N } else { $drops[$key] = $N }
+    }
     $drop = {
         param([string]$Backend, [string]$Reason, [string[]]$Files)
         $n = 0
         foreach ($f in $Files) { if ([System.IO.File]::Exists($f)) { $n += @([System.IO.File]::ReadAllLines($f)).Count } }
-        if ($n -eq 0) { return }
-        $key = "backend=$Backend reason=$Reason"
-        if ($drops.Contains($key)) { $drops[$key] += $n } else { $drops[$key] = $n }
+        & $dropn $Backend $Reason $n
     }
 
     $targets = {
@@ -111,14 +120,16 @@ function Invoke-VigilSend {
     # Unfinished fan-outs first, then new files (4.5).
     foreach ($f in (& $sorted $fan '*.events')) {
         if (-not [System.IO.File]::Exists("$f.targets")) {
-            Write-VigilFileAtomic -Path "$f.targets" -Text ((& $targets $f | ForEach-Object { "$_`n" }) -join '')
+            $t = & $targets $f
+            Write-VigilFileAtomic -Path "$f.targets" -Text (($t -join "`n") + "`n")
         }
         & $place $f
     }
     foreach ($f in (& $sorted $in '*.events')) {
         $dest = Join-Path $fan ([System.IO.Path]::GetFileName($f))
         try { [System.IO.File]::Move($f, $dest) } catch { continue }
-        Write-VigilFileAtomic -Path "$dest.targets" -Text ((& $targets $dest | ForEach-Object { "$_`n" }) -join '')
+        $t = & $targets $dest
+        Write-VigilFileAtomic -Path "$dest.targets" -Text (($t -join "`n") + "`n")
         & $place $dest
     }
 
@@ -156,18 +167,58 @@ function Invoke-VigilSend {
         }
     }
 
+    # Records a backend's failure and backs it off.
+    $backoff = {
+        param([string]$Backend, [string]$Why)
+        $sfile = Join-Path $Ctx.State "backends\$Backend.state"
+        $failures = 0
+        if ([System.IO.File]::Exists($sfile)) {
+            foreach ($l in [System.IO.File]::ReadAllLines($sfile)) { if ($l -cmatch '^failures = (\d+)') { $failures = [int]$Matches[1] } }
+        }
+        $failures++
+        # Exponential backoff, capped at 5 minutes (4.5).
+        $wait = [Math]::Min(300, 5 * [Math]::Pow(2, [Math]::Min($failures, 30) - 1))
+        [void](New-Item -ItemType Directory -Force -Path (Join-Path $Ctx.State 'backends'))
+        Write-VigilFileAtomic -Path $sfile -Text "[backend]`nfailures = $failures`nnext_try = $($epoch + [long]$wait)`n"
+        $events.Add("$epoch vigil.backend.failures 1 count $tags backend=$Backend")
+        $failed.Add("$Backend ($Why)")
+    }
+
     foreach ($b in $ok) {
         $q = Join-Path $be $b
         if (-not [System.IO.Directory]::Exists($q)) { continue }
         $sfile = Join-Path $Ctx.State "backends\$b.state"
-        $next = [long]0; $failures = 0
+        $next = [long]0
         if ([System.IO.File]::Exists($sfile)) {
-            foreach ($l in [System.IO.File]::ReadAllLines($sfile)) {
-                if ($l -cmatch '^next_try = (\d+)') { $next = [long]$Matches[1] }
-                elseif ($l -cmatch '^failures = (\d+)') { $failures = [int]$Matches[1] }
-            }
+            foreach ($l in [System.IO.File]::ReadAllLines($sfile)) { if ($l -cmatch '^next_try = (\d+)') { $next = [long]$Matches[1] } }
         }
         if ($epoch -lt $next) { continue }
+        $type = Get-VigilConfigValue $parsed "backend.$b" 'type' $b
+
+        if ($type -cne 'file') {
+            # HTTP: batches of at most VigilSendHttpBytes, oldest first, until
+            # the queue is empty, a request fails or VigilSendHttpRequests
+            # were made.
+            for ($n = 0; $n -lt $Script:VigilSendHttpRequests; $n++) {
+                $all = & $sorted $q '*.events'
+                $batch = New-Object System.Collections.Generic.List[string]
+                $total = [long]0
+                foreach ($f in ($all | Select-Object -First $Script:VigilSendBatch)) {
+                    $size = (New-Object System.IO.FileInfo $f).Length
+                    if ($batch.Count -gt 0 -and $total + $size -gt $Script:VigilSendHttpBytes) { break }
+                    $batch.Add($f)
+                    $total += $size
+                }
+                if ($batch.Count -eq 0) { break }
+                $r = Send-VigilBackend -Root $Root -Parsed $parsed -Name $b -Type $type -Events $batch.ToArray()
+                if (-not $r.Ok) { & $backoff $b $r.Why; break }
+                foreach ($d in $r.Drops) { $sp = $d.IndexOf(' '); & $dropn $b $d.Substring(0, $sp) ([long]$d.Substring($sp + 1)) }
+                foreach ($f in $batch) { [System.IO.File]::Delete($f) }
+                if ([System.IO.File]::Exists($sfile)) { [System.IO.File]::Delete($sfile) }
+            }
+            continue
+        }
+
         # Assigned first: piping the call would pass its array as one item.
         $all = & $sorted $q '*.events'
         $batch = @($all | Select-Object -First $Script:VigilSendBatch)
@@ -182,15 +233,7 @@ function Invoke-VigilSend {
             foreach ($f in $batch) { [System.IO.File]::Delete($f) }
             if ([System.IO.File]::Exists($sfile)) { [System.IO.File]::Delete($sfile) }
         }
-        catch {
-            $failures++
-            # Exponential backoff, capped at 5 minutes (4.5).
-            $wait = [Math]::Min(300, 5 * [Math]::Pow(2, $failures - 1))
-            [void](New-Item -ItemType Directory -Force -Path (Join-Path $Ctx.State 'backends'))
-            Write-VigilFileAtomic -Path $sfile -Text "[backend]`nfailures = $failures`nnext_try = $($epoch + [long]$wait)`n"
-            $events.Add("$epoch vigil.backend.failures 1 count $tags backend=$b")
-            $failed.Add($b)
-        }
+        catch { & $backoff $b "cannot write $path" }
     }
 
     # The spool's own size, after delivery, and the sender's events: they are
@@ -203,6 +246,6 @@ function Invoke-VigilSend {
     foreach ($k in $drops.Keys) { $events.Add("$epoch vigil.spool.dropped $($drops[$k]) count $tags $k") }
     Write-VigilFileAtomic -Path (Join-Path $in "$epoch-vigil_sender.events") -Text (($events | ForEach-Object { "$_`n" }) -join '')
 
-    if ($failed.Count -gt 0) { return @{ Ok = $false; Reason = "delivery failed: $($failed -join ' ')" } }
+    if ($failed.Count -gt 0) { return @{ Ok = $false; Reason = "delivery failed: $($failed -join ', ')" } }
     return @{ Ok = $true; Reason = '' }
 }

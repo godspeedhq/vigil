@@ -98,8 +98,8 @@ tick = 1s
 path = metrics\vigil.prom
 
 # Not implemented yet: its events are counted as dropped.
-[backend.datadog]
-api_key = env:DATADOG_API_KEY
+[backend.splunk]
+token = env:SPLUNK_HEC_TOKEN
 
 [job.fast]
 file      = scripts\work.cmd
@@ -156,7 +156,7 @@ Test-Equal 'job metric delivered' '1' (Get-Prom 'fast_slept')
 Test-Equal 'slow overlaps were skipped' 'True' "$((Get-Prom 'slow_skipped_total') -ne '')"
 Test-Equal 'heartbeat delivered' '1' (Get-Prom 'vigil_supervisor_up')
 $promText = [System.IO.File]::ReadAllText((Join-Path $root 'metrics\vigil.prom'))
-Test-Equal 'unimplemented backend counted as dropped' 'True' "$($promText -cmatch '(?m)^vigil_spool_dropped_total\{backend="datadog".*reason="not_implemented"')"
+Test-Equal 'unimplemented backend counted as dropped' 'True' "$($promText -cmatch '(?m)^vigil_spool_dropped_total\{backend="splunk".*reason="not_implemented"')"
 Test-Equal 'disabled job never ran' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'state\jobs\off.state'))"
 Test-Equal 'disabled job listed' 'True' "$((Get-Section 'DISABLED') -match '  off')"
 Test-Equal 'no locks left' '0' "$(@(Get-ChildItem -LiteralPath $locks -File).Count)"
