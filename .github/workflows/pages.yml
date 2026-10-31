@@ -8,7 +8,7 @@ on:
   # Pull requests that touch the documentation or its generator build the
   # site, without publishing it, so a broken page is caught before merge.
   pull_request:
-    paths: ["*.md", "backlog/**", "app/vigil", "app/vigil.ps1", "app/lib/posix/validate.sh", "tests/**", "tools/docs/**", ".github/workflows/pages.yml"]
+    paths: ["*.md", "backlog/**", "app/vigil", "app/vigil.ps1", "app/lib/posix/validate.sh", "tests/**", "tools/docs/**", "install.sh", ".github/workflows/pages.yml"]
 
 permissions:
   contents: read

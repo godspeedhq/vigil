@@ -46,6 +46,8 @@ jobs:
         timeout-minutes: 15
       - name: init and uninstall (/bin/bash)
         run: /bin/bash tests/integration/init-uninstall.sh
+      - name: installer (/bin/bash)
+        run: /bin/bash tests/integration/install.sh
 
   windows:
     runs-on: windows-latest
@@ -91,6 +93,9 @@ jobs:
       - name: init and uninstall (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Init-Uninstall.ps1
+      - name: installer (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/integration/Install.ps1
       - name: integration (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Run-Job.ps1
@@ -119,6 +124,9 @@ jobs:
       - name: init and uninstall (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Init-Uninstall.ps1
+      - name: installer (PowerShell 7)
+        shell: pwsh
+        run: ./tests/integration/Install.ps1
       - name: secrets (Git Bash)
         shell: bash
         run: bash tests/integration/secrets.sh

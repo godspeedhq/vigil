@@ -24,7 +24,8 @@ Vigil runs the work, records the work, and forwards the evidence. Storage, dashb
 
 - [Why Vigil](#why-vigil)
 - [What works today](#what-works-today)
-- [Quick start](#quick-start)
+- [Install](#install)
+- [Try it from a clone](#try-it-from-a-clone)
 - [How it works](#how-it-works)
   - [The big picture](#the-big-picture)
   - [One tick of the supervisor](#one-tick-of-the-supervisor)
@@ -82,7 +83,7 @@ Vigil's guiding rules:
 | `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done |
 | Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done |
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done |
-| One-line installers (`install.sh`, `install.ps1`) and release archives | Specified, not built |
+| One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums, upgrades | Done |
 | Fetching configuration and scripts from git, https, sftp, shares | Validated, not fetched yet |
 | Forwarding Vigil's own logs (OTLP) | Specified, not built |
 | Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
@@ -90,9 +91,40 @@ Vigil's guiding rules:
 
 ---
 
-## Quick start
+## Install
 
-Vigil does not have installers yet. You can run it straight from a clone: every command takes `--root` (`-Root` on Windows), the folder holding `config/`, `state/`, `logs/` and so on.
+One line, from the latest release. Each installer checks the prerequisites, downloads the release archive and verifies its SHA-256 before using it, unpacks it, puts `vigil` on your `PATH`, writes a starting configuration with `vigil init`, and registers the service. Run it again to upgrade: only `app/` (and `vendor\` on Windows) is replaced; your `config/` and `scripts/` are never touched.
+
+```sh
+# Linux, macOS: as yourself (user mode), or with sudo (system mode, /opt/vigil)
+curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.sh | sudo sh -s -- --system --backend file,datadog
+```
+
+```powershell
+# Windows: an elevated prompt installs the service (system mode, C:\ProgramData\Vigil)
+[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; irm https://github.com/godspeedhq/vigil/releases/latest/download/install.ps1 | iex
+# With options, such as PowerShell 7 for the service:
+& ([scriptblock]::Create((irm https://github.com/godspeedhq/vigil/releases/latest/download/install.ps1))) -System -ShellHost pwsh
+```
+
+| `install.sh` | `install.ps1` | |
+| --- | --- | --- |
+| `--user`, `--system` | `-User`, `-System` | The mode; by default system as root or elevated, user otherwise |
+| `--prefix <dir>` | `-Prefix <dir>` | Another install root |
+| `--version <v>` | `-Version <v>` | A release other than the latest |
+| `--archive <file>` | `-Archive <file>` | Install a downloaded archive; `SHA256SUMS` must be beside it |
+| `--instance`, `--backend` | `-Instance`, `-Backend` | Passed to `vigil init` |
+| `--account <name>` | `-ShellHost powershell \| pwsh` | The service account (Linux, macOS); the PowerShell the service runs on (Windows) |
+| `--no-init`, `--no-service` | `-NoInit`, `-NoService` | Skip a step |
+
+**If your organisation does not pipe scripts into a shell:** download `vigil-<version>.tar.gz` (or `.zip`), `SHA256SUMS` and the installer from the [releases page](https://github.com/godspeedhq/vigil/releases), check `sha256sum -c SHA256SUMS --ignore-missing` (or `Get-FileHash`), read the installer, then run it with `--archive` (`-Archive`). It is the same installer.
+
+To remove Vigil: `vigil uninstall`.
+
+## Try it from a clone
+
+You can also run Vigil straight from a clone: every command takes `--root` (`-Root` on Windows), the folder holding `config/`, `state/`, `logs/` and so on.
 
 The fastest start is `vigil init`, which writes a commented configuration with runners for the shells it finds, your backends and a sample disk job: `app/vigil --root ~/vigil-demo init` (add `--backend file,datadog` and `--instance <name>` to skip the questions). The steps below build the same thing by hand.
 
@@ -735,6 +767,8 @@ Everything lives under one root, so uninstalling is a single delete:
 <root>/
   app/                          Vigil itself (replaced on upgrade)
     vigil, vigil.ps1              the command (Linux/macOS, Windows)
+    vigil.cmd                     "vigil" on Windows, through the PATH
+    VERSION                       the installed release
     lib/posix/                    the bash implementation
     lib/windows/                  the PowerShell implementation
   vendor/nssm/                  NSSM, for the Windows service (Windows only)
@@ -788,6 +822,8 @@ tests/
   integration/          end-to-end tests that run real jobs and a real supervisor
   mocks/                annotated example configurations, also tested
 tools/docs/             the documentation site generator (build.sh) and publisher (publish.sh)
+tools/release/          builds the release archives and SHA256SUMS (package.sh)
+install.sh, install.ps1 the one-line installers
 SPECIFICATION.md        the full design: what Vigil does and why
 VISION.md               the product vision
 ```

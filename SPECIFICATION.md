@@ -1074,6 +1074,8 @@ Everything lives under one install root (§18.6 gives the root per platform):
 <root>/
   app/                    Vigil's own scripts - replaced on upgrade
     vigil, vigil.ps1        the vigil command (Linux/macOS, Windows)
+    vigil.cmd               runs vigil.ps1 as "vigil" from cmd.exe and PowerShell (Windows)
+    VERSION                 the release, in installed copies
     lib/posix/              the bash implementation (Linux, macOS)
     lib/windows/            the PowerShell implementation (Windows); each file has a twin of the same name in lib/posix
   vendor/nssm/            Windows only
@@ -1766,29 +1768,32 @@ Rationale:
 
 ### 18.7 Installer
 
-One-line installers, in the style of rustup:
+One-line installers, in the style of rustup, published with every release:
 
 ```text
-Linux / macOS:  curl -fsSL https://<host>/install.sh | sh
-Windows:        irm https://<host>/install.ps1 | iex
+Linux / macOS:  curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.sh | sh
+Windows:        irm https://github.com/godspeedhq/vigil/releases/latest/download/install.ps1 | iex
 ```
 
 The installer:
 
 1. Runs pre-flight checks for Vigil's prerequisites (§5.1) and stops before changing anything if one is missing.
-2. Downloads a versioned release archive from GitHub Releases and verifies its SHA-256 (`sha256sum`, `shasum -a 256` or `Get-FileHash`) before using it.
-3. Unpacks it into the root. On upgrade, only `app/` and `vendor/` are replaced; `config/` and `scripts/` are never touched.
-4. Registers the service for the chosen mode.
+2. Downloads a versioned release archive from GitHub Releases and verifies its SHA-256 (`sha256sum`, `shasum -a 256` or `Get-FileHash`) against the release's `SHA256SUMS` before using it. A mismatch, or an archive with no checksum, changes nothing.
+3. Unpacks it into the root (§18.6). On upgrade, only `app/` and `vendor/` are replaced, each swapped whole (`app.old` is removed after), so a process still running the old one keeps reading intact files; `config/` and `scripts/` are never touched. A running service is stopped first and started again after.
+4. Puts the `vigil` command on the `PATH` (§18.6). On Windows, `app\vigil.cmd` runs `vigil.ps1` from cmd.exe and PowerShell alike.
 5. Runs `vigil init` on a fresh install (§19).
+6. Registers the service for the chosen mode (§18.9). When pre-flight fails, Vigil stays installed but not registered, and the installer says what to fix and the command to run after.
 
 Details:
 
-- Every prompt has a flag equivalent (`sh -s -- --system --backend datadog`), so the installer runs unattended from deployment tooling. When piped, prompts read from `/dev/tty`, because standard input is the script itself.
-- `install.sh` is POSIX `sh`, since it is what `| sh` runs; it switches to bash for the rest of the install.
-- Windows: the documented one-liner first enables TLS 1.2, which PowerShell 5.1 on older servers may not use by default. After verifying the hash, the installer removes the downloaded-from-the-internet mark from Vigil's files so a RemoteSigned execution policy does not block them; signed releases (§17) avoid the issue under AllSigned.
-- A version can be pinned (`--version 1.2.0`).
+- Every prompt has a flag equivalent (`sh -s -- --system --backend datadog`; `& ([scriptblock]::Create((irm .../install.ps1))) -System -Backend datadog`), so the installer runs unattended from deployment tooling. When piped, prompts read from `/dev/tty`, because standard input is the script itself.
+- `install.sh` is POSIX `sh`, since it is what `| sh` runs (dash on Debian and Ubuntu); Vigil itself then runs on bash.
+- Windows: the documented one-liner first enables TLS 1.2, which PowerShell 5.1 on older servers may not use by default. After verifying the hash, the installer removes the downloaded-from-the-internet mark from Vigil's files so a RemoteSigned execution policy does not block them; signed releases (§17) avoid the issue under AllSigned. Under `iex` the installer runs in the caller's own session, so it never calls `exit` (a failure throws) and restores the preferences it changes. `-ShellHost powershell | pwsh` chooses the service's host (§18.9).
+- A version can be pinned (`--version 1.2.0`); the default is the latest release.
 
-Many IT teams do not allow piping a remote script into a shell. The docs therefore give an equivalent reviewed path: download the release archive and its published checksum, verify, read the installer, and run it locally. Both paths run the same installer.
+Release assets, built by `tools/release/package.sh <version>`: `vigil-<version>.tar.gz` (Linux, macOS), `vigil-<version>.zip` (Windows), each holding one folder `vigil-<version>/` with `app/` (including `app/VERSION`), `vendor/`, both installers, `LICENSE` and `README.md`; `install.sh` and `install.ps1` on their own; and `SHA256SUMS` covering all four.
+
+Many IT teams do not allow piping a remote script into a shell. The docs therefore give an equivalent reviewed path: download the release archive, `SHA256SUMS` and the installer, verify, read the installer, and run it locally with `--archive <file>` (`-Archive`). Both paths run the same installer.
 
 ### 18.8 Uninstall
 
