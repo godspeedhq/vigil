@@ -22,7 +22,7 @@
     held open exclusively for the worker's whole life (11.2).
 
     Requires Config.ps1, Validate.ps1, Effective.ps1, Command.ps1,
-    Outcome.ps1, Metrics.ps1 and Events.ps1.
+    Outcome.ps1, Metrics.ps1, Events.ps1 and Secrets.ps1.
 #>
 
 # Single-line, at most 500 characters (12.2).
@@ -226,15 +226,37 @@ function Invoke-VigilWorker {
     $maxRuntime = ''
     $missing = @()
     $envPairs = @()
+    $required = @()
+    $secretRows = @()
     foreach ($row in $eff) {
         switch -CaseSensitive ($row.Key) {
             'exit_codes' { $exitCodes = $row.Value }
             'max_runtime' { $maxRuntime = $row.Value }
-            'require_env' {
-                if ($null -eq [Environment]::GetEnvironmentVariable($row.Value)) { $missing += $row.Value }
-            }
+            'require_env' { $required += $row.Value }
+            'secret' { $secretRows += $row.Value }
             'env' { $envPairs += $row.Value }
         }
+    }
+
+    # Secrets for the job (6.5.4), resolved now, for this run only. A secret
+    # that cannot be resolved fails the run before it starts; the reason
+    # names the reference, never a value.
+    $secretValues = [ordered]@{}
+    $secretError = ''
+    foreach ($s in $secretRows) {
+        $eq = $s.IndexOf('=')
+        $ref = $s.Substring($eq + 1)
+        $r = Resolve-VigilSecret -Root $Root -Parsed $ctx.Parsed -Reference $ref
+        if (-not $r.Ok) { $secretError = "secret $ref unavailable: $($r.Why)"; break }
+        $secretValues[$s.Substring(0, $eq)] = $r.Value
+    }
+    # require_env counts the variables those secrets provide, and reads the
+    # registry now, so a variable set since Vigil started is seen (6.5.1).
+    $freshEnv = [ordered]@{}
+    foreach ($name in $required) {
+        if ($secretValues.Contains($name)) { continue }
+        $v = Get-VigilFreshEnv $name
+        if ($null -eq $v) { $missing += $name } else { $freshEnv[$name] = $v }
     }
     $mode = if ($exitCodes -ceq 'nagios') { 'nagios' } else { 'standard' }
 
@@ -267,6 +289,7 @@ function Invoke-VigilWorker {
     $file = (Get-VigilIndexValue -Index $index -Section "job.$Job" -Key 'file').Value
     $filePath = Resolve-VigilPath -Path $file -Platform 'windows' -Root $Root
     if ($cmd.Error) { $reason = $cmd.Message }
+    elseif ($secretError) { $reason = $secretError }
     elseif ($missing.Count -gt 0) { $reason = "missing environment variable $($missing -join ' ')" }
     elseif (-not [System.IO.Directory]::Exists($cmd.Cwd)) { $reason = "working directory not found: $($cmd.Cwd)" }
     elseif (-not [System.IO.File]::Exists($filePath)) { $reason = "file not found: $filePath" }
@@ -287,10 +310,14 @@ function Invoke-VigilWorker {
         $psi.RedirectStandardError = $true
         $psi.RedirectStandardInput = $true
         $psi.EnvironmentVariables['VIGIL_RUN_ID'] = $RunId
+        foreach ($k in $freshEnv.Keys) { $psi.EnvironmentVariables[$k] = $freshEnv[$k] }
         foreach ($pair in $envPairs) {
             $eq = $pair.IndexOf('=')
             $psi.EnvironmentVariables[$pair.Substring(0, $eq)] = $pair.Substring($eq + 1)
         }
+        # Secrets last: only in this process's environment, never on its
+        # command line or on disk.
+        foreach ($k in $secretValues.Keys) { $psi.EnvironmentVariables[$k] = $secretValues[$k] }
         $p = New-Object System.Diagnostics.Process
         $p.StartInfo = $psi
         $startError = ''

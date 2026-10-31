@@ -10,6 +10,9 @@
     vigil [-Root <dir>] resolve <job>
         Confirms that the uncertain run holding <job> is over (11.4). Never
         kills anything; the supervisor concludes the run at its next tick.
+    vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>
+        Vigil's own secret store (6.5.2), encrypted with DPAPI. set prompts
+        without echo, or reads the value from stdin; list never shows values.
     vigil [-Root <dir>] supervise [--once]
         The supervisor (4.1): ticks until stopped, or once with --once.
         Running workers are never stopped with it.
@@ -30,12 +33,12 @@ $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Split-Path -Parent $app }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Worker', 'Sender', 'Supervisor')) {
+foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Worker', 'Sender', 'Supervisor')) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine('usage: vigil [-Root <dir>] run <job> | resolve <job> | supervise [--once]')
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>")
     exit 64
 }
 
@@ -76,6 +79,36 @@ switch ($Command) {
         Write-VigilFileAtomic -Path (Join-Path $ctx.State "recovery\$Job.resolved") -Text "[resolved]`nresolved_by = $who`nresolved_at = $at`n"
         Write-Output "${Job}: run $($rec.RunId) marked as over by $who; the supervisor concludes it and releases the job at its next tick"
         exit 0
+    }
+    'secret' {
+        # Vigil's own secret store (6.5.2). Values are read from the console
+        # without echo, or from stdin with --stdin; never from arguments.
+        # PowerShell binds the subcommand to Job and the rest to Rest.
+        $argv = @($Rest | Where-Object { $null -ne $_ })
+        if ($Job -ceq 'set' -and ($argv.Count -eq 1 -or ($argv.Count -eq 2 -and $argv[1] -ceq '--stdin'))) {
+            $name = $argv[0]
+            if ($argv.Count -eq 2) {
+                $text = Remove-VigilTrailingNewline ([Console]::In.ReadToEnd())
+                $value = New-Object System.Security.SecureString
+                foreach ($c in $text.ToCharArray()) { $value.AppendChar($c) }
+                $text = $null
+            }
+            else {
+                if ([Console]::IsInputRedirected) { [Console]::Error.WriteLine('vigil: not a console; use --stdin'); exit 64 }
+                $value = Read-Host -AsSecureString -Prompt "Value for $name (not echoed)"
+            }
+            try { Set-VigilSecret -Root $Root -Name $name -Value $value }
+            catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
+            Write-Output "$name set; runs started from now on use it"
+            exit 0
+        }
+        if ($Job -ceq 'list' -and $argv.Count -eq 0) { Get-VigilSecretList -Root $Root; exit 0 }
+        if ($Job -ceq 'delete' -and $argv.Count -eq 1) {
+            try { Remove-VigilSecret -Root $Root -Name $argv[0] }
+            catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
+            exit 0
+        }
+        Exit-Usage
     }
     'supervise' {
         # PowerShell binds "--once" to the remaining arguments.

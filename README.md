@@ -82,8 +82,8 @@ Vigil's guiding rules:
 | Installers, service registration, `vigil init`, `vigil precheck` | Specified, not built |
 | Fetching configuration and scripts from git, https, sftp, shares | Validated, not fetched yet |
 | Forwarding Vigil's own logs (OTLP) | Specified, not built |
-| Secrets: `env:` references | Done |
-| Secrets: `secret:` (Vigil's store), `store:` (Key Vault, Vault, AWS, GCP, helper) | Validated, not resolved yet |
+| Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
+| Secret stores: Azure Key Vault, HashiCorp Vault, AWS, GCP | Validated, not resolved yet |
 
 ---
 
@@ -636,7 +636,9 @@ secret    = PGPASSWORD=secret:PGPASSWORD
 - **A raw value is rejected at validation,** and the rejected value is never echoed.
 - **A store's own credentials** must be `env:` or `secret:`, so one store never needs another to unlock it.
 
-The configuration side of all three (references, `[secret_store.*]` sections and the job `secret` key) is validated today. Resolving `secret:` and `store:` at run time, and the `vigil secret` command, are the next milestone.
+All three are resolved for jobs today, and `store:` works with a `helper` command; the native Azure Key Vault, HashiCorp Vault, AWS and GCP store types are validated, and a reference to one fails the run with `store type <type> not implemented yet` until it lands.
+
+On Windows, keep in mind that the store is encrypted for the account that ran `vigil secret set`: run it as the service account. Under WSL, install Vigil inside the Linux filesystem, not under `/mnt/c`, where every file looks readable by everyone and Vigil refuses to use secrets kept there.
 
 **Changes apply without a restart.** The file is checked every tick. A valid change becomes active at once; an invalid one is rejected with every error listed, and the last valid configuration keeps running. A single invalid job is skipped and reported, while the others keep running.
 
@@ -651,7 +653,7 @@ The full reference is in [`SPECIFICATION.md`](SPECIFICATION.md) (§6), and [`tes
 | `vigil supervise [--once]` | The supervisor: what the service runs. `--once` runs a single tick. |
 | `vigil run <job>` | Runs one job now, in the foreground, recorded exactly as a scheduled run would be. Exits 0 succeeded, 1 warning, 2 failed, 3 unknown, 4 not run. |
 | `vigil resolve <job>` | Confirms that the uncertain run holding a job is over. Never kills anything. |
-| `vigil secret set <NAME>` / `list` / `delete <NAME>` | Manages Vigil's own secret store. `set` prompts without echoing, or reads `--stdin` for deployment tools; `list` never shows values. *(Next milestone.)* |
+| `vigil secret set <NAME>` / `list` / `delete <NAME>` | Manages Vigil's own secret store. `set` prompts without echoing, or reads `--stdin` for deployment tools; `list` never shows values. |
 
 On Linux and macOS the command is `app/vigil`; on Windows it is `app\vigil.ps1`. All take `--root <dir>` (`-Root <dir>` on Windows), defaulting to the folder that contains `app/`.
 

@@ -35,6 +35,8 @@ jobs:
         run: /bin/bash tests/integration/max-runtime.sh
       - name: uncertain runs (/bin/bash)
         run: /bin/bash tests/integration/uncertain.sh
+      - name: secrets (/bin/bash)
+        run: /bin/bash tests/integration/secrets.sh
 
   windows:
     runs-on: windows-latest
@@ -64,6 +66,9 @@ jobs:
       - name: uncertain runs (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Uncertain.ps1
+      - name: secrets (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/integration/Secrets.ps1
       - name: integration (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Run-Job.ps1
@@ -76,3 +81,9 @@ jobs:
       - name: uncertain runs (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Uncertain.ps1
+      - name: secrets (PowerShell 7)
+        shell: pwsh
+        run: ./tests/integration/Secrets.ps1
+      - name: secrets (Git Bash)
+        shell: bash
+        run: bash tests/integration/secrets.sh
