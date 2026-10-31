@@ -248,6 +248,8 @@ printf 'aws-secret-key-%s' "$$" | vigil secret set AWS_SECRET --stdin > /dev/nul
 # 1. A run receives every store's secret, exactly.
 vigil run show > /dev/null 2>&1
 check "run with store secrets succeeds" succeeded "$(state_value show status)"
+[ "$(state_value show status)" = succeeded ] || printf '        reason: %s
+' "$(state_value show reason)"
 check "hashicorp_vault, token: delivered exactly" 1 "$(metric show a_ok)"
 check "hashicorp_vault, approle: delivered exactly" 1 "$(metric show b_ok)"
 check "azure_keyvault, managed identity: delivered exactly" 1 "$(metric show c_ok)"

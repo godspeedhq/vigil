@@ -270,6 +270,7 @@ secret    = X=store:kv/gone
     # 1. A run receives every store's secret, exactly.
     [void](Invoke-Vigil @('run', 'show'))
     Test-Equal 'run with store secrets succeeds' 'succeeded' (Get-StateValue 'show' 'status')
+    if ((Get-StateValue 'show' 'status') -cne 'succeeded') { Write-Host "        reason: $(Get-StateValue 'show' 'reason')" }
     Test-Equal 'hashicorp_vault, token: delivered exactly' '1' (Get-Metric 'show' 'a_ok')
     Test-Equal 'hashicorp_vault, approle: delivered exactly' '1' (Get-Metric 'show' 'b_ok')
     Test-Equal 'azure_keyvault, managed identity: delivered exactly' '1' (Get-Metric 'show' 'c_ok')
