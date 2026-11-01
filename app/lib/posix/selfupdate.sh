@@ -118,7 +118,7 @@ _vigil_self_die() {
 }
 
 vigil_self_update() {
-    local root=$1 app=$2 check=$3 want=$4 base=$VIGIL_RELEASES current tag work sum got
+    local root=$1 app=$2 check=$3 want=$4 pinned=$4 base=$VIGIL_RELEASES current tag work sum got
     local -a curlopts
     curlopts=(-q --proto =https --proto-redir =https --max-time 60)
     # Tests only (22.4.4): releases from a local server, never over the
@@ -166,6 +166,11 @@ vigil_self_update() {
     # Whoever installed it updates it: the installer leaves app/ owned as a
     # system install needs it, so a user's own must not go through root.
     if [ ! -O "$app" ]; then
+        # A sudo rule from install --update-by (18.7) allows the latest
+        # release only.
+        if [ -z "$pinned" ] && command -v sudo > /dev/null 2>&1 && sudo -n -l "$app/vigil" self update > /dev/null 2>&1; then
+            exec sudo -n "$app/vigil" self update
+        fi
         _vigil_self_die "$root was installed by another account: run this as that account (sudo for a system install)"
         return 1
     fi
