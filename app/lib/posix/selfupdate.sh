@@ -138,7 +138,7 @@ _vigil_self_die() {
 }
 
 vigil_self_update() {
-    local root=$1 app=$2 check=$3 want=$4 pinned=$4 base=$VIGIL_RELEASES current tag work sum got
+    local root=$1 app=$2 check=$3 want=$4 pinned=$4 base=$VIGIL_RELEASES current tag work sum got file f key
     local -a curlopts
     curlopts=(-q --proto =https --proto-redir =https --max-time 60)
     # Tests only (22.4.4): releases from a local server, never over the
@@ -195,11 +195,31 @@ vigil_self_update() {
         return 1
     fi
     work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-update.XXXXXX") || { _vigil_self_die 'cannot make a temporary folder'; return 1; }
-    if ! curl "${curlopts[@]}" -fsSL -o "$work/install.sh" "$base/releases/download/v$want/install.sh" ||
-        ! curl "${curlopts[@]}" -fsSL -o "$work/SHA256SUMS" "$base/releases/download/v$want/SHA256SUMS"; then
-        rm -rf "$work"
-        _vigil_self_die "cannot download Vigil $want: is there such a release?"
-        return 1
+    file=vigil-$want.tar.gz
+    for f in install.sh "$file" SHA256SUMS; do
+        if ! curl "${curlopts[@]}" -fsSL -o "$work/$f" "$base/releases/download/v$want/$f"; then
+            rm -rf "$work"
+            _vigil_self_die "cannot download Vigil $want: is there such a release?"
+            return 1
+        fi
+    done
+    # The signature (17): whatever else was replaced on the server, the key
+    # that checks it is the one already installed here. The archive is
+    # handed to the installer, so what is verified is what is installed.
+    key=$app/release-key.pem
+    [ -n "${VIGIL_TEST_RELEASE_URL-}" ] && [ -n "${VIGIL_TEST_RELEASE_KEY-}" ] && key=$VIGIL_TEST_RELEASE_KEY
+    if [ -f "$key" ]; then
+        if ! command -v openssl > /dev/null 2>&1; then
+            rm -rf "$work"
+            _vigil_self_die 'openssl not found: the release cannot be verified; nothing was changed'
+            return 1
+        fi
+        if ! curl "${curlopts[@]}" -fsSL -o "$work/SHA256SUMS.sig" "$base/releases/download/v$want/SHA256SUMS.sig" ||
+            ! openssl dgst -sha256 -verify "$key" -signature "$work/SHA256SUMS.sig" "$work/SHA256SUMS" > /dev/null 2>&1; then
+            rm -rf "$work"
+            _vigil_self_die "Vigil $want is not signed by the Vigil release key; nothing was changed"
+            return 1
+        fi
     fi
     sum=$(awk '$2 == "install.sh" || $2 == "*install.sh" { print $1 }' "$work/SHA256SUMS")
     got=$(_vigil_self_sha "$work/install.sh")
@@ -211,5 +231,5 @@ vigil_self_update() {
     printf 'updating Vigil %s to %s\n' "$current" "$want"
     # This process goes: its own file is about to be moved.
     # shellcheck disable=SC2016
-    exec sh -c 'sh "$1/install.sh" --upgrade --prefix "$2" --version "$3"; rc=$?; rm -rf "$1"; exit "$rc"' sh "$work" "$root" "$want"
+    exec sh -c 'sh "$1/install.sh" --upgrade --prefix "$2" --archive "$1/$3"; rc=$?; rm -rf "$1"; exit "$rc"' sh "$work" "$root" "$file"
 }

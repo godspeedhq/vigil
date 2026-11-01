@@ -63,6 +63,11 @@ version_of() { cat "$root/app/VERSION" 2> /dev/null; }
 vigil() { bash "$root/app/vigil" --root "$root" "$@"; }
 
 mkdir -p "$work/mock/www" "$work/home"
+# A release key for this run, known to Vigil only through the test override.
+openssl genrsa -out "$work/release.key" 2048 2> /dev/null
+openssl genrsa -out "$work/other.key" 2048 2> /dev/null
+openssl rsa -in "$work/release.key" -pubout -out "$work/release.pem" 2> /dev/null
+export VIGIL_SIGN_KEY=$work/release.key VIGIL_TEST_RELEASE_KEY=$work/release.pem
 www=$work/mock/www
 case $(uname -s) in
     MINGW* | MSYS* | CYGWIN*) mockdir=$(cygpath -m "$work/mock") ;;
@@ -177,6 +182,18 @@ check 'saying why' 1 "$(grep -c 'SHA-256 mismatch' "$work/out")"
 check 'and nothing changed' 0.0.1-it "$(version_of)"
 cp "$work/good.tar.gz" "$d/vigil-0.0.2-it.tar.gz"
 
+cp "$d/SHA256SUMS.sig" "$work/good.sig"
+openssl dgst -sha256 -sign "$work/other.key" -out "$d/SHA256SUMS.sig" "$d/SHA256SUMS"
+vigil self update > "$work/out" 2>&1
+check 'a release signed by another key is refused' 1 "$?"
+check 'saying why' 1 "$(grep -c 'not signed by the Vigil release key' "$work/out")"
+check 'and nothing changed' 0.0.1-it "$(version_of)"
+rm -f "$d/SHA256SUMS.sig"
+vigil self update > "$work/out" 2>&1
+check 'an unsigned release is refused' 1 "$?"
+check 'and nothing changed' 0.0.1-it "$(version_of)"
+cp "$work/good.sig" "$d/SHA256SUMS.sig"
+
 # --- a release that does not run: back to the one that does ------------------------------------
 
 mkdir "$work/broken"
@@ -189,6 +206,7 @@ mkdir -p "$d3"
 tar -czf "$d3/vigil-0.0.3-it.tar.gz" -C "$work/broken" vigil-0.0.3-it
 cp "$repo/install.sh" "$d3/"
 (cd "$d3" && { sha256sum vigil-0.0.3-it.tar.gz install.sh 2>/dev/null || shasum -a 256 vigil-0.0.3-it.tar.gz install.sh; } | sed 's/ \*/  /' > SHA256SUMS)
+openssl dgst -sha256 -sign "$work/release.key" -out "$d3/SHA256SUMS.sig" "$d3/SHA256SUMS"
 : > "$www/releases/tag/v0.0.3-it"
 latest 0.0.3-it
 vigil self update > "$work/out" 2>&1
@@ -268,7 +286,7 @@ if ! sudo -n true 2> /dev/null; then
     printf 'SKIP system mode: needs sudo without a password\n'
 else
     sys=/opt/vigil-update-$$
-    sudo VIGIL_TEST_RELEASE_URL="$VIGIL_TEST_RELEASE_URL" sh "$www/releases/download/v0.0.1-it/install.sh" --system --prefix "$sys" --version 0.0.1-it --instance it-sys < /dev/null > "$work/out" 2>&1
+    sudo VIGIL_TEST_RELEASE_URL="$VIGIL_TEST_RELEASE_URL" VIGIL_TEST_RELEASE_KEY="$VIGIL_TEST_RELEASE_KEY" sh "$www/releases/download/v0.0.1-it/install.sh" --system --prefix "$sys" --version 0.0.1-it --instance it-sys < /dev/null > "$work/out" 2>&1
     rc=$?
     check 'system: installed' 0 "$rc"
     [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
@@ -278,7 +296,7 @@ else
     i=0
     while [ -z "$(pid_of)" ] && [ "$i" -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
     pid1=$(pid_of)
-    sudo VIGIL_TEST_RELEASE_URL="$VIGIL_TEST_RELEASE_URL" /usr/local/bin/vigil self update > "$work/out" 2>&1
+    sudo VIGIL_TEST_RELEASE_URL="$VIGIL_TEST_RELEASE_URL" VIGIL_TEST_RELEASE_KEY="$VIGIL_TEST_RELEASE_KEY" /usr/local/bin/vigil self update > "$work/out" 2>&1
     rc=$?
     check 'system: updated' 0 "$rc"
     [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
@@ -286,7 +304,7 @@ else
     check 'system: the service is active after' active "$(active)"
     check 'system: not restarted: the same process' "$pid1" "$(pid_of)"
     latest 0.0.3-it
-    sudo VIGIL_TEST_RELEASE_URL="$VIGIL_TEST_RELEASE_URL" /usr/local/bin/vigil self update > "$work/out" 2>&1
+    sudo VIGIL_TEST_RELEASE_URL="$VIGIL_TEST_RELEASE_URL" VIGIL_TEST_RELEASE_KEY="$VIGIL_TEST_RELEASE_KEY" /usr/local/bin/vigil self update > "$work/out" 2>&1
     check 'system: a release that does not run fails' 1 "$?"
     check 'system: the old version is back' 0.0.2-it "$(cat "$sys/app/VERSION")"
     check 'system: and its service is active' active "$(active)"
@@ -296,7 +314,7 @@ else
     sudo sh "$repo/install.sh" --system --prefix "$sys" --archive "$www/releases/download/v0.0.2-it/vigil-0.0.2-it.tar.gz" --update-by "$me" < /dev/null > "$work/out" 2>&1
     check 'update-by: installed' 0 "$?"
     check 'update-by: the rule is one command' 1 "$(sudo grep -c "^$me ALL=(root) NOPASSWD: $sys/app/vigil self update\$" /etc/sudoers.d/vigil)"
-    printf 'Defaults env_keep += "VIGIL_TEST_RELEASE_URL"\n' | sudo tee /etc/sudoers.d/vigil-test > /dev/null
+    printf 'Defaults env_keep += "VIGIL_TEST_RELEASE_URL VIGIL_TEST_RELEASE_KEY"\n' | sudo tee /etc/sudoers.d/vigil-test > /dev/null
     latest 0.0.1-it
     /usr/local/bin/vigil self update > "$work/out" 2>&1
     rc=$?
