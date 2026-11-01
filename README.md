@@ -27,6 +27,7 @@ Vigil runs the work, records the work, and forwards the evidence. Storage, dashb
 - [Why Vigil](#why-vigil)
 - [What works today](#what-works-today)
 - [Install](#install)
+- [Update](#update)
 - [Try it from a clone](#try-it-from-a-clone)
 - [How it works](#how-it-works)
   - [The big picture](#the-big-picture)
@@ -86,7 +87,8 @@ Vigil's guiding rules:
 | `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done |
 | Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done |
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done |
-| One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums, upgrades | Done |
+| One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums | Done |
+| `vigil self update`: verified, rolls back if the new version does not run, keeps your configuration, scripts and running jobs | Done |
 | Fetching configuration and scripts from git, https, sftp and local directories or shares: digests, atomic activation, last good configuration | Done |
 | Forwarding Vigil's own logs over OTLP, with checkpoints, backoff and reported gaps | Done |
 | Log retention: `retain_days`, `log_retain_days` | Done |
@@ -126,6 +128,20 @@ curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.
 **If your organisation does not pipe scripts into a shell:** download `vigil-<version>.tar.gz` (or `.zip`), `SHA256SUMS` and the installer from the [releases page](https://github.com/godspeedhq/vigil/releases), check `sha256sum -c SHA256SUMS --ignore-missing` (or `Get-FileHash`), read the installer, then run it with `--archive` (`-Archive`). It is the same installer.
 
 To remove Vigil: `vigil uninstall`.
+
+## Update
+
+```sh
+vigil self update           # to the latest release
+vigil self update --check   # only say whether there is one
+vigil version               # what is installed
+```
+
+Use `sudo` for a system install on Linux and macOS, and an elevated prompt on Windows.
+
+Only Vigil's own code is replaced: your configuration, scripts, state, spool and logs are left alone. The service is not restarted: the supervisor sees the new version within seconds and replaces itself in place, keeping its process id, while running jobs finish under the code they started with. If the new version does not come up, the old one is put back. Re-running the one-line installer does the same job.
+
+Updates only ever happen when you run them. `vigil status`, `vigil version` and `vigil precheck` tell you at a terminal when one is available; `VIGIL_NO_UPDATE_CHECK=1` turns that off.
 
 ## Try it from a clone
 
@@ -933,7 +949,7 @@ powershell -File tests\Run-Conformance.ps1 # Windows PowerShell 5.1
 - log forwarding against a mock OTLP receiver: what stays local, checkpoints, every failure a destination can give, and every kind of gap;
 - service registration in system and user mode, with a running job that must outlive `vigil stop` and `vigil service remove`.
 
-CI runs everything on macOS (with the system bash 3.2), Linux, Windows PowerShell 5.1 and PowerShell 7 for every pull request.
+CI runs everything on macOS (with the system bash 3.2), Linux, Windows PowerShell 5.1 and PowerShell 7 for every pull request. The [Test evidence](https://godspeedhq.github.io/vigil/evidence/) page shows the console output of the newest passing run on `main`, for each platform.
 
 ---
 

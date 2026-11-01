@@ -140,6 +140,8 @@ $sup.WaitForExit()
 # 2029) are never due before the 2-second cursors. An hour would be crossed
 # by a run at hh:59. Let the last workers finish; one more tick reconciles them.
 $cfg = Join-Path $root 'config\vigil.config'
+# A run still waiting for a slot is kept across a restart (8), and would start.
+Remove-Item -LiteralPath (Join-Path $root 'state\pending') -ErrorAction SilentlyContinue
 [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace 'run_every = 2s', 'run_every = 3650d'))
 Start-Sleep -Seconds 7
 Invoke-Tick

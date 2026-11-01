@@ -36,6 +36,11 @@
 #       Removes Vigil (18.8): the service, the running workers proven to be
 #       Vigil's, the root (or all but config/ and scripts/) and the command
 #       link. Lists what it will remove and asks first, unless --yes.
+#   vigil [--root <dir>] version
+#       The installed version.
+#   vigil [--root <dir>] self update [--check] [--version <version>]
+#       Upgrades this install to the latest release, or the one given (18.7).
+#       --check only says whether there is a newer one.
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
@@ -58,13 +63,13 @@ done
 app=$(cd "$(dirname "$self")" && pwd)
 root=$(dirname "$app")
 
-for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker backends sender fetch logs supervisor precheck service init; do
+for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker backends sender fetch logs supervisor precheck service init selfupdate; do
     # shellcheck source=/dev/null
     . "$app/lib/posix/$lib.sh"
 done
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | self update [--check] [--version <version>]\n' >&2
     exit 64
 }
 
@@ -102,7 +107,9 @@ case ${1-} in
     precheck)
         [ "$#" -le 2 ] || usage
         vigil_precheck "$root" "${2-}"
-        exit $?
+        rc=$?
+        vigil_update_notice "$root" "$app"
+        exit "$rc"
         ;;
     secret)
         # Vigil's own secret store (6.5.2). Values are read from the terminal
@@ -241,6 +248,41 @@ case ${1-} in
     status)
         [ "$#" -eq 1 ] || usage
         vigil_service_status "$root"
+        rc=$?
+        vigil_update_notice "$root" "$app"
+        exit "$rc"
+        ;;
+    version)
+        if [ "$#" -eq 2 ] && [ "$2" = --supervisor ]; then
+            vigil_supervisor_version "$root"
+            exit $?
+        fi
+        [ "$#" -eq 1 ] || usage
+        vigil_version "$app"
+        vigil_update_notice "$root" "$app"
+        exit 0
+        ;;
+    self)
+        if [ "${2-}" = refresh-check ] && [ "$#" -eq 2 ]; then
+            vigil_update_refresh "$app"
+            exit 0
+        fi
+        [ "${2-}" = update ] || usage
+        shift 2
+        check=0 want=''
+        while [ "$#" -gt 0 ]; do
+            case $1 in
+                --check) check=1 ;;
+                --version)
+                    [ "$#" -ge 2 ] || usage
+                    want=${2#v}
+                    shift
+                    ;;
+                *) usage ;;
+            esac
+            shift
+        done
+        vigil_self_update "$root" "$app" "$check" "$want"
         exit $?
         ;;
     supervise)

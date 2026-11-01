@@ -39,6 +39,11 @@
         Removes Vigil (18.8): the service, the running workers proven to be
         Vigil's, the root (or all but config and scripts) and the PATH
         entries. Lists what it will remove and asks first, unless --yes.
+    vigil [-Root <dir>] version
+        The installed version.
+    vigil [-Root <dir>] self update [--check] [--version <version>]
+        Upgrades this install to the latest release, or the one given (18.7).
+        --check only says whether there is a newer one.
     vigil [-Root <dir>] supervise [--once]
         The supervisor (4.1): ticks until stopped, or once with --once.
         Running workers are never stopped with it.
@@ -59,12 +64,12 @@ $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Split-Path -Parent $app }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Supervisor', 'Precheck', 'Service', 'Init')) {
+foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate')) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] version | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -220,13 +225,52 @@ switch ($Command) {
     'status' {
         if ($Job -or $Rest) { Exit-Usage }
         Get-VigilServiceStatus -Root $Root
+        Show-VigilUpdateNotice -Root $Root -App $app
         exit 0
+    }
+    'version' {
+        # PowerShell binds "--supervisor" to the remaining arguments.
+        $flags = @(@($Job) + @($Rest) | Where-Object { $_ })
+        if ($flags.Count -eq 1 -and $flags[0] -ceq '--supervisor') {
+            $running = Get-VigilSupervisorVersion -Root $Root
+            if (-not $running) { exit 1 }
+            $running
+            exit 0
+        }
+        if ($flags.Count -gt 0) { Exit-Usage }
+        Get-VigilVersion -App $app
+        Show-VigilUpdateNotice -Root $Root -App $app
+        exit 0
+    }
+    'self' {
+        if ($Job -ceq 'refresh-check' -and -not $Rest) {
+            Update-VigilUpdateCache -App $app
+            exit 0
+        }
+        if ($Job -cne 'update') { Exit-Usage }
+        $argv = @($Rest | Where-Object { $_ })
+        $check = $false
+        $want = ''
+        for ($i = 0; $i -lt $argv.Count; $i++) {
+            if ($argv[$i] -ceq '--check') { $check = $true }
+            elseif ($argv[$i] -ceq '--version' -and $i + 1 -lt $argv.Count) { $i++; $want = $argv[$i].TrimStart('v') }
+            else { Exit-Usage }
+        }
+        $code = 0
+        Invoke-VigilSelfUpdate -Root $Root -App $app -Check $check -Want $want | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+        exit $code
     }
     'supervise' {
         # PowerShell binds "--once" to the remaining arguments.
         $flags = @(@($Job) + @($Rest) | Where-Object { $_ })
         if ($flags.Count -gt 1 -or ($flags.Count -eq 1 -and $flags[0] -cne '--once')) { Exit-Usage }
-        exit (Invoke-VigilSupervisor -Root $Root -App $app -Once:($flags.Count -eq 1))
+        $code = Invoke-VigilSupervisor -Root $Root -App $app -Once:($flags.Count -eq 1)
+        # A new version: this process carries on as it (18.7).
+        if ($code -eq $Script:VigilReloadCode) {
+            & (Join-Path $app 'vigil.ps1') -Root $Root supervise
+            exit $LASTEXITCODE
+        }
+        exit $code
     }
     'worker' {
         if (-not $Job -or $Rest.Count -ne 2 -or $Rest[0] -cne '--run-id') { Exit-Usage }

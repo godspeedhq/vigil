@@ -21,6 +21,9 @@
 #   --backend <list>       passed to vigil init (file, datadog, otel)
 #   --no-init              do not write a starting configuration
 #   --no-service           do not register the service
+#   --upgrade              only replace an installed Vigil, as vigil self
+#                          update does: no vigil init, no link, and the
+#                          service is left as it was found
 #
 # Steps: check the prerequisites, download the archive and verify its
 # SHA-256 before using it, unpack it into the root (on upgrade only app/ is
@@ -39,6 +42,7 @@ instance=''
 backend=''
 do_init=1
 do_service=1
+only_upgrade=0
 
 say() { printf '%s\n' "$*"; }
 die() {
@@ -52,6 +56,10 @@ while [ "$#" -gt 0 ]; do
         --system) mode=system ;;
         --no-init) do_init=0 ;;
         --no-service) do_service=0 ;;
+        --upgrade)
+            only_upgrade=1
+            do_init=0
+            ;;
         --prefix | --version | --archive | --account | --instance | --backend)
             [ "$#" -ge 2 ] || die "$1 needs a value"
             case $1 in
@@ -72,6 +80,18 @@ while [ "$#" -gt 0 ]; do
     esac
     shift
 done
+
+# Tests only (22.4.4): releases from a local server, never over the network.
+curl_proto="--proto =https --proto-redir =https"
+if [ -n "${VIGIL_TEST_RELEASE_URL-}" ]; then
+    case $VIGIL_TEST_RELEASE_URL in
+        http://127.0.0.1:*)
+            repo_url=$VIGIL_TEST_RELEASE_URL
+            curl_proto="--proto =http --proto-redir =http --noproxy *"
+            ;;
+        *) die 'VIGIL_TEST_RELEASE_URL must be http://127.0.0.1:<port>' ;;
+    esac
+fi
 
 uid=$(id -u)
 if [ -z "$mode" ]; then
@@ -105,7 +125,7 @@ else
     missing="$missing sha256sum"
 fi
 [ -n "$archive" ] || command -v curl > /dev/null 2>&1 || missing="$missing curl"
-if [ "$do_service" = 1 ]; then
+if [ "$do_service" = 1 ] && [ "$only_upgrade" = 0 ]; then
     case $(uname -s) in
         Linux) command -v systemctl > /dev/null 2>&1 || missing="$missing systemd" ;;
         Darwin) ;;
@@ -128,20 +148,29 @@ if [ -n "$archive" ]; then
 else
     if [ -z "$version" ]; then
         # The latest release, from where GitHub redirects /releases/latest.
-        tag=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$repo_url/releases/latest") || die 'cannot reach GitHub to find the latest release'
+        set -f
+        # shellcheck disable=SC2086
+        tag=$(curl $curl_proto -fsSLI -o /dev/null -w '%{url_effective}' "$repo_url/releases/latest") || die 'cannot reach GitHub to find the latest release'
+        set +f
         version=${tag##*/v}
         case $version in '' | */*) die "cannot tell the latest release from $tag" ;; esac
     fi
     file=vigil-$version.tar.gz
     say "downloading Vigil $version"
-    curl -fsSL --proto '=https' -o "$work/$file" "$repo_url/releases/download/v$version/$file" || die "cannot download $file"
-    curl -fsSL --proto '=https' -o "$work/SHA256SUMS" "$repo_url/releases/download/v$version/SHA256SUMS" || die 'cannot download SHA256SUMS'
+    set -f
+    # shellcheck disable=SC2086
+    curl $curl_proto -fsSL -o "$work/$file" "$repo_url/releases/download/v$version/$file" || die "cannot download $file"
+    # shellcheck disable=SC2086
+    curl $curl_proto -fsSL -o "$work/SHA256SUMS" "$repo_url/releases/download/v$version/SHA256SUMS" || die 'cannot download SHA256SUMS'
+    set +f
 fi
 want=$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$work/SHA256SUMS")
 [ -n "$want" ] || die "SHA256SUMS has no entry for $file"
 got=$(cd "$work" && $sha "$file" | awk '{ print $1 }')
 [ "$got" = "$want" ] || die "SHA-256 mismatch for $file: expected $want, got $got; nothing was changed"
 say "verified $file (SHA-256 $got)"
+# Only the downloads above use it: pre-flight refuses it (22.4.4).
+unset VIGIL_TEST_RELEASE_URL
 
 mkdir "$work/x" && tar -xzf "$work/$file" -C "$work/x" || die "cannot unpack $file"
 src=$(find "$work/x" -mindepth 1 -maxdepth 1 -type d | head -n 1)
@@ -152,26 +181,85 @@ version=$(cat "$src/app/VERSION" 2> /dev/null || printf '%s' "${version:-unknown
 
 upgrade=0
 [ -f "$root/app/vigil" ] && upgrade=1
+[ "$only_upgrade" = 0 ] || [ "$upgrade" = 1 ] || die "no Vigil in $root to upgrade"
 mkdir -p "$root" || die "cannot create $root"
+# Copied before anything is stopped: a full disk changes nothing.
+rm -rf "$root/app.new" "$root/app.old"
+cp -R "$src/app" "$root/app.new" || { rm -rf "$root/app.new"; die "cannot copy into $root; nothing was changed"; }
+chmod 755 "$root/app.new/vigil"
+vigil() { bash "$root/app/vigil" --root "$root" "$@"; }
+# Whether the running service is on version $1 within 30 seconds.
+on_version() {
+    n=0
+    while [ "$n" -lt 30 ]; do
+        if [ "$(vigil version --supervisor 2> /dev/null)" = "$1" ] &&
+            vigil status 2> /dev/null | head -n 1 | grep -q '^service: active'; then
+            return 0
+        fi
+        sleep 1
+        n=$((n + 1))
+    done
+    return 1
+}
 running=0
+reload=0
+old_version=$(cat "$root/app/VERSION" 2> /dev/null)
 if [ "$upgrade" = 1 ] && [ "$do_service" = 1 ] &&
-    bash "$root/app/vigil" --root "$root" status 2> /dev/null | head -n 1 | grep -q '^service: active'; then
+    vigil status 2> /dev/null | head -n 1 | grep -q '^service: active'; then
     running=1
-    bash "$root/app/vigil" --root "$root" stop > /dev/null || die 'cannot stop the running service for the upgrade'
+    # A supervisor that can hot reload replaces itself when app/ changes
+    # (18.7): the service is not touched. An older one is stopped and started.
+    if [ -n "$(vigil version --supervisor 2> /dev/null)" ]; then
+        reload=1
+    else
+        vigil stop > /dev/null || { rm -rf "$root/app.new"; die 'cannot stop the running service for the upgrade; nothing was changed'; }
+    fi
 fi
+# Back to the version that was running, and its service.
+rollback() {
+    rm -rf "$root/app"
+    mv "$root/app.old" "$root/app"
+    if [ "$reload" = 1 ]; then
+        on_version "$old_version" || vigil start > /dev/null
+    elif [ "$running" = 1 ]; then
+        vigil start > /dev/null
+    fi
+    die "$1; went back to the version that was installed"
+}
 # app/ is swapped whole, so a process still running the old one keeps
 # reading files that stay intact.
-rm -rf "$root/app.new" "$root/app.old"
-cp -R "$src/app" "$root/app.new" || die "cannot copy into $root"
-[ -d "$root/app" ] && mv "$root/app" "$root/app.old"
-mv "$root/app.new" "$root/app" || die "cannot replace $root/app"
-rm -rf "$root/app.old"
-chmod 755 "$root/app/vigil"
+if [ -d "$root/app" ] && ! mv "$root/app" "$root/app.old"; then
+    rm -rf "$root/app.new"
+    [ "$running" = 1 ] && vigil start > /dev/null
+    die "cannot replace $root/app; nothing was changed"
+fi
+if ! mv "$root/app.new" "$root/app"; then
+    [ -d "$root/app.old" ] && mv "$root/app.old" "$root/app"
+    [ "$running" = 1 ] && vigil start > /dev/null
+    die "cannot replace $root/app; nothing was changed"
+fi
 if [ "$mode" = system ]; then
     chown -R 0:0 "$root/app" 2> /dev/null
     chmod 755 "$root"
 fi
-if [ "$upgrade" = 1 ]; then say "upgraded $root to Vigil $version"; else say "installed Vigil $version in $root"; fi
+# The old version goes only once the new one has proved it runs.
+if [ "$upgrade" = 1 ]; then
+    [ "$(vigil version 2> /dev/null)" = "Vigil $version" ] || rollback "the new version ($version) does not run"
+    if [ "$reload" = 1 ]; then
+        on_version "$version" || rollback "the supervisor did not come up as $version"
+    elif [ "$running" = 1 ]; then
+        vigil start > /dev/null || rollback "the new version ($version) did not start"
+        on_version "$version" || rollback "the new version ($version) did not stay up"
+    fi
+    rm -rf "$root/app.old"
+    say "upgraded $root to Vigil $version"
+else
+    say "installed Vigil $version in $root"
+fi
+if [ "$only_upgrade" = 1 ]; then
+    say "done: Vigil $version"
+    exit 0
+fi
 
 # --- 4. The vigil command ------------------------------------------------------
 
@@ -182,7 +270,6 @@ case :$PATH: in
     *:"$bindir":*) ;;
     *) say "note: $bindir is not on your PATH; add it, or run $root/app/vigil" ;;
 esac
-vigil() { bash "$root/app/vigil" --root "$root" "$@"; }
 
 # --- 5. vigil init, on a fresh install --------------------------------------------
 
@@ -206,7 +293,6 @@ if [ "$do_service" = 1 ]; then
     if [ "$upgrade" = 1 ] && bash "$root/app/vigil" --root "$root" status 2> /dev/null | head -n 1 | grep -q '^service: not registered'; then
         : # registered nowhere yet: install it below
     elif [ "$upgrade" = 1 ]; then
-        if [ "$running" = 1 ]; then vigil start > /dev/null || die 'the service did not start again after the upgrade'; fi
         say "done: Vigil $version"
         exit 0
     fi
