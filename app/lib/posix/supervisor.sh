@@ -471,29 +471,21 @@ _vigil_sup_metric() {
 }
 
 # Loads the configuration when it changed. An invalid configuration is
-# rejected and the last valid one, kept in state/config.valid, stays active
-# (16.3). Returns 1 when there is no valid configuration at all.
+# rejected and the last valid one stays active (16.3): in state/config.valid,
+# or with sources, the one state/config.active names (16.5). Returns 1 when
+# there is no valid configuration at all.
 _vigil_sup_config() {
     local sum
     sum=$(cksum < "$_su_root/config/vigil.config" 2>/dev/null)
-    [ "$sum" = "${_su_cfgsum-}" ] && return 0
-    _su_cfgsum=$sum
-    _vw_root=$_su_root
-    _vw_job=-
-    if vigil_config_parse "$_su_root/config/vigil.config" && vigil_config_validate; then
-        _vigil_wk_get vigil config_source ''
-        if [ -n "$_vw_value" ]; then
-            _su_error='remote configuration needs the fetcher, which is not available yet'
-        else
-            _su_error=''
-        fi
-    else
-        _su_error='the configuration has errors; run vigil precheck'
-    fi
-    if [ -n "$_su_error" ]; then
-        # Every problem, each on its own line (16.3).
-        _su_report=$(vigil_config_report)
-        if [ -f "${_su_valid-}" ]; then
+    if [ "$sum" != "${_su_cfgsum-}" ]; then
+        _su_cfgsum=$sum
+        _vw_root=$_su_root
+        _vw_job=-
+        if ! vigil_config_parse "$_su_root/config/vigil.config" || ! vigil_config_validate; then
+            _su_error='the configuration has errors; run vigil precheck'
+            # Every problem, each on its own line (16.3).
+            _su_report=$(vigil_config_report)
+            [ -n "${_su_mode-}" ] || return 1
             _vigil_sup_log ERROR "configuration rejected, the last valid one stays active: $_su_error"
             while IFS= read -r _su_line; do
                 [ -n "$_su_line" ] && _vigil_sup_log ERROR "  $_su_line"
@@ -501,14 +493,63 @@ _vigil_sup_config() {
 $_su_report
 EOF_REPORT
             _su_reload_failed=1
-            vigil_config_parse "$_su_valid" && vigil_config_validate
-            return 0
+            if [ "$_su_mode" = fetch ]; then
+                _su_actsum=-
+            else
+                vigil_config_parse "$_su_valid" && vigil_config_validate
+                return 0
+            fi
+        else
+            _su_reload_failed=0
+            _vigil_wk_dir vigil state_dir state
+            _su_statedir=$_vw_dir
+            if vigil_fetch_mode; then
+                # What the fetcher last saw of this file tells whether it
+                # must look again.
+                _su_mode=fetch
+                _su_local=$(_vigil_fetch_digest < "$_su_root/config/vigil.config")
+                _su_actsum=-
+            else
+                _su_mode=local
+                _su_waiting=0
+                # A purely local configuration has a revision too (16.5).
+                _su_revision=$(printf 'config %s\n' "$(_vigil_fetch_digest < "$_su_root/config/vigil.config")" | _vigil_fetch_digest)
+                _su_revision=${_su_revision:0:12}
+                _su_valid="$_su_statedir/config.valid"
+                mkdir -p "$_su_statedir"
+                cp "$_su_root/config/vigil.config" "$_su_valid.tmp.$$" && mv -f "$_su_valid.tmp.$$" "$_su_valid"
+                _vigil_sup_settings
+                _vigil_sup_log INFO "configuration loaded"
+                return 0
+            fi
         fi
-        return 1
     fi
-    _su_reload_failed=0
-    _vigil_wk_dir vigil state_dir state
-    _su_statedir=$_vw_dir
+    [ "$_su_mode" = fetch ] || return 0
+    sum=$({ cksum < "$_su_statedir/config.active"; } 2>/dev/null)
+    [ "$sum" = "$_su_actsum" ] && return 0
+    _su_actsum=$sum
+    if vigil_active_read "$_su_statedir" && vigil_config_parse "$VIGIL_ACT_CONFIG" && vigil_config_validate; then
+        _su_waiting=0
+        _vigil_sup_settings
+        if [ "$VIGIL_ACT_REVISION" != "${_su_revision-}" ]; then
+            _su_revision=$VIGIL_ACT_REVISION
+            _vigil_sup_log INFO "configuration revision $_su_revision loaded ($VIGIL_ACT_ORIGIN)"
+        fi
+    else
+        # Nothing fetched yet: no job runs until everything it needs is
+        # present and verified (16.5).
+        _su_waiting=1
+        VIGIL_ACT_SRC=() VIGIL_ACT_FILE=() VIGIL_ACT_ENTRY=() VIGIL_ACT_SHA=()
+        vigil_config_parse "$_su_root/config/vigil.config"
+        vigil_config_validate
+        _vigil_sup_settings
+        _vigil_sup_log INFO "waiting for the first fetch from the configuration's sources"
+    fi
+}
+
+# The settings of the active configuration; the state directory is always
+# the local file's.
+_vigil_sup_settings() {
     _vigil_wk_dir log dir logs
     _su_logdir=$_vw_dir
     _vigil_wk_dir spool dir spool
@@ -526,9 +567,6 @@ EOF_REPORT
         *h) _su_tick=$((${_vw_value%h} * 3600)) ;;
         *d) _su_tick=$((${_vw_value%d} * 86400)) ;;
     esac
-    _su_valid="$_su_statedir/config.valid"
-    mkdir -p "$_su_statedir"
-    cp "$_su_root/config/vigil.config" "$_su_valid.tmp.$$" && mv -f "$_su_valid.tmp.$$" "$_su_valid"
 
     # Tags of every supervisor event: host, os, instance, then [tags].
     _su_tags="host=$_vw_host os=$_vw_os instance=$_su_instance"
@@ -541,7 +579,34 @@ EOF_REPORT
             i=$((i + 1))
         done
     fi
-    _vigil_sup_log INFO "configuration loaded"
+}
+
+# A job's cached script, when its file comes from a source. Returns 1 when
+# it has none; sets _su_script (empty for a local file) otherwise.
+_vigil_sup_script() {
+    _su_script=''
+    [ "$_su_mode" = fetch ] || return 0
+    _vigil_wk_get "job.$1" source ''
+    [ -n "$_vw_value" ] || return 0
+    local src=$_vw_value
+    _vigil_wk_get "job.$1" file ''
+    vigil_active_script "$src" "$_vw_value" && [ -f "$_va_path" ] || return 1
+    _su_script=$_va_path
+}
+
+# Whether the fetcher should run: when no fetch has been made, when the
+# local file changed since the last, or when a source is due (16.5).
+_vigil_sup_fetch_due() {
+    local line next='' local=''
+    [ -f "$_su_statedir/fetch.next" ] || return 0
+    while IFS= read -r line; do
+        case $line in
+            'next_epoch = '*) next=${line#*= } ;;
+            'local = '*) local=${line#*= } ;;
+        esac
+    done < "$_su_statedir/fetch.next"
+    [ "$local" != "$_su_local" ] && return 0
+    [ -z "$next" ] || [ "$_su_epoch" -ge "$next" ]
 }
 
 # Whether job $1 is INVALID in the active configuration.
@@ -570,6 +635,12 @@ _vigil_sup_start() {
         printf 'run_id        = %s\n' "$rid"
         printf 'boot_id       = %s\n' "$_su_boot"
         printf 'launch_epoch  = %s\n' "$_su_epoch"
+        # The configuration and script the run uses (16.5), whatever is
+        # activated while it runs.
+        if [ "$_su_mode" = fetch ] && [ "$job" != vigil_fetch ]; then
+            printf 'config        = %s\n' "$VIGIL_ACT_CONFIG"
+            if [ -n "${2-}" ]; then printf 'script        = %s\n' "$2"; fi
+        fi
     } > "$_su_statedir/locks/$job.$rid.launch.tmp.$$" &&
         mv -f "$_su_statedir/locks/$job.$rid.launch.tmp.$$" "$_su_statedir/locks/$job.$rid.launch" || return 1
     # The worker must not inherit the supervisor lock (fd 8), or it would
@@ -600,7 +671,7 @@ _vigil_sup_remove() {
 }
 
 _vigil_sup_tick() {
-    local s name job cursor cfile active next i
+    local s name job cursor cfile active next i ok
     set -- $(date '+%s %Y-%m-%dT%H:%M:%S%z %Y-%m-%d')
     _su_epoch=$1
     _su_now=$2
@@ -617,6 +688,8 @@ _vigil_sup_tick() {
     _su_status_invalid=''
     _su_status_last=''
 
+    _su_status_missing=''
+
     _vigil_sup_config
 
     s=0
@@ -624,6 +697,7 @@ _vigil_sup_tick() {
         name=${VIGIL_CFG_SEC_NAME[$s]}
         s=$((s + 1))
         case $name in job.*) ;; *) continue ;; esac
+        [ "$_su_waiting" = 1 ] && break
         job=${name#job.}
         if _vigil_sup_invalid "$job"; then
             _vigil_sup_event "$job" invalid_config 1 gauge
@@ -649,6 +723,14 @@ _vigil_sup_tick() {
         fi
         _vigil_sup_contains "$_su_queued" "$job" && active=queued
         _vigil_sup_contains "$_su_pending" "$job" && active=running
+
+        # A script from a source that is not cached: FILE MISSING until it
+        # is fetched again (16.3, 16.5).
+        if ! _vigil_sup_script "$job"; then
+            _vigil_sup_event "$job" file_missing 1 gauge
+            _su_status_missing="$_su_status_missing $job"
+            continue
+        fi
 
         cfile="$_su_statedir/schedule/$job.cursor"
         cursor=-
@@ -688,7 +770,8 @@ _vigil_sup_tick() {
     next=''
     for job in $_su_pending; do
         if [ "$_su_running" -lt "$_su_max" ]; then
-            _vigil_sup_start "$job"
+            _vigil_sup_script "$job" || continue
+            _vigil_sup_start "$job" "$_su_script"
             _su_status_running="$_su_status_running $job"
         else
             next="$next $job"
@@ -711,6 +794,20 @@ _vigil_sup_tick() {
     set -- $_su_pending
     _vigil_sup_event '' pending $# gauge
     _vigil_sup_event '' config_reload_failed "$_su_reload_failed" gauge
+    # The active revision, and how long since each source was last
+    # checked successfully (14.5).
+    if [ "$_su_waiting" = 0 ]; then
+        _su_events[${#_su_events[@]}]="$_su_epoch vigil.config.info 1 gauge $_su_tags revision=$_su_revision"
+    fi
+    if [ "$_su_mode" = fetch ]; then
+        for i in "$_su_statedir"/sources/*.state; do
+            [ -f "$i" ] || continue
+            ok=$(sed -n 's/^ok_epoch *= *//p' "$i")
+            [ -n "$ok" ] || continue
+            name=${i##*/}
+            _su_events[${#_su_events[@]}]="$_su_epoch vigil.source.check_age $((_su_epoch - ok)) gauge $_su_tags source=${name%.state}"
+        done
+    fi
 
     # The supervisor's events for this tick (4.5).
     mkdir -p "$_su_spooldir/incoming"
@@ -725,13 +822,22 @@ _vigil_sup_tick() {
     # anything. It is Vigil's own worker and does not count against
     # max_concurrent.
     _vigil_sup_account vigil_sender
-    if [ "$_su_active" = - ]; then
+    if [ "$_su_active" = - ] && [ "$_su_waiting" = 0 ]; then
         for i in "$_su_spooldir"/incoming/*.events "$_su_spooldir"/fanout/*.events "$_su_spooldir"/backends/*/*.events; do
             if [ -f "$i" ]; then
                 _vigil_sup_start vigil_sender
                 break
             fi
         done
+    fi
+
+    # The fetcher (16.5): like the sender, one at a time, outside
+    # max_concurrent, so a slow source never delays a tick.
+    if [ "$_su_mode" = fetch ]; then
+        _vigil_sup_account vigil_fetch
+        if [ "$_su_active" = - ] && _vigil_sup_fetch_due; then
+            _vigil_sup_start vigil_fetch
+        fi
     fi
 
     _vigil_sup_status
@@ -745,6 +851,24 @@ _vigil_sup_status() {
     {
         printf 'Vigil %s at %s\n' "$_su_instance" "$_su_iso"
         [ "$_su_reload_failed" -eq 1 ] && printf '\nCONFIGURATION REJECTED - the last valid configuration is active\n'
+        if [ "$_su_mode" = fetch ]; then
+            printf '\nSOURCES\n'
+            if [ "$_su_waiting" = 1 ]; then
+                printf '  waiting for the first fetch\n'
+            else
+                printf '  revision %s (%s)\n' "$_su_revision" "$VIGIL_ACT_ORIGIN"
+            fi
+            j=''
+            if [ -f "$_su_statedir/jobs/vigil_fetch.state" ] &&
+                grep '^status *= *failed' "$_su_statedir/jobs/vigil_fetch.state" > /dev/null 2>&1; then
+                j=$(sed -n 's/^reason *= *//p' "$_su_statedir/jobs/vigil_fetch.state")
+                printf '  last fetch failed: %s\n' "$j"
+            fi
+        fi
+        if [ -n "$_su_status_missing" ]; then
+            printf '\nFILE MISSING\n'
+            for j in $_su_status_missing; do printf '  %s\n' "$j"; done
+        fi
         if [ -n "$_su_uncertain" ]; then
             printf '\nUNCERTAIN\n'
             printf '%s' "$_su_uncertain" | sed 's/^/  /'

@@ -145,6 +145,7 @@ _vigil_pc_job() {
     _vigil_pc_program "$VIGIL_CMD_PROGRAM" || _vigil_pc_fail "job.$id: $_pc_why"
     _vigil_wk_get "job.$id" file ''
     _vigil_cmd_path "$_vw_value" posix "$_vw_root"
+    [ -n "${VIGIL_CMD_FILE-}" ] && _vc_path=$VIGIL_CMD_FILE
     [ -f "$_vc_path" ] || _vigil_pc_fail "job.$id: file not found: $_vc_path"
     vigil_config_effective "$id"
     i=0
@@ -174,6 +175,79 @@ _vigil_pc_job() {
     [ "$_pc_failed" -eq "$before" ] && _vigil_pc_ok "job.$id"
 }
 
+# What each source of the parsed configuration needs on this host: its
+# client program, or for a local source its directory.
+_vigil_pc_sources() {
+    local s=0 name dir
+    while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
+        name=${VIGIL_CFG_SEC_NAME[$s]}
+        s=$((s + 1))
+        case $name in source.*) ;; *) continue ;; esac
+        _vigil_wk_get "$name" type ''
+        case $_vw_value in
+            git | sftp)
+                if command -v "$_vw_value" > /dev/null 2>&1; then _vigil_pc_ok "$name: $_vw_value"
+                else _vigil_pc_fail "$name: $_vw_value not found"
+                fi
+                ;;
+            https)
+                if command -v curl > /dev/null 2>&1; then _vigil_pc_ok "$name: curl"
+                else _vigil_pc_fail "$name: curl not found"
+                fi
+                ;;
+            local)
+                _vigil_wk_get "$name" path ''
+                dir=$_vw_value
+                case $dir in /*) ;; *) dir="$_vw_root/$dir" ;; esac
+                if [ -d "$dir" ]; then _vigil_pc_ok "$name: $dir"
+                else _vigil_pc_fail "$name: not a directory: $dir"
+                fi
+                ;;
+        esac
+    done
+}
+
+# With sources (16.5): what each source needs, then the jobs. A pointer
+# file's jobs are those of the active configuration, once fetched; a local
+# file's are its own, each script from a source as the active record has it
+# cached. Nothing is fetched.
+_vigil_pc_fetch() {
+    local only=$1 id src remote
+    _vigil_pc_sources
+    _vigil_wk_get vigil config_source ''
+    remote=$_vw_value
+    if vigil_active_read "$2"; then
+        _vigil_pc_ok "configuration revision $VIGIL_ACT_REVISION is active ($VIGIL_ACT_ORIGIN)"
+        if [ -n "$remote" ]; then
+            vigil_config_parse "$VIGIL_ACT_CONFIG"
+            vigil_config_validate
+            _vigil_pc_sources
+        fi
+    elif [ -n "$remote" ]; then
+        _vigil_pc_ok "configuration: not fetched yet; the supervisor fetches it from source.$remote"
+        return 0
+    fi
+    _vigil_pc_jobs
+    for id in ${_pc_jobs[@]+"${_pc_jobs[@]}"}; do
+        [ -z "$only" ] || [ "$id" = "$only" ] || continue
+        _vigil_pc_invalid "$id" && continue
+        _vigil_wk_get "job.$id" source ''
+        if [ -z "$_vw_value" ]; then
+            _vigil_pc_job "$id"
+            continue
+        fi
+        src=$_vw_value
+        _vigil_wk_get "job.$id" file ''
+        if vigil_active_script "$src" "$_vw_value" && [ -f "$_va_path" ]; then
+            VIGIL_CMD_FILE=$_va_path
+            _vigil_pc_job "$id"
+            VIGIL_CMD_FILE=''
+        else
+            _vigil_pc_ok "job.$id: its script is fetched from source.$src when Vigil runs"
+        fi
+    done
+}
+
 # A directory Vigil writes to: it, or the nearest folder above it that
 # exists, must be writable. Nothing is created.
 _vigil_pc_dir() {
@@ -189,7 +263,7 @@ _vigil_pc_dir() {
 }
 
 vigil_precheck() {
-    local only=${2-} id s i end value sec
+    local only=${2-} id s i end value sec statedir
     local LC_ALL=C
     local -a _pc_jobs
     _pc_failed=0
@@ -236,9 +310,11 @@ vigil_precheck() {
     fi
 
     printf '\nChecks\n'
-    _vigil_wk_get vigil config_source ''
-    if [ -n "$_vw_value" ]; then
-        _vigil_pc_fail 'remote configuration needs the fetcher, which is not available yet'
+    # The state directory is always this file's (6.8).
+    _vigil_wk_dir vigil state_dir state
+    statedir=$_vw_dir
+    if vigil_fetch_mode; then
+        _vigil_pc_fetch "$only" "$statedir"
     else
         _vigil_pc_jobs
         for id in ${_pc_jobs[@]+"${_pc_jobs[@]}"}; do
@@ -252,7 +328,7 @@ vigil_precheck() {
     while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
         sec=${VIGIL_CFG_SEC_NAME[$s]}
         case $sec in
-            backend.* | secret_store.*)
+            backend.* | secret_store.* | source.*)
                 i=${VIGIL_CFG_SEC_FIRST[$s]}
                 end=$((i + VIGIL_CFG_SEC_COUNT[s]))
                 while [ "$i" -lt "$end" ]; do
@@ -289,14 +365,14 @@ vigil_precheck() {
         s=$((s + 1))
     done
 
-    _vigil_wk_dir vigil state_dir state
-    _vigil_pc_dir 'state directory' "$_vw_dir"
+    _vigil_pc_dir 'state directory' "$statedir"
     _vigil_wk_dir log dir logs
     _vigil_pc_dir 'log directory' "$_vw_dir"
     _vigil_wk_dir spool dir spool
     _vigil_pc_dir 'spool directory' "$_vw_dir"
     [ -z "${VIGIL_FAULT-}" ] || _vigil_pc_fail 'VIGIL_FAULT is set: fault injection is for tests only (22.4.1)'
     [ -z "${VIGIL_TEST_IMDS-}" ] || _vigil_pc_fail 'VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)'
+    [ -z "${VIGIL_TEST_SSH_CONFIG-}" ] || _vigil_pc_fail 'VIGIL_TEST_SSH_CONFIG is set: the ssh configuration override is for tests only (22.4.3)'
 
     printf '\n'
     if [ "$_pc_failed" -gt 0 ]; then
