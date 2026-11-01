@@ -82,7 +82,7 @@ section() {
         'Self-update|/bin/bash tests/integration/self-update.sh' \
         'Sources and the fetcher|/bin/bash tests/integration/fetch.sh' \
         'Log forwarding|/bin/bash tests/integration/logs.sh' || exit 1
-    section windows 'Windows (PowerShell 5.1)' \
+    section 'windows (PowerShell 5.1)' 'Windows (PowerShell 5.1)' \
         'Self-update|./tests/integration/Self-Update.ps1' \
         'Sources and the fetcher|./tests/integration/Fetch.ps1' \
         'Log forwarding|./tests/integration/Logs.ps1' || exit 1

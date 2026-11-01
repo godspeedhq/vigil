@@ -61,115 +61,69 @@ jobs:
       - name: installer (/bin/bash)
         run: /bin/bash tests/integration/install.sh
 
+  # One job per PowerShell, side by side: each takes about 17 minutes. Git
+  # Bash and the command-line round trip need only one, and run with 5.1.
   windows:
+    name: windows (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shell: powershell
+            label: PowerShell 5.1
+          - shell: pwsh
+            label: PowerShell 7
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
     steps:
       - uses: actions/checkout@v5
-      - name: conformance (Windows PowerShell 5.1)
-        shell: powershell
-        run: ./tests/Run-Conformance.ps1
-      - name: conformance (PowerShell 7)
-        shell: pwsh
+      - name: conformance
         run: ./tests/Run-Conformance.ps1
       - name: conformance (Git Bash)
+        if: matrix.shell == 'powershell'
         shell: bash
         run: bash tests/run-conformance.sh
       - name: command-line round trip (CommandLineToArgvW)
-        shell: powershell
+        if: matrix.shell == 'powershell'
         run: ./tests/Test-CommandLineRoundTrip.ps1
-      - name: integration (Windows PowerShell 5.1)
-        shell: powershell
+      - name: integration
         run: ./tests/integration/Run-Job.ps1
-      - name: supervisor (Windows PowerShell 5.1)
-        shell: powershell
+      - name: supervisor
         run: ./tests/integration/Supervise.ps1
-      - name: max_runtime (Windows PowerShell 5.1)
-        shell: powershell
+      - name: max_runtime
         run: ./tests/integration/Max-Runtime.ps1
-      - name: uncertain runs (Windows PowerShell 5.1)
-        shell: powershell
+      - name: uncertain runs
         run: ./tests/integration/Uncertain.ps1
-      - name: secrets (Windows PowerShell 5.1)
-        shell: powershell
+      - name: secrets
         run: ./tests/integration/Secrets.ps1
-      - name: precheck (Windows PowerShell 5.1)
-        shell: powershell
+      - name: precheck
         run: ./tests/integration/Precheck.ps1
-      - name: secret stores (Windows PowerShell 5.1)
-        shell: powershell
+      - name: secret stores
         run: ./tests/integration/Stores.ps1
-      - name: metrics backends (Windows PowerShell 5.1)
-        shell: powershell
+      - name: metrics backends
         run: ./tests/integration/Backends.ps1
       - name: OpenSSH server for the sftp source test
         shell: powershell
         continue-on-error: true
         timeout-minutes: 10
         run: Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
-      - name: sources and the fetcher (Windows PowerShell 5.1)
-        shell: powershell
+      - name: sources and the fetcher
         run: ./tests/integration/Fetch.ps1
-      - name: log forwarding (Windows PowerShell 5.1)
-        shell: powershell
+      - name: log forwarding
         run: ./tests/integration/Logs.ps1
-      - name: self update (Windows PowerShell 5.1)
-        shell: powershell
+      - name: self update
         run: ./tests/integration/Self-Update.ps1
         timeout-minutes: 15
-      - name: service registration (Windows PowerShell 5.1)
-        shell: powershell
+      - name: service registration
         run: ./tests/integration/Service.ps1
         timeout-minutes: 15
-      - name: init and uninstall (Windows PowerShell 5.1)
-        shell: powershell
+      - name: init and uninstall
         run: ./tests/integration/Init-Uninstall.ps1
-      - name: installer (Windows PowerShell 5.1)
-        shell: powershell
-        run: ./tests/integration/Install.ps1
-      - name: integration (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Run-Job.ps1
-      - name: supervisor (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Supervise.ps1
-      - name: max_runtime (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Max-Runtime.ps1
-      - name: uncertain runs (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Uncertain.ps1
-      - name: secrets (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Secrets.ps1
-      - name: precheck (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Precheck.ps1
-      - name: secret stores (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Stores.ps1
-      - name: metrics backends (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Backends.ps1
-      - name: sources and the fetcher (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Fetch.ps1
-      - name: log forwarding (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Logs.ps1
-      - name: self update (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Self-Update.ps1
-        timeout-minutes: 15
-      - name: service registration (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Service.ps1
-        timeout-minutes: 15
-      - name: init and uninstall (PowerShell 7)
-        shell: pwsh
-        run: ./tests/integration/Init-Uninstall.ps1
-      - name: installer (PowerShell 7)
-        shell: pwsh
+      - name: installer
         run: ./tests/integration/Install.ps1
       - name: secrets (Git Bash)
+        if: matrix.shell == 'powershell'
         shell: bash
         run: bash tests/integration/secrets.sh
