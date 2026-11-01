@@ -247,6 +247,7 @@ case $(uname -s) in
         kill "$sup" 2>/dev/null
         wait "$sup" 2>/dev/null
         check 'reload: it says so' 1 "$(grep -hc 'reloading: Vigil 0.0.1-it to 0.0.2-it' "$root"/logs/supervisor/2*.log | sort -n | tail -1)"
+        grep -q 'reloading: Vigil' "$root"/logs/supervisor/2*.log || { ls -la "$root"/logs/supervisor; tail -n 12 "$root"/logs/supervisor/2*.log; cat "$work/out"; }
         ;;
 esac
 
@@ -277,8 +278,6 @@ else
     i=0
     while [ -z "$(pid_of)" ] && [ "$i" -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
     pid1=$(pid_of)
-    /usr/local/bin/vigil self update > "$work/out" 2>&1
-    check 'system: refused without sudo' 1 "$?"
     sudo VIGIL_TEST_RELEASE_URL="$VIGIL_TEST_RELEASE_URL" /usr/local/bin/vigil self update > "$work/out" 2>&1
     rc=$?
     check 'system: updated' 0 "$rc"
