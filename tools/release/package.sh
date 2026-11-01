@@ -10,6 +10,7 @@
 #   vigil-<version>.zip      Windows
 #   install.sh, install.ps1  the installers, also published on their own
 #   SHA256SUMS               the SHA-256 of each, as sha256sum prints them
+#   SHA256SUMS.sig           its signature, when VIGIL_SIGN_KEY names a key
 #
 # Each archive holds one folder, vigil-<version>/, with app/ (and
 # app/VERSION), vendor/, install.sh, install.ps1, LICENSE and README.md.
@@ -57,5 +58,9 @@ cp "$repo/install.sh" "$repo/install.ps1" "$out/"
         shasum -a 256 "$name.tar.gz" "$name.zip" install.sh install.ps1
     fi
 ) | sed 's/ \*/  /' > "$out/SHA256SUMS" || exit 1
+# Signed in CI only, by .github/workflows/release.yml (17).
+if [ -n "${VIGIL_SIGN_KEY-}" ]; then
+    openssl dgst -sha256 -sign "$VIGIL_SIGN_KEY" -out "$out/SHA256SUMS.sig" "$out/SHA256SUMS" || exit 1
+fi
 printf 'packaged %s in %s\n' "$version" "$out"
 cat "$out/SHA256SUMS"
