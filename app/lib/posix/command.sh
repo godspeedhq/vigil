@@ -9,6 +9,8 @@
 # tests/conformance/command holds the shared cases.
 #
 #   vigil_job_command <job id> <windows|posix> <install root>
+#     With VIGIL_CMD_FILE set, that path is the job's file: the cached copy
+#     of a script from a source (16.5).
 #
 # Result:
 #   VIGIL_CMD_ERROR      empty, or an error code that makes the job INVALID
@@ -112,6 +114,8 @@ vigil_job_command() {
 
     _vigil_cmd_path "$file" "$platform" "$root"
     file=$_vc_path
+    # The cached copy of a script from a source, when the caller has it.
+    [ -n "${VIGIL_CMD_FILE-}" ] && file=$VIGIL_CMD_FILE
 
     if [ -n "$runner" ]; then
         _vigil_eff_get "runner.$runner" command

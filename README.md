@@ -18,7 +18,7 @@ Vigil runs your scripts on a schedule, watches every run from start to finish, a
 
 Vigil runs the work, records the work, and forwards the evidence. Storage, dashboards and alerting stay with the tools built for them.
 
-> **Status: early pre-release (v0.1.x).** Scheduling, supervision, recovery, service registration, the installers and the `file`, Datadog and OTLP metrics backends work end to end on all three platforms. Other backends, remote fetching and log forwarding are specified but not built yet. See [What works today](#what-works-today).
+> **Status: early pre-release (v0.1.x).** Scheduling, supervision, recovery, service registration, the installers, the `file`, Datadog and OTLP metrics backends, and fetching configuration and scripts from git, https, sftp and local sources work end to end on all three platforms. Other backends and log forwarding are specified but not built yet. See [What works today](#what-works-today).
 
 ---
 
@@ -87,7 +87,7 @@ Vigil's guiding rules:
 | Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done |
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done |
 | One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums, upgrades | Done |
-| Fetching configuration and scripts from git, https, sftp, shares | Validated, not fetched yet |
+| Fetching configuration and scripts from git, https, sftp and local directories or shares: digests, atomic activation, last good configuration | Done |
 | Forwarding Vigil's own logs (OTLP) | Specified, not built |
 | Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
 | Secret stores: HashiCorp Vault, Azure Key Vault, AWS Secrets Manager, GCP Secret Manager, over HTTPS with curl (and openssl) or .NET | Done |
@@ -670,6 +670,36 @@ Comments are whole lines starting with `#` or `;`. There are no inline comments:
 | `[log_forward]`, `[log_destination.<name>]` | Optional forwarding of Vigil's own logs |
 | `[secret_store.<name>]` | An external secret store, for `store:` references |
 
+### Sources
+
+A job's script can come from a source instead of `scripts/`, and the whole configuration can too:
+
+```ini
+[source.ops]
+type = git
+url  = https://git.example.com/ops/monitoring.git
+ref  = v2.3.1
+
+[source.files]
+type         = https
+url          = https://files.example.com/vigil/
+header_name  = Authorization
+header_value = env:VIGIL_FILES_AUTH
+
+[job.disk_usage]
+source    = ops
+file      = checks/disk_usage.sh
+run_every = 5m
+
+[job.cert_expiry]
+source    = files
+file      = cert_expiry.sh
+sha256    = 9f2c4e...(64 hex digits)
+run_at    = 06:00
+```
+
+A worker of Vigil's own, `vigil_fetch`, fetches what the configuration needs into `cache/`, checks each `sha256`, and only then activates it. Jobs always run a cached copy, never a file on a share or a server. If anything fails (a source down, a digest that does not match, a broken configuration), nothing changes: the last valid configuration keeps running, and `jobs.log` says why. With `config_source` and `config_file` in `[vigil]`, the local file only points at the real configuration, and every host following that source picks up a change at its next `check_every`. `jobs.log` shows the active revision; hosts with the same revision run the same configuration and the same scripts.
+
 ### Secrets
 
 Secrets are never written in the configuration file. Every credential is a **reference** that names where its value comes from:
@@ -793,9 +823,13 @@ Everything lives under one root, so uninstalling is a single delete:
     vigil.config                  your configuration (never overwritten)
     secrets/<NAME>                Vigil's secret store: owner-only; DPAPI-encrypted on Windows
   scripts/                      your job scripts (never overwritten)
+  cache/                        fetched scripts, by source and commit or digest (safe to delete)
   state/
     supervisor.lock               held open by the live supervisor
-    config.valid                  the last valid configuration
+    config.valid                  the last valid configuration (without sources)
+    config.active                 with sources: the activation record, naming the configuration and every cached script
+    configs/<sha256>.config       the configurations the activation records name
+    sources/<name>.state          each source's last check
     jobs/<job>.state              each job's last run: status, times, identities, summary
     locks/<job>.<run>.launch      a run launched, not yet claimed
     locks/<job>.<run>.token       held open by the live worker
@@ -874,6 +908,7 @@ powershell -File tests\Run-Conformance.ps1 # Windows PowerShell 5.1
 - crashes and abandoned launches;
 - `max_runtime` stopping a job that ignores TERM;
 - uncertain runs under each policy, with an unrelated process that must never be killed;
+- sources: git, https, local and sftp against local servers, digests, a remote configuration following a branch, and the last valid configuration surviving every kind of failure;
 - service registration in system and user mode, with a running job that must outlive `vigil stop` and `vigil service remove`.
 
 CI runs everything on macOS (with the system bash 3.2), Linux, Windows PowerShell 5.1 and PowerShell 7 for every pull request.

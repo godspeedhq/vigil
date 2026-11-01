@@ -700,7 +700,7 @@ run_at    = 06:00
 | --- | --- | --- |
 | `type` | all | `local`, `git`, `https` or `sftp`. Required. |
 | `path` | `local`, `sftp` | The source directory: a local path or a network share for `local` (relative paths resolve against the install root), a remote directory for `sftp`. Required for those types. |
-| `url` | `git`, `https` | The repository URL for `git`: `https://`, `ssh://` or `user@host:path`. The base URL for `https`, which must use `https://`. Credentials in a URL are rejected. Required for those types. |
+| `url` | `git`, `https` | The repository URL for `git`: `https://`, `ssh://` or `user@host:path`. The base URL for `https`, which must use `https://`. Plain `http://` is accepted only for this host (`localhost`, `127.0.0.1`, `[::1]`), as for a metrics backend (§15.3). Credentials in a URL are rejected. Required for those types. |
 | `host`, `port`, `user` | `sftp` | Server, port (default `22`) and login. Authentication uses the service account's SSH key; `user` is not a secret. `host` is required. |
 | `ref` | `git` | The tag, commit or branch everything from this source is taken at. Required. |
 | `check_every` | all | How often the source is checked for changes. Default `5m`. |
@@ -1083,14 +1083,19 @@ Everything lives under one install root (§18.6 gives the root per platform):
     vigil.config          the configuration, or a pointer to it (§6.8); never overwritten
     secrets/<NAME>        Vigil's secret store (§6.5.2): owner-only; encrypted with DPAPI on Windows
   scripts/                the operator's job scripts - never overwritten
-  cache/                  fetched configuration and scripts (§16.5); Vigil-owned
+  cache/                  fetched configuration and scripts (§16.5); Vigil-owned, safe to delete
     <source>/repo.git       git: bare mirror, never checked out
     <source>/<commit>/      git: the tree at one commit, read-only once complete
-    <source>/files/<sha256>/<name>   https, sftp, local: one file by content
+    <source>/<sha256>/<file>   https, sftp: one file, by the digest of its content
+    <source>/<sha256>/      local: a copy of the directory, by the digest of its contents
     staging/                fetches in progress
   state/
-    config.active                 the active configuration record (§16.5)
-    config.valid                  a copy of the last valid local configuration, kept active while a newer one is rejected (§16.3)
+    config.active                 the activation record (§16.5)
+    config.previous               the record it replaced, whose cache entries are kept for a rollback
+    configs/<sha256>.config       each configuration the records name, by content
+    config.valid                  without sources: a copy of the last valid local configuration, kept active while a newer one is rejected (§16.3)
+    sources/<name>.state          each source's last check: when, what it found, and its last error
+    fetch.next                    when the fetcher is next due, and the local file it last read
     supervisor.lock               held open by the live supervisor
     jobs/<job id>.state
     jobs/vigil_sender.state
@@ -1204,7 +1209,7 @@ Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every
 
 ### 13.2 Status File
 
-`logs/supervisor/jobs.log` is rewritten every tick and is the primary operator view. It groups jobs into sections:
+`logs/supervisor/jobs.log` is rewritten every tick and is the primary operator view. With sources (§6.9), it first shows `SOURCES`: the active revision and where it came from, or `waiting for the first fetch`, and the reason the last fetch failed, if it did. It then groups jobs into sections:
 
 - `UNCERTAIN` (with the reason; §11.4)
 - `CRASHED` / `ORPHANED`
@@ -1444,7 +1449,7 @@ This works for every plugin, whether its labels are fixed names (`rta`, `pl`, `t
 | `vigil.config.info` | gauge, `1` every tick, tagged `revision` (the active configuration revision, §16.5) |
 | `vigil.config.activated` | count, when a new revision becomes active |
 | `vigil.source.check_age` | gauge, seconds since the last successful check, tagged by source |
-| `vigil.source.failures` | count, tagged by source and `reason` (unreachable, timeout, auth, digest, invalid, unpinned) |
+| `vigil.source.failures` | count, tagged by source and `reason` (unreachable, timeout, auth, digest, invalid) |
 | `vigil.spool.bytes` | gauge |
 | `vigil.spool.dropped` | count, tagged by backend and `reason` (spool_full, backend_removed, not_implemented, rejected, too_old, invalid) |
 | `vigil.backend.failures` | count, tagged by backend |
@@ -1623,7 +1628,7 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | | `E_STORE_CLIENT` | `client = cli` with an `auth` the vendor's CLI could only use by keeping a credential on disk (§6.5.3). |
 | Sources | `E_SOURCE_UNKNOWN` | A job or `config_source` names a source that is not defined. |
 | | `E_SOURCE_PATH` | A `file` or `config_file` inside a source that is absolute, uses `\` or contains a `..` segment. |
-| | `E_URL` | A malformed URL, an `https` source URL not starting with `https://`, or a URL containing credentials (never shown). |
+| | `E_URL` | A malformed URL, a source URL using plain `http://` to another host, or a URL containing credentials (never shown). |
 | | `E_SHA256`, `E_SHA256_REQUIRED` | Not 64 hex digits, or missing for a script from an `https` or `sftp` source. |
 | Jobs | `E_SCHEDULE_NONE`, `E_SCHEDULE_BOTH`, `E_SCHEDULE_DAYS_ONLY` | An invalid schedule combination (§7.5). |
 | | `E_JOB_ID_RESERVED` | A job id starting with `vigil_`. |
@@ -1673,7 +1678,9 @@ Install and start abort with no changes if any check fails.
 
 Vigil watches the configuration and the sources it names. A source pinned to a tag, a commit or a digest never changes; one following a branch or a directory is picked up at its next check (§6.9). Nothing is activated until everything it needs is present and verified.
 
-**Fetcher.** Fetching is done by a worker, `vigil_fetch`, started and supervised like `vigil_sender` (§4.5): detached, with its own state, run token, log and identity checks. A slow or unreachable source therefore never delays a tick, and at most one fetcher runs at a time. The supervisor starts it when a source is due for its check, or when a local change references a script that is not yet cached.
+**Fetcher.** Fetching is done by a worker, `vigil_fetch`, started and supervised like `vigil_sender` (§4.5): detached, with its own state, run token, log and identity checks. A slow or unreachable source therefore never delays a tick, and at most one fetcher runs at a time. The supervisor starts it when a source is due for its check, or when the local file changed: each fetcher run leaves `state/fetch.next`, with the time of the earliest next check and the digest of the local file it read.
+
+Until the first activation record exists, nothing runs: `jobs.log` shows `waiting for the first fetch`, and `vigil run` refuses with the same reason.
 
 **Reconciliation.** One fetcher run:
 
@@ -1687,7 +1694,21 @@ The supervisor reads `state/config.active` each tick. When it changes, the super
 
 If anything fails — a source unreachable, a timeout, a rejected login, a digest mismatch, an invalid candidate — nothing changes: the previous activation record, and every file it names, stays in force. The failure is posted (`vigil.source.failures`, §14.5), shown in `jobs.log`, and retried at the next check. A host that loses its source keeps running its last valid configuration indefinitely.
 
-**Activation record.** Names the configuration file and every cached script of the active configuration, each with its digest, and the configuration revision. The revision is the first 12 hex digits of a SHA-256 over those names and digests. Two hosts with the same revision run the same configuration and the same script content. The record survives restarts, so a host that restarts while its source is unreachable starts with its last valid configuration. Purely local configurations have a revision too.
+**Activation record.** Names the configuration file and every cached script of the active configuration, each with its digest, and the configuration revision. The revision is the first 12 hex digits of a SHA-256 over those names and digests. Two hosts with the same revision run the same configuration and the same script content. The record survives restarts, so a host that restarts while its source is unreachable starts with its last valid configuration. Purely local configurations have a revision too: the first 12 hex digits of the SHA-256 of `config <digest of the file>` and a newline.
+
+```ini
+[active]
+schema_version = 1
+revision       = 3f2a9c0d41b7
+config         = 9e1c...(64 hex digits; the file is state/configs/<digest>.config)
+origin         = source.central hosts/db01.config
+script         = scripts 4b8e2f...(the commit) 7d02a1...(the file's sha256) checks/disk_usage.sh
+activated_epoch = 1793526428
+```
+
+The revision is computed over the lines `config <digest>` and, for each script in the order the jobs name them, `script <source> <file> <digest>`, each ending in a newline. The configuration itself is kept in `state/`, not in the cache, so deleting the cache never loses it.
+
+A job pinned by `sha256` whose source now holds other content keeps its last verified copy: the fetcher logs that it no longer matches, and the record keeps naming that copy (§6.9). A `git` source whose `ref` is a branch is logged as unpinned (`W_SCRIPT_UNPINNED`) in the fetcher's log whenever it moves.
 
 **Running jobs.** A run executes the cached copy named when it was launched, recorded in its launch record and state. Activating a new revision never touches a running run or its files.
 
@@ -1698,11 +1719,11 @@ If anything fails — a source unreachable, a timeout, a rejected login, a diges
 | Type | How it is fetched |
 | --- | --- |
 | `git` | `git fetch` of the needed refs into a bare mirror (`cache/<source>/repo.git`), then `git archive` of the commit into `cache/<source>/<commit>/`. Nothing is checked out in the mirror, so no repository hook, filter or submodule ever runs. A tree containing a symbolic link that points outside it is rejected. Credentials come from the service account's Git credential helper or SSH key; Vigil never passes a token on a command line or in a URL. |
-| `https` | `curl` on Linux and macOS, with the authentication header passed on stdin (`curl -K -`); `Invoke-WebRequest` on Windows. Certificate verification is never disabled. Redirects to plain HTTP are refused. |
-| `sftp` | The OpenSSH `sftp` client in batch mode with `BatchMode=yes` and `StrictHostKeyChecking=yes`: the server's host key must already be in the service account's `known_hosts`, so a first connection can never silently trust an impostor. |
-| `local` | A copy from the directory, so a job never runs a file directly from a share that may change or disappear under it. |
+| `https` | `curl` on Linux and macOS, with the authentication header passed on stdin (`curl -K -`); .NET's `HttpWebRequest` on Windows. Certificate verification is never disabled, and redirects are not followed, so none can lead to plain HTTP. A script is fetched once: its `sha256` names it, and a cached copy that verifies is never fetched again. |
+| `sftp` | The OpenSSH `sftp` client in batch mode with `BatchMode=yes` and `StrictHostKeyChecking=yes`: the server's host key must already be in the service account's `known_hosts`, so a first connection can never silently trust an impostor. Like `https`, a script is fetched once. |
+| `local` | A copy from the directory (`cp -R`; `robocopy` on Windows), so a job never runs a file directly from a share that may change or disappear under it. |
 
-Every fetch is bounded by the source's `timeout`; a fetched configuration file larger than 1 MiB, or a script larger than 16 MiB, is rejected.
+On Windows, `git archive` writes a zip file, which .NET unpacks. Every fetch is bounded by the source's `timeout`, and the fetcher ends the process tree it started at that limit; a fetched configuration file larger than 1 MiB, or a script larger than 16 MiB, is rejected. Git is never allowed to stop and ask for a credential.
 
 ---
 
@@ -2022,6 +2043,12 @@ A crash point only ever makes Vigil's own process exit; it cannot change behavio
 ### 22.4.2 Test Endpoints
 
 The built-in secret stores (§6.5.3) are tested against a local mock of each service over real HTTPS, with a certificate authority made for the run and trusted only through `ca_file`. The one address no configuration can change is the instance metadata endpoint (`169.254.169.254`); the environment variable `VIGIL_TEST_IMDS` replaces it, and is accepted only as `http://127.0.0.1:<port>`. The metadata request carries no credential, so the override cannot leak one. Pre-flight fails if it is set, like `VIGIL_FAULT`.
+
+### 22.4.3 Test SSH Configuration
+
+The `sftp` source (§16.5) is tested against an OpenSSH server the test starts as its own user, with a host key made for the run. The ssh client reads the service account's own `~/.ssh`, which a test must not touch; the environment variable `VIGIL_TEST_SSH_CONFIG` names an ssh configuration file passed to `sftp` with `-F` instead, giving the test's known hosts and key. Options on the command line take precedence over that file, so it cannot turn off `BatchMode` or host key checking. Pre-flight fails if it is set, like `VIGIL_FAULT`.
+
+The `git` and `https` sources are tested against a small local file server over plain HTTP on `127.0.0.1` (a Git repository through Git's "dumb" HTTP protocol), and `local` against a directory.
 
 ### 22.5 Platform Matrix
 

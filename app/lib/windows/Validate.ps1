@@ -471,16 +471,20 @@ function Test-VigilValue {
             # shown, since a mistaken one may carry a password.
             $u = @{ Code = ''; Message = '' }
             $gitForms = "a git 'url' must be https://, ssh:// or user@host:path"
+            # Plain http only to this host, as for a metrics backend (15.3).
+            $thisHost = $Value -cmatch '^http://(localhost|127\.0\.0\.1|\[::1\])([:/]|$)'
             if ($Ctx.SType -ceq 'https') {
                 if ($Value.StartsWith('https://', [System.StringComparison]::Ordinal)) {
                     $u = Test-VigilUrlAuthority $Value.Substring(8) 'https'
                 }
+                elseif ($thisHost) { $u = Test-VigilUrlAuthority $Value.Substring(7) 'https' }
                 else { $u = @{ Code = 'E_URL'; Message = "the 'url' of an https source must start with https://" } }
             }
             elseif ($Ctx.SType -ceq 'git') {
                 if ($Value.StartsWith('https://', [System.StringComparison]::Ordinal)) {
                     $u = Test-VigilUrlAuthority $Value.Substring(8) 'https'
                 }
+                elseif ($thisHost) { $u = Test-VigilUrlAuthority $Value.Substring(7) 'https' }
                 elseif ($Value.StartsWith('ssh://', [System.StringComparison]::Ordinal)) {
                     $u = Test-VigilUrlAuthority $Value.Substring(6) 'ssh'
                 }

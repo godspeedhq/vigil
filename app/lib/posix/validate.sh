@@ -532,16 +532,21 @@ _vigil_val_check() {
         url)
             # Checked against the source's type; the URL itself is never
             # shown, since a mistaken one may carry a password.
+            # Plain http only to this host, as for a metrics backend (15.3).
             case $_vv_stype in
                 https)
                     case $value in
                         https://*) _vigil_val_authority "${value#https://}" https ;;
+                        http://localhost | http://localhost[:/]* | http://127.0.0.1 | http://127.0.0.1[:/]* | 'http://[::1]' | 'http://[::1]'[:/]*)
+                            _vigil_val_authority "${value#http://}" https ;;
                         *) _vv_code=E_URL; _vv_msg="the 'url' of an https source must start with https://" ;;
                     esac
                     ;;
                 git)
                     case $value in
                         https://*) _vigil_val_authority "${value#https://}" https ;;
+                        http://localhost | http://localhost[:/]* | http://127.0.0.1 | http://127.0.0.1[:/]* | 'http://[::1]' | 'http://[::1]'[:/]*)
+                            _vigil_val_authority "${value#http://}" https ;;
                         ssh://*) _vigil_val_authority "${value#ssh://}" ssh ;;
                         *://*) _vv_code=E_URL; _vv_msg="a git 'url' must be https://, ssh:// or user@host:path" ;;
                         *)

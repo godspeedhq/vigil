@@ -165,61 +165,133 @@ function Invoke-VigilSupervisor {
         catch { }
     }
 
+    # The settings of the active configuration; the state directory is
+    # always the local file's.
+    $apply = {
+        param($Parsed, $Records)
+        $sv.Parsed = $Parsed
+        $sv.Records = $Records
+        $sv.Index = New-VigilConfigIndex -Parsed $Parsed
+        $dir = {
+            param($Section, $Key, $Default)
+            $v = Get-VigilConfigValue $Parsed $Section $Key $Default
+            if ([System.IO.Path]::IsPathRooted($v)) { return $v }
+            return Join-Path $sv.Root $v
+        }
+        $sv.Logs = & $dir 'log' 'dir' 'logs'
+        $sv.Spool = & $dir 'spool' 'dir' 'spool'
+        $sv.Instance = Get-VigilConfigValue $Parsed 'vigil' 'instance' 'vigil'
+        $sv.Max = [int](Get-VigilConfigValue $Parsed 'vigil' 'max_concurrent' '5')
+        $sv.MaxPending = [int](Get-VigilConfigValue $Parsed 'scheduler' 'max_pending' '20')
+        $tick = Get-VigilConfigValue $Parsed 'scheduler' 'tick' '60s'
+        $n = [int]$tick.Substring(0, $tick.Length - 1)
+        $sv.Tick = switch ($tick[-1]) { 's' { $n } 'm' { $n * 60 } 'h' { $n * 3600 } default { $n * 86400 } }
+        $tags = "host=$($sv.HostName) os=windows instance=$($sv.Instance)"
+        foreach ($e in $Parsed.Entries) { if ($e.Section -ceq 'tags') { $tags += " $($e.Key)=$($e.Value)" } }
+        $sv.Tags = $tags
+    }
+
     # Loads the configuration when it changed. An invalid one is rejected
-    # and the last valid one, kept in state\config.valid, stays active.
+    # and the last valid one stays active (16.3): kept in state\config.valid,
+    # or with sources, the one state\config.active names (16.5).
     $loadConfig = {
         $path = Join-Path $sv.Root 'config\vigil.config'
         $sum = ''
-        try { $sum = [System.BitConverter]::ToString((New-Object System.Security.Cryptography.SHA256Managed).ComputeHash([System.IO.File]::ReadAllBytes($path))) } catch { }
-        if ($sum -ceq $sv.Sum -and $sv.Parsed) { return $true }
-        $sv.Sum = $sum
-        $parsed = ConvertFrom-VigilConfig -Path $path
-        $records = Test-VigilConfig -Parsed $parsed
-        $err = ''
-        if ($parsed.Errors.Count -gt 0 -or @($records | Where-Object { $_.Kind -ceq 'ERROR' }).Count -gt 0) {
-            $err = 'the configuration has errors; run vigil precheck'
-        }
-        elseif ((Get-VigilConfigValue $parsed 'vigil' 'config_source' '').Length -gt 0) {
-            $err = 'remote configuration needs the fetcher, which is not available yet'
-        }
-        if ($err) {
-            $sv.Error = $err
-            # Every problem, each on its own line (16.3).
-            $sv.Report = @((Format-VigilConfigReport -Parsed $parsed -Records $records).Split("`n") | Where-Object { $_ })
-            if ($sv.Parsed) {
+        try { $sum = Get-VigilFileSha $path } catch { }
+        if ($sum -cne $sv.Sum -or -not $sv.Mode) {
+            $sv.Sum = $sum
+            $parsed = ConvertFrom-VigilConfig -Path $path
+            $records = Test-VigilConfig -Parsed $parsed
+            if ($parsed.Errors.Count -gt 0 -or @($records | Where-Object { $_.Kind -ceq 'ERROR' }).Count -gt 0) {
+                $err = 'the configuration has errors; run vigil precheck'
+                $sv.Error = $err
+                # Every problem, each on its own line (16.3).
+                $sv.Report = @((Format-VigilConfigReport -Parsed $parsed -Records $records).Split("`n") | Where-Object { $_ })
+                if (-not $sv.Mode) { return $false }
                 & $log 'ERROR' "configuration rejected, the last valid one stays active: $err"
                 foreach ($l in $sv.Report) { & $log 'ERROR' "  $l" }
                 $sv.ReloadFailed = 1
                 return $true
             }
-            return $false
+            $sv.ReloadFailed = 0
+            $sv.State = Get-VigilConfigValue $parsed 'vigil' 'state_dir' 'state'
+            if (-not [System.IO.Path]::IsPathRooted($sv.State)) { $sv.State = Join-Path $sv.Root $sv.State }
+            [void](New-Item -ItemType Directory -Force -Path $sv.State)
+            if (Test-VigilFetchMode -Parsed $parsed) {
+                # What the fetcher last saw of this file tells whether it
+                # must look again.
+                $sv.Mode = 'fetch'
+                $sv.LocalParsed = $parsed
+                $sv.LocalRecords = $records
+                $sv.ActSum = '-'
+            }
+            else {
+                $sv.Mode = 'local'
+                $sv.Waiting = $false
+                # A purely local configuration has a revision too (16.5).
+                $sv.Revision = (Get-VigilTextSha "config $sum`n").Substring(0, 12)
+                & $apply $parsed $records
+                Write-VigilFileAtomic -Path (Join-Path $sv.State 'config.valid') -Text ([System.IO.File]::ReadAllText($path))
+                & $log 'INFO' 'configuration loaded'
+                return $true
+            }
         }
-        $sv.ReloadFailed = 0
-        $sv.Parsed = $parsed
-        $sv.Records = $records
-        $sv.Index = New-VigilConfigIndex -Parsed $parsed
-        $dir = {
-            param($Section, $Key, $Default)
-            $v = Get-VigilConfigValue $parsed $Section $Key $Default
-            if ([System.IO.Path]::IsPathRooted($v)) { return $v }
-            return Join-Path $sv.Root $v
+        if ($sv.Mode -cne 'fetch') { return $true }
+        $asum = ''
+        try { $asum = Get-VigilFileSha (Join-Path $sv.State 'config.active') } catch { }
+        if ($asum -ceq $sv.ActSum) { return $true }
+        $sv.ActSum = $asum
+        $active = Read-VigilActive -Root $sv.Root -State $sv.State
+        $ok = $false
+        if ($active) {
+            $p = ConvertFrom-VigilConfig -Path $active.Config
+            $r = Test-VigilConfig -Parsed $p
+            $ok = $p.Errors.Count -eq 0 -and @($r | Where-Object { $_.Kind -ceq 'ERROR' }).Count -eq 0
         }
-        $sv.State = & $dir 'vigil' 'state_dir' 'state'
-        $sv.Logs = & $dir 'log' 'dir' 'logs'
-        $sv.Spool = & $dir 'spool' 'dir' 'spool'
-        $sv.Instance = Get-VigilConfigValue $parsed 'vigil' 'instance' 'vigil'
-        $sv.Max = [int](Get-VigilConfigValue $parsed 'vigil' 'max_concurrent' '5')
-        $sv.MaxPending = [int](Get-VigilConfigValue $parsed 'scheduler' 'max_pending' '20')
-        $tick = Get-VigilConfigValue $parsed 'scheduler' 'tick' '60s'
-        $n = [int]$tick.Substring(0, $tick.Length - 1)
-        $sv.Tick = switch ($tick[-1]) { 's' { $n } 'm' { $n * 60 } 'h' { $n * 3600 } default { $n * 86400 } }
-        [void](New-Item -ItemType Directory -Force -Path $sv.State)
-        Write-VigilFileAtomic -Path (Join-Path $sv.State 'config.valid') -Text ([System.IO.File]::ReadAllText($path))
-        $tags = "host=$($sv.HostName) os=windows instance=$($sv.Instance)"
-        foreach ($e in $parsed.Entries) { if ($e.Section -ceq 'tags') { $tags += " $($e.Key)=$($e.Value)" } }
-        $sv.Tags = $tags
-        & $log 'INFO' 'configuration loaded'
+        if ($ok) {
+            $sv.Active = $active
+            $sv.Waiting = $false
+            & $apply $p $r
+            if ($active.Revision -cne $sv.Revision) {
+                $sv.Revision = $active.Revision
+                & $log 'INFO' "configuration revision $($sv.Revision) loaded ($($active.Origin))"
+            }
+        }
+        else {
+            # Nothing fetched yet: no job runs until everything it needs is
+            # present and verified (16.5).
+            $sv.Active = $null
+            $sv.Waiting = $true
+            & $apply $sv.LocalParsed $sv.LocalRecords
+            & $log 'INFO' 'waiting for the first fetch from the configuration''s sources'
+        }
         return $true
+    }
+
+    # A job's cached script, when its file comes from a source: @{ Ok;
+    # Path }, Path empty for a local file.
+    $scriptOf = {
+        param([string]$Job)
+        if ($sv.Mode -cne 'fetch') { return @{ Ok = $true; Path = '' } }
+        $src = Get-VigilConfigValue $sv.Parsed "job.$Job" 'source' ''
+        if (-not $src) { return @{ Ok = $true; Path = '' } }
+        $p = Get-VigilActiveScript -Root $sv.Root -Active $sv.Active -Source $src -File (Get-VigilConfigValue $sv.Parsed "job.$Job" 'file' '')
+        if ($p -and [System.IO.File]::Exists($p)) { return @{ Ok = $true; Path = $p } }
+        return @{ Ok = $false; Path = '' }
+    }
+
+    # Whether the fetcher should run: when no fetch has been made, when the
+    # local file changed since the last, or when a source is due (16.5).
+    $fetchDue = {
+        $p = Join-Path $sv.State 'fetch.next'
+        if (-not [System.IO.File]::Exists($p)) { return $true }
+        $next = ''; $local = ''
+        foreach ($l in [System.IO.File]::ReadAllLines($p)) {
+            if ($l -cmatch '^next_epoch = (.*)$') { $next = $Matches[1] }
+            elseif ($l -cmatch '^local = (.*)$') { $local = $Matches[1] }
+        }
+        if ($local -cne $sv.Sum) { return $true }
+        return (-not $next) -or $sv.Epoch -ge [long]$next
     }
 
     $event = {
@@ -436,13 +508,19 @@ function Invoke-VigilSupervisor {
 
     # Starts a launched run as a detached worker.
     $start = {
-        param([string]$Job)
+        param([string]$Job, [string]$Script)
         $sv.Seq++
         $rid = "$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ', [System.Globalization.CultureInfo]::InvariantCulture))-$PID-$($sv.Seq)"
         $locks = Join-Path $sv.State 'locks'
         [void](New-Item -ItemType Directory -Force -Path $locks)
-        Write-VigilFileAtomic -Path (Join-Path $locks "$Job.$rid.launch") -Text (
-            "[launch]`njob           = $Job`nrun_id        = $rid`nboot_id       = $($sv.Boot)`nlaunch_epoch  = $($sv.Epoch)`n")
+        $text = "[launch]`njob           = $Job`nrun_id        = $rid`nboot_id       = $($sv.Boot)`nlaunch_epoch  = $($sv.Epoch)`n"
+        # The configuration and script the run uses (16.5), whatever is
+        # activated while it runs.
+        if ($sv.Mode -ceq 'fetch' -and $Job -cne 'vigil_fetch') {
+            $text += "config        = $($sv.Active.Config)`n"
+            if ($Script) { $text += "script        = $Script`n" }
+        }
+        Write-VigilFileAtomic -Path (Join-Path $locks "$Job.$rid.launch") -Text $text
         $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $App 'vigil.ps1'),
             '-Root', $sv.Root, 'worker', $Job, '--run-id', $rid)
         $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -471,12 +549,13 @@ function Invoke-VigilSupervisor {
         $sv.Uncertain = New-Object 'System.Collections.Generic.List[string]'
         $sv.Replacing = New-Object 'System.Collections.Generic.HashSet[string]'
         $sv.Crashed = New-Object 'System.Collections.Generic.List[string]'
-        $status = @{ Running = @(); Waiting = @(); Disabled = @(); Invalid = @(); Last = @() }
+        $status = @{ Running = @(); Waiting = @(); Disabled = @(); Invalid = @(); Last = @(); Missing = @() }
 
         [void](& $loadConfig)
 
         foreach ($sec in $sv.Parsed.Sections) {
             if (-not $sec.Name.StartsWith('job.', [System.StringComparison]::Ordinal)) { continue }
+            if ($sv.Waiting) { break }
             $job = $sec.Name.Substring(4)
             $inv = @($sv.Records | Where-Object { $_.Kind -ceq 'INVALID' -and $_.Job -ceq $job })
             if ($inv.Count -gt 0) {
@@ -501,6 +580,14 @@ function Invoke-VigilSupervisor {
             }
             if ($sv.Queued.Contains($job)) { $active = 'queued' }
             if ($sv.Pending.Contains($job)) { $active = 'running' }
+
+            # A script from a source that is not cached: FILE MISSING until
+            # it is fetched again (16.3, 16.5).
+            if (-not (& $scriptOf $job).Ok) {
+                & $event $job 'file_missing' '1' 'gauge'
+                $status.Missing += $job
+                continue
+            }
 
             $cfile = Join-Path $sv.State "schedule\$job.cursor"
             $cursor = '-'
@@ -541,7 +628,12 @@ function Invoke-VigilSupervisor {
         # max_pending, runs are skipped.
         $next = New-Object 'System.Collections.Generic.List[string]'
         foreach ($job in $sv.Pending) {
-            if ($sv.Running -lt $sv.Max) { & $start $job; $status.Running += $job }
+            if ($sv.Running -lt $sv.Max) {
+                $sc = & $scriptOf $job
+                if (-not $sc.Ok) { continue }
+                & $start $job $sc.Path
+                $status.Running += $job
+            }
             else { $next.Add($job) }
         }
         $sv.Pending = New-Object 'System.Collections.Generic.List[string]'
@@ -557,6 +649,16 @@ function Invoke-VigilSupervisor {
         & $event '' 'workers' "$($sv.Running)" 'gauge'
         & $event '' 'pending' "$($sv.Pending.Count)" 'gauge'
         & $event '' 'config_reload_failed' "$($sv.ReloadFailed)" 'gauge'
+        # The active revision, and how long since each source was last
+        # checked successfully (14.5).
+        if (-not $sv.Waiting) { $sv.Events.Add("$($sv.Epoch) vigil.config.info 1 gauge $($sv.Tags) revision=$($sv.Revision)") }
+        $srcDir = Join-Path $sv.State 'sources'
+        if ($sv.Mode -ceq 'fetch' -and [System.IO.Directory]::Exists($srcDir)) {
+            foreach ($p in [System.IO.Directory]::GetFiles($srcDir, '*.state')) {
+                $okAt = @([System.IO.File]::ReadAllLines($p) | Where-Object { $_ -cmatch '^ok_epoch += \d+$' } | ForEach-Object { $_ -creplace '^ok_epoch += ', '' })[0]
+                if ($okAt) { $sv.Events.Add("$($sv.Epoch) vigil.source.check_age $($sv.Epoch - [long]$okAt) gauge $($sv.Tags) source=$([System.IO.Path]::GetFileNameWithoutExtension($p))") }
+            }
+        }
         $incoming = Join-Path $sv.Spool 'incoming'
         [void](New-Item -ItemType Directory -Force -Path $incoming)
         Write-VigilFileAtomic -Path (Join-Path $incoming "$($sv.Epoch)-vigil_supervisor.events") -Text (($sv.Events | ForEach-Object { "$_`n" }) -join '')
@@ -565,7 +667,7 @@ function Invoke-VigilSupervisor {
         # anything. It is Vigil's own worker and does not count against
         # max_concurrent.
         $acc = & $account 'vigil_sender'
-        if ($acc.Active -ceq '-') {
+        if ($acc.Active -ceq '-' -and -not $sv.Waiting) {
             $queued = $false
             foreach ($d in @((Join-Path $sv.Spool 'incoming'), (Join-Path $sv.Spool 'fanout'))) {
                 if ([System.IO.Directory]::Exists($d) -and [System.IO.Directory]::GetFiles($d, '*.events').Count -gt 0) { $queued = $true }
@@ -579,11 +681,31 @@ function Invoke-VigilSupervisor {
             if ($queued) { & $start 'vigil_sender' }
         }
 
+        # The fetcher (16.5): like the sender, one at a time, outside
+        # max_concurrent, so a slow source never delays a tick.
+        if ($sv.Mode -ceq 'fetch') {
+            $acc = & $account 'vigil_fetch'
+            if ($acc.Active -ceq '-' -and (& $fetchDue)) { & $start 'vigil_fetch' }
+        }
+
         # jobs.log (13.2), rewritten every tick.
         $sb = New-Object System.Text.StringBuilder
         [void]$sb.Append("Vigil $($sv.Instance) at $($sv.Iso)`r`n")
         if ($sv.ReloadFailed) { [void]$sb.Append("`r`nCONFIGURATION REJECTED - the last valid configuration is active`r`n") }
-        foreach ($s in @(@('UNCERTAIN', $sv.Uncertain), @('CRASHED', $sv.Crashed), @('INVALID', $status.Invalid),
+        if ($sv.Mode -ceq 'fetch') {
+            [void]$sb.Append("`r`nSOURCES`r`n")
+            if ($sv.Waiting) { [void]$sb.Append("  waiting for the first fetch`r`n") }
+            else { [void]$sb.Append("  revision $($sv.Revision) ($($sv.Active.Origin))`r`n") }
+            $fst = Join-Path $sv.State 'jobs\vigil_fetch.state'
+            if ([System.IO.File]::Exists($fst)) {
+                $fl = [System.IO.File]::ReadAllLines($fst)
+                if (@($fl | Where-Object { $_ -cmatch '^status +=( failed)$' }).Count -gt 0) {
+                    $why = @($fl | Where-Object { $_ -cmatch '^reason +=' } | ForEach-Object { $_ -creplace '^reason +=\s?', '' })[0]
+                    [void]$sb.Append("  last fetch failed: $why`r`n")
+                }
+            }
+        }
+        foreach ($s in @(@('FILE MISSING', $status.Missing), @('UNCERTAIN', $sv.Uncertain), @('CRASHED', $sv.Crashed), @('INVALID', $status.Invalid),
                 @('RUNNING', $status.Running), @('PENDING', $sv.Pending), @('WAITING', $status.Waiting),
                 @('DISABLED', $status.Disabled), @('LAST RUN', $status.Last))) {
             if (@($s[1]).Count -eq 0) { continue }

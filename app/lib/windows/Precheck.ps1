@@ -92,9 +92,9 @@ function Test-VigilWritableDir {
 function Invoke-VigilPrecheck {
     param([string]$Root, [string]$Job)
     $out = New-Object 'System.Collections.Generic.List[string]'
-    $failed = 0
+    $n = @{ Failed = 0 }
     $ok = { param($What) $out.Add("  ok    $What") }
-    $fail = { param($What) $out.Add("  FAIL  $What"); Set-Variable -Name failed -Scope 1 -Value ($failed + 1) }
+    $fail = { param($What) $out.Add("  FAIL  $What"); $n.Failed++ }
 
     $path = Join-Path $Root 'config\vigil.config'
     $parsed = ConvertFrom-VigilConfig -Path $path
@@ -107,7 +107,7 @@ function Invoke-VigilPrecheck {
     else {
         foreach ($l in (Format-VigilConfigReport -Parsed $parsed -Records $records).TrimEnd("`n").Split("`n")) { $out.Add("  $l") }
     }
-    $failed = $errors + $invalid
+    $n.Failed = $errors + $invalid
     if ($errors -gt 0) {
         $out.Add('')
         $out.Add('precheck failed: the configuration is rejected; nothing else was checked')
@@ -129,48 +129,107 @@ function Invoke-VigilPrecheck {
 
     $out.Add('')
     $out.Add('Checks')
-    if ((Get-VigilConfigValue $parsed 'vigil' 'config_source' '').Length -gt 0) {
-        & $fail 'remote configuration needs the fetcher, which is not available yet'
+    # The state directory is always this file's (6.8).
+    $stateDir = Get-VigilConfigValue $parsed 'vigil' 'state_dir' 'state'
+    if (-not [System.IO.Path]::IsPathRooted($stateDir)) { $stateDir = Join-Path $Root $stateDir }
+
+    # Everything one run of a job needs, as the worker checks it (4.3).
+    $checkJob = {
+        param($Index, $Parsed, [string]$Id, [string]$Cached)
+        $before = $n.Failed
+        $cmd = Get-VigilJobCommand -Index $Index -Id $Id -Platform 'windows' -Root $Root -Cached $Cached
+        if ($cmd.Error) { & $fail "job.${Id}: $($cmd.Message)"; return }
+        if (-not [System.IO.Directory]::Exists($cmd.Cwd)) { & $fail "job.${Id}: working directory not found: $($cmd.Cwd)" }
+        if ($cmd.Program.Contains('\')) {
+            if (-not [System.IO.File]::Exists($cmd.Program)) { & $fail "job.${Id}: not found: $($cmd.Program)" }
+        }
+        elseif (-not (Get-Command $cmd.Program -CommandType Application -ErrorAction SilentlyContinue)) { & $fail "job.${Id}: not found: $($cmd.Program)" }
+        $file = Resolve-VigilPath -Path (Get-VigilIndexValue -Index $Index -Section "job.$Id" -Key 'file').Value -Platform 'windows' -Root $Root
+        if ($Cached) { $file = $Cached }
+        if (-not [System.IO.File]::Exists($file)) { & $fail "job.${Id}: file not found: $file" }
+        $eff = Get-VigilEffectiveJob -Index $Index -Id $Id
+        $provided = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
+        foreach ($row in $eff) {
+            if ($row.Key -cne 'secret') { continue }
+            $eq = $row.Value.IndexOf('=')
+            $ref = $row.Value.Substring($eq + 1)
+            $r = Resolve-VigilSecret -Root $Root -Parsed $Parsed -Reference $ref
+            if ($r.Ok) { [void]$provided.Add($row.Value.Substring(0, $eq)) }
+            else { & $fail "job.${Id}: secret $ref unavailable: $($r.Why)" }
+            $r = $null
+        }
+        foreach ($row in $eff) {
+            if ($row.Key -cne 'require_env' -or $provided.Contains($row.Value)) { continue }
+            if ($null -eq (Get-VigilFreshEnv $row.Value)) { & $fail "job.${Id}: missing environment variable $($row.Value)" }
+        }
+        if ($n.Failed -eq $before) { & $ok "job.$Id" }
     }
-    else {
-        foreach ($sec in $parsed.Sections) {
+
+    # What each source needs on this host: its client program, or for a
+    # local source its directory.
+    $checkSources = {
+        param($Parsed)
+        foreach ($sec in $Parsed.Sections) {
+            if (-not $sec.Name.StartsWith('source.', [System.StringComparison]::Ordinal)) { continue }
+            $type = Get-VigilConfigValue $Parsed $sec.Name 'type' ''
+            if (@('git', 'sftp') -ccontains $type) {
+                if (Find-VigilProgram $type) { & $ok "$($sec.Name): $type" } else { & $fail "$($sec.Name): $type not found" }
+            }
+            elseif ($type -ceq 'local') {
+                $d = (Get-VigilConfigValue $Parsed $sec.Name 'path' '').Replace('/', '\')
+                if (-not [System.IO.Path]::IsPathRooted($d)) { $d = Join-Path $Root $d }
+                if ([System.IO.Directory]::Exists($d)) { & $ok "$($sec.Name): $d" } else { & $fail "$($sec.Name): not a directory: $d" }
+            }
+        }
+    }
+
+    $jobsParsed = $parsed
+    $jobsIndex = $index
+    $jobsRecords = $records
+    $active = $null
+    $checkJobs = $true
+    if (Test-VigilFetchMode -Parsed $parsed) {
+        # With sources (16.5): a pointer file's jobs are those of the active
+        # configuration, once fetched; a local file's are its own, each
+        # script from a source as the active record has it cached. Nothing
+        # is fetched.
+        & $checkSources $parsed
+        $remote = Get-VigilConfigValue $parsed 'vigil' 'config_source' ''
+        $active = Read-VigilActive -Root $Root -State $stateDir
+        if ($active) {
+            & $ok "configuration revision $($active.Revision) is active ($($active.Origin))"
+            if ($remote) {
+                $parsed = ConvertFrom-VigilConfig -Path $active.Config
+                $jobsParsed = $parsed
+                $jobsRecords = Test-VigilConfig -Parsed $parsed
+                $jobsIndex = New-VigilConfigIndex -Parsed $parsed
+                & $checkSources $parsed
+            }
+        }
+        elseif ($remote) {
+            & $ok "configuration: not fetched yet; the supervisor fetches it from source.$remote"
+            $checkJobs = $false
+        }
+    }
+    if ($checkJobs) {
+        foreach ($sec in $jobsParsed.Sections) {
             if (-not $sec.Name.StartsWith('job.', [System.StringComparison]::Ordinal)) { continue }
             $id = $sec.Name.Substring(4)
-            if (($Job -and $id -cne $Job) -or (& $isInvalid $id)) { continue }
-            # Everything one run needs, as the worker checks it (4.3).
-            $before = $failed
-            $cmd = Get-VigilJobCommand -Index $index -Id $id -Platform 'windows' -Root $Root
-            if ($cmd.Error) { & $fail "job.${id}: $($cmd.Message)"; continue }
-            if (-not [System.IO.Directory]::Exists($cmd.Cwd)) { & $fail "job.${id}: working directory not found: $($cmd.Cwd)" }
-            if ($cmd.Program.Contains('\')) {
-                if (-not [System.IO.File]::Exists($cmd.Program)) { & $fail "job.${id}: not found: $($cmd.Program)" }
-            }
-            elseif (-not (Get-Command $cmd.Program -CommandType Application -ErrorAction SilentlyContinue)) { & $fail "job.${id}: not found: $($cmd.Program)" }
-            $file = Resolve-VigilPath -Path (Get-VigilIndexValue -Index $index -Section "job.$id" -Key 'file').Value -Platform 'windows' -Root $Root
-            if (-not [System.IO.File]::Exists($file)) { & $fail "job.${id}: file not found: $file" }
-            $eff = Get-VigilEffectiveJob -Index $index -Id $id
-            $provided = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
-            foreach ($row in $eff) {
-                if ($row.Key -cne 'secret') { continue }
-                $eq = $row.Value.IndexOf('=')
-                $ref = $row.Value.Substring($eq + 1)
-                $r = Resolve-VigilSecret -Root $Root -Parsed $parsed -Reference $ref
-                if ($r.Ok) { [void]$provided.Add($row.Value.Substring(0, $eq)) }
-                else { & $fail "job.${id}: secret $ref unavailable: $($r.Why)" }
-                $r = $null
-            }
-            foreach ($row in $eff) {
-                if ($row.Key -cne 'require_env' -or $provided.Contains($row.Value)) { continue }
-                if ($null -eq (Get-VigilFreshEnv $row.Value)) { & $fail "job.${id}: missing environment variable $($row.Value)" }
-            }
-            if ($failed -eq $before) { & $ok "job.$id" }
+            if ($Job -and $id -cne $Job) { continue }
+            if (@($jobsRecords | Where-Object { $_.Kind -ceq 'INVALID' -and $_.Job -ceq $id }).Count -gt 0) { continue }
+            $src = Get-VigilConfigValue $jobsParsed $sec.Name 'source' ''
+            if (-not $src) { & $checkJob $jobsIndex $jobsParsed $id ''; continue }
+            $cached = Get-VigilActiveScript -Root $Root -Active $active -Source $src -File (Get-VigilConfigValue $jobsParsed $sec.Name 'file' '')
+            if ($cached -and [System.IO.File]::Exists($cached)) { & $checkJob $jobsIndex $jobsParsed $id $cached }
+            else { & $ok "job.${id}: its script is fetched from source.$src when Vigil runs" }
         }
     }
 
     # Credentials of backends and secret stores: resolved, never shown.
     foreach ($sec in $parsed.Sections) {
         $isStore = $sec.Name.StartsWith('secret_store.', [System.StringComparison]::Ordinal)
-        if (-not ($sec.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) -or $isStore)) { continue }
+        if (-not ($sec.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) -or $isStore -or
+                $sec.Name.StartsWith('source.', [System.StringComparison]::Ordinal))) { continue }
         for ($i = $sec.First; $i -lt $sec.First + $sec.Count; $i++) {
             $e = $parsed.Entries[$i]
             if ($e.Value -cnotmatch '^(env|secret|store):') { continue }
@@ -198,15 +257,17 @@ function Invoke-VigilPrecheck {
         $k = $ctx[$what]
         $d = Get-VigilConfigValue $parsed $k[0] $k[1] $k[2]
         if (-not [System.IO.Path]::IsPathRooted($d)) { $d = Join-Path $Root $d }
+        if ($what -ceq 'state directory') { $d = $stateDir }
         $w = Test-VigilWritableDir $d
         if ($w.Ok) { & $ok "${what}: $d" } else { & $fail "${what}: not writable: $($w.Dir)" }
     }
     if ($env:VIGIL_FAULT) { & $fail 'VIGIL_FAULT is set: fault injection is for tests only (22.4.1)' }
     if ($env:VIGIL_TEST_IMDS) { & $fail 'VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)' }
+    if ($env:VIGIL_TEST_SSH_CONFIG) { & $fail 'VIGIL_TEST_SSH_CONFIG is set: the ssh configuration override is for tests only (22.4.3)' }
 
     $out.Add('')
-    if ($failed -gt 0) { $out.Add("precheck failed: $failed problem(s)") }
+    if ($n.Failed -gt 0) { $out.Add("precheck failed: $($n.Failed) problem(s)") }
     elseif ($warnings -gt 0) { $out.Add("precheck passed with $warnings warning(s)") }
     else { $out.Add('precheck passed') }
-    return @{ Code = $(if ($failed -gt 0) { 1 } else { 0 }); Lines = $out }
+    return @{ Code = $(if ($n.Failed -gt 0) { 1 } else { 0 }); Lines = $out }
 }

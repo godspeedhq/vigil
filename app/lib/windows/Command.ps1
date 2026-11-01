@@ -68,7 +68,9 @@ function Get-VigilJobCommand {
         [Parameter(Mandatory = $true)]$Index,
         [Parameter(Mandatory = $true)][string]$Id,
         [Parameter(Mandatory = $true)][string]$Platform,
-        [Parameter(Mandatory = $true)][string]$Root
+        [Parameter(Mandatory = $true)][string]$Root,
+        # The cached copy of a script from a source (16.5), when the caller has it.
+        [string]$Cached
     )
 
     $result = [pscustomobject]@{
@@ -89,6 +91,7 @@ function Get-VigilJobCommand {
         }
     }
     $file = Resolve-VigilPath $file $Platform $Root
+    if ($Cached) { $file = $Cached }
 
     if ($runner.Length -gt 0) {
         $command = (Get-VigilIndexValue -Index $Index -Section "runner.$runner" -Key 'command').Value

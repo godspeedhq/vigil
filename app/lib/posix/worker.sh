@@ -163,8 +163,10 @@ _vigil_wk_log() {
 # Loads and validates the configuration and resolves the directories.
 # Returns 1, with a message in _vw_error, when the job cannot be run.
 _vigil_wk_config() {
-    local i
+    local i line cfg='' src
     _vw_error=''
+    _vw_config=''
+    _vw_script=''
     if ! vigil_config_parse "$_vw_root/config/vigil.config"; then
         _vw_error='the configuration has errors; run vigil precheck'
         return 1
@@ -173,15 +175,38 @@ _vigil_wk_config() {
         _vw_error='the configuration has errors; run vigil precheck'
         return 1
     fi
-    _vigil_wk_get vigil config_source ''
-    if [ -n "$_vw_value" ]; then
-        _vw_error='remote configuration needs the fetcher, which is not available yet'
-        return 1
+    # The state directory is always this file's (6.8).
+    _vigil_wk_dir vigil state_dir state
+    _vw_statedir=$_vw_dir
+    # With sources, runs use the active configuration and its cached
+    # scripts (16.5): the ones the run was launched with, else those active
+    # now. The fetcher itself works from this file.
+    if [ "$_vw_job" != vigil_fetch ] && vigil_fetch_mode; then
+        if [ -n "${_vw_run-}" ] && [ -f "$_vw_statedir/locks/$_vw_job.$_vw_run.launch" ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+                case $line in
+                    'config '*) cfg=${line#*= } ;;
+                    'script '*) _vw_script=${line#*= } ;;
+                esac
+            done < "$_vw_statedir/locks/$_vw_job.$_vw_run.launch"
+        fi
+        if [ -z "$cfg" ]; then
+            if ! vigil_active_read "$_vw_statedir"; then
+                _vw_error='no configuration is active yet: the supervisor fetches it from its sources'
+                return 1
+            fi
+            cfg=$VIGIL_ACT_CONFIG
+        fi
+        if ! vigil_config_parse "$cfg" || ! vigil_config_validate; then
+            _vw_error="the active configuration $cfg cannot be read"
+            return 1
+        fi
+        _vw_config=$cfg
     fi
     vigil_config_section "job.$_vw_job"
     if [ "$VIGIL_CFG_SEC" -lt 0 ]; then
         case $_vw_job in
-            vigil_sender) ;;
+            vigil_sender | vigil_fetch) ;;
             *)
                 _vw_error="no job '$_vw_job' in the configuration"
                 return 1
@@ -196,8 +221,19 @@ _vigil_wk_config() {
         fi
         i=$((i + 1))
     done
-    _vigil_wk_dir vigil state_dir state
-    _vw_statedir=$_vw_dir
+    # A script from a source runs from the cache.
+    if [ -n "$_vw_config" ] && [ -z "$_vw_script" ]; then
+        _vigil_wk_get "job.$_vw_job" source ''
+        if [ -n "$_vw_value" ]; then
+            src=$_vw_value
+            _vigil_wk_get "job.$_vw_job" file ''
+            if ! vigil_active_read "$_vw_statedir" || ! vigil_active_script "$src" "$_vw_value"; then
+                _vw_error="the script of job '$_vw_job' from source.$src is not fetched yet"
+                return 1
+            fi
+            _vw_script=$_va_path
+        fi
+    fi
     _vigil_wk_dir log dir logs
     _vw_logdir=$_vw_dir
     _vigil_wk_dir spool dir spool
@@ -209,6 +245,7 @@ vigil_launch() {
     _vw_root=$1
     _vw_job=$2
     local LC_ALL=C
+    _vw_run=''
     _vigil_wk_config || { printf 'vigil: %s\n' "$_vw_error" >&2; return 4; }
     _vigil_wk_now
     _vigil_wk_boot_id
@@ -221,6 +258,10 @@ vigil_launch() {
         printf 'boot_id       = %s\n' "$_vw_boot"
         printf 'launch_epoch  = %s\n' "$_vw_epoch"
         printf 'launch_at     = %s\n' "$_vw_iso"
+        if [ -n "$_vw_config" ]; then
+            printf 'config        = %s\n' "$_vw_config"
+            if [ -n "$_vw_script" ]; then printf 'script        = %s\n' "$_vw_script"; fi
+        fi
     } > "$_vw_statedir/locks/$_vw_job.$VIGIL_RUN_ID.launch.tmp.$$" &&
         mv -f "$_vw_statedir/locks/$_vw_job.$VIGIL_RUN_ID.launch.tmp.$$" "$_vw_statedir/locks/$_vw_job.$VIGIL_RUN_ID.launch"
 }
@@ -278,6 +319,7 @@ vigil_worker() {
     local LC_ALL=C
     _vw_state=()
 
+    _vw_run=$rid
     _vigil_wk_config || { printf 'vigil: %s\n' "$_vw_error" >&2; return 4; }
     launch="$_vw_statedir/locks/$_vw_job.$rid.launch"
     token="$_vw_statedir/locks/$_vw_job.$rid.token"
@@ -306,6 +348,10 @@ vigil_worker() {
 
     # Vigil's own workers run a function, not a job command (4.5).
     case $_vw_job in
+        vigil_fetch)
+            _vigil_wk_internal "$rid" "$token" "$started" vigil_fetch
+            return $?
+            ;;
         vigil_sender)
             _vigil_wk_internal "$rid" "$token" "$started" vigil_send
             return $?
@@ -379,7 +425,10 @@ vigil_worker() {
     : > "$out"
     : > "$err"
 
+    # A script from a source runs from its cached copy (16.5).
+    VIGIL_CMD_FILE=$_vw_script
     vigil_job_command "$_vw_job" posix "$_vw_root"
+    VIGIL_CMD_FILE=''
     prog=$VIGIL_CMD_PROGRAM
     if [ -n "$VIGIL_CMD_ERROR" ]; then
         reason=$VIGIL_CMD_MESSAGE
@@ -401,6 +450,7 @@ vigil_worker() {
         # The job's own file must exist too, whatever runs it.
         _vigil_wk_get "job.$_vw_job" file ''
         _vigil_cmd_path "$_vw_value" posix "$_vw_root"
+        [ -n "$_vw_script" ] && _vc_path=$_vw_script
         if [ -z "$reason" ] && [ ! -f "$_vc_path" ]; then
             reason="file not found: $_vc_path"
         fi

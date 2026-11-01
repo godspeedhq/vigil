@@ -43,6 +43,11 @@ jobs:
         run: /bin/bash tests/integration/stores.sh
       - name: metrics backends (/bin/bash)
         run: /bin/bash tests/integration/backends.sh
+      - name: OpenSSH server for the sftp source test
+        if: runner.os == 'Linux'
+        run: test -x /usr/sbin/sshd || { sudo apt-get update -q && sudo apt-get install -y -q openssh-server; }
+      - name: sources and the fetcher (/bin/bash)
+        run: /bin/bash tests/integration/fetch.sh
       - name: service registration (/bin/bash)
         run: /bin/bash tests/integration/service.sh
         timeout-minutes: 15
@@ -91,6 +96,14 @@ jobs:
       - name: metrics backends (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Backends.ps1
+      - name: OpenSSH server for the sftp source test
+        shell: powershell
+        continue-on-error: true
+        timeout-minutes: 10
+        run: Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+      - name: sources and the fetcher (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/integration/Fetch.ps1
       - name: service registration (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Service.ps1
@@ -125,6 +138,9 @@ jobs:
       - name: metrics backends (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Backends.ps1
+      - name: sources and the fetcher (PowerShell 7)
+        shell: pwsh
+        run: ./tests/integration/Fetch.ps1
       - name: service registration (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Service.ps1
