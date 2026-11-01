@@ -2,6 +2,8 @@
 
 **A job scheduler, supervisor and metrics forwarder for Windows, Linux and macOS, written only in the shells that ship with each one.**
 
+**Documentation:** [godspeedhq.github.io/vigil](https://godspeedhq.github.io/vigil/): the specification, command reference, error codes and examples, generated from this repository.
+
 Vigil runs your scripts on a schedule, watches every run from start to finish, and sends what happened to the monitoring system you already use. There is nothing to compile and no runtime to install: Windows PowerShell 5.1 on Windows, and bash 3.2 or later on Linux and macOS. The only binary in the project is NSSM, used on Windows to register a service.
 
 ```text
