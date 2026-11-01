@@ -265,6 +265,7 @@ function Invoke-VigilPrecheck {
     if ($env:VIGIL_FAULT) { & $fail 'VIGIL_FAULT is set: fault injection is for tests only (22.4.1)' }
     if ($env:VIGIL_TEST_IMDS) { & $fail 'VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)' }
     if ($env:VIGIL_TEST_SSH_CONFIG) { & $fail 'VIGIL_TEST_SSH_CONFIG is set: the ssh configuration override is for tests only (22.4.3)' }
+    if ($env:VIGIL_TEST_RELEASE_URL) { & $fail 'VIGIL_TEST_RELEASE_URL is set: the release server override is for tests only (22.4.4)' }
 
     $out.Add('')
     if ($n.Failed -gt 0) { $out.Add("precheck failed: $($n.Failed) problem(s)") }

@@ -10,6 +10,8 @@ is served by Git's "dumb" HTTP protocol. When <dir>/require holds a path
 prefix and a header line ("/files/ Name: value"), every request for a path
 under that prefix must carry that header or gets 401. Every request is
 appended to <dir>/requests.log as one JSON line: method, path and headers.
+A file <dir>/redirects holds "<path> <target>" lines: those paths answer
+302, as GitHub's /releases/latest does.
 
 Test only: never use it for anything else.
 """
@@ -27,7 +29,27 @@ LOCK = threading.Lock()
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def redirected(self):
+        try:
+            with open(os.path.join(DIR, "redirects"), encoding="utf-8") as f:
+                moves = dict(line.split() for line in f if line.strip())
+        except OSError:
+            return False
+        if self.path not in moves:
+            return False
+        self.send_response(302)
+        self.send_header("Location", moves[self.path])
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True
+
+    def do_HEAD(self):
+        if not self.redirected():
+            super().do_HEAD()
+
     def do_GET(self):
+        if self.redirected():
+            return
         record = {"method": "GET", "path": self.path, "headers": dict(self.headers.items())}
         with LOCK, open(os.path.join(DIR, "requests.log"), "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")

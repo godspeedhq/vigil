@@ -50,6 +50,9 @@ jobs:
         run: /bin/bash tests/integration/fetch.sh
       - name: log forwarding (/bin/bash)
         run: /bin/bash tests/integration/logs.sh
+      - name: self update (/bin/bash)
+        run: /bin/bash tests/integration/self-update.sh
+        timeout-minutes: 10
       - name: service registration (/bin/bash)
         run: /bin/bash tests/integration/service.sh
         timeout-minutes: 15
@@ -109,6 +112,10 @@ jobs:
       - name: log forwarding (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Logs.ps1
+      - name: self update (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/integration/Self-Update.ps1
+        timeout-minutes: 15
       - name: service registration (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Service.ps1
@@ -149,6 +156,10 @@ jobs:
       - name: log forwarding (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Logs.ps1
+      - name: self update (PowerShell 7)
+        shell: pwsh
+        run: ./tests/integration/Self-Update.ps1
+        timeout-minutes: 15
       - name: service registration (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Service.ps1

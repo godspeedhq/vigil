@@ -572,6 +572,25 @@ function Invoke-VigilSupervisor {
 
         [void](& $loadConfig)
 
+        # Runs waiting for a slot survive a restart (8): a job's cursor has
+        # already moved past them, so nothing else would bring them back.
+        # Keeps only jobs the active configuration still names.
+        $queueFile = Join-Path $sv.State 'pending'
+        if (-not $sv.Waiting -and -not $sv.Restored) {
+            $sv.Restored = $true
+            if ([System.IO.File]::Exists($queueFile)) {
+                foreach ($l in [System.IO.File]::ReadAllLines($queueFile)) {
+                    if ($l -cnotmatch '^(pending|queued)=(.*)$') { continue }
+                    $kind = $Matches[1]
+                    foreach ($j in $Matches[2].Split(' ')) {
+                        if (-not $j -or -not ($sv.Parsed.Sections | Where-Object { $_.Name -ceq "job.$j" })) { continue }
+                        if ($kind -ceq 'queued') { [void]$sv.Queued.Add($j) }
+                        elseif (-not $sv.Pending.Contains($j)) { $sv.Pending.Add($j) }
+                    }
+                }
+            }
+        }
+
         foreach ($sec in $sv.Parsed.Sections) {
             if (-not $sec.Name.StartsWith('job.', [System.StringComparison]::Ordinal)) { continue }
             if ($sv.Waiting) { break }
@@ -663,6 +682,11 @@ function Invoke-VigilSupervisor {
                 & $log 'WARN' "job ${job}: skipped: more than $($sv.MaxPending) runs pending"
             }
         }
+
+        if ($sv.Pending.Count + $sv.Queued.Count -gt 0) {
+            Write-VigilFileAtomic -Path $queueFile -Text "pending=$($sv.Pending -join ' ')`nqueued=$(@($sv.Queued) -join ' ')`n"
+        }
+        elseif ([System.IO.File]::Exists($queueFile)) { [System.IO.File]::Delete($queueFile) }
 
         & $event '' 'up' '1' 'gauge'
         & $event '' 'workers' "$($sv.Running)" 'gauge'

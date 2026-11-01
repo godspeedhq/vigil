@@ -581,6 +581,34 @@ _vigil_sup_settings() {
     fi
 }
 
+# Runs waiting for a slot survive a restart (8): a job's cursor has already
+# moved past them, so nothing else would bring them back. Keeps only jobs
+# the active configuration still names.
+_vigil_sup_queue_load() {
+    local line job key
+    _su_restored=1
+    [ -f "$_su_statedir/pending" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        key=${line%%=*}
+        for job in ${line#*=}; do
+            vigil_config_section "job.$job"
+            [ "$VIGIL_CFG_SEC" -ge 0 ] || continue
+            case $key in
+                pending) _vigil_sup_contains "$_su_pending" "$job" || _su_pending="$_su_pending $job" ;;
+                queued) _vigil_sup_contains "$_su_queued" "$job" || _su_queued="$_su_queued $job" ;;
+            esac
+        done
+    done < "$_su_statedir/pending"
+}
+
+_vigil_sup_queue_save() {
+    local f="$_su_statedir/pending"
+    case $_su_pending$_su_queued in
+        *[![:space:]]*) printf 'pending=%s\nqueued=%s\n' "$_su_pending" "$_su_queued" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f" ;;
+        *) rm -f "$f" ;;
+    esac
+}
+
 # A job's cached script, when its file comes from a source. Returns 1 when
 # it has none; sets _su_script (empty for a local file) otherwise.
 _vigil_sup_script() {
@@ -717,6 +745,7 @@ _vigil_sup_tick() {
     _su_status_missing=''
 
     _vigil_sup_config
+    if [ "$_su_waiting" = 0 ] && [ "${_su_restored-0}" = 0 ]; then _vigil_sup_queue_load; fi
 
     s=0
     while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
@@ -814,6 +843,8 @@ _vigil_sup_tick() {
             _vigil_sup_log WARN "job $job: skipped: more than $_su_max_pending runs pending"
         fi
     done
+
+    _vigil_sup_queue_save
 
     _vigil_sup_event '' up 1 gauge
     _vigil_sup_event '' workers "$_su_running" gauge

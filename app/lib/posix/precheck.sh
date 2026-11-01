@@ -373,6 +373,7 @@ vigil_precheck() {
     [ -z "${VIGIL_FAULT-}" ] || _vigil_pc_fail 'VIGIL_FAULT is set: fault injection is for tests only (22.4.1)'
     [ -z "${VIGIL_TEST_IMDS-}" ] || _vigil_pc_fail 'VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)'
     [ -z "${VIGIL_TEST_SSH_CONFIG-}" ] || _vigil_pc_fail 'VIGIL_TEST_SSH_CONFIG is set: the ssh configuration override is for tests only (22.4.3)'
+    [ -z "${VIGIL_TEST_RELEASE_URL-}" ] || _vigil_pc_fail 'VIGIL_TEST_RELEASE_URL is set: the release server override is for tests only (22.4.4)'
 
     printf '\n'
     if [ "$_pc_failed" -gt 0 ]; then

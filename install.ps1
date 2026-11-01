@@ -41,6 +41,9 @@
     Do not write a starting configuration.
 .PARAMETER NoService
     Do not register the service.
+.PARAMETER Upgrade
+    Only replace an installed Vigil, as vigil self update does: no vigil
+    init, no PATH change, and the service is left as it was found.
 #>
 
 param(
@@ -53,7 +56,8 @@ param(
     [string]$Instance,
     [string]$Backend,
     [switch]$NoInit,
-    [switch]$NoService
+    [switch]$NoService,
+    [switch]$Upgrade
 )
 
 # Restored at the end, for the same reason.
@@ -71,6 +75,12 @@ function Stop-Install {
 
 # PowerShell 5.1 on older servers may not offer TLS 1.2 by default.
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
+# Tests only (22.4.4): releases from a local server, never over the network.
+if ($env:VIGIL_TEST_RELEASE_URL) {
+    if ($env:VIGIL_TEST_RELEASE_URL -cnotmatch '^http://127\.0\.0\.1:[0-9]+$') { Stop-Install 'VIGIL_TEST_RELEASE_URL must be http://127.0.0.1:<port>' }
+    $repoUrl = $env:VIGIL_TEST_RELEASE_URL
+}
 
 $admin = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -102,8 +112,16 @@ try {
     }
     else {
         if (-not $Version) {
-            try { $Version = ([string](Invoke-RestMethod -UseBasicParsing -Uri 'https://api.github.com/repos/godspeedhq/vigil/releases/latest').tag_name).TrimStart('v') }
+            # The latest release, from where GitHub redirects /releases/latest
+            # (the API allows only 60 requests an hour per address, too few
+            # for a fleet behind one).
+            try {
+                $r = Invoke-WebRequest -UseBasicParsing -Method Head -Uri "$repoUrl/releases/latest"
+                $tag = if ($r.BaseResponse.ResponseUri) { [string]$r.BaseResponse.ResponseUri.AbsoluteUri } else { [string]$r.BaseResponse.RequestMessage.RequestUri.AbsoluteUri }
+            }
             catch { Stop-Install "cannot reach GitHub to find the latest release: $($_.Exception.Message)" }
+            if ($tag -cnotmatch '/v([^/]+)$') { Stop-Install "cannot tell the latest release from $tag" }
+            $Version = $Matches[1]
         }
         $Version = $Version.TrimStart('v')
         $file = "vigil-$Version.zip"
@@ -137,27 +155,81 @@ try {
     # --- 3. Unpack into the root ----------------------------------------------------
 
     $vigil = Join-Path $root 'app\vigil.ps1'
-    $upgrade = Test-Path -LiteralPath $vigil
+    $present = Test-Path -LiteralPath $vigil
+    if ($Upgrade -and -not $present) { Stop-Install "no Vigil in $root to upgrade" }
     [void](New-Item -ItemType Directory -Force -Path $root)
+    # Copied before anything is stopped: a full disk changes nothing.
+    $parts = @('app', 'vendor')
+    foreach ($d in $parts) {
+        foreach ($p in @("$d.new", "$d.old")) {
+            $q = Join-Path $root $p
+            if (Test-Path -LiteralPath $q) { Remove-Item -LiteralPath $q -Recurse -Force }
+        }
+        try { Copy-Item -LiteralPath (Join-Path $src $d) -Destination (Join-Path $root "$d.new") -Recurse }
+        catch {
+            foreach ($p in $parts) { Remove-Item -LiteralPath (Join-Path $root "$p.new") -Recurse -Force -ErrorAction SilentlyContinue }
+            Stop-Install "cannot copy into $root; nothing was changed: $($_.Exception.Message)"
+        }
+    }
     $running = $false
     $self = (Get-Process -Id $PID).Path
-    if ($upgrade -and -not $NoService) {
+    if ($present -and -not $NoService) {
         $st = & $self -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root status 2>$null | Select-Object -First 1
         if ("$st".StartsWith('service: active')) {
             $running = $true
             & $self -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root stop | Out-Null
-            if ($LASTEXITCODE -ne 0) { Stop-Install 'cannot stop the running service for the upgrade' }
+            if ($LASTEXITCODE -ne 0) {
+                foreach ($p in $parts) { Remove-Item -LiteralPath (Join-Path $root "$p.new") -Recurse -Force -ErrorAction SilentlyContinue }
+                Stop-Install 'cannot stop the running service for the upgrade; nothing was changed'
+            }
         }
     }
-    foreach ($d in @('app', 'vendor')) {
-        $to = Join-Path $root $d
-        $old = Join-Path $root "$d.old"
-        if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force }
-        if (Test-Path -LiteralPath $to) { Rename-Item -LiteralPath $to -NewName "$d.old" }
-        Copy-Item -LiteralPath (Join-Path $src $d) -Destination $to -Recurse
-        if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue }
+
+    function Invoke-Vigil { & $self -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root @args }
+
+    # Back to what was installed: whatever was swapped, and the service.
+    function Undo-Upgrade {
+        param([string]$Why)
+        foreach ($d in $parts) {
+            $old = Join-Path $root "$d.old"
+            if (Test-Path -LiteralPath $old) {
+                $to = Join-Path $root $d
+                if (Test-Path -LiteralPath $to) { Remove-Item -LiteralPath $to -Recurse -Force }
+                Rename-Item -LiteralPath $old -NewName $d
+            }
+            Remove-Item -LiteralPath (Join-Path $root "$d.new") -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if ($running) { Invoke-Vigil start | Out-Null }
+        Stop-Install "$Why; went back to the version that was installed"
     }
-    if ($upgrade) { Write-Output "upgraded $root to Vigil $Version" } else { Write-Output "installed Vigil $Version in $root" }
+
+    # app\ and vendor\ are swapped whole, so a process still running the old
+    # ones keeps reading files that stay intact.
+    try {
+        foreach ($d in $parts) {
+            if (Test-Path -LiteralPath (Join-Path $root $d)) { Rename-Item -LiteralPath (Join-Path $root $d) -NewName "$d.old" }
+            Rename-Item -LiteralPath (Join-Path $root "$d.new") -NewName $d
+        }
+    }
+    catch { Undo-Upgrade "cannot replace $root\app: $($_.Exception.Message)" }
+    # The old version goes only once the new one has proved it runs.
+    if ($present) {
+        if ("$(Invoke-Vigil version 2>$null)" -cne "Vigil $Version") { Undo-Upgrade "the new version ($Version) does not run" }
+        if ($running) {
+            Invoke-Vigil start | Out-Null
+            if ($LASTEXITCODE -ne 0) { Undo-Upgrade "the new version ($Version) did not start" }
+            Start-Sleep -Seconds 3
+            $st = Invoke-Vigil status 2>$null | Select-Object -First 1
+            if (-not "$st".StartsWith('service: active')) { Undo-Upgrade "the new version ($Version) did not stay up" }
+        }
+        foreach ($d in $parts) { Remove-Item -LiteralPath (Join-Path $root "$d.old") -Recurse -Force -ErrorAction SilentlyContinue }
+        Write-Output "upgraded $root to Vigil $Version"
+    }
+    else { Write-Output "installed Vigil $Version in $root" }
+    if ($Upgrade) {
+        Write-Output "done: Vigil $Version"
+        return
+    }
 
     # --- 4. The vigil command: app\ on the PATH ---------------------------------------
 
@@ -169,11 +241,9 @@ try {
         Write-Output "added $app to the $($scope.ToLowerInvariant()) PATH: new consoles run vigil"
     }
 
-    function Invoke-Vigil { & $self -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root @args }
-
     # --- 5. vigil init, on a fresh install ----------------------------------------------
 
-    if (-not $NoInit -and -not (Test-Path -LiteralPath (Join-Path $root 'config\vigil.config'))) {
+    if (-not $NoInit -and -not $Upgrade -and -not (Test-Path -LiteralPath (Join-Path $root 'config\vigil.config'))) {
         $a = @('init')
         if ($Instance) { $a += @('--instance', $Instance) }
         if ($Backend) { $a += @('--backend', $Backend) }
@@ -187,13 +257,7 @@ try {
     if (-not $NoService) {
         Write-Output ''
         $st = Invoke-Vigil status 2>$null | Select-Object -First 1
-        if ($upgrade -and -not "$st".StartsWith('service: not registered')) {
-            if ($running) {
-                Invoke-Vigil start | Out-Null
-                if ($LASTEXITCODE -ne 0) { Stop-Install 'the service did not start again after the upgrade' }
-            }
-        }
-        else {
+        if (-not $present -or "$st".StartsWith('service: not registered')) {
             Invoke-Vigil service install "--$mode" --host $ShellHost
             if ($LASTEXITCODE -ne 0) {
                 Write-Output ''
