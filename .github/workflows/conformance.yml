@@ -53,6 +53,9 @@ jobs:
       - name: self update (/bin/bash)
         run: /bin/bash tests/integration/self-update.sh
         timeout-minutes: 10
+      - name: upgrade from the latest release (/bin/bash)
+        run: /bin/bash tests/integration/upgrade.sh
+        timeout-minutes: 10
       - name: service registration (/bin/bash)
         run: /bin/bash tests/integration/service.sh
         timeout-minutes: 15
@@ -115,6 +118,9 @@ jobs:
         run: ./tests/integration/Logs.ps1
       - name: self update
         run: ./tests/integration/Self-Update.ps1
+        timeout-minutes: 15
+      - name: upgrade from the latest release
+        run: ./tests/integration/Upgrade.ps1
         timeout-minutes: 15
       - name: service registration
         run: ./tests/integration/Service.ps1
