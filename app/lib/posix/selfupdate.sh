@@ -53,17 +53,17 @@ vigil_supervisor_version() {
 
 # Whether version $1 is newer than $2, comparing the numbers of x.y.z.
 _vigil_self_newer() {
-    local IFS=.- a b i=0
-    set -f
-    # shellcheck disable=SC2206
-    a=($1)
-    # shellcheck disable=SC2206
-    b=($2)
-    set +f
+    local x=$1 y=$2 p q i=0
     while [ "$i" -lt 3 ]; do
-        case ${a[$i]-0}${b[$i]-0} in *[!0-9]*) return 1 ;; esac
-        [ "$((10#${a[$i]-0}))" -gt "$((10#${b[$i]-0}))" ] && return 0
-        [ "$((10#${a[$i]-0}))" -lt "$((10#${b[$i]-0}))" ] && return 1
+        p=${x%%[.-]*}
+        q=${y%%[.-]*}
+        case $x in *[.-]*) x=${x#*[.-]} ;; *) x=0 ;; esac
+        case $y in *[.-]*) y=${y#*[.-]} ;; *) y=0 ;; esac
+        case $p$q in '' | *[!0-9]*) return 1 ;; esac
+        p=$((10#$p))
+        q=$((10#$q))
+        [ "$p" -gt "$q" ] && return 0
+        [ "$p" -lt "$q" ] && return 1
         i=$((i + 1))
     done
     return 1

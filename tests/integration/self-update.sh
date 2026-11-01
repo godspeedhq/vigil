@@ -218,6 +218,7 @@ i=0
 while [ ! -f "$XDG_CACHE_HOME/vigil/update-check" ] && [ "$i" -lt 100 ]; do sleep 0.2; i=$((i + 1)); done
 vigil version > /dev/null 2> "$work/err"
 check 'notice: names the new version' 1 "$(grep -c 'Vigil 0.0.2-it is available' "$work/err")"
+grep -q 'is available' "$work/err" || { printf '        cache: '; cat "$XDG_CACHE_HOME/vigil/update-check"; cat "$work/err"; }
 VIGIL_NO_UPDATE_CHECK=1 vigil version > /dev/null 2> "$work/err"
 check 'notice: can be turned off' 0 "$(wc -c < "$work/err" | tr -d ' ')"
 : > "$work/mock/requests.log"
