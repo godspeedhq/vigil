@@ -25,7 +25,7 @@ _vigil_sup_log() {
     local level=$1
     shift
     mkdir -p "$_su_logdir/supervisor" 2>/dev/null
-    printf '%s %s supervisor %s\n' "$_su_iso" "$level" "$*" >> "$_su_logdir/supervisor/$_su_date.log" 2>/dev/null
+    printf '%s %s supervisor %s\n' "$_su_iso" "$level" "$*" >> "${_su_logfile:-$_su_logdir/supervisor/$_su_date.log}" 2>/dev/null
 }
 
 # Whether a process other than this one holds file $1 open. Sets _su_held to
@@ -731,6 +731,7 @@ _vigil_sup_tick() {
     _su_epoch=$1
     _su_now=$2
     _su_date=$3
+    _su_logfile=''
     _su_iso=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
     _su_events=()
     _su_running=0
@@ -746,6 +747,8 @@ _vigil_sup_tick() {
     _su_status_missing=''
 
     _vigil_sup_config
+    _vigil_wk_logfile "$_su_logdir/supervisor" "$_su_date"
+    _su_logfile=$_vw_logfile
     if [ "$_su_waiting" = 0 ] && [ "${_su_restored-0}" = 0 ]; then _vigil_sup_queue_load; fi
 
     s=0

@@ -102,6 +102,22 @@ function Get-VigilConfigValue {
     return $Default
 }
 
+# The log file of a day in a directory to write to: the last one, or the
+# next in sequence once it has reached [log] max_file_mb (13.1). Log files
+# are never truncated or renamed.
+function Get-VigilLogFile {
+    param($Parsed, [string]$Dir, [string]$Day)
+    $max = [long](Get-VigilConfigValue $Parsed 'log' 'max_file_mb' '50') * 1048576
+    $n = 0
+    $f = Join-Path $Dir "$Day.log"
+    while ([System.IO.File]::Exists((Join-Path $Dir "$Day.$($n + 1).log"))) {
+        $n++
+        $f = Join-Path $Dir "$Day.$n.log"
+    }
+    if ([System.IO.File]::Exists($f) -and (New-Object System.IO.FileInfo $f).Length -ge $max) { $f = Join-Path $Dir "$Day.$($n + 1).log" }
+    return $f
+}
+
 # Loads and validates the configuration and resolves the directories.
 # Returns @{ Error } or the context the worker needs. With sources, a run
 # uses the active configuration and its cached scripts (16.5): the ones it
@@ -218,7 +234,7 @@ function Invoke-VigilWorker {
     $jobLogs = Join-Path $ctx.Logs "jobs\$Job"
     $incoming = Join-Path $ctx.Spool 'incoming'
     foreach ($d in @($jobs, $jobLogs, $incoming)) { [void](New-Item -ItemType Directory -Force -Path $d) }
-    $log = Join-Path $jobLogs "$((Get-Date).ToString('yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)).log"
+    $log = Get-VigilLogFile -Parsed $ctx.Parsed -Dir $jobLogs -Day (Get-Date).ToString('yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
     $statePath = Join-Path $jobs "$Job.state"
     $hostName = $env:COMPUTERNAME.ToLowerInvariant()
     $now = Get-VigilNow

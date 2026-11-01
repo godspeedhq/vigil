@@ -309,6 +309,21 @@ check "retention: log_retain_days wins" yes "$(yes_no test -e "$root/logs/jobs/q
 check "retention: today's log stays" yes "$(yes_no test -e "$root/logs/supervisor/$(date '+%Y-%m-%d').log")"
 check "retention: the status file stays" yes "$(yes_no test -e "$root/logs/supervisor/jobs.log")"
 
+# The size cap: writing continues in the next file, and nothing is cut.
+sed -i.bak 's/^retain_days = 3$/retain_days = 3\nmax_file_mb = 1/' "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
+log=$root/logs/jobs/chatty/$(date '+%Y-%m-%d').log
+head -c 1100000 /dev/zero | tr '\000' x >> "$log"
+size=$(wc -c < "$log")
+vigil run chatty > /dev/null
+check 'size cap: a full file is left alone' "$size" "$(wc -c < "$log")"
+check 'size cap: the run went to the next file' yes "$(yes_no grep -q 'run start' "${log%.log}.1.log")"
+slog=$root/logs/supervisor/$(date '+%Y-%m-%d').log
+head -c 1100000 /dev/zero | tr '\000' x >> "$slog"
+printf '\n' >> "$slog"
+tick
+tick
+check 'size cap: the supervisor moves on too' yes "$(yes_no test -s "${slog%.log}.1.log")"
+
 # The credential is only ever in a header.
 check "no credential in logs, state, spool or metrics" "" "$(grep -rlF "$token" "$root/logs" "$root/state" "$root/spool" "$root/metrics" 2>/dev/null)"
 

@@ -38,6 +38,8 @@
 #       link. Lists what it will remove and asks first, unless --yes.
 #   vigil [--root <dir>] version
 #       The installed version.
+#   vigil [--root <dir>] about
+#       What Vigil is, who made it and where it runs.
 #   vigil [--root <dir>] self update [--check] [--version <version>]
 #       Upgrades this install to the latest release, or the one given (18.7).
 #       --check only says whether there is a newer one.
@@ -69,7 +71,7 @@ for lib in config validate effective command schedule outcome metrics events rec
 done
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | self update [--check] [--version <version>]\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n' >&2
     exit 64
 }
 
@@ -259,6 +261,12 @@ case ${1-} in
         fi
         [ "$#" -eq 1 ] || usage
         vigil_version "$app"
+        vigil_update_notice "$root" "$app"
+        exit 0
+        ;;
+    about)
+        [ "$#" -eq 1 ] || usage
+        vigil_about "$root" "$app"
         vigil_update_notice "$root" "$app"
         exit 0
         ;;

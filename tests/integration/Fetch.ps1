@@ -295,6 +295,14 @@ run_every = 3650d
     Invoke-Fetch
     Test-Equal 'cache deleted: fetched again' 'from_git: succeeded|metric hello 2' (Invoke-Run 'from_git')
 
+    # A script may be any size, as a local one may.
+    [System.IO.File]::WriteAllText("$root\share\big.cmd", "@echo off`r`necho metric big 6`r`nexit /b 0`r`nrem " + (New-Object string 'x', 17000000) + "`r`n")
+    Write-Text $cfg ((& $localConfig "$url/ops.git" 'v2') + "`n[job.big]`nsource    = share`nfile      = big.cmd`nrun_every = 3650d`n")
+    Invoke-Fetch
+    Test-Equal 'large script: fetched' 'succeeded' (Get-FetchStatus)
+    Test-Equal 'large script: runs' 'big: succeeded|metric big 6' (Invoke-Run 'big')
+    Remove-Item -LiteralPath "$root\share\big.cmd"
+
     # Remote configuration (6.8): a pointer file, following a branch.
     $h1 = $base + "[source.scripts]`ntype        = git`nurl         = $url/ops.git`nref         = main`ncheck_every = 1s`n`n" +
         "[job.remote_hello]`nsource    = scripts`nfile      = checks/hello.cmd`nrun_every = 3650d`n"

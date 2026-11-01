@@ -280,6 +280,21 @@ check "cache deleted: FILE MISSING" yes "$(yes_no grep -q 'FILE MISSING' "$root/
 fetch
 check "cache deleted: fetched again" 'from_git: succeeded|metric hello 2' "$(run from_git)"
 
+# A script may be any size, as a local one may.
+{
+    printf 'echo "metric big 6"\nexit 0\n# '
+    head -c 17000000 /dev/zero | tr '\000' x
+    printf '\n'
+} > "$root/share/big.sh"
+{
+    local_config "$url/ops.git" v2
+    printf '\n[job.big]\nsource    = share\nfile      = big.sh\nrun_every = 3650d\n'
+} > "$root/config/vigil.config"
+fetch
+check "large script: fetched" succeeded "$(fetch_status)"
+check "large script: runs" 'big: succeeded|metric big 6' "$(run big)"
+rm -f "$root/share/big.sh"
+
 # Remote configuration (6.8): a pointer file, following a branch.
 cat > "$root/work/hosts/h1.config" <<EOF
 $(base_config)

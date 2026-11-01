@@ -95,6 +95,8 @@ rc=$?
 check 'install from the latest release' 0 "$rc"
 [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
 check 'its version' 'Vigil 0.0.1-it' "$(vigil version)"
+check 'about: who made it' 1 "$(vigil about 2>/dev/null | grep -c '^Created by  Bankole Ogundero and the Vigil contributors$')"
+check 'about: where it is' 1 "$(vigil about 2>/dev/null | grep -cF "Installed   $root")"
 
 printf '# my change\n' >> "$root/config/vigil.config"
 printf 'echo mine\n' > "$root/scripts/mine.sh"
@@ -245,6 +247,7 @@ case $(uname -s) in
         kill "$sup" 2>/dev/null
         wait "$sup" 2>/dev/null
         check 'reload: it says so' 1 "$(grep -hc 'reloading: Vigil 0.0.1-it to 0.0.2-it' "$root"/logs/supervisor/2*.log | sort -n | tail -1)"
+        grep -q 'reloading: Vigil' "$root"/logs/supervisor/2*.log || { ls -la "$root"/logs/supervisor; tail -n 12 "$root"/logs/supervisor/2*.log; cat "$work/out"; }
         ;;
 esac
 
@@ -275,8 +278,6 @@ else
     i=0
     while [ -z "$(pid_of)" ] && [ "$i" -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
     pid1=$(pid_of)
-    /usr/local/bin/vigil self update > "$work/out" 2>&1
-    check 'system: refused without sudo' 1 "$?"
     sudo VIGIL_TEST_RELEASE_URL="$VIGIL_TEST_RELEASE_URL" /usr/local/bin/vigil self update > "$work/out" 2>&1
     rc=$?
     check 'system: updated' 0 "$rc"

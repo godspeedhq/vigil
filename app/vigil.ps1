@@ -41,6 +41,8 @@
         entries. Lists what it will remove and asks first, unless --yes.
     vigil [-Root <dir>] version
         The installed version.
+    vigil [-Root <dir>] about
+        What Vigil is, who made it and where it runs.
     vigil [-Root <dir>] self update [--check] [--version <version>]
         Upgrades this install to the latest release, or the one given (18.7).
         --check only says whether there is a newer one.
@@ -69,7 +71,7 @@ foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Ou
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] version | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -239,6 +241,12 @@ switch ($Command) {
         }
         if ($flags.Count -gt 0) { Exit-Usage }
         Get-VigilVersion -App $app
+        Show-VigilUpdateNotice -Root $Root -App $app
+        exit 0
+    }
+    'about' {
+        if ($Job -or $Rest) { Exit-Usage }
+        Get-VigilAbout -Root $Root -App $app
         Show-VigilUpdateNotice -Root $Root -App $app
         exit 0
     }

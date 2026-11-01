@@ -1206,7 +1206,7 @@ The supervisor holds `state/supervisor.lock` open for its whole life, the same w
   `run` lines are Vigil's own (`start`, then `end <outcome> [(<reason>)] in <n>s`); `out` and `err` lines are the job's stdout and stderr, one line each, unchanged except that a trailing carriage return is removed.
 - **stdout mirroring:** optional, so service managers (NSSM, journald, launchd) capture the supervisor's output.
 
-Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014). A job may keep its own log for a different number of days with `log_retain_days` (§6.6); the size cap is global. A file that reaches the cap is never truncated or renamed: writing continues in a new file with the next sequence number, `yyyy-MM-dd.1.log`, `yyyy-MM-dd.2.log` and so on. Log files are therefore append-only and their names are never reused; retention deletes whole files only. The supervisor applies it when it starts and once a day: a file goes when the date in its name is more than `retain_days` before today. The log of a job the configuration no longer names follows `[log] retain_days`.
+Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014). A job may keep its own log for a different number of days with `log_retain_days` (§6.6); the size cap is global. The cap defaults to 50 MB, and is checked when a run starts and at each tick, so a file can pass it by one run's output. A file that reaches the cap is never truncated or renamed: writing continues in a new file with the next sequence number, `yyyy-MM-dd.1.log`, `yyyy-MM-dd.2.log` and so on. Log files are therefore append-only and their names are never reused; retention deletes whole files only. The supervisor applies it when it starts and once a day: a file goes when the date in its name is more than `retain_days` before today. The log of a job the configuration no longer names follows `[log] retain_days`.
 
 ### 13.2 Status File
 
@@ -1729,7 +1729,7 @@ A job pinned by `sha256` whose source now holds other content keeps its last ver
 | `sftp` | The OpenSSH `sftp` client in batch mode with `BatchMode=yes` and `StrictHostKeyChecking=yes`: the server's host key must already be in the service account's `known_hosts`, so a first connection can never silently trust an impostor. Like `https`, a script is fetched once. |
 | `local` | A copy from the directory (`cp -R`; `robocopy` on Windows), so a job never runs a file directly from a share that may change or disappear under it. |
 
-On Windows, `git archive` writes a zip file, which .NET unpacks. Every fetch is bounded by the source's `timeout`, and the fetcher ends the process tree it started at that limit; a fetched configuration file larger than 1 MiB, or a script larger than 16 MiB, is rejected. Git is never allowed to stop and ask for a credential.
+On Windows, `git archive` writes a zip file, which .NET unpacks. Every fetch is bounded by the source's `timeout`, and the fetcher ends the process tree it started at that limit; a fetched configuration file larger than 1 MiB is rejected. A script may be any size, as a local one may. Git is never allowed to stop and ask for a credential.
 
 ---
 
