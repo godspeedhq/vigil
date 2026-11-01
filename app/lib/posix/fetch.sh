@@ -223,7 +223,7 @@ _vigil_fetch_failed() {
         *'has errors' | *' not found' | *'not found (HTTP 404)' | *'symbolic link'* | *'larger than'*) reason=invalid ;;
     esac
     _vf_events[${#_vf_events[@]}]="$_vf_now vigil.source.failures 1 count $_vf_tags source=$1 reason=$reason"
-    _vigil_wk_log "source.$1: $_vf_why"
+    _vigil_wk_log "$_vw_run run source.$1: $_vf_why"
 }
 
 # Remembers when source $1 is next checked: _vf_next is the earliest.
@@ -516,7 +516,7 @@ _vigil_fetch_sync() {
         esac
         if [ $? -eq 0 ]; then
             if [ "$_vf_kind" = branch ] && [ "$_vf_entry" != "$_vft_entry" ]; then
-                _vigil_wk_log "WARN source.$name: ref '$_vfs_ref' is a branch: its scripts follow it, and hosts may briefly differ (W_SCRIPT_UNPINNED)"
+                _vigil_wk_log "$_vw_run run WARN source.$name: ref '$_vfs_ref' is a branch: its scripts follow it, and hosts may briefly differ (W_SCRIPT_UNPINNED)"
             fi
             _vft_identity=$_vfs_identity
             _vft_entry=$_vf_entry
@@ -547,7 +547,7 @@ _vigil_fetch_keep() {
             [ "${VIGIL_ACT_SHA[$i]}" = "$3" ] && [ -f "$_vw_root/cache/$1/${VIGIL_ACT_ENTRY[$i]}/$2" ]; then
             _vf_entry=${VIGIL_ACT_ENTRY[$i]}
             _vf_sha=$3
-            _vigil_wk_log "WARN source.$1: $2 no longer matches its sha256; the last verified copy stays in use"
+            _vigil_wk_log "$_vw_run run WARN source.$1: $2 no longer matches its sha256; the last verified copy stays in use"
             return 0
         fi
         i=$((i + 1))
@@ -732,7 +732,7 @@ vigil_fetch() {
             _vf_why="$cfile has errors"
             [ -n "$csrc" ] || _vf_why='the configuration has errors'
             while IFS= read -r line; do
-                [ -n "$line" ] && _vigil_wk_log "  $line"
+                [ -n "$line" ] && _vigil_wk_log "$_vw_run run   $line"
             done <<EOF_REPORT
 $(vigil_config_report)
 EOF_REPORT
@@ -805,7 +805,7 @@ EOF_REPORT
             [ -f "$_vw_statedir/config.active" ] && cp -f "$_vw_statedir/config.active" "$_vw_statedir/config.previous"
             printf '%sactivated_epoch = %s\n' "$body" "$_vf_now" > "$_vw_statedir/config.active.tmp.$$" &&
                 mv -f "$_vw_statedir/config.active.tmp.$$" "$_vw_statedir/config.active"
-            _vigil_wk_log "configuration revision $revision activated ($origin)"
+            _vigil_wk_log "$_vw_run run configuration revision $revision activated ($origin)"
             _vf_events[${#_vf_events[@]}]="$_vf_now vigil.config.activated 1 count $_vf_tags revision=$revision"
         fi
         # Sources no longer named are forgotten, with their cache.

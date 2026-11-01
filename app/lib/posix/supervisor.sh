@@ -609,6 +609,27 @@ _vigil_sup_fetch_due() {
     [ -z "$next" ] || [ "$_su_epoch" -ge "$next" ]
 }
 
+# Whether the forwarder should run: at each check_every, once any backoff is
+# over, when a log has grown since its last run (13.4.3).
+_vigil_sup_logs_due() {
+    local line checked=0 next=0 total=''
+    if [ -f "$_su_statedir/logs/forwarder.state" ]; then
+        while IFS= read -r line; do
+            case $line in
+                'checked_epoch = '*) checked=${line#*= } ;;
+                'next_try = '*) next=${line#*= } ;;
+                'total = '*) total=${line#*= } ;;
+            esac
+        done < "$_su_statedir/logs/forwarder.state"
+    fi
+    _vigil_wk_get log_forward check_every 30s
+    _vigil_wk_secs "$_vw_value"
+    [ "$_su_epoch" -ge $((checked + _vw_secs)) ] || return 1
+    [ "$_su_epoch" -ge "$next" ] || return 1
+    vigil_logs_total "$_su_logdir"
+    [ "$_vl_total" != "$total" ]
+}
+
 # Whether job $1 is INVALID in the active configuration.
 _vigil_sup_invalid() {
     local i=0
@@ -648,7 +669,12 @@ _vigil_sup_start() {
     ( trap '' HUP; exec 8>&-; exec "$BASH" "$_su_app/vigil" --root "$_su_root" worker "$job" --run-id "$rid" ) \
         < /dev/null > /dev/null 2>&1 &
     _su_running=$((_su_running + 1))
-    [ "$job" = vigil_sender ] || _vigil_sup_log INFO "job $job: run $rid started"
+    # The forwarder's own starts are not logged: each would give it
+    # something new to forward.
+    case $job in
+        vigil_sender | vigil_logs) ;;
+        *) _vigil_sup_log INFO "job $job: run $rid started" ;;
+    esac
     # Started beside an uncertain run under on_uncertain = replace (11.4).
     if _vigil_sup_contains "$_su_replacing" "$job"; then
         _vigil_sup_event "$job" possible_duplicates 1 count
@@ -798,6 +824,7 @@ _vigil_sup_tick() {
     # checked successfully (14.5).
     if [ "$_su_waiting" = 0 ]; then
         _su_events[${#_su_events[@]}]="$_su_epoch vigil.config.info 1 gauge $_su_tags revision=$_su_revision"
+        vigil_logs_enabled && _su_events[${#_su_events[@]}]="$_su_epoch vigil.logs.enabled 1 gauge $_su_tags"
     fi
     if [ "$_su_mode" = fetch ]; then
         for i in "$_su_statedir"/sources/*.state; do
@@ -837,6 +864,14 @@ _vigil_sup_tick() {
         _vigil_sup_account vigil_fetch
         if [ "$_su_active" = - ] && _vigil_sup_fetch_due; then
             _vigil_sup_start vigil_fetch
+        fi
+    fi
+
+    # The log forwarder (13.4.3): the same again, on its own schedule.
+    if [ "$_su_waiting" = 0 ] && vigil_logs_enabled; then
+        _vigil_sup_account vigil_logs
+        if [ "$_su_active" = - ] && _vigil_sup_logs_due; then
+            _vigil_sup_start vigil_logs
         fi
     fi
 

@@ -229,7 +229,8 @@ function Invoke-VigilPrecheck {
     foreach ($sec in $parsed.Sections) {
         $isStore = $sec.Name.StartsWith('secret_store.', [System.StringComparison]::Ordinal)
         if (-not ($sec.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) -or $isStore -or
-                $sec.Name.StartsWith('source.', [System.StringComparison]::Ordinal))) { continue }
+                $sec.Name.StartsWith('source.', [System.StringComparison]::Ordinal) -or
+                $sec.Name.StartsWith('log_destination.', [System.StringComparison]::Ordinal))) { continue }
         for ($i = $sec.First; $i -lt $sec.First + $sec.Count; $i++) {
             $e = $parsed.Entries[$i]
             if ($e.Value -cnotmatch '^(env|secret|store):') { continue }

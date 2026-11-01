@@ -102,7 +102,7 @@ _vigil_val_keytype() {
         log_forward:check_every) _vv_type=dur ;;
         log_forward:batch_lines | log_forward:batch_kb | log_forward:max_pending_mb) _vv_type=int1 ;;
         log_destination:type) _vv_type=log_dest_type ;;
-        log_destination:endpoint) _vv_type=https_url ;;
+        log_destination:endpoint) _vv_type=log_url ;;
         log_destination:timeout) _vv_type=dur ;;
         log_destination:header_name) _vv_type=text ;;
         log_destination:header_value) _vv_type=credential ;;
@@ -450,6 +450,16 @@ _vigil_val_check() {
             # The URL itself is never shown, since a mistaken one may carry a password.
             case $value in
                 https://*) _vigil_val_authority "${value#https://}" https ;;
+                *) _vv_code=E_URL; _vv_msg="'$key' must start with https://" ;;
+            esac
+            ;;
+        log_url)
+            # As https_url, with plain http to this host, as for a metrics
+            # backend (15.3).
+            case $value in
+                https://*) _vigil_val_authority "${value#https://}" https ;;
+                http://localhost | http://localhost[:/]* | http://127.0.0.1 | http://127.0.0.1[:/]* | 'http://[::1]' | 'http://[::1]'[:/]*)
+                    _vigil_val_authority "${value#http://}" https ;;
                 *) _vv_code=E_URL; _vv_msg="'$key' must start with https://" ;;
             esac
             ;;

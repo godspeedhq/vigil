@@ -11,5 +11,6 @@
 tests/conformance/**/*.config  -text
 tests/conformance/**/*.expected -text
 tests/conformance/**/*.stdout   -text
+tests/conformance/**/*.input    -text
 
 *.exe binary

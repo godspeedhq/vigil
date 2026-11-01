@@ -328,7 +328,7 @@ vigil_precheck() {
     while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
         sec=${VIGIL_CFG_SEC_NAME[$s]}
         case $sec in
-            backend.* | secret_store.* | source.*)
+            backend.* | secret_store.* | source.* | log_destination.*)
                 i=${VIGIL_CFG_SEC_FIRST[$s]}
                 end=$((i + VIGIL_CFG_SEC_COUNT[s]))
                 while [ "$i" -lt "$end" ]; do

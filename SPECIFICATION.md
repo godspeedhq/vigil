@@ -1103,6 +1103,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
     jobs/vigil_logs.state
     backends/<name>.state        a failing backend's backoff (§4.5)
     logs/<encoded file path>.checkpoint   log forwarding progress (§13.4.4)
+    logs/forwarder.state          the forwarder's destination, backoff and last run (§13.4.3)
     locks/<job id>.<run id>.launch  written by the supervisor before the worker starts
     locks/<job id>.<run id>.token held open by the live worker after its claim
     locks/<job id>.<run id>.timeout  written by the supervisor before it stops an overrunning run (§10.3)
@@ -1260,10 +1261,10 @@ timeout      = 10s
 
 | Job key | Description |
 | --- | --- |
-| `forward_output` | `false` keeps this job's stdout and stderr local even when `include` names them. Its `run` lines are still forwarded. Default `true`; may also be set in `[defaults]`. |
+| `forward_output` | `false` keeps this job's stdout and stderr local even when `include` names them. Its `run` lines are still forwarded. Default `true`; may also be set in `[defaults]`. The output of a job the configuration no longer names is not forwarded, since its setting is not known. |
 
 - **Job output is opt-in.** stdout and stderr are where secrets and personal data leak, so they are forwarded only when `include` names them, and any job can keep its output local with `forward_output = false`.
-- **`[log_destination.*]` is separate from `[backend.*]`.** A metrics endpoint is never assumed to accept logs, even when both point at the same product. A log destination takes `type` (`otel` in v1), `endpoint` (`https://` only, without credentials), `timeout` (default `10s`) and an optional `header_name` and `header_value`, the value under the `env:` rule (§6.5). `type` and `endpoint` are required.
+- **`[log_destination.*]` is separate from `[backend.*]`.** A metrics endpoint is never assumed to accept logs, even when both point at the same product. A log destination takes `type` (`otel` in v1), `endpoint` (`https://`, or plain `http://` only to this host, as for a metrics backend, §15.3; without credentials), `timeout` (default `10s`) and an optional `header_name` and `header_value`, the value under the `env:` rule (§6.5). `type` and `endpoint` are required.
 - Changes take effect at the next tick, like any configuration change (§16.1). Turning forwarding on or off, or changing what it includes, needs no restart. An invalid `[log_forward]` or `[log_destination.*]` is a configuration error like any other (§16.3): the last valid configuration stays active, and local logging is never affected.
 
 #### 13.4.2 What Is Forwarded
@@ -1279,9 +1280,11 @@ The internal workers `vigil_sender` and `vigil_fetch` write job logs like any jo
 
 Every record carries: the time from the line, `host`, `os`, `instance` and the `[tags]` section (§14.6), the component (`supervisor` or `job`), for job lines the job id and run id, the category, the severity when there is one, the message (the line's text, unchanged), the source file name, and the active configuration revision (§16.5). Run ids are fine in log records, unlike metric tags: logs are not aggregated into series.
 
+In OTLP, `service.name` (`vigil`), the host, tags and `config.revision` are attributes of the resource, shared by a request's records; `component`, `category`, `job`, `run_id`, `source_file` and, for a cut line, `truncated` are attributes of each record. Severity is `severityNumber` 9, 13 or 17 with `severityText` `INFO`, `WARN` or `ERROR`, and is absent when there is none. A line in neither log format is kept: it is sent whole, with time `0`, as `run` (or `supervisor`), so nothing is lost to a format Vigil did not expect.
+
 #### 13.4.3 The Forwarder
 
-Forwarding is done by a third internal worker, `vigil_logs`, started and supervised exactly like `vigil_sender` (§4.5): detached, with its own state file, run token, log and identity checks, one at a time, with a fixed internal `max_runtime` of 5 minutes. The supervisor starts it, when forwarding is enabled, on each `check_every` where a log has grown since its last checkpoint. A forwarder that fails or is killed never affects the supervisor or other workers, and the next one resumes from the checkpoints.
+Forwarding is done by a third internal worker, `vigil_logs`, started and supervised exactly like `vigil_sender` (§4.5): detached, with its own state file, run token, log and identity checks, one at a time. It keeps to a fixed limit of 5 minutes by starting no request after 4 minutes, each request being bounded by the destination's `timeout`. The supervisor starts it, when forwarding is enabled, on each `check_every` where a log has grown since its last run and no backoff is in force; `state/logs/forwarder.state` holds the destination, the backoff, the time of the last run and the total size of the logs then. A forwarder that fails or is killed never affects the supervisor or other workers, and the next one resumes from the checkpoints.
 
 It is separate from the metrics sender on purpose: metrics and logs have independent progress, failures and backlogs, and neither can delay the other.
 
@@ -1294,7 +1297,10 @@ The forwarder keeps one checkpoint per log file, `state/logs/<encoded file path>
 file        = logs/jobs/backup_full/2026-10-30.log
 fingerprint = 3816409027 64
 offset      = 827391
+size        = 827391
 ```
+
+`size` is the file's size when the checkpoint was written: how the forwarder knows what was undelivered if the file is gone, and that a file of the same size has nothing new, without opening it.
 
 - **File identity.** Log files are append-only and their names are never reused (§13.1), so a file is identified by its name plus a fingerprint: the `cksum` of its first 64 bytes, and the number of bytes fingerprinted (fewer for a file shorter than 64 bytes, completed once it grows). A file whose fingerprint no longer matches has been replaced or edited: it is forwarded again from the start, and a `replaced` gap is reported, since some of its old content may never have been sent.
 - **Truncation.** A file shorter than its checkpoint's offset is treated as replaced, never as "nothing new".
@@ -1310,7 +1316,7 @@ offset      = 827391
 Delivery is **at least once** while a file still exists: a crash between a destination accepting a batch and the checkpoint being written resends that batch. Duplicates are possible; exactly-once is not promised.
 
 - **Acceptance, not transport.** Each destination type defines what counts as accepted: for `otel`, an HTTP 2xx whose response reports no rejected records. A partial success advances the checkpoint only past the leading records that were accepted; the rest are retried. A response Vigil cannot interpret is a failure, never a success.
-- **Retries.** A failed request is retried in the next forwarder run, with exponential backoff between runs up to 15 minutes. Authentication failures are reported separately, since retrying does not fix them. Every request is bounded by the destination's `timeout`.
+- **Retries.** A failed request ends the run, and is retried in a later one, with exponential backoff between runs from 5 seconds up to 15 minutes. Authentication failures are reported separately, since retrying does not fix them. Every request is bounded by the destination's `timeout`.
 - **Bounds.** One forwarder run sends at most `max_pending_mb` of log data, in requests of at most `batch_lines` lines and `batch_kb` kilobytes, one request at a time. It reads files line by line, so its memory use is bounded by one batch whatever the size of the logs. Lines longer than 64 KB are truncated, and the truncation is marked in the record.
 - **Content.** Records are sent as text in the destination's encoding (for `otel`, OTLP/HTTP JSON). Control characters and invalid UTF-8 in job output are escaped, never sent raw. The forwarder never interprets or executes what a record says.
 
@@ -1978,6 +1984,7 @@ Both implementations run the same cases from `tests/conformance/` and must produ
 | `recovery` | A table of run evidence and conclusions | What the supervisor concludes about a run (§11.3). |
 | `prom` | A file backend file and a batch of events | The merged file (§15.3). |
 | `backend` | HTTP backends, a batch of events and the answers to give | Every request made (URL, headers, body) and what became of the batch (§15.3). |
+| `logs` | A configuration and lines of log files | The OTLP log record of each line, or that it is not forwarded (§13.4). |
 | `mocks` | The example configurations in `tests/mocks/` (§6.7) | Their validation and effective settings. |
 
 CI runs every suite on Windows PowerShell 5.1, Linux bash and macOS bash 3.2 (§22.5).
