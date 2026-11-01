@@ -499,6 +499,10 @@ vigil_uninstall() {
         for p in $alive; do kill -KILL -- "-$p" 2> /dev/null || kill -KILL "$p" 2> /dev/null; done
     fi
     for p in $link; do rm -f "$p"; done
+    # The sudo rule of install --update-by, if it is this install's.
+    if [ -f /etc/sudoers.d/vigil ] && grep -qF " $root/app/vigil self update" /etc/sudoers.d/vigil 2> /dev/null; then
+        rm -f /etc/sudoers.d/vigil
+    fi
     if [ "$keep" = 1 ]; then
         for p in "$root"/* "$root"/.[!.]*; do
             [ -e "$p" ] || continue

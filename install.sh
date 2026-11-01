@@ -21,6 +21,9 @@
 #   --backend <list>       passed to vigil init (file, datadog, otel)
 #   --no-init              do not write a starting configuration
 #   --no-service           do not register the service
+#   --update-by <who>      system mode: let this user, or %group, run vigil
+#                          self update without being root, through a sudo
+#                          rule for that one command
 #   --upgrade              only replace an installed Vigil, as vigil self
 #                          update does: no vigil init, no link, and the
 #                          service is left as it was found
@@ -40,6 +43,7 @@ archive=''
 account=''
 instance=''
 backend=''
+update_by=''
 do_init=1
 do_service=1
 only_upgrade=0
@@ -60,7 +64,7 @@ while [ "$#" -gt 0 ]; do
             only_upgrade=1
             do_init=0
             ;;
-        --prefix | --version | --archive | --account | --instance | --backend)
+        --prefix | --version | --archive | --account | --instance | --backend | --update-by)
             [ "$#" -ge 2 ] || die "$1 needs a value"
             case $1 in
                 --prefix) prefix=$2 ;;
@@ -69,6 +73,7 @@ while [ "$#" -gt 0 ]; do
                 --account) account=$2 ;;
                 --instance) instance=$2 ;;
                 --backend) backend=$2 ;;
+                --update-by) update_by=$2 ;;
             esac
             shift
             ;;
@@ -99,6 +104,13 @@ if [ -z "$mode" ]; then
 fi
 [ "$mode" = system ] && [ "$uid" -ne 0 ] && die 'system mode needs root: run it with sudo, or use --user'
 [ "$mode" = user ] && [ "$uid" -eq 0 ] && die 'user mode installs for the account that runs it, not root: use --system'
+if [ -n "$update_by" ]; then
+    [ "$mode" = system ] || die '--update-by is for system mode: a user install updates itself'
+    case $update_by in
+        '' | *[!A-Za-z0-9_.%-]* | ?*%*) die "--update-by needs a user or %group: $update_by" ;;
+    esac
+    command -v visudo > /dev/null 2>&1 || die '--update-by needs sudo'
+fi
 if [ -n "$prefix" ]; then
     root=$prefix
 elif [ "$mode" = system ]; then
@@ -270,6 +282,18 @@ case :$PATH: in
     *:"$bindir":*) ;;
     *) say "note: $bindir is not on your PATH; add it, or run $root/app/vigil" ;;
 esac
+
+# One command, with no arguments of its own: the latest release only, never
+# a version of the caller's choosing (18.7).
+if [ -n "$update_by" ]; then
+    rule="$work/sudoers"
+    printf '%s ALL=(root) NOPASSWD: %s/app/vigil self update\n' "$update_by" "$root" > "$rule"
+    visudo -cf "$rule" > /dev/null 2>&1 || die "the sudo rule for $update_by is not valid"
+    chmod 440 "$rule"
+    cp "$rule" /etc/sudoers.d/vigil && chown 0:0 /etc/sudoers.d/vigil 2> /dev/null && chmod 440 /etc/sudoers.d/vigil ||
+        die 'cannot write /etc/sudoers.d/vigil'
+    say "$update_by can now run: vigil self update"
+fi
 
 # --- 5. vigil init, on a fresh install --------------------------------------------
 

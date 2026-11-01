@@ -289,8 +289,26 @@ else
     check 'system: a release that does not run fails' 1 "$?"
     check 'system: the old version is back' 0.0.2-it "$(cat "$sys/app/VERSION")"
     check 'system: and its service is active' active "$(active)"
+    # A narrow sudo rule: one person, one command, without being root.
+    me=$(id -un)
+    latest 0.0.2-it
+    sudo sh "$repo/install.sh" --system --prefix "$sys" --archive "$www/releases/download/v0.0.2-it/vigil-0.0.2-it.tar.gz" --update-by "$me" < /dev/null > "$work/out" 2>&1
+    check 'update-by: installed' 0 "$?"
+    check 'update-by: the rule is one command' 1 "$(sudo grep -c "^$me ALL=(root) NOPASSWD: $sys/app/vigil self update\$" /etc/sudoers.d/vigil)"
+    printf 'Defaults env_keep += "VIGIL_TEST_RELEASE_URL"\n' | sudo tee /etc/sudoers.d/vigil-test > /dev/null
+    latest 0.0.1-it
+    /usr/local/bin/vigil self update > "$work/out" 2>&1
+    rc=$?
+    check 'update-by: updated, not as root' 0 "$rc"
+    [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+    check 'update-by: the release is installed' 0.0.1-it "$(cat "$sys/app/VERSION")"
+    check 'update-by: the service is active' active "$(active)"
+    /usr/local/bin/vigil self update --version 0.0.2-it > "$work/out" 2>&1
+    check 'update-by: no version of your own choosing' 1 "$?"
+    sudo rm -f /etc/sudoers.d/vigil-test
     sudo /usr/local/bin/vigil uninstall --yes > /dev/null 2>&1
     check 'system: uninstall succeeds' 0 "$?"
+    check 'system: the sudo rule is gone' no "$(sudo test -e /etc/sudoers.d/vigil && echo yes || echo no)"
     [ "$(uname -s)" = Linux ] && sudo userdel vigil 2> /dev/null
 fi
 

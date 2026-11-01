@@ -137,7 +137,7 @@ vigil self update --check   # only say whether there is one
 vigil version               # what is installed
 ```
 
-Use `sudo` for a system install on Linux and macOS, and an elevated prompt on Windows.
+A user install needs no admin rights. For a system install, use `sudo` on Linux and macOS and an elevated prompt on Windows. On Linux and macOS you can grant that once: installing with `--update-by <user or %group>` lets that account run `vigil self update` itself, and nothing else as root.
 
 Only Vigil's own code is replaced: your configuration, scripts, state, spool and logs are left alone. The service is not restarted: the supervisor sees the new version within seconds and replaces itself in place, keeping its process id, while running jobs finish under the code they started with. If the new version does not come up, the old one is put back. Re-running the one-line installer does the same job.
 
