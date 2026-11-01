@@ -20,6 +20,8 @@
         The categories to forward.
     Test-VigilLogsOutput -Parsed <parsed> -Job <id>
         Whether a job's stdout and stderr may be forwarded.
+    Remove-VigilOldLogs -Parsed <parsed> -LogDir <dir> -Epoch <time>
+        Deletes the log files older than their retention (13.1).
     ConvertTo-VigilLogRecord -File <file> -Line <line> -Include <list> -Output <bool>
         Pure: the OTLP log record of one line of a log file (relative to
         the log directory, with / separators), or '' when it is not
@@ -144,17 +146,53 @@ function ConvertTo-VigilLogAttr {
     return "{`"key`":`"$Key`",`"value`":{`"stringValue`":`"$(ConvertTo-VigilLogText $Value)`"}}"
 }
 
+# Days since 1970 of a date.
+function Get-VigilLogDays {
+    param([long]$Year, [long]$Month, [long]$Day)
+    $y = $Year
+    if ($Month -le 2) { $y-- }
+    $era = [Math]::Floor($y / 400)
+    $yoe = $y - $era * 400
+    $doy = [Math]::Floor((153 * (($Month + 9) % 12) + 2) / 5) + $Day - 1
+    $doe = $yoe * 365 + [Math]::Floor($yoe / 4) - [Math]::Floor($yoe / 100) + $doy
+    return [long]($era * 146097 + $doe - 719468)
+}
+
 # Seconds since 1970 of a time as Vigil's logs write it, or -1.
 function ConvertFrom-VigilLogTime {
     param([string]$Text)
     if ($Text -cnotmatch '^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})Z$') { return [long]-1 }
-    $y = [long]$Matches[1]; $m = [long]$Matches[2]; $d = [long]$Matches[3]
-    if ($m -le 2) { $y-- }
-    $era = [Math]::Floor($y / 400)
-    $yoe = $y - $era * 400
-    $doy = [Math]::Floor((153 * (($m + 9) % 12) + 2) / 5) + $d - 1
-    $doe = $yoe * 365 + [Math]::Floor($yoe / 4) - [Math]::Floor($yoe / 100) + $doy
-    return [long](($era * 146097 + $doe - 719468) * 86400 + [long]$Matches[4] * 3600 + [long]$Matches[5] * 60 + [long]$Matches[6])
+    $t = [long]$Matches[4] * 3600 + [long]$Matches[5] * 60 + [long]$Matches[6]
+    return (Get-VigilLogDays $Matches[1] $Matches[2] $Matches[3]) * 86400 + $t
+}
+
+# Deletes dated log files older than their retention (13.1), whole, and
+# never for the forwarder's sake (13.4.4). The status file has no date.
+# Returns the number deleted.
+function Remove-VigilOldLogs {
+    param($Parsed, [string]$LogDir, [long]$Epoch)
+    $today = [long][Math]::Floor($Epoch / 86400)
+    $removed = 0
+    $base = Get-VigilConfigValue $Parsed 'log' 'retain_days' '7'
+    $dirs = New-Object 'System.Collections.Generic.List[object]'
+    $sup = Join-Path $LogDir 'supervisor'
+    if ([System.IO.Directory]::Exists($sup)) { $dirs.Add(@{ Dir = $sup; Keep = [long]$base }) }
+    $jobs = Join-Path $LogDir 'jobs'
+    if ([System.IO.Directory]::Exists($jobs)) {
+        $dflt = Get-VigilConfigValue $Parsed 'defaults' 'log_retain_days' $base
+        foreach ($d in [System.IO.Directory]::GetDirectories($jobs)) {
+            $dirs.Add(@{ Dir = $d; Keep = [long](Get-VigilConfigValue $Parsed "job.$([System.IO.Path]::GetFileName($d))" 'log_retain_days' $dflt) })
+        }
+    }
+    foreach ($x in $dirs) {
+        foreach ($f in [System.IO.Directory]::GetFiles($x.Dir, '*.log')) {
+            if ([System.IO.Path]::GetFileName($f) -cnotmatch '^([0-9]{4})-([0-9]{2})-([0-9]{2})([.][0-9]+)?[.]log$') { continue }
+            if ($today - (Get-VigilLogDays $Matches[1] $Matches[2] $Matches[3]) -gt $x.Keep) {
+                try { [System.IO.File]::Delete($f); $removed++ } catch { }
+            }
+        }
+    }
+    return $removed
 }
 
 function ConvertTo-VigilLogRecord {

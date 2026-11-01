@@ -294,6 +294,21 @@ vigil run chatty > /dev/null
 forward
 check "disabled: nothing sent" 0 "$(wc -l < "$root/mock/requests.log" | tr -d ' ')"
 
+# Retention: old files go, whole, by the job's own setting if it has one.
+printf 'log_retain_days = 99999\n\n[log]\nretain_days = 3\n' >> "$root/config/vigil.config"
+mkdir -p "$root/logs/jobs/gone"
+for f in supervisor/2020-01-01.log supervisor/2020-01-01.1.log jobs/chatty/2020-01-01.log jobs/quiet/2020-01-01.log jobs/gone/2020-01-01.log; do
+    echo old > "$root/logs/$f"
+done
+tick
+check "retention: old supervisor log" no "$(yes_no test -e "$root/logs/supervisor/2020-01-01.log")"
+check "retention: its numbered part" no "$(yes_no test -e "$root/logs/supervisor/2020-01-01.1.log")"
+check "retention: old job log" no "$(yes_no test -e "$root/logs/jobs/chatty/2020-01-01.log")"
+check "retention: a job no longer configured" no "$(yes_no test -e "$root/logs/jobs/gone/2020-01-01.log")"
+check "retention: log_retain_days wins" yes "$(yes_no test -e "$root/logs/jobs/quiet/2020-01-01.log")"
+check "retention: today's log stays" yes "$(yes_no test -e "$root/logs/supervisor/$(date '+%Y-%m-%d').log")"
+check "retention: the status file stays" yes "$(yes_no test -e "$root/logs/supervisor/jobs.log")"
+
 # The credential is only ever in a header.
 check "no credential in logs, state, spool or metrics" "" "$(grep -rlF "$token" "$root/logs" "$root/state" "$root/spool" "$root/metrics" 2>/dev/null)"
 

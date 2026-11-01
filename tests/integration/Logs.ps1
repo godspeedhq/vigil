@@ -297,6 +297,21 @@ forward_output = false
     Invoke-Forward
     Test-Equal 'disabled: nothing sent' '0' ([string]@([System.IO.File]::ReadAllLines("$root\mock\requests.log")).Count)
 
+    # Retention: old files go, whole, by the job's own setting if it has one.
+    [System.IO.File]::AppendAllText($cfg, "`nlog_retain_days = 99999`n`n[log]`nretain_days = 3`n")
+    [void](New-Item -ItemType Directory -Force -Path "$root\logs\jobs\gone")
+    foreach ($f in @('supervisor\2020-01-01.log', 'supervisor\2020-01-01.1.log', 'jobs\chatty\2020-01-01.log', 'jobs\quiet\2020-01-01.log', 'jobs\gone\2020-01-01.log')) {
+        [System.IO.File]::WriteAllText("$root\logs\$f", "old`n")
+    }
+    Invoke-Tick
+    Test-Equal 'retention: old supervisor log' 'False' ([string](Test-Path -LiteralPath "$root\logs\supervisor\2020-01-01.log"))
+    Test-Equal 'retention: its numbered part' 'False' ([string](Test-Path -LiteralPath "$root\logs\supervisor\2020-01-01.1.log"))
+    Test-Equal 'retention: old job log' 'False' ([string](Test-Path -LiteralPath "$root\logs\jobs\chatty\2020-01-01.log"))
+    Test-Equal 'retention: a job no longer configured' 'False' ([string](Test-Path -LiteralPath "$root\logs\jobs\gone\2020-01-01.log"))
+    Test-Equal 'retention: log_retain_days wins' 'True' ([string](Test-Path -LiteralPath "$root\logs\jobs\quiet\2020-01-01.log"))
+    Test-Equal 'retention: today''s log stays' 'True' ([string](Test-Path -LiteralPath "$root\logs\supervisor\$((Get-Date).ToString('yyyy-MM-dd')).log"))
+    Test-Equal 'retention: the status file stays' 'True' ([string](Test-Path -LiteralPath "$root\logs\supervisor\jobs.log"))
+
     # The credential is only ever in a header.
     $leaks = foreach ($d in @('logs', 'state', 'spool', 'metrics')) {
         Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
