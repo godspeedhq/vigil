@@ -141,6 +141,8 @@ try {
     $got = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $work $file)).Hash.ToLowerInvariant()
     if ($got -cne $want) { Stop-Install "SHA-256 mismatch for $file`: expected $want, got $got; nothing was changed" }
     Write-Output "verified $file (SHA-256 $got)"
+    # Only the downloads above use it: pre-flight refuses it (22.4.4).
+    Remove-Item Env:\VIGIL_TEST_RELEASE_URL -ErrorAction SilentlyContinue
 
     $x = Join-Path $work 'x'
     Expand-Archive -LiteralPath (Join-Path $work $file) -DestinationPath $x

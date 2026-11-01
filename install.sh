@@ -169,6 +169,8 @@ want=$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$work/SHA256SUMS"
 got=$(cd "$work" && $sha "$file" | awk '{ print $1 }')
 [ "$got" = "$want" ] || die "SHA-256 mismatch for $file: expected $want, got $got; nothing was changed"
 say "verified $file (SHA-256 $got)"
+# Only the downloads above use it: pre-flight refuses it (22.4.4).
+unset VIGIL_TEST_RELEASE_URL
 
 mkdir "$work/x" && tar -xzf "$work/$file" -C "$work/x" || die "cannot unpack $file"
 src=$(find "$work/x" -mindepth 1 -maxdepth 1 -type d | head -n 1)
