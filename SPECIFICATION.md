@@ -1729,7 +1729,7 @@ A job pinned by `sha256` whose source now holds other content keeps its last ver
 | `sftp` | The OpenSSH `sftp` client in batch mode with `BatchMode=yes` and `StrictHostKeyChecking=yes`: the server's host key must already be in the service account's `known_hosts`, so a first connection can never silently trust an impostor. Like `https`, a script is fetched once. |
 | `local` | A copy from the directory (`cp -R`; `robocopy` on Windows), so a job never runs a file directly from a share that may change or disappear under it. |
 
-On Windows, `git archive` writes a zip file, which .NET unpacks. Every fetch is bounded by the source's `timeout`, and the fetcher ends the process tree it started at that limit; a fetched configuration file larger than 1 MiB, or a script larger than 16 MiB, is rejected. Git is never allowed to stop and ask for a credential.
+On Windows, `git archive` writes a zip file, which .NET unpacks. Every fetch is bounded by the source's `timeout`, and the fetcher ends the process tree it started at that limit; a fetched configuration file larger than 1 MiB is rejected. A script may be any size, as a local one may. Git is never allowed to stop and ask for a credential.
 
 ---
 

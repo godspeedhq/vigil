@@ -95,6 +95,8 @@ rc=$?
 check 'install from the latest release' 0 "$rc"
 [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
 check 'its version' 'Vigil 0.0.1-it' "$(vigil version)"
+check 'about: who made it' 1 "$(vigil about 2>/dev/null | grep -c '^Created by  Bankole Ogundero and the Vigil contributors$')"
+check 'about: where it is' 1 "$(vigil about 2>/dev/null | grep -cF "Installed   $root")"
 
 printf '# my change\n' >> "$root/config/vigil.config"
 printf 'echo mine\n' > "$root/scripts/mine.sh"

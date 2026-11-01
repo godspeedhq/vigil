@@ -979,4 +979,4 @@ Vigil is built to make adding checks easy: a check is just a script that prints 
 
 ## Licence
 
-Vigil is released under the [Apache License 2.0](LICENSE).
+Vigil is released under the [Apache License 2.0](LICENSE). Created by Bankole Ogundero and the Vigil contributors.

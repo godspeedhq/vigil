@@ -118,6 +118,9 @@ try {
     Test-Equal 'install from the latest release' '0' ([string]$rc)
     if ($rc -ne 0) { $out | ForEach-Object { Write-Host "        $_" } }
     Test-Equal 'its version' 'Vigil 0.0.1-it' (Invoke-Vigil version).Text
+    $about = (Invoke-Vigil about).Text
+    Test-Equal 'about: who made it' 'True' ([string]$about.Contains('Created by  Bankole Ogundero and the Vigil contributors'))
+    Test-Equal 'about: where it is' 'True' ([string]$about.Contains("Installed   $root"))
 
     [System.IO.File]::AppendAllText("$root\config\vigil.config", "# my change`n")
     Set-Content -LiteralPath "$root\scripts\mine.cmd" -Value @('@echo off', 'echo mine')

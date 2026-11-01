@@ -320,9 +320,6 @@ check 'size cap: the run went to the next file' yes "$(yes_no grep -q 'run start
 slog=$root/logs/supervisor/$(date '+%Y-%m-%d').log
 head -c 1100000 /dev/zero | tr '\000' x >> "$slog"
 printf '\n' >> "$slog"
-printf 'x\n' >> "$root/config/vigil.config"
-sed -i.bak '$d' "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
-size=$(wc -c < "$slog")
 tick
 tick
 check 'size cap: the supervisor moves on too' yes "$(yes_no test -s "${slog%.log}.1.log")"

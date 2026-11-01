@@ -9,6 +9,8 @@
 #
 #   vigil_version <app dir>
 #     Prints "Vigil <version>", or says this is a copy from the repository.
+#   vigil_about <root> <app dir>
+#     What this is, who made it and where it runs.
 #   vigil_self_update <root> <app dir> <check: 0|1> <version, or empty>
 #     Returns 0, or 1 with the reason on stderr; nothing is changed then.
 #   vigil_supervisor_version <root>
@@ -30,6 +32,24 @@ vigil_version() {
     else
         printf 'Vigil, from the repository (no release)\n'
     fi
+}
+
+vigil_about() {
+    local os
+    case $(uname -s) in
+        Darwin) os=macOS ;;
+        Linux) os=Linux ;;
+        *) os=$(uname -s) ;;
+    esac
+    vigil_version "$2"
+    printf 'A job scheduler, supervisor and metrics forwarder for Windows, Linux and macOS,\n'
+    printf 'written only in the shells that ship with each one.\n\n'
+    printf '%-11s %s\n' 'Created by' 'Bankole Ogundero and the Vigil contributors'
+    printf '%-11s %s\n' Licence Apache-2.0
+    printf '%-11s %s\n' Source "$VIGIL_RELEASES"
+    printf '%-11s %s\n' Docs https://godspeedhq.github.io/vigil/
+    printf '%-11s %s\n' Installed "$1"
+    printf '%-11s %s, bash %s\n' Platform "$os" "${BASH_VERSION%%(*}"
 }
 
 # The SHA-256 of file $1, as 64 hex digits, on standard output.

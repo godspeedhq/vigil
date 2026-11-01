@@ -36,7 +36,7 @@
 # precheck.sh.
 
 VIGIL_FETCH_CONFIG_MAX=1048576
-VIGIL_FETCH_SCRIPT_MAX=16777216
+
 
 vigil_fetch_mode() {
     local s=0
@@ -408,7 +408,7 @@ _vigil_fetch_https() {
         {
             _vigil_curl_opt url "$url"
             [ -n "$_vfs_hname" ] && _vigil_curl_opt header "$_vfs_hname: $VIGIL_SECRET_VALUE"
-        } | curl "${opts[@]}" -sS --max-time "$_vfs_secs" --max-filesize "$3" -o "$out" -w '%{http_code}' -K - 2>/dev/null
+        } | curl "${opts[@]}" -sS --max-time "$_vfs_secs" -o "$out" -w '%{http_code}' -K - 2>/dev/null
     )
     rc=$?
     VIGIL_SECRET_VALUE=''
@@ -418,7 +418,6 @@ _vigil_fetch_https() {
         7) _vf_why="cannot connect to $host" ;;
         28) _vf_why="timed out after $_vfs_timeout" ;;
         60) _vf_why="the certificate of $host is not trusted" ;;
-        63) _vf_why="$1 is larger than $3 bytes" ;;
         *) _vf_why="request to $host failed (curl exit code $rc)" ;;
     esac
     [ "$rc" -eq 0 ] || return 1
@@ -465,16 +464,17 @@ _vigil_fetch_sftp() {
     mv -f "$_vf_st/download" "$2"
 }
 
-# Downloads file $1 of an https or sftp source into $2, at most $3 bytes.
+# Downloads file $1 of an https or sftp source into $2, at most $3 bytes if
+# $3 is given: scripts may be any size, and the source's timeout bounds them.
 _vigil_fetch_download() {
     rm -f "$2"
     if [ "$_vfs_type" = https ]; then
-        _vigil_fetch_https "$1" "$2" "$3" || return 1
+        _vigil_fetch_https "$1" "$2" "${3-}" || return 1
     else
         _vigil_fetch_sftp "$1" "$2" || return 1
     fi
     _vigil_fetch_size "$2"
-    if [ "$_vf_size" -gt "$3" ]; then
+    if [ -n "${3-}" ] && [ "$_vf_size" -gt "$3" ]; then
         _vf_why="$1 is larger than $3 bytes"
         return 1
     fi
@@ -569,7 +569,7 @@ _vigil_fetch_ref() {
                 _vf_sha=$want
                 return 0
             fi
-            _vigil_fetch_download "$file" "$_vf_st/script" "$VIGIL_FETCH_SCRIPT_MAX" || return 1
+            _vigil_fetch_download "$file" "$_vf_st/script" || return 1
             _vf_sha=$(_vigil_fetch_digest < "$_vf_st/script")
             if [ "$_vf_sha" != "$want" ]; then
                 _vf_why="$file does not match its sha256"
@@ -584,11 +584,6 @@ _vigil_fetch_ref() {
             p="$_vw_root/cache/$src/$_vf_entry/$file"
             if [ ! -f "$p" ]; then
                 _vf_why="$file not found"
-                return 1
-            fi
-            _vigil_fetch_size "$p"
-            if [ "$_vf_size" -gt "$VIGIL_FETCH_SCRIPT_MAX" ]; then
-                _vf_why="$file is larger than $VIGIL_FETCH_SCRIPT_MAX bytes"
                 return 1
             fi
             _vf_sha=$(_vigil_fetch_digest < "$p")

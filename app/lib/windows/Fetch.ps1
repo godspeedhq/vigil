@@ -36,7 +36,7 @@
 #>
 
 $Script:VigilFetchConfigMax = 1048576
-$Script:VigilFetchScriptMax = 16777216
+
 
 function Test-VigilFetchMode {
     param($Parsed)
@@ -384,7 +384,7 @@ function Invoke-VigilFetch {
                 $total = 0
                 while (($n = $in.Read($buf, 0, $buf.Length)) -gt 0) {
                     $total += $n
-                    if ($total -gt $Max) { return "$File is larger than $Max bytes" }
+                    if ($Max -gt 0 -and $total -gt $Max) { return "$File is larger than $Max bytes" }
                     $fs.Write($buf, 0, $n)
                 }
             }
@@ -419,14 +419,15 @@ function Invoke-VigilFetch {
         return ''
     }
 
-    # Downloads a file of an https or sftp source, at most Max bytes.
+    # Downloads a file of an https or sftp source, at most Max bytes if Max
+    # is above 0: scripts may be any size, and the source's timeout bounds them.
     # Returns the reason it failed, or ''.
     $download = {
         param($S, [string]$File, [string]$Out, [long]$Max)
         if ([System.IO.File]::Exists($Out)) { [System.IO.File]::Delete($Out) }
         $why = if ($S.Type -ceq 'https') { & $getHttps $S $File $Out $Max } else { & $getSftp $S $File $Out }
         if ($why) { return $why }
-        if ((New-Object System.IO.FileInfo $Out).Length -gt $Max) { return "$File is larger than $Max bytes" }
+        if ($Max -gt 0 -and (New-Object System.IO.FileInfo $Out).Length -gt $Max) { return "$File is larger than $Max bytes" }
         return ''
     }
 
@@ -502,7 +503,7 @@ function Invoke-VigilFetch {
             $p = Join-Path $cache "$Src\$Want\$rel"
             if ([System.IO.File]::Exists($p) -and (Get-VigilFileSha $p) -ceq $Want) { return @{ Entry = $Want; Sha = $Want } }
             $tmp = Join-Path $st 'script'
-            $why = & $download $S $File $tmp $Script:VigilFetchScriptMax
+            $why = & $download $S $File $tmp 0
             if ($why) { return @{ Why = $why } }
             if ((Get-VigilFileSha $tmp) -cne $Want) { return @{ Why = "$File does not match its sha256" } }
             [void](New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($p)))
@@ -513,7 +514,7 @@ function Invoke-VigilFetch {
         if ($r.Why) { return $r }
         $p = Join-Path $cache "$Src\$($r.Entry)\$rel"
         if (-not [System.IO.File]::Exists($p)) { return @{ Why = "$File not found" } }
-        if ((New-Object System.IO.FileInfo $p).Length -gt $Script:VigilFetchScriptMax) { return @{ Why = "$File is larger than $($Script:VigilFetchScriptMax) bytes" } }
+
         $sha = Get-VigilFileSha $p
         if ($Want -and $sha -cne $Want) {
             $k = & $keep $Src $File $Want

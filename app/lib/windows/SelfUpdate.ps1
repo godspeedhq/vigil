@@ -12,6 +12,8 @@
 
     Get-VigilVersion -App <app dir>
         "Vigil <version>", or says this is a copy from the repository.
+    Get-VigilAbout -Root <dir> -App <app dir>
+        What this is, who made it and where it runs.
     Invoke-VigilSelfUpdate -Root <dir> -App <app dir> -Check <bool> -Want <version>
         Returns an exit code: 0, or 1 with the reason on stderr; nothing is
         changed then.
@@ -22,6 +24,20 @@ function Get-VigilVersion {
     $f = Join-Path $App 'VERSION'
     if (Test-Path -LiteralPath $f) { return "Vigil $([System.IO.File]::ReadAllText($f).Trim())" }
     return 'Vigil, from the repository (no release)'
+}
+
+function Get-VigilAbout {
+    param([string]$Root, [string]$App)
+    Get-VigilVersion -App $App
+    'A job scheduler, supervisor and metrics forwarder for Windows, Linux and macOS,'
+    'written only in the shells that ship with each one.'
+    ''
+    '{0,-11} {1}' -f 'Created by', 'Bankole Ogundero and the Vigil contributors'
+    '{0,-11} {1}' -f 'Licence', 'Apache-2.0'
+    '{0,-11} {1}' -f 'Source', 'https://github.com/godspeedhq/vigil'
+    '{0,-11} {1}' -f 'Docs', 'https://godspeedhq.github.io/vigil/'
+    '{0,-11} {1}' -f 'Installed', $Root
+    '{0,-11} {1}' -f 'Platform', "Windows, PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
 }
 
 function Get-VigilSupervisorVersion {
