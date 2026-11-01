@@ -18,7 +18,7 @@ Vigil runs your scripts on a schedule, watches every run from start to finish, a
 
 Vigil runs the work, records the work, and forwards the evidence. Storage, dashboards and alerting stay with the tools built for them.
 
-> **Status: early pre-release (v0.1.x).** Scheduling, supervision, recovery, service registration, the installers, the `file`, Datadog and OTLP metrics backends, and fetching configuration and scripts from git, https, sftp and local sources, and forwarding Vigil's own logs over OTLP work end to end on all three platforms. Other backends are specified but not built yet. See [What works today](#what-works-today).
+> **Status: early release (v0.2.x).** Scheduling, supervision, recovery, service registration, the installers, the `file`, Datadog and OTLP metrics backends, and fetching configuration and scripts from git, https, sftp and local sources, and forwarding Vigil's own logs over OTLP work end to end on all three platforms. Other backends are specified but not built yet. See [What works today](#what-works-today).
 
 ---
 
