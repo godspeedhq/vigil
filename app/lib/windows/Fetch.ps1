@@ -174,7 +174,7 @@ function Test-VigilLinkInside {
 }
 
 function Invoke-VigilFetch {
-    param($Ctx, [string]$HostName, [string]$Root, [string]$Log)
+    param($Ctx, [string]$HostName, [string]$Root, [string]$Log, [string]$RunId)
     $state = $Ctx.State
     $cache = Join-Path $Root 'cache'
     $st = Join-Path $cache 'staging'
@@ -193,7 +193,7 @@ function Invoke-VigilFetch {
     $note = {
         param([string]$Text)
         $iso = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture)
-        try { [System.IO.File]::AppendAllText($Log, "$iso $Text`r`n") } catch { }
+        try { [System.IO.File]::AppendAllText($Log, "$iso $RunId run $Text`r`n") } catch { }
     }
     $tagsOf = {
         param($Parsed)

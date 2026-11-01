@@ -148,7 +148,7 @@ function Get-VigilWorkerContext {
             if (-not $script) { return @{ Error = "the script of job '$Job' from source.$src is not fetched yet" } }
         }
     }
-    if (@('vigil_sender', 'vigil_fetch') -cnotcontains $Job -and -not ($parsed.Sections | Where-Object { $_.Name -ceq "job.$Job" })) {
+    if (@('vigil_sender', 'vigil_fetch', 'vigil_logs') -cnotcontains $Job -and -not ($parsed.Sections | Where-Object { $_.Name -ceq "job.$Job" })) {
         return @{ Error = "no job '$Job' in the configuration" }
     }
     foreach ($r in $records) {
@@ -226,7 +226,7 @@ function Invoke-VigilWorker {
     $self = Get-Process -Id $PID
 
     # Vigil's own workers run a function, not a job command (4.5).
-    if ($Job -ceq 'vigil_sender' -or $Job -ceq 'vigil_fetch') {
+    if (@('vigil_sender', 'vigil_fetch', 'vigil_logs') -ccontains $Job) {
         $state = [ordered]@{
             schema_version = 1; job = $Job; run_id = $RunId; status = 'running'; reason = ''
             boot_id = Get-VigilBootId; started_epoch = $started; started_at = $now.Iso
@@ -235,7 +235,8 @@ function Invoke-VigilWorker {
         Write-VigilStateFile -Path $statePath -Fields $state
         [System.IO.File]::AppendAllText($log, "$($now.Iso) $RunId run start`r`n")
         try {
-            if ($Job -ceq 'vigil_fetch') { $r = Invoke-VigilFetch -Ctx $ctx -HostName $hostName -Root $Root -Log $log }
+            if ($Job -ceq 'vigil_fetch') { $r = Invoke-VigilFetch -Ctx $ctx -HostName $hostName -Root $Root -Log $log -RunId $RunId }
+            elseif ($Job -ceq 'vigil_logs') { $r = Invoke-VigilLogs -Ctx $ctx -HostName $hostName -Root $Root -Log $log -RunId $RunId }
             else { $r = Invoke-VigilSend -Ctx $ctx -HostName $hostName -Root $Root }
         }
         catch { $r = @{ Ok = $false; Reason = "$($Job.Substring(6)) error: $($_.Exception.Message)" } }

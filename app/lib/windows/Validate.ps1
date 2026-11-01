@@ -230,7 +230,7 @@ function Get-VigilKeyType {
         'log_destination' {
             switch -CaseSensitive ($Key) {
                 'type' { $t = 'log_dest_type' }
-                'endpoint' { $t = 'https_url' }
+                'endpoint' { $t = 'log_url' }
                 'timeout' { $t = 'dur' }
                 'header_name' { $t = 'text' }
                 'header_value' { $t = 'credential' }
@@ -408,6 +408,19 @@ function Test-VigilValue {
             # The URL itself is never shown, since a mistaken one may carry a password.
             if ($Value.StartsWith('https://', [System.StringComparison]::Ordinal)) {
                 $a = Test-VigilUrlAuthority $Value.Substring(8) 'https'
+                $r.Code = $a.Code; $r.Message = $a.Message
+            }
+            else { $r.Code = 'E_URL'; $r.Message = "'$Key' must start with https://" }
+        }
+        'log_url' {
+            # As https_url, with plain http to this host, as for a metrics
+            # backend (15.3).
+            if ($Value.StartsWith('https://', [System.StringComparison]::Ordinal)) {
+                $a = Test-VigilUrlAuthority $Value.Substring(8) 'https'
+                $r.Code = $a.Code; $r.Message = $a.Message
+            }
+            elseif ($Value -cmatch '^http://(localhost|127\.0\.0\.1|\[::1\])([:/]|$)') {
+                $a = Test-VigilUrlAuthority $Value.Substring(7) 'https'
                 $r.Code = $a.Code; $r.Message = $a.Message
             }
             else { $r.Code = 'E_URL'; $r.Message = "'$Key' must start with https://" }

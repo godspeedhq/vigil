@@ -18,7 +18,7 @@ Vigil runs your scripts on a schedule, watches every run from start to finish, a
 
 Vigil runs the work, records the work, and forwards the evidence. Storage, dashboards and alerting stay with the tools built for them.
 
-> **Status: early pre-release (v0.1.x).** Scheduling, supervision, recovery, service registration, the installers, the `file`, Datadog and OTLP metrics backends, and fetching configuration and scripts from git, https, sftp and local sources work end to end on all three platforms. Other backends and log forwarding are specified but not built yet. See [What works today](#what-works-today).
+> **Status: early pre-release (v0.1.x).** Scheduling, supervision, recovery, service registration, the installers, the `file`, Datadog and OTLP metrics backends, and fetching configuration and scripts from git, https, sftp and local sources, and forwarding Vigil's own logs over OTLP work end to end on all three platforms. Other backends are specified but not built yet. See [What works today](#what-works-today).
 
 ---
 
@@ -88,7 +88,7 @@ Vigil's guiding rules:
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done |
 | One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums, upgrades | Done |
 | Fetching configuration and scripts from git, https, sftp and local directories or shares: digests, atomic activation, last good configuration | Done |
-| Forwarding Vigil's own logs (OTLP) | Specified, not built |
+| Forwarding Vigil's own logs over OTLP, with checkpoints, backoff and reported gaps | Done |
 | Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
 | Secret stores: HashiCorp Vault, Azure Key Vault, AWS Secrets Manager, GCP Secret Manager, over HTTPS with curl (and openssl) or .NET | Done |
 
@@ -670,6 +670,24 @@ Comments are whole lines starting with `#` or `;`. There are no inline comments:
 | `[log_forward]`, `[log_destination.<name>]` | Optional forwarding of Vigil's own logs |
 | `[secret_store.<name>]` | An external secret store, for `store:` references |
 
+### Forwarding Vigil's logs
+
+Vigil can send its own logs to your logging pipeline over OTLP. It is off until you ask for it:
+
+```ini
+[log_forward]
+destination = ops_logs
+include     = supervisor, run
+
+[log_destination.ops_logs]
+type         = otel
+endpoint     = https://collector.example.com:4318/v1/logs
+header_name  = Authorization
+header_value = env:OTEL_LOGS_AUTH
+```
+
+`supervisor` and `run` are Vigil's own lines. A job's output is where secrets tend to leak, so it goes only if `include` also names `stdout` or `stderr`, and a job can keep it local with `forward_output = false`. A worker of Vigil's own, `vigil_logs`, reads the log files and moves a checkpoint only past what the destination accepted, so delivery is at least once. A destination that is down never affects jobs, scheduling or metrics; anything lost for good is reported in `vigil.logs.gaps`.
+
 ### Sources
 
 A job's script can come from a source instead of `scripts/`, and the whole configuration can too:
@@ -837,6 +855,7 @@ Everything lives under one root, so uninstalling is a single delete:
     schedule/<job>.cursor         the last slot each job dealt with
     recovery/<job>.recovery       why a job is held (uncertain runs)
     backends/<name>.state         a failing backend's backoff
+    logs/                         log forwarding: a checkpoint per file, and the forwarder's state
   logs/
     supervisor/<date>.log         what the supervisor did
     supervisor/jobs.log           the live status view, rewritten every tick
@@ -909,6 +928,7 @@ powershell -File tests\Run-Conformance.ps1 # Windows PowerShell 5.1
 - `max_runtime` stopping a job that ignores TERM;
 - uncertain runs under each policy, with an unrelated process that must never be killed;
 - sources: git, https, local and sftp against local servers, digests, a remote configuration following a branch, and the last valid configuration surviving every kind of failure;
+- log forwarding against a mock OTLP receiver: what stays local, checkpoints, every failure a destination can give, and every kind of gap;
 - service registration in system and user mode, with a running job that must outlive `vigil stop` and `vigil service remove`.
 
 CI runs everything on macOS (with the system bash 3.2), Linux, Windows PowerShell 5.1 and PowerShell 7 for every pull request.

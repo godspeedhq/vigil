@@ -67,6 +67,7 @@ $root = Split-Path -Parent $here
 . (Join-Path $root 'app\lib\windows\Stores.ps1')
 . (Join-Path $root 'app\lib\windows\Worker.ps1')
 . (Join-Path $root 'app\lib\windows\Backends.ps1')
+. (Join-Path $root 'app\lib\windows\Logs.ps1')
 . (Join-Path $root 'app\lib\windows\Precheck.ps1')
 
 $pass = 0
@@ -361,6 +362,26 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\back
     }
     if ($Script:storeNext -ne $Script:storeReplies.Count) { $Script:storeOut.Add("unused replies: $($Script:storeReplies.Count - $Script:storeNext)") }
     Compare-Case "backend/$($case.BaseName)" ([System.IO.File]::ReadAllText([System.IO.Path]::ChangeExtension($case.FullName, '.expected'))) (($Script:storeOut -join "`n") + "`n")
+}
+
+# Log forwarding: <case>.input holds "<log file> TAB <line>" rows; each gives
+# its OTLP log record, or - when it is not forwarded. Bytes in, bytes out.
+foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\logs') -Filter '*.config' | Sort-Object Name)) {
+    $parsed = ConvertFrom-VigilConfig -Path $case.FullName
+    $include = Get-VigilLogsInclude -Parsed $parsed
+    $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+    $text = $latin1.GetString([System.IO.File]::ReadAllBytes([System.IO.Path]::ChangeExtension($case.FullName, '.input')))
+    $rows = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($row in $text.TrimEnd("`n").Split("`n")) {
+        $tab = $row.IndexOf("`t")
+        $file = $row.Substring(0, $tab)
+        $output = $true
+        if ($file.StartsWith('jobs/', [System.StringComparison]::Ordinal)) { $output = Test-VigilLogsOutput -Parsed $parsed -Job $file.Split('/')[1] }
+        $rec = ConvertTo-VigilLogRecord -File $file -Line $row.Substring($tab + 1) -Include $include -Output $output
+        $rows.Add($(if ($rec) { $rec } else { '-' }))
+    }
+    $bytes = [System.IO.File]::ReadAllBytes([System.IO.Path]::ChangeExtension($case.FullName, '.expected'))
+    Compare-Case "logs/$($case.BaseName)" $latin1.GetString($bytes) (($rows -join "`n") + "`n")
 }
 
 # File-level cases need inputs that cannot be committed as fixtures: a

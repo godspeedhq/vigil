@@ -294,6 +294,23 @@ function Invoke-VigilSupervisor {
         return (-not $next) -or $sv.Epoch -ge [long]$next
     }
 
+    # Whether the forwarder should run: at each check_every, once any
+    # backoff is over, when a log has grown since its last run (13.4.3).
+    $logsDue = {
+        $checked = [long]0; $next = [long]0; $total = ''
+        $p = Join-Path $sv.State 'logs\forwarder.state'
+        if ([System.IO.File]::Exists($p)) {
+            foreach ($l in [System.IO.File]::ReadAllLines($p)) {
+                if ($l -cmatch '^checked_epoch = ([0-9]+)$') { $checked = [long]$Matches[1] }
+                elseif ($l -cmatch '^next_try = ([0-9]+)$') { $next = [long]$Matches[1] }
+                elseif ($l -cmatch '^total = ([0-9]+)$') { $total = $Matches[1] }
+            }
+        }
+        $every = ConvertTo-VigilSeconds (Get-VigilConfigValue $sv.Parsed 'log_forward' 'check_every' '30s')
+        if ($sv.Epoch -lt $checked + $every -or $sv.Epoch -lt $next) { return $false }
+        return [string](Get-VigilLogsTotal -LogDir $sv.Logs) -cne $total
+    }
+
     $event = {
         param([string]$Job, [string]$Name, [string]$Value, [string]$Type)
         if ($Job) {
@@ -530,7 +547,9 @@ function Invoke-VigilSupervisor {
         $psi.CreateNoWindow = $true
         [void][System.Diagnostics.Process]::Start($psi)
         $sv.Running++
-        if ($Job -cne 'vigil_sender') { & $log 'INFO' "job ${Job}: run $rid started" }
+        # The forwarder's own starts are not logged: each would give it
+        # something new to forward.
+        if (@('vigil_sender', 'vigil_logs') -cnotcontains $Job) { & $log 'INFO' "job ${Job}: run $rid started" }
         # Started beside an uncertain run under on_uncertain = replace (11.4).
         if ($sv.Replacing.Contains($Job)) {
             & $event $Job 'possible_duplicates' '1' 'count'
@@ -651,7 +670,10 @@ function Invoke-VigilSupervisor {
         & $event '' 'config_reload_failed' "$($sv.ReloadFailed)" 'gauge'
         # The active revision, and how long since each source was last
         # checked successfully (14.5).
-        if (-not $sv.Waiting) { $sv.Events.Add("$($sv.Epoch) vigil.config.info 1 gauge $($sv.Tags) revision=$($sv.Revision)") }
+        if (-not $sv.Waiting) {
+            $sv.Events.Add("$($sv.Epoch) vigil.config.info 1 gauge $($sv.Tags) revision=$($sv.Revision)")
+            if (Test-VigilLogsEnabled -Parsed $sv.Parsed) { $sv.Events.Add("$($sv.Epoch) vigil.logs.enabled 1 gauge $($sv.Tags)") }
+        }
         $srcDir = Join-Path $sv.State 'sources'
         if ($sv.Mode -ceq 'fetch' -and [System.IO.Directory]::Exists($srcDir)) {
             foreach ($p in [System.IO.Directory]::GetFiles($srcDir, '*.state')) {
@@ -686,6 +708,12 @@ function Invoke-VigilSupervisor {
         if ($sv.Mode -ceq 'fetch') {
             $acc = & $account 'vigil_fetch'
             if ($acc.Active -ceq '-' -and (& $fetchDue)) { & $start 'vigil_fetch' }
+        }
+
+        # The log forwarder (13.4.3): the same again, on its own schedule.
+        if (-not $sv.Waiting -and (Test-VigilLogsEnabled -Parsed $sv.Parsed)) {
+            $acc = & $account 'vigil_logs'
+            if ($acc.Active -ceq '-' -and (& $logsDue)) { & $start 'vigil_logs' }
         }
 
         # jobs.log (13.2), rewritten every tick.

@@ -48,6 +48,8 @@ jobs:
         run: test -x /usr/sbin/sshd || { sudo apt-get update -q && sudo apt-get install -y -q openssh-server; }
       - name: sources and the fetcher (/bin/bash)
         run: /bin/bash tests/integration/fetch.sh
+      - name: log forwarding (/bin/bash)
+        run: /bin/bash tests/integration/logs.sh
       - name: service registration (/bin/bash)
         run: /bin/bash tests/integration/service.sh
         timeout-minutes: 15
@@ -104,6 +106,9 @@ jobs:
       - name: sources and the fetcher (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Fetch.ps1
+      - name: log forwarding (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/integration/Logs.ps1
       - name: service registration (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Service.ps1
@@ -141,6 +146,9 @@ jobs:
       - name: sources and the fetcher (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Fetch.ps1
+      - name: log forwarding (PowerShell 7)
+        shell: pwsh
+        run: ./tests/integration/Logs.ps1
       - name: service registration (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Service.ps1

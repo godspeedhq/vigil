@@ -48,6 +48,8 @@
 #   tests/conformance/store/<case>.exchange       to answer and the references to
 #   tests/conformance/store/<case>.expected       fetch; every request made, and
 #                                                 each result
+#   tests/conformance/logs/<case>.config, .input  log lines, and the OTLP
+#   tests/conformance/logs/<case>.expected        record each gives
 #   tests/conformance/backend/<case>.config       HTTP backends, a batch of
 #   tests/conformance/backend/<case>.events       events, and the answers and
 #   tests/conformance/backend/<case>.exchange     deliveries; every request
@@ -90,6 +92,8 @@ root=$(dirname "$here")
 . "$root/app/lib/posix/backends.sh"
 # shellcheck source=../app/lib/posix/precheck.sh
 . "$root/app/lib/posix/precheck.sh"
+# shellcheck source=../app/lib/posix/logs.sh
+. "$root/app/lib/posix/logs.sh"
 
 pass=0
 fail=0
@@ -442,6 +446,30 @@ EOT
 }
 for cfg in "$here"/conformance/backend/*.config; do
     compare "backend/$(basename "$cfg" .config)" "$(cat "${cfg%.config}.expected")" "$(backend_case_dump "$cfg")"
+done
+
+# Log forwarding: <case>.input holds "<log file> TAB <line>" rows; each gives
+# its OTLP log record, or - when it is not forwarded.
+logs_case_dump() {
+    local LC_ALL=C file line job
+    vigil_config_parse "$1"
+    vigil_logs_settings
+    while IFS= read -r line; do
+        file=${line%%	*}
+        _vl_output=1
+        case $file in
+            jobs/*)
+                job=${file#jobs/}
+                vigil_logs_output_for "${job%%/*}"
+                ;;
+        esac
+        vigil_logs_record "$file" "${line#*	}"
+        printf '%s\n' "${_vl_rec:--}"
+    done < "${1%.config}.input"
+}
+
+for cfg in "$here"/conformance/logs/*.config; do
+    compare "logs/$(basename "$cfg" .config)" "$(cat "${cfg%.config}.expected")" "$(logs_case_dump "$cfg")"
 done
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
