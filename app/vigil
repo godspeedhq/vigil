@@ -58,7 +58,7 @@ done
 app=$(cd "$(dirname "$self")" && pwd)
 root=$(dirname "$app")
 
-for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker sender supervisor precheck service init; do
+for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker backends sender supervisor precheck service init; do
     # shellcheck source=/dev/null
     . "$app/lib/posix/$lib.sh"
 done

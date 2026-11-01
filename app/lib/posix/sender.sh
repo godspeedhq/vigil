@@ -12,15 +12,19 @@
 #     and _vw_root, _vw_statedir, _vw_spooldir, _vw_host and _vw_os set.
 #     Returns 0, or 1 with _vw_reason set when a backend failed.
 #
-# Backend types implemented so far: file. Events for a backend of any other
-# type are not queued; they are counted as dropped with
-# reason=not_implemented, so the spool never fills with events that cannot
-# be sent.
+# Backend types implemented so far: file, datadog and otel. Events for a
+# backend of any other type are not queued; they are counted as dropped
+# with reason=not_implemented, so the spool never fills with events that
+# cannot be sent.
 #
-# Requires config.sh, effective.sh, worker.sh and prom.sh.
+# Requires config.sh, effective.sh, worker.sh, prom.sh and backends.sh.
 
 VIGIL_SEND_BATCH=500
-VIGIL_SEND_TYPES=' file '
+VIGIL_SEND_TYPES=' file datadog otel '
+# An HTTP backend's request: at most this many bytes of events, so the body
+# stays within Datadog's 500 KB, and at most this many requests per run.
+VIGIL_SEND_HTTP_BYTES=160000
+VIGIL_SEND_HTTP_REQUESTS=10
 
 # Enabled backends: _sd_ok (implemented) and _sd_todo (not yet), as
 # space-separated names.
@@ -50,12 +54,18 @@ _vigil_send_has() {
 # Counts dropped events: backend $1, reason $2, files $3... Totals per
 # backend and reason are posted once, at the end of the run.
 _vigil_send_drop() {
-    local key="backend=$1 reason=$2" f n=0 line i=0
+    local b=$1 reason=$2 f n=0 line
     shift 2
     for f in "$@"; do
         [ -f "$f" ] || continue
         while IFS= read -r line || [ -n "$line" ]; do n=$((n + 1)); done < "$f"
     done
+    _vigil_send_dropn "$b" "$reason" "$n"
+}
+
+# Counts $3 dropped events for backend $1, reason $2.
+_vigil_send_dropn() {
+    local key="backend=$1 reason=$2" n=$3 i=0
     [ "$n" -gt 0 ] || return 0
     while [ "$i" -lt "${#_sd_dkey[@]}" ]; do
         if [ "${_sd_dkey[$i]}" = "$key" ]; then
@@ -117,20 +127,81 @@ _vigil_send_place() {
     rm -f "$f" "$f.targets" "$f".*.done
 }
 
-# Delivers backend $1's queue, oldest first, one batch per run.
+# Records backend $1's failure, $2 saying why, and backs it off.
+_vigil_send_failed() {
+    local b=$1 sfile="$_vw_statedir/backends/$1.state" failures=0 next n line
+    if [ -f "$sfile" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            case $line in 'failures = '*) failures=${line#*= } ;; esac
+        done < "$sfile"
+    fi
+    failures=$((failures + 1))
+    # Exponential backoff, capped at 5 minutes (4.5).
+    next=5
+    n=1
+    while [ "$n" -lt "$failures" ] && [ "$next" -lt 300 ]; do next=$((next * 2)); n=$((n + 1)); done
+    [ "$next" -gt 300 ] && next=300
+    mkdir -p "$_vw_statedir/backends"
+    printf '[backend]\nfailures = %s\nnext_try = %s\n' "$failures" "$((_sd_epoch + next))" > "$sfile.tmp.$$" && mv -f "$sfile.tmp.$$" "$sfile"
+    _sd_events[${#_sd_events[@]}]="$_sd_epoch vigil.backend.failures 1 count $_sd_tags backend=$b"
+    _sd_failed="$_sd_failed${_sd_failed:+, }$b ($2)"
+}
+
+# Delivers HTTP backend $1 of type $2: batches of at most
+# VIGIL_SEND_HTTP_BYTES, oldest first, until the queue is empty, a request
+# fails or VIGIL_SEND_HTTP_REQUESTS were made.
+_vigil_send_http() {
+    local b=$1 type=$2 q="$_sd_be/$1" requests=0 f size name total reason count sizes
+    local -a cand batch
+    while [ "$requests" -lt "$VIGIL_SEND_HTTP_REQUESTS" ]; do
+        cand=()
+        for f in "$q"/*.events; do
+            [ -f "$f" ] || continue
+            cand[${#cand[@]}]=$f
+            [ "${#cand[@]}" -ge "$VIGIL_SEND_BATCH" ] && break
+        done
+        [ "${#cand[@]}" -gt 0 ] || return 0
+        batch=()
+        total=0
+        sizes=$(wc -c -- "${cand[@]}")
+        while read -r size name; do
+            [ -f "$name" ] || continue
+            [ "${#batch[@]}" -gt 0 ] && [ $((total + size)) -gt "$VIGIL_SEND_HTTP_BYTES" ] && break
+            batch[${#batch[@]}]=$name
+            total=$((total + size))
+        done <<EOF
+$sizes
+EOF
+        requests=$((requests + 1))
+        if ! vigil_backend_send "$_vw_root" "$b" "$type" "${batch[@]}"; then
+            _vigil_send_failed "$b" "$_vb_why"
+            return 1
+        fi
+        while read -r reason count; do
+            [ -n "$reason" ] && _vigil_send_dropn "$b" "$reason" "$count"
+        done <<EOF
+$_vb_drops
+EOF
+        rm -f "${batch[@]}" "$_vw_statedir/backends/$b.state"
+    done
+}
+
+# Delivers backend $1's queue, oldest first.
 _vigil_send_deliver() {
-    local b=$1 q="$_sd_be/$1" sfile="$_vw_statedir/backends/$1.state" next=0 failures=0 line f n=0 path tmp
+    local b=$1 q="$_sd_be/$1" sfile="$_vw_statedir/backends/$1.state" next=0 line f n=0 path tmp
     local -a batch
     [ -d "$q" ] || return 0
     if [ -f "$sfile" ]; then
         while IFS= read -r line || [ -n "$line" ]; do
-            case $line in
-                'next_try = '*) next=${line#*= } ;;
-                'failures = '*) failures=${line#*= } ;;
-            esac
+            case $line in 'next_try = '*) next=${line#*= } ;; esac
         done < "$sfile"
     fi
     [ "$_sd_epoch" -lt "$next" ] && return 0
+    _vigil_wk_get "backend.$b" type "$b"
+    if [ "$_vw_value" != file ]; then
+        _vigil_send_http "$b" "$_vw_value"
+        return 0
+    fi
     batch=()
     for f in "$q"/*.events; do
         [ -f "$f" ] || continue
@@ -149,16 +220,7 @@ _vigil_send_deliver() {
         rm -f "$sfile"
     else
         rm -f "$tmp"
-        failures=$((failures + 1))
-        # Exponential backoff, capped at 5 minutes (4.5).
-        next=5
-        n=1
-        while [ "$n" -lt "$failures" ] && [ "$next" -lt 300 ]; do next=$((next * 2)); n=$((n + 1)); done
-        [ "$next" -gt 300 ] && next=300
-        mkdir -p "$_vw_statedir/backends"
-        printf '[backend]\nfailures = %s\nnext_try = %s\n' "$failures" "$((_sd_epoch + next))" > "$sfile.tmp.$$" && mv -f "$sfile.tmp.$$" "$sfile"
-        _sd_events[${#_sd_events[@]}]="$_sd_epoch vigil.backend.failures 1 count $_sd_tags backend=$b"
-        _sd_failed="$_sd_failed $b"
+        _vigil_send_failed "$b" "cannot write $path"
     fi
 }
 
@@ -267,7 +329,7 @@ EOF
     done > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
 
     if [ -n "$_sd_failed" ]; then
-        _vw_reason="delivery failed:$_sd_failed"
+        _vw_reason="delivery failed: $_sd_failed"
         return 1
     fi
     return 0

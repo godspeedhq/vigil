@@ -1,0 +1,13 @@
+1793304870 db.backup.duration_seconds 3 gauge host=db01 os=linux instance=it job=backup env=prod
+1793304870 db.backup.runs 1 count host=db01 os=linux instance=it job=backup env=prod
+1793304870 db.backup.perf 12268339200 gauge host=db01 os=linux instance=it job=backup label=/
+1793304869 db.backup.old 1 gauge host=db01 os=linux instance=it job=backup
+1793304870 odd.label -0.25 gauge host=db01 job=x path=C:\temp\"x" ratio=a=b
+1793304870 vigil.supervisor.up 1 gauge os=linux instance=it
+not an event line
+1793304870 bad.type 1 sum host=db01
+1793304870 bad.value 012 gauge host=db01
+1793304870 bad.tag 1 gauge host=db01 notatag
+1793304870 bad.key 1 gauge host=db01 a-b=c
+1793304870 bad.empty 1 gauge host=db01 a=
+1793304870 bad.tab 1 gauge	host=db01

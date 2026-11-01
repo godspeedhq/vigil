@@ -41,6 +41,8 @@ jobs:
         run: /bin/bash tests/integration/precheck.sh
       - name: secret stores (/bin/bash)
         run: /bin/bash tests/integration/stores.sh
+      - name: metrics backends (/bin/bash)
+        run: /bin/bash tests/integration/backends.sh
       - name: service registration (/bin/bash)
         run: /bin/bash tests/integration/service.sh
         timeout-minutes: 15
@@ -86,6 +88,9 @@ jobs:
       - name: secret stores (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Stores.ps1
+      - name: metrics backends (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/integration/Backends.ps1
       - name: service registration (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/integration/Service.ps1
@@ -117,6 +122,9 @@ jobs:
       - name: secret stores (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Stores.ps1
+      - name: metrics backends (PowerShell 7)
+        shell: pwsh
+        run: ./tests/integration/Backends.ps1
       - name: service registration (PowerShell 7)
         shell: pwsh
         run: ./tests/integration/Service.ps1

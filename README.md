@@ -16,7 +16,7 @@ Vigil runs your scripts on a schedule, watches every run from start to finish, a
 
 Vigil runs the work, records the work, and forwards the evidence. Storage, dashboards and alerting stay with the tools built for them.
 
-> **Status: early pre-release (v0.1.x).** Scheduling, supervision, recovery and the `file` metrics backend work end to end on all three platforms. Other backends, installers, remote fetching and log forwarding are specified but not built yet. See [What works today](#what-works-today).
+> **Status: early pre-release (v0.1.x).** Scheduling, supervision, recovery, service registration, the installers and the `file`, Datadog and OTLP metrics backends work end to end on all three platforms. Other backends, remote fetching and log forwarding are specified but not built yet. See [What works today](#what-works-today).
 
 ---
 
@@ -79,7 +79,8 @@ Vigil's guiding rules:
 | Uncertain runs: recovery records, `on_uncertain`, `vigil resolve` | Done |
 | Spool with write-ahead fan-out, size cap, per-backend backoff | Done |
 | Backend: `file` (Prometheus text format, for node_exporter / windows_exporter) | Done |
-| Backends: Datadog, OTLP, Splunk and the rest | Specified, not built |
+| Backends: `datadog` (Series API v2) and `otel` (OTLP/HTTP JSON) | Done |
+| Backends: Splunk and the rest | Specified, not built |
 | `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done |
 | Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done |
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done |
@@ -543,7 +544,21 @@ On every start the sender first resumes any unfinished fan-out, skipping targets
 
 The **`file` backend** merges each batch into one Prometheus text file: gauges keep their latest value and counts become running `_total` counters. The file always holds the current state, so it stays small however long Vigil runs.
 
-Today `file` is the only backend type that delivers. Events for an enabled backend of any other type are not queued: they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
+The **`datadog` backend** sends each batch to Datadog's Series API v2 with the API key in a header; set `endpoint` for another Datadog site. The **`otel` backend** sends OTLP/HTTP with JSON encoding to an OpenTelemetry Collector (by default one on the same host, `http://localhost:4318/v1/metrics`), with an optional bearer token:
+
+```ini
+[backend.datadog]
+endpoint = https://api.datadoghq.eu
+api_key  = env:DATADOG_API_KEY
+
+[backend.otel]
+endpoint = https://collector.example.com:4318/v1/metrics
+api_key  = secret:OTEL_TOKEN
+```
+
+Both are `https` only, except to a collector on the same host. Batches the backend rejects as malformed, and points too old for Datadog, are dropped and counted in `vigil.spool.dropped` (`reason=rejected`, `too_old`), never retried forever.
+
+Today `file`, `datadog` and `otel` deliver. Events for an enabled backend of any other type are not queued: they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
 
 ---
 

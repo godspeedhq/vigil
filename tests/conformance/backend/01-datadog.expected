@@ -1,0 +1,45 @@
+send datadog
+> POST https://api.datadoghq.com/api/v2/series (5s)
+>   Content-Type: application/json
+>   DD-API-KEY: dd-test-key
+>   {"series":[{"metric":"db.backup.duration_seconds","type":3,"points":[{"timestamp":1793304870,"value":3}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","env:prod"]},{"metric":"db.backup.runs","type":1,"points":[{"timestamp":1793304870,"value":1}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","env:prod"]},{"metric":"db.backup.perf","type":3,"points":[{"timestamp":1793304870,"value":12268339200}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","label:/"]},{"metric":"odd.label","type":3,"points":[{"timestamp":1793304870,"value":-0.25}],"resources":[{"name":"db01","type":"host"}],"tags":["job:x","path:C:\\temp\\\"x\"","ratio:a=b"]},{"metric":"vigil.supervisor.up","type":3,"points":[{"timestamp":1793304870,"value":1}],"tags":["os:linux","instance:it"]}]}
+= sent 5
+dropped invalid 7
+dropped too_old 1
+send datadog
+> POST https://api.datadoghq.com/api/v2/series (5s)
+>   Content-Type: application/json
+>   DD-API-KEY: dd-test-key
+>   {"series":[{"metric":"db.backup.duration_seconds","type":3,"points":[{"timestamp":1793304870,"value":3}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","env:prod"]},{"metric":"db.backup.runs","type":1,"points":[{"timestamp":1793304870,"value":1}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","env:prod"]},{"metric":"db.backup.perf","type":3,"points":[{"timestamp":1793304870,"value":12268339200}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","label:/"]},{"metric":"odd.label","type":3,"points":[{"timestamp":1793304870,"value":-0.25}],"resources":[{"name":"db01","type":"host"}],"tags":["job:x","path:C:\\temp\\\"x\"","ratio:a=b"]},{"metric":"vigil.supervisor.up","type":3,"points":[{"timestamp":1793304870,"value":1}],"tags":["os:linux","instance:it"]}]}
+! permission denied (HTTP 403)
+send datadog
+> POST https://api.datadoghq.com/api/v2/series (5s)
+>   Content-Type: application/json
+>   DD-API-KEY: dd-test-key
+>   {"series":[{"metric":"db.backup.duration_seconds","type":3,"points":[{"timestamp":1793304870,"value":3}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","env:prod"]},{"metric":"db.backup.runs","type":1,"points":[{"timestamp":1793304870,"value":1}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","env:prod"]},{"metric":"db.backup.perf","type":3,"points":[{"timestamp":1793304870,"value":12268339200}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","label:/"]},{"metric":"odd.label","type":3,"points":[{"timestamp":1793304870,"value":-0.25}],"resources":[{"name":"db01","type":"host"}],"tags":["job:x","path:C:\\temp\\\"x\"","ratio:a=b"]},{"metric":"vigil.supervisor.up","type":3,"points":[{"timestamp":1793304870,"value":1}],"tags":["os:linux","instance:it"]}]}
+! no answer from api.datadoghq.com within 5s
+send datadog_eu
+> POST https://api.datadoghq.eu/api/v2/series (10s)
+>   Content-Type: application/json
+>   DD-API-KEY: dd-test-key
+>   {"series":[{"metric":"db.backup.duration_seconds","type":3,"points":[{"timestamp":1793304870,"value":3}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","env:prod"]},{"metric":"db.backup.runs","type":1,"points":[{"timestamp":1793304870,"value":1}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","env:prod"]},{"metric":"db.backup.perf","type":3,"points":[{"timestamp":1793304870,"value":12268339200}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","label:/"]},{"metric":"odd.label","type":3,"points":[{"timestamp":1793304870,"value":-0.25}],"resources":[{"name":"db01","type":"host"}],"tags":["job:x","path:C:\\temp\\\"x\"","ratio:a=b"]},{"metric":"vigil.supervisor.up","type":3,"points":[{"timestamp":1793304870,"value":1}],"tags":["os:linux","instance:it"]}]}
+= sent 0
+dropped invalid 7
+dropped too_old 1
+dropped rejected 5
+send datadog_eu
+> POST https://api.datadoghq.eu/api/v2/series (10s)
+>   Content-Type: application/json
+>   DD-API-KEY: dd-test-key
+>   {"series":[{"metric":"db.backup.duration_seconds","type":3,"points":[{"timestamp":1793304870,"value":3}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","env:prod"]},{"metric":"db.backup.runs","type":1,"points":[{"timestamp":1793304870,"value":1}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","env:prod"]},{"metric":"db.backup.perf","type":3,"points":[{"timestamp":1793304870,"value":12268339200}],"resources":[{"name":"db01","type":"host"}],"tags":["os:linux","instance:it","job:backup","label:/"]},{"metric":"odd.label","type":3,"points":[{"timestamp":1793304870,"value":-0.25}],"resources":[{"name":"db01","type":"host"}],"tags":["job:x","path:C:\\temp\\\"x\"","ratio:a=b"]},{"metric":"vigil.supervisor.up","type":3,"points":[{"timestamp":1793304870,"value":1}],"tags":["os:linux","instance:it"]}]}
+! HTTP 503 from api.datadoghq.eu
+send datadog_nokey
+! the backend needs 'api_key'
+send datadog_plain
+! endpoint must be https (plain http only to this host)
+send datadog
+! api_key env:VIGIL_TEST_DD_KEY: not set in the environment
+send datadog
+= sent 0
+dropped invalid 7
+dropped too_old 6

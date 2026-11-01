@@ -9,3 +9,9 @@ curl (stdin) or .NET.
   test against a mock, both twins.
 
 MVP: Datadog and OTLP first; the rest after the MVP.
+
+## Status
+Done for the MVP: `datadog` (Series API v2) and `otel` (OTLP/HTTP JSON),
+with the `backend` conformance suite and `tests/integration/backends.sh`
+and `Backends.ps1`. Splunk and the other types in spec 15.3 follow after
+the MVP.

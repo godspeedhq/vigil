@@ -44,6 +44,8 @@
       tests/conformance/report/<suite>-<case>.expected
                                                     Format-VigilPrecheckReportDump
                                                     of each validate and effective case
+      tests/conformance/store/<case>.*              secret stores (below)
+      tests/conformance/backend/<case>.*            HTTP backends (below)
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -64,6 +66,7 @@ $root = Split-Path -Parent $here
 . (Join-Path $root 'app\lib\windows\Secrets.ps1')
 . (Join-Path $root 'app\lib\windows\Stores.ps1')
 . (Join-Path $root 'app\lib\windows\Worker.ps1')
+. (Join-Path $root 'app\lib\windows\Backends.ps1')
 . (Join-Path $root 'app\lib\windows\Precheck.ps1')
 
 $pass = 0
@@ -316,6 +319,48 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\stor
     }
     if ($Script:storeNext -ne $Script:storeReplies.Count) { $Script:storeOut.Add("unused replies: $($Script:storeReplies.Count - $Script:storeNext)") }
     Compare-Case "store/$($case.BaseName)" ([System.IO.File]::ReadAllText([System.IO.Path]::ChangeExtension($case.FullName, '.expected'))) (($Script:storeOut -join "`n") + "`n")
+}
+
+# HTTP backends: tests/conformance/backend/<case>.config defines backends and
+# <case>.exchange lists, in order: "env NAME value" and "unenv NAME"; "now
+# <epoch>", the time requests are made at; "reply <status> <body>" or "fail
+# <kind>", the answers to the next requests; "send <backend>", which delivers
+# <case>.events to that backend, with the request it makes shown and what
+# became of the batch. The output must be <case>.expected. The replacement
+# Invoke-VigilHttpSend of the store cases answers; no request leaves the
+# machine.
+$Script:backendNow = 0
+function Get-VigilBackendNow { return $Script:backendNow }
+foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\backend') -Filter '*.config' | Sort-Object Name)) {
+    $parsed = ConvertFrom-VigilConfig -Path $case.FullName
+    $Script:storeOut = New-Object 'System.Collections.Generic.List[string]'
+    $Script:storeReplies = New-Object 'System.Collections.Generic.List[string]'
+    $Script:storeNext = 0
+    foreach ($line in [System.IO.File]::ReadAllLines([System.IO.Path]::ChangeExtension($case.FullName, '.exchange'))) {
+        if ($line -ceq '' -or $line.StartsWith('#')) { continue }
+        $sp = $line.IndexOf(' ')
+        $word = $line.Substring(0, $sp)
+        $rest = $line.Substring($sp + 1)
+        switch -CaseSensitive ($word) {
+            'env' { $i = $rest.IndexOf(' '); [Environment]::SetEnvironmentVariable($rest.Substring(0, $i), $rest.Substring($i + 1), 'Process') }
+            'unenv' { [Environment]::SetEnvironmentVariable($rest, [NullString]::Value, 'Process') }
+            'now' { $Script:backendNow = [long]$rest }
+            'reply' { $Script:storeReplies.Add($rest) }
+            'fail' { $Script:storeReplies.Add("!$rest") }
+            'send' {
+                $Script:storeOut.Add("send $rest")
+                $type = Get-VigilConfigValue $parsed "backend.$rest" 'type' $rest
+                $r = Send-VigilBackend -Root '/opt/vigil' -Parsed $parsed -Name $rest -Type $type -Events @([System.IO.Path]::ChangeExtension($case.FullName, '.events'))
+                if ($r.Ok) {
+                    $Script:storeOut.Add("= sent $($r.Sent)")
+                    foreach ($d in $r.Drops) { $Script:storeOut.Add("dropped $d") }
+                }
+                else { $Script:storeOut.Add("! $($r.Why)") }
+            }
+        }
+    }
+    if ($Script:storeNext -ne $Script:storeReplies.Count) { $Script:storeOut.Add("unused replies: $($Script:storeReplies.Count - $Script:storeNext)") }
+    Compare-Case "backend/$($case.BaseName)" ([System.IO.File]::ReadAllText([System.IO.Path]::ChangeExtension($case.FullName, '.expected'))) (($Script:storeOut -join "`n") + "`n")
 }
 
 # File-level cases need inputs that cannot be committed as fixtures: a
