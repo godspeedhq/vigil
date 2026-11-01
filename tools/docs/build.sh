@@ -18,6 +18,7 @@
 #   Tests           the conformance suites and integration tests, from
 #                   their own headers
 #   Examples        the annotated configurations in tests/mocks
+#   Test evidence   console output of a real CI run (evidence.sh)
 #
 # The output is Markdown with front matter for Jekyll and the Just the Docs
 # theme; tools/docs/publish.sh, through .github/workflows/pages.yml, turns
@@ -175,6 +176,13 @@ printf '# Reference\n\nGenerated from the code: the commands, the error codes, t
         printf '```\n\n'
     done
 } | page reference/examples.md 'title: Examples' 'parent: Reference' 'nav_order: 4' 'permalink: /reference/examples/'
+
+# --- Test evidence -----------------------------------------------------------------
+
+# From CI's logs, not the repository, so it needs gh; left out without it.
+if command -v gh > /dev/null 2>&1 && evidence=$(bash "$here/evidence.sh" 2> /dev/null) && [ -n "$evidence" ]; then
+    printf '%s\n' "$evidence" | page evidence.md 'title: Test evidence' 'nav_order: 6' 'permalink: /evidence/'
+fi
 
 # --- Status ------------------------------------------------------------------------
 

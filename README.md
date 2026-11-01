@@ -949,7 +949,7 @@ powershell -File tests\Run-Conformance.ps1 # Windows PowerShell 5.1
 - log forwarding against a mock OTLP receiver: what stays local, checkpoints, every failure a destination can give, and every kind of gap;
 - service registration in system and user mode, with a running job that must outlive `vigil stop` and `vigil service remove`.
 
-CI runs everything on macOS (with the system bash 3.2), Linux, Windows PowerShell 5.1 and PowerShell 7 for every pull request.
+CI runs everything on macOS (with the system bash 3.2), Linux, Windows PowerShell 5.1 and PowerShell 7 for every pull request. The [Test evidence](https://godspeedhq.github.io/vigil/evidence/) page shows the console output of the newest passing run on `main`, for each platform.
 
 ---
 

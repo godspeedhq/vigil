@@ -1,10 +1,15 @@
 # Builds the documentation site from the repository and publishes it to
-# GitHub Pages. Started by tools/docs/publish.sh, or by hand:
+# GitHub Pages. Started by tools/docs/publish.sh, by hand:
 #   gh workflow run pages.yml
+# or by a passing CI run on main, which keeps the Test evidence page current.
 name: pages
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: [conformance]
+    types: [completed]
+    branches: [main]
   # Pull requests that touch the documentation or its generator build the
   # site, without publishing it, so a broken page is caught before merge.
   pull_request:
@@ -12,6 +17,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -22,13 +28,16 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: generate the pages from the repository
         run: bash tools/docs/build.sh site-src
+        env:
+          GH_TOKEN: ${{ github.token }}
       - uses: actions/configure-pages@v5
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name != 'pull_request'
       - name: render with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:
@@ -37,7 +46,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
 
   deploy:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
