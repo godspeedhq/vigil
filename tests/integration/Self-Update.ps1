@@ -35,6 +35,15 @@ function Invoke-Vigil {
     return @{ Code = $LASTEXITCODE; Text = (@($out | ForEach-Object { "$_" }) -join "`n") }
 }
 
+# The supervisor's process id, from its lock file, which it keeps open.
+function Get-VigilLockPid {
+    $fs = New-Object System.IO.FileStream -ArgumentList "$root\state\supervisor.lock", 'Open', 'Read', 'ReadWrite'
+    try { $t = (New-Object System.IO.StreamReader -ArgumentList $fs).ReadToEnd() }
+    finally { $fs.Dispose() }
+    if ($t -cmatch 'pid = ([0-9]+)') { return $Matches[1] }
+    return ''
+}
+
 function Get-Version { $f = Join-Path $root 'app\VERSION'; if (Test-Path -LiteralPath $f) { ([System.IO.File]::ReadAllText($f)).Trim() } }
 
 # Publishes release $Version on the mock, and makes it the latest.
@@ -241,13 +250,14 @@ try {
         Test-Equal 'system: installed' '0' ([string]$rc)
         if ($rc -ne 0) { $out | ForEach-Object { Write-Host "        $_" } }
         Test-Equal 'system: the service is active' 'True' ([string](Invoke-Vigil status).Text.StartsWith('service: active'))
-        $pid1 = ([System.IO.File]::ReadAllText("$root\state\supervisor.lock") -split '\s+')[2]
+        for ($i = 0; $i -lt 50 -and (Invoke-Vigil version --supervisor).Text -cne '0.0.1-it'; $i++) { Start-Sleep -Milliseconds 200 }
+        $pid1 = (Get-VigilLockPid)
         $r = Invoke-Vigil self update
         Test-Equal 'system: updated' '0' ([string]$r.Code)
         if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
         Test-Equal 'system: the new version' '0.0.2-it' (Get-Version)
         Test-Equal 'system: the service is active after' 'True' ([string](Invoke-Vigil status).Text.StartsWith('service: active'))
-        Test-Equal 'system: not restarted: the same process' $pid1 ([string](([System.IO.File]::ReadAllText("$root\state\supervisor.lock") -split '\s+')[2]))
+        Test-Equal 'system: not restarted: the same process' $pid1 (Get-VigilLockPid)
         Set-Latest '0.0.3-it'
         $r = Invoke-Vigil self update
         Test-Equal 'system: a release that does not run fails' '1' ([string]$r.Code)

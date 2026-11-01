@@ -252,7 +252,7 @@ esac
 latest 0.0.2-it
 if [ "$(uname -s)" = Linux ] && sudo -n true 2> /dev/null; then
     sudo chown -R root "$root/app"
-    vigil self update > "$work/out" 2>&1
+    vigil self update --version 0.0.1-it > "$work/out" 2>&1
     check "another account's install is refused" 1 "$?"
     check 'saying who should' 1 "$(grep -c 'run this as that account' "$work/out")"
     sudo chown -R "$(id -u)" "$root/app"
@@ -271,6 +271,8 @@ else
     active() { sudo /usr/local/bin/vigil status 2> /dev/null | sed -n '1s/^service: \([a-z]*\).*/\1/p'; }
     check 'system: the service is active' active "$(active)"
     pid_of() { sudo sed -n 's/^pid = //p' "$sys/state/supervisor.lock"; }
+    i=0
+    while [ -z "$(pid_of)" ] && [ "$i" -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
     pid1=$(pid_of)
     /usr/local/bin/vigil self update > "$work/out" 2>&1
     check 'system: refused without sudo' 1 "$?"
