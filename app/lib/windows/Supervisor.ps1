@@ -163,7 +163,8 @@ function Invoke-VigilSupervisor {
         try {
             $dir = Join-Path $sv.Logs 'supervisor'
             [void](New-Item -ItemType Directory -Force -Path $dir)
-            [System.IO.File]::AppendAllText((Join-Path $dir "$($sv.Date).log"), "$($sv.Iso) $Level supervisor $Message`r`n")
+            $file = if ($sv.LogFile) { $sv.LogFile } else { Join-Path $dir "$($sv.Date).log" }
+            [System.IO.File]::AppendAllText($file, "$($sv.Iso) $Level supervisor $Message`r`n")
         }
         catch { }
     }
@@ -565,6 +566,7 @@ function Invoke-VigilSupervisor {
         $sv.Epoch = $now.ToUnixTimeSeconds()
         $sv.Now = $now.ToString('yyyy-MM-ddTHH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture) + $now.ToString('zzz').Replace(':', '')
         $sv.Date = $now.ToString('yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
+        $sv.LogFile = ''
         $sv.Iso = $now.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture)
         $sv.Events = New-Object 'System.Collections.Generic.List[string]'
         $sv.Running = 0
@@ -574,6 +576,7 @@ function Invoke-VigilSupervisor {
         $status = @{ Running = @(); Waiting = @(); Disabled = @(); Invalid = @(); Last = @(); Missing = @() }
 
         [void](& $loadConfig)
+        $sv.LogFile = Get-VigilLogFile -Parsed $sv.Parsed -Dir (Join-Path $sv.Logs 'supervisor') -Day $sv.Date
 
         # Runs waiting for a slot survive a restart (8): a job's cursor has
         # already moved past them, so nothing else would bring them back.

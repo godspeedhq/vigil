@@ -69,7 +69,8 @@ function Get-VigilLogFiles {
     }
     $keyed = New-Object 'System.Collections.Generic.List[string]'
     $byKey = @{}
-    foreach ($x in $out) { $k = "$($x.Base)`t$($x.File)"; $keyed.Add($k); $byKey[$k] = $x }
+    # A day's first file sorts before its numbered ones.
+    foreach ($x in $out) { $k = "$($x.Base -creplace '^(\d{4}-\d{2}-\d{2})\.log$', '$1.0.log')`t$($x.File)"; $keyed.Add($k); $byKey[$k] = $x }
     $keyed.Sort([System.StringComparer]::Ordinal)
     $sorted = New-Object 'System.Collections.Generic.List[object]'
     foreach ($k in $keyed) { $sorted.Add($byKey[$k]) }

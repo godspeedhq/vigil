@@ -152,6 +152,23 @@ _vigil_wk_dir() {
     esac
 }
 
+# The log file of day $2 in directory $1 to write to, in _vw_logfile: the
+# last one, or the next in sequence once it has reached [log] max_file_mb
+# (13.1). Log files are never truncated or renamed.
+_vigil_wk_logfile() {
+    local n=0 max
+    _vigil_wk_get log max_file_mb 50
+    max=$((_vw_value * 1048576))
+    _vw_logfile="$1/$2.log"
+    while [ -f "$1/$2.$((n + 1)).log" ]; do
+        n=$((n + 1))
+        _vw_logfile="$1/$2.$n.log"
+    done
+    if [ -f "$_vw_logfile" ] && [ "$(wc -c < "$_vw_logfile")" -ge "$max" ]; then
+        _vw_logfile="$1/$2.$((n + 1)).log"
+    fi
+}
+
 # Appends lines to the job's daily log. Each argument is one line.
 _vigil_wk_log() {
     local line
@@ -339,7 +356,8 @@ vigil_worker() {
     fi
 
     mkdir -p "$_vw_statedir/jobs" "$_vw_logdir/jobs/$_vw_job" "$_vw_spooldir/incoming"
-    _vw_log="$_vw_logdir/jobs/$_vw_job/$(date '+%Y-%m-%d').log"
+    _vigil_wk_logfile "$_vw_logdir/jobs/$_vw_job" "$(date '+%Y-%m-%d')"
+    _vw_log=$_vw_logfile
     _vigil_wk_host
     _vigil_wk_boot_id
     _vigil_wk_start_time $$

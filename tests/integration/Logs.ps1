@@ -312,6 +312,21 @@ forward_output = false
     Test-Equal 'retention: today''s log stays' 'True' ([string](Test-Path -LiteralPath "$root\logs\supervisor\$((Get-Date).ToString('yyyy-MM-dd')).log"))
     Test-Equal 'retention: the status file stays' 'True' ([string](Test-Path -LiteralPath "$root\logs\supervisor\jobs.log"))
 
+    # The size cap: writing continues in the next file, and nothing is cut.
+    [System.IO.File]::WriteAllText($cfg, [System.IO.File]::ReadAllText($cfg).Replace("retain_days = 3`n", "retain_days = 3`nmax_file_mb = 1`n"))
+    $today = (Get-Date).ToString('yyyy-MM-dd')
+    $log = "$root\logs\jobs\chatty\$today.log"
+    [System.IO.File]::AppendAllText($log, (New-Object string 'x', 1100000))
+    $size = (Get-Item -LiteralPath $log).Length
+    [void](Invoke-Vigil @('run', 'chatty'))
+    Test-Equal 'size cap: a full file is left alone' ([string]$size) ([string](Get-Item -LiteralPath $log).Length)
+    Test-Equal 'size cap: the run went to the next file' 'True' ([string][System.IO.File]::ReadAllText("$root\logs\jobs\chatty\$today.1.log").Contains('run start'))
+    $slog = "$root\logs\supervisor\$today.log"
+    [System.IO.File]::AppendAllText($slog, (New-Object string 'x', 1100000) + "`n")
+    Invoke-Tick
+    Invoke-Tick
+    Test-Equal 'size cap: the supervisor moves on too' 'True' ([string]((Test-Path -LiteralPath "$root\logs\supervisor\$today.1.log") -and (Get-Item -LiteralPath "$root\logs\supervisor\$today.1.log").Length -gt 0))
+
     # The credential is only ever in a header.
     $leaks = foreach ($d in @('logs', 'state', 'spool', 'metrics')) {
         Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue | Where-Object {

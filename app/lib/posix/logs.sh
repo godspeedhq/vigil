@@ -51,12 +51,15 @@ vigil_logs_enabled() {
 # first (by file name, so a day's files sort together). The status file and
 # the forwarder's own log are never forwarded (13.4.2).
 _vigil_logs_list() {
-    local nl=$'\n' size name out=''
+    local nl=$'\n' size name base out=''
     while read -r size name; do
         case $name in
             '' | total | supervisor/jobs.log | jobs/vigil_logs/*) continue ;;
         esac
-        out="$out${name##*/}"$'\t'"$name"$'\t'"$size$nl"
+        # A day's first file sorts before its numbered ones.
+        base=${name##*/}
+        case $base in ????-??-??.log) base="${base%.log}.0.log" ;; esac
+        out="$out$base"$'\t'"$name"$'\t'"$size$nl"
     done <<EOF
 $(cd "$1" 2>/dev/null && wc -c -- supervisor/*.log jobs/*/*.log 2>/dev/null)
 EOF
