@@ -11,6 +11,14 @@
 #     Prints "Vigil <version>", or says this is a copy from the repository.
 #   vigil_self_update <root> <app dir> <check: 0|1> <version, or empty>
 #     Returns 0, or 1 with the reason on stderr; nothing is changed then.
+#   vigil_supervisor_version <root>
+#     Prints the version the supervisor last started as; returns 1 if none.
+#   vigil_update_notice <root> <app dir>
+#     Says on stderr when a newer release is known, at a terminal only. Reads
+#     a per-user cache, and refreshes it in the background once a day, so it
+#     never slows a command and a host with no way out never notices.
+#   vigil_update_refresh <app dir>
+#     That refresh, as a detached process.
 #
 # Linux and macOS only; SelfUpdate.ps1 is the Windows twin.
 
@@ -31,6 +39,77 @@ _vigil_self_sha() {
     else
         shasum -a 256 "$1" | cut -c1-64
     fi
+}
+
+vigil_supervisor_version() {
+    local v=''
+    _vw_root=$1
+    vigil_config_parse "$1/config/vigil.config" 2>/dev/null
+    _vigil_wk_dir vigil state_dir state
+    [ -f "$_vw_dir/supervisor.version" ] && read -r v < "$_vw_dir/supervisor.version"
+    [ -n "$v" ] || return 1
+    printf '%s\n' "$v"
+}
+
+# Whether version $1 is newer than $2, comparing the numbers of x.y.z.
+_vigil_self_newer() {
+    local IFS=.- a b i=0
+    set -f
+    # shellcheck disable=SC2206
+    a=($1)
+    # shellcheck disable=SC2206
+    b=($2)
+    set +f
+    while [ "$i" -lt 3 ]; do
+        case ${a[$i]-0}${b[$i]-0} in *[!0-9]*) return 1 ;; esac
+        [ "$((10#${a[$i]-0}))" -gt "$((10#${b[$i]-0}))" ] && return 0
+        [ "$((10#${a[$i]-0}))" -lt "$((10#${b[$i]-0}))" ] && return 1
+        i=$((i + 1))
+    done
+    return 1
+}
+
+_vigil_update_cache() {
+    _vu_cache=${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/vigil/update-check
+}
+
+vigil_update_notice() {
+    local at=0 latest='' current
+    [ -z "${VIGIL_NO_UPDATE_CHECK-}" ] || return 0
+    [ -f "$2/VERSION" ] || return 0
+    if [ -z "${VIGIL_TEST_RELEASE_URL-}" ]; then
+        { [ -t 1 ] && [ -t 2 ] && [ -z "${CI-}" ]; } || return 0
+    fi
+    _vigil_update_cache
+    [ -f "$_vu_cache" ] && read -r at latest < "$_vu_cache"
+    current=$(cat "$2/VERSION")
+    if [ -n "$latest" ] && _vigil_self_newer "$latest" "$current"; then
+        printf '\nVigil %s is available (this is %s). To update: vigil self update\n' "$latest" "$current" >&2
+    fi
+    case $at in '' | *[!0-9]*) at=0 ;; esac
+    if [ $(($(date '+%s') - at)) -ge 86400 ]; then
+        ( trap '' HUP; exec "$BASH" "$2/vigil" self refresh-check ) < /dev/null > /dev/null 2>&1 &
+    fi
+    return 0
+}
+
+vigil_update_refresh() {
+    local at latest='' tag base=$VIGIL_RELEASES
+    local -a opts
+    opts=(-q --proto =https --proto-redir =https --max-time 10)
+    if [ -n "${VIGIL_TEST_RELEASE_URL-}" ]; then
+        base=$VIGIL_TEST_RELEASE_URL
+        opts=(-q --proto =http --proto-redir =http --noproxy '*' --max-time 10)
+    fi
+    _vigil_update_cache
+    mkdir -p "${_vu_cache%/*}" 2>/dev/null || return 0
+    [ -f "$_vu_cache" ] && read -r at latest < "$_vu_cache"
+    if command -v curl > /dev/null 2>&1 && tag=$(curl "${opts[@]}" -fsSLI -o /dev/null -w '%{url_effective}' "$base/releases/latest" 2>/dev/null); then
+        case ${tag##*/v} in '' | */*) ;; *) latest=${tag##*/v} ;; esac
+    fi
+    # Written whether or not it worked: a host with no way out tries once a
+    # day, not on every command.
+    printf '%s %s\n' "$(date '+%s')" "$latest" > "$_vu_cache.tmp.$$" && mv -f "$_vu_cache.tmp.$$" "$_vu_cache"
 }
 
 _vigil_self_die() {

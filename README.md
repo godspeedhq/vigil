@@ -139,7 +139,9 @@ vigil version               # what is installed
 
 Use `sudo` for a system install on Linux and macOS, and an elevated prompt on Windows.
 
-Only Vigil's own code is replaced: your configuration, scripts, state, spool and logs are left alone. Running jobs finish under the code they started with, and the new supervisor picks up where the old one left off. If the new version does not start, the old one and its service are put back. Re-running the one-line installer does the same job.
+Only Vigil's own code is replaced: your configuration, scripts, state, spool and logs are left alone. The service is not restarted: the supervisor sees the new version within seconds and replaces itself in place, keeping its process id, while running jobs finish under the code they started with. If the new version does not come up, the old one is put back. Re-running the one-line installer does the same job.
+
+Updates only ever happen when you run them. `vigil status`, `vigil version` and `vigil precheck` tell you at a terminal when one is available; `VIGIL_NO_UPDATE_CHECK=1` turns that off.
 
 ## Try it from a clone
 

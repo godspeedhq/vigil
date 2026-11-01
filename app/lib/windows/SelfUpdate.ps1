@@ -24,6 +24,89 @@ function Get-VigilVersion {
     return 'Vigil, from the repository (no release)'
 }
 
+function Get-VigilSupervisorVersion {
+    param([string]$Root)
+    try {
+        $parsed = ConvertFrom-VigilConfig -Path (Join-Path $Root 'config\vigil.config')
+        $d = Get-VigilConfigValue $parsed 'vigil' 'state_dir' 'state'
+        if (-not [System.IO.Path]::IsPathRooted($d)) { $d = Join-Path $Root $d }
+        $f = Join-Path $d 'supervisor.version'
+        if ([System.IO.File]::Exists($f)) { return [System.IO.File]::ReadAllText($f).Trim() }
+    }
+    catch { }
+    return ''
+}
+
+# Whether version $A is newer than $B, comparing the numbers of x.y.z.
+function Test-VigilNewer {
+    param([string]$A, [string]$B)
+    $x = $A.Split('.-'.ToCharArray()); $y = $B.Split('.-'.ToCharArray())
+    for ($i = 0; $i -lt 3; $i++) {
+        $p = if ($i -lt $x.Count) { $x[$i] } else { '0' }
+        $q = if ($i -lt $y.Count) { $y[$i] } else { '0' }
+        if ($p -cnotmatch '^[0-9]+$' -or $q -cnotmatch '^[0-9]+$') { return $false }
+        if ([long]$p -gt [long]$q) { return $true }
+        if ([long]$p -lt [long]$q) { return $false }
+    }
+    return $false
+}
+
+function Get-VigilUpdateCachePath { return Join-Path $env:LOCALAPPDATA 'vigil-update-check' }
+
+# Says on stderr when a newer release is known, at a console only. Reads a
+# per-user cache, and refreshes it in the background once a day, so it never
+# slows a command and a host with no way out never notices.
+function Show-VigilUpdateNotice {
+    param([string]$Root, [string]$App)
+    if ($env:VIGIL_NO_UPDATE_CHECK -or -not (Test-Path -LiteralPath (Join-Path $App 'VERSION'))) { return }
+    if (-not $env:VIGIL_TEST_RELEASE_URL -and ($env:CI -or [Console]::IsOutputRedirected -or [Console]::IsErrorRedirected)) { return }
+    $at = [long]0; $latest = ''
+    $f = Get-VigilUpdateCachePath
+    try {
+        if ([System.IO.File]::Exists($f)) {
+            $p = [System.IO.File]::ReadAllText($f).Trim().Split(' ')
+            if ($p[0] -cmatch '^[0-9]+$') { $at = [long]$p[0] }
+            if ($p.Count -gt 1) { $latest = $p[1] }
+        }
+    }
+    catch { }
+    $current = [System.IO.File]::ReadAllText((Join-Path $App 'VERSION')).Trim()
+    if ($latest -and (Test-VigilNewer $latest $current)) {
+        [Console]::Error.WriteLine("`nVigil $latest is available (this is $current). To update: vigil self update")
+    }
+    if ([DateTimeOffset]::Now.ToUnixTimeSeconds() - $at -ge 86400) {
+        try {
+            $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $App 'vigil.ps1'), 'self', 'refresh-check')
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = (Get-Process -Id $PID).Path
+            $psi.Arguments = ($argv | ForEach-Object { ConvertTo-VigilQuotedArg -Arg $_ -Always $false }) -join ' '
+            $psi.UseShellExecute = $false
+            $psi.CreateNoWindow = $true
+            [void][System.Diagnostics.Process]::Start($psi)
+        }
+        catch { }
+    }
+}
+
+# That refresh, as a detached process. Written whether or not it worked: a
+# host with no way out tries once a day, not on every command.
+function Update-VigilUpdateCache {
+    param([string]$App)
+    $base = 'https://github.com/godspeedhq/vigil'
+    if ($env:VIGIL_TEST_RELEASE_URL) { $base = $env:VIGIL_TEST_RELEASE_URL }
+    $f = Get-VigilUpdateCachePath
+    $latest = ''
+    try { if ([System.IO.File]::Exists($f)) { $latest = @([System.IO.File]::ReadAllText($f).Trim().Split(' '))[1] } } catch { }
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $r = Invoke-WebRequest -UseBasicParsing -Method Head -TimeoutSec 10 -Uri "$base/releases/latest"
+        $tag = if ($r.BaseResponse.ResponseUri) { [string]$r.BaseResponse.ResponseUri.AbsoluteUri } else { [string]$r.BaseResponse.RequestMessage.RequestUri.AbsoluteUri }
+        if ($tag -cmatch '/v([^/]+)$') { $latest = $Matches[1] }
+    }
+    catch { }
+    try { [System.IO.File]::WriteAllText($f, "$([DateTimeOffset]::Now.ToUnixTimeSeconds()) $latest`n") } catch { }
+}
+
 function Invoke-VigilSelfUpdate {
     param([string]$Root, [string]$App, [bool]$Check, [string]$Want)
     $die = { param($Why) [Console]::Error.WriteLine("vigil: $Why"); return 1 }

@@ -107,7 +107,9 @@ case ${1-} in
     precheck)
         [ "$#" -le 2 ] || usage
         vigil_precheck "$root" "${2-}"
-        exit $?
+        rc=$?
+        vigil_update_notice "$root" "$app"
+        exit "$rc"
         ;;
     secret)
         # Vigil's own secret store (6.5.2). Values are read from the terminal
@@ -246,14 +248,25 @@ case ${1-} in
     status)
         [ "$#" -eq 1 ] || usage
         vigil_service_status "$root"
-        exit $?
+        rc=$?
+        vigil_update_notice "$root" "$app"
+        exit "$rc"
         ;;
     version)
+        if [ "$#" -eq 2 ] && [ "$2" = --supervisor ]; then
+            vigil_supervisor_version "$root"
+            exit $?
+        fi
         [ "$#" -eq 1 ] || usage
         vigil_version "$app"
+        vigil_update_notice "$root" "$app"
         exit 0
         ;;
     self)
+        if [ "${2-}" = refresh-check ] && [ "$#" -eq 2 ]; then
+            vigil_update_refresh "$app"
+            exit 0
+        fi
         [ "${2-}" = update ] || usage
         shift 2
         check=0 want=''

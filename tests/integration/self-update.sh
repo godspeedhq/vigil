@@ -208,6 +208,45 @@ while [ ! -f "$root/state/jobs/waited.state" ] && [ "$i" -lt 100 ]; do sleep 0.2
 check 'a waiting run is picked up' yes "$([ -f "$root/state/jobs/waited.state" ] && echo yes || echo no)"
 check 'and the list is cleared' no "$([ -e "$root/state/pending" ] && echo yes || echo no)"
 
+# --- update notices ----------------------------------------------------------------------------
+
+latest 0.0.2-it
+export XDG_CACHE_HOME=$work/cache
+vigil version > "$work/out" 2> "$work/err"
+check 'notice: stdout stays clean' 'Vigil 0.0.1-it' "$(cat "$work/out")"
+i=0
+while [ ! -f "$XDG_CACHE_HOME/vigil/update-check" ] && [ "$i" -lt 100 ]; do sleep 0.2; i=$((i + 1)); done
+vigil version > /dev/null 2> "$work/err"
+check 'notice: names the new version' 1 "$(grep -c 'Vigil 0.0.2-it is available' "$work/err")"
+VIGIL_NO_UPDATE_CHECK=1 vigil version > /dev/null 2> "$work/err"
+check 'notice: can be turned off' 0 "$(wc -c < "$work/err" | tr -d ' ')"
+: > "$work/mock/requests.log"
+vigil version > /dev/null 2>&1
+sleep 2
+check 'notice: asks at most once a day' 0 "$(grep -c '"path"' "$work/mock/requests.log")"
+
+# --- hot reload: a supervisor that is running, whoever started it --------------------------------
+
+case $(uname -s) in
+    Linux | Darwin)
+        vigil self update --version 0.0.1-it > /dev/null 2>&1
+        vigil supervise > /dev/null 2>&1 &
+        sup=$!
+        i=0
+        while [ "$(vigil version --supervisor 2>/dev/null)" != 0.0.1-it ] && [ "$i" -lt 100 ]; do sleep 0.2; i=$((i + 1)); done
+        check 'reload: the supervisor is running' 0.0.1-it "$(vigil version --supervisor)"
+        vigil self update --version 0.0.2-it > "$work/out" 2>&1
+        check 'reload: updated' 0 "$?"
+        i=0
+        while [ "$(vigil version --supervisor 2>/dev/null)" != 0.0.2-it ] && [ "$i" -lt 100 ]; do sleep 0.2; i=$((i + 1)); done
+        check 'reload: it came up as the new version' 0.0.2-it "$(vigil version --supervisor)"
+        check 'reload: the same process' yes "$(kill -0 "$sup" 2>/dev/null && echo yes || echo no)"
+        kill "$sup" 2>/dev/null
+        wait "$sup" 2>/dev/null
+        check 'reload: it says so' 1 "$(grep -hc 'reloading: Vigil 0.0.1-it to 0.0.2-it' "$root"/logs/supervisor/2*.log | sort -n | tail -1)"
+        ;;
+esac
+
 # --- another account's install ---------------------------------------------------------------
 
 latest 0.0.2-it
@@ -231,6 +270,8 @@ else
     [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
     active() { sudo /usr/local/bin/vigil status 2> /dev/null | sed -n '1s/^service: \([a-z]*\).*/\1/p'; }
     check 'system: the service is active' active "$(active)"
+    pid_of() { sudo sed -n 's/^pid = //p' "$sys/state/supervisor.lock"; }
+    pid1=$(pid_of)
     /usr/local/bin/vigil self update > "$work/out" 2>&1
     check 'system: refused without sudo' 1 "$?"
     sudo VIGIL_TEST_RELEASE_URL="$VIGIL_TEST_RELEASE_URL" /usr/local/bin/vigil self update > "$work/out" 2>&1
@@ -239,6 +280,7 @@ else
     [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
     check 'system: the new version' 0.0.2-it "$(cat "$sys/app/VERSION")"
     check 'system: the service is active after' active "$(active)"
+    check 'system: not restarted: the same process' "$pid1" "$(pid_of)"
     latest 0.0.3-it
     sudo VIGIL_TEST_RELEASE_URL="$VIGIL_TEST_RELEASE_URL" /usr/local/bin/vigil self update > "$work/out" 2>&1
     check 'system: a release that does not run fails' 1 "$?"

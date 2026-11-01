@@ -187,18 +187,43 @@ mkdir -p "$root" || die "cannot create $root"
 rm -rf "$root/app.new" "$root/app.old"
 cp -R "$src/app" "$root/app.new" || { rm -rf "$root/app.new"; die "cannot copy into $root; nothing was changed"; }
 chmod 755 "$root/app.new/vigil"
-running=0
-if [ "$upgrade" = 1 ] && [ "$do_service" = 1 ] &&
-    bash "$root/app/vigil" --root "$root" status 2> /dev/null | head -n 1 | grep -q '^service: active'; then
-    running=1
-    bash "$root/app/vigil" --root "$root" stop > /dev/null || { rm -rf "$root/app.new"; die 'cannot stop the running service for the upgrade; nothing was changed'; }
-fi
 vigil() { bash "$root/app/vigil" --root "$root" "$@"; }
+# Whether the running service is on version $1 within 30 seconds.
+on_version() {
+    n=0
+    while [ "$n" -lt 30 ]; do
+        if [ "$(vigil version --supervisor 2> /dev/null)" = "$1" ] &&
+            vigil status 2> /dev/null | head -n 1 | grep -q '^service: active'; then
+            return 0
+        fi
+        sleep 1
+        n=$((n + 1))
+    done
+    return 1
+}
+running=0
+reload=0
+old_version=$(cat "$root/app/VERSION" 2> /dev/null)
+if [ "$upgrade" = 1 ] && [ "$do_service" = 1 ] &&
+    vigil status 2> /dev/null | head -n 1 | grep -q '^service: active'; then
+    running=1
+    # A supervisor that can hot reload replaces itself when app/ changes
+    # (18.7): the service is not touched. An older one is stopped and started.
+    if [ -n "$(vigil version --supervisor 2> /dev/null)" ]; then
+        reload=1
+    else
+        vigil stop > /dev/null || { rm -rf "$root/app.new"; die 'cannot stop the running service for the upgrade; nothing was changed'; }
+    fi
+fi
 # Back to the version that was running, and its service.
 rollback() {
     rm -rf "$root/app"
     mv "$root/app.old" "$root/app"
-    if [ "$running" = 1 ]; then vigil start > /dev/null; fi
+    if [ "$reload" = 1 ]; then
+        on_version "$old_version" || vigil start > /dev/null
+    elif [ "$running" = 1 ]; then
+        vigil start > /dev/null
+    fi
     die "$1; went back to the version that was installed"
 }
 # app/ is swapped whole, so a process still running the old one keeps
@@ -220,10 +245,11 @@ fi
 # The old version goes only once the new one has proved it runs.
 if [ "$upgrade" = 1 ]; then
     [ "$(vigil version 2> /dev/null)" = "Vigil $version" ] || rollback "the new version ($version) does not run"
-    if [ "$running" = 1 ]; then
+    if [ "$reload" = 1 ]; then
+        on_version "$version" || rollback "the supervisor did not come up as $version"
+    elif [ "$running" = 1 ]; then
         vigil start > /dev/null || rollback "the new version ($version) did not start"
-        sleep 3
-        vigil status 2> /dev/null | head -n 1 | grep -q '^service: active' || rollback "the new version ($version) did not stay up"
+        on_version "$version" || rollback "the new version ($version) did not stay up"
     fi
     rm -rf "$root/app.old"
     say "upgraded $root to Vigil $version"

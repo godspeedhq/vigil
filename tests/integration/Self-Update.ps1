@@ -202,6 +202,33 @@ try {
     Test-Equal 'a waiting run is picked up' 'True' ([string](Test-Path -LiteralPath "$root\state\jobs\waited.state"))
     Test-Equal 'and the list is cleared' 'False' ([string](Test-Path -LiteralPath "$root\state\pending"))
 
+    # Update notices.
+    Set-Latest '0.0.2-it'
+    $saved = $env:LOCALAPPDATA
+    $env:LOCALAPPDATA = $work
+    $r = Invoke-Vigil version
+    Test-Equal 'notice: asks in the background' 'True' ([string]$r.Text.StartsWith('Vigil 0.0.1-it'))
+    for ($i = 0; $i -lt 150 -and -not (Test-Path -LiteralPath "$work\vigil-update-check"); $i++) { Start-Sleep -Milliseconds 200 }
+    Test-Equal 'notice: names the new version' 'True' ([string](Invoke-Vigil version).Text.Contains('Vigil 0.0.2-it is available'))
+    $env:VIGIL_NO_UPDATE_CHECK = '1'
+    Test-Equal 'notice: can be turned off' 'False' ([string](Invoke-Vigil version).Text.Contains('is available'))
+    Remove-Item Env:\VIGIL_NO_UPDATE_CHECK
+    $env:LOCALAPPDATA = $saved
+
+    # Hot reload: a supervisor that is running, whoever started it.
+    $sup = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$root\app\vigil.ps1`"", '-Root', "`"$root`"", 'supervise')
+    for ($i = 0; $i -lt 150 -and (Invoke-Vigil version --supervisor).Text -cne '0.0.1-it'; $i++) { Start-Sleep -Milliseconds 200 }
+    Test-Equal 'reload: the supervisor is running' '0.0.1-it' (Invoke-Vigil version --supervisor).Text
+    $r = Invoke-Vigil self update --version 0.0.2-it
+    Test-Equal 'reload: updated' '0' ([string]$r.Code)
+    if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    for ($i = 0; $i -lt 150 -and (Invoke-Vigil version --supervisor).Text -cne '0.0.2-it'; $i++) { Start-Sleep -Milliseconds 200 }
+    Test-Equal 'reload: it came up as the new version' '0.0.2-it' (Invoke-Vigil version --supervisor).Text
+    Test-Equal 'reload: the same process' 'False' ([string]$sup.HasExited)
+    $st = Get-Content -LiteralPath "$root\state\supervisor.lock" -ErrorAction SilentlyContinue
+    if (-not $sup.HasExited) { Stop-Process -Id $sup.Id -Force }
+    Start-Sleep -Seconds 1
+
     # A running system service, only on CI: it registers a real service and
     # changes the machine's PATH.
     $admin = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -214,11 +241,13 @@ try {
         Test-Equal 'system: installed' '0' ([string]$rc)
         if ($rc -ne 0) { $out | ForEach-Object { Write-Host "        $_" } }
         Test-Equal 'system: the service is active' 'True' ([string](Invoke-Vigil status).Text.StartsWith('service: active'))
+        $pid1 = ([System.IO.File]::ReadAllText("$root\state\supervisor.lock") -split '\s+')[2]
         $r = Invoke-Vigil self update
         Test-Equal 'system: updated' '0' ([string]$r.Code)
         if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
         Test-Equal 'system: the new version' '0.0.2-it' (Get-Version)
         Test-Equal 'system: the service is active after' 'True' ([string](Invoke-Vigil status).Text.StartsWith('service: active'))
+        Test-Equal 'system: not restarted: the same process' $pid1 ([string](([System.IO.File]::ReadAllText("$root\state\supervisor.lock") -split '\s+')[2]))
         Set-Latest '0.0.3-it'
         $r = Invoke-Vigil self update
         Test-Equal 'system: a release that does not run fails' '1' ([string]$r.Code)

@@ -174,20 +174,38 @@ try {
         }
     }
     $running = $false
+    $reload = $false
     $self = (Get-Process -Id $PID).Path
+    function Invoke-Vigil { & $self -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root @args }
+    # Whether the running service is on a version within 30 seconds.
+    function Test-OnVersion {
+        param([string]$Want)
+        for ($n = 0; $n -lt 30; $n++) {
+            if ("$(Invoke-Vigil version --supervisor 2>$null)" -ceq $Want -and
+                "$(Invoke-Vigil status 2>$null | Select-Object -First 1)".StartsWith('service: active')) { return $true }
+            Start-Sleep -Seconds 1
+        }
+        return $false
+    }
+    $oldVersion = ''
+    if ($present -and (Test-Path -LiteralPath (Join-Path $root 'app\VERSION'))) { $oldVersion = ([System.IO.File]::ReadAllText((Join-Path $root 'app\VERSION'))).Trim() }
     if ($present -and -not $NoService) {
-        $st = & $self -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root status 2>$null | Select-Object -First 1
+        $st = Invoke-Vigil status 2>$null | Select-Object -First 1
         if ("$st".StartsWith('service: active')) {
             $running = $true
-            & $self -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root stop | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                foreach ($p in $parts) { Remove-Item -LiteralPath (Join-Path $root "$p.new") -Recurse -Force -ErrorAction SilentlyContinue }
-                Stop-Install 'cannot stop the running service for the upgrade; nothing was changed'
+            # A supervisor that can hot reload replaces itself when app\
+            # changes (18.7): the service is not touched. An older one is
+            # stopped and started.
+            if ("$(Invoke-Vigil version --supervisor 2>$null)") { $reload = $true }
+            else {
+                Invoke-Vigil stop | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    foreach ($p in $parts) { Remove-Item -LiteralPath (Join-Path $root "$p.new") -Recurse -Force -ErrorAction SilentlyContinue }
+                    Stop-Install 'cannot stop the running service for the upgrade; nothing was changed'
+                }
             }
         }
     }
-
-    function Invoke-Vigil { & $self -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root @args }
 
     # Back to what was installed: whatever was swapped, and the service.
     function Undo-Upgrade {
@@ -201,7 +219,8 @@ try {
             }
             Remove-Item -LiteralPath (Join-Path $root "$d.new") -Recurse -Force -ErrorAction SilentlyContinue
         }
-        if ($running) { Invoke-Vigil start | Out-Null }
+        if ($reload) { if (-not (Test-OnVersion $oldVersion)) { Invoke-Vigil start | Out-Null } }
+        elseif ($running) { Invoke-Vigil start | Out-Null }
         Stop-Install "$Why; went back to the version that was installed"
     }
 
@@ -217,12 +236,13 @@ try {
     # The old version goes only once the new one has proved it runs.
     if ($present) {
         if ("$(Invoke-Vigil version 2>$null)" -cne "Vigil $Version") { Undo-Upgrade "the new version ($Version) does not run" }
-        if ($running) {
+        if ($reload) {
+            if (-not (Test-OnVersion $Version)) { Undo-Upgrade "the supervisor did not come up as $Version" }
+        }
+        elseif ($running) {
             Invoke-Vigil start | Out-Null
             if ($LASTEXITCODE -ne 0) { Undo-Upgrade "the new version ($Version) did not start" }
-            Start-Sleep -Seconds 3
-            $st = Invoke-Vigil status 2>$null | Select-Object -First 1
-            if (-not "$st".StartsWith('service: active')) { Undo-Upgrade "the new version ($Version) did not stay up" }
+            if (-not (Test-OnVersion $Version)) { Undo-Upgrade "the new version ($Version) did not stay up" }
         }
         foreach ($d in $parts) { Remove-Item -LiteralPath (Join-Path $root "$d.old") -Recurse -Force -ErrorAction SilentlyContinue }
         Write-Output "upgraded $root to Vigil $Version"

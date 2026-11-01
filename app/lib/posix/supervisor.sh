@@ -19,6 +19,7 @@
 # outcome.sh, metrics.sh, events.sh, recovery.sh, worker.sh and precheck.sh.
 
 VIGIL_LAUNCH_GRACE=120
+VIGIL_RELOAD_CHECK=3
 
 _vigil_sup_log() {
     local level=$1
@@ -1025,6 +1026,11 @@ vigil_supervise() {
         "$_su_statedir"/locks/*.launch.tmp.* \
         "$_su_logdir"/supervisor/jobs.log.tmp.* "$_su_spooldir"/incoming/*-vigil_supervisor.events.tmp.*
     printf 'pid = %s\nstarted_epoch = %s\n' "$$" "$(date '+%s')" >&8
+    # What is running, for vigil self update to wait for (18.7).
+    _su_version=''
+    [ -f "$_su_app/VERSION" ] && read -r _su_version < "$_su_app/VERSION"
+    printf '%s\n' "$_su_version" > "$_su_statedir/supervisor.version.tmp.$$" &&
+        mv -f "$_su_statedir/supervisor.version.tmp.$$" "$_su_statedir/supervisor.version"
     _vigil_sup_log INFO "supervisor started, pid $$"
 
     trap '_su_stop=1' TERM INT
@@ -1034,13 +1040,35 @@ vigil_supervise() {
         [ "$_su_stop" -eq 1 ] && break
         deadline=$((_su_epoch + _su_tick))
         now=$(date '+%s')
-        if [ "$deadline" -gt "$now" ]; then
-            sleep $((deadline - now)) &
+        # Slept in slices, so a new version is picked up within seconds
+        # whatever the tick.
+        while [ "$now" -lt "$deadline" ]; do
+            _vigil_sup_new_version && break
+            if [ $((deadline - now)) -gt "$VIGIL_RELOAD_CHECK" ]; then sleep "$VIGIL_RELOAD_CHECK" & else sleep $((deadline - now)) & fi
             wait $!
-        fi
+            [ "$_su_stop" -eq 1 ] && break
+            now=$(date '+%s')
+        done
         [ "$_su_stop" -eq 1 ] && break
+        if _vigil_sup_new_version; then
+            # Hot reload (18.7): this process becomes the new version, with
+            # the same pid, so the service manager sees nothing and no admin
+            # right is needed. Everything else is on disk.
+            _vigil_sup_log INFO "reloading: Vigil $_su_version to $_su_next"
+            exec 8>&-
+            exec "$BASH" "$_su_app/vigil" --root "$_su_root" supervise
+        fi
     done
     _vigil_sup_log INFO "supervisor stopped; running workers continue"
     exec 8>&-
     return 0
+}
+
+# Whether app/ now holds another version than the one running. An update
+# swaps app/ by renaming it, so VERSION is absent for a moment, never partial.
+_vigil_sup_new_version() {
+    _su_next=''
+    [ -f "$_su_app/VERSION" ] || return 1
+    read -r _su_next < "$_su_app/VERSION" 2>/dev/null
+    [ -n "$_su_next" ] && [ "$_su_next" != "$_su_version" ]
 }

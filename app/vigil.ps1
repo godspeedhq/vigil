@@ -225,14 +225,28 @@ switch ($Command) {
     'status' {
         if ($Job -or $Rest) { Exit-Usage }
         Get-VigilServiceStatus -Root $Root
+        Show-VigilUpdateNotice -Root $Root -App $app
         exit 0
     }
     'version' {
-        if ($Job -or $Rest) { Exit-Usage }
+        # PowerShell binds "--supervisor" to the remaining arguments.
+        $flags = @(@($Job) + @($Rest) | Where-Object { $_ })
+        if ($flags.Count -eq 1 -and $flags[0] -ceq '--supervisor') {
+            $running = Get-VigilSupervisorVersion -Root $Root
+            if (-not $running) { exit 1 }
+            $running
+            exit 0
+        }
+        if ($flags.Count -gt 0) { Exit-Usage }
         Get-VigilVersion -App $app
+        Show-VigilUpdateNotice -Root $Root -App $app
         exit 0
     }
     'self' {
+        if ($Job -ceq 'refresh-check' -and -not $Rest) {
+            Update-VigilUpdateCache -App $app
+            exit 0
+        }
         if ($Job -cne 'update') { Exit-Usage }
         $argv = @($Rest | Where-Object { $_ })
         $check = $false
@@ -250,7 +264,13 @@ switch ($Command) {
         # PowerShell binds "--once" to the remaining arguments.
         $flags = @(@($Job) + @($Rest) | Where-Object { $_ })
         if ($flags.Count -gt 1 -or ($flags.Count -eq 1 -and $flags[0] -cne '--once')) { Exit-Usage }
-        exit (Invoke-VigilSupervisor -Root $Root -App $app -Once:($flags.Count -eq 1))
+        $code = Invoke-VigilSupervisor -Root $Root -App $app -Once:($flags.Count -eq 1)
+        # A new version: this process carries on as it (18.7).
+        if ($code -eq $Script:VigilReloadCode) {
+            & (Join-Path $app 'vigil.ps1') -Root $Root supervise
+            exit $LASTEXITCODE
+        }
+        exit $code
     }
     'worker' {
         if (-not $Job -or $Rest.Count -ne 2 -or $Rest[0] -cne '--run-id') { Exit-Usage }

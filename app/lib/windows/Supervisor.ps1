@@ -144,6 +144,9 @@ function Write-VigilRecoveryRecord {
         "first_seen   = $first`nlast_checked = $Epoch`npolicy       = $Policy`nresolved_by  = $($Rec.ResolvedBy)`nresolved_at  = $($Rec.ResolvedAt)`n")
 }
 
+$Script:VigilReloadCheck = 3
+$Script:VigilReloadCode = 75
+
 function Invoke-VigilSupervisor {
     param([string]$Root, [string]$App, [switch]$Once)
 
@@ -809,6 +812,23 @@ function Invoke-VigilSupervisor {
                 foreach ($f in [System.IO.Directory]::GetFiles($p[0], $p[1])) { try { [System.IO.File]::Delete($f) } catch { } }
             }
         }
+        # What is running, for vigil self update to wait for (18.7).
+        $verFile = Join-Path $App 'VERSION'
+        $version = ''
+        if ([System.IO.File]::Exists($verFile)) { $version = [System.IO.File]::ReadAllText($verFile).Trim() }
+        Write-VigilFileAtomic -Path (Join-Path $sv.State 'supervisor.version') -Text "$version`n"
+        # Whether app\ now holds another version than the one running. An
+        # update swaps app\ by renaming it, so VERSION is absent for a
+        # moment, never partial.
+        $newVersion = {
+            try {
+                if (-not [System.IO.File]::Exists($verFile)) { return '' }
+                $v = [System.IO.File]::ReadAllText($verFile).Trim()
+                if ($v -and $v -cne $version) { return $v }
+            }
+            catch { }
+            return ''
+        }
         & $log 'INFO' "supervisor started, pid $PID"
         while ($true) {
             # A failing tick is logged, never fatal: the supervisor keeps
@@ -816,8 +836,23 @@ function Invoke-VigilSupervisor {
             try { & $tick }
             catch { & $log 'ERROR' "tick failed: $($_.Exception.Message) at $($_.InvocationInfo.PositionMessage -replace '\s+', ' ')" }
             if ($Once) { break }
-            $wait = $sv.Epoch + $sv.Tick - [DateTimeOffset]::Now.ToUnixTimeSeconds()
-            if ($wait -gt 0) { Start-Sleep -Seconds $wait }
+            # Slept in slices, so a new version is picked up within seconds
+            # whatever the tick.
+            $next = ''
+            while ($true) {
+                $next = & $newVersion
+                if ($next) { break }
+                $wait = $sv.Epoch + $sv.Tick - [DateTimeOffset]::Now.ToUnixTimeSeconds()
+                if ($wait -le 0) { break }
+                Start-Sleep -Seconds ([Math]::Min($wait, $Script:VigilReloadCheck))
+            }
+            if ($next) {
+                # Hot reload (18.7): vigil.ps1 runs the new version in this
+                # same process, so the service manager sees nothing and no
+                # admin right is needed. Everything else is on disk.
+                & $log 'INFO' "reloading: Vigil $version to $next"
+                return $Script:VigilReloadCode
+            }
         }
     }
     finally {
