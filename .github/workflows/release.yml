@@ -1,0 +1,35 @@
+# Builds and signs a release from a version tag, as a draft: it reaches
+# nobody until its notes are reviewed and it is published by hand. The key is
+# used only here, so only a tagged commit is ever signed.
+#   git tag v0.2.1 <commit> && git push origin v0.2.1
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: build and sign
+        env:
+          VIGIL_RELEASE_KEY: ${{ secrets.VIGIL_RELEASE_KEY }}
+        run: |
+          test -f app/release-key.pem
+          test -n "$VIGIL_RELEASE_KEY"
+          umask 077
+          printf '%s\n' "$VIGIL_RELEASE_KEY" > "$RUNNER_TEMP/release.key"
+          VIGIL_SIGN_KEY="$RUNNER_TEMP/release.key" bash tools/release/package.sh "${GITHUB_REF_NAME#v}" dist
+          rm -f "$RUNNER_TEMP/release.key"
+          openssl dgst -sha256 -verify app/release-key.pem -signature dist/SHA256SUMS.sig dist/SHA256SUMS
+      - name: create the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "Vigil ${GITHUB_REF_NAME#v}" --generate-notes \
+            dist/vigil-* dist/install.sh dist/install.ps1 dist/SHA256SUMS dist/SHA256SUMS.sig
