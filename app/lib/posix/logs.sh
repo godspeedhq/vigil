@@ -23,6 +23,8 @@
 #     the log directory), in _vl_rec, empty when the line is not forwarded.
 #     Must produce exactly what Logs.ps1 does - tests/conformance/logs holds
 #     the shared cases.
+#   vigil_logs_retention <log dir> <epoch>
+#     Deletes the log files older than their retention (13.1).
 #   vigil_logs_output_for <job id>
 #     Sets _vl_output: whether the job's stdout and stderr may be forwarded.
 #
@@ -35,6 +37,7 @@ VIGIL_LOGS_RUN_SECS=240
 
 _vigil_logs_iso='^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])T([0-9][0-9]):([0-9][0-9]):([0-9][0-9])Z$'
 _vigil_logs_num='^[0-9]+$'
+_vigil_logs_dated='^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])([.][0-9]+)?[.]log$'
 _vigil_logs_rejected='"rejectedLogRecords"[[:space:]]*:[[:space:]]*"?([0-9]+)'
 
 vigil_logs_enabled() {
@@ -151,15 +154,57 @@ _vigil_logs_attr() {
     _vl_attr="{\"key\":\"$1\",\"value\":{\"stringValue\":\"$_vl_text\"}}"
 }
 
-# Seconds since 1970 of the time in BASH_REMATCH, into _vl_epoch.
-_vigil_logs_epoch() {
-    local y=$((10#${BASH_REMATCH[1]})) m=$((10#${BASH_REMATCH[2]})) d=$((10#${BASH_REMATCH[3]})) era yoe doy doe
+# Days since 1970 of year $1, month $2, day $3, into _vl_days.
+_vigil_logs_days() {
+    local y=$((10#$1)) m=$((10#$2)) d=$((10#$3)) era yoe doy doe
     [ "$m" -le 2 ] && y=$((y - 1))
     era=$((y / 400))
     yoe=$((y - era * 400))
     doy=$(((153 * ((m + 9) % 12) + 2) / 5 + d - 1))
     doe=$((yoe * 365 + yoe / 4 - yoe / 100 + doy))
-    _vl_epoch=$(((era * 146097 + doe - 719468) * 86400 + 10#${BASH_REMATCH[4]} * 3600 + 10#${BASH_REMATCH[5]} * 60 + 10#${BASH_REMATCH[6]}))
+    _vl_days=$((era * 146097 + doe - 719468))
+}
+
+# Seconds since 1970 of the time in BASH_REMATCH, into _vl_epoch.
+_vigil_logs_epoch() {
+    local h=${BASH_REMATCH[4]} m=${BASH_REMATCH[5]} s=${BASH_REMATCH[6]}
+    _vigil_logs_days "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+    _vl_epoch=$((_vl_days * 86400 + 10#$h * 3600 + 10#$m * 60 + 10#$s))
+}
+
+# How many days job $1's log is kept (6.6), or the supervisor's with no
+# job, into _vl_keep.
+_vigil_logs_keep() {
+    _vigil_wk_get log retain_days 7
+    if [ -n "$1" ]; then
+        _vigil_wk_get defaults log_retain_days "$_vw_value"
+        _vigil_wk_get "job.$1" log_retain_days "$_vw_value"
+    fi
+    _vl_keep=$_vw_value
+}
+
+# Deletes dated log files older than their retention (13.1), whole, and
+# never for the forwarder's sake (13.4.4). The status file has no date.
+# $1 is the log directory, $2 the time. The number deleted is in _vl_removed.
+vigil_logs_retention() {
+    local today=$(($2 / 86400)) f job
+    _vl_removed=0
+    for f in "$1"/supervisor/*.log "$1"/jobs/*/*.log; do
+        [ -f "$f" ] || continue
+        job=''
+        case $f in
+            "$1"/jobs/*)
+                job=${f#"$1"/jobs/}
+                job=${job%%/*}
+                ;;
+        esac
+        _vigil_logs_keep "$job"
+        [[ ${f##*/} =~ $_vigil_logs_dated ]] || continue
+        _vigil_logs_days "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+        if [ $((today - _vl_days)) -gt "$_vl_keep" ] && rm -f "$f"; then
+            _vl_removed=$((_vl_removed + 1))
+        fi
+    done
 }
 
 vigil_logs_record() {

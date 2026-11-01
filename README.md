@@ -89,6 +89,8 @@ Vigil's guiding rules:
 | One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums, upgrades | Done |
 | Fetching configuration and scripts from git, https, sftp and local directories or shares: digests, atomic activation, last good configuration | Done |
 | Forwarding Vigil's own logs over OTLP, with checkpoints, backoff and reported gaps | Done |
+| Log retention: `retain_days`, `log_retain_days` | Done |
+| Per-file log size cap: `max_file_mb` | Specified, not built |
 | Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
 | Secret stores: HashiCorp Vault, Azure Key Vault, AWS Secrets Manager, GCP Secret Manager, over HTTPS with curl (and openssl) or .NET | Done |
 

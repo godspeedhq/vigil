@@ -710,6 +710,14 @@ function Invoke-VigilSupervisor {
             if ($acc.Active -ceq '-' -and (& $fetchDue)) { & $start 'vigil_fetch' }
         }
 
+        # Retention (13.1): at the start, then once a day.
+        $day = [long][Math]::Floor($sv.Epoch / 86400)
+        if (-not $sv.Waiting -and $sv.Retained -ne $day) {
+            $sv.Retained = $day
+            $n = Remove-VigilOldLogs -Parsed $sv.Parsed -LogDir $sv.Logs -Epoch $sv.Epoch
+            if ($n -gt 0) { & $log 'INFO' "retention: deleted $n old log files" }
+        }
+
         # The log forwarder (13.4.3): the same again, on its own schedule.
         if (-not $sv.Waiting -and (Test-VigilLogsEnabled -Parsed $sv.Parsed)) {
             $acc = & $account 'vigil_logs'

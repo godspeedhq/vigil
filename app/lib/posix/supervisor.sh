@@ -867,6 +867,13 @@ _vigil_sup_tick() {
         fi
     fi
 
+    # Retention (13.1): at the start, then once a day.
+    if [ "$_su_waiting" = 0 ] && [ "${_su_retained-}" != $((_su_epoch / 86400)) ]; then
+        _su_retained=$((_su_epoch / 86400))
+        vigil_logs_retention "$_su_logdir" "$_su_epoch"
+        [ "$_vl_removed" -eq 0 ] || _vigil_sup_log INFO "retention: deleted $_vl_removed old log files"
+    fi
+
     # The log forwarder (13.4.3): the same again, on its own schedule.
     if [ "$_su_waiting" = 0 ] && vigil_logs_enabled; then
         _vigil_sup_account vigil_logs
