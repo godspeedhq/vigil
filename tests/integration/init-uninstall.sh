@@ -153,7 +153,7 @@ echo x > "$r/scripts/a.sh"
 vigil "$r" init --no-pack > /dev/null 2>&1
 vigil "$r" uninstall --yes --keep-config > /dev/null 2>&1
 check 'uninstall --keep-config succeeds' 0 "$?"
-check 'keeps config and scripts' 'config scripts' "$(ls "$r" | tr '\n' ' ' | sed 's/ $//')"
+check 'keeps config and scripts' 'config packs scripts' "$(ls "$r" | tr '\n' ' ' | sed 's/ $//')"
 check 'keeps the configuration itself' yes "$([ -f "$r/config/vigil.config" ] && echo yes)"
 
 mkdir -p "$work/notroot"

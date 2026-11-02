@@ -141,7 +141,7 @@ New-Root $r
 [void](Invoke-Vigil $r @('init', '--no-pack'))
 Test-Equal 'uninstall --keep-config succeeds' '0' "$(Invoke-Vigil $r @('uninstall', '--yes', '--keep-config'))"
 for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath (Join-Path $r 'app')); $i++) { Start-Sleep -Milliseconds 500 }
-Test-Equal 'keeps config and scripts' 'config scripts' ((@(Get-ChildItem -LiteralPath $r -Force | ForEach-Object { $_.Name } | Sort-Object)) -join ' ')
+Test-Equal 'keeps config and scripts' 'config packs scripts' ((@(Get-ChildItem -LiteralPath $r -Force | ForEach-Object { $_.Name } | Sort-Object)) -join ' ')
 Test-Equal 'keeps the configuration itself' 'True' "$(Test-Path -LiteralPath (Join-Path $r 'config\vigil.config'))"
 
 $nr = Join-Path $work 'notroot'
