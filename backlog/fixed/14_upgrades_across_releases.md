@@ -7,5 +7,5 @@ unreadable.
 ## Done when
 - CI installs the previous published release and self-updates to the
   current build, with jobs running, on all three platforms.
-- State, cursors, spool and checkpoints carry a version, with a migration
-  path when a format changes.
+- State, cursors, spool and checkpoints carry a version (`state/format`),
+  with a migration path when a format changes (`app/migrations`).

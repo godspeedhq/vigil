@@ -249,6 +249,11 @@ function Invoke-VigilPrecheck {
         }
     }
 
+    $f = Test-VigilFormat -App $app -State $stateDir
+    if (-not $f.Ok) { & $fail "data format: $($f.Error)" }
+    elseif ($f.Stored -lt $f.Current) { & $ok "data format: $($f.Stored), moves to $($f.Current) when the supervisor starts" }
+    else { & $ok "data format: $($f.Stored)" }
+
     $ctx = @{
         'state directory' = @('vigil', 'state_dir', 'state')
         'log directory'   = @('log', 'dir', 'logs')

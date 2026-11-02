@@ -815,6 +815,12 @@ function Invoke-VigilSupervisor {
                 foreach ($f in [System.IO.Directory]::GetFiles($p[0], $p[1])) { try { [System.IO.File]::Delete($f) } catch { } }
             }
         }
+        $m = Invoke-VigilFormatMigrate -App $App -State $sv.State -Spool $sv.Spool -Logs $sv.Logs
+        if (-not $m.Ok) {
+            [Console]::Error.WriteLine("vigil: $($m.Error)")
+            & $log 'ERROR' "cannot start: $($m.Error)"
+            return 1
+        }
         # What is running, for vigil self update to wait for (18.7).
         $verFile = Join-Path $App 'VERSION'
         $version = ''
@@ -827,7 +833,8 @@ function Invoke-VigilSupervisor {
             try {
                 if (-not [System.IO.File]::Exists($verFile)) { return '' }
                 $v = [System.IO.File]::ReadAllText($verFile).Trim()
-                if ($v -and $v -cne $version) { return $v }
+                if ($v -ceq $version) { $sv.Refused = '' }
+                elseif ($v -and $v -cne $sv.Refused) { return $v }
             }
             catch { }
             return ''
@@ -850,6 +857,16 @@ function Invoke-VigilSupervisor {
                 Start-Sleep -Seconds ([Math]::Min($wait, $Script:VigilReloadCheck))
             }
             if ($next) {
+                # The new version's migrations run first, so if they cannot,
+                # this version carries on and the installer puts it back. 64
+                # is a version from before formats, which has nothing to
+                # migrate.
+                $m = Invoke-VigilChild -Arguments @((Join-Path $App 'vigil.ps1'), '-Root', $Root, 'format-migrate', $sv.State, $sv.Spool, $sv.Logs)
+                if ($m.Code -ne 0 -and $m.Code -ne 64) {
+                    $sv.Refused = $next
+                    & $log 'ERROR' "staying on Vigil $version, not reloading to ${next}: $($m.Error)"
+                    continue
+                }
                 # Hot reload (18.7): vigil.ps1 runs the new version in this
                 # same process, so the service manager sees nothing and no
                 # admin right is needed. Everything else is on disk.

@@ -171,9 +171,17 @@ try {
     Test-Equal 'no service was registered' 'False' ([string](Invoke-Vigil status).Text.StartsWith('service: active'))
     Test-Equal 'precheck refuses the test release server' '1' ([string](Invoke-Vigil precheck).Code)
 
-    # A version on request, older included.
-    [void](Invoke-Vigil self update --version 0.0.1-it)
+    # A version on request, older included. A process holds a file in app\
+    # throughout, as one starting on a busy host does for a moment: Windows
+    # will not rename the folder until it lets go.
+    Set-Content -LiteralPath "$work\hold.ps1" -Value @('param($File, $Marker)', '$f = [System.IO.File]::Open($File, ''Open'', ''Read'', ''Read'')', '[System.IO.File]::WriteAllText($Marker, ''held'')', 'Start-Sleep -Seconds 25', '$f.Close()')
+    $hold = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$work\hold.ps1`"", "`"$root\app\vigil.ps1`"", "`"$work\held`"")
+    for ($i = 0; $i -lt 100 -and -not (Test-Path -LiteralPath "$work\held"); $i++) { Start-Sleep -Milliseconds 200 }
+    $r = Invoke-Vigil self update --version 0.0.1-it
     Test-Equal '--version goes back' '0.0.1-it' (Get-Version)
+    Test-Equal 'an update waits for a held folder' 'True' ([string]$r.Text.Contains('waiting for processes reading'))
+    if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    [void]$hold.WaitForExit(40000)
     $r = Invoke-Vigil self update --version 9.9.9
     Test-Equal 'no such release: fails' '1' ([string]$r.Code)
     Test-Equal 'no such release: says so' 'True' ([string]$r.Text.Contains('cannot download'))

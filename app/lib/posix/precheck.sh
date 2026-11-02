@@ -313,6 +313,13 @@ vigil_precheck() {
     # The state directory is always this file's (6.8).
     _vigil_wk_dir vigil state_dir state
     statedir=$_vw_dir
+    if ! vigil_format_check "$app" "$statedir"; then
+        _vigil_pc_fail "data format: $_vf_error"
+    elif [ "$_vf_stored" -lt "$_vf_current" ]; then
+        _vigil_pc_ok "data format: $_vf_stored, moves to $_vf_current when the supervisor starts"
+    else
+        _vigil_pc_ok "data format: $_vf_stored"
+    fi
     if vigil_fetch_mode; then
         _vigil_pc_fetch "$only" "$statedir"
     else

@@ -65,7 +65,7 @@ done
 app=$(cd "$(dirname "$self")" && pwd)
 root=$(dirname "$app")
 
-for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker backends sender fetch logs supervisor precheck service init selfupdate; do
+for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker backends sender fetch logs format supervisor precheck service init selfupdate; do
     # shellcheck source=/dev/null
     . "$app/lib/posix/$lib.sh"
 done
@@ -269,6 +269,13 @@ case ${1-} in
         vigil_about "$root" "$app"
         vigil_update_notice "$root" "$app"
         exit 0
+        ;;
+    format-migrate)
+        # Run by a supervisor under its lock, before it reloads (18.7).
+        [ "$#" -eq 4 ] || usage
+        vigil_format_migrate "$app" "$2" "$3" "$4" && exit 0
+        printf '%s\n' "$_vf_error" >&2
+        exit 1
         ;;
     self)
         if [ "${2-}" = refresh-check ] && [ "$#" -eq 2 ]; then
