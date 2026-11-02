@@ -81,6 +81,8 @@ $repoUrl = 'https://github.com/godspeedhq/vigil'
 
 # Never exit: under irm | iex this runs in the caller's own session, which
 # exit would close. A failure throws instead.
+# Every failure comes through here, and the finally at the end of this file
+# cleans up after all of them.
 function Stop-Install {
     param([string]$Message)
     throw "install: $Message"
@@ -101,9 +103,13 @@ if ($User -and $System) { Stop-Install 'choose -User or -System, not both' }
 $mode = if ($System) { 'system' } elseif ($User) { 'user' } elseif ($admin) { 'system' } else { 'user' }
 if ($mode -ceq 'system' -and -not $admin) { Stop-Install 'system mode needs an elevated prompt; or use -User' }
 $root = if ($Prefix) { $Prefix } elseif ($mode -ceq 'system') { Join-Path $env:ProgramData 'Vigil' } else { Join-Path $env:LOCALAPPDATA 'Vigil' }
+# Made absolute: it ends up in the service definition and on the PATH, which do
+# not run from this folder.
 $root = [System.IO.Path]::GetFullPath($root)
 if ($UpdateBy) {
     if ($mode -cne 'system' -or $Upgrade) { Stop-Install '-UpdateBy is for a system install: a user install updates itself' }
+    # Checked now, so a mistyped name fails before anything is installed rather
+    # than at the last step.
     try { [void](New-Object Security.Principal.NTAccount($UpdateBy)).Translate([Security.Principal.SecurityIdentifier]) }
     catch { Stop-Install "no account or group is called $UpdateBy" }
 }
@@ -117,6 +123,7 @@ if (-not $NoService -and $ShellHost -ceq 'pwsh' -and -not (Get-Command -Name 'pw
 
 # --- 2. The archive, verified ---------------------------------------------------
 
+# Removed by the finally at the end, on every way out.
 $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-install.$PID"
 [void](New-Item -ItemType Directory -Force -Path $work)
 try {
@@ -150,6 +157,9 @@ try {
         }
         catch { Stop-Install "cannot download Vigil $Version`: $($_.Exception.Message)" }
     }
+    # The check that everything rests on. Nothing has been unpacked yet, and a
+    # missing entry fails just as a wrong hash does: "no entry" must never read as
+    # "nothing to check". sha256sum marks binary files with a leading *.
     $want = ''
     foreach ($l in [System.IO.File]::ReadAllLines((Join-Path $work 'SHA256SUMS'))) {
         $f = $l -split '\s+', 2
@@ -169,6 +179,8 @@ try {
     # Verified: the downloaded-from-the-internet mark would make a
     # RemoteSigned policy refuse Vigil's scripts.
     Get-ChildItem -LiteralPath $src -Recurse -File | Unblock-File
+    # The archive's own VERSION wins over what was asked for: with -Archive nothing
+    # else says which version this is, and the upgrade below compares against it.
     $verFile = Join-Path $src 'app\VERSION'
     if (Test-Path -LiteralPath $verFile) { $Version = ([System.IO.File]::ReadAllText($verFile)).Trim() }
 
@@ -179,6 +191,7 @@ try {
     if ($Upgrade -and -not $present) { Stop-Install "no Vigil in $root to upgrade" }
     [void](New-Item -ItemType Directory -Force -Path $root)
     # Copied before anything is stopped: a full disk changes nothing.
+    # vendor\ holds NSSM, which only Windows needs, so it is replaced with app\.
     $parts = @('app', 'vendor')
     foreach ($d in $parts) {
         foreach ($p in @("$d.new", "$d.old")) {
@@ -193,9 +206,15 @@ try {
     }
     $running = $false
     $reload = $false
+    # The same shell that is running this: Windows PowerShell or PowerShell 7.
     $self = (Get-Process -Id $PID).Path
+    # A process of its own each time, so a new version's functions can never mix
+    # with what this session has loaded, and an exit in it cannot end this script.
     function Invoke-Vigil { & $self -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root @args }
     # Whether the running service is on a version within 30 seconds.
+    # Both must be true: the version is only what the supervisor last wrote down,
+    # so the service has to be active as well. It gets 30 seconds because a
+    # supervisor notices a change to app/ at its next tick, not at once.
     function Test-OnVersion {
         param([string]$Want)
         for ($n = 0; $n -lt 30; $n++) {
@@ -205,6 +224,8 @@ try {
         }
         return $false
     }
+    # What was found running decides how the service is treated, and Undo-Upgrade
+    # puts back exactly that, so an upgrade never starts a service that was stopped.
     $oldVersion = ''
     if ($present -and (Test-Path -LiteralPath (Join-Path $root 'app\VERSION'))) { $oldVersion = ([System.IO.File]::ReadAllText((Join-Path $root 'app\VERSION'))).Trim() }
     if ($present -and -not $NoService) {
@@ -244,6 +265,10 @@ try {
     }
 
     # Back to what was installed: whatever was swapped, and the service.
+    # Works from whatever is there, not from how far the swap got: it can be called
+    # with app\ swapped and vendor\ not. The reason goes last, in Stop-Install, so
+    # it is what whoever is running this reads. A supervisor that reloaded to the
+    # new version reloads back by itself; if it does not, it is started.
     function Undo-Upgrade {
         param([string]$Why)
         foreach ($d in $parts) {
@@ -272,6 +297,8 @@ try {
     }
     catch { Undo-Upgrade "cannot replace $root\app: $($_.Exception.Message)" }
     # The old version goes only once the new one has proved it runs.
+    # Three proofs in increasing order of cost: the new code runs at all, then the
+    # supervisor is really on it, then it stays up.
     if ($present) {
         if ("$(Invoke-Vigil version 2>$null)" -cne "Vigil $Version") { Undo-Upgrade "the new version ($Version) does not run" }
         if ($reload) {
@@ -286,6 +313,8 @@ try {
         Write-Output "upgraded $root to Vigil $Version"
     }
     else { Write-Output "installed Vigil $Version in $root" }
+    # vigil self update stops here: an update replaces Vigil and nothing else, so it
+    # can never touch packs, the PATH, the configuration or the service.
     if ($Upgrade) {
         Write-Output "done: Vigil $Version"
         return
@@ -297,6 +326,8 @@ try {
     if (Test-Path -LiteralPath $srcPacks) {
         foreach ($p in Get-ChildItem -LiteralPath $srcPacks -Directory) {
             $to = Join-Path $root "packs\$($p.Name)"
+            # A pack that is already here stays as it is: reinstalling must not undo a
+            # vigil pack update.
             if (Test-Path -LiteralPath $to) { continue }
             [void](New-Item -ItemType Directory -Force -Path $to)
             Copy-Item -LiteralPath (Join-Path $p.FullName 'pack.config') -Destination $to
@@ -310,6 +341,9 @@ try {
     $app = Join-Path $root 'app'
     $scope = if ($mode -ceq 'system') { 'Machine' } else { 'User' }
     $path = [Environment]::GetEnvironmentVariable('Path', $scope)
+    # Read from the registry scope, not $env:Path, which also holds the other
+    # scope's entries and would copy them across. Added only once, so reinstalling
+    # does not grow the PATH.
     if (-not (@("$path".Split(';') | Where-Object { $_.TrimEnd('\') -ieq $app }).Count)) {
         [Environment]::SetEnvironmentVariable('Path', (@(@("$path".Split(';') | Where-Object { $_ }) + $app) -join ';'), $scope)
         Write-Output "added $app to the $($scope.ToLowerInvariant()) PATH: new consoles run vigil"
@@ -317,6 +351,7 @@ try {
 
     # --- 5. vigil init, on a fresh install ----------------------------------------------
 
+    # An existing configuration is never rewritten, whatever else was asked for.
     if (-not $NoInit -and -not $Upgrade -and -not (Test-Path -LiteralPath (Join-Path $root 'config\vigil.config'))) {
         $a = @('init')
         if ($Instance) { $a += @('--instance', $Instance) }
@@ -345,6 +380,7 @@ try {
     # --- 7. Who may update it -----------------------------------------------------------
 
     if ($UpdateBy) {
+        # Last: it locks the root down, so the steps above have to be finished first.
         Invoke-Vigil self update-by $UpdateBy
         if ($LASTEXITCODE -ne 0) { Stop-Install "$UpdateBy was not given the update" }
     }

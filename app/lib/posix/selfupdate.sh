@@ -33,6 +33,9 @@
 #
 # Linux and macOS only; SelfUpdate.ps1 is the Windows twin.
 
+# Everything Vigil downloads about itself comes from here. There is no setting
+# to change it: an address in the configuration would be a way to redirect
+# updates.
 VIGIL_RELEASES=https://github.com/godspeedhq/vigil
 
 vigil_version() {
@@ -70,6 +73,9 @@ _vigil_self_sha() {
     fi
 }
 
+# The version the running supervisor wrote when it started, which is not always
+# what is on disk: after an upgrade the two differ until it has reloaded. The
+# installer relies on this to know when a reload has happened.
 vigil_supervisor_version() {
     local v=''
     _vw_root=$1
@@ -89,6 +95,7 @@ _vigil_self_newer() {
         case $x in *[.-]*) x=${x#*[.-]} ;; *) x=0 ;; esac
         case $y in *[.-]*) y=${y#*[.-]} ;; *) y=0 ;; esac
         case $p$q in '' | *[!0-9]*) return 1 ;; esac
+        # 10# forces base 10, or a part such as 08 is read as bad octal.
         p=$((10#$p))
         q=$((10#$q))
         [ "$p" -gt "$q" ] && return 0
@@ -98,10 +105,15 @@ _vigil_self_newer() {
     return 1
 }
 
+# Per user and outside the install, because a read-only system install has to
+# be able to show the notice too.
 _vigil_update_cache() {
     _vu_cache=${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/vigil/update-check
 }
 
+# Called on the way out of a command, so it must never fail one, block one or
+# add to the output a script is reading: anything that is not a person at a
+# terminal gets nothing. It only ever reads the cache, so it works offline.
 vigil_update_notice() {
     local at=0 latest='' current
     [ -z "${VIGIL_NO_UPDATE_CHECK-}" ] || return 0
@@ -117,11 +129,14 @@ vigil_update_notice() {
     fi
     case $at in '' | *[!0-9]*) at=0 ;; esac
     if [ $(($(date '+%s') - at)) -ge 86400 ]; then
+        # Detached from the terminal, so closing it does not stop the check.
         ( trap '' HUP; exec "$BASH" "$2/vigil" self refresh-check ) < /dev/null > /dev/null 2>&1 &
     fi
     return 0
 }
 
+# Asks only where /releases/latest redirects to. The GitHub API would be
+# limited to 60 requests an hour per address, too few for a fleet behind one.
 vigil_update_refresh() {
     local at latest='' tag base=$VIGIL_RELEASES
     local -a opts
@@ -146,6 +161,10 @@ _vigil_self_die() {
     return 1
 }
 
+# The order matters: everything that can be refused is refused before anything
+# is downloaded, and everything downloaded is verified before anything runs.
+# This function never changes the install itself. pinned remembers that a
+# version was asked for, since want is filled in with the latest one below.
 vigil_self_update() {
     local root=$1 app=$2 check=$3 want=$4 pinned=$4 base=$VIGIL_RELEASES current tag work sum got file f key
     local -a curlopts
@@ -194,10 +213,12 @@ vigil_self_update() {
 
     # Whoever installed it updates it: the installer leaves app/ owned as a
     # system install needs it, so a user's own must not go through root.
+    # Refused rather than attempted, so a failed update cannot leave a partial one.
     if [ ! -O "$app" ]; then
         # A sudo rule from install --update-by (18.7) allows the latest
         # release only.
         if [ -z "$pinned" ] && command -v sudo > /dev/null 2>&1 && sudo -n -l "$app/vigil" self update > /dev/null 2>&1; then
+            # sudo checks the rule again here. -n means it fails rather than prompts.
             exec sudo -n "$app/vigil" self update
         fi
         _vigil_self_die "$root was installed by another account: run this as that account (sudo for a system install)"
@@ -217,6 +238,7 @@ vigil_self_update() {
     # handed to the installer, so what is verified is what is installed.
     key=$app/release-key.pem
     [ -n "${VIGIL_TEST_RELEASE_URL-}" ] && [ -n "${VIGIL_TEST_RELEASE_KEY-}" ] && key=$VIGIL_TEST_RELEASE_KEY
+    # The signature is only checked if the key file is here: see backlog task 20.
     if [ -f "$key" ]; then
         if ! command -v openssl > /dev/null 2>&1; then
             rm -rf "$work"
@@ -230,6 +252,8 @@ vigil_self_update() {
             return 1
         fi
     fi
+    # SHA256SUMS is what the signature covers, so this is what ties the installer
+    # to the signature. The installer checks the archive against the same file.
     sum=$(awk '$2 == "install.sh" || $2 == "*install.sh" { print $1 }' "$work/SHA256SUMS")
     got=$(_vigil_self_sha "$work/install.sh")
     if [ -z "$sum" ] || [ "$got" != "$sum" ]; then
