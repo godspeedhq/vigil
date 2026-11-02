@@ -1953,7 +1953,8 @@ Explicit, configurable limits exist for:
 - Spool size.
 - Metric lines per run.
 - Backend request timeouts and retries.
-- Configuration file size.
+
+The configuration file is limited to 1 MiB. That limit is fixed, since a setting in a file cannot guard the reading of that file.
 
 `max_runtime` is the only per-job limit, and it is optional. Vigil does not claim CPU or memory isolation.
 
