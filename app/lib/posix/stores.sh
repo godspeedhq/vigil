@@ -923,7 +923,9 @@ _vigil_cli_run() {
         w=$!
         wait "$p"
         rc=$?
-        if kill "$w" 2> /dev/null; then printf x; else printf t; fi
+        # The watchdog's kill can still find it just after it has stopped the
+        # CLI, so a CLI ended by SIGTERM (143) counts as stopped too.
+        if kill "$w" 2> /dev/null && [ "$rc" -ne 143 ]; then printf x; else printf t; fi
         exit "$rc"
     )
     _vc_rc=$?
