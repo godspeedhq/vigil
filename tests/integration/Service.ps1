@@ -145,6 +145,10 @@ function Test-Lifecycle {
         Write-Host "        start said: $script:lastOut"
         Get-ChildItem -LiteralPath $log -File | ForEach-Object { Write-Host "        [$($_.Name)]"; Get-Content -LiteralPath $_.FullName -Tail 12 | ForEach-Object { Write-Host "        $_" } }
     }
+    if ($script:lastOut -cnotmatch 'started vigil') {
+        Write-Host "        start said: $script:lastOut"
+        Get-ChildItem -LiteralPath $log -File | ForEach-Object { Write-Host "        [$($_.Name)]"; Get-Content -LiteralPath $_.FullName -Tail 12 | ForEach-Object { Write-Host "        $_" } }
+    }
     Test-Equal "${tag}: the service is active after start" 'active' (Get-SvcState $Root)
     Test-Equal "${tag}: restart succeeds" '0' "$(Invoke-Vigil $Root @('restart'))"
     Test-Equal "${tag}: the service is active after restart" 'active' (Get-SvcState $Root)

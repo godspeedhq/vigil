@@ -153,6 +153,12 @@ if [ "$(runs beat)" -le $((before + 2)) ]; then
     cat "$root"/logs/supervisor/2*.log | tail -30 | sed 's/^/        sup: /'
     cat "$root"/logs/jobs/beat/*.log | tail -12 | sed 's/^/        beat: /'
 fi
+if [ "$(runs beat)" -le $((before + 2)) ]; then
+    printf '        beat ran %s times, %s before the update; now %s\n' "$(runs beat)" "$before" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    sed 's/^/        state: /' "$root/state/jobs/beat.state"
+    cat "$root"/logs/supervisor/2*.log | tail -30 | sed 's/^/        sup: /'
+    cat "$root"/logs/jobs/beat/*.log | tail -12 | sed 's/^/        beat: /'
+fi
 check 'no run crashed' 0 "$(grep -hc 'crashed' "$root"/logs/supervisor/2*.log | sort -n | tail -1)"
 if grep -q 'crashed' "$root"/logs/supervisor/2*.log; then
     grep -h -B6 -A2 'crashed' "$root"/logs/supervisor/2*.log | sed 's/^/        sup: /'
