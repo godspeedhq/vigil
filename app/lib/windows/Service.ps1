@@ -247,7 +247,9 @@ function Install-VigilService {
         }
     }
     else {
-        New-ItemProperty -Path $Script:VigilRunKey -Name 'Vigil' -Value "$(ConvertTo-VigilQuotedArg -Arg $exe -Always $true) $cl" -PropertyType String -Force | Out-Null
+        # A new profile may not have the key yet.
+        if (-not (Test-Path -LiteralPath $Script:VigilRunKey)) { [void](New-Item -Path $Script:VigilRunKey -ErrorAction Stop) }
+        New-ItemProperty -Path $Script:VigilRunKey -Name 'Vigil' -Value "$(ConvertTo-VigilQuotedArg -Arg $exe -Always $true) $cl" -PropertyType String -Force -ErrorAction Stop | Out-Null
         Write-Output "registered the Vigil Run entry ($exe)"
         if ($Start) {
             Invoke-VigilServiceControl -Root $Root -Action 'restart'

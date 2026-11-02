@@ -400,6 +400,9 @@ function Invoke-VigilSupervisor {
                 $rid = [System.IO.Path]::GetFileName($token).Substring($Job.Length + 1) -replace '\.token$', ''
                 $h = Test-VigilFileHeld $token
                 if ($h -ceq 'yes') { $tstate = 'held' } elseif ($h -ceq 'no') { $tstate = 'free' } else { $tstate = 'free'; $proc = 'error' }
+                # A worker writes its final state, then lets go of the token:
+                # read after, or a run ending just now looks crashed.
+                if ($tstate -cne 'held') { $st = Read-VigilRunState (Join-Path $sv.State "jobs\$Job.state") }
             }
             else { $rid = $st.RunId }
             # A readable state of an earlier run says nothing about this one.

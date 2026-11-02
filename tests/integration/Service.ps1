@@ -192,6 +192,9 @@ else {
 
 Test-Equal 'an unknown host is refused' '1' "$(Invoke-Vigil $repo @('service', 'install', '--user', '--host', 'cmd'))"
 
+# A new profile may have no Run key. Only on CI: it holds other programs' entries.
+if ($env:CI) { Remove-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Recurse -ErrorAction SilentlyContinue }
+
 $root = Join-Path $tmp "vigil svc user.$PID"
 New-Root $root
 Test-Lifecycle 'user' $root 'powershell' $ps51
