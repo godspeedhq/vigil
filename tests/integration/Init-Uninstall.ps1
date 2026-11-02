@@ -31,9 +31,9 @@ function New-Root {
     param([string]$Root)
     [void](New-Item -ItemType Directory -Force -Path $Root)
     Copy-Item -Recurse -LiteralPath (Join-Path $repo 'app') -Destination $Root
-    [void](New-Item -ItemType Directory -Force -Path (Join-Path $Root 'packsase'))
-    Copy-Item -LiteralPath (Join-Path $repo 'packsase\pack.config') -Destination (Join-Path $Root 'packsase')
-    Get-ChildItem -LiteralPath (Join-Path $repo 'packsase\windows') -File | Copy-Item -Destination (Join-Path $Root 'packsase')
+    [void](New-Item -ItemType Directory -Force -Path (Join-Path $Root 'packs\base'))
+    Copy-Item -LiteralPath (Join-Path $repo 'packs\base\pack.config') -Destination (Join-Path $Root 'packs\base')
+    Get-ChildItem -LiteralPath (Join-Path $repo 'packs\base\windows') -File | Copy-Item -Destination (Join-Path $Root 'packs\base')
 }
 
 # Runs vigil with stdin redirected, as deployment tooling would.
