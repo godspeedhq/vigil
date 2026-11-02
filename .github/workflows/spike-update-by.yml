@@ -1,0 +1,19 @@
+name: spike
+on:
+  push:
+    branches: [feat/windows-update-by]
+jobs:
+  win:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shell: powershell
+          - shell: pwsh
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: ./tests/integration/Self-Update.ps1

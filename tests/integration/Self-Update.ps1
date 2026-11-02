@@ -303,6 +303,120 @@ try {
         Test-Equal 'system: and its service is active' 'True' ([string](Invoke-Vigil status).Text.StartsWith('service: active'))
         $r = Invoke-Vigil uninstall --yes
         Test-Equal 'system: uninstall succeeds' '0' ([string]$r.Code)
+
+        # install -UpdateBy: a real ordinary account, run the way a scheduled
+        # task runs it, because a service has no console to log on to.
+        $it = 'vigil-it'
+        $bytes = New-Object byte[] 24
+        [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+        $secret = 'Aa1!' + [Convert]::ToBase64String($bytes)
+        $computer = [ADSI]"WinNT://$env:COMPUTERNAME"
+        $account = $computer.Create('User', $it)
+        $account.SetPassword($secret)
+        $account.SetInfo()
+        $userTask = 'Vigil IT User'
+        # Runs vigil as that account, or tries what -Probe lists; @{ Code; Text }.
+        function Invoke-AsUser {
+            param([string[]]$Argv, [string[]]$Probe)
+            $f = "$work\user"
+            Remove-Item -LiteralPath "$f.out", "$f.code" -ErrorAction SilentlyContinue
+            $line = ($Argv | ForEach-Object { "'$_'" }) -join ', '
+            $run = if ($Probe) { $Probe } else {
+                @("`$a = @($line)",
+                    "`$o = & '$shell' -NoProfile -ExecutionPolicy Bypass -File '$root\app\vigil.ps1' -Root '$root' @a 2>&1",
+                    "`$c = `$LASTEXITCODE")
+            }
+            Set-Content -LiteralPath "$f.ps1" -Value (@(
+                    "`$env:VIGIL_TEST_RELEASE_URL = '$env:VIGIL_TEST_RELEASE_URL'",
+                    "`$env:VIGIL_TEST_RELEASE_KEY = '$env:VIGIL_TEST_RELEASE_KEY'",
+                    '$env:VIGIL_NO_UPDATE_CHECK = ''1''') + $run + @(
+                    "[System.IO.File]::WriteAllText('$f.out', ((`$o | ForEach-Object { `"`$_`" }) -join `"``n`"))",
+                    "[System.IO.File]::WriteAllText('$f.code', `"`$c`")"))
+            Start-ScheduledTask -TaskName $userTask
+            for ($i = 0; $i -lt 480 -and -not (Test-Path -LiteralPath "$f.code"); $i++) { Start-Sleep -Milliseconds 500 }
+            $text = if (Test-Path -LiteralPath "$f.out") { [System.IO.File]::ReadAllText("$f.out") } else { '' }
+            $code = if (Test-Path -LiteralPath "$f.code") { [System.IO.File]::ReadAllText("$f.code").Trim() } else { 'none' }
+            return @{ Code = $code; Text = $text }
+        }
+        try {
+            Set-Latest '0.0.1-it'
+            $root = Join-Path $work 'by'
+            $out = '' | & $shell -NoProfile -ExecutionPolicy Bypass -File "$d1\install.ps1" -System -Prefix $root -Version '0.0.1-it' -Instance it-by -UpdateBy $it 2>&1
+            $rc = $LASTEXITCODE
+            Test-Equal 'update-by: installed' '0' ([string]$rc)
+            if ($rc -ne 0) { $out | ForEach-Object { Write-Host "        $_" } }
+            $bad = '' | & $shell -NoProfile -ExecutionPolicy Bypass -File "$d1\install.ps1" -System -Prefix "$work\no" -Version '0.0.1-it' -UpdateBy 'vigil-nobody' 2>&1
+            Test-Equal 'update-by: an unknown account is refused first' 'True' ([string](("$bad".Contains('vigil-nobody')) -and -not (Test-Path -LiteralPath "$work\no")))
+
+            # The test account reads its script here, and writes its results.
+            $acl = Get-Acl -LiteralPath $work
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($it, 'Modify', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+            Set-Acl -LiteralPath $work -AclObject $acl
+            $ac = New-ScheduledTaskAction -Execute $shell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$work\user.ps1`""
+            [void](Register-ScheduledTask -TaskName $userTask -Action $ac -User $it -Password $secret -RunLevel Limited)
+
+            # A task's environment comes from the machine, not from the caller.
+            [Environment]::SetEnvironmentVariable('VIGIL_TEST_RELEASE_URL', $env:VIGIL_TEST_RELEASE_URL, 'Machine')
+            [Environment]::SetEnvironmentVariable('VIGIL_TEST_RELEASE_KEY', $env:VIGIL_TEST_RELEASE_KEY, 'Machine')
+
+            $w = Invoke-AsUser @('version')
+            Test-Equal 'update-by: the account can run vigil' 'Vigil 0.0.1-it' $w.Text
+            Test-Equal 'update-by: not as an administrator' 'False' ([string](Invoke-AsUser @('service', 'stop')).Code.Equals('0'))
+            Test-Equal 'update-by: the service still runs' 'True' ([string](Invoke-Vigil status).Text.StartsWith('service: active'))
+
+            Set-Latest '0.0.2-it'
+            $pid2 = Get-VigilLockPid
+            $r = Invoke-AsUser @('self', 'update')
+            Test-Equal 'update-by: updated, not as an administrator' '0' $r.Code
+            if ($r.Code -ne '0') { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+            Test-Equal 'update-by: it shows the update' 'True' ([string]$r.Text.Contains('upgraded'))
+            Test-Equal 'update-by: the release is installed' '0.0.2-it' (Get-Version)
+            Test-Equal 'update-by: the service is active' 'True' ([string](Invoke-Vigil status).Text.StartsWith('service: active'))
+            Test-Equal 'update-by: not restarted' $pid2 (Get-VigilLockPid)
+
+            $r = Invoke-AsUser @('self', 'update', '--version', '0.0.1-it')
+            Test-Equal 'update-by: no version of your own choosing' '1' $r.Code
+            Test-Equal 'update-by: the version stays' '0.0.2-it' (Get-Version)
+
+            # Each thing the account might use to change what SYSTEM runs.
+            $targets = @("$root\app\vigil.ps1", "$root\app\planted.ps1", "$root\app\migrations\99.ps1", "$root\app\lib\windows\planted.ps1", "$root\update\planted", "$root\update\output", "$root\planted", "$root\scripts\planted", "$root\vendor\planted")
+            $probe = @('$o = @()', ('foreach ($p in ''' + ($targets -join ''', ''') + ''') {'),
+                '    try { [System.IO.File]::AppendAllText($p, ''x''); $o += "wrote $p" } catch { }',
+                '}',
+                ('try { [void][System.IO.File]::ReadAllBytes(''' + "$root\config\vigil.config" + '''); $o += ''read config'' } catch { }'),
+                '$null = & schtasks.exe /Change /TN ''Vigil Update'' /TR cmd.exe 2>&1',
+                'if ($LASTEXITCODE -eq 0) { $o += ''changed the task'' }',
+                '$c = 0')
+            $r = Invoke-AsUser -Probe $probe
+            Test-Equal 'update-by: the probe ran' '0' $r.Code
+            Test-Equal 'update-by: nothing SYSTEM runs can be changed, config\ stays closed' '' $r.Text
+            $sd = (New-Object -ComObject Schedule.Service)
+            $sd.Connect()
+            $sddl = $sd.GetFolder('\').GetTask('Vigil Update').GetSecurityDescriptor(4)
+            Test-Equal 'update-by: the task may only be read and run' 'True' ([string]($sddl -cmatch '\(A;;(FRFX|0x1200a9);;;S-1-5-21-'))
+            $rights = @((Get-Acl -LiteralPath "$root\app").Access | Where-Object { $_.IdentityReference.Value -like "*\$it" } | ForEach-Object { [string]$_.FileSystemRights })
+            Test-Equal 'update-by: read access follows the new app\' 'ReadAndExecute, Synchronize' ($rights -join ',')
+            $config = @((Get-Acl -LiteralPath "$root\config").Access | Where-Object { $_.IdentityReference.Value -like "*\$it" }).Count
+            Test-Equal 'update-by: config\ stays closed' '0' ([string]$config)
+
+            Set-Latest '0.0.3-it'
+            $r = Invoke-AsUser @('self', 'update')
+            Test-Equal 'update-by: a release that does not run fails' '1' $r.Code
+            Test-Equal 'update-by: the old version is back' '0.0.2-it' (Get-Version)
+            Set-Latest '0.0.2-it'
+
+            $r = Invoke-Vigil uninstall --yes
+            Test-Equal 'update-by: uninstall succeeds' '0' ([string]$r.Code)
+            $left = $null
+            try { $s2 = New-Object -ComObject Schedule.Service; $s2.Connect(); $left = $s2.GetFolder('\').GetTask('Vigil Update') } catch { }
+            Test-Equal 'update-by: uninstall removes the task' 'True' ([string]($null -eq $left))
+        }
+        finally {
+            [Environment]::SetEnvironmentVariable('VIGIL_TEST_RELEASE_URL', [NullString]::Value, 'Machine')
+            [Environment]::SetEnvironmentVariable('VIGIL_TEST_RELEASE_KEY', [NullString]::Value, 'Machine')
+            Unregister-ScheduledTask -TaskName $userTask -Confirm:$false -ErrorAction SilentlyContinue
+            $computer.Delete('User', $it)
+        }
     }
 }
 finally {
