@@ -87,7 +87,7 @@ while [ "$#" -gt 0 ]; do
             shift
             ;;
         -h | --help)
-            sed -n '2,/^$/s/^# \{0,1\}//p' "$0" 2> /dev/null || say "see $repo_url"
+            sed -n '/^# install\.sh - /,/^$/s/^# \{0,1\}//p' "$0" 2> /dev/null || say "see $repo_url"
             exit 0
             ;;
         *) die "unknown option: $1 (see --help)" ;;
