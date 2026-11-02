@@ -1,0 +1,23 @@
+# Any 2xx is accepted; old points are not dropped, as for Datadog.
+env VIGIL_TEST_HEC_TOKEN hec-test-token
+now 1793400000
+reply 200 {"text":"Success","code":0}
+send splunk
+reply 200 {"text":"Success","code":0}
+send splunk_full
+reply 401 {"text":"Token is required","code":2}
+send splunk
+reply 403 {"text":"Invalid token","code":4}
+send splunk
+fail timeout
+send splunk
+# Malformed: dropped, never retried.
+reply 400 {"text":"Invalid data format","code":6,"invalid-event-number":2}
+send splunk
+reply 503 {"text":"Server is busy","code":9}
+send splunk
+send splunk_nokey
+send splunk_noendpoint
+send splunk_plain
+unenv VIGIL_TEST_HEC_TOKEN
+send splunk

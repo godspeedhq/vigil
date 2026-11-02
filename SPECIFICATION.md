@@ -1264,7 +1264,7 @@ timeout      = 10s
 | `forward_output` | `false` keeps this job's stdout and stderr local even when `include` names them. Its `run` lines are still forwarded. Default `true`; may also be set in `[defaults]`. The output of a job the configuration no longer names is not forwarded, since its setting is not known. |
 
 - **Job output is opt-in.** stdout and stderr are where secrets and personal data leak, so they are forwarded only when `include` names them, and any job can keep its output local with `forward_output = false`.
-- **`[log_destination.*]` is separate from `[backend.*]`.** A metrics endpoint is never assumed to accept logs, even when both point at the same product. A log destination takes `type` (`otel` in v1), `endpoint` (`https://`, or plain `http://` only to this host, as for a metrics backend, §15.3; without credentials), `timeout` (default `10s`) and an optional `header_name` and `header_value`, the value under the `env:` rule (§6.5). `type` and `endpoint` are required.
+- **`[log_destination.*]` is separate from `[backend.*]`.** A metrics endpoint is never assumed to accept logs, even when both point at the same product. A log destination takes `type` (`otel`, `splunk` or `datadog`), `endpoint` (`https://`, or plain `http://` only to this host, as for a metrics backend, §15.3; without credentials), `timeout` (default `10s`) and a credential: for `otel` an optional `header_name` and `header_value`, for `splunk` a required `token`, for `datadog` a required `api_key`, each a reference under the rule of §6.5. `type` and `endpoint` are required. For `splunk` and `datadog`, a bare address gets the standard path: `/services/collector/event`, or `/api/v2/logs` on Datadog's logs intake (for example `https://http-intake.logs.datadoghq.com`).
 - Changes take effect at the next tick, like any configuration change (§16.1). Turning forwarding on or off, or changing what it includes, needs no restart. An invalid `[log_forward]` or `[log_destination.*]` is a configuration error like any other (§16.3): the last valid configuration stays active, and local logging is never affected.
 
 #### 13.4.2 What Is Forwarded
@@ -1281,6 +1281,8 @@ The internal workers `vigil_sender` and `vigil_fetch` write job logs like any jo
 Every record carries: the time from the line, `host`, `os`, `instance` and the `[tags]` section (§14.6), the component (`supervisor` or `job`), for job lines the job id and run id, the category, the severity when there is one, the message (the line's text, unchanged), the source file name, and the active configuration revision (§16.5). Run ids are fine in log records, unlike metric tags: logs are not aggregated into series.
 
 In OTLP, `service.name` (`vigil`), the host, tags and `config.revision` are attributes of the resource, shared by a request's records; `component`, `category`, `job`, `run_id`, `source_file` and, for a cut line, `truncated` are attributes of each record. Severity is `severityNumber` 9, 13 or 17 with `severityText` `INFO`, `WARN` or `ERROR`, and is absent when there is none. A line in neither log format is kept: it is sent whole, with time `0`, as `run` (or `supervisor`), so nothing is lost to a format Vigil did not expect.
+
+For `splunk`, each record is one HEC event, `source` `vigil` and `sourcetype` `vigil:log`: `host` and `time` at the top, the tags and `config.revision` in `fields`, and the message, `severity`, component, category, job, run id, source file and `truncated` in `event`. For `datadog`, a request is a list of entries with `ddsource` and `service` `vigil`, `hostname`, the tags and `config.revision` in `ddtags`, `timestamp` in milliseconds, `status` for the severity, and the rest as attributes beside `message`. A line with no time carries none, so the service gives it the time it arrives. A tag whose name Splunk keeps for itself (`metric_name`, `source`, `sourcetype`, `index`, `time`, `host`, or one starting with `_`) gets the prefix `tag_`; a comma in a tag's value becomes `_` in `ddtags`.
 
 #### 13.4.3 The Forwarder
 
@@ -1315,12 +1317,12 @@ size        = 827391
 
 Delivery is **at least once** while a file still exists: a crash between a destination accepting a batch and the checkpoint being written resends that batch. Duplicates are possible; exactly-once is not promised.
 
-- **Acceptance, not transport.** Each destination type defines what counts as accepted: for `otel`, an HTTP 2xx whose response reports no rejected records. A partial success advances the checkpoint only past the leading records that were accepted; the rest are retried. A response Vigil cannot interpret is a failure, never a success.
+- **Acceptance, not transport.** Each destination type defines what counts as accepted: for `otel`, an HTTP 2xx whose response reports no rejected records; for `splunk`, an HTTP 2xx whose response holds `"code":0`; for `datadog`, an HTTP 2xx with an empty answer or a JSON object. A partial success advances the checkpoint only past the leading records that were accepted; the rest are retried. A batch HEC refuses is retried whole, since its `invalid-event-number` does not promise that the events before it were kept: duplicates rather than loss. A response Vigil cannot interpret is a failure, never a success.
 - **Retries.** A failed request ends the run, and is retried in a later one, with exponential backoff between runs from 5 seconds up to 15 minutes. Authentication failures are reported separately, since retrying does not fix them. Every request is bounded by the destination's `timeout`.
-- **Bounds.** One forwarder run sends at most `max_pending_mb` of log data, in requests of at most `batch_lines` lines and `batch_kb` kilobytes, one request at a time. It reads files line by line, so its memory use is bounded by one batch whatever the size of the logs. Lines longer than 64 KB are truncated, and the truncation is marked in the record.
-- **Content.** Records are sent as text in the destination's encoding (for `otel`, OTLP/HTTP JSON). Control characters and invalid UTF-8 in job output are escaped, never sent raw. The forwarder never interprets or executes what a record says.
+- **Bounds.** One forwarder run sends at most `max_pending_mb` of log data, in requests of at most `batch_lines` lines (1000 for `datadog`, its limit) and `batch_kb` kilobytes, one request at a time. It reads files line by line, so its memory use is bounded by one batch whatever the size of the logs. Lines longer than 64 KB are truncated, and the truncation is marked in the record.
+- **Content.** Records are sent as text in the destination's encoding (OTLP/HTTP JSON, HEC JSON events, or a JSON list for Datadog). Control characters and invalid UTF-8 in job output are escaped, never sent raw. The forwarder never interprets or executes what a record says.
 
-Destination types in v1: `otel` (OTLP/HTTP, JSON encoding), which a collector can route to almost any logging service. Native `splunk` (HEC) and `datadog` (logs intake) adapters follow, each only once its acceptance, rejection and error responses are covered by tests (§22).
+Destination types: `otel` (OTLP/HTTP, JSON encoding), which a collector can route to almost any logging service, and the native `splunk` (HEC) and `datadog` (logs intake), whose acceptance, rejection and error responses are covered by tests (§22).
 
 #### 13.4.6 Health Metrics
 
@@ -1547,7 +1549,18 @@ Every request has a timeout. Retries are bounded with backoff. Delivery is from 
 - Names keep their dots. A gauge is an OTLP gauge, a count a delta sum (monotonic), each value as a double. Tags are data point attributes; the resource carries `service.name = vigil`.
 - A partial success (`rejectedDataPoints`) drops the rejected points, counted with `reason=rejected`; the rest count as delivered.
 
-**Both HTTP backends:**
+**Splunk backend** (`type = splunk`). Sends each batch as one request to the HTTP Event Collector, as metric events one after another, the token in an `Authorization: Splunk <token>` header. The token's default index must be a metrics index.
+
+| Key | Description |
+| --- | --- |
+| `endpoint` | Required. The collector's address, such as `https://splunk.example.com:8088`, which gets `/services/collector/event` added; a URL with a path is used as it is. |
+| `token` | Required. A secret reference (§6.5). |
+| `timeout` | Each request's limit. Default `10s`. |
+| `ca_file` | A CA to trust instead of the system's, for a collector with a private certificate. |
+
+- Names keep their dots. Each event carries `metric_name`, `_value` and `metric_type` (`gauge` or `count`, as Splunk has no type of its own) in `fields`, with the tags as dimensions. The `host` tag becomes the event's host. A tag whose name Splunk keeps for itself gets the prefix `tag_` (§13.4.2).
+
+**All HTTP backends:**
 
 - `https` only, with certificate verification never disabled. The one exception is a collector on the same host: `http://localhost`, `http://127.0.0.1` and `http://[::1]` may use plain http, since the request never leaves the machine; it never goes through a proxy. An endpoint with credentials in it (`https://user:pass@…`) is refused.
 - The credential is resolved afresh for each delivery (§6.5) and sent only in a header: on Linux and macOS it reaches curl on its standard input, never on its command line.
@@ -1555,7 +1568,7 @@ Every request has a timeout. Retries are bounded with backoff. Delivery is from 
 - Responses: any 2xx is accepted. 400 and 413 mean the batch can never be accepted; it is dropped and counted with `reason=rejected`, never retried. 401 and 403 are reported as permission denied; they and every other failure (no answer, 429, 5xx) leave the batch queued and back the backend off (§4.5).
 - Events that are not valid (a damaged spool file) are dropped and counted with `reason=invalid`.
 
-**Implemented so far:** `file`, `datadog` and `otel`. Events for an enabled backend of any other type are not queued; they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
+**Implemented so far:** `file`, `datadog`, `otel` and `splunk`. Events for an enabled backend of any other type are not queued; they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
 
 ### 15.4 Platform Notes
 
@@ -2237,7 +2250,7 @@ Not every backend type is required for v1. Reliable scheduling and supervision c
 - Stronger process containment: Windows Job Objects and Linux cgroups (`systemd-run --scope`) for complete tree termination. Deferred from v1 because Job Objects need compiled code from PowerShell 5.1 and cgroup scopes differ between user and system mode; the run token and run id already establish ownership without them.
 - Package-manager distribution (winget, Chocolatey, Homebrew, apt, dnf).
 - Signature verification of configuration revisions (signed Git tags or commits, signed manifests) before activation.
-- Log forwarding: native Splunk HEC and Datadog log adapters, and more than one destination (§13.4).
+- Log forwarding: more than one destination (§13.4).
 - Per-host overrides of jobs received from a source.
 - Further source types where they can be secured, such as FTPS or object storage, and archive sources that deliver a folder over `https`.
 - Additional backend types.

@@ -1,0 +1,20 @@
+{"time":1793372855,"event":{"severity":"info","message":"configuration loaded","component":"supervisor","category":"supervisor","source_file":"supervisor/2026-10-30.log"}}
+{"time":1793372855,"event":{"severity":"warn","message":"job a: slot missed","component":"supervisor","category":"supervisor","source_file":"supervisor/2026-10-30.log"}}
+{"time":1793372855,"event":{"severity":"error","message":"configuration rejected","component":"supervisor","category":"supervisor","source_file":"supervisor/2026-10-30.log"}}
+{"event":{"message":"not a supervisor line","component":"supervisor","category":"supervisor","source_file":"supervisor/2026-10-30.log"}}
+{"time":1793372855,"event":{"severity":"info","message":"start","component":"job","category":"run","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+{"time":1793372855,"event":{"severity":"info","message":"end succeeded in 2s","component":"job","category":"run","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+{"time":1793372855,"event":{"severity":"warn","message":"end warning (exit code 1) in 2s","component":"job","category":"run","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+{"time":1793372855,"event":{"severity":"error","message":"end failed (exit code 2) in 2s","component":"job","category":"run","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+{"time":1793372855,"event":{"severity":"error","message":"end timed_out (stopped) in 2s","component":"job","category":"run","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+{"time":1793372855,"event":{"message":"metric rows 5 table=orders","component":"job","category":"stdout","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+{"time":1793372855,"event":{"message":"","component":"job","category":"stdout","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+{"time":1793372855,"event":{"message":"say \"hi\" C:\\temp\u0009tab","component":"job","category":"stdout","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+{"time":1793372855,"event":{"message":"ctl \u0001\u001b[0m del \u007f","component":"job","category":"stdout","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+{"time":1793372855,"event":{"message":"café € 😀","component":"job","category":"stdout","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+{"time":1793372855,"event":{"message":"bad \ufffd \ufffd \ufffd\ufffd\ufffd \ufffd\ufffd \ufffd\ufffd\ufffd\ufffd end","component":"job","category":"stdout","job":"chatty","run_id":"20261030T150733Z-16052","source_file":"jobs/chatty/2026-10-30.log"}}
+-
+-
+{"time":1793372855,"event":{"severity":"info","message":"start","component":"job","category":"run","job":"quiet","run_id":"20261030T150733Z-16052","source_file":"jobs/quiet/2026-10-30.log"}}
+-
+{"event":{"severity":"info","message":"an old line in no format","component":"job","category":"run","job":"vigil_fetch","source_file":"jobs/vigil_fetch/2026-10-30.log"}}

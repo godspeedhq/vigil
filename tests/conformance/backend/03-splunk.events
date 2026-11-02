@@ -1,0 +1,7 @@
+1793304870 db.backup.duration_seconds 3 gauge host=db01 os=linux instance=it job=backup env=prod
+1793304870 db.backup.runs 1 count host=db01 os=linux instance=it job=backup
+1793304870 odd.label -0.25 gauge host=db01 job=x path=C:\temp\"x" ratio=a=b
+1793304870 reserved.names 1 gauge source=a index=b _hidden=c metric_name=d time=e
+1793304870 no.host 1 gauge os=linux
+not an event line
+1793304870 bad.type 1 sum host=db01

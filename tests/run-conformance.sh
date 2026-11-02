@@ -449,7 +449,7 @@ for cfg in "$here"/conformance/backend/*.config; do
 done
 
 # Log forwarding: <case>.input holds "<log file> TAB <line>" rows; each gives
-# its OTLP log record, or - when it is not forwarded.
+# its record for that destination, or - when it is not forwarded.
 logs_case_dump() {
     local LC_ALL=C file line job
     vigil_config_parse "$1"

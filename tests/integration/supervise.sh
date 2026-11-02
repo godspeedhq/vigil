@@ -79,8 +79,8 @@ tick = 1s
 path = metrics/vigil.prom
 
 # Not implemented yet: its events are counted as dropped.
-[backend.splunk]
-token = env:SPLUNK_HEC_TOKEN
+[backend.newrelic]
+api_key = env:NEW_RELIC_KEY
 
 [runner.sh]
 command = /bin/sh
@@ -143,7 +143,7 @@ check "fast succeeded counted" "$runs" "$(prom fast_succeeded_total)"
 check "job metric delivered" 0 "$(prom fast_slept)"
 check "slow overlaps were skipped" yes "$([ -n "$(prom slow_skipped_total)" ] && echo yes || echo no)"
 check "heartbeat delivered" 1 "$(prom vigil_supervisor_up)"
-check "unimplemented backend counted as dropped" yes "$(grep '^vigil_spool_dropped_total{backend="splunk".*reason="not_implemented"' "$root/metrics/vigil.prom" > /dev/null && echo yes || echo no)"
+check "unimplemented backend counted as dropped" yes "$(grep '^vigil_spool_dropped_total{backend="newrelic".*reason="not_implemented"' "$root/metrics/vigil.prom" > /dev/null && echo yes || echo no)"
 check "disabled job never ran" "" "$(ls "$root/state/jobs" | grep '^off')"
 check "disabled job listed" yes "$(sed -n '/^DISABLED/,/^$/p' "$root/logs/supervisor/jobs.log" | grep '  off' > /dev/null && echo yes || echo no)"
 check "no locks left" "" "$(ls "$root/state/locks")"

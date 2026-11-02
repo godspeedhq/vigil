@@ -39,7 +39,8 @@ class Handler(BaseHTTPRequestHandler):
         with LOCK, open(os.path.join(DIR, "requests.log"), "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
         status = int(read("status", "202" if self.path.startswith("/api/") else "200"))
-        reply = read("reply", "{}").encode()
+        hec = self.path.startswith("/services/collector")
+        reply = read("reply", '{"text":"Success","code":0}' if hec else "{}").encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(reply)))

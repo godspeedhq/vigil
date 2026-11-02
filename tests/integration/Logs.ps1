@@ -144,6 +144,18 @@ timeout      = 5s
 type     = otel
 endpoint = http://127.0.0.1:$port/other/v1/logs
 
+[log_destination.hec]
+type     = splunk
+endpoint = http://127.0.0.1:$port
+token    = env:VIGIL_IT_HEC_TOKEN
+timeout  = 5s
+
+[log_destination.dd]
+type     = datadog
+endpoint = http://127.0.0.1:$port
+api_key  = env:VIGIL_IT_DD_KEY
+timeout  = 5s
+
 [job.chatty]
 file      = scripts\chatty.cmd
 run_every = 3650d
@@ -155,6 +167,8 @@ forward_output = false
 "@
     }
     $cfg = Join-Path $root 'config\vigil.config'
+    $env:VIGIL_IT_HEC_TOKEN = "hec-it-$PID"
+    $env:VIGIL_IT_DD_KEY = "dd-it-$PID"
     Write-Text $cfg (& $config 'ops' '')
 
     Test-Equal 'precheck' '0' ([string](Invoke-Vigil @('precheck')).Code)
@@ -288,6 +302,60 @@ forward_output = false
     [void](Invoke-Vigil @('run', 'chatty'))
     Invoke-Forward
     Test-Equal 'destination changed: new lines go there' 'True' ([string]([System.IO.File]::ReadAllText("$root\mock\requests.log").Contains('"path": "/other/v1/logs"')))
+
+    # Splunk's HEC, with each answer it can give.
+    Write-Text $cfg (& $config 'hec' '')
+    Invoke-Tick
+    [void](Invoke-Vigil @('run', 'chatty'))
+    Clear-Requests
+    Invoke-Forward
+    Test-Equal 'splunk: delivered' 'succeeded' (Get-Field 'status')
+    Test-Equal 'splunk: the HEC path' 'True' ([string]((Get-Received '"path": "/services/collector/event"') -cne '0'))
+    Test-Equal 'splunk: the token in its header' 'True' ([string]((Get-Received "`"Authorization`": `"Splunk $env:VIGIL_IT_HEC_TOKEN`"") -cne '0'))
+    Test-Equal 'splunk: the record' 'True' ([string]((Get-Received '\"sourcetype\":\"vigil:log\"') -cne '0'))
+    Test-Equal 'splunk: the job named' 'True' ([string]((Get-Received '\"job\":\"chatty\"') -cne '0'))
+    Test-Equal 'splunk: tags as fields' 'True' ([string]((Get-Received '\"instance\":\"lg\"') -cne '0'))
+    Test-Equal 'splunk: events one after another' '0' (Get-Received '}},{')
+
+    [void](Invoke-Vigil @('run', 'chatty'))
+    [System.IO.File]::WriteAllText("$root\mock\status", '400')
+    [System.IO.File]::WriteAllText("$root\mock\reply", '{"text":"Invalid data format","code":6,"invalid-event-number":1}')
+    Invoke-Forward
+    Test-Equal 'splunk: refused' 'True' ([string](Get-Field 'reason').Contains('HTTP 400'))
+    Invoke-Tick
+    Invoke-Tick
+    Test-Equal 'splunk: refusal reported' 'True' (Test-Prom '^vigil_logs_failures_total.*reason="rejected"')
+    [System.IO.File]::WriteAllText("$root\mock\status", '200')
+    [System.IO.File]::WriteAllText("$root\mock\reply", '{"text":"Server is busy","code":9}')
+    Invoke-Forward
+    Test-Equal 'splunk: 200 without code 0 is not accepted' 'True' ([string](Get-Field 'reason').Contains('not HEC'))
+    [System.IO.File]::WriteAllText("$root\mock\status", '403')
+    [System.IO.File]::WriteAllText("$root\mock\reply", '{"text":"Token disabled","code":1}')
+    Invoke-Forward
+    Test-Equal 'splunk: a bad token' 'True' ([string](Get-Field 'reason').Contains('permission denied'))
+    Remove-Item -LiteralPath "$root\mock\status", "$root\mock\reply"
+    Clear-Requests
+    Invoke-Forward
+    Test-Equal 'splunk: nothing refused is lost' 'succeeded' (Get-Field 'status')
+    Test-Equal 'splunk: resent whole' 'True' ([string]((Get-Received 'hello from chatty') -cne '0'))
+
+    # Datadog's logs intake.
+    Write-Text $cfg (& $config 'dd' '')
+    Invoke-Tick
+    [void](Invoke-Vigil @('run', 'chatty'))
+    Clear-Requests
+    Invoke-Forward
+    Test-Equal 'datadog: delivered' 'succeeded' (Get-Field 'status')
+    Test-Equal 'datadog: the intake path' 'True' ([string]((Get-Received '"path": "/api/v2/logs"') -cne '0'))
+    Test-Equal 'datadog: the key in its header' 'True' ([string]((Get-Received "`"DD-API-KEY`": `"$env:VIGIL_IT_DD_KEY`"") -cne '0'))
+    Test-Equal 'datadog: the record' 'True' ([string]((Get-Received '\"ddsource\":\"vigil\"') -cne '0'))
+    Test-Equal 'datadog: tags' 'True' ([string]((Get-Received 'instance:lg,') -cne '0'))
+    Test-Equal 'datadog: the revision' 'True' ([string]((Get-Received 'config.revision:') -cne '0'))
+    [void](Invoke-Vigil @('run', 'chatty'))
+    [System.IO.File]::WriteAllText("$root\mock\status", '413')
+    Invoke-Forward
+    Test-Equal 'datadog: too large is refused' 'True' ([string](Get-Field 'reason').Contains('HTTP 413'))
+    Remove-Item -LiteralPath "$root\mock\status"
 
     # Turned off, nothing more is forwarded.
     Write-Text $cfg (& $config 'ops' 'enabled     = false')

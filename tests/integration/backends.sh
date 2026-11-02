@@ -104,7 +104,8 @@ fi
 
 dd_key="dd-it-key-$$"
 otel_token="otel-it-token-$$"
-export VIGIL_IT_DD_KEY=$dd_key
+hec_token="hec-it-token-$$"
+export VIGIL_IT_DD_KEY=$dd_key VIGIL_IT_HEC_TOKEN=$hec_token
 
 cat > "$root/scripts/emit.sh" <<'EOF'
 echo "metric answer 42"
@@ -130,6 +131,11 @@ endpoint = http://127.0.0.1:$port/v1/metrics
 api_key  = secret:OTEL_TOKEN
 timeout  = 5s
 
+[backend.splunk]
+endpoint = http://127.0.0.1:$port
+token    = env:VIGIL_IT_HEC_TOKEN
+timeout  = 5s
+
 [runner.sh]
 command = /bin/sh
 
@@ -149,8 +155,10 @@ check "datadog: series API" yes "$(received '"path": "/api/v2/series"' "\"DD-API
 check "datadog: host as a resource" yes "$(received '"path": "/api/v2/series"' '\"type\":\"host\"' '\"instance:bk\"' '\"job:emit\"')"
 check "otel: OTLP receiver" yes "$(received '"path": "/v1/metrics"' "\"Authorization\": \"Bearer $otel_token\"" '\"name\":\"emit.answer\",\"gauge\"' '\"asDouble\":42')"
 check "otel: counts as delta sums" yes "$(received '"path": "/v1/metrics"' '\"name\":\"emit.runs\",\"sum\":{\"aggregationTemporality\":1')"
+check "splunk: HEC" yes "$(received '"path": "/services/collector/event"' "\"Authorization\": \"Splunk $hec_token\"" '\"event\":\"metric\"' '\"metric_name\":\"emit.answer\",\"_value\":42,\"metric_type\":\"gauge\"')"
 check "datadog queue drained" 0 "$(queued datadog)"
 check "otel queue drained" 0 "$(queued otel)"
+check "splunk queue drained" 0 "$(queued splunk)"
 check "sender succeeded" succeeded "$(sed -n 's/^status *= *//p' "$root/state/jobs/vigil_sender.state")"
 
 # A failing backend keeps its events and backs off.
@@ -184,8 +192,8 @@ check "rejected: drop counted" yes "$(grep '^vigil_spool_dropped_total{backend="
 
 # The credentials are only ever in headers: never on disk outside the
 # secret store, and never in a URL.
-check "no credential in logs, state, spool or metrics" "" "$(grep -rlF -e "$dd_key" -e "$otel_token" "$root/logs" "$root/state" "$root/spool" "$root/metrics" 2>/dev/null)"
-check "no credential in a URL" "" "$(sed -n 's/.*"path": "\([^"]*\)".*/\1/p' "$root/mock/requests.log" | grep -F -e "$dd_key" -e "$otel_token")"
+check "no credential in logs, state, spool or metrics" "" "$(grep -rlF -e "$dd_key" -e "$otel_token" -e "$hec_token" "$root/logs" "$root/state" "$root/spool" "$root/metrics" 2>/dev/null)"
+check "no credential in a URL" "" "$(sed -n 's/.*"path": "\([^"]*\)".*/\1/p' "$root/mock/requests.log" | grep -F -e "$dd_key" -e "$otel_token" -e "$hec_token")"
 
 if [ "$fail" -gt 0 ]; then
     printf '\nmock stderr:\n'

@@ -3,8 +3,9 @@
 # Vigil log forwarder - bash 3.2 compatible.
 #
 # The body of the vigil_logs worker (SPECIFICATION.md 13.4): sends what is
-# new in Vigil's own logs to the [log_destination.*] in OTLP/HTTP JSON, one
-# file and one request at a time, and moves each file's checkpoint only past
+# new in Vigil's own logs to the [log_destination.*], over OTLP/HTTP JSON,
+# Splunk's HEC or Datadog's logs intake, one file and one request at a time,
+# and moves each file's checkpoint only past
 # what the destination accepted. Local logs are never changed.
 #
 #   vigil_logs
@@ -17,10 +18,10 @@
 #     The size of every forwarded log file, in _vl_total.
 #   vigil_logs_settings
 #     Reads what a record needs from the parsed configuration, for
-#     vigil_logs_record: _vl_include and _vl_output.
+#     vigil_logs_record: _vl_include, _vl_output, _vl_type and _vl_shared.
 #   vigil_logs_record <file> <line>
-#     Pure: the OTLP log record of one line of log file <file> (relative to
-#     the log directory), in _vl_rec, empty when the line is not forwarded.
+#     Pure: the destination's record of one line of log file <file> (relative
+#     to the log directory), in _vl_rec, empty when the line is not forwarded.
 #     Must produce exactly what Logs.ps1 does - tests/conformance/logs holds
 #     the shared cases.
 #   vigil_logs_retention <log dir> <epoch>
@@ -39,6 +40,7 @@ _vigil_logs_iso='^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])T([0-9][0-9]):
 _vigil_logs_num='^[0-9]+$'
 _vigil_logs_dated='^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])([.][0-9]+)?[.]log$'
 _vigil_logs_rejected='"rejectedLogRecords"[[:space:]]*:[[:space:]]*"?([0-9]+)'
+_vigil_logs_hec_ok='"code"[[:space:]]*:[[:space:]]*0[^0-9]'
 
 vigil_logs_enabled() {
     vigil_config_section log_forward
@@ -92,6 +94,12 @@ vigil_logs_settings() {
     _vigil_wk_get log_forward include 'supervisor, run'
     _vl_include=" ${_vw_value//,/ } "
     _vl_output=1
+    _vigil_wk_get log_forward destination ''
+    _vigil_wk_get "log_destination.$_vw_value" type otel
+    _vl_type=$_vw_value
+    _vl_shared=''
+    _vl_join=,
+    [ "$_vl_type" != splunk ] || _vl_join=''
 }
 
 # $1 as the inside of a JSON string, into _vl_text. Control characters and
@@ -283,6 +291,12 @@ vigil_logs_record() {
     _vl_epoch=0
     if [[ $when =~ $_vigil_logs_iso ]]; then
         _vigil_logs_epoch
+    fi
+    if [ "$_vl_type" != otel ]; then
+        _vigil_logs_native "$file" "$msg" "$category" "$job" "$rid" "$sev" "$cut"
+        return 0
+    fi
+    if [ "$_vl_epoch" -gt 0 ]; then
         _vl_rec="{\"timeUnixNano\":\"${_vl_epoch}000000000\","
     else
         _vl_rec='{"timeUnixNano":"0",'
@@ -319,9 +333,64 @@ vigil_logs_record() {
     _vl_rec="$_vl_rec$attrs]}"
 }
 
-# The resource every record of a request shares (13.4.2), into _vl_resource.
+# The record of a line for Splunk's HEC or Datadog's logs intake, into
+# _vl_rec: <file> <message> <category> <job> <run id> <severity> <cut>. A line
+# with no time gets the time it arrives.
+_vigil_logs_native() {
+    local more="\"component\":\"job\"" m when='' level=''
+    [ "$3" != supervisor ] || more='"component":"supervisor"'
+    more="$more,\"category\":\"$3\""
+    if [ -n "$4" ]; then
+        _vigil_logs_text "$4"
+        more="$more,\"job\":\"$_vl_text\""
+    fi
+    if [ -n "$5" ]; then
+        _vigil_logs_text "$5"
+        more="$more,\"run_id\":\"$_vl_text\""
+    fi
+    _vigil_logs_text "$1"
+    more="$more,\"source_file\":\"$_vl_text\""
+    [ "$7" -eq 0 ] || more="$more,\"truncated\":\"true\""
+    _vigil_logs_text "$2"
+    m=$_vl_text
+    if [ "$_vl_type" = datadog ]; then
+        [ "$_vl_epoch" -eq 0 ] || when="\"timestamp\":${_vl_epoch}000,"
+        [ -z "$6" ] || level="\"status\":\"$6\","
+        _vl_rec="{$_vl_shared$when$level\"message\":\"$m\",$more}"
+    else
+        [ "$_vl_epoch" -eq 0 ] || when="\"time\":$_vl_epoch,"
+        [ -z "$6" ] || level="\"severity\":\"$6\","
+        _vl_rec="{$_vl_shared$when\"event\":{$level\"message\":\"$m\",$more}}"
+    fi
+}
+
+# What every record of a request shares (13.4.2): the host, the tags and the
+# revision, in _vl_resource for OTLP and in _vl_shared for the others.
 _vigil_logs_resource() {
-    local attrs tag
+    local attrs tag k v name='' list=''
+    if [ "$_vl_type" != otel ]; then
+        for tag in $_vf_tags; do
+            k=${tag%%=*}
+            v=${tag#*=}
+            if [ "$k" = host ]; then
+                _vigil_logs_text "$v"
+                name=$_vl_text
+            elif [ "$_vl_type" = datadog ]; then
+                list="$list$k:${v//,/_},"
+            else
+                _vigil_logs_text "$v"
+                _vigil_splunk_key "$k"
+                list="$list\"$_vb_key\":\"$_vl_text\","
+            fi
+        done
+        if [ "$_vl_type" = datadog ]; then
+            _vigil_logs_text "${list}config.revision:$_vl_revision"
+            _vl_shared="\"ddsource\":\"vigil\",\"service\":\"vigil\",\"hostname\":\"$name\",\"ddtags\":\"$_vl_text\","
+        else
+            _vl_shared="\"host\":\"$name\",\"source\":\"vigil\",\"sourcetype\":\"vigil:log\",\"fields\":{$list\"config.revision\":\"$_vl_revision\"},"
+        fi
+        return 0
+    fi
     _vigil_logs_attr service.name vigil
     attrs=$_vl_attr
     for tag in $_vf_tags; do
@@ -408,7 +477,11 @@ _vigil_logs_send() {
     _vl_accepted=0
     _vh_headers=('Content-Type: application/json')
     [ -z "$_vl_header" ] || _vh_headers[1]=$_vl_header
-    _vh_body="{\"resourceLogs\":[{\"resource\":$_vl_resource,\"scopeLogs\":[{\"scope\":{\"name\":\"vigil\"},\"logRecords\":[$_vl_batch]}]}]}"
+    case $_vl_type in
+        otel) _vh_body="{\"resourceLogs\":[{\"resource\":$_vl_resource,\"scopeLogs\":[{\"scope\":{\"name\":\"vigil\"},\"logRecords\":[$_vl_batch]}]}]}" ;;
+        datadog) _vh_body="[$_vl_batch]" ;;
+        *) _vh_body=$_vl_batch ;;
+    esac
     if ! _vigil_http_send "$_vl_secs" POST "$_vl_url" '' "$_vl_meta"; then
         _vh_headers=()
         _vh_body=''
@@ -449,11 +522,16 @@ _vigil_logs_send() {
     case $reply in
         '' | \{*\}) ;;
         *)
-            _vigil_logs_failed invalid_response "an answer from $_vl_host that is not OTLP"
+            _vigil_logs_failed invalid_response "an answer from $_vl_host that is not $_vl_speaks"
             return 1
             ;;
     esac
-    if [[ $_vh_resp =~ $_vigil_logs_rejected ]]; then
+    # HEC says so in its answer, as {"text":"Success","code":0}.
+    if [ "$_vl_type" = splunk ] && ! [[ $_vh_resp =~ $_vigil_logs_hec_ok ]]; then
+        _vigil_logs_failed invalid_response "an answer from $_vl_host that is not $_vl_speaks"
+        return 1
+    fi
+    if [ "$_vl_type" = otel ] && [[ $_vh_resp =~ $_vigil_logs_rejected ]]; then
         rejected=${BASH_REMATCH[1]}
         [ "${#rejected}" -gt 9 ] && rejected=$_vl_n
         rejected=$((10#$rejected))
@@ -503,7 +581,7 @@ _vigil_logs_file() {
                 if [ "$_vl_n" -gt 0 ] && { [ "$_vl_n" -ge "$_vl_lines" ] || [ $((bytes + len)) -gt "$_vl_bytes" ]; }; then
                     break
                 fi
-                _vl_batch=$_vl_batch${_vl_batch:+,}$_vl_rec
+                _vl_batch=$_vl_batch${_vl_batch:+$_vl_join}$_vl_rec
                 _vl_n=$((_vl_n + 1))
                 bytes=$((bytes + len))
                 ends[${#ends[@]}]=$next
@@ -546,7 +624,7 @@ _vigil_logs_output_for_file() {
 }
 
 vigil_logs() {
-    local dest type endpoint timeout hname hvalue f file size failures=0 next_try=0 prev='' line n next pending ok=1
+    local dest type endpoint timeout hname hvalue hkey=header_value hprefix='' f file size failures=0 next_try=0 prev='' line n next pending ok=1
     _vl_now=$(date '+%s')
     _vl_dir="$_vw_statedir/logs"
     _vl_events=()
@@ -576,7 +654,30 @@ vigil_logs() {
     hname=$_vw_value
     _vigil_wk_get "log_destination.$dest" header_value ''
     hvalue=$_vw_value
-    _vl_url=$endpoint
+    _vl_speaks=OTLP
+    _vl_url=${endpoint%/}
+    case $_vl_type in
+        splunk)
+            _vl_speaks=HEC
+            hname=Authorization
+            hprefix='Splunk '
+            hkey=token
+            case ${_vl_url#*://} in */*) ;; *) _vl_url=$_vl_url/services/collector/event ;; esac
+            _vigil_wk_get "log_destination.$dest" token ''
+            hvalue=$_vw_value
+            ;;
+        datadog)
+            _vl_speaks='a Datadog answer'
+            hname=DD-API-KEY
+            hkey=api_key
+            case ${_vl_url#*://} in */*) ;; *) _vl_url=$_vl_url/api/v2/logs ;; esac
+            _vigil_wk_get "log_destination.$dest" api_key ''
+            hvalue=$_vw_value
+            # The most entries Datadog takes in one request.
+            [ "$_vl_lines" -le 1000 ] || _vl_lines=1000
+            ;;
+        *) _vl_url=$endpoint ;;
+    esac
     _vl_host=${endpoint#*://}
     _vl_host=${_vl_host%%/*}
     _vl_meta=0
@@ -641,15 +742,15 @@ EOF
     if [ "$_vl_now" -ge "$next_try" ]; then
         if [ -n "$hname" ]; then
             if ! vigil_secret_resolve "$_vw_root" "$hvalue"; then
-                _vigil_logs_failed auth "header_value $hvalue unavailable: $VIGIL_SECRET_WHY"
+                _vigil_logs_failed auth "$hkey $hvalue unavailable: $VIGIL_SECRET_WHY"
                 ok=0
             else
                 case $VIGIL_SECRET_VALUE in
                     *[[:cntrl:]]*)
-                        _vigil_logs_failed auth "header_value $hvalue holds a control character"
+                        _vigil_logs_failed auth "$hkey $hvalue holds a control character"
                         ok=0
                         ;;
-                    *) _vl_header="$hname: $VIGIL_SECRET_VALUE" ;;
+                    *) _vl_header="$hname: $hprefix$VIGIL_SECRET_VALUE" ;;
                 esac
                 VIGIL_SECRET_VALUE=''
             fi

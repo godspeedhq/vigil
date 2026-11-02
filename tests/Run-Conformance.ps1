@@ -365,10 +365,12 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\back
 }
 
 # Log forwarding: <case>.input holds "<log file> TAB <line>" rows; each gives
-# its OTLP log record, or - when it is not forwarded. Bytes in, bytes out.
+# its record for that destination, or - when it is not forwarded. Bytes in,
+# bytes out.
 foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\logs') -Filter '*.config' | Sort-Object Name)) {
     $parsed = ConvertFrom-VigilConfig -Path $case.FullName
     $include = Get-VigilLogsInclude -Parsed $parsed
+    $type = Get-VigilConfigValue $parsed "log_destination.$(Get-VigilConfigValue $parsed 'log_forward' 'destination' '')" 'type' 'otel'
     $latin1 = [System.Text.Encoding]::GetEncoding(28591)
     $text = $latin1.GetString([System.IO.File]::ReadAllBytes([System.IO.Path]::ChangeExtension($case.FullName, '.input')))
     $rows = New-Object 'System.Collections.Generic.List[string]'
@@ -377,7 +379,7 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\logs
         $file = $row.Substring(0, $tab)
         $output = $true
         if ($file.StartsWith('jobs/', [System.StringComparison]::Ordinal)) { $output = Test-VigilLogsOutput -Parsed $parsed -Job $file.Split('/')[1] }
-        $rec = ConvertTo-VigilLogRecord -File $file -Line $row.Substring($tab + 1) -Include $include -Output $output
+        $rec = ConvertTo-VigilLogRecord -File $file -Line $row.Substring($tab + 1) -Include $include -Output $output -Type $type
         $rows.Add($(if ($rec) { $rec } else { '-' }))
     }
     $bytes = [System.IO.File]::ReadAllBytes([System.IO.Path]::ChangeExtension($case.FullName, '.expected'))

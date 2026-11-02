@@ -116,6 +116,8 @@ try {
 
     $ddKey = "dd-it-key-$PID"
     $otelToken = "otel-it-token-$PID"
+    $hecToken = "hec-it-token-$PID"
+    $env:VIGIL_IT_HEC_TOKEN = $hecToken
     $env:VIGIL_IT_DD_KEY = $ddKey
 
     Set-Content -LiteralPath (Join-Path $root 'scripts\emit.cmd') -Value @('@echo off', 'echo metric answer 42')
@@ -139,6 +141,11 @@ endpoint = http://127.0.0.1:$port/v1/metrics
 api_key  = secret:OTEL_TOKEN
 timeout  = 5s
 
+[backend.splunk]
+endpoint = http://127.0.0.1:$port
+token    = env:VIGIL_IT_HEC_TOKEN
+timeout  = 5s
+
 [job.emit]
 file      = scripts\emit.cmd
 run_every = 3650d
@@ -152,8 +159,10 @@ run_every = 3650d
     Test-Equal 'datadog: host as a resource' 'yes' (Test-Received @('"path": "/api/v2/series"', '\"type\":\"host\"', '\"instance:bk\"', '\"job:emit\"'))
     Test-Equal 'otel: OTLP receiver' 'yes' (Test-Received @('"path": "/v1/metrics"', "`"Authorization`": `"Bearer $otelToken`"", '\"name\":\"emit.answer\",\"gauge\"', '\"asDouble\":42'))
     Test-Equal 'otel: counts as delta sums' 'yes' (Test-Received @('"path": "/v1/metrics"', '\"name\":\"emit.runs\",\"sum\":{\"aggregationTemporality\":1'))
+    Test-Equal 'splunk: HEC' 'yes' (Test-Received @('"path": "/services/collector/event"', "`"Authorization`": `"Splunk $hecToken`"", '\"event\":\"metric\"', '\"metric_name\":\"emit.answer\",\"_value\":42,\"metric_type\":\"gauge\"'))
     Test-Equal 'datadog queue drained' '0' (Get-Queued 'datadog')
     Test-Equal 'otel queue drained' '0' (Get-Queued 'otel')
+    Test-Equal 'splunk queue drained' '0' (Get-Queued 'splunk')
     Test-Equal 'sender succeeded' 'succeeded' (Get-StateValue (Join-Path $root 'state\jobs\vigil_sender.state') 'status')
 
     # A failing backend keeps its events and backs off.
@@ -192,12 +201,12 @@ run_every = 3650d
     $leaks = foreach ($d in @('logs', 'state', 'spool', 'metrics')) {
         Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
             $t = [System.IO.File]::ReadAllText($_.FullName)
-            $t.Contains($ddKey) -or $t.Contains($otelToken)
+            $t.Contains($ddKey) -or $t.Contains($otelToken) -or $t.Contains($hecToken)
         } | ForEach-Object { $_.FullName }
     }
     Test-Equal 'no credential in logs, state, spool or metrics' '' ($leaks -join ' ')
     $paths = [regex]::Matches([System.IO.File]::ReadAllText("$root\mock\requests.log"), '"path": "([^"]*)"') | ForEach-Object { $_.Groups[1].Value }
-    Test-Equal 'no credential in a URL' '' (@($paths | Where-Object { $_.Contains($ddKey) -or $_.Contains($otelToken) }) -join ' ')
+    Test-Equal 'no credential in a URL' '' (@($paths | Where-Object { $_.Contains($ddKey) -or $_.Contains($otelToken) -or $_.Contains($hecToken) }) -join ' ')
 
     if ($script:fail -gt 0) {
         Write-Host "`nmock stderr:"

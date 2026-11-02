@@ -140,6 +140,18 @@ timeout      = 5s
 type     = otel
 endpoint = http://127.0.0.1:$port/other/v1/logs
 
+[log_destination.hec]
+type     = splunk
+endpoint = http://127.0.0.1:$port
+token    = env:VIGIL_IT_HEC_TOKEN
+timeout  = 5s
+
+[log_destination.dd]
+type     = datadog
+endpoint = http://127.0.0.1:$port
+api_key  = env:VIGIL_IT_DD_KEY
+timeout  = 5s
+
 [job.chatty]
 file      = scripts/chatty.sh
 run_every = 3650d
@@ -150,6 +162,7 @@ run_every      = 3650d
 forward_output = false
 EOF
 }
+export VIGIL_IT_HEC_TOKEN="hec-it-$$" VIGIL_IT_DD_KEY="dd-it-$$"
 config > "$root/config/vigil.config"
 
 check "precheck" 0 "$(vigil precheck > /dev/null 2>&1; echo $?)"
@@ -285,6 +298,61 @@ check "destination changed: reported" yes "$(prom '^vigil_logs_gaps_total.*reaso
 vigil run chatty > /dev/null
 forward
 check "destination changed: new lines go there" yes "$(yes_no grep -q '"path": "/other/v1/logs"' "$root/mock/requests.log")"
+
+# Splunk's HEC, with each answer it can give.
+config hec > "$root/config/vigil.config"
+tick
+vigil run chatty > /dev/null
+: > "$root/mock/requests.log"
+forward
+check "splunk: delivered" succeeded "$(status)"
+check "splunk: the HEC path" yes "$(yes_no grep -q '"path": "/services/collector/event"' "$root/mock/requests.log")"
+check "splunk: the token in its header" yes "$(yes_no grep -qF "\"Authorization\": \"Splunk $VIGIL_IT_HEC_TOKEN\"" "$root/mock/requests.log")"
+check "splunk: the record" yes "$(yes_no grep -F '\"sourcetype\":\"vigil:log\"' "$root/mock/requests.log")"
+check "splunk: the job named" yes "$(yes_no grep -F '\"job\":\"chatty\"' "$root/mock/requests.log")"
+check "splunk: tags as fields" yes "$(yes_no grep -F '\"instance\":\"lg\"' "$root/mock/requests.log")"
+check "splunk: events one after another" no "$(yes_no grep -F '}},{' "$root/mock/requests.log")"
+
+vigil run chatty > /dev/null
+echo 400 > "$root/mock/status"
+printf '{"text":"Invalid data format","code":6,"invalid-event-number":1}' > "$root/mock/reply"
+forward
+check "splunk: refused" yes "$(reason | grep -q 'HTTP 400' && echo yes || echo no)"
+tick
+tick
+check "splunk: refusal reported" yes "$(prom '^vigil_logs_failures_total.*reason="rejected"')"
+echo 200 > "$root/mock/status"
+printf '{"text":"Server is busy","code":9}' > "$root/mock/reply"
+forward
+check "splunk: 200 without code 0 is not accepted" yes "$(reason | grep -q 'not HEC' && echo yes || echo no)"
+echo 403 > "$root/mock/status"
+printf '{"text":"Token disabled","code":1}' > "$root/mock/reply"
+forward
+check "splunk: a bad token" yes "$(reason | grep -q 'permission denied' && echo yes || echo no)"
+rm -f "$root/mock/status" "$root/mock/reply"
+: > "$root/mock/requests.log"
+forward
+check "splunk: nothing refused is lost" succeeded "$(status)"
+check "splunk: resent whole" yes "$(yes_no grep -q 'hello from chatty' "$root/mock/requests.log")"
+
+# Datadog's logs intake.
+config dd > "$root/config/vigil.config"
+tick
+vigil run chatty > /dev/null
+: > "$root/mock/requests.log"
+forward
+check "datadog: delivered" succeeded "$(status)"
+check "datadog: the intake path" yes "$(yes_no grep -q '"path": "/api/v2/logs"' "$root/mock/requests.log")"
+check "datadog: the key in its header" yes "$(yes_no grep -qF "\"DD-API-KEY\": \"$VIGIL_IT_DD_KEY\"" "$root/mock/requests.log")"
+check "datadog: the record" yes "$(yes_no grep -F '\"ddsource\":\"vigil\"' "$root/mock/requests.log")"
+check "datadog: tags" yes "$(yes_no grep -F 'instance:lg,' "$root/mock/requests.log")"
+check "datadog: the revision" yes "$(yes_no grep -F 'config.revision:' "$root/mock/requests.log")"
+vigil run chatty > /dev/null
+echo 413 > "$root/mock/status"
+forward
+check "datadog: too large is refused" yes "$(reason | grep -q 'HTTP 413' && echo yes || echo no)"
+rm -f "$root/mock/status"
+check "no native credential on disk" "" "$(grep -rlF -e "$VIGIL_IT_HEC_TOKEN" -e "$VIGIL_IT_DD_KEY" "$root/logs" "$root/state" "$root/spool" "$root/metrics" 2>/dev/null)"
 
 # Turned off, nothing more is forwarded.
 config ops | sed 's/^destination = ops/destination = ops\nenabled     = false/' > "$root/config/vigil.config"

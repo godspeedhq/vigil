@@ -2,8 +2,8 @@
 #
 # Vigil HTTP backends - bash 3.2 compatible.
 #
-# Datadog (Series API v2) and OpenTelemetry (OTLP/HTTP, JSON encoding),
-# SPECIFICATION.md 15.3. Builds one request from a batch of spool event
+# Datadog (Series API v2), OpenTelemetry (OTLP/HTTP, JSON encoding) and Splunk
+# (HTTP Event Collector), SPECIFICATION.md 15.3. Builds one request from a batch of spool event
 # files, sends it with the HTTPS client of stores.sh, and says what became
 # of the batch. Must behave exactly as Backends.ps1 - tests/conformance/backend
 # holds the shared cases.
@@ -36,6 +36,15 @@ _vigil_backend_nl=$'\n'
 # The time requests are made at; replaced by the conformance runner.
 _vigil_backend_now() {
     _vb_now=$(date '+%s')
+}
+
+# The name of a tag as a Splunk field, into _vb_key: a name Splunk keeps for
+# itself gets a prefix.
+_vigil_splunk_key() {
+    case $1 in
+        metric_name | source | sourcetype | index | time | host | _*) _vb_key=tag_$1 ;;
+        *) _vb_key=$1 ;;
+    esac
 }
 
 # $1 as a JSON string, into _vb_q: escaped only when it needs to be.
@@ -82,6 +91,14 @@ _vigil_backend_body_line() {
         if [ "$_vb_type" = otel ]; then
             _vigil_backend_quote "$val"
             attrs="$attrs${attrs:+,}{\"key\":\"$key\",\"value\":{\"stringValue\":$_vb_q}}"
+        elif [ "$_vb_type" = splunk ]; then
+            _vigil_backend_quote "$val"
+            if [ "$key" = host ]; then
+                res="\"host\":$_vb_q,"
+            else
+                _vigil_splunk_key "$key"
+                tags="$tags,\"$_vb_key\":$_vb_q"
+            fi
         elif [ "$key" = host ]; then
             # Datadog's host is a resource, not a tag.
             _vigil_backend_quote "$val"
@@ -91,8 +108,11 @@ _vigil_backend_body_line() {
             tags=$tags${tags:+,}$_vb_q
         fi
     done
-    [ "$_vb_points" -gt 0 ] && _vb_body="$_vb_body,"
-    if [ "$_vb_type" = datadog ]; then
+    # HEC takes events one after another, not as a list.
+    [ "$_vb_points" -gt 0 ] && [ "$_vb_type" != splunk ] && _vb_body="$_vb_body,"
+    if [ "$_vb_type" = splunk ]; then
+        _vb_body="$_vb_body{\"time\":$epoch,$res\"source\":\"vigil\",\"event\":\"metric\",\"fields\":{\"metric_name\":\"$name\",\"_value\":$value,\"metric_type\":\"$kind\"$tags}}"
+    elif [ "$_vb_type" = datadog ]; then
         # Series API types: 1 count, 3 gauge.
         [ "$kind" = count ] && kind=1 || kind=3
         _vb_body="$_vb_body{\"metric\":\"$name\",\"type\":$kind,\"points\":[{\"timestamp\":$epoch,\"value\":$value}]$res,\"tags\":[$tags]}"
@@ -127,7 +147,7 @@ vigil_backend_body() {
     done
     if [ "$_vb_type" = datadog ]; then
         _vb_body="{\"series\":[$_vb_body]}"
-    else
+    elif [ "$_vb_type" != splunk ]; then
         _vb_body="{\"resourceMetrics\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"vigil\"}}]},\"scopeMetrics\":[{\"scope\":{\"name\":\"vigil\"},\"metrics\":[$_vb_body]}]}]}"
     fi
     _vb_drops=''
@@ -137,7 +157,7 @@ vigil_backend_body() {
 }
 
 vigil_backend_send() {
-    local root=$1 name=$2 type=$3 endpoint='' key='' ca='' timeout=10 url host meta=0 rejected i end
+    local root=$1 name=$2 type=$3 endpoint='' key='' keyname=api_key ca='' timeout=10 url host meta=0 rejected i end
     shift 3
     _vb_sent=0
     _vb_why=''
@@ -149,7 +169,8 @@ vigil_backend_send() {
         while [ "$i" -lt "$end" ]; do
             case ${VIGIL_CFG_KEY[$i]} in
                 endpoint) endpoint=${VIGIL_CFG_VALUE[$i]} ;;
-                api_key) key=${VIGIL_CFG_VALUE[$i]} ;;
+                api_key) [ "$type" = splunk ] || key=${VIGIL_CFG_VALUE[$i]} ;;
+                token) [ "$type" != splunk ] || key=${VIGIL_CFG_VALUE[$i]} ;;
                 ca_file) ca=${VIGIL_CFG_VALUE[$i]} ;;
                 timeout) _vigil_wk_secs "${VIGIL_CFG_VALUE[$i]}"; timeout=$_vw_secs ;;
             esac
@@ -157,10 +178,15 @@ vigil_backend_send() {
         done
     fi
     case $ca in '' | /*) ;; *) ca=$root/$ca ;; esac
+    [ "$type" != splunk ] || keyname=token
     if [ -z "$endpoint" ]; then
         case $type in
             datadog) endpoint=https://api.datadoghq.com ;;
             otel) endpoint=http://localhost:4318/v1/metrics ;;
+            splunk)
+                _vb_why="the backend needs 'endpoint'"
+                return 1
+                ;;
         esac
     fi
 
@@ -178,13 +204,14 @@ vigil_backend_send() {
             ;;
     esac
     case $host in *@*) _vb_why='endpoint must not hold credentials'; return 1 ;; esac
-    # Datadog's endpoint is the site; OTLP's is the full URL, or a bare
-    # collector address that gets the standard path.
+    # Datadog's endpoint is the site; the others' is the full URL, or a bare
+    # address that gets the standard path.
     url=${endpoint%/}
     case $type:${url#*://} in
         datadog:*) url=$url/api/v2/series ;;
-        otel:*/*) ;;
+        otel:*/* | splunk:*/*) ;;
         otel:*) url=$url/v1/metrics ;;
+        splunk:*) url=$url/services/collector/event ;;
     esac
 
     _vigil_backend_now
@@ -197,14 +224,14 @@ vigil_backend_send() {
     _vh_headers=('Content-Type: application/json')
     if [ -n "$key" ]; then
         if ! vigil_secret_resolve "$root" "$key"; then
-            _vb_why="api_key $key: $VIGIL_SECRET_WHY"
+            _vb_why="$keyname $key: $VIGIL_SECRET_WHY"
             _vb_body=''
             return 1
         fi
         case $VIGIL_SECRET_VALUE in
             *[[:cntrl:]]*)
                 VIGIL_SECRET_VALUE=''
-                _vb_why="api_key $key: contains a control character"
+                _vb_why="$keyname $key: contains a control character"
                 _vb_body=''
                 return 1
                 ;;
@@ -212,10 +239,11 @@ vigil_backend_send() {
         case $type in
             datadog) _vh_headers[1]="DD-API-KEY: $VIGIL_SECRET_VALUE" ;;
             otel) _vh_headers[1]="Authorization: Bearer $VIGIL_SECRET_VALUE" ;;
+            splunk) _vh_headers[1]="Authorization: Splunk $VIGIL_SECRET_VALUE" ;;
         esac
         VIGIL_SECRET_VALUE=''
-    elif [ "$type" = datadog ]; then
-        _vb_why="the backend needs 'api_key'"
+    elif [ "$type" != otel ]; then
+        _vb_why="the backend needs '$keyname'"
         _vb_body=''
         return 1
     fi
