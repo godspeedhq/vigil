@@ -2075,6 +2075,8 @@ The `git` and `https` sources are tested against a small local file server over 
 
 ### 22.4.4 Test Release Server
 
+Every change is also tested upgrading from the latest published release: the real installer installs it from GitHub, its own `vigil self update` moves it to the build under test, and a supervisor and jobs must carry on through that (`tests/integration/upgrade.sh`, `Upgrade.ps1`).
+
 The installers and `vigil self update` are tested against the file server of §22.4.3: the environment variable `VIGIL_TEST_RELEASE_URL` replaces the GitHub address, and is accepted only as `http://127.0.0.1:<port>`. Pre-flight fails if it is set, like `VIGIL_FAULT`.
 
 ### 22.5 Platform Matrix
