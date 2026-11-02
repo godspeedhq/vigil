@@ -1003,3 +1003,5 @@ Vigil is built to make adding checks easy: a check is just a script that prints 
 ## Licence
 
 Vigil is released under the [Apache License 2.0](LICENSE). Created by Bankole Ogundero and the Vigil contributors.
+
+Vigil and its packs are provided "as is", without warranties or conditions of any kind. Run them at your own risk: see [LICENSE](LICENSE) and the [pack disclaimer](packs/README.md#disclaimer).
