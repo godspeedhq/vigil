@@ -217,6 +217,10 @@ run_every = 3650d
     Invoke-Tick
     Test-Equal 'waiting for the first fetch' 'True' ([string]([System.IO.File]::ReadAllText("$root\logs\supervisor\jobs.log").Contains('waiting for the first fetch')))
     Invoke-Tick
+    # The fetch is detached, so a tick can finish before it takes its lock, and
+    # the tick that follows can write jobs.log before the fetch activates.
+    for ($i = 0; $i -lt 120 -and -not (Test-Path -LiteralPath "$root\state\config.active"); $i++) { Start-Sleep -Milliseconds 500 }
+    Invoke-Tick
 
     # Fetched, verified and activated.
     Test-Equal 'activated' 'True' ([string](Test-Path -LiteralPath "$root\state\config.active"))

@@ -274,10 +274,6 @@ case $(uname -s) in
             cat "$root"/logs/supervisor/2*.log | tail -24 | sed 's/^/        sup: /'
             sed 's/^/        update: /' "$work/out"
         fi
-        if [ "$(grep -hc 'reloading: Vigil 0.0.1-it to 0.0.2-it' "$root"/logs/supervisor/2*.log | sort -n | tail -1)" != 1 ]; then
-            cat "$root"/logs/supervisor/2*.log | tail -24 | sed 's/^/        sup: /'
-            sed 's/^/        update: /' "$work/out"
-        fi
         grep -q 'reloading: Vigil' "$root"/logs/supervisor/2*.log || { ls -la "$root"/logs/supervisor; tail -n 12 "$root"/logs/supervisor/2*.log; cat "$work/out"; }
         ;;
 esac
