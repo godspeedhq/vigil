@@ -72,6 +72,7 @@ check 'and nothing is written' no "$([ -e "$r/config/vigil.config" ] && echo yes
 vigil "$r" init --no-pack > /dev/null 2>&1
 check 'init --no-pack succeeds' 0 "$?"
 check 'with no job' 0 "$(grep -c '^\[job\.' "$r/config/vigil.config")"
+check 'defaults to the file backend' 1 "$(grep -c '^\[backend\.file\]$' "$r/config/vigil.config")"
 
 r=$work/empty
 make_root "$r"
@@ -89,7 +90,6 @@ printf 'echo "metric mine 1"\n' > "$r/scripts/mine.sh"
 printf '\n[job.mine]\nfile = scripts/mine.sh\nrun_every = 1h\n' >> "$r/config/vigil.config"
 vigil "$r" run mine > /dev/null 2>&1
 check 'and your own script runs' 0 "$?"
-check 'defaults to the file backend' 1 "$(grep -c '^\[backend\.file\]$' "$r/config/vigil.config")"
 
 # --- uninstall ----------------------------------------------------------------
 
