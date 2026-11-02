@@ -982,7 +982,7 @@ _vigil_sup_status() {
 }
 
 vigil_supervise() {
-    local once=$2 deadline now
+    local once=$2 deadline now rc
     local LC_ALL=C
     _su_root=$1
     _su_app=$_su_root/app
@@ -992,6 +992,7 @@ vigil_supervise() {
     _su_queued=''
     _su_seq=0
     _su_reload_failed=0
+    _su_refused=''
     _su_stop=0
     _su_logdir=$_su_root/logs
     _su_iso=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
@@ -1029,6 +1030,12 @@ vigil_supervise() {
         "$_su_statedir"/locks/*.launch.tmp.* \
         "$_su_logdir"/supervisor/jobs.log.tmp.* "$_su_spooldir"/incoming/*-vigil_supervisor.events.tmp.*
     printf 'pid = %s\nstarted_epoch = %s\n' "$$" "$(date '+%s')" >&8
+    if ! vigil_format_migrate "$_su_app" "$_su_statedir" "$_su_spooldir" "$_su_logdir"; then
+        printf 'vigil: %s\n' "$_vf_error" >&2
+        _vigil_sup_log ERROR "cannot start: $_vf_error"
+        exec 8>&-
+        return 1
+    fi
     # What is running, for vigil self update to wait for (18.7).
     _su_version=''
     [ -f "$_su_app/VERSION" ] && read -r _su_version < "$_su_app/VERSION"
@@ -1054,6 +1061,16 @@ vigil_supervise() {
         done
         [ "$_su_stop" -eq 1 ] && break
         if _vigil_sup_new_version; then
+            # The new version's migrations run first, so if they cannot, this
+            # version carries on and the installer puts it back. 64 is a
+            # version from before formats, which has nothing to migrate.
+            _su_why=$("$BASH" "$_su_app/vigil" --root "$_su_root" format-migrate "$_su_statedir" "$_su_spooldir" "$_su_logdir" 2>&1 < /dev/null 8>&-)
+            rc=$?
+            if [ "$rc" -ne 0 ] && [ "$rc" -ne 64 ]; then
+                _su_refused=$_su_next
+                _vigil_sup_log ERROR "staying on Vigil $_su_version, not reloading to $_su_next: $_su_why"
+                continue
+            fi
             # Hot reload (18.7): this process becomes the new version, with
             # the same pid, so the service manager sees nothing and no admin
             # right is needed. Everything else is on disk.
@@ -1073,5 +1090,9 @@ _vigil_sup_new_version() {
     _su_next=''
     [ -f "$_su_app/VERSION" ] || return 1
     read -r _su_next < "$_su_app/VERSION" 2>/dev/null
-    [ -n "$_su_next" ] && [ "$_su_next" != "$_su_version" ]
+    if [ "$_su_next" = "$_su_version" ]; then
+        _su_refused=''
+        return 1
+    fi
+    [ -n "$_su_next" ] && [ "$_su_next" != "$_su_refused" ]
 }

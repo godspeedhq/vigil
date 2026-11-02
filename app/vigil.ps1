@@ -66,7 +66,7 @@ $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Split-Path -Parent $app }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate')) {
+foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate')) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }
 
@@ -267,6 +267,14 @@ switch ($Command) {
         $code = 0
         Invoke-VigilSelfUpdate -Root $Root -App $app -Check $check -Want $want | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
         exit $code
+    }
+    'format-migrate' {
+        # Run by a supervisor under its lock, before it reloads (18.7).
+        if (-not $Job -or $Rest.Count -ne 2) { Exit-Usage }
+        $r = Invoke-VigilFormatMigrate -App $app -State $Job -Spool $Rest[0] -Logs $Rest[1]
+        if ($r.Ok) { exit 0 }
+        [Console]::Error.WriteLine($r.Error)
+        exit 1
     }
     'supervise' {
         # PowerShell binds "--once" to the remaining arguments.
