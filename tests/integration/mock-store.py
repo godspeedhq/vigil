@@ -1,3 +1,12 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+
 """A stand-in for HashiCorp Vault, Azure Key Vault, Microsoft Entra ID, AWS
 Secrets Manager (checking every request's SigV4 signature), GCP Secret
 Manager and Google's token endpoint (checking every JWT's RS256 signature

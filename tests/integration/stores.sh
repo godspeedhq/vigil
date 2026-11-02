@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 #
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
 # Integration test: HashiCorp Vault and Azure Key Vault over HTTPS with curl
 # (SPECIFICATION.md 6.5.3) on Linux and macOS, against mock-store.py and a
 # CA made for this run. Jobs receive each store's secrets exactly, a rotated

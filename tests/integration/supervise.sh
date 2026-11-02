@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 #
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
 # Integration test: the supervisor and the sender (SPECIFICATION.md 4.1,
 # 4.5, 7, 8, 11.3) on Linux and macOS. Runs a real supervisor with a
 # one-second tick against real jobs, then checks what it did through the

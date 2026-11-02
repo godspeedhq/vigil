@@ -23,6 +23,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+      - name: licence and disclaimer in every script
+        run: /bin/bash tools/check-headers.sh
       - name: bash version
         run: /bin/bash --version | head -1
       - name: conformance (/bin/bash)

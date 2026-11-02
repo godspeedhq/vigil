@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 #
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
 # Integration test: sources and the fetcher (SPECIFICATION.md 6.8, 6.9,
 # 16.5) on Linux and macOS. Scripts come from a Git repository and an HTTPS
 # file server (mock-files.py, plain http on this host), a local directory
