@@ -40,6 +40,35 @@ function Get-VigilAbout {
     '{0,-11} {1}' -f 'Platform', "Windows, PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
 }
 
+# Whether a signature over some data is from the public key in a PEM file.
+# Read by hand because Windows PowerShell 5.1's .NET cannot import PEM.
+function Test-VigilSignature {
+    param([string]$KeyFile, [byte[]]$Data, [byte[]]$Signature)
+    try {
+        $text = [System.IO.File]::ReadAllText($KeyFile) -replace '-----[^-]+-----', '' -replace '\s', ''
+        $s = @{ B = [Convert]::FromBase64String($text); P = 0 }
+        [void](Read-VigilDer $s)
+        $alg = Read-VigilDer $s
+        $s.P = $alg.Start + $alg.Len
+        [void](Read-VigilDer $s)
+        $s.P++
+        [void](Read-VigilDer $s)
+        $n = Read-VigilDer $s
+        $s.P = $n.Start + $n.Len
+        $e = Read-VigilDer $s
+        $from = $n.Start
+        $len = $n.Len
+        if ($s.B[$from] -eq 0) { $from++; $len-- }
+        $p = New-Object System.Security.Cryptography.RSAParameters
+        $p.Modulus = [byte[]]$s.B[$from..($from + $len - 1)]
+        $p.Exponent = [byte[]]$s.B[$e.Start..($e.Start + $e.Len - 1)]
+        $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
+        $rsa.ImportParameters($p)
+        return $rsa.VerifyData($Data, 'SHA256', $Signature)
+    }
+    catch { return $false }
+}
+
 function Get-VigilSupervisorVersion {
     param([string]$Root)
     try {
@@ -173,11 +202,28 @@ function Invoke-VigilSelfUpdate {
         [void](New-Item -ItemType Directory -Force -Path $work)
         $script = Join-Path $work 'install.ps1'
         $sums = Join-Path $work 'SHA256SUMS'
+        $file = "vigil-$Want.zip"
         try {
-            Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/releases/download/v$Want/install.ps1" -OutFile $script
-            Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/releases/download/v$Want/SHA256SUMS" -OutFile $sums
+            foreach ($f in @('install.ps1', $file, 'SHA256SUMS')) {
+                Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/releases/download/v$Want/$f" -OutFile (Join-Path $work $f)
+            }
         }
         catch { return & $die "cannot download Vigil ${Want}: is there such a release?" }
+        # The signature (17): whatever else was replaced on the server, the
+        # key that checks it is the one already installed here. The archive
+        # is handed to the installer, so what is verified is what is installed.
+        $key = Join-Path $App 'release-key.pem'
+        if ($env:VIGIL_TEST_RELEASE_URL -and $env:VIGIL_TEST_RELEASE_KEY) { $key = $env:VIGIL_TEST_RELEASE_KEY }
+        if (Test-Path -LiteralPath $key) {
+            $sig = Join-Path $work 'SHA256SUMS.sig'
+            $signed = $false
+            try {
+                Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/releases/download/v$Want/SHA256SUMS.sig" -OutFile $sig
+                $signed = Test-VigilSignature -KeyFile $key -Data ([System.IO.File]::ReadAllBytes($sums)) -Signature ([System.IO.File]::ReadAllBytes($sig))
+            }
+            catch { $signed = $false }
+            if (-not $signed) { return & $die "Vigil $Want is not signed by the Vigil release key; nothing was changed" }
+        }
         $sum = ''
         foreach ($l in [System.IO.File]::ReadAllLines($sums)) {
             $f = $l -split '\s+', 2
@@ -189,7 +235,7 @@ function Invoke-VigilSelfUpdate {
         Write-Output "updating Vigil $current to $Want"
         # A process of its own: the running one's files are about to move.
         $shell = (Get-Process -Id $PID).Path
-        & $shell -NoProfile -ExecutionPolicy Bypass -File $script -Upgrade -Prefix $Root -Version $Want
+        & $shell -NoProfile -ExecutionPolicy Bypass -File $script -Upgrade -Prefix $Root -Archive (Join-Path $work $file)
         if ($LASTEXITCODE -ne 0) { return 1 }
     }
     finally {

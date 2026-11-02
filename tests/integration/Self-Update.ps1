@@ -51,7 +51,7 @@ function Publish-Release {
     param([string]$Version)
     $d = Join-Path $www "releases\download\v$Version"
     [void](New-Item -ItemType Directory -Force -Path $d, "$www\releases\tag")
-    & $bash (ConvertTo-BashPath "$repo\tools\release\package.sh") $Version (ConvertTo-BashPath $d) | Out-Null
+    & $bash -c "VIGIL_SIGN_KEY='$(ConvertTo-BashPath "$work\release.key")' bash '$(ConvertTo-BashPath "$repo\tools\release\package.sh")' '$Version' '$(ConvertTo-BashPath $d)'" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'packaging failed' }
     [System.IO.File]::WriteAllText("$www\releases\tag\v$Version", '')
     Set-Latest $Version
@@ -59,6 +59,12 @@ function Publish-Release {
 function Set-Latest {
     param([string]$Version)
     [System.IO.File]::WriteAllText("$work\mock\redirects", "/releases/latest /releases/tag/v$Version`n")
+}
+# Openssl, through Git Bash.
+function Invoke-Openssl {
+    param([string]$Line)
+    & $bash -c "openssl $Line" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "openssl $Line failed" }
 }
 function ConvertTo-BashPath {
     param([string]$Path)
@@ -91,6 +97,12 @@ $root = Join-Path $work 'root'
 $mock = $null
 
 try {
+    # A release key for this run, known to Vigil only through the test override.
+    $kw = ConvertTo-BashPath $work
+    Invoke-Openssl "genrsa -out '$kw/release.key' 2048"
+    Invoke-Openssl "genrsa -out '$kw/other.key' 2048"
+    Invoke-Openssl "rsa -in '$kw/release.key' -pubout -out '$kw/release.pem'"
+    $env:VIGIL_TEST_RELEASE_KEY = "$work\release.pem"
     $mock = Start-Process -FilePath $python -ArgumentList @("`"$here\mock-files.py`"", "`"$work\mock`"") -PassThru -NoNewWindow -RedirectStandardError "$work\mock\stderr"
     $portFile = Join-Path $work 'mock\port'
     for ($i = 0; $i -lt 600 -and -not (Test-Path -LiteralPath $portFile); $i++) { Start-Sleep -Milliseconds 100 }
@@ -185,6 +197,19 @@ try {
     Test-Equal 'and nothing changed' '0.0.1-it' (Get-Version)
     Copy-Item "$work\good.zip" "$d\vigil-0.0.2-it.zip" -Force
 
+    $bd = ConvertTo-BashPath $d
+    Copy-Item "$d\SHA256SUMS.sig" "$work\good.sig"
+    Invoke-Openssl "dgst -sha256 -sign '$kw/other.key' -out '$bd/SHA256SUMS.sig' '$bd/SHA256SUMS'"
+    $r = Invoke-Vigil self update
+    Test-Equal 'a release signed by another key is refused' '1' ([string]$r.Code)
+    Test-Equal 'saying why' 'True' ([string]$r.Text.Contains('not signed by the Vigil release key'))
+    Test-Equal 'and nothing changed' '0.0.1-it' (Get-Version)
+    Remove-Item -LiteralPath "$d\SHA256SUMS.sig"
+    $r = Invoke-Vigil self update
+    Test-Equal 'an unsigned release is refused' '1' ([string]$r.Code)
+    Test-Equal 'and nothing changed' '0.0.1-it' (Get-Version)
+    Copy-Item "$work\good.sig" "$d\SHA256SUMS.sig"
+
     # A release that does not run: back to the one that does.
     $b = Join-Path $work 'broken'
     Expand-Archive -LiteralPath "$d\vigil-0.0.2-it.zip" -DestinationPath $b
@@ -196,6 +221,8 @@ try {
     Compress-Archive -Path "$b\vigil-0.0.3-it" -DestinationPath "$d3\vigil-0.0.3-it.zip"
     Copy-Item "$repo\install.ps1" $d3
     Write-Sums $d3 @('vigil-0.0.3-it.zip', 'install.ps1')
+    $bd3 = ConvertTo-BashPath $d3
+    Invoke-Openssl "dgst -sha256 -sign '$kw/release.key' -out '$bd3/SHA256SUMS.sig' '$bd3/SHA256SUMS'"
     [System.IO.File]::WriteAllText("$www\releases\tag\v0.0.3-it", '')
     Set-Latest '0.0.3-it'
     $r = Invoke-Vigil self update
@@ -273,6 +300,7 @@ try {
 finally {
     if ($mock) { try { Stop-Process -Id $mock.Id -Force -ErrorAction Stop } catch { } }
     Remove-Item Env:\VIGIL_TEST_RELEASE_URL -ErrorAction SilentlyContinue
+    Remove-Item Env:\VIGIL_TEST_RELEASE_KEY -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 1
     Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue
 }
