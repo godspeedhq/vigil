@@ -73,7 +73,7 @@ $sup = $null
 try {
     Copy-Item -Recurse -LiteralPath (Join-Path $repo 'app'), (Join-Path $repo 'vendor') -Destination $root
     Set-Version '1.0.0'
-    [void](Invoke-Vigil init --instance format --backend file --no-sample)
+    [void](Invoke-Vigil init --instance format --backend file --no-pack)
     [void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'app\migrations'))
     $cfg = Join-Path $root 'config\vigil.config'
     [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^tick *= *.*$', 'tick = 1s'))

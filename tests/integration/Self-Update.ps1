@@ -130,6 +130,10 @@ try {
     Test-Equal 'install from the latest release' '0' ([string]$rc)
     if ($rc -ne 0) { $out | ForEach-Object { Write-Host "        $_" } }
     Test-Equal 'its version' 'Vigil 0.0.1-it' (Invoke-Vigil version).Text
+    Test-Equal 'the packs are in place' 'True' ([string](Test-Path -LiteralPath "$root\packs\base\cpu.ps1"))
+    Test-Equal 'with no other platform''s scripts' '0' ([string]@(Get-ChildItem -LiteralPath "$root\packs" -Recurse -Filter '*.sh').Count)
+    Test-Equal 'and in no platform folder' 'False' ([string](Test-Path -LiteralPath "$root\packs\base\windows"))
+    [System.IO.File]::WriteAllText("$root\packs\base\untouched", "mine`n")
     $about = (Invoke-Vigil about).Text
     Test-Equal 'about: who made it' 'True' ([string]$about.Contains('Created by  Bankole Ogundero and the Vigil contributors'))
     Test-Equal 'about: where it is' 'True' ([string]$about.Contains("Installed   $root"))
@@ -268,6 +272,7 @@ try {
     Test-Equal 'reload: the supervisor is running' '0.0.1-it' (Invoke-Vigil version --supervisor).Text
     $r = Invoke-Vigil self update --version 0.0.2-it
     Test-Equal 'reload: updated' '0' ([string]$r.Code)
+    Test-Equal 'self update leaves the packs alone' 'True' ([string](Test-Path -LiteralPath "$root\packs\base\untouched"))
     if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
     for ($i = 0; $i -lt 150 -and (Invoke-Vigil version --supervisor).Text -cne '0.0.2-it'; $i++) { Start-Sleep -Milliseconds 200 }
     Test-Equal 'reload: it came up as the new version' '0.0.2-it' (Invoke-Vigil version --supervisor).Text

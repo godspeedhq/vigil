@@ -282,6 +282,20 @@ try {
         return
     }
 
+    # The packs, on a fresh install: vigil pack update replaces them later,
+    # and an upgrade leaves them alone (18.10).
+    $srcPacks = Join-Path $src 'packs'
+    if (Test-Path -LiteralPath $srcPacks) {
+        foreach ($p in Get-ChildItem -LiteralPath $srcPacks -Directory) {
+            $to = Join-Path $root "packs\$($p.Name)"
+            if (Test-Path -LiteralPath $to) { continue }
+            [void](New-Item -ItemType Directory -Force -Path $to)
+            Copy-Item -LiteralPath (Join-Path $p.FullName 'pack.config') -Destination $to
+            $own = Join-Path $p.FullName 'windows'
+            if (Test-Path -LiteralPath $own) { Get-ChildItem -LiteralPath $own -File | Copy-Item -Destination $to }
+        }
+    }
+
     # --- 4. The vigil command: app\ on the PATH ---------------------------------------
 
     $app = Join-Path $root 'app'

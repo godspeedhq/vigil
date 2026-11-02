@@ -27,9 +27,9 @@
 #       Service control. Stopping leaves running workers alone (18.3).
 #   vigil [--root <dir>] status
 #       The service's state, then jobs.log.
-#   vigil [--root <dir>] init [--instance <name>] [--backend file,datadog,otel] [--no-sample]
+#   vigil [--root <dir>] init [empty] [--instance <name>] [--backend file,datadog,otel] [--no-pack]
 #       Writes a starting configuration (19): runners for the shells found
-#       here, the backends with env: placeholders, and a sample job. Asks
+#       here, the backends, and the base pack's jobs; empty for neither. Asks
 #       for what is not given when run at a terminal. Never overwrites a
 #       configuration, never asks for a secret value.
 #   vigil [--root <dir>] uninstall [--yes] [--keep-config]
@@ -43,8 +43,8 @@
 #   vigil [--root <dir>] self update [--check] [--version <version>]
 #       Upgrades this install to the latest release, or the one given (18.7).
 #       --check only says whether there is a newer one.
-#   vigil [--root <dir>] pack list | add <name> | update [--check] | remove <name>
-#       The packs of scripts and jobs added to this install (18.10).
+#   vigil [--root <dir>] pack list | enable <what> | disable <what> | update [--check]
+#       The packs of scripts and jobs (18.10). What is a pack or a pack_job.
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
@@ -73,7 +73,7 @@ for lib in config validate effective command schedule outcome metrics events rec
 done
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] [--pack <name>] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list | add <name> | update [--check] | remove <name>\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list | enable <what> | disable <what> | update [--check]\n' >&2
     exit 64
 }
 
@@ -169,19 +169,19 @@ case ${1-} in
         ;;
     init)
         shift
-        instance='' backends='' sample=1 asked=0 pack='' offered=0
+        instance='' backends='' pack=base asked=0 empty=0 secrets=''
+        if [ "${1-}" = empty ]; then
+            empty=1 pack=''
+            shift
+        fi
         while [ "$#" -gt 0 ]; do
             case $1 in
-                --instance | --backend | --pack)
+                --instance | --backend)
                     [ "$#" -ge 2 ] || usage
-                    case $1 in
-                        --instance) instance=$2 ;;
-                        --backend) backends=$2 ;;
-                        *) pack=$2 ;;
-                    esac
+                    if [ "$1" = --instance ]; then instance=$2; else backends=$2; fi
                     shift
                     ;;
-                --no-sample) sample=0 ;;
+                --no-pack) pack='' ;;
                 *) usage ;;
             esac
             shift
@@ -193,27 +193,53 @@ case ${1-} in
             IFS= read -r instance
             asked=1
         fi
-        if [ -t 0 ] && [ -z "$backends" ]; then
+        if [ -t 0 ] && [ -z "$backends" ] && [ "$empty" = 0 ]; then
             printf 'Backends, comma-separated: file, datadog, otel [file]: '
             IFS= read -r backends
             asked=1
-        fi
-        if [ -t 0 ] && [ -z "$pack" ]; then
-            printf 'Add the base pack of system metrics (CPU, memory, disk, network)? [Y/n]: '
-            IFS= read -r answer
-            case $answer in n* | N*) ;; *) pack=base offered=1 ;; esac
-            asked=1
+            # The credential: a name is asked for, and a secret's value only
+            # by vigil secret set, which does not show it.
+            for b in $(printf '%s' "$backends" | tr ',' ' '); do
+                case $b in
+                    datadog) name=DATADOG_API_KEY ;;
+                    otel) name=OTEL_API_KEY ;;
+                    *) continue ;;
+                esac
+                printf 'Credential for %s: (e)nvironment variable, (s)ecret store%s [e]: ' "$b" "$([ "$b" = otel ] && printf ', (n)one')"
+                IFS= read -r how
+                case $how in
+                    s* | S*)
+                        printf 'Secret name [%s]: ' "$name"
+                        IFS= read -r given
+                        name=${given:-$name}
+                        printf -v "VIGIL_INIT_REF_$b" '%s' "secret:$name"
+                        secrets="$secrets $name"
+                        ;;
+                    n* | N*)
+                        [ "$b" = otel ] || { printf 'vigil: datadog needs a credential\n' >&2; exit 1; }
+                        VIGIL_INIT_REF_otel=none
+                        ;;
+                    *)
+                        printf 'Environment variable [%s]: ' "$name"
+                        IFS= read -r given
+                        name=${given:-$name}
+                        printf -v "VIGIL_INIT_REF_$b" '%s' "env:$name"
+                        ;;
+                esac
+            done
         fi
         [ -n "$instance" ] || instance=${host:-vigil}
-        [ -n "$backends" ] || backends=file
+        [ -n "$backends" ] || [ "$empty" = 1 ] || backends=file
         [ "$asked" = 1 ] && printf '\n'
-        [ -z "$pack" ] || sample=0
-        vigil_init "$root" "$instance" "$(printf '%s' "$backends" | tr -d ' ')" "$sample" || exit $?
-        [ -n "$pack" ] || exit 0
-        if ! vigil_pack_add "$root" "$app" "$pack"; then
-            [ "$offered" = 1 ] || exit 1
-            printf 'the pack was not added: try vigil pack add %s later\n' "$pack"
+        vigil_init "$root" "$instance" "$(printf '%s' "$backends" | tr -d ' ')" || exit $?
+        for name in $secrets; do
+            printf 'The value of %s, which is not shown:\n' "$name"
+            "$BASH" "$app/vigil" --root "$root" secret set "$name" || printf 'not stored: run vigil secret set %s\n' "$name"
+        done
+        if [ -n "$pack" ] && [ -f "$root/packs/$pack/pack.config" ]; then
+            vigil_pack_enable "$root" "$pack" || exit 1
         fi
+        printf '\nNext: vigil precheck, then vigil service install\n'
         exit 0
         ;;
     uninstall)
@@ -298,8 +324,8 @@ case ${1-} in
     pack)
         case ${2-}:$# in
             list:2) vigil_pack_list "$root" ;;
-            add:3) vigil_pack_add "$root" "$app" "$3" ;;
-            remove:3) vigil_pack_remove "$root" "$3" ;;
+            enable:3) vigil_pack_enable "$root" "$3" ;;
+            disable:3) vigil_pack_disable "$root" "$3" ;;
             update:2) vigil_pack_update "$root" "$app" 0 ;;
             update:3)
                 [ "$3" = --check ] || usage

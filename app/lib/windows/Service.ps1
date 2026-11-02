@@ -344,6 +344,13 @@ function Get-VigilServiceStatus {
         $state += ' (Run entry, user mode)'
     }
     Write-Output "service: $state"
+    $cfgFile = Join-Path $Root 'config\vigil.config'
+    if ([System.IO.File]::Exists($cfgFile)) {
+        $cp = ConvertFrom-VigilConfig -Path $cfgFile
+        if ($cp.Errors.Count -eq 0 -and -not ($cp.Sections | Where-Object { $_.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) })) {
+            Write-Output 'metrics: no backend, so they go nowhere until you add one'
+        }
+    }
     Write-Output ''
     $ctx = Get-VigilWorkerContext -Root $Root -Job 'vigil_sender'
     $logs = if ($ctx.Error) { Join-Path $Root 'logs' } else { $ctx.Logs }

@@ -2,20 +2,21 @@
 #
 # init.sh - vigil init: a starting configuration (SPECIFICATION.md 19).
 #
-#   vigil_init <root> <instance> <backends> <sample>
+#   vigil_init <root> <instance> <backends>
 #
 # Writes config/vigil.config, commented, with runners for the shells found
-# on this machine, the chosen backends with env: placeholders for their
-# credentials, and one sample job (scripts/disk.sh) unless <sample> is 0.
-# Never overwrites a configuration, never asks for or stores a secret
-# value. <backends> is a comma-separated list of file, datadog and otel.
+# on this machine and the chosen backends, and no jobs: those are the packs'
+# and the operator's. Never overwrites a configuration, never holds a secret
+# value. <backends> is a comma-separated list of file, datadog and otel, which
+# may be empty. VIGIL_INIT_REF_datadog and VIGIL_INIT_REF_otel, when set, are
+# the credential's reference, or none: otherwise env: placeholders.
 
 _vigil_init_err() {
     printf 'vigil: %s\n' "$1" >&2
 }
 
 vigil_init() {
-    local root=$1 instance=$2 backends=$3 sample=$4 cfg b py env_names=''
+    local root=$1 instance=$2 backends=$3 cfg b py env_names='' ref
     cfg=$root/config/vigil.config
     if [ -e "$cfg" ]; then
         _vigil_init_err "$cfg exists; init never overwrites a configuration"
@@ -55,16 +56,22 @@ vigil_init() {
                     printf '[backend.file]\npath = metrics/vigil.prom\n\n'
                     ;;
                 datadog)
-                    printf '# Datadog. Set DATADOG_API_KEY in the service environment\n'
+                    ref=${VIGIL_INIT_REF_datadog:-env:DATADOG_API_KEY}
+                    printf '# Datadog. An env: credential goes in the service environment\n'
                     printf '# (systemctl edit vigil, or the plist'"'"'s EnvironmentVariables).\n'
-                    printf '[backend.datadog]\nendpoint = https://api.datadoghq.com\napi_key  = env:DATADOG_API_KEY\ntimeout  = 10s\n\n'
-                    env_names="$env_names DATADOG_API_KEY"
+                    printf '[backend.datadog]\nendpoint = https://api.datadoghq.com\napi_key  = %s\ntimeout  = 10s\n\n' "$ref"
+                    case $ref in env:*) env_names="$env_names ${ref#env:}" ;; esac
                     ;;
                 otel)
                     printf '# OpenTelemetry collector, OTLP/HTTP. Remove api_key if the\n'
                     printf '# collector needs no bearer token.\n'
-                    printf '[backend.otel]\nendpoint = http://localhost:4318/v1/metrics\napi_key  = env:OTEL_API_KEY\ntimeout  = 10s\n\n'
-                    env_names="$env_names OTEL_API_KEY"
+                    ref=${VIGIL_INIT_REF_otel:-env:OTEL_API_KEY}
+                    if [ "$ref" = none ]; then
+                        printf '[backend.otel]\nendpoint = http://localhost:4318/v1/metrics\ntimeout  = 10s\n\n'
+                    else
+                        printf '[backend.otel]\nendpoint = http://localhost:4318/v1/metrics\napi_key  = %s\ntimeout  = 10s\n\n' "$ref"
+                    fi
+                    case $ref in env:*) env_names="$env_names ${ref#env:}" ;; esac
                     ;;
             esac
         done
@@ -78,31 +85,14 @@ vigil_init() {
         printf '[runners]\n.sh = sh\n'
         [ -n "$py" ] && printf '.py = py\n'
         printf '\n'
-        if [ "$sample" = 1 ]; then
-            printf '# A sample job: the root filesystem'"'"'s use, every 5 minutes.\n'
-            printf '[job.disk]\nmetric_name = os.disk\nfile        = scripts/disk.sh\nrun_every   = 5m\nmax_runtime = 30s\n'
-        else
-            printf '# Jobs: one [job.<name>] section each. For example:\n'
-            printf '# [job.disk]\n# file        = scripts/disk.sh\n# run_every   = 5m\n# max_runtime = 30s\n'
-        fi
+        printf '# Your jobs: one [job.<name>] section each, with your scripts in scripts/.\n'
+        printf '# [job.backup]\n# file        = scripts/backup.sh\n# run_every   = 1h\n# max_runtime = 30m\n'
     } > "$cfg.tmp.$$" && mv -f "$cfg.tmp.$$" "$cfg" || return 1
     printf 'wrote %s\n' "$cfg"
-
-    if [ "$sample" = 1 ] && [ ! -e "$root/scripts/disk.sh" ]; then
-        cat > "$root/scripts/disk.sh" <<'EOF'
-# disk.sh - the root filesystem's use, as a metric (vigil init sample).
-# Prints: metric used_pct <percent>. Fails above 95%.
-used=$(df -P / | awk 'NR == 2 { v = $(NF - 1); sub("%", "", v); print v }')
-echo "metric used_pct $used"
-[ "$used" -le 95 ]
-EOF
-        printf 'wrote %s\n' "$root/scripts/disk.sh"
-    fi
 
     if [ -n "$env_names" ]; then
         printf '\nSet these in the service environment before starting Vigil:\n'
         for b in $env_names; do printf '  %s\n' "$b"; done
     fi
-    printf '\nNext: vigil precheck, then vigil service install\n'
     return 0
 }

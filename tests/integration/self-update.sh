@@ -100,6 +100,10 @@ rc=$?
 check 'install from the latest release' 0 "$rc"
 [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
 check 'its version' 'Vigil 0.0.1-it' "$(vigil version)"
+check 'the packs are in place' yes "$([ -f "$root/packs/base/cpu.sh" ] && echo yes || echo no)"
+check 'with no other platform''s scripts' 0 "$(find "$root/packs" -name '*.ps1' | wc -l | tr -d ' ')"
+check 'and in no platform folder' no "$([ -e "$root/packs/base/linux" ] && echo yes || echo no)"
+printf 'mine\n' > "$root/packs/base/untouched"
 check 'about: who made it' 1 "$(vigil about 2>/dev/null | grep -c '^Created by  Bankole Ogundero and the Vigil contributors$')"
 check 'about: where it is' 1 "$(vigil about 2>/dev/null | grep -cF "Installed   $root")"
 
@@ -264,6 +268,7 @@ case $(uname -s) in
         check 'reload: the same process' yes "$(kill -0 "$sup" 2>/dev/null && echo yes || echo no)"
         kill "$sup" 2>/dev/null
         wait "$sup" 2>/dev/null
+        check 'self update leaves the packs alone' yes "$([ -f "$root/packs/base/untouched" ] && echo yes || echo no)"
         check 'reload: it says so' 1 "$(grep -hc 'reloading: Vigil 0.0.1-it to 0.0.2-it' "$root"/logs/supervisor/2*.log | sort -n | tail -1)"
         if [ "$(grep -hc 'reloading: Vigil 0.0.1-it to 0.0.2-it' "$root"/logs/supervisor/2*.log | sort -n | tail -1)" != 1 ]; then
             cat "$root"/logs/supervisor/2*.log | tail -24 | sed 's/^/        sup: /'

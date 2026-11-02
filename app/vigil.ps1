@@ -30,11 +30,11 @@
         Service control. Stopping leaves running workers alone (18.3).
     vigil [-Root <dir>] status
         The service's state, then jobs.log.
-    vigil [-Root <dir>] pack list | add <name> | update [--check] | remove <name>
-        The packs of scripts and jobs added to this install (18.10).
-    vigil [-Root <dir>] init [--instance <name>] [--backend file,datadog,otel] [--no-sample] [--pack <name>]
+    vigil [-Root <dir>] pack list | enable <what> | disable <what> | update [--check]
+        The packs of scripts and jobs (18.10). What is a pack or a pack_job.
+    vigil [-Root <dir>] init [empty] [--instance <name>] [--backend file,datadog,otel] [--no-pack]
         Writes a starting configuration (19): runners for the PowerShell
-        hosts found here, the backends with env: placeholders, and a sample
+        hosts found here, the backends, and the base pack's jobs; empty for neither;
         job. Asks for what is not given when run at a console. Never
         overwrites a configuration, never asks for a secret value.
     vigil [-Root <dir>] uninstall [--yes] [--keep-config]
@@ -73,7 +73,7 @@ foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Ou
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] [--pack <name>] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list | add <name> | update [--check] | remove <name>`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list | enable <what> | disable <what> | update [--check]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -190,19 +190,23 @@ switch ($Command) {
         $argv = @(@($Job) + @($Rest) | Where-Object { $_ })
         $instance = ''
         $backends = ''
-        $sample = $true
-        $pack = ''
-        $offered = $false
+        $pack = 'base'
+        $empty = $false
+        $secrets = New-Object System.Collections.Generic.List[string]
+        $refs = @{}
+        if ($argv.Count -gt 0 -and $argv[0] -ceq 'empty') {
+            $empty = $true
+            $pack = ''
+            $argv = @($argv | Select-Object -Skip 1)
+        }
         for ($i = 0; $i -lt $argv.Count; $i++) {
             switch -CaseSensitive ($argv[$i]) {
-                { $_ -ceq '--instance' -or $_ -ceq '--backend' -or $_ -ceq '--pack' } {
+                { $_ -ceq '--instance' -or $_ -ceq '--backend' } {
                     if ($i + 1 -ge $argv.Count) { Exit-Usage }
-                    if ($argv[$i] -ceq '--instance') { $instance = $argv[$i + 1] }
-                    elseif ($argv[$i] -ceq '--backend') { $backends = $argv[$i + 1] }
-                    else { $pack = $argv[$i + 1] }
+                    if ($argv[$i] -ceq '--instance') { $instance = $argv[$i + 1] } else { $backends = $argv[$i + 1] }
                     $i++
                 }
-                '--no-sample' { $sample = $false }
+                '--no-pack' { $pack = '' }
                 default { Exit-Usage }
             }
         }
@@ -210,24 +214,48 @@ switch ($Command) {
         $hostName = ($env:COMPUTERNAME -replace '[^A-Za-z0-9_.-]', '-').ToLowerInvariant()
         $asked = $false
         if (-not [Console]::IsInputRedirected -and -not $instance) { $instance = Read-Host -Prompt "Instance name [$hostName]"; $asked = $true }
-        if (-not [Console]::IsInputRedirected -and -not $backends) { $backends = Read-Host -Prompt 'Backends, comma-separated: file, datadog, otel [file]'; $asked = $true }
-        if (-not [Console]::IsInputRedirected -and -not $pack) {
-            $a = Read-Host -Prompt 'Add the base pack of system metrics (CPU, memory, disk, network)? [Y/n]'
-            if ($a -cnotmatch '^[nN]') { $pack = 'base'; $offered = $true }
+        if (-not [Console]::IsInputRedirected -and -not $backends -and -not $empty) {
+            $backends = Read-Host -Prompt 'Backends, comma-separated: file, datadog, otel [file]'
             $asked = $true
+            # The credential: a name is asked for, and a secret's value only by
+            # vigil secret set, which does not show it.
+            foreach ($b in @($backends.Replace(' ', '').Split(',') | Where-Object { $_ -ceq 'datadog' -or $_ -ceq 'otel' })) {
+                $name = if ($b -ceq 'datadog') { 'DATADOG_API_KEY' } else { 'OTEL_API_KEY' }
+                $how = Read-Host -Prompt "Credential for ${b}: (e)nvironment variable, (s)ecret store$(if ($b -ceq 'otel') { ', (n)one' }) [e]"
+                if ($how -cmatch '^[sS]') {
+                    $given = Read-Host -Prompt "Secret name [$name]"
+                    if ($given) { $name = $given }
+                    $refs[$b] = "secret:$name"
+                    $secrets.Add($name)
+                }
+                elseif ($how -cmatch '^[nN]') {
+                    if ($b -cne 'otel') { [Console]::Error.WriteLine('vigil: datadog needs a credential'); exit 1 }
+                    $refs[$b] = 'none'
+                }
+                else {
+                    $given = Read-Host -Prompt "Environment variable [$name]"
+                    if ($given) { $name = $given }
+                    $refs[$b] = "env:$name"
+                }
+            }
         }
         if (-not $instance) { $instance = $hostName }
-        if (-not $backends) { $backends = 'file' }
+        if (-not $backends -and -not $empty) { $backends = 'file' }
         if ($asked) { Write-Output '' }
-        if ($pack) { $sample = $false }
-        try { Invoke-VigilInit -Root $Root -Instance $instance -Backends @($backends.Replace(' ', '').Split(',') | Where-Object { $_ }) -Sample $sample }
+        try { Invoke-VigilInit -Root $Root -Instance $instance -Backends @($backends.Replace(' ', '').Split(',') | Where-Object { $_ }) -Refs $refs }
         catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
-        if (-not $pack) { exit 0 }
-        $code = 0
-        Add-VigilPack -Root $Root -App $app -Name $pack | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
-        if ($code -eq 0) { exit 0 }
-        if (-not $offered) { exit 1 }
-        Write-Output "the pack was not added: try vigil pack add $pack later"
+        foreach ($n in $secrets) {
+            Write-Output "The value of $n, which is not shown:"
+            & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'vigil.ps1') -Root $Root secret set $n
+            if ($LASTEXITCODE -ne 0) { Write-Output "not stored: run vigil secret set $n" }
+        }
+        if ($pack -and [System.IO.File]::Exists((Join-Path $Root "packs\$pack\pack.config"))) {
+            $code = 0
+            Enable-VigilPack -Root $Root -What $pack | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+            if ($code -ne 0) { exit 1 }
+        }
+        Write-Output ''
+        Write-Output 'Next: vigil precheck, then vigil service install'
         exit 0
     }
     'uninstall' {
@@ -272,8 +300,8 @@ switch ($Command) {
         $argv = @($Rest | Where-Object { $_ })
         $code = 0
         if ($Job -ceq 'list' -and $argv.Count -eq 0) { Get-VigilPackList -Root $Root }
-        elseif ($Job -ceq 'add' -and $argv.Count -eq 1) { Add-VigilPack -Root $Root -App $app -Name $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
-        elseif ($Job -ceq 'remove' -and $argv.Count -eq 1) { Remove-VigilPack -Root $Root -Name $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
+        elseif ($Job -ceq 'enable' -and $argv.Count -eq 1) { Enable-VigilPack -Root $Root -What $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
+        elseif ($Job -ceq 'disable' -and $argv.Count -eq 1) { Disable-VigilPack -Root $Root -What $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
         elseif ($Job -ceq 'update' -and ($argv.Count -eq 0 -or ($argv.Count -eq 1 -and $argv[0] -ceq '--check'))) {
             Update-VigilPack -Root $Root -App $app -Check ($argv.Count -eq 1) | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
         }

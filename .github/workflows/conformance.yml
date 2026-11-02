@@ -55,6 +55,8 @@ jobs:
         timeout-minutes: 10
       - name: packs (/bin/bash)
         run: /bin/bash tests/integration/pack.sh
+      - name: the base pack (/bin/bash)
+        run: /bin/bash tests/integration/base-pack.sh
       - name: data format (/bin/bash)
         run: /bin/bash tests/integration/format.sh
         timeout-minutes: 5
@@ -126,6 +128,8 @@ jobs:
         timeout-minutes: 15
       - name: packs
         run: ./tests/integration/Pack.ps1
+      - name: the base pack
+        run: ./tests/integration/Base-Pack.ps1
       - name: data format
         run: ./tests/integration/Format.ps1
         timeout-minutes: 5

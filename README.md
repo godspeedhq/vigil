@@ -591,17 +591,19 @@ Today `file`, `datadog`, `otel` and `splunk` deliver. Events for an enabled back
 
 ## Packs
 
-A pack is a signed set of scripts and jobs from [vigil-packs](https://github.com/godspeedhq/vigil-packs), so you get useful metrics straight away. They have their own releases, so they change without a Vigil release, and they only ever update when you ask.
+A pack is a signed set of scripts and jobs, so you get useful metrics straight away. They live in this repository under `packs/`, with scripts for Linux, macOS and Windows, and a machine only ever holds its own platform's.
+
+`vigil init` turns on the base pack: CPU, memory, disk, network, load and services. To run only your own scripts, use `vigil init empty`: no jobs, no backend, and `scripts/` ready for your own.
 
 ```sh
-vigil pack add base          # the scripts, and their jobs in your configuration
-vigil pack list              # what is added here
-vigil pack update --check    # only say whether there is a newer one
-vigil pack update            # every added pack to the latest release
-vigil pack remove base       # takes both out
+vigil pack list                # each pack here, and whether its jobs are on
+vigil pack enable base_load    # a pack, or one of its jobs
+vigil pack disable base_load   # takes it out of the configuration; the script stays
+vigil pack update --check      # only say whether there is a newer one
+vigil pack update              # this platform's scripts from the latest release
 ```
 
-`vigil init` offers the base pack at a console, and `--pack base` adds it from a script. A pack's jobs are a marked block in `vigil.config`, so you can change how often they run: an update keeps your edits, adds new jobs and takes out those the pack dropped. Your own scripts are never touched. A pack with a bad or missing signature changes nothing, and neither does one that would leave your configuration invalid.
+Vigil only runs what your configuration names, so `vigil pack update` changes scripts and never your configuration. A job that's on runs the new script at its next run, and the update lists what changed. A new script stays off until you enable it, and a script the pack dropped stays while a job uses it. `vigil self update` updates Vigil itself and leaves packs alone.
 
 ## Writing jobs
 
