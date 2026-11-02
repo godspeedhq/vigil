@@ -315,10 +315,12 @@ try {
         $account.SetPassword($secret)
         $account.SetInfo()
         $userTask = 'Vigil IT User'
+        # Outside the runner's profile, which an ordinary account cannot enter.
+        $byDir = Join-Path $env:SystemDrive "vigil-it.$PID"
         # Runs vigil as that account, or tries what -Probe lists; @{ Code; Text }.
         function Invoke-AsUser {
             param([string[]]$Argv, [string[]]$Probe)
-            $f = "$work\user"
+            $f = "$byDir\user"
             Remove-Item -LiteralPath "$f.out", "$f.code" -ErrorAction SilentlyContinue
             $line = ($Argv | ForEach-Object { "'$_'" }) -join ', '
             $run = if ($Probe) { $Probe } else {
@@ -333,7 +335,11 @@ try {
                     "[System.IO.File]::WriteAllText('$f.out', ((`$o | ForEach-Object { `"`$_`" }) -join `"``n`"))",
                     "[System.IO.File]::WriteAllText('$f.code', `"`$c`")"))
             Start-ScheduledTask -TaskName $userTask
-            for ($i = 0; $i -lt 480 -and -not (Test-Path -LiteralPath "$f.code"); $i++) { Start-Sleep -Milliseconds 500 }
+            for ($i = 0; $i -lt 480 -and -not (Test-Path -LiteralPath "$f.code"); $i++) {
+                Start-Sleep -Milliseconds 500
+                if ($i -gt 10 -and (Get-ScheduledTask -TaskName $userTask).State -eq 'Ready') { break }
+            }
+            if (-not (Test-Path -LiteralPath "$f.code")) { Write-Host "        the test account's task: $((Get-ScheduledTaskInfo -TaskName $userTask).LastTaskResult)" }
             $text = if (Test-Path -LiteralPath "$f.out") { [System.IO.File]::ReadAllText("$f.out") } else { '' }
             $code = if (Test-Path -LiteralPath "$f.code") { [System.IO.File]::ReadAllText("$f.code").Trim() } else { 'none' }
             return @{ Code = $code; Text = $text }
@@ -349,10 +355,11 @@ try {
             Test-Equal 'update-by: an unknown account is refused first' 'True' ([string](("$bad".Contains('vigil-nobody')) -and -not (Test-Path -LiteralPath "$work\no")))
 
             # The test account reads its script here, and writes its results.
-            $acl = Get-Acl -LiteralPath $work
+            [void](New-Item -ItemType Directory -Force -Path $byDir)
+            $acl = Get-Acl -LiteralPath $byDir
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($it, 'Modify', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
-            Set-Acl -LiteralPath $work -AclObject $acl
-            $ac = New-ScheduledTaskAction -Execute $shell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$work\user.ps1`""
+            Set-Acl -LiteralPath $byDir -AclObject $acl
+            $ac = New-ScheduledTaskAction -Execute $shell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$byDir\user.ps1`""
             [void](Register-ScheduledTask -TaskName $userTask -Action $ac -User $it -Password $secret -RunLevel Limited)
 
             # A task's environment comes from the machine, not from the caller.
@@ -361,7 +368,7 @@ try {
 
             $w = Invoke-AsUser @('version')
             Test-Equal 'update-by: the account can run vigil' 'Vigil 0.0.1-it' $w.Text
-            Test-Equal 'update-by: not as an administrator' 'False' ([string](Invoke-AsUser @('service', 'stop')).Code.Equals('0'))
+            Test-Equal 'update-by: not as an administrator' 'True' ([string]((Invoke-AsUser @('service', 'stop')).Code -cmatch '^[1-9]'))
             Test-Equal 'update-by: the service still runs' 'True' ([string](Invoke-Vigil status).Text.StartsWith('service: active'))
 
             Set-Latest '0.0.2-it'
@@ -416,6 +423,7 @@ try {
             [Environment]::SetEnvironmentVariable('VIGIL_TEST_RELEASE_KEY', [NullString]::Value, 'Machine')
             Unregister-ScheduledTask -TaskName $userTask -Confirm:$false -ErrorAction SilentlyContinue
             $computer.Delete('User', $it)
+            Remove-Item -LiteralPath $byDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }
