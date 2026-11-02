@@ -265,6 +265,10 @@ case $(uname -s) in
         kill "$sup" 2>/dev/null
         wait "$sup" 2>/dev/null
         check 'reload: it says so' 1 "$(grep -hc 'reloading: Vigil 0.0.1-it to 0.0.2-it' "$root"/logs/supervisor/2*.log | sort -n | tail -1)"
+        if [ "$(grep -hc 'reloading: Vigil 0.0.1-it to 0.0.2-it' "$root"/logs/supervisor/2*.log | sort -n | tail -1)" != 1 ]; then
+            cat "$root"/logs/supervisor/2*.log | tail -24 | sed 's/^/        sup: /'
+            sed 's/^/        update: /' "$work/out"
+        fi
         grep -q 'reloading: Vigil' "$root"/logs/supervisor/2*.log || { ls -la "$root"/logs/supervisor; tail -n 12 "$root"/logs/supervisor/2*.log; cat "$work/out"; }
         ;;
 esac

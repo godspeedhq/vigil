@@ -114,7 +114,7 @@ function Test-Lifecycle {
     Write-Host "$tag, root $Root"
     $rc = Invoke-Vigil $Root @('service', 'install', "--$Mode", '--host', $HostName)
     Test-Equal "${tag}: service install succeeds" '0' "$rc"
-    if ($rc -ne 0) { Write-Host $script:lastOut }
+    if ($rc -ne 0) { $script:lastOut.Split("`n") | ForEach-Object { Write-Host "        $_" } }
     Test-Equal "${tag}: the service is active" 'active' (Get-SvcState $Root)
 
     $st = Join-Path $Root 'state\jobs\hold.state'
@@ -141,6 +141,10 @@ function Test-Lifecycle {
     if ($Mode -ceq 'system') { Test-Equal "${tag}: the supervisor stopped gracefully" 'True' "$($stopped -gt 0)" }
 
     Test-Equal "${tag}: start succeeds" '0' "$(Invoke-Vigil $Root @('start'))"
+    if ($script:lastOut -cnotmatch 'started vigil') {
+        Write-Host "        start said: $script:lastOut"
+        Get-ChildItem -LiteralPath $log -File | ForEach-Object { Write-Host "        [$($_.Name)]"; Get-Content -LiteralPath $_.FullName -Tail 12 | ForEach-Object { Write-Host "        $_" } }
+    }
     Test-Equal "${tag}: the service is active after start" 'active' (Get-SvcState $Root)
     Test-Equal "${tag}: restart succeeds" '0' "$(Invoke-Vigil $Root @('restart'))"
     Test-Equal "${tag}: the service is active after restart" 'active' (Get-SvcState $Root)
@@ -187,6 +191,9 @@ else {
 }
 
 Test-Equal 'an unknown host is refused' '1' "$(Invoke-Vigil $repo @('service', 'install', '--user', '--host', 'cmd'))"
+
+# A new profile may have no Run key. Only on CI: it holds other programs' entries.
+if ($env:CI) { Remove-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Recurse -ErrorAction SilentlyContinue }
 
 $root = Join-Path $tmp "vigil svc user.$PID"
 New-Root $root

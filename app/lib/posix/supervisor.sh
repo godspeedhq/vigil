@@ -278,6 +278,9 @@ _vigil_sup_account() {
             rid=${rid%.token}
             _vigil_sup_held "$token"
             case $_su_held in yes) tstate=held ;; no) tstate=free ;; *) tstate=free; proc=error ;; esac
+            # A worker writes its final state, then lets go of the token: read
+            # after, or a run ending just now looks crashed.
+            [ "$tstate" = held ] || _vigil_sup_read_state "$_su_statedir/jobs/$job.state"
         else
             rid=$_ss_run_id
         fi
