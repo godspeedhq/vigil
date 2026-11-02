@@ -1,0 +1,20 @@
+supervisor/2026-10-30.log	2026-10-30T15:07:35Z INFO supervisor configuration loaded
+supervisor/2026-10-30.log	2026-10-30T15:07:35Z WARN supervisor job a: slot missed
+supervisor/2026-10-30.log	2026-10-30T15:07:35Z ERROR supervisor configuration rejected
+supervisor/2026-10-30.log	not a supervisor line
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 run start
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 run end succeeded in 2s
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 run end warning (exit code 1) in 2s
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 run end failed (exit code 2) in 2s
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 run end timed_out (stopped) in 2s
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 out metric rows 5 table=orders
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 out 
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 out say "hi" C:\temp	tab
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 out ctl [0m del 
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 out caf√© ‚Ç¨ üòÄ
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 out bad ˇ √ Ì†Ä ¿Ä ÙêÄÄ end
+jobs/chatty/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 err stderr is not in include
+jobs/quiet/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 out forward_output is false
+jobs/quiet/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 run start
+jobs/gone/2026-10-30.log	2026-10-30T15:07:35Z 20261030T150733Z-16052 out a job no longer configured
+jobs/vigil_fetch/2026-10-30.log	an old line in no format

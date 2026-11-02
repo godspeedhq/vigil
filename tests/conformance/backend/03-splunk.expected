@@ -1,0 +1,54 @@
+send splunk
+> POST https://splunk.example.com:8088/services/collector/event (5s)
+>   Content-Type: application/json
+>   Authorization: Splunk hec-test-token
+>   {"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.duration_seconds","_value":3,"metric_type":"gauge","os":"linux","instance":"it","job":"backup","env":"prod"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.runs","_value":1,"metric_type":"count","os":"linux","instance":"it","job":"backup"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"odd.label","_value":-0.25,"metric_type":"gauge","job":"x","path":"C:\\temp\\\"x\"","ratio":"a=b"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"reserved.names","_value":1,"metric_type":"gauge","tag_source":"a","tag_index":"b","tag__hidden":"c","tag_metric_name":"d","tag_time":"e"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"no.host","_value":1,"metric_type":"gauge","os":"linux"}}
+= sent 5
+dropped invalid 2
+send splunk_full
+> POST https://hec.example.com/custom/path (10s, ca_file /etc/vigil/ca.pem)
+>   Content-Type: application/json
+>   Authorization: Splunk hec-test-token
+>   {"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.duration_seconds","_value":3,"metric_type":"gauge","os":"linux","instance":"it","job":"backup","env":"prod"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.runs","_value":1,"metric_type":"count","os":"linux","instance":"it","job":"backup"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"odd.label","_value":-0.25,"metric_type":"gauge","job":"x","path":"C:\\temp\\\"x\"","ratio":"a=b"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"reserved.names","_value":1,"metric_type":"gauge","tag_source":"a","tag_index":"b","tag__hidden":"c","tag_metric_name":"d","tag_time":"e"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"no.host","_value":1,"metric_type":"gauge","os":"linux"}}
+= sent 5
+dropped invalid 2
+send splunk
+> POST https://splunk.example.com:8088/services/collector/event (5s)
+>   Content-Type: application/json
+>   Authorization: Splunk hec-test-token
+>   {"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.duration_seconds","_value":3,"metric_type":"gauge","os":"linux","instance":"it","job":"backup","env":"prod"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.runs","_value":1,"metric_type":"count","os":"linux","instance":"it","job":"backup"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"odd.label","_value":-0.25,"metric_type":"gauge","job":"x","path":"C:\\temp\\\"x\"","ratio":"a=b"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"reserved.names","_value":1,"metric_type":"gauge","tag_source":"a","tag_index":"b","tag__hidden":"c","tag_metric_name":"d","tag_time":"e"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"no.host","_value":1,"metric_type":"gauge","os":"linux"}}
+! permission denied (HTTP 401)
+send splunk
+> POST https://splunk.example.com:8088/services/collector/event (5s)
+>   Content-Type: application/json
+>   Authorization: Splunk hec-test-token
+>   {"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.duration_seconds","_value":3,"metric_type":"gauge","os":"linux","instance":"it","job":"backup","env":"prod"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.runs","_value":1,"metric_type":"count","os":"linux","instance":"it","job":"backup"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"odd.label","_value":-0.25,"metric_type":"gauge","job":"x","path":"C:\\temp\\\"x\"","ratio":"a=b"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"reserved.names","_value":1,"metric_type":"gauge","tag_source":"a","tag_index":"b","tag__hidden":"c","tag_metric_name":"d","tag_time":"e"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"no.host","_value":1,"metric_type":"gauge","os":"linux"}}
+! permission denied (HTTP 403)
+send splunk
+> POST https://splunk.example.com:8088/services/collector/event (5s)
+>   Content-Type: application/json
+>   Authorization: Splunk hec-test-token
+>   {"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.duration_seconds","_value":3,"metric_type":"gauge","os":"linux","instance":"it","job":"backup","env":"prod"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.runs","_value":1,"metric_type":"count","os":"linux","instance":"it","job":"backup"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"odd.label","_value":-0.25,"metric_type":"gauge","job":"x","path":"C:\\temp\\\"x\"","ratio":"a=b"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"reserved.names","_value":1,"metric_type":"gauge","tag_source":"a","tag_index":"b","tag__hidden":"c","tag_metric_name":"d","tag_time":"e"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"no.host","_value":1,"metric_type":"gauge","os":"linux"}}
+! no answer from splunk.example.com:8088 within 5s
+send splunk
+> POST https://splunk.example.com:8088/services/collector/event (5s)
+>   Content-Type: application/json
+>   Authorization: Splunk hec-test-token
+>   {"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.duration_seconds","_value":3,"metric_type":"gauge","os":"linux","instance":"it","job":"backup","env":"prod"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.runs","_value":1,"metric_type":"count","os":"linux","instance":"it","job":"backup"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"odd.label","_value":-0.25,"metric_type":"gauge","job":"x","path":"C:\\temp\\\"x\"","ratio":"a=b"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"reserved.names","_value":1,"metric_type":"gauge","tag_source":"a","tag_index":"b","tag__hidden":"c","tag_metric_name":"d","tag_time":"e"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"no.host","_value":1,"metric_type":"gauge","os":"linux"}}
+= sent 0
+dropped invalid 2
+dropped rejected 5
+send splunk
+> POST https://splunk.example.com:8088/services/collector/event (5s)
+>   Content-Type: application/json
+>   Authorization: Splunk hec-test-token
+>   {"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.duration_seconds","_value":3,"metric_type":"gauge","os":"linux","instance":"it","job":"backup","env":"prod"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"db.backup.runs","_value":1,"metric_type":"count","os":"linux","instance":"it","job":"backup"}}{"time":1793304870,"host":"db01","source":"vigil","event":"metric","fields":{"metric_name":"odd.label","_value":-0.25,"metric_type":"gauge","job":"x","path":"C:\\temp\\\"x\"","ratio":"a=b"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"reserved.names","_value":1,"metric_type":"gauge","tag_source":"a","tag_index":"b","tag__hidden":"c","tag_metric_name":"d","tag_time":"e"}}{"time":1793304870,"source":"vigil","event":"metric","fields":{"metric_name":"no.host","_value":1,"metric_type":"gauge","os":"linux"}}
+! HTTP 503 from splunk.example.com:8088
+send splunk_nokey
+! the backend needs 'token'
+send splunk_noendpoint
+! the backend needs 'endpoint'
+send splunk_plain
+! endpoint must be https (plain http only to this host)
+send splunk
+! token env:VIGIL_TEST_HEC_TOKEN: not set in the environment

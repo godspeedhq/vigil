@@ -12,7 +12,7 @@
 #     and _vw_root, _vw_statedir, _vw_spooldir, _vw_host and _vw_os set.
 #     Returns 0, or 1 with _vw_reason set when a backend failed.
 #
-# Backend types implemented so far: file, datadog and otel. Events for a
+# Backend types implemented so far: file, datadog, otel and splunk. Events for a
 # backend of any other type are not queued; they are counted as dropped
 # with reason=not_implemented, so the spool never fills with events that
 # cannot be sent.
@@ -20,7 +20,7 @@
 # Requires config.sh, effective.sh, worker.sh, prom.sh and backends.sh.
 
 VIGIL_SEND_BATCH=500
-VIGIL_SEND_TYPES=' file datadog otel '
+VIGIL_SEND_TYPES=' file datadog otel splunk '
 # An HTTP backend's request: at most this many bytes of events, so the body
 # stays within Datadog's 500 KB, and at most this many requests per run.
 VIGIL_SEND_HTTP_BYTES=160000

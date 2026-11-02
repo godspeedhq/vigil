@@ -234,6 +234,8 @@ function Get-VigilKeyType {
                 'timeout' { $t = 'dur' }
                 'header_name' { $t = 'text' }
                 'header_value' { $t = 'credential' }
+                'token' { $t = 'credential' }
+                'api_key' { $t = 'credential' }
             }
         }
         'runner' {
@@ -402,7 +404,7 @@ function Test-VigilValue {
             }
         }
         'log_dest_type' {
-            if ($Value -cne 'otel') { $r.Code = 'E_ENUM'; $r.Message = "'$Key' must be otel: $Value" }
+            if (@('otel', 'splunk', 'datadog') -cnotcontains $Value) { $r.Code = 'E_ENUM'; $r.Message = "'$Key' must be otel, splunk or datadog: $Value" }
         }
         'https_url' {
             # The URL itself is never shown, since a mistaken one may carry a password.
@@ -935,6 +937,11 @@ function Test-VigilConfig {
             { $_ -ceq 'log_forward' -or $_ -ceq 'log_destination' } {
                 # Required keys (13.4.1).
                 $needed = if ($kind -ceq 'log_destination') { @('type', 'endpoint') } else { @('destination') }
+                if ($kind -ceq 'log_destination') {
+                    $type = @($Parsed.Entries | Where-Object { $_.Section -ceq $name -and $_.Key -ceq 'type' } | ForEach-Object { $_.Value })
+                    if ($type -ccontains 'splunk') { $needed += 'token' }
+                    elseif ($type -ccontains 'datadog') { $needed += 'api_key' }
+                }
                 foreach ($k in $needed) {
                     if (-not $seen.Contains($k)) { & $report $sline 'E_KEY_REQUIRED' "[$name] needs '$k'"; break }
                 }

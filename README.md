@@ -82,15 +82,15 @@ Vigil's guiding rules:
 | Uncertain runs: recovery records, `on_uncertain`, `vigil resolve` | Done |
 | Spool with write-ahead fan-out, size cap, per-backend backoff | Done |
 | Backend: `file` (Prometheus text format, for node_exporter / windows_exporter) | Done |
-| Backends: `datadog` (Series API v2) and `otel` (OTLP/HTTP JSON) | Done |
-| Backends: Splunk and the rest | Specified, not built |
+| Backends: `datadog` (Series API v2), `otel` (OTLP/HTTP JSON) and `splunk` (HTTP Event Collector) | Done |
+| Backends: the rest | Specified, not built |
 | `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done |
 | Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done |
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done |
 | One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums | Done |
 | `vigil self update`: verified, rolls back if the new version does not run, keeps your configuration, scripts and running jobs | Done |
 | Fetching configuration and scripts from git, https, sftp and local directories or shares: digests, atomic activation, last good configuration | Done |
-| Forwarding Vigil's own logs over OTLP, with checkpoints, backoff and reported gaps | Done |
+| Forwarding Vigil's own logs over OTLP, Splunk HEC or Datadog's logs intake, with checkpoints, backoff and reported gaps | Done |
 | Log retention: `retain_days`, `log_retain_days` | Done |
 | Per-file log size cap: `max_file_mb` | Done |
 | Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
@@ -575,11 +575,17 @@ api_key  = env:DATADOG_API_KEY
 [backend.otel]
 endpoint = https://collector.example.com:4318/v1/metrics
 api_key  = secret:OTEL_TOKEN
+
+[backend.splunk]
+endpoint = https://splunk.example.com:8088
+token    = secret:SPLUNK_HEC_TOKEN
 ```
 
-Both are `https` only, except to a collector on the same host. Batches the backend rejects as malformed, and points too old for Datadog, are dropped and counted in `vigil.spool.dropped` (`reason=rejected`, `too_old`), never retried forever.
+For `splunk`, the token's default index must be a metrics index.
 
-Today `file`, `datadog` and `otel` deliver. Events for an enabled backend of any other type are not queued: they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
+All are `https` only, except to a collector on the same host. Batches the backend rejects as malformed, and points too old for Datadog, are dropped and counted in `vigil.spool.dropped` (`reason=rejected`, `too_old`), never retried forever.
+
+Today `file`, `datadog`, `otel` and `splunk` deliver. Events for an enabled backend of any other type are not queued: they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
 
 ---
 
@@ -691,7 +697,7 @@ Comments are whole lines starting with `#` or `;`. There are no inline comments:
 
 ### Forwarding Vigil's logs
 
-Vigil can send its own logs to your logging pipeline over OTLP. It is off until you ask for it:
+Vigil can send its own logs to your logging pipeline over OTLP, or straight to Splunk (`type = splunk`, `token`) or Datadog (`type = datadog`, `api_key`). It is off until you ask for it:
 
 ```ini
 [log_forward]

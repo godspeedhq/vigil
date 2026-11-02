@@ -105,7 +105,7 @@ _vigil_val_keytype() {
         log_destination:endpoint) _vv_type=log_url ;;
         log_destination:timeout) _vv_type=dur ;;
         log_destination:header_name) _vv_type=text ;;
-        log_destination:header_value) _vv_type=credential ;;
+        log_destination:header_value | log_destination:token | log_destination:api_key) _vv_type=credential ;;
         secret_store:type) _vv_type=store_type ;;
         secret_store:command) _vv_type=path ;;
         secret_store:arg) _vv_type=arg; _vv_list=1 ;;
@@ -442,8 +442,8 @@ _vigil_val_check() {
             ;;
         log_dest_type)
             case $value in
-                otel) ;;
-                *) _vv_code=E_ENUM; _vv_msg="'$key' must be otel: $value" ;;
+                otel | splunk | datadog) ;;
+                *) _vv_code=E_ENUM; _vv_msg="'$key' must be otel, splunk or datadog: $value" ;;
             esac
             ;;
         https_url)
@@ -999,7 +999,20 @@ vigil_config_validate() {
             log_forward | log_destination)
                 # Required keys (13.4.1).
                 req='destination'
-                [ "$kind" = log_destination ] && req='type endpoint'
+                if [ "$kind" = log_destination ]; then
+                    req='type endpoint'
+                    i=${VIGIL_CFG_SEC_FIRST[$si]}
+                    n=$((i + VIGIL_CFG_SEC_COUNT[si]))
+                    while [ "$i" -lt "$n" ]; do
+                        if [ "${VIGIL_CFG_KEY[$i]}" = type ]; then
+                            case ${VIGIL_CFG_VALUE[$i]} in
+                                splunk) req='type endpoint token' ;;
+                                datadog) req='type endpoint api_key' ;;
+                            esac
+                        fi
+                        i=$((i + 1))
+                    done
+                fi
                 for key in $req; do
                     case $seen in
                         *$nl"$key"$nl*) ;;

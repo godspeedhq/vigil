@@ -18,7 +18,7 @@
 #>
 
 $Script:VigilSendBatch = 500
-$Script:VigilSendTypes = @('file', 'datadog', 'otel')
+$Script:VigilSendTypes = @('file', 'datadog', 'otel', 'splunk')
 # An HTTP backend's request: at most this many bytes of events, so the body
 # stays within Datadog's 500 KB, and at most this many requests per run.
 $Script:VigilSendHttpBytes = 160000

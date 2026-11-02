@@ -4,13 +4,13 @@
 .SYNOPSIS
     Vigil HTTP backends - Windows PowerShell 5.1 compatible.
 .DESCRIPTION
-    Datadog (Series API v2) and OpenTelemetry (OTLP/HTTP, JSON encoding),
-    SPECIFICATION.md 15.3. Builds one request from a batch of spool event
+    Datadog (Series API v2), OpenTelemetry (OTLP/HTTP, JSON encoding) and
+    Splunk (HTTP Event Collector), SPECIFICATION.md 15.3. Builds one request from a batch of spool event
     files, sends it with the HTTPS client of Stores.ps1, and says what
     became of the batch. The twin of backends.sh, which documents the rules;
     tests/conformance/backend holds the shared cases.
 
-    New-VigilBackendBody -Type <datadog | otel> -Now <epoch> -Events <file>...
+    New-VigilBackendBody -Type <datadog | otel | splunk> -Now <epoch> -Events <file>...
     returns @{ Body; Points; Drops }, Drops a list of "<reason> <count>".
 
     Send-VigilBackend -Root <dir> -Parsed <config> -Name <name> -Type <type> -Events <file>...
@@ -26,6 +26,14 @@ $Script:VigilDatadogMaxAge = 3600
 # The time requests are made at; replaced by the conformance runner.
 function Get-VigilBackendNow {
     return [DateTimeOffset]::Now.ToUnixTimeSeconds()
+}
+
+# The name of a tag as a Splunk field: a name Splunk keeps for itself gets a
+# prefix.
+function ConvertTo-VigilSplunkKey {
+    param([string]$Key)
+    if ($Key -cmatch '^(metric_name|source|sourcetype|index|time|host|_.*)$') { return "tag_$Key" }
+    return $Key
 }
 
 function New-VigilBackendBody {
@@ -65,11 +73,19 @@ function New-VigilBackendBody {
                 $key = $w[$t].Substring(0, $eq)
                 $val = $w[$t].Substring($eq + 1)
                 if ($Type -ceq 'otel') { $tags.Add("{`"key`":`"$key`",`"value`":{`"stringValue`":$(& $q $val)}}") }
+                elseif ($Type -ceq 'splunk') {
+                    if ($key -ceq 'host') { $res = "`"host`":$(& $q $val)," }
+                    else { $tags.Add(",`"$(ConvertTo-VigilSplunkKey $key)`":$(& $q $val)") }
+                }
                 elseif ($key -ceq 'host') { $res = ",`"resources`":[{`"name`":$(& $q $val),`"type`":`"host`"}]" }
                 else { $tags.Add((& $q "${key}:$val")) }
             }
-            if ($points -gt 0) { [void]$sb.Append(',') }
-            if ($Type -ceq 'datadog') {
+            # HEC takes events one after another, not as a list.
+            if ($points -gt 0 -and $Type -cne 'splunk') { [void]$sb.Append(',') }
+            if ($Type -ceq 'splunk') {
+                [void]$sb.Append("{`"time`":$epoch,$res`"source`":`"vigil`",`"event`":`"metric`",`"fields`":{`"metric_name`":`"$name`",`"_value`":$value,`"metric_type`":`"$kind`"$($tags -join '')}}")
+            }
+            elseif ($Type -ceq 'datadog') {
                 $n = if ($kind -ceq 'count') { 1 } else { 3 }
                 [void]$sb.Append("{`"metric`":`"$name`",`"type`":$n,`"points`":[{`"timestamp`":$epoch,`"value`":$value}]$res,`"tags`":[$($tags -join ',')]}")
             }
@@ -83,6 +99,7 @@ function New-VigilBackendBody {
         }
     }
     $body = if ($Type -ceq 'datadog') { "{`"series`":[$($sb.ToString())]}" }
+    elseif ($Type -ceq 'splunk') { $sb.ToString() }
     else { "{`"resourceMetrics`":[{`"resource`":{`"attributes`":[{`"key`":`"service.name`",`"value`":{`"stringValue`":`"vigil`"}}]},`"scopeMetrics`":[{`"scope`":{`"name`":`"vigil`"},`"metrics`":[$($sb.ToString())]}]}]}" }
     $drops = New-Object System.Collections.Generic.List[string]
     if ($invalid -gt 0) { $drops.Add("invalid $invalid") }
@@ -94,17 +111,20 @@ function Send-VigilBackend {
     param([string]$Root, $Parsed, [string]$Name, [string]$Type, [string[]]$Events)
     $fail = { param([string]$Why) @{ Ok = $false; Sent = 0; Drops = (New-Object System.Collections.Generic.List[string]); Why = $Why } }
     $endpoint = ''; $key = ''; $ca = ''; $timeout = 10
+    $keyName = if ($Type -ceq 'splunk') { 'token' } else { 'api_key' }
     foreach ($e in $Parsed.Entries) {
         if ($e.Section -cne "backend.$Name") { continue }
         switch -CaseSensitive ($e.Key) {
             'endpoint' { $endpoint = $e.Value }
-            'api_key' { $key = $e.Value }
+            'api_key' { if ($keyName -ceq 'api_key') { $key = $e.Value } }
+            'token' { if ($keyName -ceq 'token') { $key = $e.Value } }
             'ca_file' { $ca = $e.Value }
             'timeout' { $timeout = ConvertTo-VigilSeconds $e.Value }
         }
     }
     if ($ca -and -not ($ca.StartsWith('/') -or [System.IO.Path]::IsPathRooted($ca))) { $ca = Join-Path $Root $ca }
     if (-not $endpoint) {
+        if ($Type -ceq 'splunk') { return & $fail "the backend needs 'endpoint'" }
         $endpoint = if ($Type -ceq 'datadog') { 'https://api.datadoghq.com' } else { 'http://localhost:4318/v1/metrics' }
     }
 
@@ -116,11 +136,11 @@ function Send-VigilBackend {
     if ($endpoint -cmatch '^http://(localhost|127\.0\.0\.1|\[::1\])([:/].*)?$') { $meta = $true }
     elseif (-not $endpoint.StartsWith('https://', [System.StringComparison]::Ordinal)) { return & $fail 'endpoint must be https (plain http only to this host)' }
     if ($hostPart.IndexOf('@') -ge 0) { return & $fail 'endpoint must not hold credentials' }
-    # Datadog's endpoint is the site; OTLP's is the full URL, or a bare
-    # collector address that gets the standard path.
+    # Datadog's endpoint is the site; the others' is the full URL, or a bare
+    # address that gets the standard path.
     $url = if ($endpoint.EndsWith('/')) { $endpoint.Substring(0, $endpoint.Length - 1) } else { $endpoint }
     if ($Type -ceq 'datadog') { $url += '/api/v2/series' }
-    elseif ($url.Substring($url.IndexOf('://') + 3).IndexOf('/') -lt 0) { $url += '/v1/metrics' }
+    elseif ($url.Substring($url.IndexOf('://') + 3).IndexOf('/') -lt 0) { $url += $(if ($Type -ceq 'splunk') { '/services/collector/event' } else { '/v1/metrics' }) }
 
     $b = New-VigilBackendBody -Type $Type -Now (Get-VigilBackendNow) -Events $Events
     if ($b.Points -eq 0) { return @{ Ok = $true; Sent = 0; Drops = $b.Drops; Why = '' } }
@@ -128,12 +148,14 @@ function Send-VigilBackend {
     $headers = @('Content-Type: application/json')
     if ($key) {
         $r = Resolve-VigilSecret -Root $Root -Parsed $Parsed -Reference $key
-        if (-not $r.Ok) { return & $fail "api_key ${key}: $($r.Why)" }
-        if ($r.Value -match '[\x00-\x1f\x7f]') { return & $fail "api_key ${key}: contains a control character" }
-        if ($Type -ceq 'datadog') { $headers += "DD-API-KEY: $($r.Value)" } else { $headers += "Authorization: Bearer $($r.Value)" }
+        if (-not $r.Ok) { return & $fail "$keyName ${key}: $($r.Why)" }
+        if ($r.Value -match '[\x00-\x1f\x7f]') { return & $fail "$keyName ${key}: contains a control character" }
+        if ($Type -ceq 'datadog') { $headers += "DD-API-KEY: $($r.Value)" }
+        elseif ($Type -ceq 'splunk') { $headers += "Authorization: Splunk $($r.Value)" }
+        else { $headers += "Authorization: Bearer $($r.Value)" }
         $r = $null
     }
-    elseif ($Type -ceq 'datadog') { return & $fail "the backend needs 'api_key'" }
+    elseif ($Type -cne 'otel') { return & $fail "the backend needs '$keyName'" }
 
     $r = Invoke-VigilHttpSend -Timeout $timeout -Method 'POST' -Url $url -CaFile $ca -Metadata $meta -Headers $headers -Body $b.Body
     $headers = $null

@@ -5,9 +5,10 @@
     Vigil log forwarder - Windows PowerShell 5.1 compatible.
 .DESCRIPTION
     The body of the vigil_logs worker (SPECIFICATION.md 13.4): sends what is
-    new in Vigil's own logs to the [log_destination.*] in OTLP/HTTP JSON, one
-    file and one request at a time, and moves each file's checkpoint only
-    past what the destination accepted. Local logs are never changed. The
+    new in Vigil's own logs to the [log_destination.*], over OTLP/HTTP JSON,
+    Splunk's HEC or Datadog's logs intake, one file and one request at a
+    time, and moves each file's checkpoint only past what the destination
+    accepted. Local logs are never changed. The
     twin of logs.sh.
 
     Invoke-VigilLogs -Ctx <worker context> -HostName <name> -Root <dir> -Log <file> -RunId <id>
@@ -22,9 +23,9 @@
         Whether a job's stdout and stderr may be forwarded.
     Remove-VigilOldLogs -Parsed <parsed> -LogDir <dir> -Epoch <time>
         Deletes the log files older than their retention (13.1).
-    ConvertTo-VigilLogRecord -File <file> -Line <line> -Include <list> -Output <bool>
-        Pure: the OTLP log record of one line of a log file (relative to
-        the log directory, with / separators), or '' when it is not
+    ConvertTo-VigilLogRecord -File <file> -Line <line> -Include <list> -Output <bool> -Type <type> -Shared <text>
+        Pure: the destination's record of one line of a log file (relative
+        to the log directory, with / separators), or '' when it is not
         forwarded. The line is a string of bytes, one character each, and so
         is the record: Latin-1 turns one into the other. Must produce exactly
         what logs.sh does - tests/conformance/logs holds the shared cases.
@@ -197,7 +198,7 @@ function Remove-VigilOldLogs {
 }
 
 function ConvertTo-VigilLogRecord {
-    param([string]$File, [string]$Line, [string[]]$Include, [bool]$Output)
+    param([string]$File, [string]$Line, [string[]]$Include, [bool]$Output, [string]$Type = 'otel', [string]$Shared = '')
     if ($Line.EndsWith("`r")) { $Line = $Line.Substring(0, $Line.Length - 1) }
     $sp = $Line.IndexOf(' ')
     $when = if ($sp -ge 0) { $Line.Substring(0, $sp) } else { $Line }
@@ -247,6 +248,23 @@ function ConvertTo-VigilLogRecord {
         $cut = $true
     }
     $epoch = ConvertFrom-VigilLogTime $when
+    if ($Type -cne 'otel') {
+        # A line with no time gets the time it arrives.
+        $more = "`"component`":`"$(if ($category -ceq 'supervisor') { 'supervisor' } else { 'job' })`",`"category`":`"$category`""
+        if ($job) { $more += ",`"job`":`"$(ConvertTo-VigilLogText $job)`"" }
+        if ($rid) { $more += ",`"run_id`":`"$(ConvertTo-VigilLogText $rid)`"" }
+        $more += ",`"source_file`":`"$(ConvertTo-VigilLogText $File)`""
+        if ($cut) { $more += ',"truncated":"true"' }
+        $m = ConvertTo-VigilLogText $msg
+        if ($Type -ceq 'datadog') {
+            $at = if ($epoch -ge 0) { "`"timestamp`":${epoch}000," } else { '' }
+            $level = if ($sev) { "`"status`":`"$sev`"," } else { '' }
+            return "{$Shared$at$level`"message`":`"$m`",$more}"
+        }
+        $at = if ($epoch -ge 0) { "`"time`":$epoch," } else { '' }
+        $level = if ($sev) { "`"severity`":`"$sev`"," } else { '' }
+        return "{$Shared$at`"event`":{$level`"message`":`"$m`",$more}}"
+    }
     $sb = New-Object System.Text.StringBuilder
     if ($epoch -ge 0) { [void]$sb.Append("{`"timeUnixNano`":`"${epoch}000000000`",") }
     else { [void]$sb.Append('{"timeUnixNano":"0",') }
@@ -357,7 +375,30 @@ function Invoke-VigilLogs {
     $secs = [int](ConvertTo-VigilSeconds (Get-VigilConfigValue $parsed $sec 'timeout' '10s'))
     $hname = Get-VigilConfigValue $parsed $sec 'header_name' ''
     $hvalue = Get-VigilConfigValue $parsed $sec 'header_value' ''
+    $type = Get-VigilConfigValue $parsed $sec 'type' 'otel'
+    $hkey = 'header_value'
+    $hprefix = ''
+    $speaks = 'OTLP'
     $hostPart = ($url -replace '^[a-z]+://', '').Split('/')[0]
+    if ($type -ceq 'splunk') {
+        $speaks = 'HEC'
+        $hname = 'Authorization'
+        $hprefix = 'Splunk '
+        $hkey = 'token'
+        $hvalue = Get-VigilConfigValue $parsed $sec 'token' ''
+        $url = $url.TrimEnd('/')
+        if ($url.Substring($url.IndexOf('://') + 3).IndexOf('/') -lt 0) { $url += '/services/collector/event' }
+    }
+    elseif ($type -ceq 'datadog') {
+        $speaks = 'a Datadog answer'
+        $hname = 'DD-API-KEY'
+        $hkey = 'api_key'
+        $hvalue = Get-VigilConfigValue $parsed $sec 'api_key' ''
+        $url = $url.TrimEnd('/')
+        if ($url.Substring($url.IndexOf('://') + 3).IndexOf('/') -lt 0) { $url += '/api/v2/logs' }
+        # The most entries Datadog takes in one request.
+        if ($batchLines -gt 1000) { $batchLines = 1000 }
+    }
     $plain = $url.StartsWith('http://', [System.StringComparison]::Ordinal)
 
     $failures = 0; $nextTry = [long]0; $prev = ''
@@ -381,6 +422,22 @@ function Invoke-VigilLogs {
     }
     $attrs += ',' + (ConvertTo-VigilLogAttr 'config.revision' $revision)
     $resource = "{`"attributes`":[$attrs]}"
+    # What every record of a request shares (13.4.2), for the others.
+    $shared = ''
+    if ($type -cne 'otel') {
+        $name = ''
+        $list = ''
+        foreach ($t in $tags.Split(' ')) {
+            $eq = $t.IndexOf('=')
+            $k = $t.Substring(0, $eq)
+            $v = $t.Substring($eq + 1)
+            if ($k -ceq 'host') { $name = ConvertTo-VigilLogText $v }
+            elseif ($type -ceq 'datadog') { $list += "${k}:$($v.Replace(',', '_'))," }
+            else { $list += "`"$(ConvertTo-VigilSplunkKey $k)`":`"$(ConvertTo-VigilLogText $v)`"," }
+        }
+        if ($type -ceq 'datadog') { $shared = "`"ddsource`":`"vigil`",`"service`":`"vigil`",`"hostname`":`"$name`",`"ddtags`":`"$(ConvertTo-VigilLogText "${list}config.revision:$revision")`"," }
+        else { $shared = "`"host`":`"$name`",`"source`":`"vigil`",`"sourcetype`":`"vigil:log`",`"fields`":{$list`"config.revision`":`"$revision`"}," }
+    }
 
     $gap = {
         param([string]$Reason, [long]$Bytes, [string]$What)
@@ -430,7 +487,9 @@ function Invoke-VigilLogs {
         param([string]$Batch, [int]$Count)
         $headers = @('Content-Type: application/json')
         if ($g.Header) { $headers += $g.Header }
-        $body = "{`"resourceLogs`":[{`"resource`":$resource,`"scopeLogs`":[{`"scope`":{`"name`":`"vigil`"},`"logRecords`":[$Batch]}]}]}"
+        $body = if ($type -ceq 'otel') { "{`"resourceLogs`":[{`"resource`":$resource,`"scopeLogs`":[{`"scope`":{`"name`":`"vigil`"},`"logRecords`":[$Batch]}]}]}" }
+        elseif ($type -ceq 'datadog') { "[$Batch]" }
+        else { $Batch }
         # The body is a byte string of valid UTF-8; the sender encodes text.
         $body = [System.Text.Encoding]::UTF8.GetString($Script:VigilLatin1.GetBytes($body))
         $r = Invoke-VigilHttpSend -Timeout $secs -Method 'POST' -Url $url -CaFile '' -Metadata $plain -Headers $headers -Body $body
@@ -457,11 +516,16 @@ function Invoke-VigilLogs {
         # never a success (13.4.5).
         $reply = $r.Body -replace '[ \t\r\n]', ''
         if ($reply -and -not ($reply.StartsWith('{') -and $reply.EndsWith('}'))) {
-            & $failed 'invalid_response' "an answer from $hostPart that is not OTLP"
+            & $failed 'invalid_response' "an answer from $hostPart that is not $speaks"
+            return 0
+        }
+        # HEC says so in its answer, as {"text":"Success","code":0}.
+        if ($type -ceq 'splunk' -and $r.Body -cnotmatch '"code"\s*:\s*0[^0-9]') {
+            & $failed 'invalid_response' "an answer from $hostPart that is not $speaks"
             return 0
         }
         $rejected = 0
-        if ($r.Body -cmatch '"rejectedLogRecords"\s*:\s*"?([0-9]+)') {
+        if ($type -ceq 'otel' -and $r.Body -cmatch '"rejectedLogRecords"\s*:\s*"?([0-9]+)') {
             $rejected = if ($Matches[1].Length -gt 9) { $Count } else { [int]$Matches[1] }
         }
         if ($rejected -gt $Count) { $rejected = $Count }
@@ -499,10 +563,11 @@ function Invoke-VigilLogs {
             $ends = New-Object 'System.Collections.Generic.List[long]'
             try {
                 while ($null -ne ($line = Read-VigilLogLine $reader)) {
-                    $rec = ConvertTo-VigilLogRecord -File $File -Line $line -Include $include -Output $output
+                    $rec = ConvertTo-VigilLogRecord -File $File -Line $line -Include $include -Output $output -Type $type -Shared $shared
                     if ($rec) {
                         if ($n -gt 0 -and ($n -ge $batchLines -or $bytes + $rec.Length -gt $batchBytes)) { break }
-                        if ($n -gt 0) { [void]$batch.Append(',') }
+                        # HEC takes events one after another, not as a list.
+                        if ($n -gt 0 -and $type -cne 'splunk') { [void]$batch.Append(',') }
                         [void]$batch.Append($rec)
                         $n++
                         $bytes += $rec.Length
@@ -566,9 +631,9 @@ function Invoke-VigilLogs {
         $ok = $true
         if ($hname) {
             $r = Resolve-VigilSecret -Root $Root -Parsed $parsed -Reference $hvalue
-            if (-not $r.Ok) { & $failed 'auth' "header_value $hvalue unavailable: $($r.Why)"; $ok = $false }
-            elseif ($r.Value -cmatch '[\x00-\x1f\x7f]') { & $failed 'auth' "header_value $hvalue holds a control character"; $ok = $false }
-            else { $g.Header = "${hname}: $($r.Value)" }
+            if (-not $r.Ok) { & $failed 'auth' "$hkey $hvalue unavailable: $($r.Why)"; $ok = $false }
+            elseif ($r.Value -cmatch '[\x00-\x1f\x7f]') { & $failed 'auth' "$hkey $hvalue holds a control character"; $ok = $false }
+            else { $g.Header = "${hname}: $hprefix$($r.Value)" }
             $r = $null
         }
         if ($ok) {
