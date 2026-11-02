@@ -17,6 +17,8 @@
     Invoke-VigilSelfUpdate -Root <dir> -App <app dir> -Check <bool> -Want <version>
         Returns an exit code: 0, or 1 with the reason on stderr; nothing is
         changed then.
+    Invoke-VigilSelfUpdateTask -Root <dir> -App <app dir>
+        The same, as the scheduled task of install -UpdateBy.
 #>
 
 function Get-VigilVersion {
@@ -152,9 +154,86 @@ function Update-VigilUpdateCache {
     try { [System.IO.File]::WriteAllText($f, "$([DateTimeOffset]::Now.ToUnixTimeSeconds()) $latest`n") } catch { }
 }
 
+$Script:VigilUpdateTask = 'Vigil Update'
+
+# The task of install -UpdateBy (18.7), if it is this root's and this account
+# may read it; otherwise $null.
+function Get-VigilUpdateTask {
+    param([string]$Root)
+    try {
+        $s = New-Object -ComObject Schedule.Service
+        $s.Connect()
+        $t = $s.GetFolder('\').GetTask($Script:VigilUpdateTask)
+        $tail = (ConvertTo-VigilQuotedArg -Arg $Root -Always $false) + ' self update --task'
+        if (([string]$t.Definition.Actions.Item(1).Arguments).EndsWith($tail, [System.StringComparison]::OrdinalIgnoreCase)) { return $t }
+    }
+    catch { }
+    return $null
+}
+
+# Asks the task for the update and shows what it writes. Returns its exit code.
+function Invoke-VigilUpdateByTask {
+    param([string]$Root, $Task)
+    $out = Join-Path $Root 'update\output'
+    $before = [System.IO.File]::GetLastWriteTimeUtc($out)
+    [void]$Task.Run($null)
+    $shown = 0
+    $start = [DateTime]::UtcNow
+    while ([System.IO.File]::GetLastWriteTimeUtc($out) -eq $before) {
+        if (([DateTime]::UtcNow - $start).TotalSeconds -gt 60) {
+            [Console]::Error.WriteLine('vigil: the update task did not start')
+            return 1
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    while (([DateTime]::UtcNow - $start).TotalMinutes -lt 15) {
+        $text = ''
+        try {
+            $fs = [System.IO.File]::Open($out, 'Open', 'Read', 'ReadWrite,Delete')
+            try { $text = (New-Object System.IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() }
+        }
+        catch { }
+        # Whole lines only: the last piece may still be being written.
+        $lines = $text.Split("`n")
+        for ($i = $shown; $i -lt $lines.Count - 1; $i++) {
+            if ($lines[$i] -cmatch '^exit: ([0-9]+)$') { return [int]$Matches[1] }
+            Write-Output $lines[$i]
+        }
+        $shown = [Math]::Max($shown, $lines.Count - 1)
+        Start-Sleep -Milliseconds 250
+    }
+    [Console]::Error.WriteLine('vigil: the update task did not finish within 15 minutes')
+    return 1
+}
+
+# What the task runs, as SYSTEM: self update in a process of its own, its
+# output where the account that asked can read it.
+function Invoke-VigilSelfUpdateTask {
+    param([string]$Root, [string]$App)
+    $dir = Join-Path $Root 'update'
+    $out = Join-Path $dir 'output'
+    $ErrorActionPreference = 'Continue'
+    [System.IO.File]::WriteAllText($out, '')
+    # Not the machine's temporary folder, where any account can create files:
+    # what is verified must stay as it is until it runs.
+    $tmp = Join-Path $dir 'work'
+    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+    [void](New-Item -ItemType Directory -Path $tmp)
+    $env:TEMP = $tmp
+    $env:TMP = $tmp
+    $shell = (Get-Process -Id $PID).Path
+    & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $App 'vigil.ps1') -Root $Root self update 2>&1 |
+        ForEach-Object { [System.IO.File]::AppendAllText($out, "$_`n") }
+    $code = $LASTEXITCODE
+    Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    [System.IO.File]::AppendAllText($out, "exit: $code`n")
+    return $code
+}
+
 function Invoke-VigilSelfUpdate {
     param([string]$Root, [string]$App, [bool]$Check, [string]$Want)
     $die = { param($Why) [Console]::Error.WriteLine("vigil: $Why"); return 1 }
+    $pinned = [bool]$Want
     $base = 'https://github.com/godspeedhq/vigil'
     # Tests only (22.4.4): releases from a local server, never over the
     # network.
@@ -196,7 +275,13 @@ function Invoke-VigilSelfUpdate {
             [System.IO.File]::WriteAllText($probe, '')
             [System.IO.File]::Delete($probe)
         }
-        catch { return & $die "$Root is not writable: run this from an elevated prompt for a system install" }
+        catch {
+            # The task of install -UpdateBy (18.7) goes to the latest release
+            # only.
+            $task = if ($pinned) { $null } else { Get-VigilUpdateTask -Root $Root }
+            if ($task) { return Invoke-VigilUpdateByTask -Root $Root -Task $task }
+            return & $die "$Root is not writable: run this from an elevated prompt for a system install"
+        }
 
         $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-update.$PID"
         [void](New-Item -ItemType Directory -Force -Path $work)

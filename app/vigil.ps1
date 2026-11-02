@@ -255,8 +255,18 @@ switch ($Command) {
             Update-VigilUpdateCache -App $app
             exit 0
         }
+        if ($Job -ceq 'update-by' -and $Rest.Count -eq 1) {
+            # Run by install.ps1 -UpdateBy (18.7).
+            try { Install-VigilUpdateTask -Root $Root -App $app -Who $Rest[0] }
+            catch {
+                [Console]::Error.WriteLine("vigil: $($_.Exception.Message)")
+                exit 1
+            }
+            exit 0
+        }
         if ($Job -cne 'update') { Exit-Usage }
         $argv = @($Rest | Where-Object { $_ })
+        if ($argv.Count -eq 1 -and $argv[0] -ceq '--task') { exit (Invoke-VigilSelfUpdateTask -Root $Root -App $app) }
         $check = $false
         $want = ''
         for ($i = 0; $i -lt $argv.Count; $i++) {

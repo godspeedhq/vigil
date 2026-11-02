@@ -126,6 +126,58 @@ function Set-VigilRootAcl {
     Set-Acl -LiteralPath $Root -AclObject $acl
 }
 
+# install -UpdateBy (18.7): a scheduled task, running as SYSTEM, that one
+# account or group may start and nothing more. It always runs the same
+# command, so nobody can choose a version. That account gets read access to
+# app\, to run vigil at all, and to update\, where the task writes its output.
+function Install-VigilUpdateTask {
+    param([string]$Root, [string]$App, [string]$Who)
+    if (-not (Test-VigilAdmin)) { throw '-UpdateBy needs an elevated (administrator) prompt' }
+    if ($Root.Contains('"')) { throw "the install root $Root may not contain a double quote" }
+    $sid = (New-Object Security.Principal.NTAccount($Who)).Translate([Security.Principal.SecurityIdentifier])
+    $exe = Get-VigilHostPath -HostName 'powershell'
+
+    # SYSTEM runs what is here on an ordinary account's request, so nobody
+    # else may change it, with or without a service.
+    $update = Join-Path $Root 'update'
+    [void](New-Item -ItemType Directory -Force -Path $update)
+    Set-VigilRootAcl -Root $Root
+    foreach ($p in @(@($Root, 'None'), @((Join-Path $Root 'app'), 'ContainerInherit, ObjectInherit'), @($update, 'ContainerInherit, ObjectInherit'))) {
+        $acl = Get-Acl -LiteralPath $p[0]
+        if ($p[1] -cne 'None') {
+            foreach ($r in @($acl.Access | Where-Object { -not $_.IsInherited })) { [void]$acl.RemoveAccessRuleSpecific($r) }
+        }
+        $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'ReadAndExecute', $p[1], 'None', 'Allow')))
+        Set-Acl -LiteralPath $p[0] -AclObject $acl
+    }
+
+    $s = New-Object -ComObject Schedule.Service
+    $s.Connect()
+    $def = $s.NewTask(0)
+    $def.RegistrationInfo.Description = 'Updates Vigil to the latest release, when asked by vigil self update'
+    $def.Settings.MultipleInstances = 2
+    $def.Settings.ExecutionTimeLimit = 'PT15M'
+    $def.Settings.DisallowStartIfOnBatteries = $false
+    $def.Settings.StopIfGoingOnBatteries = $false
+    $a = $def.Actions.Create(0)
+    $a.Path = $exe
+    $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $App 'vigil.ps1'), '-Root', $Root, 'self', 'update', '--task')
+    $a.Arguments = ($argv | ForEach-Object { ConvertTo-VigilQuotedArg -Arg $_ -Always $false }) -join ' '
+    $a.WorkingDirectory = $env:SystemRoot
+    $t = $s.GetFolder('\').RegisterTaskDefinition($Script:VigilUpdateTask, $def, 6, 'SYSTEM', $null, 5)
+    $t.SetSecurityDescriptor("D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FRFX;;;$($sid.Value))", 0)
+    Write-Output "$Who can now run: vigil self update"
+}
+
+# The task, if it is this root's.
+function Remove-VigilUpdateTask {
+    param([string]$Root)
+    if (-not (Get-VigilUpdateTask -Root $Root)) { return }
+    $s = New-Object -ComObject Schedule.Service
+    $s.Connect()
+    $s.GetFolder('\').DeleteTask($Script:VigilUpdateTask, 0)
+}
+
 function Install-VigilService {
     param([string]$Root, [string]$App, [string]$Mode, [string]$HostName, [bool]$Start)
     $admin = Test-VigilAdmin
@@ -379,6 +431,8 @@ function Invoke-VigilUninstall {
 
     if ($found.Mode -ceq 'system' -and -not (Test-VigilAdmin)) { throw 'the service is registered in system mode: run it from an elevated prompt' }
     if ($found.Mode) { [void](Remove-VigilService -Root $Root) }
+    # The task of install -UpdateBy, if it is this install's.
+    try { Remove-VigilUpdateTask -Root $Root } catch { Write-Output "  left the $Script:VigilUpdateTask task: removing it needs an elevated prompt" }
     # Windows has no TERM for console programs: each proven tree ends at once.
     foreach ($p in $runs.Proven) { & taskkill.exe /T /F /PID $p 2>&1 | Out-Null }
     foreach ($s in $paths) {

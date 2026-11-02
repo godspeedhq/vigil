@@ -124,6 +124,7 @@ curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.
 | `--instance`, `--backend` | `-Instance`, `-Backend` | Passed to `vigil init` |
 | `--account <name>` | `-ShellHost powershell \| pwsh` | The service account (Linux, macOS); the PowerShell the service runs on (Windows) |
 | `--no-init`, `--no-service` | `-NoInit`, `-NoService` | Skip a step |
+| `--update-by <who>` | `-UpdateBy <who>` | System mode: let this account update Vigil without admin rights |
 
 **If your organisation does not pipe scripts into a shell:** download `vigil-<version>.tar.gz` (or `.zip`), `SHA256SUMS` and the installer from the [releases page](https://github.com/godspeedhq/vigil/releases), check `sha256sum -c SHA256SUMS --ignore-missing` (or `Get-FileHash`), read the installer, then run it with `--archive` (`-Archive`). It is the same installer.
 
@@ -137,7 +138,7 @@ vigil self update --check   # only say whether there is one
 vigil version               # what is installed
 ```
 
-A user install needs no admin rights. For a system install, use `sudo` on Linux and macOS and an elevated prompt on Windows. On Linux and macOS you can grant that once: installing with `--update-by <user or %group>` lets that account run `vigil self update` itself, and nothing else as root.
+A user install needs no admin rights. For a system install, use `sudo` on Linux and macOS and an elevated prompt on Windows. You can grant that once: installing with `--update-by <user or %group>` (Linux, macOS) or `-UpdateBy <account or group>` (Windows) lets that account run `vigil self update` itself, to the latest release only, and nothing else with admin rights.
 
 Only Vigil's own code is replaced: your configuration, scripts, state, spool and logs are left alone. The service is not restarted: the supervisor sees the new version within seconds and replaces itself in place, keeping its process id, while running jobs finish under the code they started with. If the new version does not come up, the old one is put back. Re-running the one-line installer does the same job.
 

@@ -41,6 +41,9 @@
     Do not write a starting configuration.
 .PARAMETER NoService
     Do not register the service.
+.PARAMETER UpdateBy
+    System mode: let this account or group run vigil self update without
+    admin rights, to the latest release only.
 .PARAMETER Upgrade
     Only replace an installed Vigil, as vigil self update does: no vigil
     init, no PATH change, and the service is left as it was found.
@@ -57,6 +60,7 @@ param(
     [string]$Backend,
     [switch]$NoInit,
     [switch]$NoService,
+    [string]$UpdateBy,
     [switch]$Upgrade
 )
 
@@ -89,6 +93,11 @@ $mode = if ($System) { 'system' } elseif ($User) { 'user' } elseif ($admin) { 's
 if ($mode -ceq 'system' -and -not $admin) { Stop-Install 'system mode needs an elevated prompt; or use -User' }
 $root = if ($Prefix) { $Prefix } elseif ($mode -ceq 'system') { Join-Path $env:ProgramData 'Vigil' } else { Join-Path $env:LOCALAPPDATA 'Vigil' }
 $root = [System.IO.Path]::GetFullPath($root)
+if ($UpdateBy) {
+    if ($mode -cne 'system' -or $Upgrade) { Stop-Install '-UpdateBy is for a system install: a user install updates itself' }
+    try { [void](New-Object Security.Principal.NTAccount($UpdateBy)).Translate([Security.Principal.SecurityIdentifier]) }
+    catch { Stop-Install "no account or group is called $UpdateBy" }
+}
 
 # --- 1. Prerequisites (5.1), before anything changes ------------------------
 
@@ -245,6 +254,8 @@ try {
     # app\ and vendor\ are swapped whole, so a process still running the old
     # ones keeps reading files that stay intact.
     try {
+        # The access -UpdateBy gave to app\ stays with it.
+        if (Test-Path -LiteralPath (Join-Path $root 'update')) { Set-Acl -LiteralPath (Join-Path $root 'app.new') -AclObject (Get-Acl -LiteralPath (Join-Path $root 'app')) }
         foreach ($d in $parts) {
             if (Test-Path -LiteralPath (Join-Path $root $d)) { Rename-Waiting -Path (Join-Path $root $d) -Name "$d.old" }
             Rename-Waiting -Path (Join-Path $root "$d.new") -Name $d
@@ -306,6 +317,13 @@ try {
                 Stop-Install 'the service was not registered'
             }
         }
+    }
+
+    # --- 7. Who may update it -----------------------------------------------------------
+
+    if ($UpdateBy) {
+        Invoke-Vigil self update-by $UpdateBy
+        if ($LASTEXITCODE -ne 0) { Stop-Install "$UpdateBy was not given the update" }
     }
     Write-Output ''
     Write-Output "done: Vigil $Version. vigil status shows what it is doing."
