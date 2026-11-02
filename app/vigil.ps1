@@ -30,7 +30,9 @@
         Service control. Stopping leaves running workers alone (18.3).
     vigil [-Root <dir>] status
         The service's state, then jobs.log.
-    vigil [-Root <dir>] init [--instance <name>] [--backend file,datadog,otel] [--no-sample]
+    vigil [-Root <dir>] pack list | add <name> | update [--check] | remove <name>
+        The packs of scripts and jobs added to this install (18.10).
+    vigil [-Root <dir>] init [--instance <name>] [--backend file,datadog,otel] [--no-sample] [--pack <name>]
         Writes a starting configuration (19): runners for the PowerShell
         hosts found here, the backends with env: placeholders, and a sample
         job. Asks for what is not given when run at a console. Never
@@ -66,12 +68,12 @@ $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Split-Path -Parent $app }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate')) {
+foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate', 'Pack')) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] [--pack <name>] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list | add <name> | update [--check] | remove <name>`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -189,11 +191,15 @@ switch ($Command) {
         $instance = ''
         $backends = ''
         $sample = $true
+        $pack = ''
+        $offered = $false
         for ($i = 0; $i -lt $argv.Count; $i++) {
             switch -CaseSensitive ($argv[$i]) {
-                { $_ -ceq '--instance' -or $_ -ceq '--backend' } {
+                { $_ -ceq '--instance' -or $_ -ceq '--backend' -or $_ -ceq '--pack' } {
                     if ($i + 1 -ge $argv.Count) { Exit-Usage }
-                    if ($argv[$i] -ceq '--instance') { $instance = $argv[$i + 1] } else { $backends = $argv[$i + 1] }
+                    if ($argv[$i] -ceq '--instance') { $instance = $argv[$i + 1] }
+                    elseif ($argv[$i] -ceq '--backend') { $backends = $argv[$i + 1] }
+                    else { $pack = $argv[$i + 1] }
                     $i++
                 }
                 '--no-sample' { $sample = $false }
@@ -205,11 +211,23 @@ switch ($Command) {
         $asked = $false
         if (-not [Console]::IsInputRedirected -and -not $instance) { $instance = Read-Host -Prompt "Instance name [$hostName]"; $asked = $true }
         if (-not [Console]::IsInputRedirected -and -not $backends) { $backends = Read-Host -Prompt 'Backends, comma-separated: file, datadog, otel [file]'; $asked = $true }
+        if (-not [Console]::IsInputRedirected -and -not $pack) {
+            $a = Read-Host -Prompt 'Add the base pack of system metrics (CPU, memory, disk, network)? [Y/n]'
+            if ($a -cnotmatch '^[nN]') { $pack = 'base'; $offered = $true }
+            $asked = $true
+        }
         if (-not $instance) { $instance = $hostName }
         if (-not $backends) { $backends = 'file' }
         if ($asked) { Write-Output '' }
+        if ($pack) { $sample = $false }
         try { Invoke-VigilInit -Root $Root -Instance $instance -Backends @($backends.Replace(' ', '').Split(',') | Where-Object { $_ }) -Sample $sample }
         catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
+        if (-not $pack) { exit 0 }
+        $code = 0
+        Add-VigilPack -Root $Root -App $app -Name $pack | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+        if ($code -eq 0) { exit 0 }
+        if (-not $offered) { exit 1 }
+        Write-Output "the pack was not added: try vigil pack add $pack later"
         exit 0
     }
     'uninstall' {
@@ -249,6 +267,18 @@ switch ($Command) {
         Get-VigilAbout -Root $Root -App $app
         Show-VigilUpdateNotice -Root $Root -App $app
         exit 0
+    }
+    'pack' {
+        $argv = @($Rest | Where-Object { $_ })
+        $code = 0
+        if ($Job -ceq 'list' -and $argv.Count -eq 0) { Get-VigilPackList -Root $Root }
+        elseif ($Job -ceq 'add' -and $argv.Count -eq 1) { Add-VigilPack -Root $Root -App $app -Name $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
+        elseif ($Job -ceq 'remove' -and $argv.Count -eq 1) { Remove-VigilPack -Root $Root -Name $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
+        elseif ($Job -ceq 'update' -and ($argv.Count -eq 0 -or ($argv.Count -eq 1 -and $argv[0] -ceq '--check'))) {
+            Update-VigilPack -Root $Root -App $app -Check ($argv.Count -eq 1) | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+        }
+        else { Exit-Usage }
+        exit $code
     }
     'self' {
         if ($Job -ceq 'refresh-check' -and -not $Rest) {

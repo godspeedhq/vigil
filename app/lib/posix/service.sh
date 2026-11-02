@@ -506,7 +506,7 @@ vigil_uninstall() {
     if [ "$keep" = 1 ]; then
         for p in "$root"/* "$root"/.[!.]*; do
             [ -e "$p" ] || continue
-            case ${p##*/} in config | scripts) ;; *) rm -rf "$p" ;; esac
+            case ${p##*/} in config | scripts | packs) ;; *) rm -rf "$p" ;; esac
         done
         printf 'removed Vigil; kept %s/config and %s/scripts\n' "$root" "$root"
     else

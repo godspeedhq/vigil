@@ -140,7 +140,7 @@ vigil version               # what is installed
 
 A user install needs no admin rights. For a system install, use `sudo` on Linux and macOS and an elevated prompt on Windows. You can grant that once: installing with `--update-by <user or %group>` (Linux, macOS) or `-UpdateBy <account or group>` (Windows) lets that account run `vigil self update` itself, to the latest release only, and nothing else with admin rights.
 
-Only Vigil's own code is replaced: your configuration, scripts, state, spool and logs are left alone. The service is not restarted: the supervisor sees the new version within seconds and replaces itself in place, keeping its process id, while running jobs finish under the code they started with. If the new version does not come up, the old one is put back. Re-running the one-line installer does the same job.
+Only Vigil's own code is replaced: your configuration, scripts, packs, state, spool and logs are left alone. The service is not restarted: the supervisor sees the new version within seconds and replaces itself in place, keeping its process id, while running jobs finish under the code they started with. If the new version does not come up, the old one is put back. Re-running the one-line installer does the same job.
 
 Updates only ever happen when you run them. `vigil status`, `vigil version` and `vigil precheck` tell you at a terminal when one is available; `VIGIL_NO_UPDATE_CHECK=1` turns that off.
 
@@ -588,6 +588,20 @@ All are `https` only, except to a collector on the same host. Batches the backen
 Today `file`, `datadog`, `otel` and `splunk` deliver. Events for an enabled backend of any other type are not queued: they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
 
 ---
+
+## Packs
+
+A pack is a signed set of scripts and jobs from [vigil-packs](https://github.com/godspeedhq/vigil-packs), so you get useful metrics straight away. They have their own releases, so they change without a Vigil release, and they only ever update when you ask.
+
+```sh
+vigil pack add base          # the scripts, and their jobs in your configuration
+vigil pack list              # what is added here
+vigil pack update --check    # only say whether there is a newer one
+vigil pack update            # every added pack to the latest release
+vigil pack remove base       # takes both out
+```
+
+`vigil init` offers the base pack at a console, and `--pack base` adds it from a script. A pack's jobs are a marked block in `vigil.config`, so you can change how often they run: an update keeps your edits, adds new jobs and takes out those the pack dropped. Your own scripts are never touched. A pack with a bad or missing signature changes nothing, and neither does one that would leave your configuration invalid.
 
 ## Writing jobs
 

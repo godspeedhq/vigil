@@ -43,6 +43,8 @@
 #   vigil [--root <dir>] self update [--check] [--version <version>]
 #       Upgrades this install to the latest release, or the one given (18.7).
 #       --check only says whether there is a newer one.
+#   vigil [--root <dir>] pack list | add <name> | update [--check] | remove <name>
+#       The packs of scripts and jobs added to this install (18.10).
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
@@ -65,13 +67,13 @@ done
 app=$(cd "$(dirname "$self")" && pwd)
 root=$(dirname "$app")
 
-for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker backends sender fetch logs format supervisor precheck service init selfupdate; do
+for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker backends sender fetch logs format supervisor precheck service init selfupdate pack; do
     # shellcheck source=/dev/null
     . "$app/lib/posix/$lib.sh"
 done
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [--instance <name>] [--backend <list>] [--no-sample] [--pack <name>] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list | add <name> | update [--check] | remove <name>\n' >&2
     exit 64
 }
 
@@ -167,12 +169,16 @@ case ${1-} in
         ;;
     init)
         shift
-        instance='' backends='' sample=1 asked=0
+        instance='' backends='' sample=1 asked=0 pack='' offered=0
         while [ "$#" -gt 0 ]; do
             case $1 in
-                --instance | --backend)
+                --instance | --backend | --pack)
                     [ "$#" -ge 2 ] || usage
-                    if [ "$1" = --instance ]; then instance=$2; else backends=$2; fi
+                    case $1 in
+                        --instance) instance=$2 ;;
+                        --backend) backends=$2 ;;
+                        *) pack=$2 ;;
+                    esac
                     shift
                     ;;
                 --no-sample) sample=0 ;;
@@ -192,11 +198,23 @@ case ${1-} in
             IFS= read -r backends
             asked=1
         fi
+        if [ -t 0 ] && [ -z "$pack" ]; then
+            printf 'Add the base pack of system metrics (CPU, memory, disk, network)? [Y/n]: '
+            IFS= read -r answer
+            case $answer in n* | N*) ;; *) pack=base offered=1 ;; esac
+            asked=1
+        fi
         [ -n "$instance" ] || instance=${host:-vigil}
         [ -n "$backends" ] || backends=file
         [ "$asked" = 1 ] && printf '\n'
-        vigil_init "$root" "$instance" "$(printf '%s' "$backends" | tr -d ' ')" "$sample"
-        exit $?
+        [ -z "$pack" ] || sample=0
+        vigil_init "$root" "$instance" "$(printf '%s' "$backends" | tr -d ' ')" "$sample" || exit $?
+        [ -n "$pack" ] || exit 0
+        if ! vigil_pack_add "$root" "$app" "$pack"; then
+            [ "$offered" = 1 ] || exit 1
+            printf 'the pack was not added: try vigil pack add %s later\n' "$pack"
+        fi
+        exit 0
         ;;
     uninstall)
         shift
@@ -276,6 +294,20 @@ case ${1-} in
         vigil_format_migrate "$app" "$2" "$3" "$4" && exit 0
         printf '%s\n' "$_vf_error" >&2
         exit 1
+        ;;
+    pack)
+        case ${2-}:$# in
+            list:2) vigil_pack_list "$root" ;;
+            add:3) vigil_pack_add "$root" "$app" "$3" ;;
+            remove:3) vigil_pack_remove "$root" "$3" ;;
+            update:2) vigil_pack_update "$root" "$app" 0 ;;
+            update:3)
+                [ "$3" = --check ] || usage
+                vigil_pack_update "$root" "$app" 1
+                ;;
+            *) usage ;;
+        esac
+        exit $?
         ;;
     self)
         if [ "${2-}" = refresh-check ] && [ "$#" -eq 2 ]; then

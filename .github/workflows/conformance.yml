@@ -53,6 +53,8 @@ jobs:
       - name: self update (/bin/bash)
         run: /bin/bash tests/integration/self-update.sh
         timeout-minutes: 10
+      - name: packs (/bin/bash)
+        run: /bin/bash tests/integration/pack.sh
       - name: data format (/bin/bash)
         run: /bin/bash tests/integration/format.sh
         timeout-minutes: 5
@@ -122,6 +124,8 @@ jobs:
       - name: self update
         run: ./tests/integration/Self-Update.ps1
         timeout-minutes: 15
+      - name: packs
+        run: ./tests/integration/Pack.ps1
       - name: data format
         run: ./tests/integration/Format.ps1
         timeout-minutes: 5

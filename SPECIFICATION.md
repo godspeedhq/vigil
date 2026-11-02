@@ -1083,6 +1083,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
     vigil.config          the configuration, or a pointer to it (§6.8); never overwritten
     secrets/<NAME>        Vigil's secret store (§6.5.2): owner-only; encrypted with DPAPI on Windows
   scripts/                the operator's job scripts - never overwritten
+  packs/<name>/           scripts of the packs added here (§18.10); Vigil-owned, replaced whole by an update
   cache/                  fetched configuration and scripts (§16.5); Vigil-owned, safe to delete
     <source>/repo.git       git: bare mirror, never checked out
     <source>/<commit>/      git: the tree at one commit, read-only once complete
@@ -1899,12 +1900,61 @@ Many IT teams do not allow piping a remote script into a shell. The docs therefo
 Before deleting, it lists what will be removed — including how many scripts are in `scripts/` — and asks for confirmation:
 
 - `--yes` skips the confirmation, for unattended use.
-- `--keep-config` keeps `config/` and `scripts/`, so a reinstall picks up where it left off.
+- `--keep-config` keeps `config/`, `scripts/` and `packs/`, so a reinstall picks up where it left off.
 - Without `--yes`, and with no terminal to ask at, it refuses and removes nothing.
 
 It refuses a folder that holds no `app/vigil` (`app\vigil.ps1`), so a mistyped `--root` deletes nothing. A worker is proven by its command line naming the run and the root (`worker <job> --run-id <run id>`) and by being the `worker_pid` of that run's state; a job process by holding the run token (Linux, macOS) or by its PID, name, start time and parent matching the state file (Windows, as for `max_runtime`, §11.5). Proven processes get TERM, then KILL after 10 seconds (on Windows the tree ends at once); a process the state names but that cannot be proven is listed as left running, and nothing else is ever touched.
 
 Environment variables set outside Vigil (machine environment, `vigil.env` aside) are left untouched. Uninstall is idempotent: running it on a clean machine succeeds and changes nothing. On Windows, when the root cannot be deleted because the uninstall itself is running from inside it, deletion is completed by a short-lived detached process after Vigil exits.
+
+### 18.10 Packs
+
+A pack is a set of scripts and jobs, with a version and a list of metrics, so a fresh install has useful metrics straight away. Packs have their own releases, in `godspeedhq/vigil-packs`, so they change without a Vigil release and without touching `vigil self update`, which follows the latest release of the Vigil repository.
+
+```text
+vigil pack list                 what is added here
+vigil pack add <name>           the pack's scripts, and its jobs in the configuration
+vigil pack update [--check]     every added pack to the latest release
+vigil pack remove <name>        takes both out
+```
+
+**A release** holds every pack: `vigil-packs-<version>.tar.gz` (Linux, macOS) and `.zip` (Windows), each one folder `vigil-packs-<version>/` with a folder per pack, and `SHA256SUMS` with `SHA256SUMS.sig`, signed with the Vigil release key. A pack is verified as a Vigil release is (§18.7), against `app/release-key.pem`, and the signature is required: a pack with a bad or missing signature, or an install with no key, changes nothing.
+
+**A pack** is a folder holding `pack.config`, in the configuration format, and its scripts:
+
+```ini
+[pack]
+version     = 1.0.0
+vigil       = 0.3.0
+description = CPU, memory, disk and network
+
+[job.cpu]
+metric_name = system.cpu
+metrics     = used_pct
+run_every   = 1m
+max_runtime = 30s
+```
+
+`vigil` is the oldest Vigil it runs on. Each `[job.<name>]` runs `<name>.sh` on Linux and macOS and `<name>.ps1` on Windows, and is left out on a platform with no script. `metrics` lists what it reports. Every other key is copied to the job.
+
+**On this host,** the scripts go in `packs/<name>/`, replaced whole, and the jobs are a marked block in `vigil.config`, each `[job.<pack>_<job>]`:
+
+```ini
+# pack base: added by vigil pack add; vigil pack remove takes it out
+[job.base_cpu]
+file = packs/base/cpu.sh
+metric_name = system.cpu
+run_every = 1m
+max_runtime = 30s
+
+# end of pack base
+```
+
+- The configuration is the operator's. An update keeps every section in the block as it stands, adds jobs new to the pack and takes out those it dropped, and `scripts/` is never touched.
+- Nothing is left half done: the result is validated, judged by the pack's own jobs, and both the files and the configuration go back when it fails.
+- Updates are manual, like Vigil's. The supervisor picks up the jobs at its next tick, as for any configuration change.
+- A configuration from a source (§6.8) is not edited: add the pack's jobs there.
+- `vigil init` offers the base pack at a console, `--pack <name>` adds one, and either replaces the sample job. If an offered pack cannot be fetched, init still succeeds.
 
 ### 18.9 Service Registration
 
@@ -1941,7 +1991,7 @@ The supervisor's command line is `<bash> <app>/vigil --root <root> supervise`, o
 3. Writes a commented config with the correct runners, paths, `env:` placeholders and one sample job.
 4. Prints the environment variable names that must be set.
 
-Flags: `--instance <name>` (default: the host name), `--backend <list>` from `file`, `datadog` and `otel` (default: `file`; other backends are added by hand) and `--no-sample` (no sample job). At a terminal, `init` asks for the instance and backends it was not given; otherwise it uses the defaults. It refuses when `config/vigil.config` exists. The sample job is `scripts/disk.sh` (`scripts\disk.ps1`): the system disk's use as `used_pct`, failing above 95%.
+Flags: `--pack <name>` (§18.10), `--instance <name>` (default: the host name), `--backend <list>` from `file`, `datadog` and `otel` (default: `file`; other backends are added by hand) and `--no-sample` (no sample job). At a terminal, `init` asks for the instance and backends it was not given; otherwise it uses the defaults. It refuses when `config/vigil.config` exists. The sample job is `scripts/disk.sh` (`scripts\disk.ps1`): the system disk's use as `used_pct`, failing above 95%.
 
 `init` never asks for or stores secret values. Every prompt has a flag equivalent so it can run unattended from deployment tooling.
 

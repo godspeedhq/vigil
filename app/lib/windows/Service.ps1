@@ -445,7 +445,7 @@ function Invoke-VigilUninstall {
 
     # Everything but what is kept; files still held (a process just ended,
     # or this command itself) are retried, then left to a detached cleanup.
-    $targets = @(Get-ChildItem -LiteralPath $Root -Force | Where-Object { -not ($Keep -and ($_.Name -ieq 'config' -or $_.Name -ieq 'scripts')) })
+    $targets = @(Get-ChildItem -LiteralPath $Root -Force | Where-Object { -not ($Keep -and ($_.Name -ieq 'config' -or $_.Name -ieq 'scripts' -or $_.Name -ieq 'packs')) })
     $left = $targets
     for ($i = 0; $i -lt 10 -and $left.Count -gt 0; $i++) {
         foreach ($t in $left) { Remove-Item -LiteralPath $t.FullName -Recurse -Force -ErrorAction SilentlyContinue }
