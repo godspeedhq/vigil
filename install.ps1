@@ -207,6 +207,24 @@ try {
         }
     }
 
+    # Windows refuses to rename a folder while a process has a file in it
+    # open, and every Vigil process reads app\ as it starts, so on a busy host
+    # the refusal lasts a moment.
+    function Rename-Waiting {
+        param([string]$Path, [string]$Name)
+        for ($i = 0; ; $i++) {
+            try {
+                Rename-Item -LiteralPath $Path -NewName $Name -ErrorAction Stop
+                return
+            }
+            catch {
+                if ($i -ge 120) { throw }
+                if ($i -eq 0) { Write-Output "waiting for processes reading $Path" }
+                Start-Sleep -Milliseconds 250
+            }
+        }
+    }
+
     # Back to what was installed: whatever was swapped, and the service.
     function Undo-Upgrade {
         param([string]$Why)
@@ -215,7 +233,7 @@ try {
             if (Test-Path -LiteralPath $old) {
                 $to = Join-Path $root $d
                 if (Test-Path -LiteralPath $to) { Remove-Item -LiteralPath $to -Recurse -Force }
-                Rename-Item -LiteralPath $old -NewName $d
+                Rename-Waiting -Path $old -Name $d
             }
             Remove-Item -LiteralPath (Join-Path $root "$d.new") -Recurse -Force -ErrorAction SilentlyContinue
         }
@@ -228,8 +246,8 @@ try {
     # ones keeps reading files that stay intact.
     try {
         foreach ($d in $parts) {
-            if (Test-Path -LiteralPath (Join-Path $root $d)) { Rename-Item -LiteralPath (Join-Path $root $d) -NewName "$d.old" }
-            Rename-Item -LiteralPath (Join-Path $root "$d.new") -NewName $d
+            if (Test-Path -LiteralPath (Join-Path $root $d)) { Rename-Waiting -Path (Join-Path $root $d) -Name "$d.old" }
+            Rename-Waiting -Path (Join-Path $root "$d.new") -Name $d
         }
     }
     catch { Undo-Upgrade "cannot replace $root\app: $($_.Exception.Message)" }
