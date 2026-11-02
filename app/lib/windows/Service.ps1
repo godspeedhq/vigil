@@ -344,6 +344,13 @@ function Get-VigilServiceStatus {
         $state += ' (Run entry, user mode)'
     }
     Write-Output "service: $state"
+    $cfgFile = Join-Path $Root 'config\vigil.config'
+    if ([System.IO.File]::Exists($cfgFile)) {
+        $cp = ConvertFrom-VigilConfig -Path $cfgFile
+        if ($cp.Errors.Count -eq 0 -and -not ($cp.Sections | Where-Object { $_.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) })) {
+            Write-Output 'metrics: no backend, so they go nowhere until you add one'
+        }
+    }
     Write-Output ''
     $ctx = Get-VigilWorkerContext -Root $Root -Job 'vigil_sender'
     $logs = if ($ctx.Error) { Join-Path $Root 'logs' } else { $ctx.Logs }
@@ -445,7 +452,7 @@ function Invoke-VigilUninstall {
 
     # Everything but what is kept; files still held (a process just ended,
     # or this command itself) are retried, then left to a detached cleanup.
-    $targets = @(Get-ChildItem -LiteralPath $Root -Force | Where-Object { -not ($Keep -and ($_.Name -ieq 'config' -or $_.Name -ieq 'scripts')) })
+    $targets = @(Get-ChildItem -LiteralPath $Root -Force | Where-Object { -not ($Keep -and ($_.Name -ieq 'config' -or $_.Name -ieq 'scripts' -or $_.Name -ieq 'packs')) })
     $left = $targets
     for ($i = 0; $i -lt 10 -and $left.Count -gt 0; $i++) {
         foreach ($t in $left) { Remove-Item -LiteralPath $t.FullName -Recurse -Force -ErrorAction SilentlyContinue }

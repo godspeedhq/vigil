@@ -59,7 +59,7 @@ printf 'bash %s on %s\n' "$BASH_VERSION" "$(uname -s)"
 mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 printf '1.0.0\n' > "$root/app/VERSION"
-vigil init --instance format --backend file --no-sample > /dev/null 2>&1
+vigil init --instance format --backend file --no-pack > /dev/null 2>&1
 mkdir -p "$root/app/migrations"
 sed -i.bak 's/^tick *= *.*/tick = 1s/' "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
 

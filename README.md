@@ -140,7 +140,7 @@ vigil version               # what is installed
 
 A user install needs no admin rights. For a system install, use `sudo` on Linux and macOS and an elevated prompt on Windows. You can grant that once: installing with `--update-by <user or %group>` (Linux, macOS) or `-UpdateBy <account or group>` (Windows) lets that account run `vigil self update` itself, to the latest release only, and nothing else with admin rights.
 
-Only Vigil's own code is replaced: your configuration, scripts, state, spool and logs are left alone. The service is not restarted: the supervisor sees the new version within seconds and replaces itself in place, keeping its process id, while running jobs finish under the code they started with. If the new version does not come up, the old one is put back. Re-running the one-line installer does the same job.
+Only Vigil's own code is replaced: your configuration, scripts, packs, state, spool and logs are left alone. The service is not restarted: the supervisor sees the new version within seconds and replaces itself in place, keeping its process id, while running jobs finish under the code they started with. If the new version does not come up, the old one is put back. Re-running the one-line installer does the same job.
 
 Updates only ever happen when you run them. `vigil status`, `vigil version` and `vigil precheck` tell you at a terminal when one is available; `VIGIL_NO_UPDATE_CHECK=1` turns that off.
 
@@ -589,6 +589,22 @@ Today `file`, `datadog`, `otel` and `splunk` deliver. Events for an enabled back
 
 ---
 
+## Packs
+
+A pack is a signed set of scripts and jobs, so you get useful metrics straight away. They live in this repository under `packs/`, with scripts for Linux, macOS and Windows, and a machine only ever holds its own platform's.
+
+`vigil init` turns on the base pack: CPU, memory, disk, network, load and services. To run only your own scripts, use `vigil init empty`: no jobs, no backend, and `scripts/` ready for your own.
+
+```sh
+vigil pack list                # each pack here, and whether its jobs are on
+vigil pack enable base_load    # a pack, or one of its jobs
+vigil pack disable base_load   # takes it out of the configuration; the script stays
+vigil pack update --check      # only say whether there is a newer one
+vigil pack update              # this platform's scripts from the latest release
+```
+
+Vigil only runs what your configuration names, so `vigil pack update` changes scripts and never your configuration. A job that's on runs the new script at its next run, and the update lists what changed. A new script stays off until you enable it, and a script the pack dropped stays while a job uses it. `vigil self update` updates Vigil itself and leaves packs alone.
+
 ## Writing jobs
 
 A job is any script or program. Vigil captures everything it prints. Lines in this form become metrics:
@@ -987,3 +1003,5 @@ Vigil is built to make adding checks easy: a check is just a script that prints 
 ## Licence
 
 Vigil is released under the [Apache License 2.0](LICENSE). Created by Bankole Ogundero and the Vigil contributors.
+
+Vigil and its packs are provided "as is", without warranties or conditions of any kind. Run them at your own risk: see [LICENSE](LICENSE) and the [pack disclaimer](packs/README.md#disclaimer).

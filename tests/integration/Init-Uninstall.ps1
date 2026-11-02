@@ -5,7 +5,7 @@
     Integration test: vigil init (SPECIFICATION.md 19) and vigil uninstall
     (18.8) on Windows.
 .DESCRIPTION
-    init writes a configuration that passes pre-flight and whose sample job
+    init writes a configuration that passes pre-flight and whose base pack job
     runs, and never overwrites one. uninstall ends only the workers proven
     to be the root's - an unrelated process stays - and removes the root, or
     all but config and scripts. The twin of init-uninstall.sh.
@@ -31,6 +31,9 @@ function New-Root {
     param([string]$Root)
     [void](New-Item -ItemType Directory -Force -Path $Root)
     Copy-Item -Recurse -LiteralPath (Join-Path $repo 'app') -Destination $Root
+    [void](New-Item -ItemType Directory -Force -Path (Join-Path $Root 'packs\base'))
+    Copy-Item -LiteralPath (Join-Path $repo 'packs\base\pack.config') -Destination (Join-Path $Root 'packs\base')
+    Get-ChildItem -LiteralPath (Join-Path $repo 'packs\base\windows') -File | Copy-Item -Destination (Join-Path $Root 'packs\base')
 }
 
 # Runs vigil with stdin redirected, as deployment tooling would.
@@ -61,13 +64,13 @@ New-Root $r
 $cfg = Join-Path $r 'config\vigil.config'
 Test-Equal 'init succeeds' '0' "$(Invoke-Vigil $r @('init', '--instance', 'it-host', '--backend', 'file,datadog'))"
 Test-Equal 'init writes the configuration' 'True' "$(Test-Path -LiteralPath $cfg)"
-Test-Equal 'init writes the sample script' 'True' "$(Test-Path -LiteralPath (Join-Path $r 'scripts\disk.ps1'))"
+Test-Equal 'init turns on the base pack' '1' "$(@([System.IO.File]::ReadAllLines($cfg) | Where-Object { $_ -ceq '[job.base_disk]' }).Count)"
 Test-Equal 'init names the variables to set' '1' "$(@($script:lastOut -split "`n" | Where-Object { $_ -ceq '  DATADOG_API_KEY' }).Count)"
 Test-Equal 'every credential is a reference' '0' "$(@([System.IO.File]::ReadAllLines($cfg) | Where-Object { $_ -match '^api_key' -and $_ -notmatch '= *(env|secret|store):' }).Count)"
 $env:DATADOG_API_KEY = 'x'
 Test-Equal 'the configuration passes pre-flight' '0' "$(Invoke-Vigil $r @('precheck'))"
 Remove-Item Env:\DATADOG_API_KEY
-Test-Equal 'the sample job succeeds' '0' "$(Invoke-Vigil $r @('run', 'disk'))"
+Test-Equal 'a base pack job succeeds' '0' "$(Invoke-Vigil $r @('run', 'base_disk'))"
 $before = [System.IO.File]::ReadAllText($cfg)
 Test-Equal 'init again is refused' '1' "$(Invoke-Vigil $r @('init'))"
 Test-Equal 'and leaves the configuration alone' 'True' "$($before -ceq [System.IO.File]::ReadAllText($cfg))"
@@ -78,9 +81,25 @@ $cfg = Join-Path $r 'config\vigil.config'
 Test-Equal 'an unknown backend is refused' '1' "$(Invoke-Vigil $r @('init', '--backend', 'splunk'))"
 Test-Equal 'a bad instance name is refused' '1' "$(Invoke-Vigil $r @('init', '--instance', 'a b'))"
 Test-Equal 'and nothing is written' 'False' "$(Test-Path -LiteralPath $cfg)"
-Test-Equal 'init --no-sample succeeds' '0' "$(Invoke-Vigil $r @('init', '--no-sample'))"
+Test-Equal 'init --no-pack succeeds' '0' "$(Invoke-Vigil $r @('init', '--no-pack'))"
 Test-Equal 'with no job' '0' "$(@([System.IO.File]::ReadAllLines($cfg) | Where-Object { $_ -match '^\[job\.' }).Count)"
 Test-Equal 'defaults to the file backend' '1' "$(@([System.IO.File]::ReadAllLines($cfg) | Where-Object { $_ -ceq '[backend.file]' }).Count)"
+
+$r = Join-Path $work 'empty'
+New-Root $r
+$cfg = Join-Path $r 'config\vigil.config'
+Test-Equal 'init empty succeeds' '0' "$(Invoke-Vigil $r @('init', 'empty'))"
+Test-Equal 'no job' '0' "$(@([System.IO.File]::ReadAllLines($cfg) | Where-Object { $_ -match '^\[job\.' }).Count)"
+Test-Equal 'no backend' '0' "$(@([System.IO.File]::ReadAllLines($cfg) | Where-Object { $_ -match '^\[backend\.' }).Count)"
+Test-Equal 'runners, for your own scripts' '1' "$(@([System.IO.File]::ReadAllLines($cfg) | Where-Object { $_ -ceq '[runner.ps]' }).Count)"
+Test-Equal 'scripts\ is ready' 'True' "$(Test-Path -LiteralPath (Join-Path $r 'scripts'))"
+Test-Equal 'it passes pre-flight' '0' "$(Invoke-Vigil $r @('precheck'))"
+Test-Equal 'which says no backend' 'True' "$($script:lastOut.Contains('no metrics backend'))"
+[void](Invoke-Vigil $r @('status'))
+Test-Equal 'status says so too' 'True' "$($script:lastOut.Contains('no backend'))"
+[System.IO.File]::WriteAllText((Join-Path $r 'scripts\mine.ps1'), "Write-Output 'metric mine 1'`n")
+[System.IO.File]::AppendAllText($cfg, "`n[job.mine]`nfile = scripts/mine.ps1`nrun_every = 1h`n")
+Test-Equal 'and your own script runs' '0' "$(Invoke-Vigil $r @('run', 'mine'))"
 
 # --- uninstall ----------------------------------------------------------------
 
@@ -119,10 +138,10 @@ $r = Join-Path $work 'keep'
 New-Root $r
 [void](New-Item -ItemType Directory -Force -Path (Join-Path $r 'scripts'), (Join-Path $r 'state\jobs'), (Join-Path $r 'logs'))
 [System.IO.File]::WriteAllText((Join-Path $r 'scripts\a.ps1'), 'x')
-[void](Invoke-Vigil $r @('init', '--no-sample'))
+[void](Invoke-Vigil $r @('init', '--no-pack'))
 Test-Equal 'uninstall --keep-config succeeds' '0' "$(Invoke-Vigil $r @('uninstall', '--yes', '--keep-config'))"
 for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath (Join-Path $r 'app')); $i++) { Start-Sleep -Milliseconds 500 }
-Test-Equal 'keeps config and scripts' 'config scripts' ((@(Get-ChildItem -LiteralPath $r -Force | ForEach-Object { $_.Name } | Sort-Object)) -join ' ')
+Test-Equal 'keeps config and scripts' 'config packs scripts' ((@(Get-ChildItem -LiteralPath $r -Force | ForEach-Object { $_.Name } | Sort-Object)) -join ' ')
 Test-Equal 'keeps the configuration itself' 'True' "$(Test-Path -LiteralPath (Join-Path $r 'config\vigil.config'))"
 
 $nr = Join-Path $work 'notroot'

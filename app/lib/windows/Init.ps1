@@ -1,15 +1,16 @@
 # Init.ps1 - vigil init: a starting configuration (SPECIFICATION.md 19).
 #
-#   Invoke-VigilInit -Root -Instance -Backends -Sample
+#   Invoke-VigilInit -Root -Instance -Backends -Refs
 #
 # Writes config\vigil.config, commented, with runners for the PowerShell
-# hosts found on this machine, the chosen backends with env: placeholders
-# for their credentials, and one sample job (scripts\disk.ps1) unless
-# -Sample is false. Never overwrites a configuration, never asks for or
-# stores a secret value. -Backends lists file, datadog and otel.
+# hosts found on this machine and the chosen backends, and no jobs: those are
+# the packs' and the operator's. Never overwrites a configuration, never
+# holds a secret value. -Backends lists file, datadog and otel, and may be
+# empty. -Refs gives a backend's credential reference, or none: otherwise
+# env: placeholders.
 
 function Invoke-VigilInit {
-    param([string]$Root, [string]$Instance, [string[]]$Backends, [bool]$Sample)
+    param([string]$Root, [string]$Instance, [string[]]$Backends, [hashtable]$Refs = @{})
     $cfg = Join-Path $Root 'config\vigil.config'
     if ([System.IO.File]::Exists($cfg)) { throw "$cfg exists; init never overwrites a configuration" }
     if ($Instance -cnotmatch '^[A-Za-z0-9_.-]+$') { throw "the instance name may contain only letters, digits and . _ -: '$Instance'" }
@@ -47,21 +48,23 @@ function Invoke-VigilInit {
                 & $w 'path = metrics\vigil.prom'
             }
             'datadog' {
-                & $w '# Datadog. Set DATADOG_API_KEY in the machine environment.'
+                $ref = if ($Refs['datadog']) { $Refs['datadog'] } else { 'env:DATADOG_API_KEY' }
+                & $w '# Datadog. An env: credential goes in the machine environment.'
                 & $w '[backend.datadog]'
                 & $w 'endpoint = https://api.datadoghq.com'
-                & $w 'api_key  = env:DATADOG_API_KEY'
+                & $w "api_key  = $ref"
                 & $w 'timeout  = 10s'
-                $envNames.Add('DATADOG_API_KEY')
+                if ($ref.StartsWith('env:')) { $envNames.Add($ref.Substring(4)) }
             }
             'otel' {
                 & $w '# OpenTelemetry collector, OTLP/HTTP. Remove api_key if the'
                 & $w '# collector needs no bearer token.'
                 & $w '[backend.otel]'
                 & $w 'endpoint = http://localhost:4318/v1/metrics'
-                & $w 'api_key  = env:OTEL_API_KEY'
+                $ref = if ($Refs['otel']) { $Refs['otel'] } else { 'env:OTEL_API_KEY' }
+                if ($ref -cne 'none') { & $w "api_key  = $ref" }
                 & $w 'timeout  = 10s'
-                $envNames.Add('OTEL_API_KEY')
+                if ($ref.StartsWith('env:')) { $envNames.Add($ref.Substring(4)) }
             }
         }
         & $w ''
@@ -81,42 +84,17 @@ function Invoke-VigilInit {
     & $w '[runners]'
     & $w '.ps1 = ps'
     & $w ''
-    if ($Sample) {
-        & $w "# A sample job: the system drive's use, every 5 minutes."
-        & $w '[job.disk]'
-        & $w 'metric_name = os.disk'
-        & $w 'file        = scripts\disk.ps1'
-        & $w 'run_every   = 5m'
-        & $w 'max_runtime = 30s'
-    }
-    else {
-        & $w '# Jobs: one [job.<name>] section each. For example:'
-        & $w '# [job.disk]'
-        & $w '# file        = scripts\disk.ps1'
-        & $w '# run_every   = 5m'
-        & $w '# max_runtime = 30s'
-    }
+    & $w '# Your jobs: one [job.<name>] section each, with your scripts in scripts\.'
+    & $w '# [job.backup]'
+    & $w '# file        = scripts\backup.ps1'
+    & $w '# run_every   = 1h'
+    & $w '# max_runtime = 30m'
     Write-VigilFileAtomic -Path $cfg -Text $sb.ToString()
     Write-Output "wrote $cfg"
-
-    $disk = Join-Path $Root 'scripts\disk.ps1'
-    if ($Sample -and -not [System.IO.File]::Exists($disk)) {
-        [System.IO.File]::WriteAllText($disk, (@(
-                    "# disk.ps1 - the system drive's use, as a metric (vigil init sample).",
-                    '# Prints: metric used_pct <percent>. Fails above 95%.',
-                    '$d = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DeviceID=''$env:SystemDrive''"',
-                    '$used = [int][Math]::Round(100 * ($d.Size - $d.FreeSpace) / $d.Size)',
-                    'Write-Output "metric used_pct $used"',
-                    'if ($used -gt 95) { exit 1 }',
-                    'exit 0') -join "`r`n") + "`r`n")
-        Write-Output "wrote $disk"
-    }
 
     if ($envNames.Count -gt 0) {
         Write-Output ''
         Write-Output 'Set these in the machine environment before starting Vigil:'
         foreach ($n in $envNames) { Write-Output "  $n" }
     }
-    Write-Output ''
-    Write-Output 'Next: vigil precheck, then vigil service install'
 }

@@ -253,6 +253,9 @@ function Invoke-VigilPrecheck {
     if (-not $f.Ok) { & $fail "data format: $($f.Error)" }
     elseif ($f.Stored -lt $f.Current) { & $ok "data format: $($f.Stored), moves to $($f.Current) when the supervisor starts" }
     else { & $ok "data format: $($f.Stored)" }
+    if (-not ($parsed.Sections | Where-Object { $_.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) })) {
+        $out.Add('  note  no metrics backend: metrics go nowhere until you add one')
+    }
 
     $ctx = @{
         'state directory' = @('vigil', 'state_dir', 'state')

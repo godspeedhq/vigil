@@ -2,7 +2,7 @@
 #
 # Integration test: vigil init (SPECIFICATION.md 19) and vigil uninstall
 # (18.8) on Linux and macOS. init writes a configuration that passes
-# pre-flight and whose sample job runs, and never overwrites one.
+# pre-flight and whose base pack jobs run, and never overwrites one.
 # uninstall ends only the workers proven to be the root's - an unrelated
 # process stays - and removes the root, or all but config/ and scripts/.
 #
@@ -29,8 +29,10 @@ check() {
 
 # A root with the app in it, as an install has.
 make_root() {
-    mkdir -p "$1"
+    mkdir -p "$1/packs/base"
     cp -R "$repo/app" "$1/"
+    cp "$repo/packs/base/pack.config" "$1/packs/base/"
+    case $(uname -s) in Darwin) cp "$repo"/packs/base/macos/* "$1/packs/base/" ;; *) cp "$repo"/packs/base/linux/* "$1/packs/base/" ;; esac
 }
 
 vigil() {
@@ -48,13 +50,13 @@ make_root "$r"
 vigil "$r" init --instance it-host --backend file,datadog > "$work/out" 2>&1
 check 'init succeeds' 0 "$?"
 check 'init writes the configuration' yes "$([ -f "$r/config/vigil.config" ] && echo yes)"
-check 'init writes the sample script' yes "$([ -f "$r/scripts/disk.sh" ] && echo yes)"
+check 'init turns on the base pack' 1 "$(grep -c '^\[job\.base_disk\]' "$r/config/vigil.config")"
 check 'init names the variables to set' 1 "$(grep -c '^  DATADOG_API_KEY$' "$work/out")"
 check 'every credential is a reference' 0 "$(grep -E '^api_key' "$r/config/vigil.config" | grep -cvE '= *(env|secret|store):')"
 DATADOG_API_KEY=x vigil "$r" precheck > "$work/out" 2>&1
 check 'the configuration passes pre-flight' 0 "$?"
-vigil "$r" run disk > /dev/null 2>&1
-check 'the sample job succeeds' 0 "$?"
+vigil "$r" run base_disk > /dev/null 2>&1
+check 'a base pack job succeeds' 0 "$?"
 before=$(cksum < "$r/config/vigil.config")
 vigil "$r" init > /dev/null 2>&1
 check 'init again is refused' 1 "$?"
@@ -67,10 +69,27 @@ check 'an unknown backend is refused' 1 "$?"
 vigil "$r" init --instance 'a b' > /dev/null 2>&1
 check 'a bad instance name is refused' 1 "$?"
 check 'and nothing is written' no "$([ -e "$r/config/vigil.config" ] && echo yes || echo no)"
-vigil "$r" init --no-sample > /dev/null 2>&1
-check 'init --no-sample succeeds' 0 "$?"
+vigil "$r" init --no-pack > /dev/null 2>&1
+check 'init --no-pack succeeds' 0 "$?"
 check 'with no job' 0 "$(grep -c '^\[job\.' "$r/config/vigil.config")"
 check 'defaults to the file backend' 1 "$(grep -c '^\[backend\.file\]$' "$r/config/vigil.config")"
+
+r=$work/empty
+make_root "$r"
+vigil "$r" init empty > /dev/null 2>&1
+check 'init empty succeeds' 0 "$?"
+check 'no job' 0 "$(grep -c '^\[job\.' "$r/config/vigil.config")"
+check 'no backend' 0 "$(grep -c '^\[backend\.' "$r/config/vigil.config")"
+check 'runners, for your own scripts' 1 "$(grep -c '^\[runner\.sh\]' "$r/config/vigil.config")"
+check 'scripts/ is ready' yes "$([ -d "$r/scripts" ] && echo yes)"
+vigil "$r" precheck > "$work/out" 2>&1
+check 'it passes pre-flight' 0 "$?"
+check 'which says no backend' 1 "$(grep -c 'no metrics backend' "$work/out")"
+check 'status says so too' 1 "$(vigil "$r" status 2>&1 | grep -c 'no backend')"
+printf 'echo "metric mine 1"\n' > "$r/scripts/mine.sh"
+printf '\n[job.mine]\nfile = scripts/mine.sh\nrun_every = 1h\n' >> "$r/config/vigil.config"
+vigil "$r" run mine > /dev/null 2>&1
+check 'and your own script runs' 0 "$?"
 
 # --- uninstall ----------------------------------------------------------------
 
@@ -131,10 +150,10 @@ r=$work/keep
 make_root "$r"
 mkdir -p "$r/config" "$r/scripts" "$r/state/jobs" "$r/logs"
 echo x > "$r/scripts/a.sh"
-vigil "$r" init --no-sample > /dev/null 2>&1
+vigil "$r" init --no-pack > /dev/null 2>&1
 vigil "$r" uninstall --yes --keep-config > /dev/null 2>&1
 check 'uninstall --keep-config succeeds' 0 "$?"
-check 'keeps config and scripts' 'config scripts' "$(ls "$r" | tr '\n' ' ' | sed 's/ $//')"
+check 'keeps config and scripts' 'config packs scripts' "$(ls "$r" | tr '\n' ' ' | sed 's/ $//')"
 check 'keeps the configuration itself' yes "$([ -f "$r/config/vigil.config" ] && echo yes)"
 
 mkdir -p "$work/notroot"

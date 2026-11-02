@@ -391,6 +391,12 @@ vigil_service_status() {
         fi
     fi
     printf 'service: %s\n' "$state"
+    if vigil_config_parse "$root/config/vigil.config" 2> /dev/null; then
+        case " ${VIGIL_CFG_SEC_NAME[*]-} " in
+            *' backend.'*) ;;
+            *) printf 'metrics: no backend, so they go nowhere until you add one\n' ;;
+        esac
+    fi
     if _vw_root=$root _vw_job=vigil_sender _vigil_wk_config 2> /dev/null; then logdir=$_vw_logdir; fi
     if [ -f "$logdir/supervisor/jobs.log" ]; then
         printf '\n'
@@ -506,7 +512,7 @@ vigil_uninstall() {
     if [ "$keep" = 1 ]; then
         for p in "$root"/* "$root"/.[!.]*; do
             [ -e "$p" ] || continue
-            case ${p##*/} in config | scripts) ;; *) rm -rf "$p" ;; esac
+            case ${p##*/} in config | scripts | packs) ;; *) rm -rf "$p" ;; esac
         done
         printf 'removed Vigil; kept %s/config and %s/scripts\n' "$root" "$root"
     else

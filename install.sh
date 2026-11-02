@@ -273,6 +273,18 @@ if [ "$only_upgrade" = 1 ]; then
     exit 0
 fi
 
+# The packs, on a fresh install: only this platform's scripts. vigil pack
+# update replaces them later; an upgrade leaves them alone (18.10).
+case $(uname -s) in Darwin) os=macos ;; *) os=linux ;; esac
+for p in "$src"/packs/*/; do
+    [ -f "$p/pack.config" ] || continue
+    p=${p%/}
+    [ ! -e "$root/packs/${p##*/}" ] || continue
+    mkdir -p "$root/packs/${p##*/}" && cp "$p/pack.config" "$root/packs/${p##*/}/" || die "cannot write to $root/packs"
+    [ ! -d "$p/$os" ] || cp "$p/$os"/* "$root/packs/${p##*/}/" || die "cannot write to $root/packs"
+    chmod -R a+rX "$root/packs/${p##*/}"
+done
+
 # --- 4. The vigil command ------------------------------------------------------
 
 if [ "$mode" = system ]; then bindir=/usr/local/bin; else bindir=$HOME/.local/bin; fi

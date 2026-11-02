@@ -1083,6 +1083,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
     vigil.config          the configuration, or a pointer to it (§6.8); never overwritten
     secrets/<NAME>        Vigil's secret store (§6.5.2): owner-only; encrypted with DPAPI on Windows
   scripts/                the operator's job scripts - never overwritten
+  packs/<name>/           scripts of the packs added here (§18.10); Vigil-owned, replaced whole by an update
   cache/                  fetched configuration and scripts (§16.5); Vigil-owned, safe to delete
     <source>/repo.git       git: bare mirror, never checked out
     <source>/<commit>/      git: the tree at one commit, read-only once complete
@@ -1899,12 +1900,67 @@ Many IT teams do not allow piping a remote script into a shell. The docs therefo
 Before deleting, it lists what will be removed — including how many scripts are in `scripts/` — and asks for confirmation:
 
 - `--yes` skips the confirmation, for unattended use.
-- `--keep-config` keeps `config/` and `scripts/`, so a reinstall picks up where it left off.
+- `--keep-config` keeps `config/`, `scripts/` and `packs/`, so a reinstall picks up where it left off.
 - Without `--yes`, and with no terminal to ask at, it refuses and removes nothing.
 
 It refuses a folder that holds no `app/vigil` (`app\vigil.ps1`), so a mistyped `--root` deletes nothing. A worker is proven by its command line naming the run and the root (`worker <job> --run-id <run id>`) and by being the `worker_pid` of that run's state; a job process by holding the run token (Linux, macOS) or by its PID, name, start time and parent matching the state file (Windows, as for `max_runtime`, §11.5). Proven processes get TERM, then KILL after 10 seconds (on Windows the tree ends at once); a process the state names but that cannot be proven is listed as left running, and nothing else is ever touched.
 
 Environment variables set outside Vigil (machine environment, `vigil.env` aside) are left untouched. Uninstall is idempotent: running it on a clean machine succeeds and changes nothing. On Windows, when the root cannot be deleted because the uninstall itself is running from inside it, deletion is completed by a short-lived detached process after Vigil exits.
+
+### 18.10 Packs
+
+A pack is a set of scripts and jobs, with a version and a list of metrics, so a fresh install has useful metrics straight away. Packs are kept in the Vigil repository, under `packs/`, and each release carries them, signed with it.
+
+```text
+vigil pack list                  each pack here, and whether its jobs are on
+vigil pack enable <what>         puts a pack's jobs, or one, in the configuration
+vigil pack disable <what>        takes them out; the scripts stay
+vigil pack update [--check]      this platform's scripts from the latest release
+```
+
+`<what>` is a pack (`base`) or one of its jobs (`base_cpu`).
+
+**In the repository** a pack is a folder with `pack.config`, in the configuration format, and a folder of scripts per platform: `linux/`, `macos/` and `windows/`.
+
+```ini
+[pack]
+version     = 1.0.0
+vigil       = 0.3.0
+description = CPU, memory, disk, network, load and services
+
+[job.cpu]
+metric_name = system.cpu
+metrics     = used_pct
+run_every   = 1m
+max_runtime = 30s
+```
+
+`vigil` is the oldest Vigil it runs on. A job runs `<job>.sh` on Linux and macOS and `<job>.ps1` on Windows, and is left out on a platform with no script. `metrics` lists what it reports. Every other key is copied to the job.
+
+**In a release,** the `.tar.gz` holds the Linux and macOS scripts and the `.zip` the Windows ones, and the installer copies only its own platform's into `packs/<name>/`, flat, so a machine never holds another platform's scripts. Each release also has `vigil-packs-<version>-linux.tar.gz`, `-macos.tar.gz` and `-windows.zip`, covered by its `SHA256SUMS` and signature.
+
+**Vigil runs only what the configuration names.** That decides what each command may touch:
+
+- `vigil self update` replaces `app/` and `vendor/`, never `packs/`.
+- `vigil pack update` downloads this platform's file from the latest release, verifies it as `vigil self update` verifies a release (§18.7), with the signature required, and replaces `packs/`. It never changes the configuration. A job already on runs the new script at its next run; a run in progress finishes on the old one. It says which scripts changed.
+- A new script stays off until `vigil pack enable` puts its job in the configuration. `vigil pack update` names it.
+- A script the pack dropped stays, while a job in the configuration runs it, and is reported, so an update can never break a working configuration.
+- Only `vigil init`, `vigil pack enable` and `vigil pack disable` change the configuration, and only when asked. The result is validated, judged by the pack's own jobs, and goes back when it fails. A configuration from a source (§6.8) is not edited.
+
+A pack's jobs are a marked block in `vigil.config`, and the operator may edit them:
+
+```ini
+# pack base: vigil pack disable takes these out
+
+[job.base_cpu]
+file = packs/base/cpu.sh
+metric_name = system.cpu
+run_every = 1m
+max_runtime = 30s
+# end of pack base
+```
+
+`vigil pack update` refuses a pack whose `vigil` version is newer than this Vigil, so what is in `packs/` always runs here. Updates are manual, like Vigil's.
 
 ### 18.9 Service Registration
 
@@ -1938,10 +1994,10 @@ The supervisor's command line is `<bash> <app>/vigil --root <root> supervise`, o
 
 1. Detects the OS and available shells.
 2. Asks which backend(s) the organisation uses.
-3. Writes a commented config with the correct runners, paths, `env:` placeholders and one sample job.
+3. Writes a commented config with the correct runners and paths, the chosen backends, and the jobs of the base pack (§18.10). At a console it asks which backends, and for each credential whether it is an environment variable, whose name it asks for, or a secret in Vigil's store, whose value only `vigil secret set` asks for, unseen. Away from a console it asks nothing: the base pack and the `file` backend, with `env:` placeholders.
 4. Prints the environment variable names that must be set.
 
-Flags: `--instance <name>` (default: the host name), `--backend <list>` from `file`, `datadog` and `otel` (default: `file`; other backends are added by hand) and `--no-sample` (no sample job). At a terminal, `init` asks for the instance and backends it was not given; otherwise it uses the defaults. It refuses when `config/vigil.config` exists. The sample job is `scripts/disk.sh` (`scripts\disk.ps1`): the system disk's use as `used_pct`, failing above 95%.
+Flags: `--instance <name>` (default: the host name), `--backend <list>` from `file`, `datadog` and `otel` (default: `file`; other backends are added by hand) and `--no-pack` (the backends, but no jobs). `vigil init empty` asks nothing and writes the instance and runners only, for someone running only their own scripts: no jobs and no backend, which `vigil status` and `vigil precheck` point out. `vigil init` never overwrites a configuration.
 
 `init` never asks for or stores secret values. Every prompt has a flag equivalent so it can run unattended from deployment tooling.
 

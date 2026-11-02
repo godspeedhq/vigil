@@ -320,6 +320,10 @@ vigil_precheck() {
     else
         _vigil_pc_ok "data format: $_vf_stored"
     fi
+    case $'\n'"${VIGIL_CFG_SEC_NAME[*]-}"$'\n' in
+        *backend.*) ;;
+        *) printf '  note  no metrics backend: metrics go nowhere until you add one\n' ;;
+    esac
     if vigil_fetch_mode; then
         _vigil_pc_fetch "$only" "$statedir"
     else
