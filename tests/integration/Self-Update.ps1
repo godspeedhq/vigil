@@ -304,8 +304,7 @@ try {
         $r = Invoke-Vigil uninstall --yes
         Test-Equal 'system: uninstall succeeds' '0' ([string]$r.Code)
 
-        # install -UpdateBy: a real ordinary account, run the way a scheduled
-        # task runs it, because a service has no console to log on to.
+        # install -UpdateBy: a real ordinary account.
         $it = 'vigil-it'
         $bytes = New-Object byte[] 24
         [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
@@ -314,7 +313,6 @@ try {
         $account = $computer.Create('User', $it)
         $account.SetPassword($secret)
         $account.SetInfo()
-        $userTask = 'Vigil IT User'
         # Outside the runner's profile, which an ordinary account cannot enter.
         $byDir = Join-Path $env:SystemDrive "vigil-it.$PID"
         # Runs vigil as that account, or tries what -Probe lists; @{ Code; Text }.
@@ -334,12 +332,13 @@ try {
                     '$env:VIGIL_NO_UPDATE_CHECK = ''1''') + $run + @(
                     "[System.IO.File]::WriteAllText('$f.out', ((`$o | ForEach-Object { `"`$_`" }) -join `"``n`"))",
                     "[System.IO.File]::WriteAllText('$f.code', `"`$c`")"))
-            Start-ScheduledTask -TaskName $userTask
-            for ($i = 0; $i -lt 480 -and -not (Test-Path -LiteralPath "$f.code"); $i++) {
-                Start-Sleep -Milliseconds 500
-                if ($i -gt 10 -and (Get-ScheduledTask -TaskName $userTask).State -eq 'Ready') { break }
+            $p = Start-Process -FilePath $shell -PassThru -Credential $credential -LoadUserProfile -WorkingDirectory $byDir -RedirectStandardError "$f.err" `
+                -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$f.ps1`"")
+            [void]$p.WaitForExit(240000)
+            if (-not (Test-Path -LiteralPath "$f.code")) {
+                Write-Host "        the test account's process ended with $($p.ExitCode)"
+                Get-Content -LiteralPath "$f.err" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "        $_" }
             }
-            if (-not (Test-Path -LiteralPath "$f.code")) { Write-Host "        the test account's task: $((Get-ScheduledTaskInfo -TaskName $userTask).LastTaskResult)" }
             $text = if (Test-Path -LiteralPath "$f.out") { [System.IO.File]::ReadAllText("$f.out") } else { '' }
             $code = if (Test-Path -LiteralPath "$f.code") { [System.IO.File]::ReadAllText("$f.code").Trim() } else { 'none' }
             return @{ Code = $code; Text = $text }
@@ -359,8 +358,7 @@ try {
             $acl = Get-Acl -LiteralPath $byDir
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($it, 'Modify', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
             Set-Acl -LiteralPath $byDir -AclObject $acl
-            $ac = New-ScheduledTaskAction -Execute $shell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$byDir\user.ps1`""
-            [void](Register-ScheduledTask -TaskName $userTask -Action $ac -User $it -Password $secret -RunLevel Limited)
+            $credential = New-Object System.Management.Automation.PSCredential($it, (ConvertTo-SecureString $secret -AsPlainText -Force))
 
             # A task's environment comes from the machine, not from the caller.
             [Environment]::SetEnvironmentVariable('VIGIL_TEST_RELEASE_URL', $env:VIGIL_TEST_RELEASE_URL, 'Machine')
@@ -421,7 +419,6 @@ try {
         finally {
             [Environment]::SetEnvironmentVariable('VIGIL_TEST_RELEASE_URL', [NullString]::Value, 'Machine')
             [Environment]::SetEnvironmentVariable('VIGIL_TEST_RELEASE_KEY', [NullString]::Value, 'Machine')
-            Unregister-ScheduledTask -TaskName $userTask -Confirm:$false -ErrorAction SilentlyContinue
             $computer.Delete('User', $it)
             Remove-Item -LiteralPath $byDir -Recurse -Force -ErrorAction SilentlyContinue
         }
