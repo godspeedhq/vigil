@@ -306,6 +306,7 @@ forward_output = false
     # Splunk's HEC, with each answer it can give.
     Write-Text $cfg (& $config 'hec' '')
     Invoke-Tick
+    Invoke-Forward
     [void](Invoke-Vigil @('run', 'chatty'))
     Clear-Requests
     Invoke-Forward
@@ -342,6 +343,7 @@ forward_output = false
     # Datadog's logs intake.
     Write-Text $cfg (& $config 'dd' '')
     Invoke-Tick
+    Invoke-Forward
     [void](Invoke-Vigil @('run', 'chatty'))
     Clear-Requests
     Invoke-Forward

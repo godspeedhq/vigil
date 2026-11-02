@@ -302,6 +302,7 @@ check "destination changed: new lines go there" yes "$(yes_no grep -q '"path": "
 # Splunk's HEC, with each answer it can give.
 config hec > "$root/config/vigil.config"
 tick
+forward
 vigil run chatty > /dev/null
 : > "$root/mock/requests.log"
 forward
@@ -338,6 +339,7 @@ check "splunk: resent whole" yes "$(yes_no grep -q 'hello from chatty' "$root/mo
 # Datadog's logs intake.
 config dd > "$root/config/vigil.config"
 tick
+forward
 vigil run chatty > /dev/null
 : > "$root/mock/requests.log"
 forward
