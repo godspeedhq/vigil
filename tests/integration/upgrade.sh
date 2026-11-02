@@ -10,7 +10,7 @@
 # HOME is a throwaway folder, so nothing of the account's own is touched.
 # Under Git Bash a running script holds its own folder, so it is skipped.
 #
-# Needs curl and python3 (or python).
+# Needs curl, openssl and python3 (or python).
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -121,10 +121,13 @@ i=0
 while [ ! -s "$work/mock/port" ] && [ "$i" -lt 600 ]; do sleep 0.1; i=$((i + 1)); done
 d=$work/mock/www/releases/download/v$next
 mkdir -p "$d"
-env -u VIGIL_SIGN_KEY bash "$repo/tools/release/package.sh" "$next" "$d" > /dev/null || { printf 'packaging failed\n'; exit 1; }
+# Signed with a key for this run, known to Vigil only through the test override.
+openssl genrsa -out "$work/release.key" 2048 2> /dev/null
+openssl rsa -in "$work/release.key" -pubout -out "$work/release.pem" 2> /dev/null
+VIGIL_SIGN_KEY=$work/release.key bash "$repo/tools/release/package.sh" "$next" "$d" > /dev/null || { printf 'packaging failed\n'; exit 1; }
 : > "$work/mock/www/releases/tag/v$next"
 printf '/releases/latest /releases/tag/v%s\n' "$next" > "$work/mock/redirects"
-export VIGIL_TEST_RELEASE_URL=http://127.0.0.1:$(cat "$work/mock/port")
+export VIGIL_TEST_RELEASE_URL=http://127.0.0.1:$(cat "$work/mock/port") VIGIL_TEST_RELEASE_KEY=$work/release.pem
 
 # The published release updates itself.
 vigil self update > "$work/out" 2>&1

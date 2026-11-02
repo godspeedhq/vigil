@@ -11,7 +11,7 @@
     must carry on as the same process, with its jobs, state and metrics
     intact. The twin of upgrade.sh. The user PATH is put back afterwards.
 
-    Needs Python, and bash for package.sh.
+    Needs Python, and bash with openssl for package.sh.
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -103,8 +103,13 @@ try {
     for ($i = 0; $i -lt 600 -and -not (Test-Path -LiteralPath "$work\mock\port"); $i++) { Start-Sleep -Milliseconds 100 }
     $d = "$work\mock\www\releases\download\v$next"
     [void](New-Item -ItemType Directory -Force -Path $d)
-    & $bash ($repo.Replace('\', '/') + '/tools/release/package.sh') $next $d.Replace('\', '/') | Out-Null
+    # Signed with a key for this run, known to Vigil only through the test override.
+    $kw = $work.Replace('\', '/')
+    & $bash -c "openssl genrsa -out '$kw/release.key' 2048" 2>$null | Out-Null
+    & $bash -c "openssl rsa -in '$kw/release.key' -pubout -out '$kw/release.pem'" 2>$null | Out-Null
+    & $bash -c "VIGIL_SIGN_KEY='$kw/release.key' bash '$($repo.Replace('\', '/'))/tools/release/package.sh' '$next' '$($d.Replace('\', '/'))'" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'packaging failed' }
+    $env:VIGIL_TEST_RELEASE_KEY = "$work\release.pem"
     [System.IO.File]::WriteAllText("$work\mock\www\releases\tag\v$next", '')
     [System.IO.File]::WriteAllText("$work\mock\redirects", "/releases/latest /releases/tag/v$next`n")
     $env:VIGIL_TEST_RELEASE_URL = "http://127.0.0.1:$([System.IO.File]::ReadAllText("$work\mock\port").Trim())"
@@ -138,6 +143,7 @@ finally {
     foreach ($p in @($sup, $mock, $long)) { if ($p -and -not $p.HasExited) { try { Stop-Process -Id $p.Id -Force -ErrorAction Stop } catch { } } }
     [Environment]::SetEnvironmentVariable('Path', $savedPath, 'User')
     Remove-Item Env:\VIGIL_TEST_RELEASE_URL -ErrorAction SilentlyContinue
+    Remove-Item Env:\VIGIL_TEST_RELEASE_KEY -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
     Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue
 }
