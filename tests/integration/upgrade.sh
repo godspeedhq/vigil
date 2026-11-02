@@ -154,6 +154,13 @@ if [ "$(runs beat)" -le $((before + 2)) ]; then
     cat "$root"/logs/jobs/beat/*.log | tail -12 | sed 's/^/        beat: /'
 fi
 check 'no run crashed' 0 "$(grep -hc 'crashed' "$root"/logs/supervisor/2*.log | sort -n | tail -1)"
+if grep -q 'crashed' "$root"/logs/supervisor/2*.log; then
+    grep -h -B6 -A2 'crashed' "$root"/logs/supervisor/2*.log | sed 's/^/        sup: /'
+    grep -h -A6 'reloading' "$root"/logs/supervisor/2*.log | sed 's/^/        reload: /'
+    cat "$root"/logs/jobs/beat/*.log | tail -14 | sed 's/^/        beat: /'
+    ls "$root"/logs/supervisor/ | sed 's/^/        file: /'
+    cat "$root"/logs/supervisor/service.log "$root"/logs/jobs/vigil_sender/*.log 2>/dev/null | tail -6 | sed 's/^/        other: /'
+fi
 check 'metrics still flow' yes "$(grep -q '^beat_beats' "$root/metrics/vigil.prom" && echo yes || echo no)"
 check 'nothing quarantined' no "$([ -d "$root/state/quarantine" ] && echo yes || echo no)"
 

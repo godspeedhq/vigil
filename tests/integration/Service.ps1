@@ -114,7 +114,7 @@ function Test-Lifecycle {
     Write-Host "$tag, root $Root"
     $rc = Invoke-Vigil $Root @('service', 'install', "--$Mode", '--host', $HostName)
     Test-Equal "${tag}: service install succeeds" '0' "$rc"
-    if ($rc -ne 0) { Write-Host $script:lastOut }
+    if ($rc -ne 0) { $script:lastOut.Split("`n") | ForEach-Object { Write-Host "        $_" } }
     Test-Equal "${tag}: the service is active" 'active' (Get-SvcState $Root)
 
     $st = Join-Path $Root 'state\jobs\hold.state'
