@@ -10,7 +10,8 @@
 # LICENSE file for the full terms.
 #
 # tls.sh - the test CA, and a certificate from it for localhost and
-# 127.0.0.1, for the secret stores in compose.secrets.yaml. Made once and
+# 127.0.0.1 (and constrained to those names), for the secret stores in
+# compose.secrets.yaml and the sources in compose.sources.yaml. Made once and
 # kept, so a store restarted later still has the certificate Vigil trusts.
 # scripts/start.sh runs it before starting a store.
 #
@@ -53,8 +54,12 @@ work=$(mktemp -d) || exit 1
 trap 'rm -rf "$work"' EXIT
 printf 'basicConstraints = critical, CA:FALSE\nkeyUsage = critical, digitalSignature, keyEncipherment\nextendedKeyUsage = serverAuth\nsubjectAltName = DNS:localhost, IP:127.0.0.1\n' > "$work/ext"
 
+# Name constraints: the CA can vouch for localhost and 127.0.0.1 and nothing
+# else, so a machine that trusts it (Windows' store, for the https source
+# tests) could never be fooled about a real site, even if its key leaked.
 (umask 077 && openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj '/CN=Vigil test CA' \
     -addext 'basicConstraints = critical, CA:TRUE' -addext 'keyUsage = critical, keyCertSign, cRLSign' \
+    -addext 'nameConstraints = critical, permitted;DNS:localhost, permitted;IP:127.0.0.1/255.255.255.255' \
     -keyout "$dir/ca-key.pem" -out "$tls/ca.pem" 2> /dev/null) &&
     openssl req -newkey rsa:2048 -nodes -subj '/CN=localhost' -keyout "$tls/server-key.pem" -out "$work/server.csr" 2> /dev/null &&
     openssl x509 -req -in "$work/server.csr" -CA "$tls/ca.pem" -CAkey "$dir/ca-key.pem" -CAcreateserial \

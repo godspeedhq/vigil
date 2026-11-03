@@ -152,6 +152,39 @@ Everything generated goes in `.secrets/`, which is git-ignored: the CA, the unse
 
 `run-store` checks retrieval with AppRole and a token, a missing secret, permission denied, an untrusted certificate, an invalid and an expired token, an invalid AppRole secret id, KV v1 (not supported by Vigil), rotation, and that no secret or credential is ever written down. On the Docker host, it also stops, restarts and unseals the store, and checks that Vigil recovers; elsewhere that is reported NOT RUN. Results are in [`reports/secrets-compatibility.md`](reports/secrets-compatibility.md).
 
+## Sources
+
+Group 10, `compose.sources.yaml`, tests the servers Vigil fetches its configuration and scripts from (backlog task 25). Each has its own profile, and none starts with the observability environment:
+
+| Target | Server | Ports (127.0.0.1) | Vigil's source type | Memory |
+| --- | --- | --- | --- | --- |
+| `git-gitea` | Gitea 28.2.0 | 3443 (https), 2222 (ssh) | `git` | about 110 MB |
+| `https-nginx` | nginx 1.30.5 | 9443 (https), 9080 (http) | `https` | about 10 MB |
+| `sftp-openssh` | OpenSSH (atmoz/sftp) | 2022 | `sftp` | about 10 MB |
+| `local` | none: a directory | — | `local` | — |
+
+GitLab CE, Caddy and SFTPGo follow in phase 2 of the task.
+
+```sh
+scripts/start.sh git-gitea          # the test CA and keys if new, start, fixtures
+scripts/run-source.sh git-gitea     # the tests
+scripts/run-source.sh local         # needs no server at all
+```
+
+- **Fixtures:** fixed files in [`fixtures/sources/`](fixtures/sources), byte-exact on every checkout, so their SHA-256 is known: scripts in both flavours, and the configurations Vigil fetches in remote mode.
+- **Provisioning:** each server's `configs/sources/<server>/provision.sh` runs after it starts. Gitea gets a private repository with a fixed history (the same commits every time), a read-only collaborator and a read-only deploy key. nginx serves the fixtures, with endpoints that fail on purpose. The SFTP server has a key-only user and a fixed host key.
+- **Generated files:** dummy keys, passwords and tokens go in `.sources/` (git-ignored). Copy it, and `.secrets/tls/ca.pem`, to test from another machine.
+- **Trust:** a source has no `ca_file`, so the test CA is trusted as an operator trusts a private one: git's `http.sslCAInfo` and curl's `CURL_CA_BUNDLE`. sftp uses its key and `known_hosts` through Vigil's own test switch, `VIGIL_TEST_SSH_CONFIG`.
+
+`run-source` drives Vigil with supervisor ticks, as `tests/integration/fetch.sh` does. No check passes on a connection or a download alone: each reads the fetcher's status and reason, the activation record, the cached file's SHA-256 and the job's run. It covers:
+- retrieval, updates and remote mode
+- every failure the server can give, with the last good configuration kept each time
+- refused credentials and host keys
+- the server down and back, on the Docker host
+- that no credential is ever written down
+
+Results are in [`reports/sources-compatibility.md`](reports/sources-compatibility.md).
+
 ## Not done yet
 
 Section 5 of the backlog lists 16 checks per backend. Today `verify.sh` covers the first three, plus job labels for metrics. These are outstanding:
