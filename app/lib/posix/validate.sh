@@ -675,7 +675,7 @@ vigil_config_validate() {
     local count=${#VIGIL_CFG_KEY[@]}
     local s si e name sline kind sub key value line seen req auth pointer=''
     local has_file has_every has_at has_days has_command has_type has_sha256
-    local has_config_file
+    local has_config_file i n
     local tag_keys env_names
 
     # Names that references may point at, and each source's type (empty
