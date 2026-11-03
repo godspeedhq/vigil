@@ -59,6 +59,10 @@ jobs:
         run: /bin/bash tests/integration/pack.sh
       - name: the base pack (/bin/bash)
         run: /bin/bash tests/integration/base-pack.sh
+      # Not a test: its output becomes the Logs and output pages.
+      - name: the tour for the documentation (/bin/bash)
+        run: /bin/bash tools/docs/tour.sh
+        timeout-minutes: 6
       - name: data format (/bin/bash)
         run: /bin/bash tests/integration/format.sh
         timeout-minutes: 5
@@ -132,6 +136,11 @@ jobs:
         run: ./tests/integration/Pack.ps1
       - name: the base pack
         run: ./tests/integration/Base-Pack.ps1
+      # Not a test: its output becomes the Logs and output pages.
+      - name: the tour for the documentation
+        if: matrix.shell == 'powershell'
+        run: ./tools/docs/Tour.ps1
+        timeout-minutes: 6
       - name: data format
         run: ./tests/integration/Format.ps1
         timeout-minutes: 5
