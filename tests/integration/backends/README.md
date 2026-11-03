@@ -124,8 +124,9 @@ Group 9, `compose.secrets.yaml`, tests Vigil's existing secret stores (backlog t
 | --- | --- | --- | --- | --- |
 | `openbao` | OpenBao 2.7.1, the open-source fork of Vault | 8200 (https) | `hashicorp_vault` | about 25 MB |
 | `vault` | HashiCorp Vault 2.2.0 | 8210 (https) | `hashicorp_vault` | about 70 MB |
+| `aws` | Floci 2.3.0, an AWS emulator, behind an nginx TLS front | 4566 (https) | `aws_secrets_manager` | about 60 MB |
 
-The cloud emulators (AWS, Azure, GCP) come in phase 2 of the task.
+The other emulators (LocalStack, Azure, GCP) are still to come in phase 2 of the task. LocalStack now needs an account's auth token, which is not made for you. An emulator proves Vigil's requests and how it reads the answers, never the real cloud's sign-in: Floci, for one, accepts any key, and `run-store` reports that as an EMULATOR LIMITATION, not a pass.
 
 ```sh
 scripts/start.sh openbao        # the test CA if new, start, unseal, fixtures

@@ -15,8 +15,8 @@ How Vigil's secret stores work with real secret services and local emulators, an
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | OpenBao (`openbao/openbao:2.7.1`) | Docker, server mode, raft, TLS | Real backend | **Passed**: KV v2 reads, as Vigil's `hashicorp_vault` | **Passed**: token, AppRole; bad, expired and wrong-policy credentials refused | **Passed**: KV v2. KV v1: **Not supported** by Vigil | **Passed** | **Passed** |
 | HashiCorp Vault (`hashicorp/vault:2.2.0`) | Docker, server mode, raft, TLS | Real backend | **Passed**, the same | **Passed**, the same | **Passed**: KV v2. KV v1: **Not supported** by Vigil | **Passed** | **Passed** |
-| Floci AWS | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
-| LocalStack | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
+| Floci AWS (`floci/floci:2.3.0`) | Docker, behind an nginx TLS front | Emulator | **Passed**: `GetSecretValue` as Vigil's `aws_secrets_manager` signs it; regions kept apart | **Emulator limitation**: any key is accepted, signatures are not checked | **Passed**, with `field`; binary secrets: **Not supported** by Vigil | **Passed** | **Passed**, as an emulator (see limits below) |
+| LocalStack (`localstack/localstack`) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | **Blocked by licensing**: since 2026.03.0 it won't start without a LocalStack account's auth token, and no account is made for you |
 | Floci Azure | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
 | Azure Key Vault emulator (community) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
 | Floci GCP | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
@@ -56,12 +56,36 @@ Each check ran against both servers, configured alike, with the same fixtures (`
 
 Secrets are fetched fresh at every run, so there is nothing to renew or invalidate.
 
+## AWS Secrets Manager, through Floci: what was tested
+
+Vigil's `aws_secrets_manager` store, `client = http`, `auth = access_keys` with dummy keys, `endpoint = https://127.0.0.1:4566`. Floci speaks plain http, so an nginx in front of it serves https with the test CA. The fixtures come from `configs/secrets/aws/provision.sh`, which writes them again after every start, since Floci keeps everything in memory.
+
+| Check | Must end, at precheck and at the run | Result |
+| --- | --- | --- |
+| Retrieval, delivered to a job | succeeded; the job's secret hashes to the fixture's | Passed |
+| One key of a JSON secret (`field = password`) | succeeded, the same way | Passed |
+| Missing secret | `not found (ResourceNotFoundException)` | Passed |
+| A `field` the JSON lacks | `the secret's value: no nosuch` | Passed |
+| A binary secret | `unexpected answer: no SecretString`: Vigil reads `SecretString` only | Passed (as **Not supported**) |
+| The same name in another region (eu-west-2) | `not found (ResourceNotFoundException)`: regions are kept apart | Passed |
+| Untrusted certificate (no `ca_file`) | `the certificate of 127.0.0.1:4566 is not trusted` | Passed |
+| Rotation (`PutSecretValue`) | the next run gets the new value | Passed |
+| A wrong secret key | real AWS: `permission denied (InvalidSignatureException)`. Floci: accepted | **Emulator limitation** |
+| Emulator stopped | `cannot connect to 127.0.0.1:4566` | Passed (Fedora) |
+| Emulator started again, fixtures rewritten | succeeded | Passed (Fedora) |
+| No secret or credential written down | none of the values or keys under the Vigil root or in its output | Passed |
+
+**What this does not show:**
+- AWS's own sign-in. Signature checking, IAM policies, `AccessDeniedException` and `instance_profile` (IMDS) are all untested, because Floci accepts any key and has no instance metadata.
+- Malformed requests. Vigil only ever sends a well-formed `GetSecretValue`; Floci's answer to bad JSON (`SerializationException`, HTTP 400) was checked by hand.
+- Prove AWS itself with the optional real-cloud test.
+
 ## Runs
 
-| Date | Vigil on | OpenBao | Vault | Notes |
-| --- | --- | --- | --- | --- |
-| 2026-11-03 | Fedora 44 (the Docker host), bash 5.3 | 26 of 26 | 26 of 26 | restart, sealed and recovery included |
-| 2026-11-03 | macOS 12.7.6, bash 3.2, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | restart not run: it needs the Docker host |
-| 2026-11-03 | Windows 11 Pro, PowerShell 5.1, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | the same; rotation through Git Bash's curl |
+| Date | Vigil on | OpenBao | Vault | Floci AWS | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 2026-11-03 | Fedora 44 (the Docker host), bash 5.3 | 26 of 26 | 26 of 26 | 20 of 20, 1 emulator limitation | restart and recovery included |
+| 2026-11-03 | macOS 12.7.6, bash 3.2, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 emulator limitation | restart not run: it needs the Docker host |
+| 2026-11-03 | Windows 11 Pro, PowerShell 5.1, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 emulator limitation | the same; rotation through Git Bash's curl |
 
 The restart checks run only where the store's container runs, so Vigil's recovery after an outage has been seen on Linux only so far. Running them from macOS and Windows, with the Docker host's containers stopped and started remotely, is part of phase 3.

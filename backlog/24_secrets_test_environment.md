@@ -116,4 +116,17 @@ tests/integration/backends/
   - **KV v1** is shown to be unreadable by Vigil, as it is: reported Not supported, not changed.
   - Report: `reports/secrets-compatibility.md`.
 - **Phase 3, to come:** run the restart checks from macOS and Windows too, stopping and starting the Docker host's container remotely.
-- **Phase 2:** next, starting with checking each emulator image.
+- **Phase 2: started (2026-11-03).**
+  - **Floci AWS 2.3.0: done.** It sits behind an nginx TLS front (1.30.5-alpine) with the test CA. 20 of 20 on Fedora with the restart; 18 of 18 on macOS and Windows. One emulator limitation everywhere: any secret key is accepted.
+  - **The images, as checked:**
+
+    | Service | Pin | Licence | What Vigil needs from it |
+    | --- | --- | --- | --- |
+    | `floci/floci` | 2.3.0 | MIT | done, as above |
+    | `floci/floci-az` | 0.15.0 | MIT | Key Vault secrets with versions; an emulated Entra ID issuing `client_credentials` tokens, so `service_principal` may sign in for real; TLS via `FLOCI_AZ_TLS_ENABLED`, or the nginx front |
+    | `floci/floci-gcp` | 0.11.0 | MIT | Secret Manager over REST, http only (front needed); IAM checks with `FLOCI_GCP_SERVICES_IAM_AUTHORIZATION_MODE=enforce`. Unknown yet: whether anything answers the JWT-bearer grant Vigil sends to `token_uri` |
+    | `localstack/localstack` | 2026.10.0 | free tier with an account | **blocked:** since 2026.03.0 it needs `LOCALSTACK_AUTH_TOKEN` from a LocalStack account. Testable only if the user supplies a token in `.env` |
+    | Azure community emulator | Lowkey Vault (`nagyesta/lowkey-vault`, MIT), the best fit | MIT | api-version 7.4 over https, choosing versions. No client-credentials token endpoint, only a managed-identity one; Vigil's `managed_identity` always goes to 169.254.169.254, so sign-in there is an emulator limitation, unless Vigil's existing test switch `VIGIL_TEST_IMDS` is used and labelled as such |
+    | `ghcr.io/blackwell-systems/gcp-secret-manager-emulator-dual` | no release published yet: pin by digest | Apache 2.0 | REST on 8080, which collides with SigNoz, so published elsewhere; no authentication; http only (front needed) |
+
+  - **Next:** Floci Azure, then Lowkey Vault, then the two GCP emulators, each checked by a run before it's accepted.
