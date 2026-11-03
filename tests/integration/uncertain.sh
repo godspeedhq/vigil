@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 #
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
 # Integration test: uncertain runs (SPECIFICATION.md 11.4, 11.5; fault
 # injection 22.4 cases 10, 11, 12, 18, 19) on Linux and macOS.
 #
