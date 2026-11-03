@@ -64,10 +64,11 @@ rnd() { openssl rand -hex 16; }
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-store.XXXXXX") || exit 1
 root=$work/root
-trap 'rm -rf "$work"' EXIT
+trap 'evidence_save ${leak_values-} ${first-} ${rotated-}; rm -rf "$work"' EXIT
 trap 'exit 1' TERM INT HUP
 mkdir -p "$root/scripts" "$root/config" && cp -R "$bk_repo/app" "$root/" &&
     cp "$bk_dir/workloads/secret.sh" "$root/scripts/" && cp "$ca" "$root/config/store-ca.pem" || exit 1
+evidence_start "store-$t" "$bk_dir/compose.secrets.yaml" "$0" "$@"
 
 vigil() { bash "$root/app/vigil" --root "$root" "$@" < /dev/null; }
 pass=0 fail=0 notrun=0 limits=0

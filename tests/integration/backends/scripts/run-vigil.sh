@@ -44,12 +44,16 @@ sup=''
 cleanup() {
     # The supervisor this script started, and nothing else.
     [ -n "$sup" ] && kill "$sup" 2> /dev/null
+    # What verify.sh got from the backend, with the rest.
+    [ -n "${ev_dir-}" ] && cp "$bk_dir/reports/evidence/$target-$tag.txt" "$ev_dir/backend-answers.txt" 2> /dev/null
+    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}"
     rm -rf "$work"
 }
 trap cleanup EXIT
 trap 'exit 1' TERM INT HUP
 
 mkdir -p "$root/scripts" "$root/config" && cp -R "$bk_repo/app" "$root/" && cp "$bk_dir"/workloads/*.sh "$root/scripts/" || exit 1
+evidence_start "backend-$target" "$bk_dir/compose*.yaml" "$0" "$@"
 
 # A backend or log destination section for "<type> <endpoint>".
 section() {

@@ -27,6 +27,13 @@ The tests now print what they know when these fail.
   the reader; `Uncertain.ps1` reproduces the collision. Close this entry if it
   does not come back.
 
+- `tests/integration/Service.ps1`, PowerShell 5.1, on the merge of #67 (a
+  documentation-only change, so not caused by it): `system/pwsh: the worker
+  runs on the chosen host` found no worker, and then the worker and its job
+  "outlive stop" and "outlive remove" failed, as they never ran. It passed on
+  #67's own run, and on the rerun. Like the user/pwsh entry above: in system
+  mode with the pwsh host, the first run may start later than the test waits.
+
 None came back in 24 macOS upgrades and self updates, or 12 Windows service
 runs, with diagnostics on.
 
