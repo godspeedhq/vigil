@@ -57,6 +57,9 @@ $scripts = Join-Path $root 'scripts'
 Set-Content -LiteralPath (Join-Path $scripts 'ok.ps1') -Value @(
     'Write-Output "starting"', 'Write-Output "metric rows 5 table=orders"', 'Write-Output "metric bad"',
     '[Console]::Error.WriteLine("to stderr")', 'exit 0')
+# A lot of output, an empty line in the middle, and a metric only at the end.
+Set-Content -LiteralPath (Join-Path $scripts 'noisy.ps1') -Value @(
+    '1..30000 | ForEach-Object { "line $_" }', "''", 'Write-Output "metric last 1"', '[Console]::Error.WriteLine("err one")')
 Set-Content -LiteralPath (Join-Path $scripts 'check_disk.ps1') -Value @(
     'Write-Output "DISK WARNING - C: 85% | C:=11700MB;15600;17550;0;19500"', 'exit 1')
 Set-Content -LiteralPath (Join-Path $scripts 'fail.ps1') -Value @('Write-Output "metric partial 1"', 'exit 2')
@@ -84,6 +87,10 @@ arg     = -File
 
 [job.ok]
 file      = scripts\ok.ps1
+run_every = 5m
+
+[job.noisy]
+file      = scripts\noisy.ps1
 run_every = 5m
 
 [job.disk]
@@ -148,6 +155,16 @@ $log = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\ok') -Filter '*.l
 Test-Equal 'ok log has stdout' '1' "$(([regex]::Matches($log, ' out metric rows 5 table=orders\r?$', 'Multiline')).Count)"
 Test-Equal 'ok log has stderr' '1' "$(([regex]::Matches($log, ' err to stderr\r?$', 'Multiline')).Count)"
 Test-Equal 'ok log has end' '1' "$(([regex]::Matches($log, ' run end succeeded in ')).Count)"
+
+# Output is copied to files as it comes, not held in memory, and the job log
+# is written from them exactly as before.
+Test-Run 'noisy' 0 'succeeded' ''
+$log = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\noisy') -Filter '*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+Test-Equal 'noisy log has every line' '30000' "$(([regex]::Matches($log, ' out line [0-9]+\r?$', 'Multiline')).Count)"
+Test-Equal 'noisy log keeps the empty line' '1' "$(([regex]::Matches($log, ' out \r?$', 'Multiline')).Count)"
+Test-Equal 'noisy log has stderr' '1' "$(([regex]::Matches($log, ' err err one\r?$', 'Multiline')).Count)"
+Test-Equal 'noisy metric after all that output' 'True' "$((Get-Events 'noisy') -match '(?m)^noisy\.last 1 gauge')"
+Test-Equal 'noisy leaves no output files' '0' "$(@(Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\noisy') -File | Where-Object { $_.Extension -cne '.log' }).Count)"
 
 Test-Run 'disk' 1 'warning' 'exit code 1'
 Test-Equal 'disk perf event' 'os.disk.perf 12268339200 gauge instance=it job=disk env=test label=C:' (((Get-Events 'disk') -split "`n") | Where-Object { $_.StartsWith('os.disk.perf ') })
