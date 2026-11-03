@@ -402,8 +402,8 @@ if [ "$do_service" = 1 ]; then
     [ -n "$account" ] && set -- "$@" --account "$account"
     if ! vigil "$@"; then
         say ''
-        say "Vigil is installed but not running: fix what the checks above report"
-        say "(edit $root/config/vigil.config, set the environment), then run: vigil service install --$mode"
+        say "Vigil is installed but not running: the reason is above (a failed check,"
+        say "or no session to run it in). Once it is dealt with, run: vigil service install --$mode"
         exit 1
     fi
 fi

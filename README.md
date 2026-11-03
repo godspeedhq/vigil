@@ -883,7 +883,7 @@ Everything lives under one root, so uninstalling is a single delete:
 <root>/
   app/                          Vigil itself (replaced on upgrade)
     vigil, vigil.ps1              the command (Linux/macOS, Windows)
-    vigil.cmd                     "vigil" on Windows, through the PATH
+    bin/vigil.cmd                 "vigil" on Windows, through the PATH
     VERSION                       the installed release
     lib/posix/                    the bash implementation
     lib/windows/                  the PowerShell implementation

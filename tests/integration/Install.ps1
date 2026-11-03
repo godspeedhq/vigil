@@ -15,8 +15,10 @@
 .DESCRIPTION
     From release archives built by tools/release/package.sh (through Git
     Bash): a tampered archive changes nothing; a fresh install unpacks, adds
-    app\ to the PATH and writes a configuration that passes pre-flight; an
-    upgrade replaces app\ and vendor\ and never touches config\ or scripts\;
+    app\bin (the vigil command) to the PATH and writes a configuration that
+    passes pre-flight, and vigil runs where the execution policy refuses
+    scripts; an upgrade replaces app\ and vendor\, never touches config\ or
+    scripts\, and moves an earlier version's PATH entry (app\) to app\bin;
     uninstall removes it all, PATH entry included. From an elevated prompt
     (as on CI runners) the system-mode install registers and starts the
     service too. The twin of install.sh.
@@ -78,10 +80,20 @@ $rc = Invoke-Script $installer @('-User', '-Prefix', $root, '-Archive', $a1, '-I
 Test-Equal 'install succeeds' '0' "$rc"
 if ($rc -ne 0) { Write-Host $script:lastOut }
 Test-Equal 'the version is recorded' '0.0.1-it' (Get-Version $root)
-Test-Equal 'app is on the user PATH' 'True' (Test-OnPath (Join-Path $root 'app') 'User')
+Test-Equal 'app\bin is on the user PATH' 'True' (Test-OnPath (Join-Path $root 'app\bin') 'User')
+Test-Equal 'app is not' 'False' (Test-OnPath (Join-Path $root 'app') 'User')
 Test-Equal 'init wrote the configuration' 'True' "$([System.IO.File]::ReadAllText((Join-Path $root 'config\vigil.config')) -match '(?m)^instance = it$')"
-$out = & cmd.exe /d /c "`"$(Join-Path $root 'app\vigil.cmd')`" precheck" 2>&1
+$out = & cmd.exe /d /c "`"$(Join-Path $root 'app\bin\vigil.cmd')`" precheck" 2>&1
 Test-Equal 'the installed configuration passes pre-flight, through vigil.cmd' '0' "$LASTEXITCODE"
+
+# Where the execution policy refuses scripts, the default on Windows 10 and
+# 11, PowerShell finds vigil.cmd, which runs vigil.ps1 all the same.
+$out = & $shell -NoProfile -ExecutionPolicy Restricted -Command "`$env:Path = '$(Join-Path $root 'app\bin');' + `$env:Path; vigil version" 2>&1
+Test-Equal 'vigil runs from PowerShell where scripts are refused' 'Vigil 0.0.1-it' "$(@($out)[0])"
+
+# An earlier version put app\ on the PATH: a reinstall moves it to app\bin.
+$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+[Environment]::SetEnvironmentVariable('Path', $userPath.Replace((Join-Path $root 'app\bin'), (Join-Path $root 'app')), 'User')
 
 $cfgPath = Join-Path $root 'config\vigil.config'
 [System.IO.File]::AppendAllText($cfgPath, "# my change`n")
@@ -90,6 +102,8 @@ $cfg = [System.IO.File]::ReadAllText($cfgPath)
 Test-Equal 'upgrade succeeds' '0' "$(Invoke-Script $installer @('-User', '-Prefix', $root, '-Archive', $a2, '-NoService'))"
 Test-Equal 'says it upgraded' 'True' "$($script:lastOut -match '(?m)^upgraded ')"
 Test-Equal 'app is the new version' '0.0.2-it' (Get-Version $root)
+Test-Equal 'the old PATH entry (app) is gone' 'False' (Test-OnPath (Join-Path $root 'app') 'User')
+Test-Equal 'for app\bin' 'True' (Test-OnPath (Join-Path $root 'app\bin') 'User')
 Test-Equal 'the configuration is untouched' 'True' "$($cfg -ceq [System.IO.File]::ReadAllText($cfgPath))"
 Test-Equal 'scripts are untouched' 'True' "$(Test-Path -LiteralPath (Join-Path $root 'scripts\mine.ps1'))"
 Test-Equal 'no app.old is left' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'app.old'))"
@@ -97,7 +111,7 @@ Test-Equal 'no app.old is left' 'False' "$(Test-Path -LiteralPath (Join-Path $ro
 Test-Equal 'uninstall succeeds' '0' "$(Invoke-Script (Join-Path $root 'app\vigil.ps1') @('uninstall', '--yes'))"
 for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $root); $i++) { Start-Sleep -Milliseconds 500 }
 Test-Equal 'the root is gone' 'False' "$(Test-Path -LiteralPath $root)"
-Test-Equal 'the PATH entry is gone' 'False' (Test-OnPath (Join-Path $root 'app') 'User')
+Test-Equal 'the PATH entry is gone' 'False' (Test-OnPath (Join-Path $root 'app\bin') 'User')
 
 # --- system mode, with the service -------------------------------------------------
 
@@ -109,7 +123,7 @@ else {
     $rc = Invoke-Script $installer @('-System', '-Prefix', $root, '-Archive', $a1, '-Instance', 'it-sys')
     Test-Equal 'system: install succeeds' '0' "$rc"
     if ($rc -ne 0) { Write-Host $script:lastOut }
-    Test-Equal 'system: app is on the machine PATH' 'True' (Test-OnPath (Join-Path $root 'app') 'Machine')
+    Test-Equal 'system: app\bin is on the machine PATH' 'True' (Test-OnPath (Join-Path $root 'app\bin') 'Machine')
     $vigil = Join-Path $root 'app\vigil.ps1'
     [void](Invoke-Script $vigil @('status'))
     Test-Equal 'system: the service is active' 'True' "$($script:lastOut -match '^service: active')"
@@ -121,7 +135,7 @@ else {
     for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $root); $i++) { Start-Sleep -Milliseconds 500 }
     Test-Equal 'system: the root is gone' 'False' "$(Test-Path -LiteralPath $root)"
     Test-Equal 'system: the service is gone' 'False' "$([bool](Get-Service -Name Vigil -ErrorAction SilentlyContinue))"
-    Test-Equal 'system: the PATH entry is gone' 'False' (Test-OnPath (Join-Path $root 'app') 'Machine')
+    Test-Equal 'system: the PATH entry is gone' 'False' (Test-OnPath (Join-Path $root 'app\bin') 'Machine')
 }
 
 Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue

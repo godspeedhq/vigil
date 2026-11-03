@@ -224,8 +224,60 @@ public static class VigilNative {
         }
         return false;
     }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct STARTUPINFO {
+        public int cb; public string lpReserved, lpDesktop, lpTitle;
+        public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+        public short wShowWindow, cbReserved2; public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    struct PROCESS_INFORMATION { public IntPtr hProcess, hThread; public int dwProcessId, dwThreadId; }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool CreateProcessW(string app, StringBuilder cmd, IntPtr pa, IntPtr ta, bool inherit, uint flags, IntPtr env, string dir, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
+
+    // Starts cmd hidden, holding none of this process's handles, and out of
+    // its job: an SSH session's job ends every process in it at logout, and
+    // lets them break away. Returns the id; throws when it cannot.
+    public static int StartDetached(string cmd, string dir) {
+        STARTUPINFO si = new STARTUPINFO();
+        si.cb = Marshal.SizeOf(typeof(STARTUPINFO));
+        si.dwFlags = 1; si.wShowWindow = 0;  // STARTF_USESHOWWINDOW, SW_HIDE
+        PROCESS_INFORMATION pi;
+        // CREATE_BREAKAWAY_FROM_JOB, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT
+        if (!CreateProcessW(null, new StringBuilder(cmd), IntPtr.Zero, IntPtr.Zero, false, 0x01000000 | 0x08000000 | 0x400, IntPtr.Zero, dir, ref si, out pi)) {
+            int e = Marshal.GetLastWin32Error();
+            if (e == 5) throw new InvalidOperationException("this session's job does not let a process outlive it");
+            throw new System.ComponentModel.Win32Exception(e);
+        }
+        CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+        return pi.dwProcessId;
+    }
 }
 '@
+}
+
+# Starts command line $CommandLine in $Directory, detached: hidden, holding
+# none of this process's handles, outliving this logon, as one started at
+# logon would. Through WMI, or where WMI refuses (an SSH session), out of
+# this session's job.
+function Start-VigilDetached {
+    param([string]$CommandLine, [string]$Directory)
+    if (-not $Script:VigilWmiRefused) {
+        try {
+            $si = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }
+            $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -ErrorAction Stop -Arguments @{
+                CommandLine = $CommandLine; CurrentDirectory = $Directory; ProcessStartupInformation = $si
+            }
+        }
+        catch [Microsoft.Management.Infrastructure.CimException] { $Script:VigilWmiRefused = $true }
+        if (-not $Script:VigilWmiRefused) {
+            if ($r.ReturnValue -ne 0) { throw "Win32_Process.Create returned $($r.ReturnValue)" }
+            return
+        }
+    }
+    Initialize-VigilNative
+    [void][VigilNative]::StartDetached($CommandLine, $Directory)
 }
 
 # A process's name, start time, parent and command line, from WMI or, when
