@@ -1,0 +1,17 @@
+# Standalone Prometheus for the Vigil backend tests. Vigil's metrics arrive
+# through the OTLP receiver (--web.enable-otlp-receiver), not by scraping,
+# so the only scrape is Prometheus itself.
+
+global:
+  scrape_interval: 15s
+
+# OTLP resource attributes Vigil sets, kept as labels on every series.
+otlp:
+  promote_resource_attributes:
+    - service.name
+    - host.name
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

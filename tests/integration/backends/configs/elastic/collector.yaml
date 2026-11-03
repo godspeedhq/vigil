@@ -1,0 +1,36 @@
+# OTLP from Vigil, into Elasticsearch through the collector's elasticsearch
+# exporter. Metrics and logs go to the indexes the exporter chooses for
+# OTel data; verify.sh searches them for the test's own values.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  elasticsearch:
+    endpoint: http://elasticsearch:9200
+    auth:
+      authenticator: basicauth/elastic
+
+extensions:
+  basicauth/elastic:
+    client_auth:
+      username: elastic
+      password: ${env:ELASTIC_PASSWORD}
+
+service:
+  extensions: [basicauth/elastic]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [elasticsearch]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [elasticsearch]

@@ -1,0 +1,71 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Group 3: the Victoria ecosystem, each component on its own profile.
+#
+#   victoriametrics   OTLP metrics at /opentelemetry/v1/metrics: Vigil's otel
+#                     backend points there directly
+#   victorialogs      OTLP logs at /insert/opentelemetry/v1/logs: Vigil's otel
+#                     log destination points there directly
+#   victoriatraces    traces, which Vigil does not send: not applicable
+#
+#   docker compose --profile victoria up -d       all three
+
+services:
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.155.0
+    profiles: ["victoriametrics", "victoria"]
+    command:
+      - -storageDataPath=/storage
+      - -retentionPeriod=7d
+    ports:
+      - "127.0.0.1:8428:8428"
+    volumes:
+      - victoriametrics-data:/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8428/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  victorialogs:
+    image: victoriametrics/victoria-logs:v1.53.0
+    profiles: ["victorialogs", "victoria"]
+    command:
+      - -storageDataPath=/vlogs
+      - -retentionPeriod=7d
+    ports:
+      - "127.0.0.1:9428:9428"
+    volumes:
+      - victorialogs-data:/vlogs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9428/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  victoriatraces:
+    image: victoriametrics/victoria-traces:v0.12.1
+    profiles: ["victoriatraces", "victoria"]
+    command:
+      - -storageDataPath=/vtraces
+    ports:
+      - "127.0.0.1:10428:10428"
+    volumes:
+      - victoriatraces-data:/vtraces
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:10428/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  victoriametrics-data:
+  victorialogs-data:
+  victoriatraces-data:

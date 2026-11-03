@@ -1,0 +1,31 @@
+# OTLP from Vigil, into ClickHouse through the collector's clickhouse
+# exporter, which creates its own tables (otel_metrics_gauge,
+# otel_metrics_sum, otel_logs and the rest) in the vigil database.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  clickhouse:
+    endpoint: tcp://clickhouse:9000
+    database: vigil
+    username: vigil
+    password: ${env:CLICKHOUSE_PASSWORD}
+    create_schema: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [clickhouse]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [clickhouse]

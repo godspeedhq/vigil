@@ -1,0 +1,60 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Group 6: InfluxDB, pinned to 2.9.1 (the 2.x line: tokens, organisations,
+# buckets and Flux; see README.md for how 1.x and 3.x differ).
+#
+#   docker compose --profile influxdb up -d
+#
+# Vigil has no native InfluxDB backend yet, so its OTLP metrics go through
+# an OpenTelemetry Collector (influxdb-collector, on 4438) and the
+# collector's influxdb exporter: integration through an intermediary.
+#
+# MIT licence. The first start sets up the organisation, bucket and admin
+# token from .env.
+
+services:
+  influxdb:
+    image: influxdb:2.9.1
+    profiles: ["influxdb"]
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: vigil
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-}
+      DOCKER_INFLUXDB_INIT_ORG: vigil
+      DOCKER_INFLUXDB_INIT_BUCKET: vigil
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN:-}
+    ports:
+      - "127.0.0.1:8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8086/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  influxdb-collector:
+    image: otel/opentelemetry-collector-contrib:0.163.2
+    profiles: ["influxdb"]
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-}
+    ports:
+      - "127.0.0.1:4438:4318"   # OTLP HTTP: Vigil sends here
+    volumes:
+      - ./configs/influxdb/collector.yaml:/etc/otelcol/config.yaml:ro,z
+
+volumes:
+  influxdb-data:
+  influxdb-config:

@@ -1,0 +1,33 @@
+# Monolithic Mimir on the local filesystem, for tests. OTLP metrics arrive
+# at /otlp/v1/metrics; queries at /prometheus/api/v1/query.
+
+multitenancy_enabled: false
+target: all
+
+server:
+  http_listen_port: 9009
+  log_level: warn
+
+common:
+  storage:
+    backend: filesystem
+    filesystem:
+      dir: /data/common
+
+blocks_storage:
+  storage_prefix: blocks
+  tsdb:
+    dir: /data/tsdb
+
+ingester:
+  ring:
+    replication_factor: 1
+    kvstore:
+      store: inmemory
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+
+compactor:
+  data_dir: /data/compactor

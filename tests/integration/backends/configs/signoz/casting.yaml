@@ -1,0 +1,19 @@
+# SigNoz's own installer, Foundry, reads this file and generates the Docker
+# Compose deployment into pours/deployment (https://signoz.io/docs/install/docker/).
+# SigNoz deprecated its Compose files in v0.130.0; this is the official way
+# now. scripts/start.sh signoz runs:
+#
+#   foundryctl gauge -f casting.yaml
+#   foundryctl forge -f casting.yaml
+#   docker compose -f pours/deployment/compose.yaml up -d
+#
+# foundryctl is installed by hand (see README.md); nothing installs it for
+# you. The version tested is recorded in reports/compatibility.md.
+apiVersion: v1alpha1
+kind: Installation
+metadata:
+  name: signoz
+spec:
+  deployment:
+    flavor: compose
+    mode: docker

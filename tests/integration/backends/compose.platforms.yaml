@@ -1,0 +1,64 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Group 8: full observability platforms.
+#
+# ClickHouse is defined here, with a collector in front of it, since it is
+# tested as a component on its own:
+#
+#   docker compose --profile clickhouse up -d
+#
+# SigNoz, Uptrace and Graylog each come with their own official deployment,
+# several services and databases apiece. They are not copied here, which
+# would mean keeping a private version of each: scripts/start.sh fetches the
+# official one at a pinned release into configs/<name>/upstream and runs it
+# under its own Compose project, so none of them shares a database with
+# another. See configs/signoz, configs/uptrace and configs/graylog. They are
+# large, and their official files publish some of the same ports, so start
+# them one at a time, alone.
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.10.3.7
+    profiles: ["clickhouse"]
+    environment:
+      CLICKHOUSE_USER: vigil
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      CLICKHOUSE_DB: vigil
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "127.0.0.1:18123:8123"  # HTTP interface: verify.sh queries here
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  clickhouse-collector:
+    image: otel/opentelemetry-collector-contrib:0.163.2
+    profiles: ["clickhouse"]
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+    ports:
+      - "127.0.0.1:4448:4318"   # OTLP HTTP: Vigil sends here
+    volumes:
+      - ./configs/clickhouse/collector.yaml:/etc/otelcol/config.yaml:ro,z
+
+volumes:
+  clickhouse-data:
