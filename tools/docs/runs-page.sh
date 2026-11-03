@@ -64,7 +64,7 @@ mkdir -p "$dir"
         c=$runs/$d/$h/$n/console.txt
         [ -f "$c" ] || continue
         set -- $(counts "$c")
-        printf '| %s | [%s](%s/#%s) | %s | %s | %s | %s | %s |\n' "$(title "$h")" "$n" "$h" "$n" "$d" "$1" "$2" "$3" "$4"
+        printf '| %s | [%s](/vigil/real/%s/#%s) | %s | %s | %s | %s | %s |\n' "$(title "$h")" "$n" "$h" "$n" "$d" "$1" "$2" "$3" "$4"
     done
     printf '\n*Other* is emulator limitations, and what Vigil does not support or does not send (traces, KV v1).\n'
 } > "$dir/index.md"

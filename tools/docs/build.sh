@@ -207,7 +207,7 @@ fi
 runs=$(mktemp -d "${TMPDIR:-/tmp}/vigil-runs.XXXXXX")
 if bash "$here/runs-page.sh" "$runs"; then
     mkdir -p "$out/real"
-    relink < "$runs/index.md" | page real/index.md 'title: Real systems' 'nav_order: 6.5' 'has_children: true' 'permalink: /real/'
+    page real/index.md 'title: Real systems' 'nav_order: 6.5' 'has_children: true' 'permalink: /real/' < "$runs/index.md"
     order=1
     for f in "$runs"/*.md; do
         h=$(basename "$f" .md)
