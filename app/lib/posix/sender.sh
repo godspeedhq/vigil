@@ -92,6 +92,9 @@ _vigil_send_dropn() {
 # not implemented yet are counted as dropped.
 _vigil_send_targets() {
     local file=${1##*/} job list b
+    # Spool files are named <epoch>-<job>-<run id>.events. Job ids allow only
+    # a-z, 0-9 and _, never '-', so the job is whatever sits between the first
+    # two dashes.
     job=${file#*-}
     job=${job%%-*}
     job=${job%.events}
@@ -131,6 +134,10 @@ _vigil_send_place() {
             continue
         fi
         mkdir -p "$_sd_be/$b"
+        # Each copy is written under a temporary name, renamed into the queue, and
+        # only then marked done. A sender stopped at any point picks up here next
+        # run: a copy is never lost, and at worst is placed again under the same
+        # name, replacing itself.
         cp "$f" "$_sd_be/$b/.$base.tmp.$$" && mv -f "$_sd_be/$b/.$base.tmp.$$" "$_sd_be/$b/$base" && : > "$f.$b.done"
     done < "$f.targets"
     rm -f "$f" "$f.targets" "$f".*.done
@@ -175,6 +182,8 @@ _vigil_send_http() {
         sizes=$(wc -c -- "${cand[@]}")
         while read -r size name; do
             [ -f "$name" ] || continue
+            # The first file always goes, even one larger than the limit on its own, so
+            # an oversized file can never hold up the queue behind it.
             [ "${#batch[@]}" -gt 0 ] && [ $((total + size)) -gt "$VIGIL_SEND_HTTP_BYTES" ] && break
             batch[${#batch[@]}]=$name
             total=$((total + size))
@@ -182,6 +191,9 @@ _vigil_send_http() {
 $sizes
 EOF
         requests=$((requests + 1))
+        # Files leave the queue only once the backend accepted them. A failure keeps
+        # them for the next try, so delivery is at least once: a batch the backend
+        # stored but did not confirm in time is sent again.
         if ! vigil_backend_send "$_vw_root" "$b" "$type" "${batch[@]}"; then
             _vigil_send_failed "$b" "$_vb_why"
             return 1
@@ -205,6 +217,8 @@ _vigil_send_deliver() {
             case $line in 'next_try = '*) next=${line#*= } ;; esac
         done < "$sfile"
     fi
+    # A backend in its backoff is passed over without delaying the others: each
+    # has its own queue and its own state file.
     [ "$_sd_epoch" -lt "$next" ] && return 0
     _vigil_wk_get "backend.$b" type "$b"
     if [ "$_vw_value" != file ]; then
