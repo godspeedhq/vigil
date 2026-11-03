@@ -17,9 +17,9 @@
 # SigNoz, Uptrace and Graylog each come with their own official deployment,
 # several services and databases apiece. They are not copied here, which
 # would mean keeping a private version of each: scripts/start.sh fetches the
-# official one at a pinned release into configs/<name>/upstream and runs it
+# official one at a pinned release into configs/platforms/<name>/upstream and runs it
 # under its own Compose project, so none of them shares a database with
-# another. See configs/signoz, configs/uptrace and configs/graylog. They are
+# another. See configs/platforms/signoz, and configs/platforms/upstream.txt for Uptrace and Graylog. They are
 # large, and their official files publish some of the same ports, so start
 # them one at a time, alone.
 
@@ -58,7 +58,7 @@ services:
     ports:
       - "127.0.0.1:4448:4318"   # OTLP HTTP: Vigil sends here
     volumes:
-      - ./configs/clickhouse/collector.yaml:/etc/otelcol/config.yaml:ro,z
+      - ./configs/platforms/clickhouse/collector.yaml:/etc/otelcol/config.yaml:ro,z
 
 volumes:
   clickhouse-data:

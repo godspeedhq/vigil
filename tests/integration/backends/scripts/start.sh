@@ -12,8 +12,9 @@
 # start.sh - starts one or more targets, and waits until they are healthy.
 #
 #   scripts/start.sh                 lgtm, the default
-#   scripts/start.sh splunk          Splunk, then configs/splunk/provision.sh
-#   scripts/start.sh openbao         OpenBao, then configs/openbao/provision.sh
+#   scripts/start.sh splunk          Splunk, then configs/platforms/splunk/provision.sh
+#   scripts/start.sh openbao         a secret store (or vault): the test CA
+#                                    first, then configs/secrets/provision.sh
 #   scripts/start.sh mimir loki otel-collector
 #
 # Healthy means the containers are up, not that anything has been stored:
@@ -25,11 +26,11 @@ here=$(cd "$(dirname "$0")" && pwd)
 
 [ "$#" -gt 0 ] || set -- lgtm
 
-# Fetches official deployment $1 at the pin in configs/upstream.txt.
+# Fetches official deployment $1 at the pin in configs/platforms/upstream.txt.
 fetch_upstream() {
-    local name repo ref path dir=$bk_dir/configs/$1/upstream
-    read -r name repo ref path < <(grep "^$1 " "$bk_dir/configs/upstream.txt")
-    [ -n "${ref-}" ] || die "no pin for $1 in configs/upstream.txt"
+    local name repo ref path dir=$bk_dir/configs/platforms/$1/upstream
+    read -r name repo ref path < <(grep "^$1 " "$bk_dir/configs/platforms/upstream.txt")
+    [ -n "${ref-}" ] || die "no pin for $1 in configs/platforms/upstream.txt"
     if [ ! -f "$dir/.pinned-$ref" ]; then
         rm -rf "$dir" "$dir.git"
         git clone -q --filter=blob:none --no-checkout "$repo" "$dir.git" &&
@@ -50,7 +51,6 @@ needs() {
         opensearch) echo OPENSEARCH_ADMIN_PASSWORD ;;
         influxdb) echo INFLUXDB_PASSWORD INFLUXDB_TOKEN ;;
         clickhouse) echo CLICKHOUSE_PASSWORD ;;
-        openbao) echo OPENBAO_ROOT_TOKEN ;;
     esac
 }
 
@@ -69,8 +69,8 @@ for t in "$@"; do
         signoz)
             command -v foundryctl > /dev/null 2>&1 ||
                 die 'signoz needs foundryctl, SigNoz'"'"'s installer: see README.md. It is not installed for you.'
-            (cd "$bk_dir/configs/signoz" && foundryctl gauge -f casting.yaml && foundryctl forge -f casting.yaml) || die 'foundryctl failed'
-            docker compose -p vigil-signoz -f "$bk_dir/configs/signoz/pours/deployment/compose.yaml" up -d --wait || die 'signoz did not start'
+            (cd "$bk_dir/configs/platforms/signoz" && foundryctl gauge -f casting.yaml && foundryctl forge -f casting.yaml) || die 'foundryctl failed'
+            docker compose -p vigil-signoz -f "$bk_dir/configs/platforms/signoz/pours/deployment/compose.yaml" up -d --wait || die 'signoz did not start'
             ;;
         uptrace)
             d=$(fetch_upstream uptrace) || exit 1
@@ -85,10 +85,15 @@ for t in "$@"; do
         *)
             s=$(services_of "$t")
             [ -n "$s" ] || die "no services for $t"
+            # The secret stores' certificate exists before they first start.
+            case $t in openbao | vault | aws | azure | gcp | azure-alt | gcp-alt) bash "$bk_dir/configs/secrets/tls.sh" || die 'cannot make the test CA' ;; esac
             # shellcheck disable=SC2086
             compose --profile "$t" up -d --wait $s || die "$t did not become healthy"
-            [ "$t" = splunk ] && { bash "$bk_dir/configs/splunk/provision.sh" || die 'provisioning Splunk failed'; }
-            [ "$t" = openbao ] && { bash "$bk_dir/configs/openbao/provision.sh" || die 'provisioning OpenBao failed'; }
+            [ "$t" = splunk ] && { bash "$bk_dir/configs/platforms/splunk/provision.sh" || die 'provisioning Splunk failed'; }
+            case $t in
+                openbao | vault) bash "$bk_dir/configs/secrets/provision.sh" "$t" || die "provisioning $t failed" ;;
+                aws | azure | gcp | azure-alt | gcp-alt) bash "$bk_dir/configs/secrets/$t/provision.sh" || die "provisioning $t failed" ;;
+            esac
             ;;
     esac
     printf 'started: %s\n' "$t"

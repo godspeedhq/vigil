@@ -1,10 +1,9 @@
 # Credentials, and what start.sh fetches or generates: never committed.
 .env
-configs/*/upstream/
-configs/signoz/pours/
-configs/signoz/casting.yaml.lock
+configs/platforms/*/upstream/
+configs/platforms/signoz/pours/
+configs/platforms/signoz/casting.yaml.lock
 reports/evidence/
-# What configs/openbao/provision.sh writes: the test store's CA, and the
-# credentials and probe it made.
-.openbao.env
-.openbao-ca.pem
+# The secret stores' test CA, unseal keys, credentials and probes
+# (configs/secrets/tls.sh and provision.sh).
+.secrets/

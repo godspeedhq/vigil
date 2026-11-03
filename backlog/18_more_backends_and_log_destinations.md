@@ -161,9 +161,10 @@ tests/integration/backends/
   .env.example
   README.md
   configs/
-    grafana/ prometheus/ loki/ tempo/ mimir/ pyroscope/ otel/ alloy/
-    splunk/ victoria/ elastic/ opensearch/ influxdb/ jaeger/ zipkin/
-    signoz/ uptrace/ graylog/ clickhouse/
+    platforms/   the observability groups: grafana/ prometheus/ loki/
+                 tempo/ mimir/ otel/ alloy/ splunk/ elastic/ opensearch/
+                 influxdb/ signoz/ clickhouse/, and upstream.txt
+    secrets/     the secret stores (task 24)
   scripts/
     start.sh  stop.sh  reset.sh  verify.sh
   saas/

@@ -11,18 +11,20 @@
 
 <#
 .SYNOPSIS
-    run-store.ps1 - proves Vigil's hashicorp_vault secret store against the
-    test OpenBao, on Windows. The twin of run-store.sh, which lists the
+    run-store.ps1 - tests one of Vigil's secret stores against a test
+    service, on Windows. The twin of run-store.sh, which describes the
     checks.
 .DESCRIPTION
-        .\scripts\run-store.ps1 openbao
+        .\scripts\run-store.ps1 openbao      (or vault, aws, azure, gcp, azure-alt, gcp-alt)
 
-    Needs .openbao.env and .openbao-ca.pem from the host that ran
-    scripts/start.sh openbao, copied next to compose.yaml, and OpenBao's
-    port 8200 answering on 127.0.0.1 here (an SSH tunnel; see README.md).
-    Vigil is copied into a temporary folder; nothing is installed.
+    Needs .secrets\<target>.env and .secrets\tls\ca.pem from the host that
+    ran scripts/start.sh, copied to the same paths here, and the service's
+    port answering on 127.0.0.1 (an SSH tunnel; see README.md). Rotation
+    uses configs/secrets/rotate.sh through Git Bash. The restart checks are
+    run-store.sh's, on the Docker host; here they are reported NOT RUN.
 
-    Exit code: 0 when every check passes.
+    Results: PASS, FAIL, NOT RUN, and EMULATOR LIMITATION; only PASS is a
+    pass. Exit code: 0 when every check that ran passed.
 #>
 
 param([Parameter(Mandatory = $true)][string]$Target)
@@ -33,99 +35,287 @@ $bk = Split-Path -Parent $here
 $repo = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $bk))
 $shell = (Get-Process -Id $PID).Path
 
-if ($Target -cne 'openbao') { Write-Output 'usage: run-store.ps1 openbao'; exit 1 }
-$envFile = Join-Path $bk '.openbao.env'
-$caFile = Join-Path $bk '.openbao-ca.pem'
+if (@('openbao', 'vault', 'aws', 'azure', 'gcp', 'azure-alt', 'gcp-alt') -cnotcontains $Target) { Write-Output 'usage: run-store.ps1 openbao|vault|aws|azure|gcp|azure-alt|gcp-alt'; exit 1 }
+$envFile = Join-Path $bk ".secrets\$Target.env"
+$caFile = Join-Path $bk '.secrets\tls\ca.pem'
 if (-not (Test-Path -LiteralPath $envFile) -or -not (Test-Path -LiteralPath $caFile)) {
-    Write-Output 'no .openbao.env or .openbao-ca.pem: copy them from the host that ran scripts/start.sh openbao'
+    Write-Output "no .secrets\$Target.env or .secrets\tls\ca.pem: copy them from the host that ran scripts/start.sh $Target"
     exit 1
 }
 $o = @{}
 foreach ($l in [System.IO.File]::ReadAllLines($envFile)) {
     if ($l -cmatch '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') { $o[$Matches[1]] = $Matches[2] }
 }
-# Only the credentials reach Vigil's environment; the probe's value is kept
-# here, for the leak check.
-foreach ($n in 'VIGIL_BAO_SECRET_ID', 'VIGIL_BAO_TOKEN') { [Environment]::SetEnvironmentVariable($n, $o[$n], 'Process') }
-$probe = $o['BK_SECRET_VALUE']
+$rnd = { $b = New-Object byte[] 16; [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | ForEach-Object { $_.ToString('x2') }) }
+$sha = { param([string]$s) -join ([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($s)) | ForEach-Object { $_.ToString('x2') }) }
 
 $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-store.$PID"
 $root = Join-Path $work 'root'
-$fail = 0
+$out = Join-Path $work 'vigil.out'
+$script:pass = 0; $script:fail = 0; $script:notRun = 0; $script:limits = 0
+
+function Write-Pass { param([string]$Text) Write-Output "  PASS  $Text"; $script:pass++ }
+function Write-Fail { param([string]$Text) Write-Output "  FAIL  $Text"; $script:fail++ }
+function Write-Limit { param([string]$Text) Write-Output "  EMULATOR LIMITATION  $Text"; $script:limits++ }
+function Write-NotRun { param([string]$Text) Write-Output "  NOT RUN  $Text"; $script:notRun++ }
+
+# The suite: its stores (name, keys, trusts the CA), its jobs (name, store,
+# path, status, reason or '-', the key of the value it must get or '-'), as
+# in run-store.sh.
+$labels = @{}
+# A credential the real cloud refuses, checked after the table: job, store,
+# label, the reason when refused, and what the emulator lacks.
+$refused = $null
+$noSignIn = $null
+if ($Target -ceq 'gcp' -or $Target -ceq 'gcp-alt') {
+    # The keys' contents, as Vigil reads a service_account_key.
+    $keys = @{ 'VIGIL_ST_GCP_KEY' = 'gcp-key.json'; 'VIGIL_ST_GCP_KEY_HTTP' = 'gcp-key-http.json'; 'VIGIL_ST_GCP_KEY_OTHER' = 'gcp-key-other.json' }
+    foreach ($n in $keys.Keys) {
+        $f = Join-Path $bk ".secrets\$($keys[$n])"
+        if (-not (Test-Path -LiteralPath $f)) { Write-Output 'no .secrets\gcp-key*.json: copy them with gcp.env'; exit 1 }
+        $o[$n] = [System.IO.File]::ReadAllText($f).TrimEnd("`r", "`n")
+    }
+    # A line of each private key that is only key material, for the leak check.
+    $i = 0
+    foreach ($f in 'gcp-key.json', 'gcp-key-other.json') {
+        if ([System.IO.File]::ReadAllText((Join-Path $bk ".secrets\$f")) -cmatch 'BEGIN PRIVATE KEY-----\\n([A-Za-z0-9+/]{40})') { $o["ST_KEY_PART$i"] = $Matches[1] }
+        $i++
+    }
+    $g = "type = gcp_secret_manager`nclient = http`nendpoint = $($o['ST_URL'])`nauth = service_account_key"
+    $stores = @(
+        @('gcp', "$g`nproject = $($o['ST_PROJECT'])`nservice_account_key = env:VIGIL_ST_GCP_KEY", $true),
+        @('gcp_other', "$g`nproject = vigil-other`nservice_account_key = env:VIGIL_ST_GCP_KEY", $true),
+        @('gcp_http', "$g`nproject = $($o['ST_PROJECT'])`nservice_account_key = env:VIGIL_ST_GCP_KEY_HTTP", $true),
+        @('gcp_untrusted', "$g`nproject = $($o['ST_PROJECT'])`nservice_account_key = env:VIGIL_ST_GCP_KEY", $false),
+        @('gcp_other_key', "$g`nproject = $($o['ST_PROJECT'])`nservice_account_key = env:VIGIL_ST_GCP_KEY_OTHER", $true))
+    $jobs = @(
+        @('bk_key', 'gcp', 'vigil-probe', 'succeeded', '-', 'ST_PROBE'),
+        @('bk_latest', 'gcp', 'vigil-versioned', 'succeeded', '-', 'ST_V2'),
+        @('bk_version', 'gcp', "vigil-versioned/$($o['ST_V1_N'])", 'succeeded', '-', 'ST_V1'),
+        @('bk_missing', 'gcp', 'vigil-nosuch', 'failed', 'not found', '-'),
+        @('bk_bad_version', 'gcp', 'vigil-versioned/9999', 'failed', 'not found', '-'),
+        @('bk_other_project', 'gcp_other', 'vigil-probe', 'failed', 'not found', '-'),
+        @('bk_http_token_uri', 'gcp_http', 'vigil-probe', 'failed', 'is not https', '-'),
+        @('bk_untrusted', 'gcp_untrusted', 'vigil-probe', 'failed', 'is not trusted', '-'),
+        @('bk_rotating', 'gcp', 'vigil-rotating', 'succeeded', '-', 'current'))
+    $labels['bk_version'] = 'bk_version (the first, by number)'
+    $labels['bk_other_project'] = 'bk_other_project (vigil-other)'
+    $refused = @('bk_other_key', 'gcp_other_key', 'bk_other_key (another private key)', 'sign-in failed', 'the emulator does not check the JWT')
+    $secretEnv = @('VIGIL_ST_GCP_KEY', 'VIGIL_ST_GCP_KEY_HTTP', 'VIGIL_ST_GCP_KEY_OTHER')
+    $leakKeys = @('ST_PROBE', 'ST_ROTATING', 'ST_V1', 'ST_V2', 'ST_KEY_PART0', 'ST_KEY_PART1')
+}
+elseif ($Target -ceq 'azure' -or $Target -ceq 'azure-alt') {
+    $alt = $Target -ceq 'azure-alt'
+    $o['VIGIL_ST_BAD_CLIENT_SECRET'] = & $rnd
+    # Vigil's test switch for the managed-identity endpoint (spec 22.4.2).
+    [Environment]::SetEnvironmentVariable('VIGIL_TEST_IMDS', $o['ST_IMDS'], 'Process')
+    $k = "type = azure_keyvault`nclient = http`nvault = $($o['ST_VAULT'])"
+    $sp = "auth = service_principal`nauthority = $($o['ST_URL'])`ntenant_id = $($o['ST_TENANT'])`nclient_id = $($o['ST_CLIENT_ID'])"
+    $stores = @(
+        @('az', $(if ($alt) { "$k`nauth = managed_identity" } else { "$k`n$sp`nclient_secret = env:VIGIL_ST_CLIENT_SECRET" }), $true),
+        @('az_untrusted', $(if ($alt) { "$k`nauth = managed_identity" } else { "$k`n$sp`nclient_secret = env:VIGIL_ST_CLIENT_SECRET" }), $false),
+        @('az_bad_secret', "$k`n$sp`nclient_secret = env:VIGIL_ST_BAD_CLIENT_SECRET", $true),
+        @('az_sp', "$k`n$sp`nclient_secret = env:VIGIL_ST_CLIENT_SECRET", $true),
+        @('az_mi', "$k`nauth = managed_identity", $true))
+    $jobs = @(
+        @('bk_sp', 'az', 'vigil-probe', 'succeeded', '-', 'ST_PROBE'),
+        @('bk_latest', 'az', 'vigil-versioned', 'succeeded', '-', 'ST_V2'),
+        @('bk_version', 'az', "vigil-versioned/$($o['ST_V1_ID'])", 'succeeded', '-', 'ST_V1'),
+        @('bk_missing', 'az', 'vigil-nosuch', 'failed', 'not found', '-'),
+        @('bk_bad_version', 'az', 'vigil-versioned/0123456789abcdef0123456789abcdef', 'failed', 'not found', '-'),
+        @('bk_bad_name', 'az', 'vigil_probe', 'failed', 'not a valid Key Vault secret name', '-'),
+        @('bk_untrusted', 'az_untrusted', 'vigil-probe', 'failed', 'is not trusted', '-'),
+        @('bk_managed_identity', 'az_mi', 'vigil-probe', 'succeeded', '-', 'ST_PROBE'),
+        @('bk_rotating', 'az', 'vigil-rotating', 'succeeded', '-', 'current'))
+    $labels['bk_version'] = 'bk_version (the first version, by id)'
+    $labels['bk_managed_identity'] = 'bk_managed_identity (VIGIL_TEST_IMDS)'
+    # Lowkey Vault (azure-alt) has no client-credentials endpoint: its stores
+    # sign in with managed identity, and service_principal is checked apart.
+    if ($alt) { $noSignIn = @('bk_sp_alt', 'az_sp', 'bk_sp_alt (service_principal)', 'Lowkey Vault has no client-credentials endpoint') }
+    else { $refused = @('bk_bad_secret', 'az_bad_secret', 'bk_bad_secret (wrong client secret)', 'sign-in failed', 'the emulator does not check client secrets') }
+    $secretEnv = @('VIGIL_ST_CLIENT_SECRET', 'VIGIL_ST_BAD_CLIENT_SECRET')
+    $leakKeys = @('ST_PROBE', 'ST_ROTATING', 'ST_V1', 'ST_V2', 'VIGIL_ST_CLIENT_SECRET', 'VIGIL_ST_BAD_CLIENT_SECRET')
+}
+elseif ($Target -ceq 'aws') {
+    $o['VIGIL_ST_BAD_SECRET_KEY'] = (& $rnd) + (& $rnd)
+    $a = "type = aws_secrets_manager`nclient = http`nendpoint = $($o['ST_URL'])`nauth = access_keys`naccess_key_id = $($o['ST_ACCESS_KEY_ID'])"
+    $k = 'secret_access_key = env:VIGIL_ST_SECRET_KEY'
+    $r = "region = $($o['ST_REGION'])"
+    $stores = @(
+        @('aws', "$a`n$r`n$k", $true),
+        @('aws_field', "$a`n$r`n$k`nfield = password", $true),
+        @('aws_bad_field', "$a`n$r`n$k`nfield = nosuch", $true),
+        @('aws_eu', "$a`nregion = eu-west-2`n$k", $true),
+        @('aws_untrusted', "$a`n$r`n$k", $false),
+        @('aws_bad_key', "$a`n$r`nsecret_access_key = env:VIGIL_ST_BAD_SECRET_KEY", $true))
+    $jobs = @(
+        @('bk_probe', 'aws', 'vigil/probe', 'succeeded', '-', 'ST_PROBE'),
+        @('bk_field', 'aws_field', 'vigil/json', 'succeeded', '-', 'ST_PASSWORD'),
+        @('bk_missing', 'aws', 'vigil/nosuch', 'failed', 'not found (ResourceNotFoundException)', '-'),
+        @('bk_bad_field', 'aws_bad_field', 'vigil/json', 'failed', "the secret's value:", '-'),
+        @('bk_binary', 'aws', 'vigil/binary', 'failed', 'SecretString', '-'),
+        @('bk_other_region', 'aws_eu', 'vigil/probe', 'failed', 'not found (ResourceNotFoundException)', '-'),
+        @('bk_untrusted', 'aws_untrusted', 'vigil/probe', 'failed', 'is not trusted', '-'),
+        @('bk_rotating', 'aws', 'vigil/rotating', 'succeeded', '-', 'current'))
+    $labels['bk_other_region'] = 'bk_other_region (eu-west-2)'
+    $refused = @('bk_bad_key', 'aws_bad_key', 'bk_bad_key (wrong secret key)', 'permission denied', 'the emulator does not check signatures')
+    $secretEnv = @('VIGIL_ST_SECRET_KEY', 'VIGIL_ST_BAD_SECRET_KEY')
+    $leakKeys = @('ST_PROBE', 'ST_PASSWORD', 'ST_ROTATING', 'ST_BINARY', 'VIGIL_ST_SECRET_KEY', 'VIGIL_ST_BAD_SECRET_KEY')
+}
+else {
+    $o['VIGIL_ST_BAD_TOKEN'] = & $rnd
+    $o['VIGIL_ST_BAD_SECRET_ID'] = & $rnd
+    $v = "type = hashicorp_vault`nurl = $($o['ST_URL'])"
+    $stores = @(
+        @('st', "$v`nauth = approle`nrole_id = $($o['ST_ROLE_ID'])`nsecret_id = env:VIGIL_ST_SECRET_ID", $true),
+        @('st_token', "$v`nauth = token`ntoken = env:VIGIL_ST_TOKEN", $true),
+        @('st_untrusted', "$v`nauth = token`ntoken = env:VIGIL_ST_TOKEN", $false),
+        @('st_bad_token', "$v`nauth = token`ntoken = env:VIGIL_ST_BAD_TOKEN", $true),
+        @('st_expired', "$v`nauth = token`ntoken = env:VIGIL_ST_EXPIRING_TOKEN", $true),
+        @('st_bad_secret_id', "$v`nauth = approle`nrole_id = $($o['ST_ROLE_ID'])`nsecret_id = env:VIGIL_ST_BAD_SECRET_ID", $true),
+        @('st_kv1', "$v`nmount = kv1`nauth = token`ntoken = env:VIGIL_ST_TOKEN", $true))
+    $jobs = @(
+        @('bk_approle', 'st', 'vigil/probe', 'succeeded', '-', 'ST_PROBE'),
+        @('bk_token', 'st_token', 'vigil/probe', 'succeeded', '-', 'ST_PROBE'),
+        @('bk_missing', 'st', 'vigil/nosuch', 'failed', 'not found (HTTP 404)', '-'),
+        @('bk_denied', 'st', 'other/probe', 'failed', 'permission denied (HTTP 403)', '-'),
+        @('bk_untrusted', 'st_untrusted', 'vigil/probe', 'failed', 'is not trusted', '-'),
+        @('bk_bad_token', 'st_bad_token', 'vigil/probe', 'failed', 'permission denied (HTTP 403)', '-'),
+        @('bk_expired', 'st_expired', 'vigil/probe', 'failed', 'permission denied (HTTP 403)', '-'),
+        @('bk_bad_secret_id', 'st_bad_secret_id', 'vigil/probe', 'failed', 'sign-in failed:', '-'),
+        @('bk_kv1', 'st_kv1', 'vigil/probe', 'failed', 'not found (HTTP 404)', '-'),
+        @('bk_rotating', 'st', 'vigil/rotating', 'succeeded', '-', 'current'))
+    $labels['bk_kv1'] = 'bk_kv1 (KV v1: not supported)'
+    $secretEnv = @('VIGIL_ST_SECRET_ID', 'VIGIL_ST_TOKEN', 'VIGIL_ST_EXPIRING_TOKEN', 'VIGIL_ST_BAD_TOKEN', 'VIGIL_ST_BAD_SECRET_ID')
+    $leakKeys = @('ST_PROBE', 'ST_ROTATING', 'ST_KV1', 'VIGIL_ST_TOKEN', 'VIGIL_ST_SECRET_ID', 'VIGIL_ST_EXPIRING_TOKEN', 'ST_ROTATE_TOKEN', 'VIGIL_ST_BAD_TOKEN', 'VIGIL_ST_BAD_SECRET_ID')
+}
+# Only the credentials reach Vigil's environment.
+foreach ($n in $secretEnv) { [Environment]::SetEnvironmentVariable($n, $o[$n], 'Process') }
+
+function Write-StoreConfig {
+    $c = "[vigil]`ninstance = store-test`n`n"
+    $c += "[runner.ps]`ncommand = powershell.exe`narg = -NoProfile`narg = -NonInteractive`narg = -ExecutionPolicy`narg = Bypass`narg = -File`n`n[runners]`n.ps1 = ps`n`n"
+    $c += "[backend.file]`npath = metrics\vigil.prom`n`n"
+    foreach ($s in $stores) {
+        $c += "[secret_store.$($s[0])]`n$($s[1])`n"
+        if ($s[2]) { $c += "ca_file = config\store-ca.pem`n" }
+        $c += "`n"
+    }
+    foreach ($j in $jobs) {
+        $c += "[job.$($j[0])]`nfile = scripts\secret.ps1`nrun_every = 3650d`nsecret = BK_SECRET=store:$($j[1])/$($j[2])`n"
+        if ($j[5] -cne '-') { $c += "env = BK_SECRET_SHA256=$(& $sha $o[$j[5]])`n" }
+        $c += "`n"
+    }
+    [System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'), $c)
+}
 
 function Invoke-Vigil {
     & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'app\vigil.ps1') -Root $root @args 2>&1 | ForEach-Object { "$_" }
 }
+# Job $Name's status and reason after one run.
+function Get-JobEnd {
+    param([string]$Name)
+    Invoke-Vigil run $Name | Add-Content -LiteralPath $out
+    $e = @{ Status = ''; Reason = '' }
+    $f = Join-Path $root "state\jobs\$Name.state"
+    if (Test-Path -LiteralPath $f) {
+        foreach ($l in [System.IO.File]::ReadAllLines($f)) {
+            if ($l -cmatch '^status *= *(.*)$') { $e.Status = $Matches[1] } elseif ($l -cmatch '^reason *= *(.*)$') { $e.Reason = $Matches[1] }
+        }
+    }
+    $e.Shown = if ($e.Reason) { "$($e.Status): $($e.Reason)" } elseif ($e.Status) { $e.Status } else { 'no state' }
+    return $e
+}
+# Runs job $Name once; it must end with $Status and, unless '-', a reason
+# holding $Reason.
+function Test-Job {
+    param([string]$Name, [string]$Status, [string]$Reason, [string]$Label = $Name)
+    $e = Get-JobEnd $Name
+    if ($e.Status -ceq $Status -and ($Reason -ceq '-' -or $e.Reason.Contains($Reason))) { Write-Pass ('{0,-36} {1}' -f $Label, $e.Shown) }
+    else { Write-Fail ('{0,-36} {1} (wanted {2}{3})' -f $Label, $e.Shown, $Status, $(if ($Reason -cne '-') { ": $Reason" } else { '' })) }
+}
+
+$bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe'
+$rotateSh = (Join-Path $bk 'configs\secrets\rotate.sh').Replace('\', '/')
+# True when the rotation worked; what it says goes to the console.
+$rotate = { param([string]$Value) $Value | & $bash $rotateSh $Target $envFile.Replace('\', '/') $caFile.Replace('\', '/') 2>&1 | ForEach-Object { Write-Host "        $_" }; $LASTEXITCODE -eq 0 }
 
 try {
     [void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'scripts'), (Join-Path $root 'config'))
     Copy-Item -Recurse -LiteralPath (Join-Path $repo 'app'), (Join-Path $repo 'vendor') -Destination $root
     Copy-Item -LiteralPath (Join-Path $bk 'workloads\secret.ps1') -Destination (Join-Path $root 'scripts')
-    Copy-Item -LiteralPath $caFile -Destination (Join-Path $root 'config\openbao-ca.pem')
+    Copy-Item -LiteralPath $caFile -Destination (Join-Path $root 'config\store-ca.pem')
 
-    $job = { param($Name, $Path, $Store) "[job.$Name]`nfile = scripts\secret.ps1`nrun_every = 3650d`nsecret = BK_SECRET=store:$Store/$Path`nenv = BK_SECRET_SHA256=$($o['BK_SECRET_SHA256'])`n`n" }
-    $c = "[vigil]`ninstance = store-test`n`n"
-    $c += "[runner.ps]`ncommand = powershell.exe`narg = -NoProfile`narg = -NonInteractive`narg = -ExecutionPolicy`narg = Bypass`narg = -File`n`n[runners]`n.ps1 = ps`n`n"
-    $c += "[backend.file]`npath = metrics\vigil.prom`n`n"
-    $c += "[secret_store.bao]`ntype = hashicorp_vault`nurl = https://127.0.0.1:8200`nca_file = config\openbao-ca.pem`nauth = approle`nrole_id = $($o['VIGIL_BAO_ROLE_ID'])`nsecret_id = env:VIGIL_BAO_SECRET_ID`n`n"
-    $c += "[secret_store.bao_token]`ntype = hashicorp_vault`nurl = https://127.0.0.1:8200`nca_file = config\openbao-ca.pem`nauth = token`ntoken = env:VIGIL_BAO_TOKEN`n`n"
-    $c += "[secret_store.bao_untrusted]`ntype = hashicorp_vault`nurl = https://127.0.0.1:8200`nauth = token`ntoken = env:VIGIL_BAO_TOKEN`n`n"
-    $c += & $job 'bk_secret_approle' 'vigil/probe' 'bao'
-    $c += & $job 'bk_secret_token' 'vigil/probe' 'bao_token'
-    $c += & $job 'bk_secret_missing' 'vigil/nosuch' 'bao'
-    $c += & $job 'bk_secret_denied' 'other/probe' 'bao'
-    $c += & $job 'bk_secret_untrusted' 'vigil/probe' 'bao_untrusted'
-    [System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'), $c)
+    $kinds = @{ aws = 'aws_secrets_manager'; azure = 'azure_keyvault'; 'azure-alt' = 'azure_keyvault'; 'gcp-alt' = 'gcp_secret_manager'; gcp = 'gcp_secret_manager' }
+    Write-Output "`n$Target, $(if ($kinds.ContainsKey($Target)) { $kinds[$Target] } else { 'hashicorp_vault' }) store"
+    # The expiring token must have expired.
+    if ($o['ST_EXPIRES_AT']) { while ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -le [long]$o['ST_EXPIRES_AT']) { Start-Sleep -Seconds 1 } }
 
-    Write-Output "`nopenbao, hashicorp_vault store"
-    # Precheck fetches every secret too: the first two must be fetched, and
-    # the other three fail, each for its own reason.
-    $pre = (@(Invoke-Vigil precheck) -join "`n")
-    foreach ($p in @(
-            @('bk_secret_approle', 'ok    job.bk_secret_approle', 'fetched'),
-            @('bk_secret_token', 'ok    job.bk_secret_token', 'fetched'),
-            @('bk_secret_missing', 'job.bk_secret_missing: secret store:bao/vigil/nosuch unavailable: not found (HTTP 404)', 'not found (HTTP 404)'),
-            @('bk_secret_denied', 'job.bk_secret_denied: secret store:bao/other/probe unavailable: permission denied', 'permission denied'),
-            @('bk_secret_untrusted', 'job.bk_secret_untrusted: secret store:bao_untrusted/vigil/probe unavailable: the certificate of', 'not trusted'))) {
-        if ($pre.Contains($p[1])) { Write-Output ('  PASS  precheck {0,-20} {1}' -f $p[0], $p[2]) }
-        else { Write-Output ('  FAIL  precheck {0,-20} (wanted: {1})' -f $p[0], $p[1]); $fail = 1 }
+    # The rotating secret gets a value of this run's own first: another
+    # host's run may have rotated it since provisioning.
+    $first = & $rnd
+    if (-not (Test-Path -LiteralPath $bash)) { Write-Fail 'rotation: needs Git Bash, for configs/secrets/rotate.sh' }
+    elseif (-not (& $rotate $first)) { Write-Fail 'rotation: cannot write the first value' }
+    $o['current'] = $first
+    Write-StoreConfig
+
+    # Precheck fetches every secret too, and must say the same.
+    $pre = @(Invoke-Vigil precheck)
+    $pre | Add-Content -LiteralPath $out
+    foreach ($j in $jobs) {
+        if ($j[3] -ceq 'succeeded') {
+            if (@($pre | Where-Object { $_.Contains("ok    job.$($j[0])") }).Count -gt 0) { Write-Pass "precheck $($j[0]): fetched" } else { Write-Fail "precheck $($j[0]): not fetched" }
+        }
+        elseif (@($pre | Where-Object { $_.Contains("job.$($j[0]): ") -and $_.Contains($j[4]) }).Count -gt 0) { Write-Pass "precheck $($j[0]): $($j[4])" }
+        else { Write-Fail "precheck $($j[0]): wanted $($j[4])" }
     }
-    if ($fail) { $pre.Split("`n") | ForEach-Object { "        $_" } }
-
-    foreach ($p in @(
-            @('bk_secret_approle', 'succeeded', ''),
-            @('bk_secret_token', 'succeeded', ''),
-            @('bk_secret_missing', 'failed', 'not found (HTTP 404)'),
-            @('bk_secret_denied', 'failed', 'permission denied'),
-            @('bk_secret_untrusted', 'failed', 'not trusted'))) {
-        $out = @(Invoke-Vigil run $p[0])
-        $status = ''; $reason = ''
-        $st = Join-Path $root "state\jobs\$($p[0]).state"
-        if (Test-Path -LiteralPath $st) {
-            foreach ($l in [System.IO.File]::ReadAllLines($st)) {
-                if ($l -cmatch '^status *= *(.*)$') { $status = $Matches[1] }
-                elseif ($l -cmatch '^reason *= *(.*)$') { $reason = $Matches[1] }
-            }
-        }
-        $shown = if ($reason) { "${status}: $reason" } else { $status }
-        if ($status -ceq $p[1] -and (-not $p[2] -or $reason.Contains($p[2]))) { Write-Output ('  PASS  {0,-20} {1}' -f $p[0], $shown) }
-        else {
-            Write-Output ('  FAIL  {0,-20} {1} (wanted {2} {3})' -f $p[0], $(if ($shown) { $shown } else { 'no state' }), $p[1], $p[2])
-            $out | ForEach-Object { "        $_" }
-            $fail = 1
-        }
+    foreach ($j in $jobs) {
+        $label = if ($labels.ContainsKey($j[0])) { $labels[$j[0]] } else { $j[0] }
+        Test-Job $j[0] $j[3] $j[4] $label
     }
 
-    $leaks = @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
-            try { [System.IO.File]::ReadAllText($_.FullName).Contains($probe) } catch { $false }
+    # Rotation: a new value, and the next run gets it, with nothing restarted.
+    $rotated = & $rnd
+    if ((Test-Path -LiteralPath $bash) -and (& $rotate $rotated)) {
+        $o['current'] = $rotated
+        Write-StoreConfig
+        Test-Job 'bk_rotating' 'succeeded' '-' 'bk_rotating after rotation (new value)'
+    }
+    else { Write-Fail 'rotation: cannot write the new value' }
+
+    if ($noSignIn) {
+        # A sign-in the emulator has nothing for: it fails, and is reported so.
+        $jobs += , @($noSignIn[0], $noSignIn[1], $jobs[0][2], 'failed', 'sign-in failed', $jobs[0][5])
+        Write-StoreConfig
+        $e = Get-JobEnd $noSignIn[0]
+        if ($e.Reason.Contains('sign-in failed')) { Write-Limit "$($noSignIn[2]): $($e.Reason); $($noSignIn[3])" }
+        else { Write-Fail ('{0,-36} {1}' -f $noSignIn[2], $e.Shown) }
+    }
+    if ($refused) {
+        # A credential the real cloud refuses. An emulator that accepts it is
+        # reported so, never as a pass.
+        $jobs += , @($refused[0], $refused[1], $jobs[0][2], 'failed', $refused[3], $jobs[0][5])
+        Write-StoreConfig
+        $e = Get-JobEnd $refused[0]
+        if ($e.Status -ceq 'failed' -and $e.Reason.Contains($refused[3])) { Write-Pass ('{0,-36} {1}' -f $refused[2], $e.Shown) }
+        elseif ($e.Status -ceq 'succeeded') { Write-Limit "$($refused[2]): accepted; $($refused[4])" }
+        else { Write-Fail ('{0,-36} {1}' -f $refused[2], $e.Shown) }
+    }
+
+    Write-NotRun "restart: $Target does not run here (run-store.sh does it on the Docker host)"
+
+    # Leaks: every secret value and credential, under the root and in what
+    # Vigil printed.
+    $vals = @(foreach ($n in $leakKeys) { $o[$n] }) + @($first, $rotated)
+    $leaks = @(foreach ($f in @(Get-ChildItem -LiteralPath $work -Recurse -File)) {
+            $text = try { [System.IO.File]::ReadAllText($f.FullName) } catch { '' }
+            foreach ($x in $vals) { if ($x -and $text.Contains($x)) { $f.FullName.Substring($work.Length + 1); break } }
         })
-    if ($leaks.Count -gt 0) {
-        Write-Output '  FAIL  the probe value was written down:'
-        $leaks | ForEach-Object { "        $($_.FullName.Substring($root.Length + 1))" }
-        $fail = 1
-    }
-    else { Write-Output '  PASS  the probe value appears nowhere under the Vigil root' }
-    exit $fail
+    if ($leaks.Count -gt 0) { Write-Fail "a secret or credential was written down: $($leaks -join ' ')" }
+    else { Write-Pass 'no secret or credential under the Vigil root or in its output' }
+
+    Write-Output "`n$script:pass passed, $script:fail failed, $script:notRun not run, $script:limits emulator limitations"
+    exit $(if ($script:fail -eq 0) { 0 } else { 1 })
 }
 finally {
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
