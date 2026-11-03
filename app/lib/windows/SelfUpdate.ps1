@@ -57,6 +57,10 @@ function Test-VigilSignature {
     param([string]$KeyFile, [byte[]]$Data, [byte[]]$Signature)
     try {
         $text = [System.IO.File]::ReadAllText($KeyFile) -replace '-----[^-]+-----', '' -replace '\s', ''
+        # A public key file is nested DER: SubjectPublicKeyInfo holds an algorithm, then
+        # a BIT STRING holding the RSA modulus and exponent. The reads below walk down
+        # to those two numbers, and $s.P++ skips the BIT STRING's unused-bits byte.
+        # Anything unexpected throws, and the catch makes that "not signed".
         $s = @{ B = [Convert]::FromBase64String($text); P = 0 }
         [void](Read-VigilDer $s)
         $alg = Read-VigilDer $s
@@ -69,6 +73,7 @@ function Test-VigilSignature {
         $e = Read-VigilDer $s
         $from = $n.Start
         $len = $n.Len
+        # DER adds a leading zero when the top bit is set; RSAParameters must not have it.
         if ($s.B[$from] -eq 0) { $from++; $len-- }
         $p = New-Object System.Security.Cryptography.RSAParameters
         $p.Modulus = [byte[]]$s.B[$from..($from + $len - 1)]
@@ -80,6 +85,9 @@ function Test-VigilSignature {
     catch { return $false }
 }
 
+# The version the running supervisor wrote when it started, which is not always
+# what is on disk: after an upgrade the two differ until it has reloaded. The
+# installer relies on this to know when a reload has happened.
 function Get-VigilSupervisorVersion {
     param([string]$Root)
     try {
@@ -107,6 +115,8 @@ function Test-VigilNewer {
     return $false
 }
 
+# Per user and outside the install, because a read-only system install has to
+# be able to show the notice too.
 function Get-VigilUpdateCachePath { return Join-Path $env:LOCALAPPDATA 'vigil-update-check' }
 
 # Says on stderr when a newer release is known, at a console only. Reads a
@@ -173,6 +183,8 @@ function Get-VigilUpdateTask {
         $s = New-Object -ComObject Schedule.Service
         $s.Connect()
         $t = $s.GetFolder('\').GetTask($Script:VigilUpdateTask)
+        # The name alone is not enough: another Vigil on this machine could own a task
+        # called this, and this root must not start an update of that one.
         $tail = (ConvertTo-VigilQuotedArg -Arg $Root -Always $false) + ' self update --task'
         if (([string]$t.Definition.Actions.Item(1).Arguments).EndsWith($tail, [System.StringComparison]::OrdinalIgnoreCase)) { return $t }
     }
@@ -184,6 +196,8 @@ function Get-VigilUpdateTask {
 function Invoke-VigilUpdateByTask {
     param([string]$Root, $Task)
     $out = Join-Path $Root 'update\output'
+    # The task runs as SYSTEM, so its output cannot come back any other way than
+    # through this file. The first write is how we know it has started.
     $before = [System.IO.File]::GetLastWriteTimeUtc($out)
     [void]$Task.Run($null)
     $shown = 0
@@ -198,6 +212,7 @@ function Invoke-VigilUpdateByTask {
     while (([DateTime]::UtcNow - $start).TotalMinutes -lt 15) {
         $text = ''
         try {
+            # Share mode: the task still has this file open for writing.
             $fs = [System.IO.File]::Open($out, 'Open', 'Read', 'ReadWrite,Delete')
             try { $text = (New-Object System.IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() }
         }
@@ -208,6 +223,8 @@ function Invoke-VigilUpdateByTask {
             if ($lines[$i] -cmatch '^exit: ([0-9]+)$') { return [int]$Matches[1] }
             Write-Output $lines[$i]
         }
+        # Max: a read that failed above leaves no lines, and must not make what has
+        # already been shown appear again.
         $shown = [Math]::Max($shown, $lines.Count - 1)
         Start-Sleep -Milliseconds 250
     }
@@ -221,6 +238,8 @@ function Invoke-VigilSelfUpdateTask {
     param([string]$Root, [string]$App)
     $dir = Join-Path $Root 'update'
     $out = Join-Path $dir 'output'
+    # stderr from the child is piped below, and Stop would turn its first line into
+    # a failure of this function.
     $ErrorActionPreference = 'Continue'
     [System.IO.File]::WriteAllText($out, '')
     # Not the machine's temporary folder, where any account can create files:
@@ -239,6 +258,10 @@ function Invoke-VigilSelfUpdateTask {
     return $code
 }
 
+# The order matters: everything that can be refused is refused before anything
+# is downloaded, and everything downloaded is verified before anything runs.
+# This function never changes the install itself. $pinned remembers that a
+# version was asked for, since $Want is filled in with the latest one below.
 function Invoke-VigilSelfUpdate {
     param([string]$Root, [string]$App, [bool]$Check, [string]$Want)
     $die = { param($Why) [Console]::Error.WriteLine("vigil: $Why"); return 1 }
@@ -308,6 +331,7 @@ function Invoke-VigilSelfUpdate {
         # is handed to the installer, so what is verified is what is installed.
         $key = Join-Path $App 'release-key.pem'
         if ($env:VIGIL_TEST_RELEASE_URL -and $env:VIGIL_TEST_RELEASE_KEY) { $key = $env:VIGIL_TEST_RELEASE_KEY }
+        # The signature is only checked if the key file is here: see backlog task 20.
         if (Test-Path -LiteralPath $key) {
             $sig = Join-Path $work 'SHA256SUMS.sig'
             $signed = $false
@@ -318,6 +342,8 @@ function Invoke-VigilSelfUpdate {
             catch { $signed = $false }
             if (-not $signed) { return & $die "Vigil $Want is not signed by the Vigil release key; nothing was changed" }
         }
+        # SHA256SUMS is what the signature covers, so this is what ties the installer
+        # to the signature. The installer checks the archive against the same file.
         $sum = ''
         foreach ($l in [System.IO.File]::ReadAllLines($sums)) {
             $f = $l -split '\s+', 2

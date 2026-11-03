@@ -42,8 +42,15 @@
 # replaced; config/ and scripts/ are never touched), link the vigil
 # command, run vigil init on a fresh install, register the service.
 
+# Written for plain sh, not bash: this has to run before Vigil's own
+# prerequisites are known to be there, so no arrays, no [[ ]] and no local.
+# set -e is left off on purpose: each step decides what a failure means, and
+# a failure after the swap must roll back rather than stop half way.
 set -u
 
+# The options, filled in below. Empty means "not given", and each default is
+# worked out once the rest are known, because the install mode depends on who
+# is running this.
 repo_url=https://github.com/godspeedhq/vigil
 mode=''
 prefix=''
@@ -63,6 +70,8 @@ die() {
     exit 1
 }
 
+# Unknown options stop the install: a mistyped --no-service must not quietly
+# register a service.
 while [ "$#" -gt 0 ]; do
     case $1 in
         --user) mode=user ;;
@@ -96,6 +105,9 @@ while [ "$#" -gt 0 ]; do
 done
 
 # Tests only (22.4.4): releases from a local server, never over the network.
+# https only, redirects included, so a redirect can never drop to http. The
+# variable is deliberately expanded unquoted further down, which is why those
+# curl calls sit between set -f and set +f: the * below must stay a literal.
 curl_proto="--proto =https --proto-redir =https"
 if [ -n "${VIGIL_TEST_RELEASE_URL-}" ]; then
     case $VIGIL_TEST_RELEASE_URL in
@@ -107,6 +119,9 @@ if [ -n "${VIGIL_TEST_RELEASE_URL-}" ]; then
     esac
 fi
 
+# The mode decides where files go and who owns them, so a contradiction is
+# refused here rather than discovered after files have been written. Root
+# cannot use user mode, which is for the account that runs it.
 uid=$(id -u)
 if [ -z "$mode" ]; then
     if [ "$uid" -eq 0 ]; then mode=system; else mode=user; fi
@@ -115,6 +130,8 @@ fi
 [ "$mode" = user ] && [ "$uid" -eq 0 ] && die 'user mode installs for the account that runs it, not root: use --system'
 if [ -n "$update_by" ]; then
     [ "$mode" = system ] || die '--update-by is for system mode: a user install updates itself'
+    # This name is written into a sudoers file, so only the characters of a user
+    # or %group get through. A % is allowed at the start only.
     case $update_by in
         '' | *[!A-Za-z0-9_.%-]* | ?*%*) die "--update-by needs a user or %group: $update_by" ;;
     esac
@@ -127,6 +144,8 @@ elif [ "$mode" = system ]; then
 else
     root=$HOME/.local/share/vigil
 fi
+# A relative prefix is made absolute: it ends up in the service definition and
+# the command link, which do not run from this folder.
 case $root in
     /*) ;;
     *) root=$(pwd)/$root ;;
@@ -145,6 +164,8 @@ elif command -v shasum > /dev/null 2>&1; then
 else
     missing="$missing sha256sum"
 fi
+# --archive is how a machine with no way out installs, so curl is only needed
+# when downloading.
 [ -n "$archive" ] || command -v curl > /dev/null 2>&1 || missing="$missing curl"
 if [ "$do_service" = 1 ] && [ "$only_upgrade" = 0 ]; then
     case $(uname -s) in
@@ -158,6 +179,8 @@ fi
 # --- 2. The archive, verified ----------------------------------------------
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-install.XXXXXX") || die 'cannot make a temporary folder'
+# Removed on every way out, including die, which is why no failure below has
+# to clean this folder up itself.
 trap 'rm -rf "$work"' EXIT
 
 if [ -n "$archive" ]; then
@@ -185,6 +208,9 @@ else
     curl $curl_proto -fsSL -o "$work/SHA256SUMS" "$repo_url/releases/download/v$version/SHA256SUMS" || die 'cannot download SHA256SUMS'
     set +f
 fi
+# The check that everything rests on. Nothing has been unpacked yet, and a
+# missing entry fails just as a wrong hash does: "no entry" must never read
+# as "nothing to check". sha256sum marks binary files with a leading *.
 want=$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$work/SHA256SUMS")
 [ -n "$want" ] || die "SHA256SUMS has no entry for $file"
 got=$(cd "$work" && $sha "$file" | awk '{ print $1 }')
@@ -196,6 +222,9 @@ unset VIGIL_TEST_RELEASE_URL
 mkdir "$work/x" && tar -xzf "$work/$file" -C "$work/x" || die "cannot unpack $file"
 src=$(find "$work/x" -mindepth 1 -maxdepth 1 -type d | head -n 1)
 [ -f "$src/app/vigil" ] || die "$file does not hold a Vigil release"
+# The archive's own VERSION wins over what was asked for: with --archive
+# nothing else says which version this is, and the upgrade below compares the
+# running version against it.
 version=$(cat "$src/app/VERSION" 2> /dev/null || printf '%s' "${version:-unknown}")
 
 # --- 3. Unpack into the root -------------------------------------------------
@@ -210,6 +239,9 @@ cp -R "$src/app" "$root/app.new" || { rm -rf "$root/app.new"; die "cannot copy i
 chmod 755 "$root/app.new/vigil"
 vigil() { bash "$root/app/vigil" --root "$root" "$@"; }
 # Whether the running service is on version $1 within 30 seconds.
+# Both must be true: the version is only what the supervisor last wrote down,
+# so the service has to be active as well. It gets 30 seconds because a
+# supervisor notices a change to app/ at its next tick, not at once.
 on_version() {
     n=0
     while [ "$n" -lt 30 ]; do
@@ -222,6 +254,8 @@ on_version() {
     done
     return 1
 }
+# What was found running decides how the service is treated, and rollback()
+# puts back exactly that, so an upgrade never starts a service that was stopped.
 running=0
 reload=0
 old_version=$(cat "$root/app/VERSION" 2> /dev/null)
@@ -237,6 +271,10 @@ if [ "$upgrade" = 1 ] && [ "$do_service" = 1 ] &&
     fi
 fi
 # Back to the version that was running, and its service.
+# Whoever is running this reads the reason from die, so that message has to be
+# the last thing that happens. A supervisor that reloaded to the new version
+# reloads back by itself when app/ changes again; if it does not get back in
+# time, it is started.
 rollback() {
     rm -rf "$root/app"
     mv "$root/app.old" "$root/app"
@@ -254,17 +292,23 @@ if [ -d "$root/app" ] && ! mv "$root/app" "$root/app.old"; then
     [ "$running" = 1 ] && vigil start > /dev/null
     die "cannot replace $root/app; nothing was changed"
 fi
+# Between these two moves there is no app/ at all. They are renames in one
+# folder, so that gap is a moment, not the length of a copy.
 if ! mv "$root/app.new" "$root/app"; then
     [ -d "$root/app.old" ] && mv "$root/app.old" "$root/app"
     [ "$running" = 1 ] && vigil start > /dev/null
     die "cannot replace $root/app; nothing was changed"
 fi
 if [ "$mode" = system ]; then
+    # Root owns the code in system mode, so the account the service runs as cannot
+    # rewrite what it will run next.
     chown -R 0:0 "$root/app" 2> /dev/null
     chmod 755 "$root"
 fi
 # The old version goes only once the new one has proved it runs.
 if [ "$upgrade" = 1 ]; then
+    # Three proofs in increasing order of cost: the new code runs at all, then the
+    # supervisor is really on it, then it stays up.
     [ "$(vigil version 2> /dev/null)" = "Vigil $version" ] || rollback "the new version ($version) does not run"
     if [ "$reload" = 1 ]; then
         on_version "$version" || rollback "the supervisor did not come up as $version"
@@ -277,6 +321,8 @@ if [ "$upgrade" = 1 ]; then
 else
     say "installed Vigil $version in $root"
 fi
+# vigil self update stops here: an update replaces Vigil and nothing else, so
+# it can never touch packs, the link, the configuration or the service.
 if [ "$only_upgrade" = 1 ]; then
     say "done: Vigil $version"
     exit 0
@@ -288,15 +334,21 @@ case $(uname -s) in Darwin) os=macos ;; *) os=linux ;; esac
 for p in "$src"/packs/*/; do
     [ -f "$p/pack.config" ] || continue
     p=${p%/}
+    # A pack that is already here stays as it is: reinstalling must not undo a
+    # vigil pack update.
     [ ! -e "$root/packs/${p##*/}" ] || continue
     mkdir -p "$root/packs/${p##*/}" && cp "$p/pack.config" "$root/packs/${p##*/}/" || die "cannot write to $root/packs"
     [ ! -d "$p/$os" ] || cp "$p/$os"/* "$root/packs/${p##*/}/" || die "cannot write to $root/packs"
+    # The service account has to read these, and this may be running under a
+    # strict umask.
     chmod -R a+rX "$root/packs/${p##*/}"
 done
 
 # --- 4. The vigil command ------------------------------------------------------
 
 if [ "$mode" = system ]; then bindir=/usr/local/bin; else bindir=$HOME/.local/bin; fi
+# A link, not a copy, so an upgrade needs no change here. app/vigil finds the
+# rest of Vigil by following it.
 mkdir -p "$bindir" && ln -sf "$root/app/vigil" "$bindir/vigil" || die "cannot link $bindir/vigil"
 say "linked $bindir/vigil"
 case :$PATH: in
@@ -307,6 +359,8 @@ esac
 # One command, with no arguments of its own: the latest release only, never
 # a version of the caller's choosing (18.7).
 if [ -n "$update_by" ]; then
+    # Checked with visudo before it goes anywhere near /etc/sudoers.d: one bad file
+    # in there stops sudo working for everyone on the machine.
     rule="$work/sudoers"
     printf '%s ALL=(root) NOPASSWD: %s/app/vigil self update\n' "$update_by" "$root" > "$rule"
     visudo -cf "$rule" > /dev/null 2>&1 || die "the sudo rule for $update_by is not valid"
@@ -318,6 +372,7 @@ fi
 
 # --- 5. vigil init, on a fresh install --------------------------------------------
 
+# An existing configuration is never rewritten, whatever else was asked for.
 if [ "$do_init" = 1 ] && [ ! -f "$root/config/vigil.config" ]; then
     set --
     [ -n "$instance" ] && set -- "$@" --instance "$instance"
@@ -341,6 +396,8 @@ if [ "$do_service" = 1 ]; then
         say "done: Vigil $version"
         exit 0
     fi
+    # The arguments are built in "$@" because that is the only safe list in sh: an
+    # account name with a space survives it.
     set -- service install "--$mode"
     [ -n "$account" ] && set -- "$@" --account "$account"
     if ! vigil "$@"; then
