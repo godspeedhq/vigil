@@ -62,9 +62,13 @@ function Write-VigilFileAtomic {
     $fs = [System.IO.File]::Open($tmp, 'Create', 'Write', 'None')
     try {
         $fs.Write($bytes, 0, $bytes.Length)
+        # To disk before the rename, so a power cut leaves the old file or the new
+        # one, never an empty one.
         $fs.Flush($true)
     }
     finally { $fs.Dispose() }
+    # Replace, not Move: on .NET Framework, which Windows PowerShell 5.1 runs on,
+    # Move cannot overwrite.
     if ([System.IO.File]::Exists($Path)) { [System.IO.File]::Replace($tmp, $Path, [System.Management.Automation.Language.NullString]::Value) }
     else { [System.IO.File]::Move($tmp, $Path) }
 }
@@ -229,6 +233,8 @@ function Invoke-VigilWorker {
             catch [System.IO.FileNotFoundException] { throw }
             catch [System.IO.IOException] { if ($try -ge 20) { throw }; Start-Sleep -Milliseconds 100 }
         }
+        # CreateNew fails if a token already exists, and share mode None makes the
+        # supervisor's probe see it held for as long as this worker lives.
         try { $tokenStream = [System.IO.File]::Open($token, 'CreateNew', 'ReadWrite', 'None') }
         finally { $launchStream.Dispose() }
         [System.IO.File]::Delete($launch)
@@ -388,7 +394,12 @@ function Invoke-VigilWorker {
         catch { $startError = $_.Exception.InnerException.Message; if (-not $startError) { $startError = $_.Exception.Message } }
         if ($startError) { $reason = "could not start: $startError" }
         else {
+            # No input: a job that asks for some gets end of file at once instead of
+            # waiting for ever.
             $p.StandardInput.Close()
+            # Unlike the Linux and macOS worker, which sends output to files as it comes,
+            # this holds a job's whole output in memory until the job ends: see backlog
+            # task 21.
             # Both streams are read concurrently, so a job filling one cannot
             # block on the other.
             $outTask = $p.StandardOutput.ReadToEndAsync()
