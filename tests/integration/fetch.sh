@@ -378,8 +378,11 @@ else
     chmod 700 "$s"
     ssh-keygen -q -t ed25519 -N '' -f "$s/host" && ssh-keygen -q -t ed25519 -N '' -f "$s/user"
     cp "$s/user.pub" "$s/authorized_keys"
+    # A port from this process's id; if something already listens there,
+    # sshd exits at once, and the next port along is tried.
     sport=$((20000 + $$ % 20000))
-    cat > "$s/sshd_config" <<EOF
+    for try in 1 2 3 4 5 6 7 8 9 10; do
+        cat > "$s/sshd_config" <<EOF
 Port $sport
 ListenAddress 127.0.0.1
 HostKey $s/host
@@ -391,8 +394,13 @@ StrictModes no
 PidFile $s/sshd.pid
 Subsystem sftp internal-sftp
 EOF
-    "$sshd" -D -e -f "$s/sshd_config" 2> "$s/sshd.log" &
-    sshd_pid=$!
+        "$sshd" -D -e -f "$s/sshd_config" 2> "$s/sshd.log" &
+        sshd_pid=$!
+        sleep 1
+        kill -0 "$sshd_pid" 2> /dev/null && break
+        sshd_pid=''
+        sport=$((20000 + (sport - 20000 + 997) % 20000))
+    done
     printf '[127.0.0.1]:%s %s\n' "$sport" "$(cut -d' ' -f1-2 "$s/host.pub")" > "$s/known_hosts"
     cat > "$s/config" <<EOF
 Host 127.0.0.1
