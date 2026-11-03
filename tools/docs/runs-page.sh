@@ -80,9 +80,10 @@ for h in $hosts; do
             printf -- '- **System:** %s\n' "$(field "$c" os)"
             printf -- '- **Logs, state and metrics:** [%s/%s/%s](%s/%s/%s/%s)\n\n' "$d" "$h" "$n" "$tree" "$d" "$h" "$n"
             printf '```text\n'
-            # The transcript's own banner says nothing the header doesn't.
-            tr -d '\r' < "$c" | awk '
-                /^\*{22}$/ { banner = !banner; next }
+            # The transcript's own banner says nothing the header doesn't;
+            # it starts with a byte-order mark.
+            tr -d '\r' < "$c" | sed "1s/^$(printf '\357\273\277')//" | awk '
+                $0 == "**********************" { banner = !banner; next }
                 banner { next }
                 { print }' | sed 's/```/` ` `/g'
             printf '```\n\n'
