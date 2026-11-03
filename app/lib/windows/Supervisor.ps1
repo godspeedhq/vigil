@@ -56,12 +56,22 @@ function Test-VigilFileHeld {
 # Whether a process carries a run id on its command line: yes, no or error.
 function Test-VigilRunProcess {
     param([string]$RunId)
+    if (-not $Script:VigilWmiRefused) {
+        try {
+            # Run ids hold only digits, letters and hyphens, so none of them is a LIKE
+            # wildcard.
+            $p = @(Get-CimInstance -ClassName Win32_Process -Filter "CommandLine LIKE '%--run-id $RunId%'" -ErrorAction Stop |
+                Where-Object { $_.ProcessId -ne $PID })
+            if ($p.Count -gt 0) { return 'yes' }
+            return 'no'
+        }
+        catch { $Script:VigilWmiRefused = $true }
+    }
+    # WMI refused (see Initialize-VigilNative): the kernel is asked instead. Like WMI, it cannot read another user's command lines, and a
+    # worker always runs as the supervisor's own user.
     try {
-        # Run ids hold only digits, letters and hyphens, so none of them is a LIKE
-        # wildcard.
-        $p = @(Get-CimInstance -ClassName Win32_Process -Filter "CommandLine LIKE '%--run-id $RunId%'" -ErrorAction Stop |
-            Where-Object { $_.ProcessId -ne $PID })
-        if ($p.Count -gt 0) { return 'yes' }
+        Initialize-VigilNative
+        if ([VigilNative]::AnyCommandLine("--run-id $RunId", $PID)) { return 'yes' }
         return 'no'
     }
     catch { return 'error' }
@@ -531,16 +541,17 @@ function Invoke-VigilSupervisor {
         param([string]$Job, [string]$RunId, $St)
         $proven = $false
         try {
-            $p = @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$St.JobPid)" -ErrorAction Stop)[0]
+            $p = Get-VigilProcessInfo ([int]$St.JobPid)
             if ($p -and $St.JobName -and $p.Name -ieq $St.JobName) {
                 # Pid, name and start time together: Windows reuses pids quickly, so a pid on
                 # its own could belong to something else by now. A second either way allows
                 # for rounding.
-                $startOk = (-not $St.JobStart) -or ([Math]::Abs((ConvertTo-VigilEpoch $p.CreationDate) - [long]$St.JobStart) -le 1)
-                $w = @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$St.WorkerPid)" -ErrorAction Stop)[0]
+                $startOk = (-not $St.JobStart) -or ([Math]::Abs((ConvertTo-VigilEpoch $p.Created) - [long]$St.JobStart) -le 1)
+                $w = Get-VigilProcessInfo ([int]$St.WorkerPid)
                 # The parent is only checked while the worker is still this run's worker: once
-                # it has gone, its pid may belong to anything.
-                $parentOk = (-not $w) -or ($w.CommandLine -notlike "*--run-id $RunId*") -or ($p.ParentProcessId -eq [int]$St.WorkerPid)
+                # it has gone, its pid may belong to anything. A command line that cannot be
+                # read proves nothing either way, so then the parent must match.
+                $parentOk = (-not $w) -or ($w.CommandLine -and $w.CommandLine -notlike "*--run-id $RunId*") -or ($p.Parent -eq [int]$St.WorkerPid)
                 $proven = $startOk -and $parentOk
             }
         }

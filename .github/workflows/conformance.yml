@@ -112,6 +112,16 @@ jobs:
         run: ./tests/integration/Max-Runtime.ps1
       - name: uncertain runs
         run: ./tests/integration/Uncertain.ps1
+      # As under a logon WMI refuses (SSH, a task without a stored password):
+      # ownership is proven from the kernel instead.
+      - name: max_runtime and uncertain runs, without WMI
+        if: matrix.shell == 'powershell'
+        env:
+          VIGIL_TEST_NO_WMI: '1'
+        run: |
+          ./tests/integration/Max-Runtime.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tests/integration/Uncertain.ps1
       - name: secrets
         run: ./tests/integration/Secrets.ps1
       - name: precheck

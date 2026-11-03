@@ -411,8 +411,10 @@ How each piece is read:
 | Evidence | Linux | macOS | Windows |
 | --- | --- | --- | --- |
 | Token held | `/proc/<pid>/fd` links | `lsof -t <token>` | an exclusive open fails |
-| Run id on a command line | `/proc/<pid>/cmdline` | `ps -o args=` | `Win32_Process.CommandLine` |
-| Boot id | `/proc/sys/kernel/random/boot_id` | `sysctl kern.boottime` | last boot time |
+| Run id on a command line | `/proc/<pid>/cmdline` | `ps -o args=` | `Win32_Process.CommandLine`, or the kernel where WMI refuses |
+| Boot id | `/proc/sys/kernel/random/boot_id` | `sysctl kern.boottime` | the kernel's last boot time |
+
+WMI refuses a network logon that is not an administrator's, such as an SSH session or a scheduled task without a stored password. There Vigil asks the kernel directly for the same facts: a process's name, start time, parent and command line. Only `vigil start` in user mode still needs WMI, to launch the supervisor detached.
 
 ### Recovery: what the supervisor concludes
 

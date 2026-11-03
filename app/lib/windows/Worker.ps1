@@ -111,13 +111,164 @@ function ConvertTo-VigilEpoch {
     return [long][Math]::Floor(($Time.ToUniversalTime() - $epoch0).TotalSeconds)
 }
 
+# Windows' own answers about processes and the boot, without WMI. WMI
+# refuses a network logon that is not an administrator's: an SSH session,
+# or a scheduled task run without a stored password. Each WMI read below
+# falls back to these, which ask the kernel directly; the boot time comes
+# from the kernel first. Compiled once per process, when first needed. WMI
+# takes seconds to refuse, every time, so once it has, this process does
+# not ask it again.
+# Tests set VIGIL_TEST_NO_WMI=1 to take the kernel's route, as such a
+# logon does.
+$Script:VigilWmiRefused = $env:VIGIL_TEST_NO_WMI -ceq '1'
+function Initialize-VigilNative {
+    if ('VigilNative' -as [type]) { return }
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class VigilNative {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct PROCESSENTRY32 {
+        public uint dwSize; public uint cntUsage; public uint th32ProcessID; public IntPtr th32DefaultHeapID;
+        public uint th32ModuleID; public uint cntThreads; public uint th32ParentProcessID; public int pcPriClassBase;
+        public uint dwFlags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szExeFile;
+    }
+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint pid);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool Process32FirstW(IntPtr h, ref PROCESSENTRY32 e);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool Process32NextW(IntPtr h, ref PROCESSENTRY32 e);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool QueryFullProcessImageNameW(IntPtr h, int flags, StringBuilder name, ref int size);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+    [DllImport("ntdll.dll")] static extern int NtQuerySystemInformation(int cls, byte[] buf, int len, out int ret);
+    [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr h, int cls, IntPtr buf, int len, out int ret);
+    const uint QueryLimited = 0x1000;
+
+    // The boot time as a FILETIME: the kernel's own, which is what WMI's
+    // LastBootUpTime reports.
+    public static long BootFileTime() {
+        byte[] b = new byte[48]; int r;
+        int s = NtQuerySystemInformation(3, b, b.Length, out r);
+        if (s != 0) throw new InvalidOperationException("NtQuerySystemInformation: 0x" + s.ToString("x8"));
+        return BitConverter.ToInt64(b, 0);
+    }
+
+    // Every process: its id and its parent's id, or an exception.
+    public static int[][] Processes() {
+        IntPtr h = CreateToolhelp32Snapshot(2, 0);
+        if (h == new IntPtr(-1)) throw new InvalidOperationException("CreateToolhelp32Snapshot: " + Marshal.GetLastWin32Error());
+        try {
+            var list = new System.Collections.Generic.List<int[]>();
+            PROCESSENTRY32 e = new PROCESSENTRY32();
+            e.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32));
+            if (!Process32FirstW(h, ref e)) throw new InvalidOperationException("Process32First: " + Marshal.GetLastWin32Error());
+            do { list.Add(new int[] { (int)e.th32ProcessID, (int)e.th32ParentProcessID }); } while (Process32NextW(h, ref e));
+            return list.ToArray();
+        }
+        finally { CloseHandle(h); }
+    }
+
+    // The parent's id; 0 when there is no such process.
+    public static int Parent(int pid) {
+        foreach (int[] p in Processes()) { if (p[0] == pid) return p[1]; }
+        return 0;
+    }
+
+    // The image's file name (ping.exe), or null when it cannot be read.
+    public static string ImageName(int pid) {
+        IntPtr h = OpenProcess(QueryLimited, false, pid);
+        if (h == IntPtr.Zero) return null;
+        try {
+            StringBuilder sb = new StringBuilder(1024); int n = sb.Capacity;
+            if (!QueryFullProcessImageNameW(h, 0, sb, ref n)) return null;
+            return System.IO.Path.GetFileName(sb.ToString(0, n));
+        }
+        finally { CloseHandle(h); }
+    }
+
+    // The command line, or null when it cannot be read: another user's
+    // process, or one that has gone.
+    public static string CommandLine(int pid) {
+        IntPtr h = OpenProcess(QueryLimited, false, pid);
+        if (h == IntPtr.Zero) return null;
+        try {
+            int len = 4096;
+            for (int i = 0; i < 4; i++) {
+                IntPtr buf = Marshal.AllocHGlobal(len);
+                try {
+                    int need;
+                    // 60: ProcessCommandLineInformation, a UNICODE_STRING
+                    // followed by its text.
+                    int s = NtQueryInformationProcess(h, 60, buf, len, out need);
+                    if (s == 0) {
+                        int bytes = Marshal.ReadInt16(buf) & 0xffff;
+                        IntPtr text = Marshal.ReadIntPtr(buf, IntPtr.Size);
+                        return bytes == 0 ? "" : Marshal.PtrToStringUni(text, bytes / 2);
+                    }
+                    if (need <= len) return null;
+                    len = need;
+                }
+                finally { Marshal.FreeHGlobal(buf); }
+            }
+            return null;
+        }
+        finally { CloseHandle(h); }
+    }
+
+    // Whether any process but skip has needle in its command line.
+    public static bool AnyCommandLine(string needle, int skip) {
+        foreach (int[] p in Processes()) {
+            if (p[0] == skip || p[0] == 0) continue;
+            string c = CommandLine(p[0]);
+            if (c != null && c.IndexOf(needle, StringComparison.Ordinal) >= 0) return true;
+        }
+        return false;
+    }
+}
+'@
+}
+
+# A process's name, start time, parent and command line, from WMI or, when
+# WMI refuses, from the kernel; $null when there is no such process. Throws
+# when neither can tell. Name and start time are what Get-Process reports,
+# which is how the worker records its job (11.5).
+function Get-VigilProcessInfo {
+    param([int]$Id)
+    if (-not $Script:VigilWmiRefused) {
+        try {
+            $p = @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $Id" -ErrorAction Stop)[0]
+            if (-not $p) { return $null }
+            return @{ ProcessId = $Id; Name = $p.Name; Created = $p.CreationDate; Parent = [int]$p.ParentProcessId; CommandLine = $p.CommandLine }
+        }
+        catch { $Script:VigilWmiRefused = $true }
+    }
+    Initialize-VigilNative
+    $g = Get-Process -Id $Id -ErrorAction SilentlyContinue
+    if (-not $g) { return $null }
+    $name = [VigilNative]::ImageName($Id)
+    if (-not $name) { throw "process $Id cannot be read" }
+    return @{ ProcessId = $Id; Name = $name; Created = $g.StartTime; Parent = [VigilNative]::Parent($Id); CommandLine = [VigilNative]::CommandLine($Id) }
+}
+
 # Windows has no kernel boot id; it is derived from the boot time (11.1).
+# The kernel is asked first: every worker needs the id, and WMI would make
+# each one wait seconds where it refuses. WMI reports the same time, so the
+# id is the same either way; it is asked when the kernel cannot be (Add-Type
+# is not allowed everywhere).
 function Get-VigilBootId {
     try {
-        $boot = (Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop).LastBootUpTime
-        return "boot-$(ConvertTo-VigilEpoch $boot)"
+        Initialize-VigilNative
+        return "boot-$(ConvertTo-VigilEpoch ([DateTime]::FromFileTimeUtc([VigilNative]::BootFileTime())))"
     }
-    catch { return '' }
+    catch { }
+    if (-not $Script:VigilWmiRefused) {
+        try {
+            $boot = (Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop).LastBootUpTime
+            return "boot-$(ConvertTo-VigilEpoch $boot)"
+        }
+        catch { $Script:VigilWmiRefused = $true }
+    }
+    return ''
 }
 
 # The first value of a key in a section, or a default.
