@@ -20,6 +20,8 @@
 #              key)
 #   https-nginx  Vigil's https source: scripts pinned by SHA-256, an
 #              authentication header, the failures nginx gives on purpose
+#   sftp-openssh Vigil's sftp source: a key, known_hosts, scripts pinned by
+#              SHA-256
 #
 # Needs .sources/ and .secrets/tls/ca.pem, which start.sh makes; on another
 # host, copy them, keeping their paths, and reach the server's ports on
@@ -44,7 +46,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/common.sh"
 
 t=${1-}
-case $t in git-gitea | https-nginx) ;; *) die 'usage: run-source.sh git-gitea|https-nginx' ;; esac
+case $t in git-gitea | https-nginx | sftp-openssh) ;; *) die 'usage: run-source.sh git-gitea|https-nginx|sftp-openssh' ;; esac
 src=$bk_dir/.sources
 ca=$bk_dir/.secrets/tls/ca.pem
 fx=$bk_dir/fixtures/sources
@@ -368,6 +370,118 @@ https_suite() {
     leak_values=$SRC_TOKEN
 }
 
+# ---- sftp-openssh ---------------------------------------------------------
+sftp_suite() {
+    local v1_sha v2_sha rev
+    v1_sha=$SRC_SHA_V1_SH v2_sha=$SRC_SHA_V2_SH
+    # Vigil's own test switch for its ssh configuration (fetch.sh): the key
+    # and known_hosts, StrictHostKeyChecking still on (Vigil sets it).
+    ssh_config() {
+        printf 'Host 127.0.0.1\n  IdentityFile %s\n  IdentitiesOnly yes\n  UserKnownHostsFile %s\n' "$1" "$2" > "$work/ssh_config"
+    }
+    export VIGIL_TEST_SSH_CONFIG=$work/ssh_config
+    ssh_config "$src/ssh/vigil_sources" "$src/sftp_known_hosts"
+    # A source of type sftp with path $1, job file $2, pinned by $3, named $4
+    # (by default files; a failure case gets its own, with nothing cached).
+    sftp_config() {
+        {
+            base
+            printf '[source.%s]\ntype        = sftp\nhost        = %s\nport        = %s\nuser        = %s\npath        = %s\ncheck_every = 1s\ntimeout     = 10s\n\n' \
+                "${4:-files}" "$SRC_HOST" "$SRC_PORT" "$SRC_USER" "$1"
+            printf '[job.check]\nsource    = %s\nfile      = %s\nsha256    = %s\nrun_every = 3650d\n' "${4:-files}" "$2" "$3"
+        } > "$root/config/vigil.config"
+    }
+
+    printf '\n%s, scripts over SFTP, with a key\n' "$t"
+    sftp_config /files check-v1.sh "$v1_sha"
+    fetch
+    check 'a pinned script: fetched and activated' succeeded "$(fetch_status)"
+    check 'a pinned script: the job runs version 1' 'source_check 1' "$(run check)"
+    check 'a pinned script: the cached file is the fixture' "$v1_sha" "$(cached_sha check-v1.sh)"
+    sftp_config /files nested/deep/check-v1.sh "$v1_sha" nested
+    fetch
+    check 'a nested path: the job runs version 1' 'source_check 1' "$(run check)"
+    sftp_config /files check-v2.sh "$v2_sha"
+    fetch
+    check 'a new version, pinned by its digest: the job runs version 2' 'source_check 2' "$(run check)"
+    printf '  NOT SUPPORTED  password authentication: Vigil signs in to sftp with a key only (spec 6.9)\n'
+    printf '  NOT RUN  an interrupted transfer: this server gives no reliable way to cut one\n'
+    notrun=$((notrun + 1))
+
+    printf '\n%s, failures: nothing changes\n' "$t"
+    sftp_config /files check-v1.sh "$v1_sha"
+    fetch
+    rev=$(revision)
+    failure() {
+        fetch
+        check "$1: the fetch fails" failed "$(fetch_status)"
+        contains "$1: says why" "$2" "$(fetch_reason)"
+        check "$1: the last good configuration stays active" "$rev" "$(revision)"
+        check "$1: and its job still runs" 'source_check 1' "$(run check)"
+    }
+    sftp_config /files nosuch.sh "$v1_sha" fail1
+    failure 'a missing file' 'sftp failed'
+    sftp_config /nosuch check-v1.sh "$v1_sha" fail2
+    failure 'a missing directory' 'sftp failed'
+    sftp_config /files locked.sh "$v1_sha" fail3
+    failure 'a file the account may not read' 'sftp failed'
+    sftp_config /files check-v2.sh "$v1_sha" fail4
+    failure 'a digest that does not match' 'does not match its sha256'
+    sftp_config /files corrupt.txt "$v1_sha" fail5
+    failure 'corrupted content, never run' 'does not match its sha256'
+    ssh_config "$src/ssh/vigil_sources_wrong" "$src/sftp_known_hosts"
+    sftp_config /files check-v1.sh "$v1_sha" fail6
+    failure 'a key the server does not know' 'Permission denied'
+    : > "$work/empty_known_hosts"
+    ssh_config "$src/ssh/vigil_sources" "$work/empty_known_hosts"
+    sftp_config /files check-v1.sh "$v1_sha" fail7
+    failure 'a host key not in known_hosts' 'sftp failed'
+    printf '[127.0.0.1]:%s %s\n' "$SRC_PORT" "$(cut -d' ' -f1,2 "$src/ssh/vigil_sources_wrong.pub")" > "$work/changed_known_hosts"
+    ssh_config "$src/ssh/vigil_sources" "$work/changed_known_hosts"
+    sftp_config /files check-v1.sh "$v1_sha" fail8
+    failure 'a changed host key' 'sftp failed'
+    ssh_config "$src/ssh/vigil_sources" "$src/sftp_known_hosts"
+
+    printf '\n%s, the configuration from the server (remote mode)\n' "$t"
+    pointer() {
+        printf '[vigil]\nconfig_source = central\nconfig_file   = posix.config\n\n[source.central]\ntype        = sftp\nhost        = %s\nport        = %s\nuser        = %s\npath        = /files/configs/%s\ncheck_every = 1s\n' \
+            "$SRC_HOST" "$SRC_PORT" "$SRC_USER" "$1" > "$root/config/vigil.config"
+    }
+    pointer v1
+    fetch
+    check 'configs/v1: activated' succeeded "$(fetch_status)"
+    check 'configs/v1: its job runs version 1' 'source_check 1' "$(run remote_check)"
+    rev=$(revision)
+    pointer broken
+    fetch
+    check 'a configuration invalid outside any job: refused' failed "$(fetch_status)"
+    check 'invalid outside any job: the last good one stays active' "$rev" "$(revision)"
+    check 'invalid outside any job: and its job still runs version 1' 'source_check 1' "$(run remote_check)"
+    pointer v2
+    fetch
+    check 'configs/v2: the update is activated' 'source_check 2' "$(run remote_check)"
+
+    printf '\n%s, the server down, then back\n' "$t"
+    rev=$(revision)
+    if dc ps -q --status running sftp-openssh 2> /dev/null | grep -q .; then
+        dc stop sftp-openssh > /dev/null 2>&1
+        pointer v1
+        fetch
+        check 'server stopped: the fetch fails' failed "$(fetch_status)"
+        check 'server stopped: the last good configuration stays active' "$rev" "$(revision)"
+        check 'server stopped: and its job still runs version 2' 'source_check 2' "$(run remote_check)"
+        dc start sftp-openssh > /dev/null 2>&1
+        local i=0
+        until ssh-keyscan -p "$SRC_PORT" 127.0.0.1 2> /dev/null | grep -q ed25519 || [ "$i" -ge 30 ]; do sleep 1; i=$((i + 1)); done
+        fetch
+        check 'server back: recovered, the change is activated' 'source_check 1' "$(run remote_check)"
+    else
+        printf '  NOT RUN  server down and back: the SFTP server does not run here (it needs the Docker host)\n'
+        notrun=$((notrun + 1))
+    fi
+    leak_values="$(sed -n '2p' "$src/ssh/vigil_sources") $(sed -n '2p' "$src/ssh/vigil_sources_wrong")"
+}
+
 # Moves branch $1 of the test repository to commit $2, as vigil-admin.
 move() {
     local g=$work/move
@@ -384,6 +498,7 @@ dc() { docker compose --project-directory "$bk_dir" -f "$bk_dir/compose.yaml" "$
 case $t in
     git-gitea) git_suite ;;
     https-nginx) https_suite ;;
+    sftp-openssh) sftp_suite ;;
 esac
 
 # Leaks: no password or private key under the Vigil root or in its output.

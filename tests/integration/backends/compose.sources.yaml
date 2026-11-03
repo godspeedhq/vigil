@@ -76,5 +76,21 @@ services:
       timeout: 5s
       retries: 30
 
+  # OpenSSH SFTP (atmoz/sftp, pinned by digest: it only has rolling tags):
+  # user vigil (uid 2001, not a test account's own, so files those accounts
+  # keep 0600 are off limits to it), key only, chrooted, with .sources/sftp/files as
+  # /files, read-only. Its host key is fixed (.sources/ssh/sftp_host_ed25519)
+  # so known_hosts stays right across restarts.
+  sftp-openssh:
+    image: atmoz/sftp:alpine@sha256:43dd1c023cf1bae487127d4b54660b0aee6e94c188a6599be36fb89ba115f961
+    profiles: ["sftp-openssh"]
+    command: ["vigil::2001"]
+    ports:
+      - "127.0.0.1:2022:22"
+    volumes:
+      - ./.sources/ssh/vigil_sources.pub:/home/vigil/.ssh/keys/vigil_sources.pub:ro,z
+      - ./.sources/ssh/sftp_host_ed25519:/etc/ssh/ssh_host_ed25519_key:ro,z
+      - ./.sources/sftp/files:/home/vigil/files:ro,z
+
 volumes:
   gitea-data:
