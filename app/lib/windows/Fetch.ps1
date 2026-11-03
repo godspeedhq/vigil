@@ -125,7 +125,7 @@ function Invoke-VigilFetchProcess {
     $outTask = $p.StandardOutput.ReadToEndAsync()
     $errTask = $p.StandardError.ReadToEndAsync()
     if (-not $p.WaitForExit($Seconds * 1000)) {
-        & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null
+        Stop-VigilProcessTree $p.Id
         [void]$p.WaitForExit(5000)
         return @{ Code = -1; Out = ''; Err = ''; TimedOut = $true }
     }

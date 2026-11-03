@@ -142,7 +142,7 @@ function Invoke-VigilSecretHelper {
     $outTask = $p.StandardOutput.ReadToEndAsync()
     $errTask = $p.StandardError.ReadToEndAsync()
     if (-not $p.WaitForExit($seconds * 1000)) {
-        try { & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null } catch { }
+        try { Stop-VigilProcessTree $p.Id } catch { }
         return @{ Ok = $false; Why = "the helper was stopped after ${seconds}s" }
     }
     $p.WaitForExit()

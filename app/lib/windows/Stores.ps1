@@ -802,7 +802,7 @@ function Invoke-VigilCliRun {
     $outTask = $p.StandardOutput.ReadToEndAsync()
     $errTask = $p.StandardError.ReadToEndAsync()
     if (-not $p.WaitForExit($Timeout * 1000)) {
-        try { & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null } catch { }
+        try { Stop-VigilProcessTree $p.Id } catch { }
         return @{ Out = ''; Rc = 1; Stopped = $true }
     }
     $p.WaitForExit()
