@@ -31,9 +31,17 @@
 # Requires config.sh. bash 3.2: no associative arrays - name sets are
 # newline-delimited strings, matched with case.
 
+# Every backend type the specification names (15.3), sent to yet or not: a
+# configuration naming one Vigil cannot send to yet is still valid, and its
+# events are counted as dropped. Sets are newline-delimited strings, matched
+# with case, since bash 3.2 has no associative arrays.
 VIGIL_BACKEND_TYPES=$'\nfile\ndatadog\notel\nprometheus\nvictoriametrics\ninfluxdb\nsplunk\ngraphite\nstatsd\nelasticsearch\nopensearch\nazuremonitor\ncloudwatch\ngcp\nnewrelic\ndynatrace\nwebhook\n'
+# Tags Vigil sets itself (14.6), so a configured tag can never collide with
+# one of them.
 VIGIL_RESERVED_TAGS=$'\nhost\nos\ninstance\njob\nlabel\nuom\nexit_code\n'
 
+# The same patterns as Validate.ps1, character for character: the conformance
+# suite holds both to the same answer for every case.
 _vigil_val_re_dur='^[0-9]{1,6}[smhd]$'
 _vigil_val_re_zero_dur='^0+[smhd]$'
 _vigil_val_re_int='^[0-9]{1,6}$'
@@ -87,6 +95,11 @@ _vigil_val_split() {
 
 # Sets _vv_type and _vv_list (1 = repeatable) for a key in a section kind.
 # An empty _vv_type means the key is unknown there.
+# The type decides how _vigil_val_check reads the value. Some are worth a word:
+# path is not checked at all, because validation never reads the filesystem
+# (precheck does); srcpath is a path inside a source; credential must be a
+# reference, never the secret itself; job_only marks keys [defaults] may not
+# set, because they make no sense shared.
 _vigil_val_keytype() {
     _vv_type=''
     _vv_list=0
@@ -135,6 +148,8 @@ _vigil_val_keytype() {
         backend:type) _vv_type=backend_type ;;
         backend:enabled) _vv_type=bool ;;
         backend:timeout) _vv_type=dur ;;
+        # Any backend key that looks like a credential is treated as one, so a key
+        # added for a new backend is protected without anyone remembering to list it.
         backend:username | backend:password | backend:token | backend:api_key | \
         backend:api_token | backend:api_key_id | backend:header_value | \
         backend:access_key_id | backend:client_id | backend:tenant_id | \
@@ -185,7 +200,6 @@ _vigil_val_keytype() {
     esac
 }
 
-# Whether key $2 applies to a source of type $1 (spec 6.9).
 # Checks secret reference $2 of key $1 (6.5): env:NAME, secret:NAME or, when
 # $3 is 1, store:STORE/NAME. Sets _vv_code/_vv_msg; never shows the value.
 _vigil_val_secret_ref() {
@@ -250,6 +264,7 @@ _vigil_val_store_key() {
     return 1
 }
 
+# Whether key $2 applies to a source of type $1 (spec 6.9).
 _vigil_val_source_key() {
     case $2 in
         type | check_every | timeout) return 0 ;;
@@ -578,6 +593,9 @@ _vigil_val_check() {
                     ;;
             esac
             ;;
+        # Kept inside the source: no absolute path, drive letter, backslash or ..
+        # segment, so a fetched configuration can never point at a file outside the
+        # tree it came with.
         srcpath)
             case $value in
                 /* | *\\* | [A-Za-z]:*) _vv_code=E_SOURCE_PATH ;;
@@ -662,6 +680,8 @@ vigil_config_validate() {
 
     # Names that references may point at, and each source's type (empty
     # when not valid).
+    # Two passes. This one collects every name a reference may point at, so a job
+    # can name a runner or backend defined further down the file.
     _vv_runners=$nl
     _vv_backends=$nl
     _vv_destinations=$nl
@@ -695,6 +715,8 @@ vigil_config_validate() {
         s=$((s + 1))
     done
     e=0
+    # Disabled backends: naming one is allowed, with a warning, so a backend can be
+    # switched off without editing every job that uses it.
     while [ "$e" -lt "$count" ]; do
         case ${VIGIL_CFG_SECTION[$e]} in
             backend.*)
@@ -710,6 +732,8 @@ vigil_config_validate() {
     s=0
     while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
         name=${VIGIL_CFG_SEC_NAME[$s]}
+        # The second pass: each section in file order, its keys first, then the
+        # section as a whole.
         sline=${VIGIL_CFG_SEC_LINE[$s]}
         si=$s
         s=$((s + 1))
@@ -822,6 +846,8 @@ vigil_config_validate() {
                     ;;
             esac
 
+            # The checks below run in order and stop at the first that fails, so a key
+            # gets at most one record, and the most basic problem is the one reported.
             if [ -z "$_vv_type" ]; then
                 _vigil_val_report "$line" E_KEY_UNKNOWN "unknown key '$key' in [$name]"
                 continue
@@ -847,6 +873,8 @@ vigil_config_validate() {
                 _vigil_val_report "$line" E_KEY_NOT_DEFAULTABLE "'$key' must be set on each job, not in [defaults]"
                 continue
             fi
+            # Keys that may repeat (arg, env, tag and the like) are lists. Any other key
+            # set twice is a mistake: only the first value would ever be used.
             if [ "$_vv_list" -eq 0 ]; then
                 case $seen in
                     *$nl"$key"$nl*)
@@ -905,6 +933,7 @@ vigil_config_validate() {
         case $kind in
             job)
                 case $sub in
+                    # Vigil's own workers use these ids: vigil_sender, vigil_fetch, vigil_logs.
                     vigil_*)
                         _vigil_val_report "$sline" E_JOB_ID_RESERVED "job ids starting with vigil_ are reserved"
                         ;;
@@ -1057,6 +1086,7 @@ vigil_config_validate() {
 
     local i=0
     while [ "$i" -lt "${#VIGIL_VAL_KIND[@]}" ]; do
+        # Only ERROR rejects the file. INVALID sets one job aside and WARN is advice.
         if [ "${VIGIL_VAL_KIND[$i]}" = ERROR ]; then
             return 1
         fi

@@ -33,12 +33,19 @@
     sets) to agree with bash; requires Config.ps1.
 #>
 
+# Every backend type the specification names (15.3), sent to yet or not: a
+# configuration naming one Vigil cannot send to yet is still valid, and its
+# events are counted as dropped.
 $Script:VigilBackendTypes = @(
     'file', 'datadog', 'otel', 'prometheus', 'victoriametrics', 'influxdb', 'splunk',
     'graphite', 'statsd', 'elasticsearch', 'opensearch', 'azuremonitor', 'cloudwatch',
     'gcp', 'newrelic', 'dynatrace', 'webhook')
+# Tags Vigil sets itself (14.6), so a configured tag can never collide with
+# one of them.
 $Script:VigilReservedTags = @('host', 'os', 'instance', 'job', 'label', 'uom', 'exit_code')
 
+# The same patterns as validate.sh, character for character: the conformance
+# suite holds both to the same answer for every case.
 $Script:VigilValRe = @{
     Dur      = '^[0-9]{1,6}[smhd]$'
     ZeroDur  = '^0+[smhd]$'
@@ -60,7 +67,6 @@ $Script:VigilValRe = @{
 }
 $Script:VigilSourceTypes = @('local', 'git', 'https', 'sftp')
 
-# Whether a key applies to a source of the given type (spec 6.9).
 # Checks a secret reference (6.5): env:NAME, secret:NAME or, when allowed,
 # store:STORE/NAME. Returns @{ Code; Message }; never shows the value.
 function Test-VigilSecretRef {
@@ -104,6 +110,7 @@ function Test-VigilStoreKey {
         'gcp_secret_manager:ca_file', 'gcp_secret_manager:client') -ccontains "${Type}:$Key"
 }
 
+# Whether a key applies to a source of the given type (spec 6.9).
 function Test-VigilSourceKey {
     param([string]$Type, [string]$Key)
     if (@('type', 'check_every', 'timeout') -ccontains $Key) { return $true }
@@ -149,6 +156,11 @@ function Split-VigilList {
 }
 
 # Returns @{ Type; List } for a key in a section kind; Type '' = unknown.
+# The type decides how Test-VigilValue reads the value. Some are worth a word:
+# path is not checked at all, because validation never reads the filesystem
+# (precheck does); srcpath is a path inside a source; credential must be a
+# reference, never the secret itself; job_only marks keys [defaults] may not
+# set, because they make no sense shared.
 function Get-VigilKeyType {
     param([string]$Kind, [string]$Key, [string]$JobSource = '')
 
@@ -260,6 +272,8 @@ function Get-VigilKeyType {
             if ($Key -ceq 'type') { $t = 'backend_type' }
             elseif ($Key -ceq 'enabled') { $t = 'bool' }
             elseif ($Key -ceq 'timeout') { $t = 'dur' }
+            # Any backend key that looks like a credential is treated as one, so a key
+            # added for a new backend is protected without anyone remembering to list it.
             elseif ($credential -ccontains $Key -or $Key -cmatch '(_secret|_key|_token|_password)$') {
                 $t = 'credential'
             }
@@ -518,6 +532,9 @@ function Test-VigilValue {
             }
             $r.Code = $u.Code; $r.Message = $u.Message
         }
+        # Kept inside the source: no absolute path, drive letter, backslash or ..
+        # segment, so a fetched configuration can never point at a file outside the
+        # tree it came with.
         'srcpath' {
             if ($Value.StartsWith('/') -or $Value.Contains('\') -or $Value -cmatch '^[A-Za-z]:' -or
                 "/$Value/".Contains('/../')) {
@@ -690,6 +707,8 @@ function Test-VigilConfig {
             $ctx.Sources[$sec.Name.Substring(7)] = $type
         }
     }
+    # Disabled backends: naming one is allowed, with a warning, so a backend can be
+    # switched off without editing every job that uses it.
     foreach ($en in $Parsed.Entries) {
         if ($en.Section.StartsWith('backend.', [System.StringComparison]::Ordinal) -and
             $en.Key -ceq 'enabled' -and $en.Value -ceq 'false') {
@@ -697,6 +716,9 @@ function Test-VigilConfig {
         }
     }
 
+    # The second pass: each section in file order, its keys first, then the
+    # section as a whole. The first pass, above, collected every name a reference
+    # may point at, so a job can name a runner or backend defined further down.
     $singletons = @('vigil', 'scheduler', 'log', 'tags', 'spool', 'defaults', 'runners', 'log_forward')
     $entries = $Parsed.Entries
     $count = $entries.Count
@@ -793,6 +815,8 @@ function Test-VigilConfig {
                 $kt = Get-VigilKeyType -Kind $kind -Key $key -JobSource $ctx.JSource
             }
 
+            # The checks below run in order and stop at the first that fails, so a key
+            # gets at most one record, and the most basic problem is the one reported.
             if ($kt.Type.Length -eq 0) {
                 & $report $line 'E_KEY_UNKNOWN' "unknown key '$key' in [$name]"
                 continue
@@ -813,6 +837,8 @@ function Test-VigilConfig {
                 & $report $line 'E_KEY_NOT_DEFAULTABLE' "'$key' must be set on each job, not in [defaults]"
                 continue
             }
+            # Keys that may repeat (arg, env, tag and the like) are lists. Any other key
+            # set twice is a mistake: only the first value would ever be used.
             if (-not $kt.List) {
                 if (-not $seen.Add($key)) {
                     & $report $line 'E_KEY_DUPLICATE' "'$key' is set more than once in [$name]"
@@ -859,6 +885,7 @@ function Test-VigilConfig {
 
         switch -CaseSensitive ($kind) {
             'job' {
+                # Vigil's own workers use these ids: vigil_sender, vigil_fetch, vigil_logs.
                 if ($sub.StartsWith('vigil_', [System.StringComparison]::Ordinal)) {
                     & $report $sline 'E_JOB_ID_RESERVED' 'job ids starting with vigil_ are reserved'
                 }
