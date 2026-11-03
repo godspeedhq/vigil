@@ -18,6 +18,8 @@
 #   git-gitea  Vigil's git source, over HTTPS (a read-only collaborator,
 #              through a Git credential helper) and SSH (a read-only deploy
 #              key)
+#   https-nginx  Vigil's https source: scripts pinned by SHA-256, an
+#              authentication header, the failures nginx gives on purpose
 #
 # Needs .sources/ and .secrets/tls/ca.pem, which start.sh makes; on another
 # host, copy them, keeping their paths, and reach the server's ports on
@@ -42,7 +44,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/common.sh"
 
 t=${1-}
-case $t in git-gitea) ;; *) die 'usage: run-source.sh git-gitea' ;; esac
+case $t in git-gitea | https-nginx) ;; *) die 'usage: run-source.sh git-gitea|https-nginx' ;; esac
 src=$bk_dir/.sources
 ca=$bk_dir/.secrets/tls/ca.pem
 fx=$bk_dir/fixtures/sources
@@ -246,6 +248,126 @@ git_suite() {
     leak_values="$SRC_READER_PW $SRC_ADMIN_PW $(sed -n '2p' "$src/ssh/vigil_sources")"
 }
 
+# ---- https-nginx ----------------------------------------------------------
+https_suite() {
+    local v1_sha v2_sha rev
+    v1_sha=$SRC_SHA_V1_SH v2_sha=$SRC_SHA_V2_SH
+    # curl trusts the test CA as it would a private CA: its own variable.
+    export CURL_CA_BUNDLE=$ca VIGIL_SRC_TOKEN=$SRC_TOKEN
+    # A source of type https at $1 (its lines), job file $2, pinned by $3;
+    # the source is named $4, by default web. A verified copy in the cache is
+    # never fetched again (spec 16.5), so a failure case gets a source of its
+    # own, with nothing cached, to make Vigil really fetch.
+    https_config() {
+        {
+            base
+            printf '[source.%s]\ntype        = https\n%b\ncheck_every = 1s\ntimeout     = 5s\n\n' "${4:-web}" "$1"
+            printf '[job.check]\nsource    = %s\nfile      = %s\nsha256    = %s\nrun_every = 3650d\n' "${4:-web}" "$2" "$3"
+        } > "$root/config/vigil.config"
+    }
+
+    printf '\n%s, scripts over HTTPS\n' "$t"
+    https_config "url = $SRC_URL/files/" check-v1.sh "$v1_sha"
+    fetch
+    check 'a pinned script: fetched and activated' succeeded "$(fetch_status)"
+    check 'a pinned script: the job runs version 1' 'source_check 1' "$(run check)"
+    check 'a pinned script: the cached file is the fixture' "$v1_sha" "$(cached_sha check-v1.sh)"
+    https_config "url = $SRC_URL/files/" check-v2.sh "$v2_sha"
+    fetch
+    check 'a new version, pinned by its digest: the job runs version 2' 'source_check 2' "$(run check)"
+    check 'a new version: the cached file is the fixture' "$v2_sha" "$(cached_sha check-v2.sh)"
+    https_config "url = $SRC_HTTP_URL/files/" check-v1.sh "$v1_sha" plain
+    fetch
+    check 'plain http to this host (allowed): the job runs version 1' 'source_check 1' "$(run check)"
+
+    printf '\n%s, failures: nothing changes\n' "$t"
+    https_config "url = $SRC_URL/files/" check-v1.sh "$v1_sha"
+    fetch
+    rev=$(revision)
+    failure() {
+        fetch
+        check "$1: the fetch fails" failed "$(fetch_status)"
+        contains "$1: says why" "$2" "$(fetch_reason)"
+        check "$1: the last good configuration stays active" "$rev" "$(revision)"
+        check "$1: and its job still runs" 'source_check 1' "$(run check)"
+    }
+    https_config "url = $SRC_URL/files/" check-v2.sh "$v1_sha" fail1
+    failure 'a digest that does not match' 'does not match its sha256'
+    https_config "url = $SRC_URL/files/" corrupt.txt "$v1_sha" fail2
+    failure 'corrupted content, never run' 'does not match its sha256'
+    https_config "url = $SRC_URL/files/" nosuch.sh "$v1_sha" fail3
+    failure 'HTTP 404' 'not found (HTTP 404)'
+    https_config "url = $SRC_URL/forbidden/" check-v1.sh "$v1_sha" fail4
+    failure 'HTTP 403' 'permission denied (HTTP 403)'
+    https_config "url = $SRC_URL/broken/" check-v1.sh "$v1_sha" fail5
+    failure 'HTTP 500' 'HTTP 500 from'
+    https_config "url = $SRC_URL/busy/" check-v1.sh "$v1_sha" fail6
+    failure 'HTTP 503' 'HTTP 503 from'
+    https_config "url = $SRC_URL/moved/" check-v1.sh "$v1_sha" fail7
+    failure 'a redirect (never followed)' 'HTTP 301 from'
+    https_config "url = $SRC_URL/drop/" check-v1.sh "$v1_sha" fail8
+    failure 'the connection dropped' 'failed (curl exit code'
+    https_config "url = $SRC_URL/slow/" check-v1.sh "$v1_sha" fail9
+    failure 'a transfer too slow (timeout 5s)' 'timed out after 5s'
+    https_config "url = https://127.0.0.1:9444/files/" check-v1.sh "$v1_sha" fail10
+    failure 'a refused connection' 'cannot connect to'
+    unset CURL_CA_BUNDLE
+    https_config "url = $SRC_URL/files/" check-v2.sh "$v2_sha" untrusted
+    failure 'a certificate not trusted (no test CA)' 'is not trusted'
+    export CURL_CA_BUNDLE=$ca
+
+    printf '\n%s, an authentication header\n' "$t"
+    https_config "url = $SRC_URL/auth/\nheader_name  = X-Vigil-Token\nheader_value = env:VIGIL_SRC_TOKEN" check-v1.sh "$v1_sha" authok
+    fetch
+    check 'the right token: the job runs version 1' 'source_check 1' "$(run check)"
+    rev=$(revision)
+    https_config "url = $SRC_URL/auth/" check-v2.sh "$v2_sha" noheader
+    failure 'no header' 'permission denied (HTTP 401)'
+    export VIGIL_SRC_TOKEN=wrong-token
+    https_config "url = $SRC_URL/auth/\nheader_name  = X-Vigil-Token\nheader_value = env:VIGIL_SRC_TOKEN" check-v2.sh "$v2_sha" wrongtoken
+    failure 'a wrong token' 'permission denied (HTTP 403)'
+    export VIGIL_SRC_TOKEN=$SRC_TOKEN
+
+    printf '\n%s, the configuration from the server (remote mode)\n' "$t"
+    pointer() {
+        printf '[vigil]\nconfig_source = central\nconfig_file   = posix.config\n\n[source.central]\ntype        = https\nurl         = %s/configs/%s/\ncheck_every = 1s\n' \
+            "$SRC_URL" "$1" > "$root/config/vigil.config"
+    }
+    pointer v1
+    fetch
+    check 'configs/v1: activated' succeeded "$(fetch_status)"
+    check 'configs/v1: its job runs version 1' 'source_check 1' "$(run remote_check)"
+    rev=$(revision)
+    pointer broken
+    fetch
+    check 'a configuration invalid outside any job: refused' failed "$(fetch_status)"
+    check 'invalid outside any job: the last good one stays active' "$rev" "$(revision)"
+    check 'invalid outside any job: and its job still runs version 1' 'source_check 1' "$(run remote_check)"
+    pointer v2
+    fetch
+    check 'configs/v2: the update is activated' 'source_check 2' "$(run remote_check)"
+
+    printf '\n%s, the server down, then back\n' "$t"
+    rev=$(revision)
+    if dc ps -q --status running nginx-sources 2> /dev/null | grep -q .; then
+        dc stop nginx-sources > /dev/null 2>&1
+        pointer v1
+        fetch
+        check 'server stopped: the fetch fails' failed "$(fetch_status)"
+        check 'server stopped: the last good configuration stays active' "$rev" "$(revision)"
+        check 'server stopped: and its job still runs version 2' 'source_check 2' "$(run remote_check)"
+        dc start nginx-sources > /dev/null 2>&1
+        local i=0
+        until curl -q -s -m 3 --cacert "$ca" -o /dev/null "$SRC_URL/healthz" || [ "$i" -ge 30 ]; do sleep 1; i=$((i + 1)); done
+        fetch
+        check 'server back: recovered, the change is activated' 'source_check 1' "$(run remote_check)"
+    else
+        printf '  NOT RUN  server down and back: nginx does not run here (it needs the Docker host)\n'
+        notrun=$((notrun + 1))
+    fi
+    leak_values=$SRC_TOKEN
+}
+
 # Moves branch $1 of the test repository to commit $2, as vigil-admin.
 move() {
     local g=$work/move
@@ -261,6 +383,7 @@ dc() { docker compose --project-directory "$bk_dir" -f "$bk_dir/compose.yaml" "$
 
 case $t in
     git-gitea) git_suite ;;
+    https-nginx) https_suite ;;
 esac
 
 # Leaks: no password or private key under the Vigil root or in its output.

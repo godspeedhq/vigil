@@ -32,6 +32,9 @@ for k in vigil_sources vigil_sources_wrong sftp_host_ed25519; do
     [ -f "$dir/$k" ] && continue
     ssh-keygen -q -t ed25519 -N '' -C "vigil-source-tests $k" -f "$dir/$k" || { echo "keys.sh: cannot make $k" >&2; exit 1; }
 done
+# What nginx serves, made before it first starts, or Docker would make it
+# as root (configs/sources/nginx/provision.sh fills it).
+mkdir -p "$dir/../https/files" "$dir/../https/configs" "$dir/../https/conf" && chmod 755 "$dir/../https" || exit 1
 # Private keys stay 0600: the SFTP container reads its host key as root,
 # and sshd refuses one anyone else could read.
 chmod 600 "$dir/vigil_sources" "$dir/vigil_sources_wrong" "$dir/sftp_host_ed25519"
