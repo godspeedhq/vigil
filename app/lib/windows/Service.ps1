@@ -113,12 +113,12 @@ function Get-VigilSupervisorProcess {
     }
     catch { return $null }
     if ($text -notmatch 'pid = (\d+)') { return $null }
-    $p = @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$Matches[1])" -ErrorAction SilentlyContinue)
-    if ($p.Count -eq 0) { return $null }
-    $cl = [string]$p[0].CommandLine
+    try { $p = Get-VigilProcessInfo ([int]$Matches[1]) } catch { return $null }
+    if (-not $p) { return $null }
+    $cl = [string]$p.CommandLine
     if ($cl.IndexOf('vigil.ps1', [System.StringComparison]::OrdinalIgnoreCase) -lt 0 -or
         -not $cl.EndsWith((ConvertTo-VigilQuotedArg -Arg $Root -Always $false) + ' supervise', [System.StringComparison]::OrdinalIgnoreCase)) { return $null }
-    return $p[0]
+    return $p
 }
 
 # Only SYSTEM and Administrators may change the root (17); the service runs
@@ -398,16 +398,17 @@ function Get-VigilServiceRuns {
         if ((Read-VigilServiceStateValue $st 'run_id') -cne $rid) { continue }
         $wpid = Read-VigilServiceStateValue $st 'worker_pid'
         $jpid = Read-VigilServiceStateValue $st 'job_pid'
-        $w = if ($wpid) { @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$wpid)" -ErrorAction SilentlyContinue)[0] }
+        # A process that cannot be read is left out, as one that has gone.
+        $w = if ($wpid) { try { Get-VigilProcessInfo ([int]$wpid) } catch { $null } }
         $wOk = $w -and ([string]$w.CommandLine).Contains("$rootArg worker $job --run-id $rid")
         if ($w) { if ($wOk) { $r.Proven.Add([int]$wpid) } else { $r.Unproven.Add([int]$wpid) } }
         if ($jpid) {
-            $p = @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$jpid)" -ErrorAction SilentlyContinue)[0]
+            $p = try { Get-VigilProcessInfo ([int]$jpid) } catch { $null }
             if ($p) {
                 $name = Read-VigilServiceStateValue $st 'job_name'
                 $start = Read-VigilServiceStateValue $st 'job_start'
-                $ok = $wOk -and $name -and $p.Name -ieq $name -and $p.ParentProcessId -eq [int]$wpid -and
-                    ((-not $start) -or [Math]::Abs((ConvertTo-VigilEpoch $p.CreationDate) - [long]$start) -le 1)
+                $ok = $wOk -and $name -and $p.Name -ieq $name -and $p.Parent -eq [int]$wpid -and
+                    ((-not $start) -or [Math]::Abs((ConvertTo-VigilEpoch $p.Created) - [long]$start) -le 1)
                 if ($ok) { $r.Proven.Add([int]$jpid) } else { $r.Unproven.Add([int]$jpid) }
             }
         }
