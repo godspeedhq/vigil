@@ -206,6 +206,13 @@ vigil self update > "$work/out" 2>&1
 check 'an unsigned release is refused' 1 "$?"
 check 'and nothing changed' 0.0.1-it "$(version_of)"
 cp "$work/good.sig" "$d/SHA256SUMS.sig"
+saved_key=$VIGIL_TEST_RELEASE_KEY
+VIGIL_TEST_RELEASE_KEY=$work/no-such-key.pem
+vigil self update > "$work/out" 2>&1
+check 'with no release key, the update is refused' 1 "$?"
+check 'saying why' 1 "$(grep -c 'release key .* is missing' "$work/out")"
+check 'and nothing changed' 0.0.1-it "$(version_of)"
+VIGIL_TEST_RELEASE_KEY=$saved_key
 
 # --- a release that does not run: back to the one that does ------------------------------------
 

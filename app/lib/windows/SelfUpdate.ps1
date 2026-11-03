@@ -331,17 +331,20 @@ function Invoke-VigilSelfUpdate {
         # is handed to the installer, so what is verified is what is installed.
         $key = Join-Path $App 'release-key.pem'
         if ($env:VIGIL_TEST_RELEASE_URL -and $env:VIGIL_TEST_RELEASE_KEY) { $key = $env:VIGIL_TEST_RELEASE_KEY }
-        # The signature is only checked if the key file is here: see backlog task 20.
-        if (Test-Path -LiteralPath $key) {
-            $sig = Join-Path $work 'SHA256SUMS.sig'
-            $signed = $false
-            try {
-                Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/releases/download/v$Want/SHA256SUMS.sig" -OutFile $sig
-                $signed = Test-VigilSignature -KeyFile $key -Data ([System.IO.File]::ReadAllBytes($sums)) -Signature ([System.IO.File]::ReadAllBytes($sig))
-            }
-            catch { $signed = $false }
-            if (-not $signed) { return & $die "Vigil $Want is not signed by the Vigil release key; nothing was changed" }
+        # No key means nothing to check with, and that is refused like a bad
+        # signature: every release since 0.2.1 carries the key, so a missing
+        # one means this install has been changed.
+        if (-not (Test-Path -LiteralPath $key -PathType Leaf)) {
+            return & $die "the release key $key is missing: Vigil $Want cannot be verified; nothing was changed"
         }
+        $sig = Join-Path $work 'SHA256SUMS.sig'
+        $signed = $false
+        try {
+            Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/releases/download/v$Want/SHA256SUMS.sig" -OutFile $sig
+            $signed = Test-VigilSignature -KeyFile $key -Data ([System.IO.File]::ReadAllBytes($sums)) -Signature ([System.IO.File]::ReadAllBytes($sig))
+        }
+        catch { $signed = $false }
+        if (-not $signed) { return & $die "Vigil $Want is not signed by the Vigil release key; nothing was changed" }
         # SHA256SUMS is what the signature covers, so this is what ties the installer
         # to the signature. The installer checks the archive against the same file.
         $sum = ''
