@@ -30,12 +30,16 @@
     -PrecheckOnly stops after vigil precheck: the configuration for the
     target is checked without a backend, or Docker, at all.
 
+    -Keep leaves the temporary folder, with Vigil's logs and state, in place
+    afterwards, and prints where it is.
+
     Exit code: 0 when verify.sh passes, 1 otherwise.
 #>
 
 param(
     [Parameter(Mandatory = $true)][string]$Target,
-    [switch]$PrecheckOnly
+    [switch]$PrecheckOnly,
+    [switch]$Keep
 )
 
 $ErrorActionPreference = 'Continue'
@@ -155,5 +159,6 @@ try {
 }
 finally {
     if ($sup -and -not $sup.HasExited) { $sup.Kill() }
-    Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    if ($Keep) { Write-Output "kept: $work" }
+    else { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }
 }
