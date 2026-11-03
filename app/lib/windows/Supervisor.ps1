@@ -565,7 +565,7 @@ function Invoke-VigilSupervisor {
         }
         # Repeated on every tick past the deadline, each time only after the proof
         # above, until the run ends.
-        & taskkill.exe /T /F /PID $St.JobPid 2>&1 | Out-Null
+        Stop-VigilProcessTree ([int]$St.JobPid)
         return $true
     }
 

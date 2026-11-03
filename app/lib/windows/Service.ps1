@@ -453,7 +453,7 @@ function Invoke-VigilUninstall {
     # The task of install -UpdateBy, if it is this install's.
     try { Remove-VigilUpdateTask -Root $Root } catch { Write-Output "  left the $Script:VigilUpdateTask task: removing it needs an elevated prompt" }
     # Windows has no TERM for console programs: each proven tree ends at once.
-    foreach ($p in $runs.Proven) { & taskkill.exe /T /F /PID $p 2>&1 | Out-Null }
+    foreach ($p in $runs.Proven) { Stop-VigilProcessTree $p }
     foreach ($s in $paths) {
         if ($s -ceq 'Machine' -and -not (Test-VigilAdmin)) { Write-Output "  left $appDir in the machine PATH: removing it needs an elevated prompt"; continue }
         $v = [Environment]::GetEnvironmentVariable('Path', $s)

@@ -250,6 +250,40 @@ function Get-VigilProcessInfo {
     return @{ ProcessId = $Id; Name = $name; Created = $g.StartTime; Parent = [VigilNative]::Parent($Id); CommandLine = [VigilNative]::CommandLine($Id) }
 }
 
+# Ends process $Id and every process it started, as taskkill /T /F does.
+# taskkill asks WMI for the tree, so it is refused where WMI is (an SSH
+# session, a task without a stored password: it then cannot end even a
+# process this account may end). The tree is then found from the kernel and
+# ended with Process.Kill, children first. A process counts as a child only
+# if it started after its parent, so a reused pid can never draw an
+# unrelated process in.
+function Stop-VigilProcessTree {
+    param([int]$Id)
+    if (-not $Script:VigilWmiRefused) {
+        & taskkill.exe /T /F /PID $Id 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) { return }
+    }
+    try {
+        Initialize-VigilNative
+        $all = [VigilNative]::Processes()
+        $root = Get-Process -Id $Id -ErrorAction Stop
+        $tree = New-Object 'System.Collections.Generic.List[object]'
+        $tree.Add($root)
+        for ($i = 0; $i -lt $tree.Count; $i++) {
+            $parent = $tree[$i]
+            foreach ($p in $all) {
+                if ($p[1] -ne $parent.Id -or $p[0] -eq $parent.Id) { continue }
+                # Another account's process cannot be read, nor ended here.
+                try { $c = Get-Process -Id $p[0] -ErrorAction Stop; if ($c.StartTime -ge $parent.StartTime) { $tree.Add($c) } } catch { }
+            }
+        }
+        for ($i = $tree.Count - 1; $i -ge 0; $i--) {
+            try { $tree[$i].Kill() } catch { }
+        }
+    }
+    catch { }
+}
+
 # Windows has no kernel boot id; it is derived from the boot time (11.1).
 # The kernel is asked first: every worker needs the id, and WMI would make
 # each one wait seconds where it refuses. WMI reports the same time, so the
