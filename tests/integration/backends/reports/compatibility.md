@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-How each backend works with Vigil, and what a real test showed. **Grafana LGTM and the OpenBao secret store have been run so far,** with Vigil on Linux, macOS and Windows; every other result is Not tested. A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
+How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run so far,** with Vigil on Linux, macOS and Windows; every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
 
 **Integration methods:**
 - **Direct Vigil integration:** a Vigil backend or log destination made for this product.
@@ -41,11 +41,7 @@ How each backend works with Vigil, and what a real test showed. **Grafana LGTM a
 
 ### Secret stores
 
-| Store | Deployment | Vigil store type | AppRole | Token | Errors | No value written | Result |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| OpenBao (`openbao/openbao:2.7.1`, dev mode, TLS) | Docker | `hashicorp_vault`, KV version 2 | **Passed** | **Passed** | **Passed** (404, 403, untrusted certificate) | **Passed** | **Passed** on Linux, macOS and Windows |
-
-HashiCorp Vault itself is not run here. OpenBao is its open-source fork, with the same API for everything Vigil uses: KV version 2 reads, AppRole login and token auth.
+The secret stores have their own report: [`secrets-compatibility.md`](secrets-compatibility.md). OpenBao and HashiCorp Vault pass on Linux, macOS and Windows; the cloud emulators are not tested yet.
 
 **Reading the matrix:**
 - **Not supported** means no route for that signal exists today. For example, Prometheus and Mimir store metrics, not logs; Loki and VictoriaLogs store logs, not metrics.
@@ -62,7 +58,6 @@ Each run adds a row here: date, target, the image versions it ran, the run tag, 
 | 2026-11-03 | `lgtm` | Fedora 44, with counts as cumulative sums (#64) | `grafana/otel-lgtm:0.38.1` | `bk2026110314401288246` | **Passed** | **Passed** | on the Fedora test host |
 | 2026-11-03 | `lgtm` | macOS 12.7, bash 3.2, tunnels to Fedora, cumulative sums | `grafana/otel-lgtm:0.38.1` | `bk2026110314495011786` | **Passed** | **Passed** | on the Mac test host |
 | 2026-11-03 | `lgtm` | Windows 11 Pro, PowerShell 5.1, tunnels to Fedora, cumulative sums and #63 | `grafana/otel-lgtm:0.38.1` | `bk2026110314495310700` | **Passed** | **Passed** | on the Windows test host |
-| 2026-11-03 | `openbao` (`run-store`) | Fedora 44; macOS 12.7 and Windows 11 through a tunnel | `openbao/openbao:2.7.1` | — | — | — | 11 of 11 checks passed on each |
 
 ### Windows: what the first runs found
 

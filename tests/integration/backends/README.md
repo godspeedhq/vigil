@@ -2,7 +2,7 @@
 
 Vigil's telemetry is tested everywhere else against mocks. Here it's tested against the real products: the backends run in Docker, Vigil runs on the host exactly as it would in production, and each test asks the backend, through its own query interface, whether the data arrived. This is backlog task 18.
 
-> **Status: first runs done.** Grafana LGTM and the OpenBao secret store have been run, with Vigil on Linux, macOS and Windows; every other target is still **Not tested**. See [`reports/compatibility.md`](reports/compatibility.md).
+> **Status: first runs done.** Grafana LGTM, OpenBao and HashiCorp Vault have been run, with Vigil on Linux, macOS and Windows; every other target is still **Not tested**. See [`reports/compatibility.md`](reports/compatibility.md) and [`reports/secrets-compatibility.md`](reports/secrets-compatibility.md).
 
 ## Quick start
 
@@ -45,7 +45,7 @@ scripts/reset.sh lgtm          # removes it
 | | official deployment | `signoz` | metrics, logs | OTLP, direct | 8080, 4317, 4318 |
 | | official deployment | `uptrace` | to be worked out | see below | the upstream file's |
 | | official deployment | `graylog` | to be worked out | see below | the upstream file's |
-| 9 Secrets | `compose.secrets.yaml` | `openbao` | — | Vigil's `hashicorp_vault` secret store reads from it (below) | 8200 (https) |
+| 9 Secrets | `compose.secrets.yaml` | `openbao`, `vault` | — | Vigil's `hashicorp_vault` secret store reads from them (below) | 8200, 8210 (https) |
 
 **Notes:**
 - **LGTM and the standalone components** do the same job, so start one or the other, not both. Their ports don't collide, so running both does no harm beyond the memory.
@@ -116,31 +116,36 @@ So:
 
 On Windows, `run-vigil.ps1 <target>` does the same, with `.ps1` workloads and `hostname.exe` as the native program. `-Keep` leaves its temporary folder, with Vigil's logs and state, in place afterwards.
 
-## The secret store
+## Secret stores
 
-`scripts/start.sh openbao` starts OpenBao 2.7.1, the open-source fork of HashiCorp Vault, in dev mode:
-- It runs in memory, unsealed, on `https://127.0.0.1:8200`.
-- Each start makes a new CA, with a certificate for `localhost` and `127.0.0.1`.
-- Its root token comes from `OPENBAO_ROOT_TOKEN` in `.env`.
+Group 9, `compose.secrets.yaml`, tests Vigil's existing secret stores (backlog task 24). Each store has its own profile and starts only when asked for:
 
-Nothing survives a stop, so [`configs/openbao/provision.sh`](configs/openbao/provision.sh), which `start.sh` runs, sets it up again each time:
-- AppRole sign-in, with a role whose tokens can only read `secret/data/vigil/*`
-- a token with the same rights
-- a probe secret, `secret/vigil/probe`, with a new random value
+| Target | Product | Port (127.0.0.1) | Vigil's store type | Memory |
+| --- | --- | --- | --- | --- |
+| `openbao` | OpenBao 2.7.1, the open-source fork of Vault | 8200 (https) | `hashicorp_vault` | about 25 MB |
+| `vault` | HashiCorp Vault 2.2.0 | 8210 (https) | `hashicorp_vault` | about 70 MB |
 
-It writes the CA to `.openbao-ca.pem`, and the credentials with the probe's SHA-256 to `.openbao.env`. Both are git-ignored; copy them along with the checkout to any other test machine.
+The cloud emulators (AWS, Azure, GCP) come in phase 2 of the task.
 
-`scripts/run-store.sh openbao` (`run-store.ps1` on Windows) proves Vigil's `hashicorp_vault` store. `vigil precheck` fetches every job's secret, then each job runs once, and each must end as expected:
+```sh
+scripts/start.sh openbao        # the test CA if new, start, unseal, fixtures
+scripts/run-store.sh openbao    # the tests (run-store.ps1 on Windows)
+scripts/stop.sh openbao         # keeps its data
+scripts/reset.sh openbao        # removes it; the next start initialises again
+```
 
-| Job | Store reached with | Must end |
-| --- | --- | --- |
-| `bk_secret_approle` | AppRole | succeeded: the job's secret hashes to the probe's SHA-256 |
-| `bk_secret_token` | a token | succeeded, the same way |
-| `bk_secret_missing` | AppRole, a path with no secret | failed: `not found (HTTP 404)` |
-| `bk_secret_denied` | AppRole, a path the policy doesn't allow | failed: `permission denied (HTTP 403)` |
-| `bk_secret_untrusted` | a token, without `ca_file` | failed: the certificate is not trusted |
+Both are real servers, not dev mode, so they survive a restart, which the tests use:
 
-Last, the whole Vigil folder is searched for the probe's value. It must appear nowhere: not in logs, state or spool. From another machine, forward 8200 as above.
+- **Storage:** integrated (raft, one node), on a named volume.
+- **TLS:** from a test CA. [`configs/secrets/tls.sh`](configs/secrets/tls.sh) makes it once, before the first start, with a certificate for `localhost` and `127.0.0.1`. Vigil's stores are https only.
+- **Setup:** [`configs/secrets/provision.sh`](configs/secrets/provision.sh) runs after every start. It initialises the server the first time, unseals it every time, and sets up the same fixtures in both:
+  - KV v2 at `secret/` and KV v1 at `kv1/`
+  - a read policy, AppRole, a token, a token that expires after 5 seconds, and a token that may only rotate one secret
+  - secrets with new random values
+
+Everything generated goes in `.secrets/`, which is git-ignored: the CA, the unseal key, the credentials and the fixtures' values. To test from another machine, copy `.secrets/<target>.env` and `.secrets/tls/ca.pem` to the same paths there, and forward the store's port.
+
+`run-store` checks retrieval with AppRole and a token, a missing secret, permission denied, an untrusted certificate, an invalid and an expired token, an invalid AppRole secret id, KV v1 (not supported by Vigil), rotation, and that no secret or credential is ever written down. On the Docker host, it also stops, restarts and unseals the store, and checks that Vigil recovers; elsewhere that is reported NOT RUN. Results are in [`reports/secrets-compatibility.md`](reports/secrets-compatibility.md).
 
 ## Not done yet
 
@@ -173,7 +178,7 @@ Rough guides, to confirm at the first run:
 | `elastic`, `opensearch` | 2 to 3 GB each | 2 GB each |
 | `clickhouse` | 1 to 2 GB | 1 GB |
 | `signoz`, `uptrace`, `graylog` | 4 GB or more each | several GB each |
-| `openbao` | under 100 MB (25 MB measured) | none: in memory |
+| `openbao`, `vault` | about 25 MB and 70 MB measured | under 100 MB each |
 
 Every configuration file is mounted read-only with `:ro,z`. The `z` lets containers read it on a host with SELinux enforcing, such as Fedora; elsewhere it does nothing.
 
@@ -191,6 +196,7 @@ sudo sysctl -w vm.max_map_count=262144
 | Prometheus, the OpenTelemetry Collector, VictoriaMetrics, OpenSearch, Jaeger, Zipkin, ClickHouse | Apache 2.0 |
 | InfluxDB 2 | MIT |
 | OpenBao | MPL 2.0 |
+| HashiCorp Vault | BUSL 1.1, which allows this local testing |
 | Elasticsearch and Kibana | Elastic License 2.0 / AGPLv3, free Basic features |
 | SigNoz | MIT, with enterprise features |
 | Uptrace | AGPLv3 |

@@ -13,7 +13,8 @@
 #
 #   scripts/start.sh                 lgtm, the default
 #   scripts/start.sh splunk          Splunk, then configs/splunk/provision.sh
-#   scripts/start.sh openbao         OpenBao, then configs/openbao/provision.sh
+#   scripts/start.sh openbao         a secret store (or vault): the test CA
+#                                    first, then configs/secrets/provision.sh
 #   scripts/start.sh mimir loki otel-collector
 #
 # Healthy means the containers are up, not that anything has been stored:
@@ -50,7 +51,6 @@ needs() {
         opensearch) echo OPENSEARCH_ADMIN_PASSWORD ;;
         influxdb) echo INFLUXDB_PASSWORD INFLUXDB_TOKEN ;;
         clickhouse) echo CLICKHOUSE_PASSWORD ;;
-        openbao) echo OPENBAO_ROOT_TOKEN ;;
     esac
 }
 
@@ -85,10 +85,12 @@ for t in "$@"; do
         *)
             s=$(services_of "$t")
             [ -n "$s" ] || die "no services for $t"
+            # The secret stores' certificate exists before they first start.
+            case $t in openbao | vault) bash "$bk_dir/configs/secrets/tls.sh" || die 'cannot make the test CA' ;; esac
             # shellcheck disable=SC2086
             compose --profile "$t" up -d --wait $s || die "$t did not become healthy"
             [ "$t" = splunk ] && { bash "$bk_dir/configs/splunk/provision.sh" || die 'provisioning Splunk failed'; }
-            [ "$t" = openbao ] && { bash "$bk_dir/configs/openbao/provision.sh" || die 'provisioning OpenBao failed'; }
+            case $t in openbao | vault) bash "$bk_dir/configs/secrets/provision.sh" "$t" || die "provisioning $t failed" ;; esac
             ;;
     esac
     printf 'started: %s\n' "$t"
