@@ -1,0 +1,62 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Group 10: sources, the servers Vigil fetches its configuration and scripts
+# from (backlog task 25; spec 6.8, 6.9, 16.5). Each has its own profile,
+# and none starts unless asked for:
+#
+#   scripts/start.sh git-gitea       Gitea: Git over HTTPS and SSH
+#   scripts/start.sh https-nginx     nginx: an HTTPS file server
+#   scripts/start.sh sftp-openssh    OpenSSH: SFTP
+#
+# Each uses the test CA of the secret stores (configs/secrets/tls.sh), and
+# keys and fixtures that configs/sources/<server>/provision.sh makes, in
+# .sources/ (git-ignored). The fixtures are fixed files in fixtures/sources/,
+# so their content and SHA-256 are known. Vigil runs on the host, never in a
+# container (scripts/run-source.sh).
+#
+# Licences: Gitea MIT; nginx BSD-2-Clause; atmoz/sftp MIT (OpenSSH, BSD).
+
+services:
+  # Gitea, with its own TLS (the test certificate) on 3443, and its built-in
+  # SSH server on 2222.
+  gitea:
+    image: gitea/gitea:28.2.0
+    profiles: ["git-gitea"]
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__server__PROTOCOL: https
+      GITEA__server__HTTP_PORT: "3443"
+      GITEA__server__ROOT_URL: https://127.0.0.1:3443/
+      GITEA__server__CERT_FILE: /tls/server.pem
+      GITEA__server__KEY_FILE: /tls/server-key.pem
+      GITEA__server__START_SSH_SERVER: "true"
+      GITEA__server__SSH_LISTEN_PORT: "2222"
+      GITEA__server__SSH_PORT: "2222"
+      GITEA__server__SSH_DOMAIN: 127.0.0.1
+      GITEA__server__DISABLE_SSH: "false"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__repository__DEFAULT_PRIVATE: private
+      GITEA__log__LEVEL: warn
+    ports:
+      - "127.0.0.1:3443:3443"
+      - "127.0.0.1:2222:2222"
+    volumes:
+      - gitea-data:/data
+      - ./.secrets/tls:/tls:ro,z
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsk https://127.0.0.1:3443/api/healthz > /dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+volumes:
+  gitea-data:

@@ -13,4 +13,8 @@ tests/conformance/**/*.expected -text
 tests/conformance/**/*.stdout   -text
 tests/conformance/**/*.input    -text
 
+# Source test fixtures are checked by their SHA-256, so every checkout must
+# hold the same bytes.
+tests/integration/backends/fixtures/** -text
+
 *.exe binary

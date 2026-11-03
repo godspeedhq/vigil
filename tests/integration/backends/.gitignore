@@ -7,3 +7,6 @@ reports/evidence/
 # The secret stores' test CA, unseal keys, credentials and probes
 # (configs/secrets/tls.sh and provision.sh).
 .secrets/
+# The source tests' keys, credentials and served fixtures
+# (configs/sources/keys.sh and */provision.sh).
+.sources/
