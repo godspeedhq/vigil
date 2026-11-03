@@ -143,6 +143,8 @@ Rough guides, to confirm at the first run:
 | `clickhouse` | 1 to 2 GB | 1 GB |
 | `signoz`, `uptrace`, `graylog` | 4 GB or more each | several GB each |
 
+Every configuration file is mounted read-only with `:ro,z`. The `z` lets containers read it on a host with SELinux enforcing, such as Fedora; elsewhere it does nothing.
+
 On Linux, Elasticsearch and OpenSearch need `vm.max_map_count` of at least 262144:
 
 ```sh

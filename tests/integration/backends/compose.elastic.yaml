@@ -90,7 +90,7 @@ services:
     ports:
       - "127.0.0.1:4418:4318"   # OTLP HTTP: Vigil sends here
     volumes:
-      - ./configs/elastic/collector.yaml:/etc/otelcol/config.yaml:ro
+      - ./configs/elastic/collector.yaml:/etc/otelcol/config.yaml:ro,z
 
 volumes:
   elasticsearch-data:

@@ -58,7 +58,7 @@ services:
     ports:
       - "127.0.0.1:4448:4318"   # OTLP HTTP: Vigil sends here
     volumes:
-      - ./configs/clickhouse/collector.yaml:/etc/otelcol/config.yaml:ro
+      - ./configs/clickhouse/collector.yaml:/etc/otelcol/config.yaml:ro,z
 
 volumes:
   clickhouse-data:

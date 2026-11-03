@@ -61,7 +61,7 @@ services:
     ports:
       - "127.0.0.1:4428:4318"   # OTLP HTTP: Vigil sends here
     volumes:
-      - ./configs/opensearch/collector.yaml:/etc/otelcol/config.yaml:ro
+      - ./configs/opensearch/collector.yaml:/etc/otelcol/config.yaml:ro,z
 
 volumes:
   opensearch-data:
