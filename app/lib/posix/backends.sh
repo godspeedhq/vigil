@@ -22,13 +22,16 @@
 #     in it. The events left out are counted in _vb_drops ("<reason> <count>"
 #     lines): invalid (not an event line, or one with a control character)
 #     and, for datadog, too_old (more than an hour old, which Datadog would
-#     discard without saying so).
+#     discard without saying so). For otel, the running totals of counts
+#     are read from _vb_totals and the new ones left in _vb_totals_new.
 #   vigil_backend_send <root> <name> <type> <events file>...
 #     Delivers the batch to [backend.<name>]. Returns 0 when the batch is
 #     done with, with _vb_sent the events accepted and _vb_drops the events
 #     left out, including those the backend rejected as malformed (rejected);
 #     or 1, with _vb_why saying why, when it is to be retried later. The
-#     credential reaches curl on its standard input only.
+#     credential reaches curl on its standard input only. For otel, the
+#     caller keeps _vb_totals_new once the batch is done with, and passes
+#     it back in _vb_totals with the next batch.
 #
 # Requires secrets.sh, stores.sh and worker.sh.
 
@@ -40,7 +43,13 @@ _vigil_backend_num='^-?(0|[1-9][0-9]*)(\.[0-9]+)?$'
 _vigil_backend_epoch='^(0|[1-9][0-9]{0,11})$'
 _vigil_backend_name='^[A-Za-z0-9_.]+$'
 _vigil_backend_rejected='"rejectedDataPoints"[[:space:]]*:[[:space:]]*"?([0-9]+)'
+# A count kept as a running total: whole, and small enough that a total of
+# them stays exact.
+_vigil_backend_whole='^(0|[1-9][0-9]{0,14})$'
 _vigil_backend_nl=$'\n'
+_vigil_backend_tab=$'\t'
+# A line of running totals: "<series>\t<start ns>\t<total>\t<last ns>".
+_vigil_backend_total=$'^[^\t]+\t-?[0-9]{1,19}\t[0-9]{1,19}\t[0-9]{1,19}$'
 
 # The time requests are made at; replaced by the conformance runner.
 _vigil_backend_now() {
@@ -65,7 +74,7 @@ _vigil_backend_quote() {
 }
 
 _vigil_backend_body_line() {
-    local line=$1 epoch name value kind tag key val tags='' attrs='' res='' start='' point IFS=' '
+    local line=$1 epoch name value kind tag key val tags='' attrs='' res='' sep='' point IFS=' '
     case $line in
         '') return 0 ;;
         *[[:cntrl:]]*) _vb_invalid=$((_vb_invalid + 1)); return 0 ;;
@@ -118,24 +127,146 @@ _vigil_backend_body_line() {
         fi
     done
     # HEC takes events one after another, not as a list.
-    [ "$_vb_points" -gt 0 ] && [ "$_vb_type" != splunk ] && _vb_body="$_vb_body,"
+    [ -n "$_vb_body" ] && [ "$_vb_type" != splunk ] && sep=,
     if [ "$_vb_type" = splunk ]; then
         _vb_body="$_vb_body{\"time\":$epoch,$res\"source\":\"vigil\",\"event\":\"metric\",\"fields\":{\"metric_name\":\"$name\",\"_value\":$value,\"metric_type\":\"$kind\"$tags}}"
     elif [ "$_vb_type" = datadog ]; then
         # Series API types: 1 count, 3 gauge.
         [ "$kind" = count ] && kind=1 || kind=3
-        _vb_body="$_vb_body{\"metric\":\"$name\",\"type\":$kind,\"points\":[{\"timestamp\":$epoch,\"value\":$value}]$res,\"tags\":[$tags]}"
+        _vb_body="$_vb_body$sep{\"metric\":\"$name\",\"type\":$kind,\"points\":[{\"timestamp\":$epoch,\"value\":$value}]$res,\"tags\":[$tags]}"
+    elif [ "$kind" = count ] && [[ $value =~ $_vigil_backend_whole ]]; then
+        # A whole count joins its series' running total, sent once the
+        # batch is read (vigil_backend_body).
+        _vigil_backend_count "$epoch" "$name" "$value" "$@"
     else
-        # A count is a delta sum over its own instant.
-        [ "$kind" = count ] && start="\"startTimeUnixNano\":\"${epoch}000000000\","
-        point="{$start\"timeUnixNano\":\"${epoch}000000000\",\"asDouble\":$value,\"attributes\":[$attrs]}"
-        if [ "$kind" = count ]; then
-            _vb_body="$_vb_body{\"name\":\"$name\",\"sum\":{\"aggregationTemporality\":1,\"isMonotonic\":true,\"dataPoints\":[$point]}}"
-        else
-            _vb_body="$_vb_body{\"name\":\"$name\",\"gauge\":{\"dataPoints\":[$point]}}"
-        fi
+        # A gauge, and a count that is not a whole number: a running total
+        # of those would not be exact, so it goes as a gauge, as in the file
+        # backend.
+        point="{\"timeUnixNano\":\"${epoch}000000000\",\"asDouble\":$value,\"attributes\":[$attrs]}"
+        _vb_body="$_vb_body$sep{\"name\":\"$name\",\"gauge\":{\"dataPoints\":[$point]}}"
     fi
     _vb_points=$((_vb_points + 1))
+}
+
+# OTLP counts are cumulative sums (15.3): Prometheus, and so every backend
+# built on it, refuses delta sums, and an OpenTelemetry Collector answers
+# 200 all the same. A series is a name and its tags sorted by key; its
+# running total on this backend is kept in _vb_totals between batches.
+#
+# Adds whole count $3 of name $2 at epoch $1, tags $4..., to this batch's
+# series, in _vb_cnt: "\n<series>\t<first epoch>\t<last epoch>\t<sum>\t<attributes>"
+# lines, in the order first seen.
+_vigil_backend_count() {
+    local epoch=$1 name=$2 value=$3 key val attrs='' series i j t n s rest entry first last sum
+    local nl=$_vigil_backend_nl tab=$_vigil_backend_tab
+    local -a tags
+    shift 3
+    # The tags sorted by key, keeping their order otherwise.
+    n=0
+    for t in "$@"; do tags[$n]=$t; n=$((n + 1)); done
+    i=1
+    while [ "$i" -lt "$n" ]; do
+        t=${tags[$i]}
+        j=$((i - 1))
+        while [ "$j" -ge 0 ] && [[ ${tags[$j]%%=*} > ${t%%=*} ]]; do
+            tags[$((j + 1))]=${tags[$j]}
+            j=$((j - 1))
+        done
+        tags[$((j + 1))]=$t
+        i=$((i + 1))
+    done
+    series=$name
+    i=0
+    while [ "$i" -lt "$n" ]; do
+        t=${tags[$i]}
+        series="$series $t"
+        key=${t%%=*}
+        val=${t#*=}
+        _vigil_backend_quote "$val"
+        attrs="$attrs${attrs:+,}{\"key\":\"$key\",\"value\":{\"stringValue\":$_vb_q}}"
+        i=$((i + 1))
+    done
+    s=$_vb_cnt
+    case $s in
+        *"$nl$series$tab"*)
+            rest=${s#*"$nl$series$tab"}
+            entry=${rest%%"$nl"*}
+            first=${entry%%"$tab"*}
+            entry=${entry#*"$tab"}
+            last=${entry%%"$tab"*}
+            entry=${entry#*"$tab"}
+            sum=${entry%%"$tab"*}
+            [ "$epoch" -gt "$last" ] && last=$epoch
+            _vb_cnt="${s%%"$nl$series$tab"*}$nl$series$tab$first$tab$last$tab$((sum + value))$tab$attrs"
+            case $rest in *"$nl"*) _vb_cnt="$_vb_cnt$nl${rest#*"$nl"}" ;; esac
+            ;;
+        *) _vb_cnt="$s$nl$series$tab$epoch$tab$epoch$tab$value$tab$attrs" ;;
+    esac
+}
+
+# The running totals after this batch, into _vb_totals_new, and a sum for
+# each series counted in it appended to _vb_body. Totals are
+# "<series>\t<start ns>\t<total>\t<last ns>" lines: a series starts one
+# second before its first count, each point is stamped at the latest count
+# it holds and at least a millisecond after the one before (Prometheus
+# refuses a time it already has), and a series not counted for 7 days is
+# forgotten, so it starts again from zero if it comes back.
+_vigil_backend_totals() {
+    local nl=$_vigil_backend_nl tab=$_vigil_backend_tab tot='' cnt=$_vb_cnt line series first last sum attrs start total prev t rest keep=''
+    local cutoff=$(((_vb_now - 604800) * 1000000000))
+    # The old totals, well-formed lines only and the first for each series,
+    # as "\n"-led lines.
+    rest=${_vb_totals-}
+    while [ -n "$rest" ]; do
+        line=${rest%%"$nl"*}
+        case $rest in *"$nl"*) rest=${rest#*"$nl"} ;; *) rest='' ;; esac
+        [[ $line =~ $_vigil_backend_total ]] || continue
+        case $tot in *"$nl${line%%"$tab"*}$tab"*) continue ;; esac
+        tot="$tot$nl$line"
+    done
+    while [ -n "$cnt" ]; do
+        cnt=${cnt#"$nl"}
+        line=${cnt%%"$nl"*}
+        case $cnt in *"$nl"*) cnt=$nl${cnt#*"$nl"} ;; *) cnt='' ;; esac
+        series=${line%%"$tab"*}
+        line=${line#*"$tab"}
+        first=${line%%"$tab"*}
+        line=${line#*"$tab"}
+        last=${line%%"$tab"*}
+        line=${line#*"$tab"}
+        sum=${line%%"$tab"*}
+        attrs=${line#*"$tab"}
+        case $tot in
+            *"$nl$series$tab"*)
+                rest=${tot#*"$nl$series$tab"}
+                line=${rest%%"$nl"*}
+                start=${line%%"$tab"*}
+                line=${line#*"$tab"}
+                total=${line%%"$tab"*}
+                prev=${line#*"$tab"}
+                ;;
+            *) start=$(((first - 1) * 1000000000)) total=0 prev=0 rest='' ;;
+        esac
+        total=$((total + sum))
+        t=$((last * 1000000000))
+        [ "$t" -lt $((prev + 1000000)) ] && t=$((prev + 1000000))
+        if [ -n "$rest" ]; then
+            tot="${tot%%"$nl$series$tab"*}$nl$series$tab$start$tab$total$tab$t"
+            case $rest in *"$nl"*) tot="$tot$nl${rest#*"$nl"}" ;; esac
+        else
+            tot="$tot$nl$series$tab$start$tab$total$tab$t"
+        fi
+        _vb_body="$_vb_body${_vb_body:+,}{\"name\":\"${series%% *}\",\"sum\":{\"aggregationTemporality\":2,\"isMonotonic\":true,\"dataPoints\":[{\"startTimeUnixNano\":\"$start\",\"timeUnixNano\":\"$t\",\"asDouble\":$total,\"attributes\":[$attrs]}]}}"
+    done
+    # Forget the series not counted for 7 days.
+    rest=$tot
+    while [ -n "$rest" ]; do
+        rest=${rest#"$nl"}
+        line=${rest%%"$nl"*}
+        case $rest in *"$nl"*) rest=$nl${rest#*"$nl"} ;; *) rest='' ;; esac
+        [ "${line##*"$tab"}" -ge "$cutoff" ] && keep="$keep${keep:+$nl}$line"
+    done
+    _vb_totals_new=$keep
 }
 
 vigil_backend_body() {
@@ -148,12 +279,15 @@ vigil_backend_body() {
     _vb_points=0
     _vb_invalid=0
     _vb_old=0
+    _vb_cnt=''
+    _vb_totals_new=${_vb_totals-}
     for f in "$@"; do
         [ -f "$f" ] || continue
         while IFS= read -r line || [ -n "$line" ]; do
             _vigil_backend_body_line "$line"
         done < "$f"
     done
+    [ "$_vb_type" = otel ] && _vigil_backend_totals
     if [ "$_vb_type" = datadog ]; then
         _vb_body="{\"series\":[$_vb_body]}"
     elif [ "$_vb_type" != splunk ]; then

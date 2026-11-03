@@ -1,0 +1,19 @@
+# Before: app.runs has counted 10 since its start, a series last counted 8
+# days before is forgotten, one counted 6 days before is kept, and a damaged
+# line is dropped.
+now 1793304900
+totals otel 1793000000000000000 10 1793304000000000000 app.runs host=web01 job=queue
+totals otel 1792500000000000000 3 1792613700000000000 app.stale host=web01
+totals otel 1792700000000000000 4 1792786500000000000 app.recent host=web01
+totals otel x 5 1793304000000000000 app.damaged host=web01
+reply 200 {}
+send otel
+# The same batch again: totals add up, and each point is later than the last.
+reply 200 {}
+send otel
+# A failed send keeps the totals as they were.
+fail connect
+send otel
+# A rejected batch is done with, and its counts are in the totals.
+reply 400 bad
+send otel

@@ -1,0 +1,9 @@
+1793304870 app.queue_depth 42 gauge job=queue host=web01
+1793304870 app.runs 1 count job=queue host=web01
+1793304875 app.runs 2 count host=web01 job=queue
+1793304872 app.failures 1 count host=web01 job=queue reason=exit
+1793304873 app.cost 0.25 count host=web01 job=queue
+1793304874 app.big 123456789012345 count host=web01
+1793304874 app.huge 1234567890123456 count host=web01
+1793304860 app.runs 1 count host=web01 job=queue
+1793304876 app.path 1 count host=web01 path=C:\q\"x"

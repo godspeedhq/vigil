@@ -227,11 +227,24 @@ function Invoke-VigilSend {
                     $total += $size
                 }
                 if ($batch.Count -eq 0) { break }
-                $r = Send-VigilBackend -Root $Root -Parsed $parsed -Name $b -Type $type -Events $batch.ToArray()
+                # OTLP counts are running totals, kept per backend (15.3).
+                $tfile = Join-Path $Ctx.State "backends\$b.totals"
+                $totals = ''
+                if ($type -ceq 'otel' -and [System.IO.File]::Exists($tfile)) { $totals = [System.IO.File]::ReadAllText($tfile) }
+                $r = Send-VigilBackend -Root $Root -Parsed $parsed -Name $b -Type $type -Events $batch.ToArray() -Totals $totals
                 # Files leave the queue only once the backend accepted them. A failure keeps
                 # them for the next try, so delivery is at least once: a batch the backend
                 # stored but did not confirm in time is sent again.
                 if (-not $r.Ok) { & $backoff $b $r.Why; break }
+                # The new totals are kept before the batch leaves the queue: if they cannot
+                # be, the batch is sent again, counted twice rather than lost.
+                if ($type -ceq 'otel') {
+                    try {
+                        [void](New-Item -ItemType Directory -Force -Path (Split-Path -Parent $tfile))
+                        Write-VigilFileAtomic -Path $tfile -Text "$($r.TotalsNew)`n"
+                    }
+                    catch { & $backoff $b "cannot write $tfile"; break }
+                }
                 foreach ($d in $r.Drops) { $sp = $d.IndexOf(' '); & $dropn $b $d.Substring(0, $sp) ([long]$d.Substring($sp + 1)) }
                 foreach ($f in $batch) { [System.IO.File]::Delete($f) }
                 if ([System.IO.File]::Exists($sfile)) { [System.IO.File]::Delete($sfile) }
