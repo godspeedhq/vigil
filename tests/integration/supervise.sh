@@ -171,6 +171,17 @@ check "vanished worker recorded as crashed" crashed "$(state_value "$root/state/
 check "crash delivered" 1 "$(prom fast_crashes_total)"
 check "stale token removed" "" "$(ls "$root/state/locks")"
 
+# A run whose worker went before its final state, while the sender was
+# copying its events: they are in fanout/, and still prove it finished.
+rid=20260101T000000Z-1-4
+printf '[state]\nschema_version = 1\njob = fast\nrun_id = %s\nstatus = running\nboot_id = %s\nstarted_epoch = 1\n' "$rid" "$boot" > "$root/state/jobs/fast.state"
+: > "$root/state/locks/fast.$rid.token"
+mkdir -p "$root/spool/fanout"
+printf '1 fast.succeeded 1 count host=it\n' > "$root/spool/fanout/1-fast-$rid.events"
+tick
+check "run reconciled from its events in the fan-out" "succeeded|reconciled from the spool file" \
+    "$(state_value "$root/state/jobs/fast.state" status)|$(state_value "$root/state/jobs/fast.state" reason)"
+
 # A launch never claimed within the grace is abandoned; the job did not run.
 rid=20260101T000000Z-1-2
 printf '[launch]\njob           = slow\nrun_id        = %s\nboot_id       = %s\nlaunch_epoch  = 1\n' "$rid" "$boot" > "$root/state/locks/slow.$rid.launch"
