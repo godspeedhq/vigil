@@ -62,7 +62,9 @@ _vigil_sup_held() {
             ;;
         macos)
             if ! command -v lsof > /dev/null 2>&1; then _su_held=error; return 0; fi
-            out=$(lsof -t -- "$1" 2>/dev/null)
+            # The subshell and lsof would inherit the supervisor lock on fd 8,
+            # and show up as other holders of it: closed for them first.
+            out=$(exec 8>&-; lsof -t -- "$1" 2>/dev/null)
             for pid in $out; do
                 if [ "$pid" != "$$" ]; then _su_held=yes; return 0; fi
             done
