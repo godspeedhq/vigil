@@ -1,0 +1,8 @@
+[source]
+identity      = local /tmp/vigil-source.FsgWa0/central config :22  
+checked_epoch = 1793736485
+ok_epoch      = 1793736485
+entry         = cd724d0e066f4633cc635dcec00df65a802e23469ad321bc41ef43584d2fae70
+kind          = 
+failures      = 0
+error         = 

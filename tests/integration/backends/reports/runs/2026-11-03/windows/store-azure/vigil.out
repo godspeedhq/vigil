@@ -1,0 +1,40 @@
+Configuration C:\Users\vigil-test\AppData\Local\Temp\vigil-store.128\root\config\vigil.config
+  no problems
+
+Checks
+  ok    job.bk_sp
+  ok    job.bk_latest
+  ok    job.bk_version
+  FAIL  job.bk_missing: secret store:az/vigil-nosuch unavailable: not found (HTTP 404)
+  FAIL  job.bk_bad_version: secret store:az/vigil-versioned/0123456789abcdef0123456789abcdef unavailable: not found (HTTP 404)
+  FAIL  job.bk_bad_name: secret store:az/vigil_probe unavailable: not a valid Key Vault secret name
+  FAIL  job.bk_untrusted: secret store:az_untrusted/vigil-probe unavailable: sign-in failed: the certificate of 127.0.0.1:4577 is not trusted
+  ok    job.bk_managed_identity
+  ok    job.bk_rotating
+  ok    secret_store.az: client_secret env:VIGIL_ST_CLIENT_SECRET
+  ok    secret_store.az: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.az_untrusted: client_secret env:VIGIL_ST_CLIENT_SECRET
+  ok    secret_store.az_untrusted: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.az_bad_secret: client_secret env:VIGIL_ST_BAD_CLIENT_SECRET
+  ok    secret_store.az_bad_secret: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.az_sp: client_secret env:VIGIL_ST_CLIENT_SECRET
+  ok    secret_store.az_sp: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.az_mi: uses Vigil's own HTTPS client (client = http)
+  ok    data format: 1
+  ok    state directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-store.128\root\state
+  ok    log directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-store.128\root\logs
+  ok    spool directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-store.128\root\spool
+  FAIL  VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)
+
+precheck failed: 5 problem(s)
+bk_sp: succeeded in 2s, run 20261103T202444Z-2276
+bk_latest: succeeded in 3s, run 20261103T202451Z-10700
+bk_version: succeeded in 2s, run 20261103T202459Z-11284
+bk_missing: failed (secret store:az/vigil-nosuch unavailable: not found (HTTP 404)) in 2s, run 20261103T202517Z-8960
+bk_bad_version: failed (secret store:az/vigil-versioned/0123456789abcdef0123456789abcdef unavailable: not found (HTTP 404)) in 2s, run 20261103T202528Z-8940
+bk_bad_name: failed (secret store:az/vigil_probe unavailable: not a valid Key Vault secret name) in 1s, run 20261103T202535Z-15288
+bk_untrusted: failed (secret store:az_untrusted/vigil-probe unavailable: sign-in failed: the certificate of 127.0.0.1:4577 is not trusted) in 1s, run 20261103T202541Z-5352
+bk_managed_identity: succeeded in 2s, run 20261103T202548Z-15144
+bk_rotating: succeeded in 4s, run 20261103T202554Z-3572
+bk_rotating: succeeded in 10s, run 20261103T202601Z-6652
+bk_bad_secret: succeeded in 2s, run 20261103T202621Z-4036

@@ -1,0 +1,21 @@
+vigil.logs.records_sent host=desktop-nn48drs instance=backend-test os=windows	1793741744000000000	68	1793741865000000000
+vigil.logs.bytes_sent host=desktop-nn48drs instance=backend-test os=windows	1793741744000000000	27908	1793741865000000000
+bk_missing.runs host=desktop-nn48drs instance=backend-test job=bk_missing os=windows	1793741797000000000	2	1793741859000000000
+bk_missing.failures host=desktop-nn48drs instance=backend-test job=bk_missing os=windows	1793741797000000000	2	1793741859000000000
+bk_fail.runs host=desktop-nn48drs instance=backend-test job=bk_fail os=windows	1793741803000000000	2	1793741856000000000
+bk_fail.failures exit_code=2 host=desktop-nn48drs instance=backend-test job=bk_fail os=windows	1793741803000000000	2	1793741856000000000
+bk_ok.runs host=desktop-nn48drs instance=backend-test job=bk_ok os=windows	1793741804000000000	2	1793741858000000000
+bk_ok.succeeded host=desktop-nn48drs instance=backend-test job=bk_ok os=windows	1793741804000000000	2	1793741858000000000
+bk_overrun.runs host=desktop-nn48drs instance=backend-test job=bk_overrun os=windows	1793741810000000000	2	1793741868000000000
+bk_overrun.timeouts host=desktop-nn48drs instance=backend-test job=bk_overrun os=windows	1793741810000000000	2	1793741868000000000
+bk_long.skipped host=desktop-nn48drs instance=backend-test job=bk_long os=windows	1793741824000000000	1	1793741825000000000
+bk_output.skipped host=desktop-nn48drs instance=backend-test job=bk_output os=windows	1793741824000000000	1	1793741825000000000
+bk_metrics.skipped host=desktop-nn48drs instance=backend-test job=bk_metrics os=windows	1793741824000000000	1	1793741825000000000
+bk_native.runs host=desktop-nn48drs instance=backend-test job=bk_native os=windows	1793741825000000000	2	1793741873000000000
+bk_native.succeeded host=desktop-nn48drs instance=backend-test job=bk_native os=windows	1793741825000000000	2	1793741873000000000
+bk_metrics.runs host=desktop-nn48drs instance=backend-test job=bk_metrics os=windows	1793741829000000000	1	1793741830000000000
+bk_metrics.succeeded host=desktop-nn48drs instance=backend-test job=bk_metrics os=windows	1793741829000000000	1	1793741830000000000
+bk_output.runs host=desktop-nn48drs instance=backend-test job=bk_output os=windows	1793741829000000000	1	1793741830000000000
+bk_output.succeeded host=desktop-nn48drs instance=backend-test job=bk_output os=windows	1793741829000000000	1	1793741830000000000
+bk_long.runs host=desktop-nn48drs instance=backend-test job=bk_long os=windows	1793741846000000000	1	1793741847000000000
+bk_long.succeeded host=desktop-nn48drs instance=backend-test job=bk_long os=windows	1793741846000000000	1	1793741847000000000

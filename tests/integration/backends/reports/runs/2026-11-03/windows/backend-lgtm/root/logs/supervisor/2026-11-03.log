@@ -1,0 +1,21 @@
+2026-11-03T21:35:33Z INFO supervisor configuration loaded
+2026-11-03T21:35:33Z INFO supervisor supervisor started, pid 14760
+2026-11-03T21:36:04Z INFO supervisor job bk_ok: run 20261103T213606Z-14760-5 started
+2026-11-03T21:36:04Z INFO supervisor job bk_fail: run 20261103T213606Z-14760-6 started
+2026-11-03T21:36:04Z INFO supervisor job bk_long: run 20261103T213606Z-14760-7 started
+2026-11-03T21:36:04Z INFO supervisor job bk_overrun: run 20261103T213606Z-14760-8 started
+2026-11-03T21:36:04Z INFO supervisor job bk_missing: run 20261103T213606Z-14760-9 started
+2026-11-03T21:36:45Z WARN supervisor job bk_overrun: run 20261103T213606Z-14760-8 passed max_runtime; ending its process tree
+2026-11-03T21:36:45Z INFO supervisor job bk_output: run 20261103T213652Z-14760-12 started
+2026-11-03T21:36:45Z INFO supervisor job bk_metrics: run 20261103T213652Z-14760-13 started
+2026-11-03T21:36:45Z INFO supervisor job bk_native: run 20261103T213652Z-14760-14 started
+2026-11-03T21:37:05Z INFO supervisor job bk_long: slot 2026-11-03T21:37:00Z skipped: a run is still active
+2026-11-03T21:37:05Z INFO supervisor job bk_output: slot 2026-11-03T21:37:00Z skipped: a run is still active
+2026-11-03T21:37:05Z INFO supervisor job bk_metrics: slot 2026-11-03T21:37:00Z skipped: a run is still active
+2026-11-03T21:37:05Z INFO supervisor job bk_ok: run 20261103T213707Z-14760-17 started
+2026-11-03T21:37:05Z INFO supervisor job bk_fail: run 20261103T213707Z-14760-18 started
+2026-11-03T21:37:16Z INFO supervisor job bk_overrun: run 20261103T213719Z-14760-19 started
+2026-11-03T21:37:16Z INFO supervisor job bk_missing: run 20261103T213720Z-14760-20 started
+2026-11-03T21:37:27Z WARN supervisor job bk_long: run 20261103T213606Z-14760-7 is uncertain (past max_runtime, but its job process cannot be proven to be the run's); holding it, killing nothing (on_uncertain = wait)
+2026-11-03T21:37:37Z INFO supervisor job bk_native: run 20261103T213739Z-14760-23 started
+2026-11-03T21:37:47Z WARN supervisor job bk_overrun: run 20261103T213719Z-14760-19 passed max_runtime; ending its process tree

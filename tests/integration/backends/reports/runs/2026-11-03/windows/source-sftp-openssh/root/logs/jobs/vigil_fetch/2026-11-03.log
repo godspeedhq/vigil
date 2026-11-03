@@ -1,0 +1,59 @@
+2026-11-03T20:43:57Z 20261103T204355Z-1908-1 run start
+2026-11-03T20:44:01Z 20261103T204355Z-1908-1 run configuration revision a13064b31c4c activated (local)
+2026-11-03T20:44:01Z 20261103T204355Z-1908-1 run end succeeded in 4s
+2026-11-03T20:44:07Z 20261103T204405Z-13948-2 run start
+2026-11-03T20:44:11Z 20261103T204405Z-13948-2 run end succeeded in 4s
+2026-11-03T20:44:38Z 20261103T204436Z-452-2 run start
+2026-11-03T20:44:42Z 20261103T204436Z-452-2 run source.fail1: sftp failed: File "/files/nosuch.ps1" not found.
+2026-11-03T20:44:42Z 20261103T204436Z-452-2 run end failed (source.fail1: sftp failed: File "/files/nosuch.ps1" not found.) in 4s
+2026-11-03T20:44:50Z 20261103T204448Z-4828-2 run start
+2026-11-03T20:44:56Z 20261103T204448Z-4828-2 run source.fail1: sftp failed: File "/files/nosuch.ps1" not found.
+2026-11-03T20:44:56Z 20261103T204448Z-4828-2 run end failed (source.fail1: sftp failed: File "/files/nosuch.ps1" not found.) in 6s
+2026-11-03T20:45:10Z 20261103T204507Z-6664-2 run start
+2026-11-03T20:45:23Z 20261103T204507Z-6664-2 run source.fail2: sftp failed: File "/nosuch/check-v1.ps1" not found.
+2026-11-03T20:45:24Z 20261103T204507Z-6664-2 run end failed (source.fail2: sftp failed: File "/nosuch/check-v1.ps1" not found.) in 14s
+2026-11-03T20:45:40Z 20261103T204536Z-11444-2 run start
+2026-11-03T20:45:46Z 20261103T204536Z-11444-2 run source.fail2: sftp failed: File "/nosuch/check-v1.ps1" not found.
+2026-11-03T20:45:46Z 20261103T204536Z-11444-2 run end failed (source.fail2: sftp failed: File "/nosuch/check-v1.ps1" not found.) in 6s
+2026-11-03T20:46:00Z 20261103T204557Z-14248-2 run start
+2026-11-03T20:46:06Z 20261103T204557Z-14248-2 run source.fail3: sftp failed: remote open "/files/locked.sh": Permission denied
+2026-11-03T20:46:06Z 20261103T204557Z-14248-2 run end failed (source.fail3: sftp failed: remote open "/files/locked.sh": Permission denied) in 6s
+2026-11-03T20:46:23Z 20261103T204611Z-11904-2 run start
+2026-11-03T20:46:30Z 20261103T204611Z-11904-2 run source.fail3: sftp failed: remote open "/files/locked.sh": Permission denied
+2026-11-03T20:46:30Z 20261103T204611Z-11904-2 run end failed (source.fail3: sftp failed: remote open "/files/locked.sh": Permission denied) in 7s
+2026-11-03T20:46:47Z 20261103T204644Z-11884-2 run start
+2026-11-03T20:46:51Z 20261103T204644Z-11884-2 run source.fail4: check-v2.ps1 does not match its sha256
+2026-11-03T20:46:51Z 20261103T204644Z-11884-2 run end failed (source.fail4: check-v2.ps1 does not match its sha256) in 4s
+2026-11-03T20:46:59Z 20261103T204656Z-9632-2 run start
+2026-11-03T20:47:02Z 20261103T204656Z-9632-2 run source.fail4: check-v2.ps1 does not match its sha256
+2026-11-03T20:47:03Z 20261103T204656Z-9632-2 run end failed (source.fail4: check-v2.ps1 does not match its sha256) in 4s
+2026-11-03T20:47:29Z 20261103T204726Z-2624-2 run start
+2026-11-03T20:47:33Z 20261103T204726Z-2624-2 run source.fail5: sftp failed: Connection closed
+2026-11-03T20:47:34Z 20261103T204726Z-2624-2 run end failed (source.fail5: sftp failed: Connection closed) in 5s
+2026-11-03T20:47:44Z 20261103T204740Z-2756-2 run start
+2026-11-03T20:47:48Z 20261103T204740Z-2756-2 run source.fail5: sftp failed: Connection closed
+2026-11-03T20:47:48Z 20261103T204740Z-2756-2 run end failed (source.fail5: sftp failed: Connection closed) in 4s
+2026-11-03T20:48:01Z 20261103T204759Z-7944-2 run start
+2026-11-03T20:48:07Z 20261103T204759Z-7944-2 run source.fail6: sftp failed: Connection closed
+2026-11-03T20:48:07Z 20261103T204759Z-7944-2 run end failed (source.fail6: sftp failed: Connection closed) in 6s
+2026-11-03T20:48:28Z 20261103T204812Z-12604-2 run start
+2026-11-03T20:48:32Z 20261103T204812Z-12604-2 run source.fail6: sftp failed: Connection closed
+2026-11-03T20:48:32Z 20261103T204812Z-12604-2 run end failed (source.fail6: sftp failed: Connection closed) in 4s
+2026-11-03T20:48:47Z 20261103T204845Z-14816-2 run start
+2026-11-03T20:48:50Z 20261103T204845Z-14816-2 run configuration revision 676a9a17358e activated (source.central windows.config)
+2026-11-03T20:48:50Z 20261103T204845Z-14816-2 run end succeeded in 3s
+2026-11-03T20:48:57Z 20261103T204855Z-6596-2 run start
+2026-11-03T20:49:00Z 20261103T204855Z-6596-2 run end succeeded in 3s
+2026-11-03T20:49:15Z 20261103T204910Z-13188-2 run start
+2026-11-03T20:49:28Z 20261103T204910Z-13188-2 run   ERROR    line 8: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:49:28Z 20261103T204910Z-13188-2 run source.central: windows.config has errors
+2026-11-03T20:49:28Z 20261103T204910Z-13188-2 run end failed (source.central: windows.config has errors) in 13s
+2026-11-03T20:49:35Z 20261103T204932Z-14028-2 run start
+2026-11-03T20:49:39Z 20261103T204932Z-14028-2 run   ERROR    line 8: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:49:39Z 20261103T204932Z-14028-2 run source.central: windows.config has errors
+2026-11-03T20:49:39Z 20261103T204932Z-14028-2 run end failed (source.central: windows.config has errors) in 4s
+2026-11-03T20:49:52Z 20261103T204950Z-11948-2 run start
+2026-11-03T20:49:57Z 20261103T204950Z-11948-2 run configuration revision bff7c1ac60ef activated (source.central windows.config)
+2026-11-03T20:49:57Z 20261103T204950Z-11948-2 run end succeeded in 5s
+2026-11-03T20:50:05Z 20261103T205001Z-8336-2 run start
+2026-11-03T20:50:22Z 20261103T205001Z-8336-2 run end succeeded in 17s

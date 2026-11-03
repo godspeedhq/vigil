@@ -1,0 +1,11 @@
+2026-11-03T20:42:49Z 20261103T204246Z-11976-1 run start
+2026-11-03T20:42:51Z 20261103T204246Z-11976-1 run configuration revision 4f5a128a54fb activated (local)
+2026-11-03T20:42:51Z 20261103T204246Z-11976-1 run end succeeded in 2s
+2026-11-03T20:42:57Z 20261103T204255Z-9876-2 run start
+2026-11-03T20:43:00Z 20261103T204255Z-9876-2 run end succeeded in 3s
+2026-11-03T20:43:27Z 20261103T204324Z-14312-2 run start
+2026-11-03T20:43:30Z 20261103T204324Z-14312-2 run source.untrusted: the certificate of 127.0.0.1:9443 is not trusted
+2026-11-03T20:43:30Z 20261103T204324Z-14312-2 run end failed (source.untrusted: the certificate of 127.0.0.1:9443 is not trusted) in 3s
+2026-11-03T20:43:39Z 20261103T204336Z-11832-2 run start
+2026-11-03T20:43:43Z 20261103T204336Z-11832-2 run source.untrusted: the certificate of 127.0.0.1:9443 is not trusted
+2026-11-03T20:43:44Z 20261103T204336Z-11832-2 run end failed (source.untrusted: the certificate of 127.0.0.1:9443 is not trusted) in 5s

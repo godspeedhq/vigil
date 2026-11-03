@@ -1,0 +1,2 @@
+2026-11-03T20:23:35Z 20261103T202334Z-2552 run start
+2026-11-03T20:23:38Z 20261103T202334Z-2552 run end failed (secret store:aws_bad_field/vigil/json unavailable: the secret's value: no nosuch) in 3s

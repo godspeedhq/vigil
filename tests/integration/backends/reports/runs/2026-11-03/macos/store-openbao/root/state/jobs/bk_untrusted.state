@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_untrusted
+run_id           = 20261103T201130Z-13788
+instance         = store-test
+status           = failed
+reason           = secret store:st_untrusted/vigil/probe unavailable: the certificate of 127.0.0.1:8200 is not trusted
+boot_id          = boot-1790391279
+started_epoch    = 1793736690
+started_at       = 2026-11-03T20:11:30Z
+deadline_epoch   = 
+worker_pid       = 13788
+worker_name      = bash
+worker_start     = 
+ended_epoch      = 1793736690
+ended_at         = 2026-11-03T20:11:30Z
+duration_seconds = 0
+exit_code        = 
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793736690-bk_untrusted-20261103T201130Z-13788.events

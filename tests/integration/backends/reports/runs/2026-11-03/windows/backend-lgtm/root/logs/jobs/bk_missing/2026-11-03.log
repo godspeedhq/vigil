@@ -1,0 +1,4 @@
+2026-11-03T21:36:28Z 20261103T213606Z-14760-9 run start
+2026-11-03T21:36:38Z 20261103T213606Z-14760-9 run end failed (file not found: C:\Users\vigil-test\AppData\Local\Temp\vigil-bk.9088\root\scripts\missing.ps1) in 10s
+2026-11-03T21:37:34Z 20261103T213720Z-14760-20 run start
+2026-11-03T21:37:39Z 20261103T213720Z-14760-20 run end failed (file not found: C:\Users\vigil-test\AppData\Local\Temp\vigil-bk.9088\root\scripts\missing.ps1) in 5s

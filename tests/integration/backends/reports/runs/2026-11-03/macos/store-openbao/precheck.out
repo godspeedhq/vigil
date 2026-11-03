@@ -1,0 +1,27 @@
+Configuration /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.B1libW/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_approle
+  ok    job.bk_token
+  FAIL  job.bk_missing: secret store:st/vigil/nosuch unavailable: not found (HTTP 404)
+  FAIL  job.bk_denied: secret store:st/other/probe unavailable: permission denied (HTTP 403)
+  FAIL  job.bk_untrusted: secret store:st_untrusted/vigil/probe unavailable: the certificate of 127.0.0.1:8200 is not trusted
+  FAIL  job.bk_bad_token: secret store:st_bad_token/vigil/probe unavailable: permission denied (HTTP 403)
+  FAIL  job.bk_expired: secret store:st_expired/vigil/probe unavailable: permission denied (HTTP 403)
+  FAIL  job.bk_bad_secret_id: secret store:st_bad_secret_id/vigil/probe unavailable: sign-in failed: HTTP 400 from 127.0.0.1:8200
+  FAIL  job.bk_kv1: secret store:st_kv1/vigil/probe unavailable: not found (HTTP 404)
+  ok    job.bk_rotating
+  ok    secret_store.st: secret_id env:VIGIL_ST_SECRET_ID
+  ok    secret_store.st_token: token env:VIGIL_ST_TOKEN
+  ok    secret_store.st_untrusted: token env:VIGIL_ST_TOKEN
+  ok    secret_store.st_bad_token: token env:VIGIL_ST_BAD_TOKEN
+  ok    secret_store.st_expired: token env:VIGIL_ST_EXPIRING_TOKEN
+  ok    secret_store.st_bad_secret_id: secret_id env:VIGIL_ST_BAD_SECRET_ID
+  ok    secret_store.st_kv1: token env:VIGIL_ST_TOKEN
+  ok    state directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.B1libW/root/state
+  ok    log directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.B1libW/root/logs
+  ok    spool directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.B1libW/root/spool
+
+precheck failed: 7 problem(s)

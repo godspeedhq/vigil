@@ -1,0 +1,6 @@
+2026-11-03T21:36:31Z 20261103T213606Z-14760-8 run start
+2026-11-03T21:36:51Z 20261103T213606Z-14760-8 out starting something slow
+2026-11-03T21:36:51Z 20261103T213606Z-14760-8 run end timed_out (stopped after max_runtime 10s) in 20s
+2026-11-03T21:37:36Z 20261103T213719Z-14760-19 run start
+2026-11-03T21:37:48Z 20261103T213719Z-14760-19 out starting something slow
+2026-11-03T21:37:48Z 20261103T213719Z-14760-19 run end timed_out (stopped after max_runtime 10s) in 12s

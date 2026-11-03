@@ -1,0 +1,96 @@
+== source-https-nginx
+date     2026-11-03T20:13:44Z
+host     Bankoles-MacBook-Air.local
+os       macOS 12.7.6 (Darwin 21.6.0 x86_64)
+vigil    4040737fcd2d7092b21fcf4b915e2f64d36cba21 (deployed copy)
+command  scripts/run-source.sh https-nginx
+bash     3.2.57(1)-release
+git      git version 2.37.1 (Apple Git-137.1)
+curl     curl 8.7.1 (x86_64-apple-darwin21.0) libcurl/8.7.1 (SecureTransport) LibreSSL/3.3.6 zlib/1.2.11 nghttp2/1.45.1
+openssl  LibreSSL 2.8.3
+ssh      OpenSSH_8.6p1, LibreSSL 3.3.6
+images   (as compose.sources.yaml pins them)
+         atmoz/sftp:alpine@sha256:43dd1c023cf1bae487127d4b54660b0aee6e94c188a6599be36fb89ba115f961
+         gitea/gitea:28.2.0
+         nginx:1.30.5-alpine
+
+
+https-nginx, scripts over HTTPS
+  PASS  a pinned script: fetched and activated
+  PASS  a pinned script: the job runs version 1
+  PASS  a pinned script: the cached file is the fixture
+  PASS  a new version, pinned by its digest: the job runs version 2
+  PASS  a new version: the cached file is the fixture
+  PASS  plain http to this host (allowed): the job runs version 1
+
+https-nginx, failures: nothing changes
+  PASS  a digest that does not match: the fetch fails
+  PASS  a digest that does not match: says why: source.fail1: check-v2.sh does not match its sha256
+  PASS  a digest that does not match: the last good configuration stays active
+  PASS  a digest that does not match: and its job still runs
+  PASS  corrupted content, never run: the fetch fails
+  PASS  corrupted content, never run: says why: source.fail2: corrupt.txt does not match its sha256
+  PASS  corrupted content, never run: the last good configuration stays active
+  PASS  corrupted content, never run: and its job still runs
+  PASS  HTTP 404: the fetch fails
+  PASS  HTTP 404: says why: source.fail3: nosuch.sh not found (HTTP 404)
+  PASS  HTTP 404: the last good configuration stays active
+  PASS  HTTP 404: and its job still runs
+  PASS  HTTP 403: the fetch fails
+  PASS  HTTP 403: says why: source.fail4: permission denied (HTTP 403)
+  PASS  HTTP 403: the last good configuration stays active
+  PASS  HTTP 403: and its job still runs
+  PASS  HTTP 500: the fetch fails
+  PASS  HTTP 500: says why: source.fail5: HTTP 500 from 127.0.0.1:9443
+  PASS  HTTP 500: the last good configuration stays active
+  PASS  HTTP 500: and its job still runs
+  PASS  HTTP 503: the fetch fails
+  PASS  HTTP 503: says why: source.fail6: HTTP 503 from 127.0.0.1:9443
+  PASS  HTTP 503: the last good configuration stays active
+  PASS  HTTP 503: and its job still runs
+  PASS  a redirect (never followed): the fetch fails
+  PASS  a redirect (never followed): says why: source.fail7: HTTP 301 from 127.0.0.1:9443
+  PASS  a redirect (never followed): the last good configuration stays active
+  PASS  a redirect (never followed): and its job still runs
+  PASS  the connection dropped: the fetch fails
+  PASS  the connection dropped: says why: source.fail8: request to 127.0.0.1:9443 failed (curl exit code 52)
+  PASS  the connection dropped: the last good configuration stays active
+  PASS  the connection dropped: and its job still runs
+  PASS  a transfer too slow (timeout 5s): the fetch fails
+  PASS  a transfer too slow (timeout 5s): says why: source.fail9: timed out after 5s
+  PASS  a transfer too slow (timeout 5s): the last good configuration stays active
+  PASS  a transfer too slow (timeout 5s): and its job still runs
+  PASS  a refused connection: the fetch fails
+  PASS  a refused connection: says why: source.fail10: cannot connect to 127.0.0.1:9444
+  PASS  a refused connection: the last good configuration stays active
+  PASS  a refused connection: and its job still runs
+  PASS  a certificate not trusted (no test CA): the fetch fails
+  PASS  a certificate not trusted (no test CA): says why: source.untrusted: the certificate of 127.0.0.1:9443 is not trusted
+  PASS  a certificate not trusted (no test CA): the last good configuration stays active
+  PASS  a certificate not trusted (no test CA): and its job still runs
+
+https-nginx, an authentication header
+  PASS  the right token: the job runs version 1
+  PASS  no header: the fetch fails
+  PASS  no header: says why: source.noheader: permission denied (HTTP 401)
+  PASS  no header: the last good configuration stays active
+  PASS  no header: and its job still runs
+  PASS  a wrong token: the fetch fails
+  PASS  a wrong token: says why: source.wrongtoken: permission denied (HTTP 403)
+  PASS  a wrong token: the last good configuration stays active
+  PASS  a wrong token: and its job still runs
+
+https-nginx, the configuration from the server (remote mode)
+  PASS  configs/v1: activated
+  PASS  configs/v1: its job runs version 1
+  PASS  a configuration invalid outside any job: refused
+  PASS  invalid outside any job: the last good one stays active
+  PASS  invalid outside any job: and its job still runs version 1
+  PASS  configs/v2: the update is activated
+
+https-nginx, the server down, then back
+  NOT RUN  server down and back: nginx does not run here (it needs the Docker host)
+  PASS  no password or private key under the Vigil root or in its output
+
+66 passed, 0 failed, 1 not run
+evidence: reports/runs/2026-11-03/macos/source-https-nginx

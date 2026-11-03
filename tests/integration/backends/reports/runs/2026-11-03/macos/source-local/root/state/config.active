@@ -1,0 +1,7 @@
+[active]
+schema_version = 1
+revision       = 079404bcf5ef
+config         = d8e7a46bddaf34c6858a5e0eb286b8f49af415561b94cf55034f6a02ce8ff9a7
+origin         = source.central posix.config
+script         = files dceb338873b755bffe0398577aaa622fa0bc3b8b1d2c68215b58fde318ee5cad 6290f78f5f0c41e8f674b8891c62acd525030f86d132e3e22d0549328127ec73 check-v2.sh
+activated_epoch = 1793736966

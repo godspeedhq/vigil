@@ -1,0 +1,15 @@
+[state]
+schema_version   = 1
+job              = vigil_sender
+run_id           = 20261103T201342Z-32320-1
+status           = succeeded
+reason           = 
+boot_id          = boot-1790391279
+started_epoch    = 1793736823
+started_at       = 2026-11-03T20:13:43Z
+worker_pid       = 32375
+worker_name      = bash
+worker_start     = 
+ended_epoch      = 1793736823
+ended_at         = 2026-11-03T20:13:43Z
+duration_seconds = 0

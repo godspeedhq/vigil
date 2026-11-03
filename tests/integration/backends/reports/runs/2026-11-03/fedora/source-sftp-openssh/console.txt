@@ -1,0 +1,77 @@
+== source-sftp-openssh
+date     2026-11-03T20:07:25Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    4040737fcd2d7092b21fcf4b915e2f64d36cba21 (deployed copy)
+command  scripts/run-source.sh sftp-openssh
+bash     5.3.9(1)-release
+git      git version 2.56.0
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.18.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.sources.yaml pins them)
+         atmoz/sftp:alpine@sha256:43dd1c023cf1bae487127d4b54660b0aee6e94c188a6599be36fb89ba115f961
+         gitea/gitea:28.2.0
+         nginx:1.30.5-alpine
+
+
+sftp-openssh, scripts over SFTP, with a key
+  PASS  a pinned script: fetched and activated
+  PASS  a pinned script: the job runs version 1
+  PASS  a pinned script: the cached file is the fixture
+  PASS  a nested path: the job runs version 1
+  PASS  a new version, pinned by its digest: the job runs version 2
+  NOT SUPPORTED  password authentication: Vigil signs in to sftp with a key only (spec 6.9)
+  NOT RUN  an interrupted transfer: this server gives no reliable way to cut one
+
+sftp-openssh, failures: nothing changes
+  PASS  a missing file: the fetch fails
+  PASS  a missing file: says why: source.fail1: sftp failed: File "/files/nosuch.sh" not found.
+  PASS  a missing file: the last good configuration stays active
+  PASS  a missing file: and its job still runs
+  PASS  a missing directory: the fetch fails
+  PASS  a missing directory: says why: source.fail2: sftp failed: File "/nosuch/check-v1.sh" not found.
+  PASS  a missing directory: the last good configuration stays active
+  PASS  a missing directory: and its job still runs
+  PASS  a file the account may not read: the fetch fails
+  PASS  a file the account may not read: says why: source.fail3: sftp failed: remote open "/files/locked.sh": Permission denied
+  PASS  a file the account may not read: the last good configuration stays active
+  PASS  a file the account may not read: and its job still runs
+  PASS  a digest that does not match: the fetch fails
+  PASS  a digest that does not match: says why: source.fail4: check-v2.sh does not match its sha256
+  PASS  a digest that does not match: the last good configuration stays active
+  PASS  a digest that does not match: and its job still runs
+  PASS  corrupted content, never run: the fetch fails
+  PASS  corrupted content, never run: says why: source.fail5: corrupt.txt does not match its sha256
+  PASS  corrupted content, never run: the last good configuration stays active
+  PASS  corrupted content, never run: and its job still runs
+  PASS  a key the server does not know: the fetch fails
+  PASS  a key the server does not know: says why: source.fail6: sftp failed: vigil@127.0.0.1: Permission denied (publickey,password,keyboard-interactive).
+  PASS  a key the server does not know: the last good configuration stays active
+  PASS  a key the server does not know: and its job still runs
+  PASS  a host key not in known_hosts: the fetch fails
+  PASS  a host key not in known_hosts: says why: source.fail7: sftp failed: No ED25519 host key is known for [127.0.0.1]:2022 and you have requested strict checking.
+  PASS  a host key not in known_hosts: the last good configuration stays active
+  PASS  a host key not in known_hosts: and its job still runs
+  PASS  a changed host key: the fetch fails
+  PASS  a changed host key: says why: source.fail8: sftp failed: @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+  PASS  a changed host key: the last good configuration stays active
+  PASS  a changed host key: and its job still runs
+
+sftp-openssh, the configuration from the server (remote mode)
+  PASS  configs/v1: activated
+  PASS  configs/v1: its job runs version 1
+  PASS  a configuration invalid outside any job: refused
+  PASS  invalid outside any job: the last good one stays active
+  PASS  invalid outside any job: and its job still runs version 1
+  PASS  configs/v2: the update is activated
+
+sftp-openssh, the server down, then back
+  PASS  server stopped: the fetch fails
+  PASS  server stopped: the last good configuration stays active
+  PASS  server stopped: and its job still runs version 2
+  PASS  server back: recovered, the change is activated
+  PASS  no password or private key under the Vigil root or in its output
+
+48 passed, 0 failed, 1 not run
+evidence: reports/runs/2026-11-03/fedora/source-sftp-openssh

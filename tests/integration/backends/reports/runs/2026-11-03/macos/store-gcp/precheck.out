@@ -1,0 +1,29 @@
+Configuration /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.ipa0Hv/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_key
+  ok    job.bk_latest
+  ok    job.bk_version
+  FAIL  job.bk_missing: secret store:gcp/vigil-nosuch unavailable: not found (HTTP 404)
+  FAIL  job.bk_bad_version: secret store:gcp/vigil-versioned/9999 unavailable: not found (HTTP 404)
+  FAIL  job.bk_other_project: secret store:gcp_other/vigil-probe unavailable: not found (HTTP 404)
+  FAIL  job.bk_http_token_uri: secret store:gcp_http/vigil-probe unavailable: service_account_key env:VIGIL_ST_GCP_KEY_HTTP: its token_uri is not https
+  FAIL  job.bk_untrusted: secret store:gcp_untrusted/vigil-probe unavailable: sign-in failed: the certificate of 127.0.0.1:4588 is not trusted
+  ok    job.bk_rotating
+  ok    secret_store.gcp: service_account_key env:VIGIL_ST_GCP_KEY
+  ok    secret_store.gcp: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.gcp_other: service_account_key env:VIGIL_ST_GCP_KEY
+  ok    secret_store.gcp_other: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.gcp_http: service_account_key env:VIGIL_ST_GCP_KEY_HTTP
+  ok    secret_store.gcp_http: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.gcp_untrusted: service_account_key env:VIGIL_ST_GCP_KEY
+  ok    secret_store.gcp_untrusted: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.gcp_other_key: service_account_key env:VIGIL_ST_GCP_KEY_OTHER
+  ok    secret_store.gcp_other_key: uses Vigil's own HTTPS client (client = http)
+  ok    state directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.ipa0Hv/root/state
+  ok    log directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.ipa0Hv/root/logs
+  ok    spool directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.ipa0Hv/root/spool
+
+precheck failed: 5 problem(s)

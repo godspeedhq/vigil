@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_untrusted
+run_id           = 20261103T201218Z-19785
+instance         = store-test
+status           = failed
+reason           = secret store:az_untrusted/vigil-probe unavailable: the certificate of 127.0.0.1:8443 is not trusted
+boot_id          = boot-1790391279
+started_epoch    = 1793736738
+started_at       = 2026-11-03T20:12:18Z
+deadline_epoch   = 
+worker_pid       = 19785
+worker_name      = bash
+worker_start     = 
+ended_epoch      = 1793736738
+ended_at         = 2026-11-03T20:12:18Z
+duration_seconds = 0
+exit_code        = 
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793736738-bk_untrusted-20261103T201218Z-19785.events

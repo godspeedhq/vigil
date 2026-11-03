@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = check
+run_id           = 20261103T204029Z-11580
+instance         = source-test
+status           = succeeded
+reason           =
+boot_id          = boot-1793614138
+started_epoch    = 1793738430
+started_at       = 2026-11-03T20:40:30Z
+deadline_epoch   =
+worker_pid       = 11580
+worker_name      = powershell.exe
+worker_start     = 1793738413
+job_pid          = 10092
+job_name         = powershell.exe
+job_start        = 1793738432
+ended_epoch      = 1793738433
+ended_at         = 2026-11-03T20:40:33Z
+duration_seconds = 3
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793738433-check-20261103T204029Z-11580.events

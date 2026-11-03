@@ -1,0 +1,57 @@
+# TYPE check_duration_seconds gauge
+check_duration_seconds{host="bankoles-macbook-air",instance="source-test",job="check",os="macos"} 0
+# TYPE check_runs_total counter
+check_runs_total{host="bankoles-macbook-air",instance="source-test",job="check",os="macos"} 13
+# TYPE check_source_check gauge
+check_source_check{host="bankoles-macbook-air",instance="source-test",job="check",os="macos"} 1
+# TYPE check_succeeded_total counter
+check_succeeded_total{host="bankoles-macbook-air",instance="source-test",job="check",os="macos"} 13
+# TYPE remote_check_duration_seconds gauge
+remote_check_duration_seconds{host="bankoles-macbook-air",instance="source-test",job="remote_check",os="macos"} 0
+# TYPE remote_check_invalid_config gauge
+remote_check_invalid_config{host="bankoles-macbook-air",instance="source-test",job="remote_check",os="macos"} 1
+# TYPE remote_check_runs_total counter
+remote_check_runs_total{host="bankoles-macbook-air",instance="source-test",job="remote_check",os="macos"} 3
+# TYPE remote_check_source_check gauge
+remote_check_source_check{host="bankoles-macbook-air",instance="source-test",job="remote_check",os="macos"} 2
+# TYPE remote_check_succeeded_total counter
+remote_check_succeeded_total{host="bankoles-macbook-air",instance="source-test",job="remote_check",os="macos"} 3
+# TYPE vigil_config_activated_total counter
+vigil_config_activated_total{host="bankoles-macbook-air",instance="source-test",os="macos",revision="196b009ceceb"} 1
+vigil_config_activated_total{host="bankoles-macbook-air",instance="source-test",os="macos",revision="43c3c9919868"} 1
+vigil_config_activated_total{host="bankoles-macbook-air",instance="source-test",os="macos",revision="8301dca3aff7"} 1
+vigil_config_activated_total{host="bankoles-macbook-air",instance="source-test",os="macos",revision="a071bcd006f6"} 1
+vigil_config_activated_total{host="bankoles-macbook-air",instance="source-test",os="macos",revision="a8456bd04ece"} 1
+vigil_config_activated_total{host="bankoles-macbook-air",instance="source-test",os="macos",revision="af290ba2df25"} 2
+vigil_config_activated_total{host="bankoles-macbook-air",instance="source-test",os="macos",revision="b0dd3f217374"} 1
+vigil_config_activated_total{host="bankoles-macbook-air",instance="source-test",os="macos",revision="bf71c7449f2c"} 1
+vigil_config_activated_total{host="bankoles-macbook-air",instance="source-test",os="macos",revision="c3822d958a18"} 1
+# TYPE vigil_config_info gauge
+vigil_config_info{host="bankoles-macbook-air",instance="source-test",os="macos",revision="196b009ceceb"} 1
+vigil_config_info{host="bankoles-macbook-air",instance="source-test",os="macos",revision="43c3c9919868"} 1
+vigil_config_info{host="bankoles-macbook-air",instance="source-test",os="macos",revision="8301dca3aff7"} 1
+vigil_config_info{host="bankoles-macbook-air",instance="source-test",os="macos",revision="a071bcd006f6"} 1
+vigil_config_info{host="bankoles-macbook-air",instance="source-test",os="macos",revision="a8456bd04ece"} 1
+vigil_config_info{host="bankoles-macbook-air",instance="source-test",os="macos",revision="af290ba2df25"} 1
+vigil_config_info{host="bankoles-macbook-air",instance="source-test",os="macos",revision="b0dd3f217374"} 1
+vigil_config_info{host="bankoles-macbook-air",instance="source-test",os="macos",revision="bf71c7449f2c"} 1
+vigil_config_info{host="bankoles-macbook-air",instance="source-test",os="macos",revision="c3822d958a18"} 1
+# TYPE vigil_source_check_age gauge
+vigil_source_check_age{host="bankoles-macbook-air",instance="source-test",os="macos",source="central"} 1
+vigil_source_check_age{host="bankoles-macbook-air",instance="source-test",os="macos",source="repo"} 7
+vigil_source_check_age{host="bankoles-macbook-air",instance="source-test",os="macos",source="scripts"} 5
+# TYPE vigil_source_failures_total counter
+vigil_source_failures_total{host="bankoles-macbook-air",instance="source-test",os="macos",reason="auth",source="repo"} 3
+vigil_source_failures_total{host="bankoles-macbook-air",instance="source-test",os="macos",reason="invalid",source="central"} 2
+vigil_source_failures_total{host="bankoles-macbook-air",instance="source-test",os="macos",reason="invalid",source="repo"} 8
+vigil_source_failures_total{host="bankoles-macbook-air",instance="source-test",os="macos",reason="unreachable",source="repo"} 3
+# TYPE vigil_spool_bytes gauge
+vigil_spool_bytes{host="bankoles-macbook-air",instance="source-test",os="macos"} 0
+# TYPE vigil_supervisor_config_reload_failed gauge
+vigil_supervisor_config_reload_failed{host="bankoles-macbook-air",instance="source-test",os="macos"} 0
+# TYPE vigil_supervisor_pending gauge
+vigil_supervisor_pending{host="bankoles-macbook-air",instance="source-test",os="macos"} 0
+# TYPE vigil_supervisor_up gauge
+vigil_supervisor_up{host="bankoles-macbook-air",instance="source-test",os="macos"} 1
+# TYPE vigil_supervisor_workers gauge
+vigil_supervisor_workers{host="bankoles-macbook-air",instance="source-test",os="macos"} 0

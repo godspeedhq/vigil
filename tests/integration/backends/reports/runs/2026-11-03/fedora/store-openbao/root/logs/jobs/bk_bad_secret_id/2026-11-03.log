@@ -1,0 +1,2 @@
+2026-11-03T20:04:37Z 20261103T200437Z-1072819 run start
+2026-11-03T20:04:37Z 20261103T200437Z-1072819 run end failed (secret store:st_bad_secret_id/vigil/probe unavailable: sign-in failed: HTTP 400 from 127.0.0.1:8200) in 0s

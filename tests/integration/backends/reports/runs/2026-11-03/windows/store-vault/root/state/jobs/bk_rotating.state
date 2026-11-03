@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_rotating
+run_id           = 20261103T202242Z-12196
+instance         = store-test
+status           = succeeded
+reason           =
+boot_id          = boot-1793614138
+started_epoch    = 1793737363
+started_at       = 2026-11-03T20:22:43Z
+deadline_epoch   =
+worker_pid       = 12196
+worker_name      = powershell.exe
+worker_start     = 1793737360
+job_pid          = 244
+job_name         = powershell.exe
+job_start        = 1793737365
+ended_epoch      = 1793737367
+ended_at         = 2026-11-03T20:22:47Z
+duration_seconds = 4
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737367-bk_rotating-20261103T202242Z-12196.events

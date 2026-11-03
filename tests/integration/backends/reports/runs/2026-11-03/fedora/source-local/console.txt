@@ -1,0 +1,59 @@
+== source-local
+date     2026-11-03T20:07:48Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    4040737fcd2d7092b21fcf4b915e2f64d36cba21 (deployed copy)
+command  scripts/run-source.sh local
+bash     5.3.9(1)-release
+git      git version 2.56.0
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.18.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.sources.yaml pins them)
+         atmoz/sftp:alpine@sha256:43dd1c023cf1bae487127d4b54660b0aee6e94c188a6599be36fb89ba115f961
+         gitea/gitea:28.2.0
+         nginx:1.30.5-alpine
+
+
+local, scripts from a local directory (its path has spaces)
+  PASS  pinned: fetched and activated
+  PASS  pinned: the job runs version 1
+  PASS  pinned, the file changed: the new content is refused, logged: check.sh no longer matches its sha256; the last verified copy stays in use
+  PASS  pinned, the file changed: the configuration is unchanged
+  PASS  pinned, the file changed: the last verified copy keeps running
+  PASS  pinned to the new digest: the job runs version 2
+  PASS  followed: the job runs version 1
+  PASS  followed: reported unpinned: W_SCRIPT_UNPINNED
+  PASS  followed, the file changed: the job runs version 2
+  PASS  a nested path: the job runs version 1
+  PASS  a relative path (against the install root): the job runs version 1
+
+local, failures: nothing changes
+  PASS  a missing file: the fetch fails
+  PASS  a missing file: says why: source.fail1: nosuch.sh not found
+  PASS  a missing file: the last good configuration stays active
+  PASS  a missing file: and its job still runs
+  PASS  a missing directory: the fetch fails
+  PASS  a missing directory: says why: source.fail2: not a directory: /tmp/vigil-source.FsgWa0/no such dir
+  PASS  a missing directory: the last good configuration stays active
+  PASS  a missing directory: and its job still runs
+  PASS  invalid content, never run: the fetch fails
+  PASS  invalid content, never run: says why: source.fail3: corrupt.txt does not match its sha256
+  PASS  invalid content, never run: the last good configuration stays active
+  PASS  invalid content, never run: and its job still runs
+  PASS  a file this account may not read: the fetch fails
+  PASS  a file this account may not read: says why: source.fail4: cannot copy /tmp/vigil-source.FsgWa0/locked share: cp: cannot open '/tmp/vigil-source.FsgWa0/locked share/check.sh' for reading: Permission denied
+  PASS  a file this account may not read: the last good configuration stays active
+  PASS  a file this account may not read: and its job still runs
+
+local, the configuration from a local directory (remote mode)
+  PASS  a configuration, v1: activated
+  PASS  a configuration, v1: its job runs version 1
+  PASS  a configuration invalid outside any job: refused
+  PASS  invalid outside any job: the last good one stays active
+  PASS  invalid outside any job: and its job still runs version 1
+  PASS  a configuration, v2: the update is activated
+  PASS  no password or private key under the Vigil root or in its output
+
+34 passed, 0 failed, 0 not run
+evidence: reports/runs/2026-11-03/fedora/source-local

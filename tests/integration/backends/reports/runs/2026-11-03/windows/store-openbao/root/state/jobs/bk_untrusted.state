@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_untrusted
+run_id           = 20261103T201953Z-6232
+instance         = store-test
+status           = failed
+reason           = secret store:st_untrusted/vigil/probe unavailable: the certificate of 127.0.0.1:8200 is not trusted
+boot_id          = boot-1793614138
+started_epoch    = 1793737195
+started_at       = 2026-11-03T20:19:55Z
+deadline_epoch   =
+worker_pid       = 6232
+worker_name      = powershell.exe
+worker_start     = 1793737191
+ended_epoch      = 1793737197
+ended_at         = 2026-11-03T20:19:57Z
+duration_seconds = 2
+exit_code        =
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737197-bk_untrusted-20261103T201953Z-6232.events

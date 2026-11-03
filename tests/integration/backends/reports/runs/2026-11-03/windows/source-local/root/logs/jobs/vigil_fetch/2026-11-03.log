@@ -1,0 +1,43 @@
+2026-11-03T20:50:39Z 20261103T205037Z-4128-1 run start
+2026-11-03T20:50:40Z 20261103T205037Z-4128-1 run configuration revision da14941d635d activated (local)
+2026-11-03T20:50:40Z 20261103T205037Z-4128-1 run end succeeded in 1s
+2026-11-03T20:50:48Z 20261103T205046Z-1356-2 run start
+2026-11-03T20:50:51Z 20261103T205046Z-1356-2 run end succeeded in 3s
+2026-11-03T20:51:14Z 20261103T205102Z-13244-2 run start
+2026-11-03T20:51:21Z 20261103T205102Z-13244-2 run WARN source.share: check.ps1 no longer matches its sha256; the last verified copy stays in use
+2026-11-03T20:51:22Z 20261103T205102Z-13244-2 run end succeeded in 8s
+2026-11-03T20:51:30Z 20261103T205128Z-3944-2 run start
+2026-11-03T20:51:33Z 20261103T205128Z-3944-2 run WARN source.share: check.ps1 no longer matches its sha256; the last verified copy stays in use
+2026-11-03T20:51:34Z 20261103T205128Z-3944-2 run end succeeded in 4s
+2026-11-03T20:51:49Z 20261103T205146Z-1420-2 run start
+2026-11-03T20:51:52Z 20261103T205146Z-1420-2 run configuration revision 563d963133d9 activated (local)
+2026-11-03T20:51:52Z 20261103T205146Z-1420-2 run end succeeded in 3s
+2026-11-03T20:52:00Z 20261103T205157Z-372-2 run start
+2026-11-03T20:52:03Z 20261103T205157Z-372-2 run end succeeded in 3s
+2026-11-03T20:52:30Z 20261103T205228Z-11272-2 run start
+2026-11-03T20:52:33Z 20261103T205228Z-11272-2 run configuration revision 303811d9d237 activated (local)
+2026-11-03T20:52:33Z 20261103T205228Z-11272-2 run end succeeded in 3s
+2026-11-03T20:52:41Z 20261103T205238Z-13260-2 run start
+2026-11-03T20:52:43Z 20261103T205238Z-13260-2 run end succeeded in 2s
+2026-11-03T20:52:57Z 20261103T205255Z-11356-2 run start
+2026-11-03T20:53:00Z 20261103T205255Z-11356-2 run configuration revision 2de7020634e8 activated (local)
+2026-11-03T20:53:00Z 20261103T205255Z-11356-2 run end succeeded in 3s
+2026-11-03T20:53:19Z 20261103T205317Z-11184-2 run start
+2026-11-03T20:53:22Z 20261103T205317Z-11184-2 run end succeeded in 3s
+2026-11-03T20:53:38Z 20261103T205335Z-9608-2 run start
+2026-11-03T20:53:41Z 20261103T205335Z-9608-2 run configuration revision bcabd3653516 activated (local)
+2026-11-03T20:53:41Z 20261103T205335Z-9608-2 run end succeeded in 3s
+2026-11-03T20:53:49Z 20261103T205347Z-12380-2 run start
+2026-11-03T20:53:52Z 20261103T205347Z-12380-2 run end succeeded in 3s
+2026-11-03T20:54:19Z 20261103T205405Z-14628-2 run start
+2026-11-03T20:54:22Z 20261103T205405Z-14628-2 run source.fail1: nosuch.ps1 not found
+2026-11-03T20:54:22Z 20261103T205405Z-14628-2 run end failed (source.fail1: nosuch.ps1 not found) in 3s
+2026-11-03T20:54:31Z 20261103T205429Z-5436-2 run start
+2026-11-03T20:54:34Z 20261103T205429Z-5436-2 run source.fail1: nosuch.ps1 not found
+2026-11-03T20:54:34Z 20261103T205429Z-5436-2 run end failed (source.fail1: nosuch.ps1 not found) in 3s
+2026-11-03T20:54:49Z 20261103T205447Z-10468-2 run start
+2026-11-03T20:54:52Z 20261103T205447Z-10468-2 run source.fail2: not a directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-source.12620\no such dir
+2026-11-03T20:54:52Z 20261103T205447Z-10468-2 run end failed (source.fail2: not a directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-source.12620\no such dir) in 3s
+2026-11-03T20:55:00Z 20261103T205458Z-13052-2 run start
+2026-11-03T20:55:03Z 20261103T205458Z-13052-2 run source.fail2: not a directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-source.12620\no such dir
+2026-11-03T20:55:03Z 20261103T205458Z-13052-2 run end failed (source.fail2: not a directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-source.12620\no such dir) in 3s

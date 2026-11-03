@@ -1,0 +1,2 @@
+2026-11-03T20:31:35Z 20261103T203134Z-5916 run start
+2026-11-03T20:31:38Z 20261103T203134Z-5916 run end failed (secret store:gcp_untrusted/vigil-probe unavailable: sign-in failed: the certificate of 127.0.0.1:4588 is not trusted) in 3s

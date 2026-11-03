@@ -1,0 +1,67 @@
+2026-11-03T20:07:25Z 20261103T200725Z-1120400-1 run start
+2026-11-03T20:07:25Z 20261103T200725Z-1120400-1 run configuration revision 1d3e030bfa0a activated (local)
+2026-11-03T20:07:25Z 20261103T200725Z-1120400-1 run end succeeded in 0s
+2026-11-03T20:07:26Z 20261103T200726Z-1120751-2 run start
+2026-11-03T20:07:26Z 20261103T200726Z-1120751-2 run configuration revision be6d4e1d188a activated (local)
+2026-11-03T20:07:26Z 20261103T200726Z-1120751-2 run end succeeded in 0s
+2026-11-03T20:07:27Z 20261103T200727Z-1121232-2 run start
+2026-11-03T20:07:27Z 20261103T200727Z-1121232-2 run configuration revision a4753d08b8b2 activated (local)
+2026-11-03T20:07:27Z 20261103T200727Z-1121232-2 run end succeeded in 0s
+2026-11-03T20:07:28Z 20261103T200728Z-1121747-2 run start
+2026-11-03T20:07:28Z 20261103T200728Z-1121747-2 run configuration revision 1d3e030bfa0a activated (local)
+2026-11-03T20:07:28Z 20261103T200728Z-1121747-2 run end succeeded in 0s
+2026-11-03T20:07:29Z 20261103T200729Z-1122034-2 run start
+2026-11-03T20:07:29Z 20261103T200729Z-1122034-2 run end succeeded in 0s
+2026-11-03T20:07:29Z 20261103T200729Z-1122506-2 run start
+2026-11-03T20:07:29Z 20261103T200729Z-1122506-2 run source.fail1: sftp failed: File "/files/nosuch.sh" not found.
+2026-11-03T20:07:30Z 20261103T200729Z-1122506-2 run end failed (source.fail1: sftp failed: File "/files/nosuch.sh" not found.) in 1s
+2026-11-03T20:07:30Z 20261103T200730Z-1122714-2 run start
+2026-11-03T20:07:30Z 20261103T200730Z-1122714-2 run source.fail1: sftp failed: File "/files/nosuch.sh" not found.
+2026-11-03T20:07:30Z 20261103T200730Z-1122714-2 run end failed (source.fail1: sftp failed: File "/files/nosuch.sh" not found.) in 0s
+2026-11-03T20:07:31Z 20261103T200731Z-1123040-2 run start
+2026-11-03T20:07:31Z 20261103T200731Z-1123040-2 run source.fail2: sftp failed: File "/nosuch/check-v1.sh" not found.
+2026-11-03T20:07:31Z 20261103T200731Z-1123040-2 run end failed (source.fail2: sftp failed: File "/nosuch/check-v1.sh" not found.) in 0s
+2026-11-03T20:07:32Z 20261103T200732Z-1123317-2 run start
+2026-11-03T20:07:32Z 20261103T200732Z-1123317-2 run source.fail2: sftp failed: File "/nosuch/check-v1.sh" not found.
+2026-11-03T20:07:32Z 20261103T200732Z-1123317-2 run end failed (source.fail2: sftp failed: File "/nosuch/check-v1.sh" not found.) in 0s
+2026-11-03T20:07:33Z 20261103T200732Z-1123639-2 run start
+2026-11-03T20:07:33Z 20261103T200732Z-1123639-2 run source.fail3: sftp failed: remote open "/files/locked.sh": Permission denied
+2026-11-03T20:07:33Z 20261103T200732Z-1123639-2 run end failed (source.fail3: sftp failed: remote open "/files/locked.sh": Permission denied) in 0s
+2026-11-03T20:07:34Z 20261103T200734Z-1124131-2 run start
+2026-11-03T20:07:34Z 20261103T200734Z-1124131-2 run source.fail4: check-v2.sh does not match its sha256
+2026-11-03T20:07:34Z 20261103T200734Z-1124131-2 run end failed (source.fail4: check-v2.sh does not match its sha256) in 0s
+2026-11-03T20:07:35Z 20261103T200735Z-1124674-2 run start
+2026-11-03T20:07:35Z 20261103T200735Z-1124674-2 run source.fail5: corrupt.txt does not match its sha256
+2026-11-03T20:07:35Z 20261103T200735Z-1124674-2 run end failed (source.fail5: corrupt.txt does not match its sha256) in 0s
+2026-11-03T20:07:36Z 20261103T200736Z-1125165-2 run start
+2026-11-03T20:07:36Z 20261103T200736Z-1125165-2 run source.fail6: sftp failed: vigil@127.0.0.1: Permission denied (publickey,password,keyboard-interactive).
+2026-11-03T20:07:36Z 20261103T200736Z-1125165-2 run end failed (source.fail6: sftp failed: vigil@127.0.0.1: Permission denied (publickey,password,keyboard-interactive).) in 0s
+2026-11-03T20:07:37Z 20261103T200737Z-1125652-2 run start
+2026-11-03T20:07:37Z 20261103T200737Z-1125652-2 run source.fail7: sftp failed: No ED25519 host key is known for [127.0.0.1]:2022 and you have requested strict checking.
+2026-11-03T20:07:37Z 20261103T200737Z-1125652-2 run end failed (source.fail7: sftp failed: No ED25519 host key is known for [127.0.0.1]:2022 and you have requested strict checking.) in 0s
+2026-11-03T20:07:38Z 20261103T200738Z-1125931-2 run start
+2026-11-03T20:07:38Z 20261103T200738Z-1125931-2 run source.fail7: sftp failed: No ED25519 host key is known for [127.0.0.1]:2022 and you have requested strict checking.
+2026-11-03T20:07:38Z 20261103T200738Z-1125931-2 run end failed (source.fail7: sftp failed: No ED25519 host key is known for [127.0.0.1]:2022 and you have requested strict checking.) in 0s
+2026-11-03T20:07:39Z 20261103T200738Z-1126457-2 run start
+2026-11-03T20:07:39Z 20261103T200738Z-1126457-2 run source.fail8: sftp failed: @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+2026-11-03T20:07:39Z 20261103T200738Z-1126457-2 run end failed (source.fail8: sftp failed: @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@) in 0s
+2026-11-03T20:07:40Z 20261103T200740Z-1126981-2 run start
+2026-11-03T20:07:40Z 20261103T200740Z-1126981-2 run configuration revision f6db5b7f1cfd activated (source.central posix.config)
+2026-11-03T20:07:40Z 20261103T200740Z-1126981-2 run end succeeded in 0s
+2026-11-03T20:07:41Z 20261103T200741Z-1127518-2 run start
+2026-11-03T20:07:41Z 20261103T200741Z-1127518-2 run   ERROR    line 8: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:07:41Z 20261103T200741Z-1127518-2 run source.central: posix.config has errors
+2026-11-03T20:07:41Z 20261103T200741Z-1127518-2 run end failed (source.central: posix.config has errors) in 0s
+2026-11-03T20:07:42Z 20261103T200742Z-1128053-2 run start
+2026-11-03T20:07:42Z 20261103T200742Z-1128053-2 run configuration revision 70974d04780a activated (source.central posix.config)
+2026-11-03T20:07:42Z 20261103T200742Z-1128053-2 run end succeeded in 0s
+2026-11-03T20:07:43Z 20261103T200743Z-1128392-2 run start
+2026-11-03T20:07:43Z 20261103T200743Z-1128392-2 run end succeeded in 0s
+2026-11-03T20:07:45Z 20261103T200744Z-1128906-2 run start
+2026-11-03T20:07:45Z 20261103T200744Z-1128906-2 run source.central: sftp failed: ssh: connect to host 127.0.0.1 port 2022: Connection refused
+2026-11-03T20:07:45Z 20261103T200744Z-1128906-2 run end failed (source.central: sftp failed: ssh: connect to host 127.0.0.1 port 2022: Connection refused) in 0s
+2026-11-03T20:07:46Z 20261103T200746Z-1129561-2 run start
+2026-11-03T20:07:46Z 20261103T200746Z-1129561-2 run configuration revision f6db5b7f1cfd activated (source.central posix.config)
+2026-11-03T20:07:47Z 20261103T200746Z-1129561-2 run end succeeded in 1s
+2026-11-03T20:07:47Z 20261103T200747Z-1129878-2 run start
+2026-11-03T20:07:47Z 20261103T200747Z-1129878-2 run end succeeded in 0s

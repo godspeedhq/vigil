@@ -33,9 +33,12 @@ all=$(cd "$runs" 2> /dev/null && ls -d */*/*/ 2> /dev/null | sed 's#/$##' | sort
 latest=$(printf '%s\n' "$all" | awk -F/ '!seen[$2 "/" $3]++' | sort -t/ -k2,2 -k3,3)
 hosts=$(printf '%s\n' "$latest" | cut -d/ -f2 | sort -u)
 
-# What a run's console says, as "<pass> <fail> <not run> <other>".
+# What a run's console says, as "<pass> <fail> <not run> <other>". A
+# backend run's results are verify.sh's, after "<target>, run <tag>": the
+# precheck before it reports the job whose file is missing on purpose.
 counts() {
     tr -d '\r' < "$1" | awk '
+        /^[a-z0-9-]+, run bk[0-9]+$/ { p = f = n = o = 0 }
         /^ +PASS /                 { p++ }
         /^ +FAIL /                 { f++ }
         /^ +NOT RUN /              { n++ }

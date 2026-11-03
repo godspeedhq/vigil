@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_probe
+run_id           = 20261103T201147Z-15747
+instance         = store-test
+status           = succeeded
+reason           = 
+boot_id          = boot-1790391279
+started_epoch    = 1793736707
+started_at       = 2026-11-03T20:11:47Z
+deadline_epoch   = 
+worker_pid       = 15747
+worker_name      = bash
+worker_start     = 
+job_pid          = 15864
+job_name         = bash
+job_start        = 
+ended_epoch      = 1793736707
+ended_at         = 2026-11-03T20:11:47Z
+duration_seconds = 0
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793736707-bk_probe-20261103T201147Z-15747.events

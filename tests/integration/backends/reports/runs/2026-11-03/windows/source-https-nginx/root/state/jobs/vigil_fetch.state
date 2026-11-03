@@ -1,0 +1,15 @@
+[state]
+schema_version   = 1
+job              = vigil_fetch
+run_id           = 20261103T204336Z-11832-2
+status           = failed
+reason           = source.untrusted: the certificate of 127.0.0.1:9443 is not trusted
+boot_id          = boot-1793614138
+started_epoch    = 1793738619
+started_at       = 2026-11-03T20:43:39Z
+worker_pid       = 12100
+worker_name      = powershell.exe
+worker_start     = 1793738616
+ended_epoch      = 1793738624
+ended_at         = 2026-11-03T20:43:44Z
+duration_seconds = 5

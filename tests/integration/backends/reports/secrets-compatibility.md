@@ -1,6 +1,6 @@
 # Secrets compatibility matrix
 
-How Vigil's secret stores work with real secret services and local emulators, and what a real test showed (backlog task 24). A result changes only with evidence from a run of `scripts/run-store.sh` or `run-store.ps1`. A test that didn't run is never marked Passed.
+How Vigil's secret stores work with real secret services and local emulators, and what a real test showed (backlog task 24). A result changes only with evidence from a run of `scripts/run-store.sh` or `run-store.ps1`. A test that didn't run is never marked Passed. Every run below kept its console output, Vigil's logs and state: see [Real systems](https://godspeedhq.github.io/vigil/real/) on the site, or [`runs/`](runs).
 
 **Three kinds of validation, never mixed:**
 - **Real backend:** the genuine product, run locally (OpenBao, HashiCorp Vault).
@@ -160,10 +160,12 @@ That makes this a test of **retrieval only**, against a second, independent Secr
 
 ## Runs
 
-| Date | Vigil on | OpenBao | Vault | Floci AWS | Floci Azure | Lowkey Vault | Floci GCP | Blackwell | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-11-03 | Fedora 44 (the Docker host), bash 5.3 | 26 of 26 | 26 of 26 | 20 of 20, 1 limitation | 22 of 22, 1 limitation | 22 of 22, 1 limitation | 22 of 22, 1 limitation | 22 of 22, 1 limitation | restart and recovery included |
-| 2026-11-03 | macOS 12.7.6, bash 3.2, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | restart not run: it needs the Docker host |
-| 2026-11-03 | Windows 11 Pro, PowerShell 5.1, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | the same; rotation through Git Bash's curl |
+| Date | Vigil on | OpenBao | Vault | Floci AWS | Floci Azure | Lowkey Vault | Floci GCP | Blackwell | Notes | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-03 | Fedora 44 (the Docker host), bash 5.3 | 26 of 26 | 26 of 26 | 20 of 20, 1 limitation | 22 of 22, 1 limitation | 22 of 22, 1 limitation | 22 of 22, 1 limitation | 22 of 22, 1 limitation | restart and recovery included | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/) |
+| 2026-11-03 | macOS 12.7.6, bash 3.2, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | restart not run: it needs the Docker host | [macOS](https://godspeedhq.github.io/vigil/real/macos/) |
+| 2026-11-03 | Windows 11 Pro, PowerShell 5.1, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | the same; rotation through Git Bash's curl | [Windows](https://godspeedhq.github.io/vigil/real/windows/) |
+
+All three ran Vigil at commit `4040737`, on main.
 
 The restart checks run only where the store's container runs, so Vigil's recovery after an outage has been seen on Linux only so far. Running them from macOS and Windows, with the Docker host's containers stopped and started remotely, is part of phase 3.

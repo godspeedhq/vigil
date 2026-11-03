@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_missing
+run_id           = 20261103T202327Z-13144
+instance         = store-test
+status           = failed
+reason           = secret store:aws/vigil/nosuch unavailable: not found (ResourceNotFoundException)
+boot_id          = boot-1793614138
+started_epoch    = 1793737410
+started_at       = 2026-11-03T20:23:30Z
+deadline_epoch   =
+worker_pid       = 13144
+worker_name      = powershell.exe
+worker_start     = 1793737403
+ended_epoch      = 1793737411
+ended_at         = 2026-11-03T20:23:31Z
+duration_seconds = 1
+exit_code        =
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737411-bk_missing-20261103T202327Z-13144.events

@@ -1,0 +1,6 @@
+[active]
+schema_version = 1
+revision       = 8301dca3aff7
+config         = 3da6eee1b3dc33763e2771b06c1bac9208e628fc606cf893918465a3e0294a4d
+origin         = source.central hosts/posix.config
+activated_epoch = 1793736814

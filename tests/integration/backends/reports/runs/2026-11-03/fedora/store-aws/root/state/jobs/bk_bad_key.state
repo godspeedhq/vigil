@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_bad_key
+run_id           = 20261103T200500Z-1078507
+instance         = store-test
+status           = succeeded
+reason           = 
+boot_id          = f4d0989a-632d-4986-bf54-590720c04f03
+started_epoch    = 1793736301
+started_at       = 2026-11-03T20:05:01Z
+deadline_epoch   = 
+worker_pid       = 1078507
+worker_name      = bash
+worker_start     = 1793736299
+job_pid          = 1078623
+job_name         = bash
+job_start        = 1793736300
+ended_epoch      = 1793736301
+ended_at         = 2026-11-03T20:05:01Z
+duration_seconds = 0
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793736301-bk_bad_key-20261103T200500Z-1078507.events

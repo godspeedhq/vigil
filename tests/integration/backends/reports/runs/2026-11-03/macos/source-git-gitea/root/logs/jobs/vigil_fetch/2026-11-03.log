@@ -1,0 +1,106 @@
+2026-11-03T20:12:31Z 20261103T201231Z-21545-1 run start
+2026-11-03T20:12:31Z 20261103T201231Z-21545-1 run configuration revision af290ba2df25 activated (local)
+2026-11-03T20:12:33Z 20261103T201231Z-21545-1 run end succeeded in 2s
+2026-11-03T20:12:33Z 20261103T201233Z-21699-2 run start
+2026-11-03T20:12:34Z 20261103T201233Z-21699-2 run end succeeded in 1s
+2026-11-03T20:12:36Z 20261103T201235Z-22013-2 run start
+2026-11-03T20:12:36Z 20261103T201235Z-22013-2 run configuration revision 43c3c9919868 activated (local)
+2026-11-03T20:12:37Z 20261103T201235Z-22013-2 run end succeeded in 1s
+2026-11-03T20:12:37Z 20261103T201237Z-22289-2 run start
+2026-11-03T20:12:38Z 20261103T201237Z-22289-2 run end succeeded in 1s
+2026-11-03T20:12:40Z 20261103T201240Z-22606-2 run start
+2026-11-03T20:12:40Z 20261103T201240Z-22606-2 run WARN source.repo: ref 'test' is a branch: its scripts follow it, and hosts may briefly differ (W_SCRIPT_UNPINNED)
+2026-11-03T20:12:40Z 20261103T201240Z-22606-2 run configuration revision 196b009ceceb activated (local)
+2026-11-03T20:12:41Z 20261103T201240Z-22606-2 run end succeeded in 1s
+2026-11-03T20:12:42Z 20261103T201241Z-22876-2 run start
+2026-11-03T20:12:43Z 20261103T201241Z-22876-2 run end succeeded in 1s
+2026-11-03T20:12:44Z 20261103T201244Z-23188-2 run start
+2026-11-03T20:12:44Z 20261103T201244Z-23188-2 run configuration revision b0dd3f217374 activated (local)
+2026-11-03T20:12:45Z 20261103T201244Z-23188-2 run end succeeded in 1s
+2026-11-03T20:12:46Z 20261103T201246Z-23460-2 run start
+2026-11-03T20:12:47Z 20261103T201246Z-23460-2 run end succeeded in 1s
+2026-11-03T20:12:50Z 20261103T201250Z-23798-2 run start
+2026-11-03T20:12:50Z 20261103T201250Z-23798-2 run WARN source.repo: ref 'moving' is a branch: its scripts follow it, and hosts may briefly differ (W_SCRIPT_UNPINNED)
+2026-11-03T20:12:50Z 20261103T201250Z-23798-2 run configuration revision c3822d958a18 activated (local)
+2026-11-03T20:12:51Z 20261103T201250Z-23798-2 run end succeeded in 1s
+2026-11-03T20:12:52Z 20261103T201251Z-24077-2 run start
+2026-11-03T20:12:52Z 20261103T201251Z-24077-2 run end succeeded in 0s
+2026-11-03T20:12:55Z 20261103T201255Z-24420-2 run start
+2026-11-03T20:12:55Z 20261103T201255Z-24420-2 run configuration revision af290ba2df25 activated (local)
+2026-11-03T20:12:56Z 20261103T201255Z-24420-2 run end succeeded in 1s
+2026-11-03T20:12:57Z 20261103T201257Z-24693-2 run start
+2026-11-03T20:12:58Z 20261103T201257Z-24693-2 run end succeeded in 1s
+2026-11-03T20:12:59Z 20261103T201259Z-24953-2 run start
+2026-11-03T20:12:59Z 20261103T201259Z-24953-2 run source.repo: ref 'nosuch' not found
+2026-11-03T20:13:00Z 20261103T201259Z-24953-2 run end failed (source.repo: ref 'nosuch' not found) in 1s
+2026-11-03T20:13:01Z 20261103T201301Z-25198-2 run start
+2026-11-03T20:13:01Z 20261103T201301Z-25198-2 run source.repo: ref 'nosuch' not found
+2026-11-03T20:13:02Z 20261103T201301Z-25198-2 run end failed (source.repo: ref 'nosuch' not found) in 1s
+2026-11-03T20:13:03Z 20261103T201303Z-25511-2 run start
+2026-11-03T20:13:03Z 20261103T201303Z-25511-2 run source.repo: checks/nosuch.sh not found
+2026-11-03T20:13:04Z 20261103T201303Z-25511-2 run end failed (source.repo: checks/nosuch.sh not found) in 1s
+2026-11-03T20:13:05Z 20261103T201305Z-25780-2 run start
+2026-11-03T20:13:05Z 20261103T201305Z-25780-2 run source.repo: checks/nosuch.sh not found
+2026-11-03T20:13:06Z 20261103T201305Z-25780-2 run end failed (source.repo: checks/nosuch.sh not found) in 1s
+2026-11-03T20:13:07Z 20261103T201307Z-26087-2 run start
+2026-11-03T20:13:07Z 20261103T201307Z-26087-2 run source.repo: git fetch failed: remote: Repository not found
+2026-11-03T20:13:07Z 20261103T201307Z-26087-2 run end failed (source.repo: git fetch failed: remote: Repository not found) in 0s
+2026-11-03T20:13:08Z 20261103T201308Z-26348-2 run start
+2026-11-03T20:13:08Z 20261103T201308Z-26348-2 run source.repo: git fetch failed: remote: Repository not found
+2026-11-03T20:13:09Z 20261103T201308Z-26348-2 run end failed (source.repo: git fetch failed: remote: Repository not found) in 1s
+2026-11-03T20:13:10Z 20261103T201310Z-26647-2 run start
+2026-11-03T20:13:10Z 20261103T201310Z-26647-2 run source.repo: 'checks/escape' at link is a symbolic link pointing outside the repository
+2026-11-03T20:13:11Z 20261103T201310Z-26647-2 run end failed (source.repo: 'checks/escape' at link is a symbolic link pointing outside the repository) in 1s
+2026-11-03T20:13:12Z 20261103T201312Z-26928-2 run start
+2026-11-03T20:13:12Z 20261103T201312Z-26928-2 run source.repo: 'checks/escape' at link is a symbolic link pointing outside the repository
+2026-11-03T20:13:13Z 20261103T201312Z-26928-2 run end failed (source.repo: 'checks/escape' at link is a symbolic link pointing outside the repository) in 1s
+2026-11-03T20:13:14Z 20261103T201314Z-27243-2 run start
+2026-11-03T20:13:14Z 20261103T201314Z-27243-2 run source.repo: git fetch failed: remote: Failed to authenticate user
+2026-11-03T20:13:15Z 20261103T201314Z-27243-2 run end failed (source.repo: git fetch failed: remote: Failed to authenticate user) in 1s
+2026-11-03T20:13:15Z 20261103T201315Z-27508-2 run start
+2026-11-03T20:13:15Z 20261103T201315Z-27508-2 run source.repo: git fetch failed: fatal: could not read Username for 'https://127.0.0.1:3443': terminal prompts disabled
+2026-11-03T20:13:16Z 20261103T201315Z-27508-2 run end failed (source.repo: git fetch failed: fatal: could not read Username for 'https://127.0.0.1:3443': terminal prompts disabled) in 1s
+2026-11-03T20:13:17Z 20261103T201317Z-27808-2 run start
+2026-11-03T20:13:17Z 20261103T201317Z-27808-2 run configuration revision bf71c7449f2c activated (local)
+2026-11-03T20:13:18Z 20261103T201317Z-27808-2 run end succeeded in 1s
+2026-11-03T20:13:19Z 20261103T201318Z-28089-2 run start
+2026-11-03T20:13:19Z 20261103T201318Z-28089-2 run end succeeded in 0s
+2026-11-03T20:13:20Z 20261103T201320Z-28396-2 run start
+2026-11-03T20:13:20Z 20261103T201320Z-28396-2 run source.repo: git fetch failed: git@127.0.0.1: Permission denied (publickey).
+2026-11-03T20:13:21Z 20261103T201320Z-28396-2 run end failed (source.repo: git fetch failed: git@127.0.0.1: Permission denied (publickey).) in 1s
+2026-11-03T20:13:22Z 20261103T201321Z-28646-2 run start
+2026-11-03T20:13:22Z 20261103T201321Z-28646-2 run source.repo: git fetch failed: git@127.0.0.1: Permission denied (publickey).
+2026-11-03T20:13:22Z 20261103T201321Z-28646-2 run end failed (source.repo: git fetch failed: git@127.0.0.1: Permission denied (publickey).) in 0s
+2026-11-03T20:13:23Z 20261103T201323Z-28941-2 run start
+2026-11-03T20:13:23Z 20261103T201323Z-28941-2 run source.repo: git fetch failed: No ED25519 host key is known for [127.0.0.1]:2222 and you have requested strict checking.
+2026-11-03T20:13:23Z 20261103T201323Z-28941-2 run end failed (source.repo: git fetch failed: No ED25519 host key is known for [127.0.0.1]:2222 and you have requested strict checking.) in 0s
+2026-11-03T20:13:24Z 20261103T201324Z-29199-2 run start
+2026-11-03T20:13:24Z 20261103T201324Z-29199-2 run source.repo: git fetch failed: No ED25519 host key is known for [127.0.0.1]:2222 and you have requested strict checking.
+2026-11-03T20:13:25Z 20261103T201324Z-29199-2 run end failed (source.repo: git fetch failed: No ED25519 host key is known for [127.0.0.1]:2222 and you have requested strict checking.) in 1s
+2026-11-03T20:13:26Z 20261103T201326Z-29497-2 run start
+2026-11-03T20:13:26Z 20261103T201326Z-29497-2 run configuration revision a071bcd006f6 activated (source.central hosts/posix.config)
+2026-11-03T20:13:28Z 20261103T201326Z-29497-2 run end succeeded in 2s
+2026-11-03T20:13:29Z 20261103T201329Z-29837-2 run start
+2026-11-03T20:13:30Z 20261103T201329Z-29837-2 run end succeeded in 1s
+2026-11-03T20:13:30Z 20261103T201330Z-30160-2 run start
+2026-11-03T20:13:30Z 20261103T201330Z-30160-2 run   ERROR    line 9: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:13:30Z 20261103T201330Z-30160-2 run source.central: hosts/posix.config has errors
+2026-11-03T20:13:31Z 20261103T201330Z-30160-2 run end failed (source.central: hosts/posix.config has errors) in 1s
+2026-11-03T20:13:32Z 20261103T201332Z-30451-2 run start
+2026-11-03T20:13:32Z 20261103T201332Z-30451-2 run   ERROR    line 9: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:13:32Z 20261103T201332Z-30451-2 run source.central: hosts/posix.config has errors
+2026-11-03T20:13:33Z 20261103T201332Z-30451-2 run end failed (source.central: hosts/posix.config has errors) in 1s
+2026-11-03T20:13:34Z 20261103T201334Z-30777-2 run start
+2026-11-03T20:13:34Z 20261103T201334Z-30777-2 run configuration revision 8301dca3aff7 activated (source.central hosts/posix.config)
+2026-11-03T20:13:35Z 20261103T201334Z-30777-2 run end succeeded in 1s
+2026-11-03T20:13:36Z 20261103T201336Z-31085-2 run start
+2026-11-03T20:13:37Z 20261103T201336Z-31085-2 run end succeeded in 1s
+2026-11-03T20:13:37Z 20261103T201337Z-31381-2 run start
+2026-11-03T20:13:37Z 20261103T201337Z-31381-2 run configuration revision a8456bd04ece activated (source.central hosts/posix.config)
+2026-11-03T20:13:39Z 20261103T201337Z-31381-2 run end succeeded in 2s
+2026-11-03T20:13:40Z 20261103T201339Z-31701-2 run start
+2026-11-03T20:13:40Z 20261103T201339Z-31701-2 run end succeeded in 0s
+2026-11-03T20:13:41Z 20261103T201341Z-32032-2 run start
+2026-11-03T20:13:42Z 20261103T201341Z-32032-2 run end succeeded in 1s
+2026-11-03T20:13:43Z 20261103T201342Z-32320-2 run start
+2026-11-03T20:13:43Z 20261103T201342Z-32320-2 run end succeeded in 0s

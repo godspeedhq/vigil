@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_missing
+run_id           = 20261103T200446Z-1074416
+instance         = store-test
+status           = failed
+reason           = secret store:st/vigil/nosuch unavailable: not found (HTTP 404)
+boot_id          = f4d0989a-632d-4986-bf54-590720c04f03
+started_epoch    = 1793736286
+started_at       = 2026-11-03T20:04:46Z
+deadline_epoch   = 
+worker_pid       = 1074416
+worker_name      = bash
+worker_start     = 1793736285
+ended_epoch      = 1793736286
+ended_at         = 2026-11-03T20:04:46Z
+duration_seconds = 0
+exit_code        = 
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793736286-bk_missing-20261103T200446Z-1074416.events

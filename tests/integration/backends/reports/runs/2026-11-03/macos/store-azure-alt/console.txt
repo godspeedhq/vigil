@@ -1,0 +1,48 @@
+== store-azure-alt
+date     2026-11-03T20:12:12Z
+host     Bankoles-MacBook-Air.local
+os       macOS 12.7.6 (Darwin 21.6.0 x86_64)
+vigil    4040737fcd2d7092b21fcf4b915e2f64d36cba21 (deployed copy)
+command  scripts/run-store.sh azure-alt
+bash     3.2.57(1)-release
+git      git version 2.37.1 (Apple Git-137.1)
+curl     curl 8.7.1 (x86_64-apple-darwin21.0) libcurl/8.7.1 (SecureTransport) LibreSSL/3.3.6 zlib/1.2.11 nghttp2/1.45.1
+openssl  LibreSSL 2.8.3
+ssh      OpenSSH_8.6p1, LibreSSL 3.3.6
+images   (as compose.secrets.yaml pins them)
+         floci/floci-az:0.15.0
+         floci/floci-gcp:0.11.0
+         floci/floci:2.3.0
+         ghcr.io/blackwell-systems/gcp-secret-manager-emulator-dual:1.9.0@sha256:2c9d3bb0453fdff102b29af00b4abd9b2c6fa466031a9d8e6d93a270ba22a6e2
+         hashicorp/vault:2.2.0
+         nagyesta/lowkey-vault:7.3.127
+         nginx:1.30.5-alpine
+         openbao/openbao:2.7.1
+
+
+azure-alt, azure_keyvault store
+  PASS  precheck bk_sp: fetched
+  PASS  precheck bk_latest: fetched
+  PASS  precheck bk_version: fetched
+  PASS  precheck bk_missing: not found
+  PASS  precheck bk_bad_version: not found
+  PASS  precheck bk_bad_name: not a valid Key Vault secret name
+  PASS  precheck bk_untrusted: is not trusted
+  PASS  precheck bk_managed_identity: fetched
+  PASS  precheck bk_rotating: fetched
+  PASS  bk_sp                                succeeded
+  PASS  bk_latest                            succeeded
+  PASS  bk_version (the first version, by id) succeeded
+  PASS  bk_missing                           failed: secret store:az/vigil-nosuch unavailable: not found (HTTP 404)
+  PASS  bk_bad_version                       failed: secret store:az/vigil-versioned/0123456789abcdef0123456789abcdef unavailable: not found (HTTP 404)
+  PASS  bk_bad_name                          failed: secret store:az/vigil_probe unavailable: not a valid Key Vault secret name
+  PASS  bk_untrusted                         failed: secret store:az_untrusted/vigil-probe unavailable: the certificate of 127.0.0.1:8443 is not trusted
+  PASS  bk_managed_identity (VIGIL_TEST_IMDS) succeeded
+  PASS  bk_rotating                          succeeded
+  PASS  bk_rotating after rotation (new value) succeeded
+  EMULATOR LIMITATION  bk_sp_alt (service_principal): secret store:az_sp/vigil-probe unavailable: sign-in failed: permission denied (HTTP 401); Lowkey Vault has no client-credentials endpoint
+  NOT RUN  restart: azure-alt does not run here (it needs the Docker host)
+  PASS  no secret or credential under the Vigil root or in its output
+
+20 passed, 0 failed, 1 not run, 1 emulator limitations
+evidence: reports/runs/2026-11-03/macos/store-azure-alt

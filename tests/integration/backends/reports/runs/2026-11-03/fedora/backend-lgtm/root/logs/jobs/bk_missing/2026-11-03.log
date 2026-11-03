@@ -1,0 +1,4 @@
+2026-11-03T20:09:07Z 20261103T200907Z-1138662-16 run start
+2026-11-03T20:09:07Z 20261103T200907Z-1138662-16 run end failed (file not found: /tmp/vigil-bk.wXbrzp/root/scripts/missing.sh) in 0s
+2026-11-03T20:10:07Z 20261103T201007Z-1138662-35 run start
+2026-11-03T20:10:07Z 20261103T201007Z-1138662-35 run end failed (file not found: /tmp/vigil-bk.wXbrzp/root/scripts/missing.sh) in 0s

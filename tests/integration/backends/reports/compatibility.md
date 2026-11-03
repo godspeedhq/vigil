@@ -58,6 +58,9 @@ Each run adds a row here: date, target, the image versions it ran, the run tag, 
 | 2026-11-03 | `lgtm` | Fedora 44, with counts as cumulative sums (#64) | `grafana/otel-lgtm:0.38.1` | `bk2026110314401288246` | **Passed** | **Passed** | on the Fedora test host |
 | 2026-11-03 | `lgtm` | macOS 12.7, bash 3.2, tunnels to Fedora, cumulative sums | `grafana/otel-lgtm:0.38.1` | `bk2026110314495011786` | **Passed** | **Passed** | on the Mac test host |
 | 2026-11-03 | `lgtm` | Windows 11 Pro, PowerShell 5.1, tunnels to Fedora, cumulative sums and #63 | `grafana/otel-lgtm:0.38.1` | `bk2026110314495310700` | **Passed** | **Passed** | on the Windows test host |
+| 2026-11-03 | `lgtm` | Fedora 44, bash 5.3, at `4040737`, evidence kept | `grafana/otel-lgtm:0.38.1` | `bk202611032008051138583` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-lgtm), [files](runs/2026-11-03/fedora/backend-lgtm) |
+| 2026-11-03 | `lgtm` | macOS 12.7.6, bash 3.2, tunnels to Fedora, at `4040737`, evidence kept | `grafana/otel-lgtm:0.38.1` | `bk2026110320160960421` | **Passed** | **Passed** | [macOS](https://godspeedhq.github.io/vigil/real/macos/#backend-lgtm), [files](runs/2026-11-03/macos/backend-lgtm) |
+| 2026-11-03 | `lgtm` | Windows 11 Pro, PowerShell 5.1, tunnels to Fedora, at `c278240`, evidence kept | `grafana/otel-lgtm:0.38.1` | `bk202611032135249088` | **Passed** | **Passed** | [Windows](https://godspeedhq.github.io/vigil/real/windows/#backend-lgtm), [files](runs/2026-11-03/windows/backend-lgtm) |
 
 ### Windows: what the first runs found
 

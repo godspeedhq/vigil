@@ -1,0 +1,69 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261103202824
+Username: DESKTOP-NN48DRS\vigil-test
+RunAs User: DESKTOP-NN48DRS\vigil-test
+Configuration Name: 
+Machine: DESKTOP-NN48DRS (Microsoft Windows NT 10.0.22631.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\run-store.ps1 azure-alt
+Process ID: 4600
+PSVersion: 5.1.22621.6133
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22621.6133
+BuildVersion: 10.0.22621.6133
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+== store-azure-alt
+date     2026-11-03T20:28:24Z
+host     DESKTOP-NN48DRS
+os       Windows 11 Pro 23H2 (build 22631.6199)
+vigil    4040737fcd2d7092b21fcf4b915e2f64d36cba21 (deployed copy)
+command  C:\Users\vigil-test\vigil\tests\integration\backends\scripts\run-store.ps1 azure-alt
+shell    PowerShell 5.1.22621.6133 (Desktop)
+git      git version 2.56.0.windows.4
+curl     curl 8.13.0 (Windows) libcurl/8.13.0 Schannel zlib/1.3.1 WinIDN
+ssh      OpenSSH_for_Windows_9.5p1, LibreSSL 3.8.2
+images   (as compose.secrets.yaml pins them)
+         openbao/openbao:2.7.1
+         hashicorp/vault:2.2.0
+         floci/floci:2.3.0
+         nginx:1.30.5-alpine
+         floci/floci-az:0.15.0
+         floci/floci-gcp:0.11.0
+         nagyesta/lowkey-vault:7.3.127
+         ghcr.io/blackwell-systems/gcp-secret-manager-emulator-dual:1.9.0@sha256:2c9d3bb0453fdff102b29af00b4abd9b2c6fa466031a9d8e6d93a270ba22a6e2
+
+
+azure-alt, azure_keyvault store
+  PASS  precheck bk_sp: fetched
+  PASS  precheck bk_latest: fetched
+  PASS  precheck bk_version: fetched
+  PASS  precheck bk_missing: not found
+  PASS  precheck bk_bad_version: not found
+  PASS  precheck bk_bad_name: not a valid Key Vault secret name
+  PASS  precheck bk_untrusted: is not trusted
+  PASS  precheck bk_managed_identity: fetched
+  PASS  precheck bk_rotating: fetched
+  PASS  bk_sp                                succeeded
+  PASS  bk_latest                            succeeded
+  PASS  bk_version (the first version, by id) succeeded
+  PASS  bk_missing                           failed: secret store:az/vigil-nosuch unavailable: not found (HTTP 404)
+  PASS  bk_bad_version                       failed: secret store:az/vigil-versioned/0123456789abcdef0123456789abcdef unavailable: not found (HTTP 404)
+  PASS  bk_bad_name                          failed: secret store:az/vigil_probe unavailable: not a valid Key Vault secret name
+  PASS  bk_untrusted                         failed: secret store:az_untrusted/vigil-probe unavailable: the certificate of 127.0.0.1:8443 is not trusted
+  PASS  bk_managed_identity (VIGIL_TEST_IMDS) succeeded
+  PASS  bk_rotating                          succeeded
+  PASS  bk_rotating after rotation (new value) succeeded
+  EMULATOR LIMITATION  bk_sp_alt (service_principal): secret store:az_sp/vigil-probe unavailable: sign-in failed: permission denied (HTTP 401); Lowkey Vault has no client-credentials endpoint
+  NOT RUN  restart: azure-alt does not run here (run-store.sh does it on the Docker host)
+  PASS  no secret or credential under the Vigil root or in its output
+
+20 passed, 0 failed, 1 not run, 1 emulator limitations
+evidence: reports\runs\2026-11-03\windows\store-azure-alt
+**********************
+Windows PowerShell transcript end
+End time: 20261103203001
+**********************

@@ -1,0 +1,2 @@
+2026-11-03T20:05:06Z 20261103T200506Z-1080001 run start
+2026-11-03T20:05:07Z 20261103T200506Z-1080001 run end failed (secret store:az/vigil-versioned/0123456789abcdef0123456789abcdef unavailable: not found (HTTP 404)) in 1s

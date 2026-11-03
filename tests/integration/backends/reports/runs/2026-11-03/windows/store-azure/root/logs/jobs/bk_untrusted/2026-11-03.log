@@ -1,0 +1,2 @@
+2026-11-03T20:25:43Z 20261103T202541Z-5352 run start
+2026-11-03T20:25:44Z 20261103T202541Z-5352 run end failed (secret store:az_untrusted/vigil-probe unavailable: sign-in failed: the certificate of 127.0.0.1:4577 is not trusted) in 1s

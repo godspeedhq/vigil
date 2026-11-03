@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_native
+run_id           = 20261103T213739Z-14760-23
+instance         = backend-test
+status           = succeeded
+reason           =
+boot_id          = boot-1793614138
+started_epoch    = 1793741870
+started_at       = 2026-11-03T21:37:50Z
+deadline_epoch   =
+worker_pid       = 12044
+worker_name      = powershell.exe
+worker_start     = 1793741859
+job_pid          = 4616
+job_name         = HOSTNAME.exe
+job_start        = 1793741873
+ended_epoch      = 1793741873
+ended_at         = 2026-11-03T21:37:53Z
+duration_seconds = 3
+exit_code        = 0
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793741873-bk_native-20261103T213739Z-14760-23.events

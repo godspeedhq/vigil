@@ -1,0 +1,8 @@
+[source]
+identity      = git https://127.0.0.1:3443/vigil-admin/vigil-sources.git :22  v1
+checked_epoch = 1793736401
+ok_epoch      = 1793736401
+entry         = 0f7c39e147fba465ac30f5981962451e6d9832cf
+kind          = tag
+failures      = 0
+error         = 

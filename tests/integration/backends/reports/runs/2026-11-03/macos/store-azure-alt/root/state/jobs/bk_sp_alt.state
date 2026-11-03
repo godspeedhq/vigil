@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_sp_alt
+run_id           = 20261103T201220Z-20064
+instance         = store-test
+status           = failed
+reason           = secret store:az_sp/vigil-probe unavailable: sign-in failed: permission denied (HTTP 401)
+boot_id          = boot-1790391279
+started_epoch    = 1793736740
+started_at       = 2026-11-03T20:12:20Z
+deadline_epoch   = 
+worker_pid       = 20064
+worker_name      = bash
+worker_start     = 
+ended_epoch      = 1793736741
+ended_at         = 2026-11-03T20:12:21Z
+duration_seconds = 1
+exit_code        = 
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793736741-bk_sp_alt-20261103T201220Z-20064.events

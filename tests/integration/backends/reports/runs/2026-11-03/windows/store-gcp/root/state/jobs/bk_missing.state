@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_missing
+run_id           = 20261103T202703Z-8164
+instance         = store-test
+status           = failed
+reason           = secret store:gcp/vigil-nosuch unavailable: not found (HTTP 404)
+boot_id          = boot-1793614138
+started_epoch    = 1793737625
+started_at       = 2026-11-03T20:27:05Z
+deadline_epoch   =
+worker_pid       = 8164
+worker_name      = powershell.exe
+worker_start     = 1793737621
+ended_epoch      = 1793737629
+ended_at         = 2026-11-03T20:27:09Z
+duration_seconds = 4
+exit_code        =
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737629-bk_missing-20261103T202703Z-8164.events

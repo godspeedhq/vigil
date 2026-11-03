@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_latest
+run_id           = 20261103T200514Z-1082409
+instance         = store-test
+status           = succeeded
+reason           = 
+boot_id          = f4d0989a-632d-4986-bf54-590720c04f03
+started_epoch    = 1793736314
+started_at       = 2026-11-03T20:05:14Z
+deadline_epoch   = 
+worker_pid       = 1082409
+worker_name      = bash
+worker_start     = 1793736313
+job_pid          = 1082478
+job_name         = bash
+job_start        = 1793736313
+ended_epoch      = 1793736314
+ended_at         = 2026-11-03T20:05:14Z
+duration_seconds = 0
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793736314-bk_latest-20261103T200514Z-1082409.events

@@ -1,0 +1,7 @@
+[active]
+schema_version = 1
+revision       = bff7c1ac60ef
+config         = 8cf7a400b84fe5108058626219d3a820a5ed0c1f286bca113f09de07a6501609
+origin         = source.central windows.config
+script         = files 11eecfa95d36050232bb47d1fad617e88a983a0d0ca14a526c301f7b9be74fe0 11eecfa95d36050232bb47d1fad617e88a983a0d0ca14a526c301f7b9be74fe0 check-v2.ps1
+activated_epoch = 1793738994

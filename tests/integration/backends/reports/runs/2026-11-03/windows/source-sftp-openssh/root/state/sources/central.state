@@ -1,0 +1,8 @@
+[source]
+identity      = sftp /files/configs/v2 127.0.0.1:2022 vigil 
+checked_epoch = 1793739012
+ok_epoch      = 1793739012
+entry         = 8cf7a400b84fe5108058626219d3a820a5ed0c1f286bca113f09de07a6501609
+kind          = 
+failures      = 0
+error         = 

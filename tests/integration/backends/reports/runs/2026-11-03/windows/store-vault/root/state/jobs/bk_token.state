@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_token
+run_id           = 20261103T202130Z-2632
+instance         = store-test
+status           = succeeded
+reason           =
+boot_id          = boot-1793614138
+started_epoch    = 1793737291
+started_at       = 2026-11-03T20:21:31Z
+deadline_epoch   =
+worker_pid       = 2632
+worker_name      = powershell.exe
+worker_start     = 1793737285
+job_pid          = 11052
+job_name         = powershell.exe
+job_start        = 1793737292
+ended_epoch      = 1793737292
+ended_at         = 2026-11-03T20:21:32Z
+duration_seconds = 1
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737292-bk_token-20261103T202130Z-2632.events

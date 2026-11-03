@@ -1,0 +1,10 @@
+Vigil source-test at 2026-11-03T20:42:24Z
+
+SOURCES
+  revision de45d3e1051c (source.central hosts/windows.config)
+
+WAITING
+  remote_check: next 2029-12-17T00:00:00Z
+
+LAST RUN
+  remote_check: succeeded

@@ -1,0 +1,15 @@
+[state]
+schema_version   = 1
+job              = vigil_fetch
+run_id           = 20261103T205001Z-8336-2
+status           = succeeded
+reason           =
+boot_id          = boot-1793614138
+started_epoch    = 1793739005
+started_at       = 2026-11-03T20:50:05Z
+worker_pid       = 600
+worker_name      = powershell.exe
+worker_start     = 1793739001
+ended_epoch      = 1793739022
+ended_at         = 2026-11-03T20:50:22Z
+duration_seconds = 17

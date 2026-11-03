@@ -1,0 +1,59 @@
+== source-local
+date     2026-11-03T20:15:25Z
+host     Bankoles-MacBook-Air.local
+os       macOS 12.7.6 (Darwin 21.6.0 x86_64)
+vigil    4040737fcd2d7092b21fcf4b915e2f64d36cba21 (deployed copy)
+command  scripts/run-source.sh local
+bash     3.2.57(1)-release
+git      git version 2.37.1 (Apple Git-137.1)
+curl     curl 8.7.1 (x86_64-apple-darwin21.0) libcurl/8.7.1 (SecureTransport) LibreSSL/3.3.6 zlib/1.2.11 nghttp2/1.45.1
+openssl  LibreSSL 2.8.3
+ssh      OpenSSH_8.6p1, LibreSSL 3.3.6
+images   (as compose.sources.yaml pins them)
+         atmoz/sftp:alpine@sha256:43dd1c023cf1bae487127d4b54660b0aee6e94c188a6599be36fb89ba115f961
+         gitea/gitea:28.2.0
+         nginx:1.30.5-alpine
+
+
+local, scripts from a local directory (its path has spaces)
+  PASS  pinned: fetched and activated
+  PASS  pinned: the job runs version 1
+  PASS  pinned, the file changed: the new content is refused, logged: check.sh no longer matches its sha256; the last verified copy stays in use
+  PASS  pinned, the file changed: the configuration is unchanged
+  PASS  pinned, the file changed: the last verified copy keeps running
+  PASS  pinned to the new digest: the job runs version 2
+  PASS  followed: the job runs version 1
+  PASS  followed: reported unpinned: W_SCRIPT_UNPINNED
+  PASS  followed, the file changed: the job runs version 2
+  PASS  a nested path: the job runs version 1
+  PASS  a relative path (against the install root): the job runs version 1
+
+local, failures: nothing changes
+  PASS  a missing file: the fetch fails
+  PASS  a missing file: says why: source.fail1: nosuch.sh not found
+  PASS  a missing file: the last good configuration stays active
+  PASS  a missing file: and its job still runs
+  PASS  a missing directory: the fetch fails
+  PASS  a missing directory: says why: source.fail2: not a directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/no such dir
+  PASS  a missing directory: the last good configuration stays active
+  PASS  a missing directory: and its job still runs
+  PASS  invalid content, never run: the fetch fails
+  PASS  invalid content, never run: says why: source.fail3: corrupt.txt does not match its sha256
+  PASS  invalid content, never run: the last good configuration stays active
+  PASS  invalid content, never run: and its job still runs
+  PASS  a file this account may not read: the fetch fails
+  PASS  a file this account may not read: says why: source.fail4: cannot copy /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/locked share: cp: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/locked share/check.sh: Permission denied
+  PASS  a file this account may not read: the last good configuration stays active
+  PASS  a file this account may not read: and its job still runs
+
+local, the configuration from a local directory (remote mode)
+  PASS  a configuration, v1: activated
+  PASS  a configuration, v1: its job runs version 1
+  PASS  a configuration invalid outside any job: refused
+  PASS  invalid outside any job: the last good one stays active
+  PASS  invalid outside any job: and its job still runs version 1
+  PASS  a configuration, v2: the update is activated
+  PASS  no password or private key under the Vigil root or in its output
+
+34 passed, 0 failed, 0 not run
+evidence: reports/runs/2026-11-03/macos/source-local

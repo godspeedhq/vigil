@@ -1,0 +1,7 @@
+[active]
+schema_version = 1
+revision       = a071bcd006f6
+config         = 9c71f027df1dfc689b57bb7d2435a8de7cbd31ff346d31affe0ba98e14cb711a
+origin         = source.central hosts/posix.config
+script         = scripts 0f7c39e147fba465ac30f5981962451e6d9832cf 5bebecfabec36fc36aff72a30213be0479e57d1bb4b45fc00739e4683e7501a1 checks/check.sh
+activated_epoch = 1793736400

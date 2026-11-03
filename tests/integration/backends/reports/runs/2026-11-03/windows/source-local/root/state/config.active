@@ -1,0 +1,7 @@
+[active]
+schema_version = 1
+revision       = bcabd3653516
+config         = a4f2a7e4b77c1d25e6cf6720a2792b26c2fc8b679047f383ea6f9e3251bf578d
+origin         = local
+script         = nested f30ab322b77a37843644f7faa85ef4cc59137fbfa8949e40420bfde43816cfb5 644785cf8e8c8a4ba0ffaef70fa213f1d8c2b2fa8717a2ca43276813836163cd nested/check.ps1
+activated_epoch = 1793739219
