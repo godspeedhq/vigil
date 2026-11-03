@@ -175,7 +175,9 @@ try {
     $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe'
     $verify = Join-Path $here 'verify.sh'
     if (Test-Path -LiteralPath $bash) {
-        & $bash $verify.Replace('\', '/') $Target $tag
+        # Through PowerShell's output, so the evidence transcript has it: a
+        # transcript misses what a program writes to the console itself.
+        & $bash $verify.Replace('\', '/') $Target $tag 2>&1 | ForEach-Object { "$_" }
         exit $LASTEXITCODE
     }
     Write-Output "`nNo bash here: run this where one is, against the same backend:"
