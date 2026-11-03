@@ -16,5 +16,7 @@ tests/conformance/**/*.input    -text
 # Source test fixtures are checked by their SHA-256, so every checkout must
 # hold the same bytes.
 tests/integration/backends/fixtures/** -text
+# Evidence, as each run wrote it (Windows: CRLF): byte for byte.
+tests/integration/backends/reports/runs/** -text
 
 *.exe binary
