@@ -164,7 +164,7 @@ sudo sysctl -w vm.max_map_count=262144
 | Graylog Open | SSPL |
 | Splunk Enterprise | Proprietary: a trial, then Splunk Free at 500 MB a day |
 
-Splunk won't start until you set `SPLUNK_START_ARGS` and `SPLUNK_GENERAL_TERMS` in `.env` yourself, after reading its terms. Nothing here accepts a licence for you.
+`scripts/start.sh splunk` refuses to start Splunk until you set `SPLUNK_START_ARGS` and `SPLUNK_GENERAL_TERMS` in `.env` yourself, after reading its terms, and the Splunk container refuses without them too. Nothing here accepts a licence for you.
 
 ## Cloud backends
 

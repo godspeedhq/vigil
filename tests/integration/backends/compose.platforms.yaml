@@ -29,7 +29,7 @@ services:
     profiles: ["clickhouse"]
     environment:
       CLICKHOUSE_USER: vigil
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       CLICKHOUSE_DB: vigil
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     ports:
@@ -54,7 +54,7 @@ services:
         condition: service_healthy
     command: ["--config=/etc/otelcol/config.yaml"]
     environment:
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
     ports:
       - "127.0.0.1:4448:4318"   # OTLP HTTP: Vigil sends here
     volumes:

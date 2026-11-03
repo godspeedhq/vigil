@@ -15,7 +15,8 @@
 #
 # Splunk Enterprise runs under its own licence, which only you can accept:
 # set SPLUNK_START_ARGS and SPLUNK_GENERAL_TERMS in .env yourself after
-# reading it. Nothing here accepts it for you. Without a licence key it runs
+# reading it: start.sh refuses without them, and so does the container.
+# Nothing here accepts it for you. Without a licence key it runs
 # as a trial, then as Splunk Free (500 MB a day). Wants 4 GB of memory or more.
 #
 # provision.sh creates the vigil_metrics (metrics) and vigil_logs (events)
@@ -27,9 +28,9 @@ services:
     image: splunk/splunk:10.6.1
     profiles: ["splunk"]
     environment:
-      SPLUNK_START_ARGS: ${SPLUNK_START_ARGS:?read the Splunk licence, then set SPLUNK_START_ARGS in .env}
-      SPLUNK_GENERAL_TERMS: ${SPLUNK_GENERAL_TERMS:?read Splunk's General Terms, then set SPLUNK_GENERAL_TERMS in .env}
-      SPLUNK_PASSWORD: ${SPLUNK_PASSWORD:?set SPLUNK_PASSWORD in .env}
+      SPLUNK_START_ARGS: ${SPLUNK_START_ARGS:-}
+      SPLUNK_GENERAL_TERMS: ${SPLUNK_GENERAL_TERMS:-}
+      SPLUNK_PASSWORD: ${SPLUNK_PASSWORD:-}
       # Plain HTTP for the collector: Vigil allows it only to this host, and
       # never turns certificate checks off, so a self-signed one would fail.
       SPLUNK_HEC_SSL: "false"

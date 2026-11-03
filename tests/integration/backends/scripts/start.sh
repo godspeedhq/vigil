@@ -39,8 +39,30 @@ fetch_upstream() {
     printf '%s' "$dir"
 }
 
+# The settings in .env target $1 cannot start without. Checked here, not in
+# the Compose files: Compose resolves every file it includes, so a value
+# required there would stop every other target too.
+needs() {
+    case $1 in
+        splunk) echo SPLUNK_START_ARGS SPLUNK_GENERAL_TERMS SPLUNK_PASSWORD VIGIL_SPLUNK_METRICS_TOKEN VIGIL_SPLUNK_LOGS_TOKEN ;;
+        elastic) echo ELASTIC_PASSWORD KIBANA_PASSWORD ;;
+        opensearch) echo OPENSEARCH_ADMIN_PASSWORD ;;
+        influxdb) echo INFLUXDB_PASSWORD INFLUXDB_TOKEN ;;
+        clickhouse) echo CLICKHOUSE_PASSWORD ;;
+    esac
+}
+
 for t in "$@"; do
     endpoints "$t"
+    missing=''
+    for v in $(needs "$t"); do
+        [ -n "${!v-}" ] || missing="$missing $v"
+    done
+    case $missing in
+        *SPLUNK_START_ARGS* | *SPLUNK_GENERAL_TERMS*)
+            die "$t: read Splunk's licence and General Terms, then set SPLUNK_START_ARGS and SPLUNK_GENERAL_TERMS in .env yourself. Also missing:${missing}" ;;
+        ?*) die "$t needs these set in .env:$missing" ;;
+    esac
     case $t in
         signoz)
             command -v foundryctl > /dev/null 2>&1 ||
