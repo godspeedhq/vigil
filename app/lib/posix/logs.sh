@@ -426,6 +426,8 @@ _vigil_logs_failed() {
 # The checkpoint of a log file: its path in _vl_ck.
 _vigil_logs_ckpath() {
     local e=$1
+    # % first, then /: each log file maps to exactly one checkpoint file, and no
+    # two log files can ever share one.
     e=${e//%/%25}
     e=${e//\//%2F}
     _vl_ck="$_vl_dir/logs%2F$e.checkpoint"
@@ -463,6 +465,10 @@ _vigil_logs_ckread() {
 
 # The fingerprint of log file $1: the cksum of its first $2 bytes, as
 # _fp_crc and _fp_n (the bytes fingerprinted).
+# The first bytes of a log file identify it. If a file is replaced by another
+# of the same name (restored from a backup, or rotated by hand), its
+# fingerprint changes, and it is read from the start instead of from an
+# offset that means nothing in it.
 _vigil_logs_fingerprint() {
     set -- $(head -c "$2" "$1" 2>/dev/null | cksum)
     _fp_crc=${1-} _fp_n=${2-0}
@@ -506,6 +512,10 @@ _vigil_logs_send() {
     fi
     _vh_headers=()
     _vh_body=''
+    # Why it failed decides nothing about what is resent, only what is reported:
+    # 401 and 403 are the credential; 408, 429 and 5xx are the destination's own
+    # trouble; any other 4xx is a refusal of the data itself. Either way the
+    # checkpoint stays before what failed, so it is sent again after the backoff.
     case $_vh_status in
         2??) ;;
         401 | 403)
@@ -540,6 +550,9 @@ _vigil_logs_send() {
         _vigil_logs_failed invalid_response "an answer from $_vl_host that is not $_vl_speaks"
         return 1
     fi
+    # OTLP says how many records it rejected, not which. The first ones are
+    # counted as delivered and the checkpoint moves past them; the rest is tried
+    # again on the next run.
     if [ "$_vl_type" = otel ] && [[ $_vh_resp =~ $_vigil_logs_rejected ]]; then
         rejected=${BASH_REMATCH[1]}
         [ "${#rejected}" -gt 9 ] && rejected=$_vl_n
@@ -567,6 +580,8 @@ _vigil_logs_file() {
     elif [ "$_ck_state" = ok ]; then
         # Nothing changed: the file need not even be opened.
         [ "$size" -eq "$_ck_size" ] && [ "$offset" -ge "$size" ] && return 0
+        # As many bytes as were fingerprinted last time: the file may have been
+        # shorter than 64 bytes then.
         _vigil_logs_fingerprint "$path" "$_ck_n"
         if [ "$offset" -gt "$size" ] || [ "$_fp_crc" != "$_ck_crc" ]; then
             _vigil_logs_gap replaced "$offset" "$file"
@@ -616,6 +631,8 @@ _vigil_logs_file() {
         _vl_read=$((_vl_read + pos - offset))
         offset=$pos
         _vigil_logs_fingerprint "$path" 64
+        # The file grew while it was read: a checkpoint's size is never behind its
+        # offset.
         [ "$size" -ge "$offset" ] || size=$offset
         _vigil_logs_ckwrite "$file" "$offset" "$size"
     done
@@ -748,6 +765,8 @@ EOF
         failures=0 next_try=0
     fi
 
+    # During a backoff nothing is sent at all, but the health metrics below are
+    # still reported, so a stalled destination shows.
     if [ "$_vl_now" -ge "$next_try" ]; then
         if [ -n "$hname" ]; then
             if ! vigil_secret_resolve "$_vw_root" "$hvalue"; then
@@ -755,6 +774,8 @@ EOF
                 ok=0
             else
                 case $VIGIL_SECRET_VALUE in
+                    # A control character in the value, a newline above all, would end the header
+                    # early and let the rest become a header of its own: refused.
                     *[[:cntrl:]]*)
                         _vigil_logs_failed auth "$hkey $hvalue holds a control character"
                         ok=0

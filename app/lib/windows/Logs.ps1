@@ -293,6 +293,10 @@ function ConvertTo-VigilLogRecord {
     return $sb.ToString()
 }
 
+# The first bytes of a log file identify it. If a file is replaced by another
+# of the same name (restored from a backup, or rotated by hand), its
+# fingerprint changes, and it is read from the start instead of from an
+# offset that means nothing in it.
 # The POSIX cksum of some bytes, and how many: a checkpoint's fingerprint.
 function Get-VigilLogFingerprint {
     param([string]$Path, [int]$Count)
@@ -464,6 +468,8 @@ function Invoke-VigilLogs {
     }
     $ckPath = {
         param([string]$File)
+        # % first, then /: each log file maps to exactly one checkpoint file, and no
+        # two log files can ever share one.
         return Join-Path $dir ('logs%2F' + $File.Replace('%', '%25').Replace('/', '%2F') + '.checkpoint')
     }
     $ckRead = {
@@ -514,6 +520,10 @@ function Invoke-VigilLogs {
             return 0
         }
         $code = $r.Status
+        # Why it failed decides nothing about what is resent, only what is reported:
+        # 401 and 403 are the credential; 408, 429 and 5xx are the destination's own
+        # trouble; any other 4xx is a refusal of the data itself. Either way the
+        # checkpoint stays before what failed, so it is sent again after the backoff.
         if ($code -lt 200 -or $code -gt 299) {
             if ($code -eq 401 -or $code -eq 403) { & $failed 'auth' "permission denied (HTTP $code)" }
             elseif ($code -eq 408 -or $code -eq 429 -or ($code -ge 500 -and $code -le 599)) { & $failed 'unreachable' "HTTP $code from $hostPart" }
@@ -534,6 +544,9 @@ function Invoke-VigilLogs {
             return 0
         }
         $rejected = 0
+        # OTLP says how many records it rejected, not which. The first ones are
+        # counted as delivered and the checkpoint moves past them; the rest is tried
+        # again on the next run.
         if ($type -ceq 'otel' -and $r.Body -cmatch '"rejectedLogRecords"\s*:\s*"?([0-9]+)') {
             $rejected = if ($Matches[1].Length -gt 9) { $Count } else { [int]$Matches[1] }
         }
@@ -553,6 +566,8 @@ function Invoke-VigilLogs {
         elseif ($c.State -ceq 'ok') {
             # Nothing changed: the file need not even be opened.
             if ($Size -eq $c.Size -and $offset -ge $Size) { return $true }
+            # As many bytes as were fingerprinted last time: the file may have been
+            # shorter than 64 bytes then.
             $fp = Get-VigilLogFingerprint $path $c.N
             if ($offset -gt $Size -or $fp.Crc -cne $c.Crc) {
                 & $gap 'replaced' $offset $File
@@ -602,6 +617,8 @@ function Invoke-VigilLogs {
             }
             $g.Read += $pos - $offset
             $offset = $pos
+            # The file grew while it was read: a checkpoint's size is never behind its
+            # offset.
             if ($Size -lt $offset) { $Size = $offset }
             & $ckWrite $ck $File $offset $Size
         }
@@ -636,9 +653,13 @@ function Invoke-VigilLogs {
         $nextTry = 0
     }
 
+    # During a backoff nothing is sent at all, but the health metrics below are
+    # still reported, so a stalled destination shows.
     if ($g.Now -ge $nextTry) {
         $ok = $true
         if ($hname) {
+            # A control character in the value, a newline above all, would end the header
+            # early and let the rest become a header of its own: refused.
             $r = Resolve-VigilSecret -Root $Root -Parsed $parsed -Reference $hvalue
             if (-not $r.Ok) { & $failed 'auth' "$hkey $hvalue unavailable: $($r.Why)"; $ok = $false }
             elseif ($r.Value -cmatch '[\x00-\x1f\x7f]') { & $failed 'auth' "$hkey $hvalue holds a control character"; $ok = $false }

@@ -107,6 +107,10 @@ function Invoke-VigilSend {
             }
             $q = Join-Path $be $b
             [void](New-Item -ItemType Directory -Force -Path $q)
+            # Each copy is written under a temporary name, renamed into the queue, and
+            # only then marked done. A sender stopped at any point picks up here next
+            # run: a copy is never lost, and at worst is placed again under the same
+            # name, replacing itself.
             $tmp = Join-Path $q ".$base.tmp.$PID"
             [System.IO.File]::Copy($F, $tmp, $true)
             if ([System.IO.File]::Exists((Join-Path $q $base))) { [System.IO.File]::Delete((Join-Path $q $base)) }
@@ -201,6 +205,8 @@ function Invoke-VigilSend {
         if ([System.IO.File]::Exists($sfile)) {
             foreach ($l in [System.IO.File]::ReadAllLines($sfile)) { if ($l -cmatch '^next_try = (\d+)') { $next = [long]$Matches[1] } }
         }
+        # A backend in its backoff is passed over without delaying the others: each
+        # has its own queue and its own state file.
         if ($epoch -lt $next) { continue }
         $type = Get-VigilConfigValue $parsed "backend.$b" 'type' $b
 
@@ -214,12 +220,17 @@ function Invoke-VigilSend {
                 $total = [long]0
                 foreach ($f in ($all | Select-Object -First $Script:VigilSendBatch)) {
                     $size = (New-Object System.IO.FileInfo $f).Length
+                    # The first file always goes, even one larger than the limit on its own, so
+                    # an oversized file can never hold up the queue behind it.
                     if ($batch.Count -gt 0 -and $total + $size -gt $Script:VigilSendHttpBytes) { break }
                     $batch.Add($f)
                     $total += $size
                 }
                 if ($batch.Count -eq 0) { break }
                 $r = Send-VigilBackend -Root $Root -Parsed $parsed -Name $b -Type $type -Events $batch.ToArray()
+                # Files leave the queue only once the backend accepted them. A failure keeps
+                # them for the next try, so delivery is at least once: a batch the backend
+                # stored but did not confirm in time is sent again.
                 if (-not $r.Ok) { & $backoff $b $r.Why; break }
                 foreach ($d in $r.Drops) { $sp = $d.IndexOf(' '); & $dropn $b $d.Substring(0, $sp) ([long]$d.Substring($sp + 1)) }
                 foreach ($f in $batch) { [System.IO.File]::Delete($f) }
