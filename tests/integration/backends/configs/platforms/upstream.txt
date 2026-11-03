@@ -1,6 +1,6 @@
 # Official deployments that scripts/start.sh fetches rather than copies.
 # One line each: <name> <repository> <commit or tag> <path in it>.
-# Each is fetched into configs/<name>/upstream and run as its own Compose
+# Each is fetched into configs/platforms/<name>/upstream and run as its own Compose
 # project. Change a pin here, and nowhere else.
 uptrace https://github.com/uptrace/uptrace v2.0.3 example/docker
 graylog https://github.com/Graylog2/docker-compose 14f8cd8bc7c0f2ab03b09bb2b9655f0ec88f040f open-core

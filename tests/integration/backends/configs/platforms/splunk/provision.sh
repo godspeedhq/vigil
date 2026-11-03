@@ -13,17 +13,17 @@
 # management API: a metrics index and an events index, the HTTP Event
 # Collector on plain HTTP, and one token for each index. Safe to run again.
 #
-#   bash configs/splunk/provision.sh      (scripts/start.sh splunk runs it)
+#   bash configs/platforms/splunk/provision.sh      (scripts/start.sh splunk runs it)
 #
 # Reads SPLUNK_PASSWORD, VIGIL_SPLUNK_METRICS_TOKEN and VIGIL_SPLUNK_LOGS_TOKEN
-# from the environment or ../../.env. The management API has the container's
+# from the environment or ../../../.env. The management API has the container's
 # own self-signed certificate, so curl -k is used here, for this local test
 # container only; Vigil itself never skips a certificate check.
 
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
-[ -f "$here/../../.env" ] && set -a && . "$here/../../.env" && set +a
+[ -f "$here/../../../.env" ] && set -a && . "$here/../../../.env" && set +a
 : "${SPLUNK_PASSWORD:?set SPLUNK_PASSWORD}"
 : "${VIGIL_SPLUNK_METRICS_TOKEN:?set VIGIL_SPLUNK_METRICS_TOKEN}"
 : "${VIGIL_SPLUNK_LOGS_TOKEN:?set VIGIL_SPLUNK_LOGS_TOKEN}"

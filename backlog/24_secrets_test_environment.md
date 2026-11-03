@@ -72,6 +72,7 @@ Emulator results never count as proof of the real cloud's authentication (IAM, M
 tests/integration/backends/
   compose.yaml               includes compose.secrets.yaml
   compose.secrets.yaml       group 9
+  configs/platforms/         the observability groups' configuration
   configs/secrets/{openbao,vault,aws,azure,gcp}/
   scripts/start.sh stop.sh reset.sh  the same commands as every other target
   scripts/run-store.sh run-store.ps1 the store tests

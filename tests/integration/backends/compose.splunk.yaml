@@ -11,7 +11,7 @@
 # splunk log destination, both over the HTTP Event Collector.
 #
 #   docker compose --profile splunk up -d
-#   scripts/start.sh splunk      also runs configs/splunk/provision.sh
+#   scripts/start.sh splunk      also runs configs/platforms/splunk/provision.sh
 #
 # Splunk Enterprise runs under its own licence, which only you can accept:
 # set SPLUNK_START_ARGS and SPLUNK_GENERAL_TERMS in .env yourself after

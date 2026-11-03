@@ -9,19 +9,22 @@
 # for any claim, damages or other liability arising from its use. See the
 # LICENSE file for the full terms.
 #
-# rotate.sh - gives secret/vigil/rotating a new value, as an operator
-# rotating a secret would, with the token that may write only that path.
-# run-store.sh and run-store.ps1 (through Git Bash) use it.
+# rotate.sh - gives the rotating test secret a new value, as an operator
+# rotating it would. run-store.sh and run-store.ps1 (through Git Bash) use it.
 #
-#   printf '%s' "$new" | bash configs/secrets/rotate.sh <target>.env <ca.pem>
+#   printf '%s' "$new" | bash configs/secrets/rotate.sh <target> <target>.env <ca.pem>
 #
-# The token and the value reach curl on its standard input, as configuration,
+#   openbao, vault  secret/vigil/rotating, with the token that may write only
+#                   that path
+#   aws             vigil/rotating, PutSecretValue (the emulator takes any
+#                   credentials)
+#
+# Tokens and the value reach curl on its standard input, as configuration,
 # never on its command line.
 
 set -u
-[ "$#" -eq 2 ] || { echo 'usage: rotate.sh <target>.env <ca.pem>' >&2; exit 1; }
-url=$(sed -n 's/^ST_URL=//p' "$1")
-token=$(sed -n 's/^ST_ROTATE_TOKEN=//p' "$1")
+[ "$#" -eq 3 ] || { echo 'usage: rotate.sh <target> <target>.env <ca.pem>' >&2; exit 1; }
+url=$(sed -n 's/^ST_URL=//p' "$2")
 IFS= read -r new || [ -n "$new" ]
 # PowerShell pipes a line with CRLF.
 new=${new%$'\r'}
@@ -30,6 +33,17 @@ new=${new%$'\r'}
 # Vigil itself does not check revocation for a ca_file either (spec 6.5.3).
 norevoke=()
 curl -V 2> /dev/null | grep -qi schannel && norevoke=(--ssl-no-revoke)
-code=$(printf 'header = "X-Vault-Token: %s"\ndata-binary = "{\\"data\\":{\\"value\\":\\"%s\\"}}"\n' "$token" "$new" |
-    curl -q -sS ${norevoke[@]+"${norevoke[@]}"} -K - --cacert "$2" -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' "$url/v1/secret/data/vigil/rotating")
+
+case $1 in
+    openbao | vault)
+        config=$(printf 'header = "X-Vault-Token: %s"\ndata-binary = "{\\"data\\":{\\"value\\":\\"%s\\"}}"\nheader = "Content-Type: application/json"\nurl = "%s/v1/secret/data/vigil/rotating"\n' \
+            "$(sed -n 's/^ST_ROTATE_TOKEN=//p' "$2")" "$new" "$url")
+        ;;
+    aws)
+        config=$(printf 'data-binary = "{\\"SecretId\\":\\"vigil/rotating\\",\\"SecretString\\":\\"%s\\"}"\nheader = "Content-Type: application/x-amz-json-1.1"\nheader = "X-Amz-Target: secretsmanager.PutSecretValue"\nurl = "%s/"\n' \
+            "$new" "$url")
+        ;;
+    *) echo "rotate.sh: no rotation for $1" >&2; exit 1 ;;
+esac
+code=$(printf '%s\n' "$config" | curl -q -sS ${norevoke[@]+"${norevoke[@]}"} -K - --cacert "$3" -o /dev/null -w '%{http_code}')
 [ "$code" = 200 ] || { echo "rotate.sh: HTTP $code" >&2; exit 1; }

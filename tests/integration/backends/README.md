@@ -87,9 +87,9 @@ So:
 
 ## Official deployments
 
-**SigNoz, Uptrace and Graylog** each come with their own multi-service deployment. They aren't copied here, which would mean keeping a private version of each. Instead `scripts/start.sh` fetches the official one at the pin in [`configs/upstream.txt`](configs/upstream.txt) into `configs/<name>/upstream`, and runs it as its own Compose project (`vigil-uptrace`, `vigil-graylog`), so no two platforms share a database.
+**SigNoz, Uptrace and Graylog** each come with their own multi-service deployment. They aren't copied here, which would mean keeping a private version of each. Instead `scripts/start.sh` fetches the official one at the pin in [`configs/platforms/upstream.txt`](configs/platforms/upstream.txt) into `configs/platforms/<name>/upstream`, and runs it as its own Compose project (`vigil-uptrace`, `vigil-graylog`), so no two platforms share a database.
 
-**SigNoz** deprecated its Compose files in v0.130.0 and now installs through its own tool, Foundry, which generates the Compose file. Install `foundryctl` yourself, following https://signoz.io/docs/install/docker/; nothing here installs it. `scripts/start.sh signoz` then runs it with [`configs/signoz/casting.yaml`](configs/signoz/casting.yaml).
+**SigNoz** deprecated its Compose files in v0.130.0 and now installs through its own tool, Foundry, which generates the Compose file. Install `foundryctl` yourself, following https://signoz.io/docs/install/docker/; nothing here installs it. `scripts/start.sh signoz` then runs it with [`configs/platforms/signoz/casting.yaml`](configs/platforms/signoz/casting.yaml).
 
 ## What a test checks
 
