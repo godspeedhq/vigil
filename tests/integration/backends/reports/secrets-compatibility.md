@@ -19,7 +19,7 @@ How Vigil's secret stores work with real secret services and local emulators, an
 | LocalStack (`localstack/localstack`) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | **Blocked by licensing**: since 2026.03.0 it won't start without a LocalStack account's auth token, and no account is made for you |
 | Floci Azure (`floci/floci-az:0.15.0`) | Docker, behind an nginx TLS front | Emulator | **Passed**: Key Vault `GET .../secrets/{name}[/{version}]?api-version=7.4`, as Vigil's `azure_keyvault` asks | **Passed** as requests: `service_principal` signs in at the emulated Entra ID; `managed_identity` through Vigil's test switch. **Emulator limitation**: any client secret and any token are accepted | **Passed**, the latest and a chosen version | **Passed** | **Passed**, as an emulator (see limits below) |
 | Azure Key Vault emulator (community) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
-| Floci GCP | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
+| Floci GCP (`floci/floci-gcp:0.11.0`) | Docker, behind an nginx TLS front | Emulator | **Passed**: `GET .../secrets/{name}/versions/{version}:access`, as Vigil's `gcp_secret_manager` asks; projects kept apart | **Passed** as requests: `service_account_key` signs its JWT and exchanges it at the key's `token_uri`. **Emulator limitation**: any JWT is accepted. `metadata`: **Not tested**, no metadata server | **Passed**, the latest and a numbered version | **Passed** | **Passed**, as an emulator (see limits below) |
 | GCP Secret Manager emulator (community) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
 | AWS Secrets Manager | Real cloud | Real cloud | Not tested | Not tested | Not tested | Not tested | Not tested |
 | Azure Key Vault | Real cloud | Real cloud | Not tested | Not tested | Not tested | Not tested | Not tested |
@@ -110,12 +110,41 @@ Floci speaks plain http, so an nginx in front serves https with the test CA for 
 - Access policies and RBAC.
 - Prove Azure itself with the optional real-cloud test.
 
+## Google Secret Manager, through Floci: what was tested
+
+Vigil's `gcp_secret_manager` store, `client = http`:
+- `endpoint = https://127.0.0.1:4588`
+- `auth = service_account_key`, with a key file in Google's format whose `token_uri` is `https://127.0.0.1:4588/token`, the emulator's OAuth2 endpoint
+
+The keys hold real RSA test keys, so Vigil signs its JWT (RS256) just as it would for Google. Floci speaks plain http, so an nginx in front serves https with the test CA. The fixtures and keys come from `configs/secrets/gcp/provision.sh`.
+
+| Check | Must end, at precheck and at the run | Result |
+| --- | --- | --- |
+| Sign-in (a signed JWT exchanged at `token_uri`) and retrieval, delivered to a job | succeeded; the job's secret hashes to the fixture's | Passed |
+| The latest version | succeeded, with the newest value | Passed |
+| A numbered version | succeeded, with that version's value | Passed |
+| Missing secret | `not found (HTTP 404)` | Passed |
+| A version that doesn't exist | `not found (HTTP 404)` | Passed |
+| The same name in another project | `not found (HTTP 404)`: projects are kept apart | Passed |
+| A key whose `token_uri` is plain http | `service_account_key env:...: its token_uri is not https`, without a request | Passed |
+| Untrusted certificate (no `ca_file`) | `sign-in failed: the certificate of 127.0.0.1:4588 is not trusted` | Passed |
+| Rotation (a new version) | the next run gets the new value | Passed |
+| A key with another private key | real Google: refused at sign-in. Floci: accepted | **Emulator limitation** |
+| Emulator stopped | `sign-in failed: cannot connect to 127.0.0.1:4588` | Passed (Fedora) |
+| Emulator started again, fixtures rewritten | succeeded | Passed (Fedora) |
+| No secret or private key written down | none of the values, nor a line of either private key, under the Vigil root or in its output | Passed |
+
+**What this does not show:**
+- Google's real sign-in. The JWT isn't verified, so a wrong key, a disabled service account or a missing IAM role is untested. Floci can check IAM (`FLOCI_GCP_SERVICES_IAM_AUTHORIZATION_MODE=enforce`), but only with tokens it issued for its own service accounts, which Vigil's key-file sign-in doesn't use.
+- `auth = metadata`, since Floci has no metadata server.
+- Prove Google itself with the optional real-cloud test.
+
 ## Runs
 
-| Date | Vigil on | OpenBao | Vault | Floci AWS | Floci Azure | Notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| 2026-11-03 | Fedora 44 (the Docker host), bash 5.3 | 26 of 26 | 26 of 26 | 20 of 20, 1 limitation | 22 of 22, 1 limitation | restart and recovery included |
-| 2026-11-03 | macOS 12.7.6, bash 3.2, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | restart not run: it needs the Docker host |
-| 2026-11-03 | Windows 11 Pro, PowerShell 5.1, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | the same; rotation through Git Bash's curl |
+| Date | Vigil on | OpenBao | Vault | Floci AWS | Floci Azure | Floci GCP | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-03 | Fedora 44 (the Docker host), bash 5.3 | 26 of 26 | 26 of 26 | 20 of 20, 1 limitation | 22 of 22, 1 limitation | 22 of 22, 1 limitation | restart and recovery included |
+| 2026-11-03 | macOS 12.7.6, bash 3.2, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | restart not run: it needs the Docker host |
+| 2026-11-03 | Windows 11 Pro, PowerShell 5.1, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | the same; rotation through Git Bash's curl |
 
 The restart checks run only where the store's container runs, so Vigil's recovery after an outage has been seen on Linux only so far. Running them from macOS and Windows, with the Docker host's containers stopped and started remotely, is part of phase 3.

@@ -20,6 +20,8 @@
 #                   credentials)
 #   azure           vigil-rotating, a new version (the emulator takes any
 #                   bearer token)
+#   gcp             vigil-rotating, a new version (the emulator needs no
+#                   token)
 #
 # Tokens and the value reach curl on its standard input, as configuration,
 # never on its command line.
@@ -48,6 +50,10 @@ case $1 in
     azure)
         config=$(printf 'request = "PUT"\ndata-binary = "{\\"value\\":\\"%s\\"}"\nheader = "Content-Type: application/json"\nheader = "Authorization: Bearer rotation"\nurl = "%s/secrets/vigil-rotating?api-version=7.4"\n' \
             "$new" "$(sed -n 's/^ST_VAULT=//p' "$2")")
+        ;;
+    gcp)
+        config=$(printf 'data-binary = "{\\"payload\\":{\\"data\\":\\"%s\\"}}"\nheader = "Content-Type: application/json"\nurl = "%s/v1/projects/%s/secrets/vigil-rotating:addVersion"\n' \
+            "$(printf '%s' "$new" | base64 | tr -d '\n')" "$url" "$(sed -n 's/^ST_PROJECT=//p' "$2")")
         ;;
     *) echo "rotate.sh: no rotation for $1" >&2; exit 1 ;;
 esac

@@ -86,13 +86,13 @@ for t in "$@"; do
             s=$(services_of "$t")
             [ -n "$s" ] || die "no services for $t"
             # The secret stores' certificate exists before they first start.
-            case $t in openbao | vault | aws | azure) bash "$bk_dir/configs/secrets/tls.sh" || die 'cannot make the test CA' ;; esac
+            case $t in openbao | vault | aws | azure | gcp) bash "$bk_dir/configs/secrets/tls.sh" || die 'cannot make the test CA' ;; esac
             # shellcheck disable=SC2086
             compose --profile "$t" up -d --wait $s || die "$t did not become healthy"
             [ "$t" = splunk ] && { bash "$bk_dir/configs/platforms/splunk/provision.sh" || die 'provisioning Splunk failed'; }
             case $t in
                 openbao | vault) bash "$bk_dir/configs/secrets/provision.sh" "$t" || die "provisioning $t failed" ;;
-                aws | azure) bash "$bk_dir/configs/secrets/$t/provision.sh" || die "provisioning $t failed" ;;
+                aws | azure | gcp) bash "$bk_dir/configs/secrets/$t/provision.sh" || die "provisioning $t failed" ;;
             esac
             ;;
     esac

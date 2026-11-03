@@ -130,4 +130,5 @@ tests/integration/backends/
     | `ghcr.io/blackwell-systems/gcp-secret-manager-emulator-dual` | no release published yet: pin by digest | Apache 2.0 | REST on 8080, which collides with SigNoz, so published elsewhere; no authentication; http only (front needed) |
 
   - **Floci Azure 0.15.0: done.** `service_principal` signs in for real at the emulated Entra ID, and `managed_identity` is exercised through `VIGIL_TEST_IMDS`. Chosen versions are fetched. 22 of 22 on Fedora; 20 of 20 on macOS and Windows. One emulator limitation everywhere: any client secret is accepted, and so is any token.
-  - **Next:** Lowkey Vault, then the two GCP emulators, each checked by a run before it's accepted.
+  - **Floci GCP 0.11.0: done.** `service_account_key` signs its JWT with a real RSA test key and exchanges it at the emulator's `/token` (the key's `token_uri`). Numbered versions and projects are kept apart, and a plain-http `token_uri` is refused. 22 of 22 on Fedora; 20 of 20 on macOS and Windows. One emulator limitation everywhere: any JWT is accepted. `metadata` is untested: there is no metadata server.
+  - **Next:** Lowkey Vault, then Blackwell's GCP emulator, each checked by a run before it's accepted.

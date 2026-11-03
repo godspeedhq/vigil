@@ -18,6 +18,7 @@
 #   openbao, vault  Vigil's hashicorp_vault store, the same tests for both
 #   aws             Vigil's aws_secrets_manager store, against Floci
 #   azure           Vigil's azure_keyvault store, against Floci
+#   gcp             Vigil's gcp_secret_manager store, against Floci
 #
 # Needs .secrets/<target>.env and .secrets/tls/ca.pem, which start.sh makes;
 # on another host, copy both, keeping their paths, and reach the service's
@@ -44,7 +45,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/common.sh"
 
 t=${1-}
-case $t in openbao | vault | aws | azure) ;; *) die 'usage: run-store.sh openbao|vault|aws|azure' ;; esac
+case $t in openbao | vault | aws | azure | gcp) ;; *) die 'usage: run-store.sh openbao|vault|aws|azure|gcp' ;; esac
 envf=$bk_dir/.secrets/$t.env
 ca=$bk_dir/.secrets/tls/ca.pem
 [ -f "$envf" ] && [ -f "$ca" ] || die "no .secrets/$t.env or .secrets/tls/ca.pem: run scripts/start.sh $t first, or copy them from the host that did"
@@ -369,15 +370,91 @@ bk_bad_secret az_bad_secret vigil-probe failed permission_denied ST_PROBE"
     leak_values="${old-} $ST_PROBE $ST_ROTATING $ST_V1 $ST_V2 $VIGIL_ST_CLIENT_SECRET $VIGIL_ST_BAD_CLIENT_SECRET"
 }
 
+# ---- gcp: gcp_secret_manager, against Floci -------------------------------
+gcp_suite() {
+    local sec=$bk_dir/.secrets
+    [ -f "$sec/gcp-key.json" ] && [ -f "$sec/gcp-key-http.json" ] && [ -f "$sec/gcp-key-other.json" ] ||
+        die 'no .secrets/gcp-key*.json: copy them with gcp.env'
+    # The keys' contents, as Vigil reads a service_account_key.
+    VIGIL_ST_GCP_KEY=$(cat "$sec/gcp-key.json")
+    VIGIL_ST_GCP_KEY_HTTP=$(cat "$sec/gcp-key-http.json")
+    VIGIL_ST_GCP_KEY_OTHER=$(cat "$sec/gcp-key-other.json")
+    export VIGIL_ST_GCP_KEY VIGIL_ST_GCP_KEY_HTTP VIGIL_ST_GCP_KEY_OTHER
+    gcp_jobs() {
+        jobs="bk_key gcp vigil-probe succeeded - ST_PROBE
+bk_latest gcp vigil-versioned succeeded - ST_V2
+bk_version gcp vigil-versioned/$ST_V1_N succeeded - ST_V1
+bk_missing gcp vigil-nosuch failed not_found -
+bk_bad_version gcp vigil-versioned/9999 failed not_found -
+bk_other_project gcp_other vigil-probe failed not_found -
+bk_http_token_uri gcp_http vigil-probe failed is_not_https -
+bk_untrusted gcp_untrusted vigil-probe failed is_not_trusted -
+bk_rotating gcp vigil-rotating succeeded - current"
+    }
+    gcp_jobs
+    # shellcheck disable=SC2329
+    stores() {
+        local g="type = gcp_secret_manager\nclient = http\nendpoint = $ST_URL\nauth = service_account_key"
+        store gcp "$g\nproject = $ST_PROJECT\nservice_account_key = env:VIGIL_ST_GCP_KEY" trusted
+        store gcp_other "$g\nproject = vigil-other\nservice_account_key = env:VIGIL_ST_GCP_KEY" trusted
+        store gcp_http "$g\nproject = $ST_PROJECT\nservice_account_key = env:VIGIL_ST_GCP_KEY_HTTP" trusted
+        store gcp_untrusted "$g\nproject = $ST_PROJECT\nservice_account_key = env:VIGIL_ST_GCP_KEY" untrusted
+        store gcp_other_key "$g\nproject = $ST_PROJECT\nservice_account_key = env:VIGIL_ST_GCP_KEY_OTHER" trusted
+    }
+    # shellcheck disable=SC2329
+    label() {
+        case $1 in
+            bk_version) printf 'bk_version (the first, by number)' ;;
+            bk_other_project) printf 'bk_other_project (vigil-other)' ;;
+            *) printf '%s' "$1" ;;
+        esac
+    }
+
+    first=$(rnd)
+    rotate "$first" || bad 'rotation: cannot write the first value'
+    current=$first
+    write_config
+    precheck_jobs
+    run_jobs
+    rotation
+
+    # Another key: Google refuses a JWT its service account didn't sign. The
+    # emulator accepts any.
+    jobs="$jobs
+bk_other_key gcp_other_key vigil-probe failed permission_denied ST_PROBE"
+    write_config
+    expect_refused bk_other_key 'bk_other_key (another private key)' 'sign-in failed' 'the emulator does not check the JWT'
+
+    if here_running 'floci-gcp floci-gcp-tls'; then
+        dc stop floci-gcp floci-gcp-tls > /dev/null 2>&1
+        run_job bk_key failed 'cannot connect to' 'bk_key, emulator stopped'
+        dc start floci-gcp floci-gcp-tls > /dev/null 2>&1
+        # In memory: its fixtures are written again, with new values.
+        bash "$bk_dir/configs/secrets/gcp/provision.sh" > /dev/null || bad 'cannot provision the emulator again'
+        old="$ST_PROBE $ST_ROTATING $ST_V1 $ST_V2"
+        load_env
+        gcp_jobs
+        write_config
+        run_job bk_key succeeded - 'bk_key, emulator restarted (recovered)'
+    else
+        printf '  NOT RUN  restart: %s does not run here (it needs the Docker host)\n' "$t"
+        notrun=$((notrun + 1))
+    fi
+    # The private keys, by a line of each that is only key material.
+    leak_values="${old-} $ST_PROBE $ST_ROTATING $ST_V1 $ST_V2 $(sed -n 's/.*BEGIN PRIVATE KEY-----\\n\([A-Za-z0-9+/]\{40\}\).*/\1/p' "$sec/gcp-key.json" "$sec/gcp-key-other.json")"
+}
+
 # Not a case inside $(...): bash 3.2 cannot parse one there.
 kind=hashicorp_vault
 [ "$t" = aws ] && kind=aws_secrets_manager
 [ "$t" = azure ] && kind=azure_keyvault
+[ "$t" = gcp ] && kind=gcp_secret_manager
 printf '\n%s, %s store\n' "$t" "$kind"
 case $t in
     openbao | vault) vault_suite ;;
     aws) aws_suite ;;
     azure) azure_suite ;;
+    gcp) gcp_suite ;;
 esac
 
 # Leaks: every secret value and credential, under the root and in what Vigil

@@ -126,8 +126,9 @@ Group 9, `compose.secrets.yaml`, tests Vigil's existing secret stores (backlog t
 | `vault` | HashiCorp Vault 2.2.0 | 8210 (https) | `hashicorp_vault` | about 70 MB |
 | `aws` | Floci 2.3.0, an AWS emulator, behind an nginx TLS front | 4566 (https) | `aws_secrets_manager` | about 60 MB |
 | `azure` | Floci Azure 0.15.0, Key Vault and an emulated Entra ID, behind an nginx TLS front | 4577 (https); 4578 (http, managed identity only) | `azure_keyvault` | about 40 MB |
+| `gcp` | Floci GCP 0.11.0, Secret Manager and an OAuth2 token endpoint, behind an nginx TLS front | 4588 (https) | `gcp_secret_manager` | about 20 MB |
 
-The other emulators (LocalStack, Lowkey Vault, the two for GCP) are still to come in phase 2 of the task. LocalStack now needs an account's auth token, which is not made for you. An emulator proves Vigil's requests and how it reads the answers, never the real cloud's sign-in: Floci, for one, accepts any key, and `run-store` reports that as an EMULATOR LIMITATION, not a pass.
+The other emulators (LocalStack, Lowkey Vault, Blackwell's GCP emulator) are still to come in phase 2 of the task. LocalStack now needs an account's auth token, which is not made for you. An emulator proves Vigil's requests and how it reads the answers, never the real cloud's sign-in: Floci, for one, accepts any key, and `run-store` reports that as an EMULATOR LIMITATION, not a pass.
 
 ```sh
 scripts/start.sh openbao        # the test CA if new, start, unseal, fixtures

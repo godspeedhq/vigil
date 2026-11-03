@@ -15,7 +15,7 @@
     service, on Windows. The twin of run-store.sh, which describes the
     checks.
 .DESCRIPTION
-        .\scripts\run-store.ps1 openbao      (or vault, aws, azure)
+        .\scripts\run-store.ps1 openbao      (or vault, aws, azure, gcp)
 
     Needs .secrets\<target>.env and .secrets\tls\ca.pem from the host that
     ran scripts/start.sh, copied to the same paths here, and the service's
@@ -35,7 +35,7 @@ $bk = Split-Path -Parent $here
 $repo = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $bk))
 $shell = (Get-Process -Id $PID).Path
 
-if (@('openbao', 'vault', 'aws', 'azure') -cnotcontains $Target) { Write-Output 'usage: run-store.ps1 openbao|vault|aws|azure'; exit 1 }
+if (@('openbao', 'vault', 'aws', 'azure', 'gcp') -cnotcontains $Target) { Write-Output 'usage: run-store.ps1 openbao|vault|aws|azure|gcp'; exit 1 }
 $envFile = Join-Path $bk ".secrets\$Target.env"
 $caFile = Join-Path $bk '.secrets\tls\ca.pem'
 if (-not (Test-Path -LiteralPath $envFile) -or -not (Test-Path -LiteralPath $caFile)) {
@@ -66,7 +66,44 @@ $labels = @{}
 # A credential the real cloud refuses, checked after the table: job, store,
 # label, the reason when refused, and what the emulator lacks.
 $refused = $null
-if ($Target -ceq 'azure') {
+if ($Target -ceq 'gcp') {
+    # The keys' contents, as Vigil reads a service_account_key.
+    $keys = @{ 'VIGIL_ST_GCP_KEY' = 'gcp-key.json'; 'VIGIL_ST_GCP_KEY_HTTP' = 'gcp-key-http.json'; 'VIGIL_ST_GCP_KEY_OTHER' = 'gcp-key-other.json' }
+    foreach ($n in $keys.Keys) {
+        $f = Join-Path $bk ".secrets\$($keys[$n])"
+        if (-not (Test-Path -LiteralPath $f)) { Write-Output 'no .secrets\gcp-key*.json: copy them with gcp.env'; exit 1 }
+        $o[$n] = [System.IO.File]::ReadAllText($f).TrimEnd("`r", "`n")
+    }
+    # A line of each private key that is only key material, for the leak check.
+    $i = 0
+    foreach ($f in 'gcp-key.json', 'gcp-key-other.json') {
+        if ([System.IO.File]::ReadAllText((Join-Path $bk ".secrets\$f")) -cmatch 'BEGIN PRIVATE KEY-----\\n([A-Za-z0-9+/]{40})') { $o["ST_KEY_PART$i"] = $Matches[1] }
+        $i++
+    }
+    $g = "type = gcp_secret_manager`nclient = http`nendpoint = $($o['ST_URL'])`nauth = service_account_key"
+    $stores = @(
+        @('gcp', "$g`nproject = $($o['ST_PROJECT'])`nservice_account_key = env:VIGIL_ST_GCP_KEY", $true),
+        @('gcp_other', "$g`nproject = vigil-other`nservice_account_key = env:VIGIL_ST_GCP_KEY", $true),
+        @('gcp_http', "$g`nproject = $($o['ST_PROJECT'])`nservice_account_key = env:VIGIL_ST_GCP_KEY_HTTP", $true),
+        @('gcp_untrusted', "$g`nproject = $($o['ST_PROJECT'])`nservice_account_key = env:VIGIL_ST_GCP_KEY", $false),
+        @('gcp_other_key', "$g`nproject = $($o['ST_PROJECT'])`nservice_account_key = env:VIGIL_ST_GCP_KEY_OTHER", $true))
+    $jobs = @(
+        @('bk_key', 'gcp', 'vigil-probe', 'succeeded', '-', 'ST_PROBE'),
+        @('bk_latest', 'gcp', 'vigil-versioned', 'succeeded', '-', 'ST_V2'),
+        @('bk_version', 'gcp', "vigil-versioned/$($o['ST_V1_N'])", 'succeeded', '-', 'ST_V1'),
+        @('bk_missing', 'gcp', 'vigil-nosuch', 'failed', 'not found', '-'),
+        @('bk_bad_version', 'gcp', 'vigil-versioned/9999', 'failed', 'not found', '-'),
+        @('bk_other_project', 'gcp_other', 'vigil-probe', 'failed', 'not found', '-'),
+        @('bk_http_token_uri', 'gcp_http', 'vigil-probe', 'failed', 'is not https', '-'),
+        @('bk_untrusted', 'gcp_untrusted', 'vigil-probe', 'failed', 'is not trusted', '-'),
+        @('bk_rotating', 'gcp', 'vigil-rotating', 'succeeded', '-', 'current'))
+    $labels['bk_version'] = 'bk_version (the first, by number)'
+    $labels['bk_other_project'] = 'bk_other_project (vigil-other)'
+    $refused = @('bk_other_key', 'gcp_other_key', 'bk_other_key (another private key)', 'sign-in failed', 'the emulator does not check the JWT')
+    $secretEnv = @('VIGIL_ST_GCP_KEY', 'VIGIL_ST_GCP_KEY_HTTP', 'VIGIL_ST_GCP_KEY_OTHER')
+    $leakKeys = @('ST_PROBE', 'ST_ROTATING', 'ST_V1', 'ST_V2', 'ST_KEY_PART0', 'ST_KEY_PART1')
+}
+elseif ($Target -ceq 'azure') {
     $o['VIGIL_ST_BAD_CLIENT_SECRET'] = & $rnd
     # Vigil's test switch for the managed-identity endpoint (spec 22.4.2).
     [Environment]::SetEnvironmentVariable('VIGIL_TEST_IMDS', $o['ST_IMDS'], 'Process')
@@ -203,7 +240,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $bk 'workloads\secret.ps1') -Destination (Join-Path $root 'scripts')
     Copy-Item -LiteralPath $caFile -Destination (Join-Path $root 'config\store-ca.pem')
 
-    $kinds = @{ aws = 'aws_secrets_manager'; azure = 'azure_keyvault' }
+    $kinds = @{ aws = 'aws_secrets_manager'; azure = 'azure_keyvault'; gcp = 'gcp_secret_manager' }
     Write-Output "`n$Target, $(if ($kinds.ContainsKey($Target)) { $kinds[$Target] } else { 'hashicorp_vault' }) store"
     # The expiring token must have expired.
     if ($o['ST_EXPIRES_AT']) { while ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -le [long]$o['ST_EXPIRES_AT']) { Start-Sleep -Seconds 1 } }
