@@ -114,7 +114,7 @@ So:
 
    It retries for two minutes, since backends index in the background, and saves the backend's answers in `reports/evidence/`. That folder isn't committed; copy what matters into the report.
 
-On Windows, `run-vigil.ps1 <target>` does the same, with `.ps1` workloads and `hostname.exe` as the native program. `-Keep` leaves its temporary folder, with Vigil's logs and state, in place afterwards.
+On Windows, `run-vigil.ps1 <target>` does the same, with `.ps1` workloads and `hostname.exe` as the native program. `-Keep` leaves its temporary folder, with Vigil's logs and state, in place afterwards. Either way, the run's [evidence](#evidence) is kept.
 
 ## Secret stores
 
@@ -184,6 +184,18 @@ scripts/run-source.sh local         # needs no server at all
 - that no credential is ever written down
 
 Results are in [`reports/sources-compatibility.md`](reports/sources-compatibility.md).
+
+## Evidence
+
+Every `run-vigil`, `run-store` and `run-source` run, in bash and PowerShell, keeps its evidence in `reports/runs/<date>/<host>/<name>/` before its temporary folder goes:
+
+- **`console.txt`:** a header (the date, host, OS, the Vigil commit, and the versions of the shell, git, curl, OpenSSL and ssh, with the images the Compose file pins), then everything the run printed. On Windows it is a PowerShell transcript.
+- **`*.out`:** what Vigil itself printed.
+- **`root/`:** Vigil's configuration, logs, state and metrics, as the run left them.
+
+`VIGIL_EVIDENCE_HOST` names the host folder (by default, the hostname). On a copy that isn't a Git checkout, `VIGIL_EVIDENCE_COMMIT` names the commit it was copied from.
+
+The run's secrets and credentials are test values. Even so, a file holding one is left out and said so, and so is a `console.txt` that holds one: the run has failed its leak check already. The runs behind the compatibility reports are committed, and published on the site.
 
 ## Not done yet
 

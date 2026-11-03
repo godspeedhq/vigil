@@ -47,6 +47,7 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $bk = Split-Path -Parent $here
 $repo = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $bk))
 $shell = (Get-Process -Id $PID).Path
+. (Join-Path $here 'evidence.ps1')
 
 # Credentials from .env, when there is one.
 $envFile = Join-Path $bk '.env'
@@ -102,6 +103,7 @@ function Invoke-Vigil {
 try {
     [void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'scripts'), (Join-Path $root 'config'))
     Copy-Item -Recurse -LiteralPath (Join-Path $repo 'app'), (Join-Path $repo 'vendor') -Destination $root
+    Start-Evidence "backend-$Target" $bk 'compose*.yaml' "$($MyInvocation.MyCommand.Path) $Target"
     Get-ChildItem -LiteralPath (Join-Path $bk 'workloads') -Filter '*.ps1' | Copy-Item -Destination (Join-Path $root 'scripts')
 
     $c = "[vigil]`ninstance = backend-test`n`n[scheduler]`ntick = 10s`n`n"
@@ -182,6 +184,7 @@ try {
 }
 finally {
     if ($sup -and -not $sup.HasExited) { $sup.Kill() }
+    Save-Evidence $work $root @($env:VIGIL_SPLUNK_METRICS_TOKEN, $env:VIGIL_SPLUNK_LOGS_TOKEN)
     if ($Keep) { Write-Output "kept: $work" }
     else { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }
 }

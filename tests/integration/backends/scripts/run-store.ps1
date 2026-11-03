@@ -34,6 +34,7 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $bk = Split-Path -Parent $here
 $repo = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $bk))
 $shell = (Get-Process -Id $PID).Path
+. (Join-Path $here 'evidence.ps1')
 
 if (@('openbao', 'vault', 'aws', 'azure', 'gcp', 'azure-alt', 'gcp-alt') -cnotcontains $Target) { Write-Output 'usage: run-store.ps1 openbao|vault|aws|azure|gcp|azure-alt|gcp-alt'; exit 1 }
 $envFile = Join-Path $bk ".secrets\$Target.env"
@@ -243,6 +244,7 @@ $rotate = { param([string]$Value) $Value | & $bash $rotateSh $Target $envFile.Re
 try {
     [void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'scripts'), (Join-Path $root 'config'))
     Copy-Item -Recurse -LiteralPath (Join-Path $repo 'app'), (Join-Path $repo 'vendor') -Destination $root
+    Start-Evidence "store-$Target" $bk 'compose.secrets.yaml' "$($MyInvocation.MyCommand.Path) $Target"
     Copy-Item -LiteralPath (Join-Path $bk 'workloads\secret.ps1') -Destination (Join-Path $root 'scripts')
     Copy-Item -LiteralPath $caFile -Destination (Join-Path $root 'config\store-ca.pem')
 
@@ -318,5 +320,6 @@ try {
     exit $(if ($script:fail -eq 0) { 0 } else { 1 })
 }
 finally {
+    Save-Evidence $work $root (@(foreach ($n in $leakKeys) { $o[$n] }) + @($first, $rotated))
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }

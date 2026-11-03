@@ -42,6 +42,7 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $bk = Split-Path -Parent $here
 $repo = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $bk))
 $shell = (Get-Process -Id $PID).Path
+. (Join-Path $here 'evidence.ps1')
 
 if (@('git-gitea', 'https-nginx', 'sftp-openssh', 'local') -cnotcontains $Target) { Write-Output 'usage: run-source.ps1 git-gitea|https-nginx|sftp-openssh|local'; exit 1 }
 $src = Join-Path $bk '.sources'
@@ -177,6 +178,7 @@ $leaks = @()
 try {
     [void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'config'))
     Copy-Item -Recurse -LiteralPath (Join-Path $repo 'app'), (Join-Path $repo 'vendor') -Destination $root
+    Start-Evidence "source-$Target" $bk 'compose.sources.yaml' "$($MyInvocation.MyCommand.Path) $Target"
 
     switch ($Target) {
         'git-gitea' {
@@ -222,7 +224,9 @@ try {
             & $setCreds $o['SRC_READER'] $o['SRC_READER_PW']
 
             Write-Output "`n$Target, git over SSH"
-            $ssh = (Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe').Replace('\', '/')
+            # Git for Windows' own ssh, its default: Windows' OpenSSH (ssh.exe in
+            # System32) hangs under git, even on success (reports/sources-compatibility.md).
+            $ssh = 'ssh'
             $sshWith = { param([string]$Key, [string]$Known) $env:GIT_SSH_COMMAND = "'$ssh' -i '$($Key.Replace('\', '/'))' -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile='$($Known.Replace('\', '/'))'" }
             & $sshWith (Join-Path $src 'ssh\vigil_sources') (Join-Path $src 'gitea_known_hosts')
             Set-ScriptsConfig git "url  = $($o['SRC_SSH'])`nref  = v1" 'checks/check.ps1'
@@ -362,7 +366,8 @@ try {
 
     # Leaks: no password, token or private key under the Vigil root or in
     # its output.
-    $found = @(foreach ($f in @(Get-ChildItem -LiteralPath $work -Recurse -File)) {
+    # Only what Vigil wrote: the test's own credential files hold them by design.
+    $found = @(foreach ($f in @(@(Get-ChildItem -LiteralPath $root -Recurse -File) + @(Get-Item -LiteralPath $out -ErrorAction SilentlyContinue))) {
             $text = try { [System.IO.File]::ReadAllText($f.FullName) } catch { '' }
             foreach ($x in $leaks) { if ($x -and $text.Contains($x)) { $f.FullName.Substring($work.Length + 1); break } }
         })
@@ -373,5 +378,6 @@ try {
     exit $(if ($script:fail -eq 0) { 0 } else { 1 })
 }
 finally {
+    Save-Evidence $work $root $leaks
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }

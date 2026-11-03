@@ -66,9 +66,10 @@ sha() { if command -v sha256sum > /dev/null 2>&1; then sha256sum < "$1"; else sh
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-source.XXXXXX") || exit 1
 root=$work/root
-trap 'rm -rf "$work"' EXIT
+trap 'evidence_save ${leak_values-}; rm -rf "$work"' EXIT
 trap 'exit 1' TERM INT HUP
 mkdir -p "$root/config" && cp -R "$bk_repo/app" "$root/" || exit 1
+evidence_start "source-$t" "$bk_dir/compose.sources.yaml" "$0" "$@"
 
 pass=0 fail=0 notrun=0
 ok() { printf '  PASS  %s\n' "$*"; pass=$((pass + 1)); }
