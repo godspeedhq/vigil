@@ -31,6 +31,9 @@
     Worker.ps1 and Precheck.ps1.
 #>
 
+# How long, in seconds, a launch record may wait for its worker to claim it
+# before the supervisor goes looking for the worker's process (11.3). Starting
+# PowerShell on a busy machine can take a while, so this is generous.
 $Script:VigilLaunchGrace = 120
 
 # Whether another process holds a file open: Windows refuses an exclusive
@@ -43,6 +46,9 @@ function Test-VigilFileHeld {
         return 'no'
     }
     catch [System.IO.FileNotFoundException] { return 'no' }
+    # A sharing violation is how Windows says another process has it open. A
+    # moment's lock by an antivirus scan reads as held too, which errs towards
+    # leaving a run alone.
     catch [System.IO.IOException] { return 'yes' }
     catch { return 'error' }
 }
@@ -51,6 +57,8 @@ function Test-VigilFileHeld {
 function Test-VigilRunProcess {
     param([string]$RunId)
     try {
+        # Run ids hold only digits, letters and hyphens, so none of them is a LIKE
+        # wildcard.
         $p = @(Get-CimInstance -ClassName Win32_Process -Filter "CommandLine LIKE '%--run-id $RunId%'" -ErrorAction Stop |
             Where-Object { $_.ProcessId -ne $PID })
         if ($p.Count -gt 0) { return 'yes' }
@@ -154,6 +162,8 @@ function Write-VigilRecoveryRecord {
 }
 
 $Script:VigilReloadCheck = 3
+# The exit code that tells vigil.ps1 to start the new version in this same
+# process.
 $Script:VigilReloadCode = 75
 
 function Invoke-VigilSupervisor {
@@ -521,8 +531,13 @@ function Invoke-VigilSupervisor {
         try {
             $p = @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$St.JobPid)" -ErrorAction Stop)[0]
             if ($p -and $St.JobName -and $p.Name -ieq $St.JobName) {
+                # Pid, name and start time together: Windows reuses pids quickly, so a pid on
+                # its own could belong to something else by now. A second either way allows
+                # for rounding.
                 $startOk = (-not $St.JobStart) -or ([Math]::Abs((ConvertTo-VigilEpoch $p.CreationDate) - [long]$St.JobStart) -le 1)
                 $w = @(Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $([int]$St.WorkerPid)" -ErrorAction Stop)[0]
+                # The parent is only checked while the worker is still this run's worker: once
+                # it has gone, its pid may belong to anything.
                 $parentOk = (-not $w) -or ($w.CommandLine -notlike "*--run-id $RunId*") -or ($p.ParentProcessId -eq [int]$St.WorkerPid)
                 $proven = $startOk -and $parentOk
             }
@@ -535,6 +550,8 @@ function Invoke-VigilSupervisor {
             Write-VigilFileAtomic -Path $marker -Text "term_epoch = $($sv.Epoch)`n"
             & $log 'WARN' "job ${Job}: run $RunId passed max_runtime; ending its process tree"
         }
+        # Repeated on every tick past the deadline, each time only after the proof
+        # above, until the run ends.
         & taskkill.exe /T /F /PID $St.JobPid 2>&1 | Out-Null
         return $true
     }
@@ -561,6 +578,8 @@ function Invoke-VigilSupervisor {
         $psi.Arguments = ($argv | ForEach-Object { ConvertTo-VigilQuotedArg -Arg $_ -Always $false }) -join ' '
         $psi.UseShellExecute = $false
         $psi.CreateNoWindow = $true
+        # Not waited for or tracked: the worker owns the run from here, and later
+        # ticks learn how it is doing from the files it writes.
         [void][System.Diagnostics.Process]::Start($psi)
         $sv.Running++
         # The forwarder's own starts are not logged: each would give it
@@ -809,6 +828,8 @@ function Invoke-VigilSupervisor {
 
     # One supervisor per state directory (12.4).
     try {
+        # Share mode Read: anyone can read the pid inside, but no second supervisor
+        # can open it for writing. The check and the claim are one step.
         $lock = [System.IO.File]::Open((Join-Path $sv.State 'supervisor.lock'), 'OpenOrCreate', 'ReadWrite', 'Read')
     }
     catch {
@@ -885,6 +906,7 @@ function Invoke-VigilSupervisor {
                 # same process, so the service manager sees nothing and no
                 # admin right is needed. Everything else is on disk.
                 & $log 'INFO' "reloading: Vigil $version to $next"
+                # The finally below lets go of the lock before the new version takes it.
                 return $Script:VigilReloadCode
             }
         }

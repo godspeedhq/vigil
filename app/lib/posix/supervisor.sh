@@ -27,7 +27,12 @@
 # Requires config.sh, validate.sh, effective.sh, command.sh, schedule.sh,
 # outcome.sh, metrics.sh, events.sh, recovery.sh, worker.sh and precheck.sh.
 
+# How long, in seconds, a launch record may wait for its worker to claim it
+# before the supervisor goes looking for the worker's process (11.3). Starting
+# bash on a busy machine can take a while, so this is generous.
 VIGIL_LAUNCH_GRACE=120
+# How often, in seconds, the sleep between ticks looks for a new version in
+# app/.
 VIGIL_RELOAD_CHECK=3
 
 _vigil_sup_log() {
@@ -44,6 +49,9 @@ _vigil_sup_held() {
     _su_held=no
     case $_su_platform in
         linux)
+            # -ef compares device and inode, so this finds the file whatever path a
+            # process opened it by. Processes that end during the scan, or that this
+            # account may not look at, are skipped.
             for f in /proc/[0-9]*/fd/*; do
                 if [ "$f" -ef "$1" ]; then
                     pid=${f#/proc/}
@@ -100,6 +108,9 @@ _vigil_sup_timeout() {
     [ "$_su_held" = yes ] || return 1
     if [ ! -f "$marker" ]; then
         printf 'term_epoch = %s\n' "$_su_epoch" > "$marker"
+        # A negative pid signals the whole process group, which the worker gave the
+        # job with set -m, so whatever the job started goes too. If the group is gone,
+        # the job itself is tried.
         kill -TERM -- "-$_ss_job_pid" 2>/dev/null || kill -TERM "$_ss_job_pid" 2>/dev/null
         _vigil_sup_log WARN "job $job: run $rid passed max_runtime; sent TERM to its job"
         return 0
@@ -129,6 +140,8 @@ _vigil_sup_proc() {
         linux)
             for d in /proc/[0-9]*; do
                 [ -r "$d/cmdline" ] || continue
+                # cmdline is the arguments separated by NUL bytes: the run id has to be a
+                # whole argument, never part of one.
                 while IFS= read -r -d '' a; do
                     if [ "$a" = "$1" ]; then _su_proc=yes; return 0; fi
                 done < "$d/cmdline"
@@ -169,6 +182,7 @@ _vigil_sup_read_state() {
         value=${line#*=}
         value=${value# }
         case $key in
+            # Another schema is left as unreadable rather than guessed at.
             schema_version) [ "$value" = 1 ] || return 0 ;;
             status) _ss_status=$value ;;
             run_id) _ss_run_id=$value ;;
@@ -190,6 +204,9 @@ _vigil_sup_read_state() {
 _vigil_sup_spool() {
     local f name rest
     _su_spool=no _su_spool_outcome='' _su_spool_file=''
+    # A worker writes its events before its final state (4.3), so events with an
+    # outcome prove the run finished, whatever its state file says. The sender may
+    # already have moved them on to a backend's queue.
     for f in "$_su_spooldir"/incoming/*-"$1"-"$2".events "$_su_spooldir"/backends/*/*-"$1"-"$2".events; do
         [ -f "$f" ] || continue
         while read -r rest name rest; do
@@ -271,6 +288,8 @@ _vigil_sup_account() {
                     'boot_id '*) lboot=${f##* } ;;
                 esac
             done < "$launch"
+            # A launch from before a reboot can never be claimed: its worker went with the
+            # machine.
             if [ -n "$lboot" ] && [ "$lboot" != "$_su_boot" ]; then
                 lstate=prevboot
             elif [ -n "$epoch" ] && [ $((_su_epoch - epoch)) -lt "$VIGIL_LAUNCH_GRACE" ]; then
@@ -309,6 +328,8 @@ _vigil_sup_account() {
     fi
 
     _vigil_sup_spool "$job" "$rid"
+    # Everything above only gathers evidence. The verdict is the table of 11.3,
+    # kept in one place in recovery.sh.
     vigil_recovery_conclude "$lstate" "$tstate" "$proc" "$boot" "$_ss" "$_su_spool"
     local reason='' rec="$_su_statedir/recovery/$job.recovery" hold=0
     if [ "$VIGIL_RECOVERY" = alive ] && [ "$_ss" = running ] && [ -n "$_ss_deadline" ] &&
@@ -489,6 +510,8 @@ _vigil_sup_metric() {
 # there is no valid configuration at all.
 _vigil_sup_config() {
     local sum
+    # Compared by content, not modification time, so a change saved within the
+    # same second is still seen.
     sum=$(cksum < "$_su_root/config/vigil.config" 2>/dev/null)
     if [ "$sum" != "${_su_cfgsum-}" ]; then
         _su_cfgsum=$sum
@@ -530,6 +553,8 @@ EOF_REPORT
                 _su_revision=${_su_revision:0:12}
                 _su_valid="$_su_statedir/config.valid"
                 mkdir -p "$_su_statedir"
+                # Kept so a later bad edit falls back to this copy while the supervisor runs.
+                # At startup there is nothing to fall back to: a bad file stops it there.
                 cp "$_su_root/config/vigil.config" "$_su_valid.tmp.$$" && mv -f "$_su_valid.tmp.$$" "$_su_valid"
                 _vigil_sup_settings
                 _vigil_sup_log INFO "configuration loaded"
@@ -689,6 +714,8 @@ _vigil_sup_invalid() {
 _vigil_sup_start() {
     local job=$1 rid
     _su_seq=$((_su_seq + 1))
+    # The time, this process and a counter: unique even for two launches in the
+    # same second.
     rid="$(date -u '+%Y%m%dT%H%M%SZ')-$$-$_su_seq"
     mkdir -p "$_su_statedir/locks"
     {
@@ -739,6 +766,7 @@ _vigil_sup_remove() {
 
 _vigil_sup_tick() {
     local s name job cursor cfile active next i ok
+    # Read once: every job in a tick is decided against the same moment.
     set -- $(date '+%s %Y-%m-%dT%H:%M:%S%z %Y-%m-%d')
     _su_epoch=$1
     _su_now=$2
@@ -1039,6 +1067,10 @@ vigil_supervise() {
             return 1
         fi
     fi
+    # An open file, not a pid file: a supervisor that crashed holds nothing, so
+    # the next one starts without anyone cleaning up. The check above and this
+    # open are two steps, so two supervisors started at the very same moment
+    # could both get through: see backlog task 21. On Windows it is one step.
     exec 8> "$_su_statedir/supervisor.lock"
     # Temporary files a killed supervisor left mid-write (12.3). Only the
     # supervisor writes these, and it now holds the lock, so none is live.
@@ -1059,6 +1091,8 @@ vigil_supervise() {
         mv -f "$_su_statedir/supervisor.version.tmp.$$" "$_su_statedir/supervisor.version"
     _vigil_sup_log INFO "supervisor started, pid $$"
 
+    # A stop ends the loop after the current tick or sleep. Workers are detached
+    # and carry on (4.3).
     trap '_su_stop=1' TERM INT
     while :; do
         _vigil_sup_tick
@@ -1070,6 +1104,9 @@ vigil_supervise() {
         # whatever the tick.
         while [ "$now" -lt "$deadline" ]; do
             _vigil_sup_new_version && break
+            # sleep runs in the background and is waited for because bash runs a trap only
+            # once a foreground command ends, while wait returns as soon as a signal
+            # arrives. A stop is seen at once, not at the end of the sleep.
             if [ $((deadline - now)) -gt "$VIGIL_RELOAD_CHECK" ]; then sleep "$VIGIL_RELOAD_CHECK" & else sleep $((deadline - now)) & fi
             wait $!
             [ "$_su_stop" -eq 1 ] && break

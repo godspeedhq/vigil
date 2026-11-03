@@ -417,10 +417,13 @@ vigil_worker() {
             break
         fi
     done
+    # Cleared at once: the values now live only in svalues, until the job's
+    # environment is built.
     VIGIL_SECRET_VALUE=''
     # require_env counts the variables those secrets provide.
     for value in $required; do
         case " ${snames[*]-} " in *" $value "*) continue ;; esac
+        # eval is safe here: validation lets only variable names into require_env.
         if ! eval "[ -n \"\${$value+set}\" ]"; then
             missing="$missing $value"
         fi
@@ -514,6 +517,8 @@ vigil_worker() {
         _vigil_wk_start_time "$pid"
         _vigil_wk_set job_start "$_vw_start"
         _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
+        # The worker waits for the job, not the supervisor, so a supervisor that
+        # restarts or reloads never touches a running job.
         wait "$pid"
         code=$?
         set +m
@@ -534,6 +539,9 @@ vigil_worker() {
     _vigil_wk_now
     duration=$((_vw_epoch - started))
 
+    # Output reaches the job log only once the job has ended, copied from the
+    # files above with the run id on each line. While the job runs, it is in
+    # <run id>.out and <run id>.err.
     # The job log (13.1): its output, then how it ended.
     while IFS= read -r value || [ -n "$value" ]; do
         printf '%s %s out %s\n' "$_vw_iso" "$rid" "${value%$'\r'}"
@@ -546,6 +554,8 @@ vigil_worker() {
     vigil_run_events "$_vw_job" "$_vw_epoch" "$outcome" "$code" "$duration" "$_vw_host" "$_vw_os"
 
     # Events before the final state (4.3, step 7).
+    # The job and run id in the name are how the supervisor finds a run's events
+    # when its state file cannot say how it ended.
     stem="$_vw_epoch-$_vw_job-$rid.events"
     spool="$_vw_spooldir/incoming/$stem"
     vigil_run_events_dump > "$spool.tmp.$$" && mv -f "$spool.tmp.$$" "$spool"
