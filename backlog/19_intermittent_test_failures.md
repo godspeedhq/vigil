@@ -19,6 +19,14 @@ The tests now print what they know when these fail.
   can write `jobs.log` before the fetch activates. The test now waits for
   `config.active`. Close this entry if it does not come back.
 
+- `tests/integration/Max-Runtime.ps1`, PowerShell 7: `long recorded as timed_out`
+  and four more, on #51. Cause found and fixed: a worker's state write failed
+  while the supervisor was reading the file, so the run never recorded its
+  job process, could not be proven to own it, and was never stopped (as
+  designed when ownership is unproven). `Write-VigilFileAtomic` now waits for
+  the reader; `Uncertain.ps1` reproduces the collision. Close this entry if it
+  does not come back.
+
 None came back in 24 macOS upgrades and self updates, or 12 Windows service
 runs, with diagnostics on.
 
