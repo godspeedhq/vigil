@@ -168,6 +168,24 @@ Test-Equal 'release logged with who resolved it' 'True' "$((Get-SupervisorLog) -
 Test-Equal 'unrelated process still never killed' 'False' "$($unrelated.HasExited)"
 Test-Equal 'no tick failed' 'False' "$((Get-SupervisorLog) -match 'tick failed')"
 
+# A state file another process is reading, as the supervisor does for a
+# moment each tick: the write waits for it rather than being lost, which
+# left a run with no job process to prove and so never stopped.
+$held = Join-Path $root 'state\jobs\held.state'
+[System.IO.File]::WriteAllText($held, "[state]`nstatus = running`n")
+$reader = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-Command',
+    "`$f = [System.IO.File]::Open('$held', 'Open', 'Read', 'Read'); Start-Sleep -Seconds 2")
+$heldNow = $false
+for ($i = 0; $i -lt 100 -and -not $heldNow; $i++) {
+    try { $s = [System.IO.File]::Open($held, 'Open', 'Read', 'None'); $s.Dispose(); Start-Sleep -Milliseconds 100 } catch { $heldNow = $true }
+}
+Test-Equal 'a reader holds the state file' 'True' "$heldNow"
+$err = ''
+try { Write-VigilFileAtomic -Path $held -Text "[state]`nstatus = succeeded`n" } catch { $err = $_.Exception.Message }
+Test-Equal 'a write waits for a reader instead of failing' '' $err
+Test-Equal 'and the new state is there' 'succeeded' (Get-StateValue $held 'status')
+$reader.WaitForExit()
+
 if ($script:fail -gt 0) {
     Write-Host "`nsupervisor log:"
     Write-Host (((Get-SupervisorLog).Split("`n") | Select-Object -Last 40) -join "`n")

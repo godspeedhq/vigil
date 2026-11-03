@@ -65,8 +65,22 @@ function Write-VigilFileAtomic {
         $fs.Flush($true)
     }
     finally { $fs.Dispose() }
-    if ([System.IO.File]::Exists($Path)) { [System.IO.File]::Replace($tmp, $Path, [System.Management.Automation.Language.NullString]::Value) }
-    else { [System.IO.File]::Move($tmp, $Path) }
+    # Windows refuses to replace a file while another process has it open
+    # without delete sharing, as the supervisor does for a moment while it
+    # reads a state file, or a virus scanner might. Retried for up to five
+    # seconds: a write given up on here would be lost without a trace, since
+    # the callers run with ErrorActionPreference Continue.
+    for ($try = 1; ; $try++) {
+        try {
+            if ([System.IO.File]::Exists($Path)) { [System.IO.File]::Replace($tmp, $Path, [System.Management.Automation.Language.NullString]::Value) }
+            else { [System.IO.File]::Move($tmp, $Path) }
+            return
+        }
+        catch [System.IO.IOException] {
+            if ($try -ge 50) { throw }
+            Start-Sleep -Milliseconds 100
+        }
+    }
 }
 
 # Seconds in a validated duration (30s, 5m, 2h, 7d).
