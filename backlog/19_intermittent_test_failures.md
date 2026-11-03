@@ -13,6 +13,12 @@ The tests now print what they know when these fail.
 - `tests/integration/Self-Update.ps1`, Windows, run locally:
   `reload: the supervisor is running`.
 
+- `tests/integration/Fetch.ps1`, PowerShell 5.1: `jobs.log shows the revision`,
+  on the merge of #45. Probably the test's timing: the fetch is detached, so
+  `Invoke-Tick` can return before the fetch takes its lock, and the next tick
+  can write `jobs.log` before the fetch activates. The test now waits for
+  `config.active`. Close this entry if it does not come back.
+
 None came back in 24 macOS upgrades and self updates, or 12 Windows service
 runs, with diagnostics on.
 

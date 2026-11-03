@@ -209,6 +209,14 @@ check "precheck before the first fetch" 0 "$(vigil precheck > /dev/null 2>&1; ec
 tick
 check "waiting for the first fetch" yes "$(yes_no grep -q 'waiting for the first fetch' "$root/logs/supervisor/jobs.log")"
 tick
+# The fetch is detached, so a tick can finish before it takes its lock, and
+# the tick that follows can write jobs.log before the fetch activates.
+i=0
+while [ ! -f "$root/state/config.active" ] && [ "$i" -lt 120 ]; do
+    i=$((i + 1))
+    sleep 0.5
+done
+tick
 
 # Fetched, verified and activated.
 check "activated" yes "$(yes_no test -f "$root/state/config.active")"
