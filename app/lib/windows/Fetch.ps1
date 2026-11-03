@@ -109,7 +109,40 @@ function Get-VigilTextSha {
     @{ Code; Out; Err; TimedOut }; at the limit its process tree is ended.
 #>
 function Invoke-VigilFetchProcess {
-    param([string]$Program, [string[]]$Arguments, [int]$Seconds, [string]$WorkDir, [hashtable]$Environment)
+    param([string]$Program, [string[]]$Arguments, [int]$Seconds, [string]$WorkDir, [hashtable]$Environment, [switch]$ErrorToFile)
+    if ($ErrorToFile) {
+        # Windows' OpenSSH (sftp.exe, and ssh.exe under git) never exits
+        # after an error while its standard error is a pipe, so here it is a
+        # file (in $WorkDir), as are input (empty) and output. Start-Process
+        # redirects to files; it takes no environment, so $Environment is set
+        # for this process while the program starts, and put back after.
+        $in = Join-Path $WorkDir 'stdin'; $outFile = Join-Path $WorkDir 'stdout'; $errFile = Join-Path $WorkDir 'stderr'
+        [System.IO.File]::WriteAllText($in, '')
+        $argLine = ($Arguments | ForEach-Object { ConvertTo-VigilQuotedArg -Arg $_ -Always $false }) -join ' '
+        $saved = @{}
+        if ($Environment) {
+            foreach ($k in $Environment.Keys) {
+                $saved[$k] = [Environment]::GetEnvironmentVariable($k, 'Process')
+                [Environment]::SetEnvironmentVariable($k, $Environment[$k], 'Process')
+            }
+        }
+        try {
+            $p = Start-Process -FilePath $Program -ArgumentList $argLine -WorkingDirectory $WorkDir -NoNewWindow -PassThru `
+                -RedirectStandardInput $in -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+        }
+        finally { foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k], 'Process') } }
+        # Taken at once: without it, a process that has exited reports no
+        # exit code.
+        [void]$p.Handle
+        if (-not $p.WaitForExit($Seconds * 1000)) {
+            Stop-VigilProcessTree $p.Id
+            [void]$p.WaitForExit(5000)
+            return @{ Code = -1; Out = ''; Err = ''; TimedOut = $true }
+        }
+        $p.WaitForExit()
+        $read = { param($f) try { [System.IO.File]::ReadAllText($f) } catch { '' } }
+        return @{ Code = $p.ExitCode; Out = (& $read $outFile); Err = (& $read $errFile); TimedOut = $false }
+    }
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $Program
     $psi.Arguments = ($Arguments | ForEach-Object { ConvertTo-VigilQuotedArg -Arg $_ -Always $false }) -join ' '
@@ -274,7 +307,7 @@ function Invoke-VigilFetch {
         # Credentials come from the account's credential helper or SSH key;
         # nothing may stop to ask for one.
         $r = Invoke-VigilFetchProcess $git @("--git-dir=$mirror", '-c', 'core.hooksPath=NUL', 'fetch', '-q', '--no-tags', '--no-recurse-submodules',
-            '--force', $S.Url, '+refs/heads/*:refs/heads/*', '+refs/tags/*:refs/tags/*') $S.Secs '' @{ GIT_TERMINAL_PROMPT = '0'; GCM_INTERACTIVE = 'never' }
+            '--force', $S.Url, '+refs/heads/*:refs/heads/*', '+refs/tags/*:refs/tags/*') $S.Secs $st @{ GIT_TERMINAL_PROMPT = '0'; GCM_INTERACTIVE = 'never' } -ErrorToFile
         if ($r.TimedOut) { return @{ Why = "timed out after $($S.Timeout)" } }
         if ($r.Code -ne 0) {
             $l = Get-VigilFirstLine $r.Err
@@ -418,7 +451,7 @@ function Invoke-VigilFetch {
         if ([System.IO.File]::Exists($dl)) { [System.IO.File]::Delete($dl) }
         $argv = @('-b', 'batch', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', "ConnectTimeout=$($S.Secs)", '-P', $S.Port)
         if ($env:VIGIL_TEST_SSH_CONFIG) { $argv += @('-F', $env:VIGIL_TEST_SSH_CONFIG) }
-        $r = Invoke-VigilFetchProcess $sftp ($argv + @('--', $dest)) $S.Secs $st
+        $r = Invoke-VigilFetchProcess $sftp ($argv + @('--', $dest)) $S.Secs $st -ErrorToFile
         if ($r.TimedOut) { return "timed out after $($S.Timeout)" }
         if ($r.Code -ne 0 -or -not [System.IO.File]::Exists($dl)) {
             $l = Get-VigilFirstLine $r.Err
