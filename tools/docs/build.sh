@@ -29,6 +29,8 @@
 #                   their own headers
 #   Examples        the annotated configurations in tests/mocks
 #   Test evidence   console output of a real CI run (evidence.sh)
+#   Real systems    the runs the real-backend tests kept, on each machine
+#                   (runs-page.sh)
 #   Logs and output a tour of Vigil on each system, from CI (tour-page.sh)
 #
 # The output is Markdown with front matter for Jekyll and the Just the Docs
@@ -198,6 +200,23 @@ printf '# Reference\n\nGenerated from the code: the commands, the error codes, t
 if command -v gh > /dev/null 2>&1 && evidence=$(bash "$here/evidence.sh" 2> /dev/null) && [ -n "$evidence" ]; then
     printf '%s\n' "$evidence" | page evidence.md 'title: Test evidence' 'nav_order: 6' 'permalink: /evidence/'
 fi
+
+# --- Real systems --------------------------------------------------------------
+
+# From the repository: the runs the real-backend tests kept (runs-page.sh).
+runs=$(mktemp -d "${TMPDIR:-/tmp}/vigil-runs.XXXXXX")
+if bash "$here/runs-page.sh" "$runs"; then
+    mkdir -p "$out/real"
+    relink < "$runs/index.md" | page real/index.md 'title: Real systems' 'nav_order: 6.5' 'has_children: true' 'permalink: /real/'
+    order=1
+    for f in "$runs"/*.md; do
+        h=$(basename "$f" .md)
+        [ "$h" = index ] && continue
+        page "real/$h.md" "title: $(sed -n '1s/^# //p' "$f")" 'parent: Real systems' "nav_order: $order" "permalink: /real/$h/" < "$f"
+        order=$((order + 1))
+    done
+fi
+rm -rf "$runs"
 
 # --- Logs and output ---------------------------------------------------------------
 

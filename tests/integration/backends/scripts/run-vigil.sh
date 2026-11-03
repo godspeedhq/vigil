@@ -44,6 +44,8 @@ sup=''
 cleanup() {
     # The supervisor this script started, and nothing else.
     [ -n "$sup" ] && kill "$sup" 2> /dev/null
+    # What verify.sh got from the backend, with the rest.
+    [ -n "${ev_dir-}" ] && cp "$bk_dir/reports/evidence/$target-$tag.txt" "$ev_dir/backend-answers.txt" 2> /dev/null
     evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}"
     rm -rf "$work"
 }

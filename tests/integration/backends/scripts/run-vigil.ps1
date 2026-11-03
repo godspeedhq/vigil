@@ -184,6 +184,8 @@ try {
 }
 finally {
     if ($sup -and -not $sup.HasExited) { $sup.Kill() }
+    # What verify.sh got from the backend, with the rest.
+    if ($script:evDir) { Copy-Item -LiteralPath (Join-Path $bk "reports\evidence\$Target-$tag.txt") -Destination (Join-Path $script:evDir 'backend-answers.txt') -ErrorAction SilentlyContinue }
     Save-Evidence $work $root @($env:VIGIL_SPLUNK_METRICS_TOKEN, $env:VIGIL_SPLUNK_LOGS_TOKEN)
     if ($Keep) { Write-Output "kept: $work" }
     else { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }
