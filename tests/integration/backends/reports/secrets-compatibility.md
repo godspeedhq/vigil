@@ -17,7 +17,7 @@ How Vigil's secret stores work with real secret services and local emulators, an
 | HashiCorp Vault (`hashicorp/vault:2.2.0`) | Docker, server mode, raft, TLS | Real backend | **Passed**, the same | **Passed**, the same | **Passed**: KV v2. KV v1: **Not supported** by Vigil | **Passed** | **Passed** |
 | Floci AWS (`floci/floci:2.3.0`) | Docker, behind an nginx TLS front | Emulator | **Passed**: `GetSecretValue` as Vigil's `aws_secrets_manager` signs it; regions kept apart | **Emulator limitation**: any key is accepted, signatures are not checked | **Passed**, with `field`; binary secrets: **Not supported** by Vigil | **Passed** | **Passed**, as an emulator (see limits below) |
 | LocalStack (`localstack/localstack`) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | **Blocked by licensing**: since 2026.03.0 it won't start without a LocalStack account's auth token, and no account is made for you |
-| Floci Azure | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
+| Floci Azure (`floci/floci-az:0.15.0`) | Docker, behind an nginx TLS front | Emulator | **Passed**: Key Vault `GET .../secrets/{name}[/{version}]?api-version=7.4`, as Vigil's `azure_keyvault` asks | **Passed** as requests: `service_principal` signs in at the emulated Entra ID; `managed_identity` through Vigil's test switch. **Emulator limitation**: any client secret and any token are accepted | **Passed**, the latest and a chosen version | **Passed** | **Passed**, as an emulator (see limits below) |
 | Azure Key Vault emulator (community) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
 | Floci GCP | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
 | GCP Secret Manager emulator (community) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
@@ -80,12 +80,42 @@ Vigil's `aws_secrets_manager` store, `client = http`, `auth = access_keys` with 
 - Malformed requests. Vigil only ever sends a well-formed `GetSecretValue`; Floci's answer to bad JSON (`SerializationException`, HTTP 400) was checked by hand.
 - Prove AWS itself with the optional real-cloud test.
 
+## Azure Key Vault, through Floci: what was tested
+
+Vigil's `azure_keyvault` store, `client = http`:
+- `vault = https://127.0.0.1:4577/vigiltest-keyvault`
+- `auth = service_principal`, with `authority = https://127.0.0.1:4577`, the emulated tenant, and a dummy client id and secret
+
+Floci speaks plain http, so an nginx in front serves https with the test CA for Key Vault and the token endpoint alike. The fixtures come from `configs/secrets/azure/provision.sh`, written again after every start.
+
+| Check | Must end, at precheck and at the run | Result |
+| --- | --- | --- |
+| Sign-in (`client_credentials` at `{authority}/{tenant}/oauth2/v2.0/token`) and retrieval, delivered to a job | succeeded; the job's secret hashes to the fixture's | Passed |
+| The latest of two versions | succeeded, with the second value | Passed |
+| A chosen version (`name/<version id>`) | succeeded, with the first value | Passed |
+| Missing secret | `not found (HTTP 404)` | Passed |
+| A version that doesn't exist | `not found (HTTP 404)` | Passed |
+| A name Key Vault doesn't allow (`vigil_probe`) | `not a valid Key Vault secret name`, without a request | Passed |
+| Untrusted certificate (no `ca_file`) | `sign-in failed: the certificate of 127.0.0.1:4577 is not trusted` | Passed |
+| `managed_identity`, its token from `http://127.0.0.1:4578` through Vigil's test switch `VIGIL_TEST_IMDS` (spec 22.4.2), not 169.254.169.254 | succeeded | Passed, as a request (see below) |
+| Rotation (a new version) | the next run gets the new value | Passed |
+| A wrong client secret | real Entra ID: refused at sign-in. Floci: accepted | **Emulator limitation** |
+| Emulator stopped | `sign-in failed: cannot connect to 127.0.0.1:4577` | Passed (Fedora) |
+| Emulator started again, fixtures rewritten | succeeded | Passed (Fedora) |
+| No secret or credential written down | none of the values or the client secret under the Vigil root or in its output | Passed |
+
+**What this does not show:**
+- Microsoft Entra ID's real sign-in. Floci accepts any client secret, and Key Vault accepts any bearer token, so a refused, expired or wrong-audience token is untested.
+- A real managed identity. Only Vigil's request to the endpoint was exercised, through the test switch; Azure's own instance metadata service wasn't involved.
+- Access policies and RBAC.
+- Prove Azure itself with the optional real-cloud test.
+
 ## Runs
 
-| Date | Vigil on | OpenBao | Vault | Floci AWS | Notes |
-| --- | --- | --- | --- | --- | --- |
-| 2026-11-03 | Fedora 44 (the Docker host), bash 5.3 | 26 of 26 | 26 of 26 | 20 of 20, 1 emulator limitation | restart and recovery included |
-| 2026-11-03 | macOS 12.7.6, bash 3.2, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 emulator limitation | restart not run: it needs the Docker host |
-| 2026-11-03 | Windows 11 Pro, PowerShell 5.1, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 emulator limitation | the same; rotation through Git Bash's curl |
+| Date | Vigil on | OpenBao | Vault | Floci AWS | Floci Azure | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-03 | Fedora 44 (the Docker host), bash 5.3 | 26 of 26 | 26 of 26 | 20 of 20, 1 limitation | 22 of 22, 1 limitation | restart and recovery included |
+| 2026-11-03 | macOS 12.7.6, bash 3.2, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | restart not run: it needs the Docker host |
+| 2026-11-03 | Windows 11 Pro, PowerShell 5.1, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | the same; rotation through Git Bash's curl |
 
 The restart checks run only where the store's container runs, so Vigil's recovery after an outage has been seen on Linux only so far. Running them from macOS and Windows, with the Docker host's containers stopped and started remotely, is part of phase 3.

@@ -17,6 +17,7 @@
 #
 #   openbao, vault  Vigil's hashicorp_vault store, the same tests for both
 #   aws             Vigil's aws_secrets_manager store, against Floci
+#   azure           Vigil's azure_keyvault store, against Floci
 #
 # Needs .secrets/<target>.env and .secrets/tls/ca.pem, which start.sh makes;
 # on another host, copy both, keeping their paths, and reach the service's
@@ -43,7 +44,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/common.sh"
 
 t=${1-}
-case $t in openbao | vault | aws) ;; *) die 'usage: run-store.sh openbao|vault|aws' ;; esac
+case $t in openbao | vault | aws | azure) ;; *) die 'usage: run-store.sh openbao|vault|aws|azure' ;; esac
 envf=$bk_dir/.secrets/$t.env
 ca=$bk_dir/.secrets/tls/ca.pem
 [ -f "$envf" ] && [ -f "$ca" ] || die "no .secrets/$t.env or .secrets/tls/ca.pem: run scripts/start.sh $t first, or copy them from the host that did"
@@ -284,13 +285,99 @@ bk_bad_key aws_bad_key vigil/probe failed permission_denied ST_PROBE"
     leak_values="${old-} $ST_PROBE $ST_PASSWORD $ST_ROTATING $ST_BINARY $VIGIL_ST_SECRET_KEY $VIGIL_ST_BAD_SECRET_KEY"
 }
 
+# A credential the real cloud refuses: job $1, labelled $2. PASS when it is
+# refused (reason holding $3), EMULATOR LIMITATION when it is accepted (the
+# job got its secret), and FAIL otherwise. $4 says what the emulator lacks.
+expect_refused() {
+    local status reason
+    vigil run "$1" >> "$work/vigil.out" 2>&1
+    status=$(sed -n 's/^status *= *//p' "$root/state/jobs/$1.state" 2> /dev/null)
+    reason=$(sed -n 's/^reason *= *//p' "$root/state/jobs/$1.state" 2> /dev/null)
+    case $status:$reason in
+        failed:*"$3"*) ok "$(printf '%-36s %s: %s' "$2" "$status" "$reason")" ;;
+        succeeded:*) limit "$2: accepted; $4" ;;
+        *) bad "$(printf '%-36s %s%s' "$2" "${status:-no state}" "${reason:+: $reason}")" ;;
+    esac
+}
+
+# ---- azure: azure_keyvault, against Floci ---------------------------------
+azure_suite() {
+    VIGIL_ST_BAD_CLIENT_SECRET=$(rnd)
+    VIGIL_TEST_IMDS=$ST_IMDS
+    export VIGIL_ST_BAD_CLIENT_SECRET VIGIL_TEST_IMDS
+    # The first version's id changes at every provisioning, so the table is
+    # made from the values loaded.
+    azure_jobs() {
+        jobs="bk_sp az vigil-probe succeeded - ST_PROBE
+bk_latest az vigil-versioned succeeded - ST_V2
+bk_version az vigil-versioned/$ST_V1_ID succeeded - ST_V1
+bk_missing az vigil-nosuch failed not_found -
+bk_bad_version az vigil-versioned/0123456789abcdef0123456789abcdef failed not_found -
+bk_bad_name az vigil_probe failed not_a_valid_Key_Vault_secret_name -
+bk_untrusted az_untrusted vigil-probe failed is_not_trusted -
+bk_managed_identity az_mi vigil-probe succeeded - ST_PROBE
+bk_rotating az vigil-rotating succeeded - current"
+    }
+    azure_jobs
+    # shellcheck disable=SC2329
+    stores() {
+        local k="type = azure_keyvault\nclient = http\nvault = $ST_VAULT"
+        local sp="auth = service_principal\nauthority = $ST_URL\ntenant_id = $ST_TENANT\nclient_id = $ST_CLIENT_ID"
+        store az "$k\n$sp\nclient_secret = env:VIGIL_ST_CLIENT_SECRET" trusted
+        store az_untrusted "$k\n$sp\nclient_secret = env:VIGIL_ST_CLIENT_SECRET" untrusted
+        store az_bad_secret "$k\n$sp\nclient_secret = env:VIGIL_ST_BAD_CLIENT_SECRET" trusted
+        store az_mi "$k\nauth = managed_identity" trusted
+    }
+    # shellcheck disable=SC2329
+    label() {
+        case $1 in
+            bk_version) printf 'bk_version (the first version, by id)' ;;
+            bk_managed_identity) printf 'bk_managed_identity (VIGIL_TEST_IMDS)' ;;
+            *) printf '%s' "$1" ;;
+        esac
+    }
+
+    first=$(rnd)
+    rotate "$first" || bad 'rotation: cannot write the first value'
+    current=$first
+    write_config
+    precheck_jobs
+    run_jobs
+    rotation
+
+    # A wrong client secret: Entra ID refuses it. The emulator accepts any.
+    jobs="$jobs
+bk_bad_secret az_bad_secret vigil-probe failed permission_denied ST_PROBE"
+    write_config
+    expect_refused bk_bad_secret 'bk_bad_secret (wrong client secret)' 'sign-in failed' 'the emulator does not check client secrets'
+
+    if here_running 'floci-az floci-az-tls'; then
+        dc stop floci-az floci-az-tls > /dev/null 2>&1
+        run_job bk_sp failed 'cannot connect to' 'bk_sp, emulator stopped'
+        dc start floci-az floci-az-tls > /dev/null 2>&1
+        # In memory: its fixtures are written again, with new values.
+        bash "$bk_dir/configs/secrets/azure/provision.sh" > /dev/null || bad 'cannot provision the emulator again'
+        old="$ST_PROBE $ST_ROTATING $ST_V1 $ST_V2 $VIGIL_ST_CLIENT_SECRET"
+        load_env
+        azure_jobs
+        write_config
+        run_job bk_sp succeeded - 'bk_sp, emulator restarted (recovered)'
+    else
+        printf '  NOT RUN  restart: %s does not run here (it needs the Docker host)\n' "$t"
+        notrun=$((notrun + 1))
+    fi
+    leak_values="${old-} $ST_PROBE $ST_ROTATING $ST_V1 $ST_V2 $VIGIL_ST_CLIENT_SECRET $VIGIL_ST_BAD_CLIENT_SECRET"
+}
+
 # Not a case inside $(...): bash 3.2 cannot parse one there.
 kind=hashicorp_vault
 [ "$t" = aws ] && kind=aws_secrets_manager
+[ "$t" = azure ] && kind=azure_keyvault
 printf '\n%s, %s store\n' "$t" "$kind"
 case $t in
     openbao | vault) vault_suite ;;
     aws) aws_suite ;;
+    azure) azure_suite ;;
 esac
 
 # Leaks: every secret value and credential, under the root and in what Vigil

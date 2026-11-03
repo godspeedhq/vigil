@@ -15,7 +15,7 @@
     service, on Windows. The twin of run-store.sh, which describes the
     checks.
 .DESCRIPTION
-        .\scripts\run-store.ps1 openbao      (or vault, aws)
+        .\scripts\run-store.ps1 openbao      (or vault, aws, azure)
 
     Needs .secrets\<target>.env and .secrets\tls\ca.pem from the host that
     ran scripts/start.sh, copied to the same paths here, and the service's
@@ -35,7 +35,7 @@ $bk = Split-Path -Parent $here
 $repo = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $bk))
 $shell = (Get-Process -Id $PID).Path
 
-if (@('openbao', 'vault', 'aws') -cnotcontains $Target) { Write-Output 'usage: run-store.ps1 openbao|vault|aws'; exit 1 }
+if (@('openbao', 'vault', 'aws', 'azure') -cnotcontains $Target) { Write-Output 'usage: run-store.ps1 openbao|vault|aws|azure'; exit 1 }
 $envFile = Join-Path $bk ".secrets\$Target.env"
 $caFile = Join-Path $bk '.secrets\tls\ca.pem'
 if (-not (Test-Path -LiteralPath $envFile) -or -not (Test-Path -LiteralPath $caFile)) {
@@ -63,7 +63,37 @@ function Write-NotRun { param([string]$Text) Write-Output "  NOT RUN  $Text"; $s
 # path, status, reason or '-', the key of the value it must get or '-'), as
 # in run-store.sh.
 $labels = @{}
-if ($Target -ceq 'aws') {
+# A credential the real cloud refuses, checked after the table: job, store,
+# label, the reason when refused, and what the emulator lacks.
+$refused = $null
+if ($Target -ceq 'azure') {
+    $o['VIGIL_ST_BAD_CLIENT_SECRET'] = & $rnd
+    # Vigil's test switch for the managed-identity endpoint (spec 22.4.2).
+    [Environment]::SetEnvironmentVariable('VIGIL_TEST_IMDS', $o['ST_IMDS'], 'Process')
+    $k = "type = azure_keyvault`nclient = http`nvault = $($o['ST_VAULT'])"
+    $sp = "auth = service_principal`nauthority = $($o['ST_URL'])`ntenant_id = $($o['ST_TENANT'])`nclient_id = $($o['ST_CLIENT_ID'])"
+    $stores = @(
+        @('az', "$k`n$sp`nclient_secret = env:VIGIL_ST_CLIENT_SECRET", $true),
+        @('az_untrusted', "$k`n$sp`nclient_secret = env:VIGIL_ST_CLIENT_SECRET", $false),
+        @('az_bad_secret', "$k`n$sp`nclient_secret = env:VIGIL_ST_BAD_CLIENT_SECRET", $true),
+        @('az_mi', "$k`nauth = managed_identity", $true))
+    $jobs = @(
+        @('bk_sp', 'az', 'vigil-probe', 'succeeded', '-', 'ST_PROBE'),
+        @('bk_latest', 'az', 'vigil-versioned', 'succeeded', '-', 'ST_V2'),
+        @('bk_version', 'az', "vigil-versioned/$($o['ST_V1_ID'])", 'succeeded', '-', 'ST_V1'),
+        @('bk_missing', 'az', 'vigil-nosuch', 'failed', 'not found', '-'),
+        @('bk_bad_version', 'az', 'vigil-versioned/0123456789abcdef0123456789abcdef', 'failed', 'not found', '-'),
+        @('bk_bad_name', 'az', 'vigil_probe', 'failed', 'not a valid Key Vault secret name', '-'),
+        @('bk_untrusted', 'az_untrusted', 'vigil-probe', 'failed', 'is not trusted', '-'),
+        @('bk_managed_identity', 'az_mi', 'vigil-probe', 'succeeded', '-', 'ST_PROBE'),
+        @('bk_rotating', 'az', 'vigil-rotating', 'succeeded', '-', 'current'))
+    $labels['bk_version'] = 'bk_version (the first version, by id)'
+    $labels['bk_managed_identity'] = 'bk_managed_identity (VIGIL_TEST_IMDS)'
+    $refused = @('bk_bad_secret', 'az_bad_secret', 'bk_bad_secret (wrong client secret)', 'sign-in failed', 'the emulator does not check client secrets')
+    $secretEnv = @('VIGIL_ST_CLIENT_SECRET', 'VIGIL_ST_BAD_CLIENT_SECRET')
+    $leakKeys = @('ST_PROBE', 'ST_ROTATING', 'ST_V1', 'ST_V2', 'VIGIL_ST_CLIENT_SECRET', 'VIGIL_ST_BAD_CLIENT_SECRET')
+}
+elseif ($Target -ceq 'aws') {
     $o['VIGIL_ST_BAD_SECRET_KEY'] = (& $rnd) + (& $rnd)
     $a = "type = aws_secrets_manager`nclient = http`nendpoint = $($o['ST_URL'])`nauth = access_keys`naccess_key_id = $($o['ST_ACCESS_KEY_ID'])"
     $k = 'secret_access_key = env:VIGIL_ST_SECRET_KEY'
@@ -85,6 +115,7 @@ if ($Target -ceq 'aws') {
         @('bk_untrusted', 'aws_untrusted', 'vigil/probe', 'failed', 'is not trusted', '-'),
         @('bk_rotating', 'aws', 'vigil/rotating', 'succeeded', '-', 'current'))
     $labels['bk_other_region'] = 'bk_other_region (eu-west-2)'
+    $refused = @('bk_bad_key', 'aws_bad_key', 'bk_bad_key (wrong secret key)', 'permission denied', 'the emulator does not check signatures')
     $secretEnv = @('VIGIL_ST_SECRET_KEY', 'VIGIL_ST_BAD_SECRET_KEY')
     $leakKeys = @('ST_PROBE', 'ST_PASSWORD', 'ST_ROTATING', 'ST_BINARY', 'VIGIL_ST_SECRET_KEY', 'VIGIL_ST_BAD_SECRET_KEY')
 }
@@ -172,7 +203,8 @@ try {
     Copy-Item -LiteralPath (Join-Path $bk 'workloads\secret.ps1') -Destination (Join-Path $root 'scripts')
     Copy-Item -LiteralPath $caFile -Destination (Join-Path $root 'config\store-ca.pem')
 
-    Write-Output "`n$Target, $(if ($Target -ceq 'aws') { 'aws_secrets_manager' } else { 'hashicorp_vault' }) store"
+    $kinds = @{ aws = 'aws_secrets_manager'; azure = 'azure_keyvault' }
+    Write-Output "`n$Target, $(if ($kinds.ContainsKey($Target)) { $kinds[$Target] } else { 'hashicorp_vault' }) store"
     # The expiring token must have expired.
     if ($o['ST_EXPIRES_AT']) { while ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -le [long]$o['ST_EXPIRES_AT']) { Start-Sleep -Seconds 1 } }
 
@@ -208,15 +240,15 @@ try {
     }
     else { Write-Fail 'rotation: cannot write the new value' }
 
-    if ($Target -ceq 'aws') {
-        # A wrong secret key: AWS refuses it. An emulator that doesn't check
-        # signatures accepts it, and is reported so.
-        $jobs += , @('bk_bad_key', 'aws_bad_key', 'vigil/probe', 'failed', 'permission denied', 'ST_PROBE')
+    if ($refused) {
+        # A credential the real cloud refuses. An emulator that accepts it is
+        # reported so, never as a pass.
+        $jobs += , @($refused[0], $refused[1], $jobs[0][2], 'failed', $refused[3], $jobs[0][5])
         Write-StoreConfig
-        $e = Get-JobEnd 'bk_bad_key'
-        if ($e.Status -ceq 'failed' -and $e.Reason.Contains('permission denied')) { Write-Pass ('{0,-36} {1}' -f 'bk_bad_key (wrong secret key)', $e.Shown) }
-        elseif ($e.Status -ceq 'succeeded') { Write-Limit 'bk_bad_key (wrong secret key): accepted; the emulator does not check signatures' }
-        else { Write-Fail ('{0,-36} {1}' -f 'bk_bad_key (wrong secret key)', $e.Shown) }
+        $e = Get-JobEnd $refused[0]
+        if ($e.Status -ceq 'failed' -and $e.Reason.Contains($refused[3])) { Write-Pass ('{0,-36} {1}' -f $refused[2], $e.Shown) }
+        elseif ($e.Status -ceq 'succeeded') { Write-Limit "$($refused[2]): accepted; $($refused[4])" }
+        else { Write-Fail ('{0,-36} {1}' -f $refused[2], $e.Shown) }
     }
 
     Write-NotRun "restart: $Target does not run here (run-store.sh does it on the Docker host)"

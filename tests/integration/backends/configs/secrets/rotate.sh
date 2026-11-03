@@ -18,6 +18,8 @@
 #                   that path
 #   aws             vigil/rotating, PutSecretValue (the emulator takes any
 #                   credentials)
+#   azure           vigil-rotating, a new version (the emulator takes any
+#                   bearer token)
 #
 # Tokens and the value reach curl on its standard input, as configuration,
 # never on its command line.
@@ -42,6 +44,10 @@ case $1 in
     aws)
         config=$(printf 'data-binary = "{\\"SecretId\\":\\"vigil/rotating\\",\\"SecretString\\":\\"%s\\"}"\nheader = "Content-Type: application/x-amz-json-1.1"\nheader = "X-Amz-Target: secretsmanager.PutSecretValue"\nurl = "%s/"\n' \
             "$new" "$url")
+        ;;
+    azure)
+        config=$(printf 'request = "PUT"\ndata-binary = "{\\"value\\":\\"%s\\"}"\nheader = "Content-Type: application/json"\nheader = "Authorization: Bearer rotation"\nurl = "%s/secrets/vigil-rotating?api-version=7.4"\n' \
+            "$new" "$(sed -n 's/^ST_VAULT=//p' "$2")")
         ;;
     *) echo "rotate.sh: no rotation for $1" >&2; exit 1 ;;
 esac

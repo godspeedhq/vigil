@@ -129,4 +129,5 @@ tests/integration/backends/
     | Azure community emulator | Lowkey Vault (`nagyesta/lowkey-vault`, MIT), the best fit | MIT | api-version 7.4 over https, choosing versions. No client-credentials token endpoint, only a managed-identity one; Vigil's `managed_identity` always goes to 169.254.169.254, so sign-in there is an emulator limitation, unless Vigil's existing test switch `VIGIL_TEST_IMDS` is used and labelled as such |
     | `ghcr.io/blackwell-systems/gcp-secret-manager-emulator-dual` | no release published yet: pin by digest | Apache 2.0 | REST on 8080, which collides with SigNoz, so published elsewhere; no authentication; http only (front needed) |
 
-  - **Next:** Floci Azure, then Lowkey Vault, then the two GCP emulators, each checked by a run before it's accepted.
+  - **Floci Azure 0.15.0: done.** `service_principal` signs in for real at the emulated Entra ID, and `managed_identity` is exercised through `VIGIL_TEST_IMDS`. Chosen versions are fetched. 22 of 22 on Fedora; 20 of 20 on macOS and Windows. One emulator limitation everywhere: any client secret is accepted, and so is any token.
+  - **Next:** Lowkey Vault, then the two GCP emulators, each checked by a run before it's accepted.
