@@ -22,6 +22,8 @@
 #              authentication header, the failures nginx gives on purpose
 #   sftp-openssh Vigil's sftp source: a key, known_hosts, scripts pinned by
 #              SHA-256
+#   local      Vigil's local source: a directory (its path has spaces), pinned
+#              and followed; no server, and no .sources/ needed
 #
 # Needs .sources/ and .secrets/tls/ca.pem, which start.sh makes; on another
 # host, copy them, keeping their paths, and reach the server's ports on
@@ -46,17 +48,20 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/common.sh"
 
 t=${1-}
-case $t in git-gitea | https-nginx | sftp-openssh) ;; *) die 'usage: run-source.sh git-gitea|https-nginx|sftp-openssh' ;; esac
+case $t in git-gitea | https-nginx | sftp-openssh | local) ;; *) die 'usage: run-source.sh git-gitea|https-nginx|sftp-openssh|local' ;; esac
 src=$bk_dir/.sources
 ca=$bk_dir/.secrets/tls/ca.pem
 fx=$bk_dir/fixtures/sources
-envf=$src/${t#*-}.env
-[ -f "$envf" ] && [ -f "$ca" ] || die "no .sources/${t#*-}.env or .secrets/tls/ca.pem: run scripts/start.sh $t first, or copy them from the host that did"
-command -v git > /dev/null 2>&1 || die 'needs git'
-set -a
-# shellcheck disable=SC1090
-. "$envf"
-set +a
+# local needs no server, so nothing from start.sh.
+if [ "$t" != local ]; then
+    envf=$src/${t#*-}.env
+    [ -f "$envf" ] && [ -f "$ca" ] || die "no .sources/${t#*-}.env or .secrets/tls/ca.pem: run scripts/start.sh $t first, or copy them from the host that did"
+    set -a
+    # shellcheck disable=SC1090
+    . "$envf"
+    set +a
+fi
+[ "$t" != git-gitea ] || command -v git > /dev/null 2>&1 || die 'needs git'
 sha() { if command -v sha256sum > /dev/null 2>&1; then sha256sum < "$1"; else shasum -a 256 < "$1"; fi | cut -d' ' -f1; }
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-source.XXXXXX") || exit 1
@@ -482,6 +487,116 @@ sftp_suite() {
     leak_values="$(sed -n '2p' "$src/ssh/vigil_sources") $(sed -n '2p' "$src/ssh/vigil_sources_wrong")"
 }
 
+# ---- local ----------------------------------------------------------------
+local_suite() {
+    local v1_sha v2_sha rev share="$work/a share with spaces"
+    v1_sha=$(sha "$fx/scripts/check-v1.sh")
+    v2_sha=$(sha "$fx/scripts/check-v2.sh")
+    mkdir -p "$share/nested" "$share/configs" || exit 1
+    cp "$fx/scripts/check-v1.sh" "$share/check.sh" && cp "$fx/scripts/check-v1.sh" "$share/nested/check.sh" &&
+        cp "$fx/scripts/corrupt.txt" "$share/" || exit 1
+    # A source of type local at path $1, job file $2, pinned by $3 (or -,
+    # followed), named $4.
+    local_config() {
+        {
+            base
+            printf '[source.%s]\ntype        = local\npath        = %s\ncheck_every = 1s\n\n' "${4:-share}" "$1"
+            printf '[job.check]\nsource    = %s\nfile      = %s\n' "${4:-share}" "$2"
+            [ "$3" != - ] && printf 'sha256    = %s\n' "$3"
+            printf 'run_every = 3650d\n'
+        } > "$root/config/vigil.config"
+    }
+
+    printf '\n%s, scripts from a local directory (its path has spaces)\n' "$t"
+    local_config "$share" check.sh "$v1_sha"
+    fetch
+    check 'pinned: fetched and activated' succeeded "$(fetch_status)"
+    check 'pinned: the job runs version 1' 'source_check 1' "$(run check)"
+    rev=$(revision)
+    # Spec 6.9: a job's sha256 always wins; new content is refused and the
+    # last verified copy keeps running.
+    cp "$fx/scripts/check-v2.sh" "$share/check.sh"
+    fetch
+    contains 'pinned, the file changed: the new content is refused, logged' 'check.sh no longer matches its sha256; the last verified copy stays in use' \
+        "$(cat "$root/logs/jobs/vigil_fetch/"*.log 2> /dev/null | grep -o 'check.sh no longer matches its sha256; the last verified copy stays in use' | tail -1)"
+    check 'pinned, the file changed: the configuration is unchanged' "$rev" "$(revision)"
+    check 'pinned, the file changed: the last verified copy keeps running' 'source_check 1' "$(run check)"
+    local_config "$share" check.sh "$v2_sha"
+    fetch
+    check 'pinned to the new digest: the job runs version 2' 'source_check 2' "$(run check)"
+    # Followed: no sha256, so a change is picked up at the next check.
+    cp "$fx/scripts/check-v1.sh" "$share/check.sh"
+    local_config "$share" check.sh - followed
+    fetch
+    check 'followed: the job runs version 1' 'source_check 1' "$(run check)"
+    # Reported by validation (precheck), as a git branch is by the fetcher.
+    contains 'followed: reported unpinned' W_SCRIPT_UNPINNED "$(vigil precheck 2>&1 | grep -o 'W_SCRIPT_UNPINNED' | head -1)"
+    cp "$fx/scripts/check-v2.sh" "$share/check.sh"
+    fetch
+    check 'followed, the file changed: the job runs version 2' 'source_check 2' "$(run check)"
+    local_config "$share" nested/check.sh "$v1_sha" nested
+    fetch
+    check 'a nested path: the job runs version 1' 'source_check 1' "$(run check)"
+    mkdir -p "$root/relative share" && cp "$fx/scripts/check-v1.sh" "$root/relative share/check.sh"
+    local_config 'relative share' check.sh "$v1_sha" relative
+    fetch
+    check 'a relative path (against the install root): the job runs version 1' 'source_check 1' "$(run check)"
+
+    printf '\n%s, failures: nothing changes\n' "$t"
+    rev=$(revision)
+    failure() {
+        fetch
+        check "$1: the fetch fails" failed "$(fetch_status)"
+        contains "$1: says why" "$2" "$(fetch_reason)"
+        check "$1: the last good configuration stays active" "$rev" "$(revision)"
+        check "$1: and its job still runs" 'source_check 1' "$(run check)"
+    }
+    local_config "$share" nosuch.sh "$v1_sha" fail1
+    failure 'a missing file' 'nosuch.sh'
+    local_config "$work/no such dir" check.sh "$v1_sha" fail2
+    failure 'a missing directory' 'not a directory'
+    local_config "$share" corrupt.txt "$v1_sha" fail3
+    failure 'invalid content, never run' 'does not match its sha256'
+    if [ "$(id -u)" -ne 0 ]; then
+        mkdir -p "$work/locked share" && cp "$fx/scripts/check-v1.sh" "$work/locked share/check.sh" && chmod 000 "$work/locked share/check.sh"
+        local_config "$work/locked share" check.sh "$v1_sha" fail4
+        failure 'a file this account may not read' 'cannot copy'
+        chmod 600 "$work/locked share/check.sh"
+    else
+        printf '  NOT RUN  permission denied: root reads every file\n'
+        notrun=$((notrun + 1))
+    fi
+
+    printf '\n%s, the configuration from a local directory (remote mode)\n' "$t"
+    local cfg="$work/central config"
+    mkdir -p "$cfg" || exit 1
+    # The fixtures of the HTTPS suite, with the scripts as a local source.
+    remote_cfg() {
+        sed -n '/^\[vigil\]/,/^\[source/p' "$fx/https/$1/posix.config" | sed '$d'
+        printf '[source.files]\ntype = local\npath = %s\n\n' "$share"
+        sed -n '/^\[job/,$p' "$fx/https/$1/posix.config"
+    }
+    cp "$fx/scripts/check-v1.sh" "$share/check-v1.sh" && cp "$fx/scripts/check-v2.sh" "$share/check-v2.sh"
+    pointer() {
+        remote_cfg "$1" > "$cfg/posix.config"
+        printf '[vigil]\nconfig_source = central\nconfig_file   = posix.config\n\n[source.central]\ntype        = local\npath        = %s\ncheck_every = 1s\n' "$cfg" > "$root/config/vigil.config"
+    }
+    pointer v1
+    fetch
+    check 'a configuration, v1: activated' succeeded "$(fetch_status)"
+    check 'a configuration, v1: its job runs version 1' 'source_check 1' "$(run remote_check)"
+    rev=$(revision)
+    pointer broken
+    fetch
+    check 'a configuration invalid outside any job: refused' failed "$(fetch_status)"
+    check 'invalid outside any job: the last good one stays active' "$rev" "$(revision)"
+    check 'invalid outside any job: and its job still runs version 1' 'source_check 1' "$(run remote_check)"
+    pointer v2
+    fetch
+    check 'a configuration, v2: the update is activated' 'source_check 2' "$(run remote_check)"
+    leak_values=''
+}
+
 # Moves branch $1 of the test repository to commit $2, as vigil-admin.
 move() {
     local g=$work/move
@@ -499,6 +614,7 @@ case $t in
     git-gitea) git_suite ;;
     https-nginx) https_suite ;;
     sftp-openssh) sftp_suite ;;
+    local) local_suite ;;
 esac
 
 # Leaks: no password or private key under the Vigil root or in its output.
