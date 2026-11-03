@@ -3,7 +3,6 @@
 **A job scheduler, supervisor and metrics forwarder for Windows, Linux and macOS, written only in the shells that ship with each one.**
 
 **Documentation:** [godspeedhq.github.io/vigil](https://godspeedhq.github.io/vigil/): the specification, command reference, error codes and examples, generated from this repository.
-
 Vigil runs your scripts on a schedule, watches every run from start to finish, and sends what happened to the monitoring system you already use. There is nothing to compile and no runtime to install: Windows PowerShell 5.1 on Windows, and bash 3.2 or later on Linux and macOS. The only binary in the project is NSSM, used on Windows to register a service.
 
 ```text
@@ -63,6 +62,8 @@ Vigil's guiding rules:
 - **Workers outlive the supervisor.** Stopping, upgrading or crashing the supervisor never stops a running job.
 - **Same behaviour everywhere.** The bash and PowerShell implementations are twins, held to byte-identical results by a shared test suite.
 - **Local first.** Everything works without a network. Remote configuration, scripts, metrics and logs are optional layers on top.
+
+Where Vigil came from, and why it's meant to sit alongside the tools you already have rather than replace them: [Why Vigil?](WHY.md)
 
 ---
 
@@ -939,6 +940,7 @@ tools/release/          builds the release archives and SHA256SUMS (package.sh)
 install.sh, install.ps1 the one-line installers
 SPECIFICATION.md        the full design: what Vigil does and why
 VISION.md               the product vision
+WHY.md                  why Vigil exists, and where it fits beside other tools
 ```
 
 Every file in `lib/posix/` has a twin of the same name in `lib/windows/` (`config.sh` and `Config.ps1`). Each follows its own platform's naming convention, and the two must behave identically.
