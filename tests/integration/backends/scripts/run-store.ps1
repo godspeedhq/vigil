@@ -15,7 +15,7 @@
     service, on Windows. The twin of run-store.sh, which describes the
     checks.
 .DESCRIPTION
-        .\scripts\run-store.ps1 openbao      (or vault, aws, azure, gcp)
+        .\scripts\run-store.ps1 openbao      (or vault, aws, azure, gcp, azure-alt)
 
     Needs .secrets\<target>.env and .secrets\tls\ca.pem from the host that
     ran scripts/start.sh, copied to the same paths here, and the service's
@@ -35,7 +35,7 @@ $bk = Split-Path -Parent $here
 $repo = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $bk))
 $shell = (Get-Process -Id $PID).Path
 
-if (@('openbao', 'vault', 'aws', 'azure', 'gcp') -cnotcontains $Target) { Write-Output 'usage: run-store.ps1 openbao|vault|aws|azure|gcp'; exit 1 }
+if (@('openbao', 'vault', 'aws', 'azure', 'gcp', 'azure-alt') -cnotcontains $Target) { Write-Output 'usage: run-store.ps1 openbao|vault|aws|azure|gcp|azure-alt'; exit 1 }
 $envFile = Join-Path $bk ".secrets\$Target.env"
 $caFile = Join-Path $bk '.secrets\tls\ca.pem'
 if (-not (Test-Path -LiteralPath $envFile) -or -not (Test-Path -LiteralPath $caFile)) {
@@ -66,6 +66,7 @@ $labels = @{}
 # A credential the real cloud refuses, checked after the table: job, store,
 # label, the reason when refused, and what the emulator lacks.
 $refused = $null
+$noSignIn = $null
 if ($Target -ceq 'gcp') {
     # The keys' contents, as Vigil reads a service_account_key.
     $keys = @{ 'VIGIL_ST_GCP_KEY' = 'gcp-key.json'; 'VIGIL_ST_GCP_KEY_HTTP' = 'gcp-key-http.json'; 'VIGIL_ST_GCP_KEY_OTHER' = 'gcp-key-other.json' }
@@ -103,16 +104,18 @@ if ($Target -ceq 'gcp') {
     $secretEnv = @('VIGIL_ST_GCP_KEY', 'VIGIL_ST_GCP_KEY_HTTP', 'VIGIL_ST_GCP_KEY_OTHER')
     $leakKeys = @('ST_PROBE', 'ST_ROTATING', 'ST_V1', 'ST_V2', 'ST_KEY_PART0', 'ST_KEY_PART1')
 }
-elseif ($Target -ceq 'azure') {
+elseif ($Target -ceq 'azure' -or $Target -ceq 'azure-alt') {
+    $alt = $Target -ceq 'azure-alt'
     $o['VIGIL_ST_BAD_CLIENT_SECRET'] = & $rnd
     # Vigil's test switch for the managed-identity endpoint (spec 22.4.2).
     [Environment]::SetEnvironmentVariable('VIGIL_TEST_IMDS', $o['ST_IMDS'], 'Process')
     $k = "type = azure_keyvault`nclient = http`nvault = $($o['ST_VAULT'])"
     $sp = "auth = service_principal`nauthority = $($o['ST_URL'])`ntenant_id = $($o['ST_TENANT'])`nclient_id = $($o['ST_CLIENT_ID'])"
     $stores = @(
-        @('az', "$k`n$sp`nclient_secret = env:VIGIL_ST_CLIENT_SECRET", $true),
-        @('az_untrusted', "$k`n$sp`nclient_secret = env:VIGIL_ST_CLIENT_SECRET", $false),
+        @('az', $(if ($alt) { "$k`nauth = managed_identity" } else { "$k`n$sp`nclient_secret = env:VIGIL_ST_CLIENT_SECRET" }), $true),
+        @('az_untrusted', $(if ($alt) { "$k`nauth = managed_identity" } else { "$k`n$sp`nclient_secret = env:VIGIL_ST_CLIENT_SECRET" }), $false),
         @('az_bad_secret', "$k`n$sp`nclient_secret = env:VIGIL_ST_BAD_CLIENT_SECRET", $true),
+        @('az_sp', "$k`n$sp`nclient_secret = env:VIGIL_ST_CLIENT_SECRET", $true),
         @('az_mi', "$k`nauth = managed_identity", $true))
     $jobs = @(
         @('bk_sp', 'az', 'vigil-probe', 'succeeded', '-', 'ST_PROBE'),
@@ -126,7 +129,10 @@ elseif ($Target -ceq 'azure') {
         @('bk_rotating', 'az', 'vigil-rotating', 'succeeded', '-', 'current'))
     $labels['bk_version'] = 'bk_version (the first version, by id)'
     $labels['bk_managed_identity'] = 'bk_managed_identity (VIGIL_TEST_IMDS)'
-    $refused = @('bk_bad_secret', 'az_bad_secret', 'bk_bad_secret (wrong client secret)', 'sign-in failed', 'the emulator does not check client secrets')
+    # Lowkey Vault (azure-alt) has no client-credentials endpoint: its stores
+    # sign in with managed identity, and service_principal is checked apart.
+    if ($alt) { $noSignIn = @('bk_sp_alt', 'az_sp', 'bk_sp_alt (service_principal)', 'Lowkey Vault has no client-credentials endpoint') }
+    else { $refused = @('bk_bad_secret', 'az_bad_secret', 'bk_bad_secret (wrong client secret)', 'sign-in failed', 'the emulator does not check client secrets') }
     $secretEnv = @('VIGIL_ST_CLIENT_SECRET', 'VIGIL_ST_BAD_CLIENT_SECRET')
     $leakKeys = @('ST_PROBE', 'ST_ROTATING', 'ST_V1', 'ST_V2', 'VIGIL_ST_CLIENT_SECRET', 'VIGIL_ST_BAD_CLIENT_SECRET')
 }
@@ -240,7 +246,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $bk 'workloads\secret.ps1') -Destination (Join-Path $root 'scripts')
     Copy-Item -LiteralPath $caFile -Destination (Join-Path $root 'config\store-ca.pem')
 
-    $kinds = @{ aws = 'aws_secrets_manager'; azure = 'azure_keyvault'; gcp = 'gcp_secret_manager' }
+    $kinds = @{ aws = 'aws_secrets_manager'; azure = 'azure_keyvault'; 'azure-alt' = 'azure_keyvault'; gcp = 'gcp_secret_manager' }
     Write-Output "`n$Target, $(if ($kinds.ContainsKey($Target)) { $kinds[$Target] } else { 'hashicorp_vault' }) store"
     # The expiring token must have expired.
     if ($o['ST_EXPIRES_AT']) { while ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -le [long]$o['ST_EXPIRES_AT']) { Start-Sleep -Seconds 1 } }
@@ -277,6 +283,14 @@ try {
     }
     else { Write-Fail 'rotation: cannot write the new value' }
 
+    if ($noSignIn) {
+        # A sign-in the emulator has nothing for: it fails, and is reported so.
+        $jobs += , @($noSignIn[0], $noSignIn[1], $jobs[0][2], 'failed', 'sign-in failed', $jobs[0][5])
+        Write-StoreConfig
+        $e = Get-JobEnd $noSignIn[0]
+        if ($e.Reason.Contains('sign-in failed')) { Write-Limit "$($noSignIn[2]): $($e.Reason); $($noSignIn[3])" }
+        else { Write-Fail ('{0,-36} {1}' -f $noSignIn[2], $e.Shown) }
+    }
     if ($refused) {
         # A credential the real cloud refuses. An emulator that accepts it is
         # reported so, never as a pass.

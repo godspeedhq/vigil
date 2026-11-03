@@ -47,7 +47,7 @@ case $1 in
         config=$(printf 'data-binary = "{\\"SecretId\\":\\"vigil/rotating\\",\\"SecretString\\":\\"%s\\"}"\nheader = "Content-Type: application/x-amz-json-1.1"\nheader = "X-Amz-Target: secretsmanager.PutSecretValue"\nurl = "%s/"\n' \
             "$new" "$url")
         ;;
-    azure)
+    azure | azure-alt)
         config=$(printf 'request = "PUT"\ndata-binary = "{\\"value\\":\\"%s\\"}"\nheader = "Content-Type: application/json"\nheader = "Authorization: Bearer rotation"\nurl = "%s/secrets/vigil-rotating?api-version=7.4"\n' \
             "$new" "$(sed -n 's/^ST_VAULT=//p' "$2")")
         ;;

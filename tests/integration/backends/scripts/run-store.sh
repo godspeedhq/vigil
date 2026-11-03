@@ -19,6 +19,7 @@
 #   aws             Vigil's aws_secrets_manager store, against Floci
 #   azure           Vigil's azure_keyvault store, against Floci
 #   gcp             Vigil's gcp_secret_manager store, against Floci
+#   azure-alt       Vigil's azure_keyvault store, against Lowkey Vault
 #
 # Needs .secrets/<target>.env and .secrets/tls/ca.pem, which start.sh makes;
 # on another host, copy both, keeping their paths, and reach the service's
@@ -45,7 +46,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/common.sh"
 
 t=${1-}
-case $t in openbao | vault | aws | azure | gcp) ;; *) die 'usage: run-store.sh openbao|vault|aws|azure|gcp' ;; esac
+case $t in openbao | vault | aws | azure | gcp | azure-alt) ;; *) die 'usage: run-store.sh openbao|vault|aws|azure|gcp|azure-alt' ;; esac
 envf=$bk_dir/.secrets/$t.env
 ca=$bk_dir/.secrets/tls/ca.pem
 [ -f "$envf" ] && [ -f "$ca" ] || die "no .secrets/$t.env or .secrets/tls/ca.pem: run scripts/start.sh $t first, or copy them from the host that did"
@@ -301,7 +302,7 @@ expect_refused() {
     esac
 }
 
-# ---- azure: azure_keyvault, against Floci ---------------------------------
+# ---- azure, azure-alt: azure_keyvault, against Floci or Lowkey Vault -------
 azure_suite() {
     VIGIL_ST_BAD_CLIENT_SECRET=$(rnd)
     VIGIL_TEST_IMDS=$ST_IMDS
@@ -324,9 +325,17 @@ bk_rotating az vigil-rotating succeeded - current"
     stores() {
         local k="type = azure_keyvault\nclient = http\nvault = $ST_VAULT"
         local sp="auth = service_principal\nauthority = $ST_URL\ntenant_id = $ST_TENANT\nclient_id = $ST_CLIENT_ID"
-        store az "$k\n$sp\nclient_secret = env:VIGIL_ST_CLIENT_SECRET" trusted
-        store az_untrusted "$k\n$sp\nclient_secret = env:VIGIL_ST_CLIENT_SECRET" untrusted
-        store az_bad_secret "$k\n$sp\nclient_secret = env:VIGIL_ST_BAD_CLIENT_SECRET" trusted
+        if [ "$t" = azure-alt ]; then
+            # Lowkey Vault has no client-credentials endpoint: its stores
+            # sign in with managed identity, through Vigil's test switch.
+            store az "$k\nauth = managed_identity" trusted
+            store az_untrusted "$k\nauth = managed_identity" untrusted
+            store az_sp "$k\n$sp\nclient_secret = env:VIGIL_ST_CLIENT_SECRET" trusted
+        else
+            store az "$k\n$sp\nclient_secret = env:VIGIL_ST_CLIENT_SECRET" trusted
+            store az_untrusted "$k\n$sp\nclient_secret = env:VIGIL_ST_CLIENT_SECRET" untrusted
+            store az_bad_secret "$k\n$sp\nclient_secret = env:VIGIL_ST_BAD_CLIENT_SECRET" trusted
+        fi
         store az_mi "$k\nauth = managed_identity" trusted
     }
     # shellcheck disable=SC2329
@@ -346,18 +355,33 @@ bk_rotating az vigil-rotating succeeded - current"
     run_jobs
     rotation
 
-    # A wrong client secret: Entra ID refuses it. The emulator accepts any.
-    jobs="$jobs
+    if [ "$t" = azure-alt ]; then
+        # service_principal: Lowkey Vault has nothing to sign in at.
+        jobs="$jobs
+bk_sp_alt az_sp vigil-probe failed sign-in_failed ST_PROBE"
+        write_config
+        vigil run bk_sp_alt >> "$work/vigil.out" 2>&1
+        reason=$(sed -n 's/^reason *= *//p' "$root/state/jobs/bk_sp_alt.state" 2> /dev/null)
+        case $reason in
+            *'sign-in failed'*) limit "bk_sp_alt (service_principal): $reason; Lowkey Vault has no client-credentials endpoint" ;;
+            *) bad "bk_sp_alt (service_principal): ${reason:-succeeded, though Lowkey Vault has no token endpoint}" ;;
+        esac
+    else
+        # A wrong client secret: Entra ID refuses it. The emulator accepts any.
+        jobs="$jobs
 bk_bad_secret az_bad_secret vigil-probe failed permission_denied ST_PROBE"
-    write_config
-    expect_refused bk_bad_secret 'bk_bad_secret (wrong client secret)' 'sign-in failed' 'the emulator does not check client secrets'
+        write_config
+        expect_refused bk_bad_secret 'bk_bad_secret (wrong client secret)' 'sign-in failed' 'the emulator does not check client secrets'
+    fi
 
-    if here_running 'floci-az floci-az-tls'; then
-        dc stop floci-az floci-az-tls > /dev/null 2>&1
+    local services='floci-az floci-az-tls'
+    [ "$t" = azure-alt ] && services=lowkey-vault
+    if here_running "$services"; then
+        dc stop $services > /dev/null 2>&1
         run_job bk_sp failed 'cannot connect to' 'bk_sp, emulator stopped'
-        dc start floci-az floci-az-tls > /dev/null 2>&1
+        dc start $services > /dev/null 2>&1
         # In memory: its fixtures are written again, with new values.
-        bash "$bk_dir/configs/secrets/azure/provision.sh" > /dev/null || bad 'cannot provision the emulator again'
+        bash "$bk_dir/configs/secrets/$t/provision.sh" > /dev/null || bad 'cannot provision the emulator again'
         old="$ST_PROBE $ST_ROTATING $ST_V1 $ST_V2 $VIGIL_ST_CLIENT_SECRET"
         load_env
         azure_jobs
@@ -448,12 +472,13 @@ bk_other_key gcp_other_key vigil-probe failed permission_denied ST_PROBE"
 kind=hashicorp_vault
 [ "$t" = aws ] && kind=aws_secrets_manager
 [ "$t" = azure ] && kind=azure_keyvault
+[ "$t" = azure-alt ] && kind=azure_keyvault
 [ "$t" = gcp ] && kind=gcp_secret_manager
 printf '\n%s, %s store\n' "$t" "$kind"
 case $t in
     openbao | vault) vault_suite ;;
     aws) aws_suite ;;
-    azure) azure_suite ;;
+    azure | azure-alt) azure_suite ;;
     gcp) gcp_suite ;;
 esac
 

@@ -12,18 +12,18 @@ How Vigil's secret stores work with real secret services and local emulators, an
 ## Matrix
 
 | Backend | Deployment | Validation | API compatibility | Authentication | Secret retrieval | Rotation | Result |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | OpenBao (`openbao/openbao:2.7.1`) | Docker, server mode, raft, TLS | Real backend | **Passed**: KV v2 reads, as Vigil's `hashicorp_vault` | **Passed**: token, AppRole; bad, expired and wrong-policy credentials refused | **Passed**: KV v2. KV v1: **Not supported** by Vigil | **Passed** | **Passed** |
 | HashiCorp Vault (`hashicorp/vault:2.2.0`) | Docker, server mode, raft, TLS | Real backend | **Passed**, the same | **Passed**, the same | **Passed**: KV v2. KV v1: **Not supported** by Vigil | **Passed** | **Passed** |
 | Floci AWS (`floci/floci:2.3.0`) | Docker, behind an nginx TLS front | Emulator | **Passed**: `GetSecretValue` as Vigil's `aws_secrets_manager` signs it; regions kept apart | **Emulator limitation**: any key is accepted, signatures are not checked | **Passed**, with `field`; binary secrets: **Not supported** by Vigil | **Passed** | **Passed**, as an emulator (see limits below) |
 | LocalStack (`localstack/localstack`) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | **Blocked by licensing**: since 2026.03.0 it won't start without a LocalStack account's auth token, and no account is made for you |
 | Floci Azure (`floci/floci-az:0.15.0`) | Docker, behind an nginx TLS front | Emulator | **Passed**: Key Vault `GET .../secrets/{name}[/{version}]?api-version=7.4`, as Vigil's `azure_keyvault` asks | **Passed** as requests: `service_principal` signs in at the emulated Entra ID; `managed_identity` through Vigil's test switch. **Emulator limitation**: any client secret and any token are accepted | **Passed**, the latest and a chosen version | **Passed** | **Passed**, as an emulator (see limits below) |
-| Azure Key Vault emulator (community) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
+| Lowkey Vault (`nagyesta/lowkey-vault:7.3.127`), the community Key Vault emulator | Docker, its own TLS with the test certificate | Emulator | **Passed**: the same Key Vault requests as Floci, answered the same way | `managed_identity` through Vigil's test switch: **Passed** as a request. `service_principal`: **Emulator limitation**, no client-credentials endpoint. Any bearer token is accepted | **Passed**, the latest and a chosen version | **Passed** | **Passed**, as an emulator |
 | Floci GCP (`floci/floci-gcp:0.11.0`) | Docker, behind an nginx TLS front | Emulator | **Passed**: `GET .../secrets/{name}/versions/{version}:access`, as Vigil's `gcp_secret_manager` asks; projects kept apart | **Passed** as requests: `service_account_key` signs its JWT and exchanges it at the key's `token_uri`. **Emulator limitation**: any JWT is accepted. `metadata`: **Not tested**, no metadata server | **Passed**, the latest and a numbered version | **Passed** | **Passed**, as an emulator (see limits below) |
 | GCP Secret Manager emulator (community) | Docker | Emulator | Not tested | Not tested | Not tested | Not tested | Not tested (phase 2) |
-| AWS Secrets Manager | Real cloud | Real cloud | Not tested | Not tested | Not tested | Not tested | Not tested |
-| Azure Key Vault | Real cloud | Real cloud | Not tested | Not tested | Not tested | Not tested | Not tested |
-| Google Secret Manager | Real cloud | Real cloud | Not tested | Not tested | Not tested | Not tested | Not tested |
+| AWS Secrets Manager | Real cloud | Real cloud | Not tested | Not tested | Not tested | Not tested | Not tested: manual, optional; [`saas/aws-secrets-manager.md`](../saas/aws-secrets-manager.md) |
+| Azure Key Vault | Real cloud | Real cloud | Not tested | Not tested | Not tested | Not tested | Not tested: manual, optional; [`saas/azure-key-vault.md`](../saas/azure-key-vault.md) |
+| Google Secret Manager | Real cloud | Real cloud | Not tested | Not tested | Not tested | Not tested | Not tested: manual, optional; [`saas/google-secret-manager.md`](../saas/google-secret-manager.md) |
 
 ## OpenBao and Vault: what was tested
 
@@ -110,6 +110,16 @@ Floci speaks plain http, so an nginx in front serves https with the test CA for 
 - Access policies and RBAC.
 - Prove Azure itself with the optional real-cloud test.
 
+## Azure Key Vault, through Lowkey Vault
+
+The same suite as Floci's (`scripts/run-store.sh azure-alt`), with three differences:
+
+- **Sign-in:** Lowkey Vault has no client-credentials endpoint, so its stores sign in with `managed_identity`, through Vigil's test switch `VIGIL_TEST_IMDS`, on 8081. `service_principal` is checked apart, and fails at sign-in (`permission denied (HTTP 401)`): an **emulator limitation**.
+- **TLS:** it tells vaults apart by `Host` and port, so it isn't behind a front. It serves `https://127.0.0.1:8443` itself, with the test certificate as PKCS#12.
+- **Restart:** stopping it cuts off the token endpoint too, so "stopped" reads `sign-in failed: cannot connect to 127.0.0.1:8081`.
+
+Every other check is the same as Floci's, with the same results, and both emulators answer every request Vigil makes the same way. Neither proves Entra ID's sign-in or Key Vault's checks of a token.
+
 ## Google Secret Manager, through Floci: what was tested
 
 Vigil's `gcp_secret_manager` store, `client = http`:
@@ -141,10 +151,10 @@ The keys hold real RSA test keys, so Vigil signs its JWT (RS256) just as it woul
 
 ## Runs
 
-| Date | Vigil on | OpenBao | Vault | Floci AWS | Floci Azure | Floci GCP | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-11-03 | Fedora 44 (the Docker host), bash 5.3 | 26 of 26 | 26 of 26 | 20 of 20, 1 limitation | 22 of 22, 1 limitation | 22 of 22, 1 limitation | restart and recovery included |
-| 2026-11-03 | macOS 12.7.6, bash 3.2, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | restart not run: it needs the Docker host |
-| 2026-11-03 | Windows 11 Pro, PowerShell 5.1, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | the same; rotation through Git Bash's curl |
+| Date | Vigil on | OpenBao | Vault | Floci AWS | Floci Azure | Lowkey Vault | Floci GCP | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-03 | Fedora 44 (the Docker host), bash 5.3 | 26 of 26 | 26 of 26 | 20 of 20, 1 limitation | 22 of 22, 1 limitation | 22 of 22, 1 limitation | 22 of 22, 1 limitation | restart and recovery included |
+| 2026-11-03 | macOS 12.7.6, bash 3.2, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | restart not run: it needs the Docker host |
+| 2026-11-03 | Windows 11 Pro, PowerShell 5.1, through SSH tunnels | 22 of 22, 1 not run | 22 of 22, 1 not run | 18 of 18, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | 20 of 20, 1 not run, 1 limitation | the same; rotation through Git Bash's curl |
 
 The restart checks run only where the store's container runs, so Vigil's recovery after an outage has been seen on Linux only so far. Running them from macOS and Windows, with the Docker host's containers stopped and started remotely, is part of phase 3.

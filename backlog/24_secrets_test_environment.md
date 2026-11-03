@@ -131,4 +131,6 @@ tests/integration/backends/
 
   - **Floci Azure 0.15.0: done.** `service_principal` signs in for real at the emulated Entra ID, and `managed_identity` is exercised through `VIGIL_TEST_IMDS`. Chosen versions are fetched. 22 of 22 on Fedora; 20 of 20 on macOS and Windows. One emulator limitation everywhere: any client secret is accepted, and so is any token.
   - **Floci GCP 0.11.0: done.** `service_account_key` signs its JWT with a real RSA test key and exchanges it at the emulator's `/token` (the key's `token_uri`). Numbered versions and projects are kept apart, and a plain-http `token_uri` is refused. 22 of 22 on Fedora; 20 of 20 on macOS and Windows. One emulator limitation everywhere: any JWT is accepted. `metadata` is untested: there is no metadata server.
-  - **Next:** Lowkey Vault, then Blackwell's GCP emulator, each checked by a run before it's accepted.
+  - **Lowkey Vault 7.3.127: done.** It serves TLS itself with the test certificate (it tells vaults apart by Host and port). Its stores sign in with `managed_identity` through `VIGIL_TEST_IMDS`, since it has no client-credentials endpoint; `service_principal` is an emulator limitation. 22 of 22 on Fedora; 20 of 20 on macOS and Windows.
+  - **Real-cloud guides** (phase 4), optional and manual, never provisioned for you: `saas/aws-secrets-manager.md`, `saas/azure-key-vault.md`, `saas/google-secret-manager.md`.
+  - **Next:** Blackwell's GCP emulator, checked by a run before it's accepted.
