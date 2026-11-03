@@ -230,6 +230,13 @@ try {
     Test-Equal 'an unsigned release is refused' '1' ([string]$r.Code)
     Test-Equal 'and nothing changed' '0.0.1-it' (Get-Version)
     Copy-Item "$work\good.sig" "$d\SHA256SUMS.sig"
+    $savedKey = $env:VIGIL_TEST_RELEASE_KEY
+    $env:VIGIL_TEST_RELEASE_KEY = "$work\no-such-key.pem"
+    $r = Invoke-Vigil self update
+    Test-Equal 'with no release key, the update is refused' '1' ([string]$r.Code)
+    Test-Equal 'saying why' 'True' ([string]($r.Text -match 'release key .* is missing'))
+    Test-Equal 'and nothing changed' '0.0.1-it' (Get-Version)
+    $env:VIGIL_TEST_RELEASE_KEY = $savedKey
 
     # A release that does not run: back to the one that does.
     $b = Join-Path $work 'broken'

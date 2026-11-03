@@ -238,19 +238,24 @@ vigil_self_update() {
     # handed to the installer, so what is verified is what is installed.
     key=$app/release-key.pem
     [ -n "${VIGIL_TEST_RELEASE_URL-}" ] && [ -n "${VIGIL_TEST_RELEASE_KEY-}" ] && key=$VIGIL_TEST_RELEASE_KEY
-    # The signature is only checked if the key file is here: see backlog task 20.
-    if [ -f "$key" ]; then
-        if ! command -v openssl > /dev/null 2>&1; then
-            rm -rf "$work"
-            _vigil_self_die 'openssl not found: the release cannot be verified; nothing was changed'
-            return 1
-        fi
-        if ! curl "${curlopts[@]}" -fsSL -o "$work/SHA256SUMS.sig" "$base/releases/download/v$want/SHA256SUMS.sig" ||
-            ! openssl dgst -sha256 -verify "$key" -signature "$work/SHA256SUMS.sig" "$work/SHA256SUMS" > /dev/null 2>&1; then
-            rm -rf "$work"
-            _vigil_self_die "Vigil $want is not signed by the Vigil release key; nothing was changed"
-            return 1
-        fi
+    # No key means nothing to check with, and that is refused like a bad
+    # signature: every release since 0.2.1 carries the key, so a missing one
+    # means this install has been changed.
+    if [ ! -f "$key" ]; then
+        rm -rf "$work"
+        _vigil_self_die "the release key $key is missing: Vigil $want cannot be verified; nothing was changed"
+        return 1
+    fi
+    if ! command -v openssl > /dev/null 2>&1; then
+        rm -rf "$work"
+        _vigil_self_die 'openssl not found: the release cannot be verified; nothing was changed'
+        return 1
+    fi
+    if ! curl "${curlopts[@]}" -fsSL -o "$work/SHA256SUMS.sig" "$base/releases/download/v$want/SHA256SUMS.sig" ||
+        ! openssl dgst -sha256 -verify "$key" -signature "$work/SHA256SUMS.sig" "$work/SHA256SUMS" > /dev/null 2>&1; then
+        rm -rf "$work"
+        _vigil_self_die "Vigil $want is not signed by the Vigil release key; nothing was changed"
+        return 1
     fi
     # SHA256SUMS is what the signature covers, so this is what ties the installer
     # to the signature. The installer checks the archive against the same file.
