@@ -28,6 +28,7 @@
 #                   their own headers
 #   Examples        the annotated configurations in tests/mocks
 #   Test evidence   console output of a real CI run (evidence.sh)
+#   Logs and output a tour of Vigil on each system, from CI (tour-page.sh)
 #
 # The output is Markdown with front matter for Jekyll and the Just the Docs
 # theme; tools/docs/publish.sh, through .github/workflows/pages.yml, turns
@@ -192,6 +193,30 @@ printf '# Reference\n\nGenerated from the code: the commands, the error codes, t
 if command -v gh > /dev/null 2>&1 && evidence=$(bash "$here/evidence.sh" 2> /dev/null) && [ -n "$evidence" ]; then
     printf '%s\n' "$evidence" | page evidence.md 'title: Test evidence' 'nav_order: 6' 'permalink: /evidence/'
 fi
+
+# --- Logs and output ---------------------------------------------------------------
+
+# The tour CI ran on main (tour.sh, Tour.ps1), from CI's logs like the Test
+# evidence page; left out without gh, or if any system's tour is missing.
+tours=$(mktemp -d "${TMPDIR:-/tmp}/vigil-tours.XXXXXX")
+if command -v gh > /dev/null 2>&1 && bash "$here/tour-page.sh" "$tours" 2> /dev/null; then
+    mkdir -p "$out/output"
+    {
+        printf '# Logs and output\n\n'
+        printf 'What Vigil looks like in use, on each system: the commands people run every day, and the logs it writes.\n\n'
+        printf 'Every line is real. CI installs Vigil on a fresh machine, runs [a tour](%s/tools/docs/tour.sh) ' "$blob"
+        printf '([Windows](%s/tools/docs/Tour.ps1)) and runs the supervisor for a minute or two. These pages are built from what it printed, on the newest passing run on `main`.\n\n' "$blob"
+        printf 'Each tour shows:\n\n'
+        printf -- '- `vigil version`, `about`, `init`, `pack list`, `precheck`, `run`, `secret` and `status`\n'
+        printf -- '- a job that succeeds, one that fails, and one stopped at `max_runtime`\n'
+        printf -- '- a mistake in the configuration, caught by `precheck` and by the running supervisor\n'
+        printf -- '- `jobs.log`, the supervisor log, each job log, a state file and the metrics\n'
+    } | page output/index.md 'title: Logs and output' 'nav_order: 7' 'has_children: true' 'permalink: /output/'
+    page output/linux.md 'title: Linux' 'parent: Logs and output' 'nav_order: 1' 'permalink: /output/linux/' < "$tours/linux.md"
+    page output/macos.md 'title: macOS' 'parent: Logs and output' 'nav_order: 2' 'permalink: /output/macos/' < "$tours/macos.md"
+    page output/windows.md 'title: Windows' 'parent: Logs and output' 'nav_order: 3' 'permalink: /output/windows/' < "$tours/windows.md"
+fi
+rm -rf "$tours"
 
 # --- Status ------------------------------------------------------------------------
 
