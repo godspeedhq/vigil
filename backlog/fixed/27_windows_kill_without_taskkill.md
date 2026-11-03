@@ -17,3 +17,9 @@ Found by the sources tests (backlog task 25) on the Windows test machine, with V
 - **Checked:**
   - Over SSH on the Windows machine, a parent and both its children were ended.
   - Max-Runtime passes 10 of 10 both with WMI and without it (`VIGIL_TEST_NO_WMI=1`, which CI runs on 5.1 since #63), now with the native path.
+
+## Also found: sftp never exited after an error
+
+With the kill fixed, every sftp failure still waited out the fetch timeout on Windows. Windows' OpenSSH (sftp.exe, and ssh.exe when git uses it) never exits after an error while its standard error is a pipe. Vigil's fetcher now starts `sftp` and `git fetch` with standard input, output and error redirected to files in its staging folder (`Invoke-VigilFetchProcess -ErrorToFile`), so each failure ends at once with its reason. On the Windows test machine: sftp 34 of 34, and git 44 of 44.
+
+Windows' OpenSSH under git hangs even on success, because git talks to it over pipes for the protocol itself. Git for Windows' own ssh, its default, works. That isn't Vigil's to fix; the sources report says so.
