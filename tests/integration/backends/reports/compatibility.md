@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-How each backend works with Vigil, and what a real test showed. **Only Grafana LGTM has been run so far;** every other result is Not tested. A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
+How each backend works with Vigil, and what a real test showed. **Grafana LGTM and the OpenBao secret store have been run so far,** with Vigil on Linux, macOS and Windows; every other result is Not tested. A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
 
 **Integration methods:**
 - **Direct Vigil integration:** a Vigil backend or log destination made for this product.
@@ -14,7 +14,7 @@ How each backend works with Vigil, and what a real test showed. **Only Grafana L
 
 | Backend | Deployment | Integration method | Metrics | Logs | Traces | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| Grafana LGTM (`grafana/otel-lgtm:0.38.1`) | Docker, default | Protocol-compatible (OTLP/HTTP) | **Failed** (see Runs) | **Passed** | Not applicable | **Failed** |
+| Grafana LGTM (`grafana/otel-lgtm:0.38.1`) | Docker, default | Protocol-compatible (OTLP/HTTP) | **Passed** (counts as cumulative sums; see Runs) | **Passed** | Not applicable | **Passed** |
 | Prometheus (`v3.15.1`) | Docker | Protocol-compatible (OTLP receiver) | Not tested | Not supported | Not applicable | Not tested |
 | Grafana (`13.2.5`) | Docker | Supporting component only | Not applicable | Not applicable | Not applicable | Not applicable |
 | Loki (`3.7.9`) | Docker | Protocol-compatible (OTLP) | Not supported | Not tested | Not applicable | Not tested |
@@ -39,6 +39,14 @@ How each backend works with Vigil, and what a real test showed. **Only Grafana L
 | Datadog | SaaS, credentials supplied by you | Direct Vigil integration | Not tested | Not tested | Not applicable | Not tested |
 | Splunk Observability Cloud | SaaS, credentials supplied by you | Protocol-compatible or through an intermediary, to be confirmed | Not tested | Not supported | Not applicable | Not tested |
 
+### Secret stores
+
+| Store | Deployment | Vigil store type | AppRole | Token | Errors | No value written | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| OpenBao (`openbao/openbao:2.7.1`, dev mode, TLS) | Docker | `hashicorp_vault`, KV version 2 | **Passed** | **Passed** | **Passed** (404, 403, untrusted certificate) | **Passed** | **Passed** on Linux, macOS and Windows |
+
+HashiCorp Vault itself is not run here. OpenBao is its open-source fork, with the same API for everything Vigil uses: KV version 2 reads, AppRole login and token auth.
+
 **Reading the matrix:**
 - **Not supported** means no route for that signal exists today. For example, Prometheus and Mimir store metrics, not logs; Loki and VictoriaLogs store logs, not metrics.
 - **Not applicable** under Traces means Vigil sends no traces at all.
@@ -50,8 +58,18 @@ Each run adds a row here: date, target, the image versions it ran, the run tag, 
 | Date | Target | Vigil on | Images | Run tag | Metrics | Logs | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-11-03 | `lgtm` | Fedora 44, bash 5.3 (same host as Docker 29.9.2) | `grafana/otel-lgtm:0.38.1` | `bk2026110312015842111` | Failed | Passed | `reports/evidence/lgtm-bk2026110312015842111.txt` on the Fedora test host |
+| 2026-11-03 | `lgtm` | Windows 11 Pro, PowerShell 5.1, over SSH as a standard user; tunnels to Fedora | `grafana/otel-lgtm:0.38.1` | `bk2026110313472112660` and the next three | Failed | Failed | on the Windows test host: see below |
+| 2026-11-03 | `lgtm` | Fedora 44, with counts as cumulative sums (#64) | `grafana/otel-lgtm:0.38.1` | `bk2026110314401288246` | **Passed** | **Passed** | on the Fedora test host |
+| 2026-11-03 | `lgtm` | macOS 12.7, bash 3.2, tunnels to Fedora, cumulative sums | `grafana/otel-lgtm:0.38.1` | `bk2026110314495011786` | **Passed** | **Passed** | on the Mac test host |
+| 2026-11-03 | `lgtm` | Windows 11 Pro, PowerShell 5.1, tunnels to Fedora, cumulative sums and #63 | `grafana/otel-lgtm:0.38.1` | `bk2026110314495310700` | **Passed** | **Passed** | on the Windows test host |
+| 2026-11-03 | `openbao` (`run-store`) | Fedora 44; macOS 12.7 and Windows 11 through a tunnel | `openbao/openbao:2.7.1` | — | — | — | 11 of 11 checks passed on each |
 
-### LGTM metrics: why they failed
+### Windows: what the first runs found
+
+- **Over SSH, as a standard user, WMI refuses every query.** Vigil read process facts and the boot time through WMI alone, so finished runs stayed RUNNING, timeouts couldn't be proven and were held as uncertain, and every tick took tens of seconds. Fixed in #63 (backlog/fixed/23): the same facts now come from the kernel when WMI refuses.
+- **The machine's clock was 6.5 minutes fast.** Its log lines reached Loki stamped in the future, and Loki returned them only once that time came, minutes after `verify.sh` had given up. With the clock set right, logs passed. `run-vigil` now warns when the clocks disagree.
+
+### LGTM metrics: why they failed at first
 
 Found on the first run, and narrowed down by sending LGTM hand-made OTLP requests:
 
@@ -62,4 +80,4 @@ Found on the first run, and narrowed down by sending LGTM hand-made OTLP request
 - **The loss is silent.** The collector answers `200` before Prometheus refuses, so Vigil records the batch as delivered.
 - **Separately, the `job` label is lost.** Prometheus replaces the `job` attribute Vigil sends with `job="vigil"`, from the resource's `service.name`. A metric's name still identifies its job, since names start with the job's `metric_name`, but the label does not.
 
-This affects every Prometheus-based backend reached over OTLP: LGTM, standalone Prometheus and Mimir. Whether to send counts as cumulative sums, or to rely on delta-to-cumulative conversion at the backend, is a decision for the project; it is recorded in backlog task 18.
+This affects every Prometheus-based backend reached over OTLP: LGTM, standalone Prometheus and Mimir. **Fixed in #64:** counts are now sent as cumulative sums (spec 15.3). The rerun stored every metric on all three systems, counters as `<name>_total`, with the probe at 42.

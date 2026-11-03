@@ -122,6 +122,29 @@ try {
     [System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'), $c)
 
     Write-Output "run tag: $tag"
+
+    # This machine's clock against the backend's, from the Date its HTTP
+    # answer carries. Telemetry is stamped with this machine's time: minutes
+    # ahead, and a backend hides it until then (Loki) or refuses it
+    # (Prometheus).
+    $url = $(if ($metrics) { $metrics } else { $logs }).Split(' ', 2)[1]
+    $base = $url.Substring(0, $url.IndexOf('/', $url.IndexOf('://') + 3))
+    try {
+        # Any answer has a Date, a 404 too.
+        $req = [System.Net.WebRequest]::Create("$base/")
+        $req.Timeout = 5000
+        try { $resp = $req.GetResponse() } catch [System.Net.WebException] { $resp = $_.Exception.Response }
+        $date = if ($resp) { $resp.Headers['Date'] } else { $null }
+        if ($resp) { $resp.Close() }
+        if ($date) {
+            $skew = [long]([DateTimeOffset]::UtcNow - [DateTimeOffset]::Parse($date, [System.Globalization.CultureInfo]::InvariantCulture)).TotalSeconds
+            if ([Math]::Abs($skew) -gt 60) {
+                Write-Output "WARNING: this clock is $([Math]::Abs($skew))s $(if ($skew -gt 0) { 'ahead of' } else { 'behind' }) the backend's: set the time right, or its data may be hidden or refused"
+            }
+            else { Write-Output "clock: within $([Math]::Abs($skew))s of the backend's" }
+        }
+    }
+    catch { }
     # bk_missing's file is missing on purpose, and precheck rightly says so;
     # any other problem stops the run.
     $pre = @(Invoke-Vigil precheck)

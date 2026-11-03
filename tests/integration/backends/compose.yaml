@@ -8,7 +8,7 @@
 # LICENSE file for the full terms.
 #
 # The real-backend test environment (backlog task 18): one entry point for
-# the eight groups. Only Grafana LGTM has no profile, so
+# the nine groups, the ninth a secret store. Only Grafana LGTM has no profile, so
 #
 #   docker compose up -d
 #
@@ -33,3 +33,4 @@ include:
   - compose.metrics.yaml
   - compose.tracing.yaml
   - compose.platforms.yaml
+  - compose.secrets.yaml
