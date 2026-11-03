@@ -167,7 +167,9 @@ run_every = 3650d
     Test-Equal 'datadog: series API' 'yes' (Test-Received @('"path": "/api/v2/series"', "`"DD-API-KEY`": `"$ddKey`"", '\"metric\":\"emit.answer\",\"type\":3', '\"value\":42'))
     Test-Equal 'datadog: host as a resource' 'yes' (Test-Received @('"path": "/api/v2/series"', '\"type\":\"host\"', '\"instance:bk\"', '\"job:emit\"'))
     Test-Equal 'otel: OTLP receiver' 'yes' (Test-Received @('"path": "/v1/metrics"', "`"Authorization`": `"Bearer $otelToken`"", '\"name\":\"emit.answer\",\"gauge\"', '\"asDouble\":42'))
-    Test-Equal 'otel: counts as delta sums' 'yes' (Test-Received @('"path": "/v1/metrics"', '\"name\":\"emit.runs\",\"sum\":{\"aggregationTemporality\":1'))
+    Test-Equal 'otel: counts as cumulative sums' 'yes' (Test-Received @('"path": "/v1/metrics"', '\"name\":\"emit.runs\",\"sum\":{\"aggregationTemporality\":2'))
+    $tfile = Join-Path $root 'state\backends\otel.totals'
+    Test-Equal 'otel: running totals kept' 'yes' $(if ([System.IO.File]::Exists($tfile) -and [System.IO.File]::ReadAllText($tfile) -cmatch "(?m)^emit\.runs .*`t1`t") { 'yes' } else { 'no' })
     Test-Equal 'splunk: HEC' 'yes' (Test-Received @('"path": "/services/collector/event"', "`"Authorization`": `"Splunk $hecToken`"", '\"event\":\"metric\"', '\"metric_name\":\"emit.answer\",\"_value\":42,\"metric_type\":\"gauge\"'))
     Test-Equal 'datadog queue drained' '0' (Get-Queued 'datadog')
     Test-Equal 'otel queue drained' '0' (Get-Queued 'otel')

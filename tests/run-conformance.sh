@@ -130,6 +130,12 @@ compare() {
         printf '%s\n' "$2" > "${TMPDIR:-/tmp}/vigil-expected.$$"
         printf '%s\n' "$3" > "${TMPDIR:-/tmp}/vigil-actual.$$"
         diff "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$" | sed 's/^/        /'
+        # VIGIL_CONFORMANCE_ACTUAL=<dir> keeps what a failing case gave, to
+        # review and, when right, to become its expected output.
+        if [ -n "${VIGIL_CONFORMANCE_ACTUAL:-}" ]; then
+            mkdir -p "$VIGIL_CONFORMANCE_ACTUAL/${1%/*}"
+            cp "${TMPDIR:-/tmp}/vigil-actual.$$" "$VIGIL_CONFORMANCE_ACTUAL/$1.actual"
+        fi
         rm -f "${TMPDIR:-/tmp}/vigil-expected.$$" "${TMPDIR:-/tmp}/vigil-actual.$$"
     fi
 }
@@ -414,16 +420,20 @@ done
 # HTTP backends: tests/conformance/backend/<case>.config defines backends and
 # <case>.exchange lists, in order: "env NAME value" and "unenv NAME"; "now
 # <epoch>", the time requests are made at; "reply <status> <body>" or "fail
-# <kind>", the answers to the next requests; "send <backend>", which delivers
-# <case>.events to that backend, with the request it makes shown and what
-# became of the batch. The output must be <case>.expected. The replacement
+# <kind>", the answers to the next requests; "totals <backend> <start>
+# <total> <last> <series>", a running total an otel backend had before;
+# "send <backend>", which delivers <case>.events to that backend, with the
+# request it makes shown and what became of the batch, and for otel the
+# running totals after it ("total <series> <start> <total> <last>"), which
+# carry over to its next send. The output must be <case>.expected. The replacement
 # _vigil_http_send of the store cases answers; no request leaves the machine.
 _bk_now=0
 _vigil_backend_now() {
     _vb_now=$_bk_now
 }
 backend_case_dump() {
-    local line word rest d
+    local line word rest d t1 t2 t3
+    for d in $(compgen -v _bk_totals_); do unset "$d"; done
     vigil_config_parse "$1"
     while IFS= read -r line || [ -n "$line" ]; do
         case $line in '' | '#'*) continue ;; esac
@@ -435,9 +445,26 @@ backend_case_dump() {
             now) _bk_now=$rest ;;
             reply) _st_replies[${#_st_replies[@]}]=$rest ;;
             fail) _st_replies[${#_st_replies[@]}]="!$rest" ;;
+            totals)
+                # "totals <backend> <start> <total> <last> <series>": a running
+                # total the backend had before.
+                d=_bk_totals_${rest%% *}
+                rest=${rest#* }
+                t1=${rest%% *}
+                rest=${rest#* }
+                t2=${rest%% *}
+                rest=${rest#* }
+                t3=${rest%% *}
+                rest=${rest#* }
+                t1="$rest"$'\t'"$t1"$'\t'"$t2"$'\t'"$t3"
+                if [ -n "${!d-}" ]; then printf -v "$d" '%s\n%s' "${!d}" "$t1"; else printf -v "$d" '%s' "$t1"; fi
+                ;;
             send)
                 printf 'send %s\n' "$rest"
                 _vigil_wk_get "backend.$rest" type "$rest"
+                # Each backend's running totals carry over to its next send.
+                d=_bk_totals_$rest
+                _vb_totals=${!d-}
                 if vigil_backend_send /opt/vigil "$rest" "$_vw_value" "${1%.config}.events"; then
                     printf '= sent %s\n' "$_vb_sent"
                     while read -r d; do
@@ -445,6 +472,14 @@ backend_case_dump() {
                     done <<EOT
 $_vb_drops
 EOT
+                    if [ "$_vw_value" = otel ]; then
+                        printf -v "_bk_totals_$rest" '%s' "$_vb_totals_new"
+                        while IFS= read -r d; do
+                            [ -n "$d" ] && printf 'total %s\n' "${d//$'\t'/ }"
+                        done <<EOT
+$_vb_totals_new
+EOT
+                    fi
                 else
                     printf '! %s\n' "$_vb_why"
                 fi

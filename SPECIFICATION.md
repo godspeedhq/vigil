@@ -1547,7 +1547,12 @@ Every request has a timeout. Retries are bounded with backoff. Delivery is from 
 | `timeout` | Each request's limit. Default `10s`. |
 | `ca_file` | A CA to trust instead of the system's, for a collector with a private certificate. |
 
-- Names keep their dots. A gauge is an OTLP gauge, a count a delta sum (monotonic), each value as a double. Tags are data point attributes; the resource carries `service.name = vigil`.
+- Names keep their dots. A gauge is an OTLP gauge, each value as a double. Tags are data point attributes; the resource carries `service.name = vigil`.
+- A count is a **cumulative** sum (monotonic): the running total of its series on this backend, so Prometheus and every backend built on it accept it. These backends refuse delta sums, and a collector in front of them still answers `200`. A series is the name and the tags sorted by key; its attributes are sent in that order.
+  - Each request carries one point per series counted in its batch: the total so far, stamped at the latest count it includes and always at least a millisecond after the series' previous point. Its start time is one second before the series' first count.
+  - Totals are kept per backend in `state/backends/<name>.totals`, and saved before the batch leaves the queue, so delivery stays at least once. They count every count in a batch that is done with, rejected points included.
+  - A series not counted for 7 days is forgotten, and starts again from zero, with a new start time, if it comes back. Backends read that as a counter reset.
+  - A count that is not a whole number, or has more than 15 digits, has no exact running total: it is sent as a gauge, as in the file backend.
 - A partial success (`rejectedDataPoints`) drops the rejected points, counted with `reason=rejected`; the rest count as delivered.
 
 **Splunk backend** (`type = splunk`). Sends each batch as one request to the HTTP Event Collector, as metric events one after another, the token in an `Authorization: Splunk <token>` header. The token's default index must be a metrics index.

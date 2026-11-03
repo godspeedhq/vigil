@@ -167,7 +167,7 @@ _vigil_send_failed() {
 # VIGIL_SEND_HTTP_BYTES, oldest first, until the queue is empty, a request
 # fails or VIGIL_SEND_HTTP_REQUESTS were made.
 _vigil_send_http() {
-    local b=$1 type=$2 q="$_sd_be/$1" requests=0 f size name total reason count sizes
+    local b=$1 type=$2 q="$_sd_be/$1" requests=0 f size name total reason count sizes tfile="$_vw_statedir/backends/$1.totals"
     local -a cand batch
     while [ "$requests" -lt "$VIGIL_SEND_HTTP_REQUESTS" ]; do
         cand=()
@@ -191,12 +191,24 @@ _vigil_send_http() {
 $sizes
 EOF
         requests=$((requests + 1))
+        # OTLP counts are running totals, kept per backend (15.3).
+        _vb_totals=''
+        [ "$type" = otel ] && [ -f "$tfile" ] && _vb_totals=$(cat "$tfile")
         # Files leave the queue only once the backend accepted them. A failure keeps
         # them for the next try, so delivery is at least once: a batch the backend
         # stored but did not confirm in time is sent again.
         if ! vigil_backend_send "$_vw_root" "$b" "$type" "${batch[@]}"; then
             _vigil_send_failed "$b" "$_vb_why"
             return 1
+        fi
+        # The new totals are kept before the batch leaves the queue: if they cannot
+        # be, the batch is sent again, counted twice rather than lost.
+        if [ "$type" = otel ]; then
+            if ! { mkdir -p "$_vw_statedir/backends" && printf '%s\n' "$_vb_totals_new" > "$tfile.tmp.$$" && mv -f "$tfile.tmp.$$" "$tfile"; }; then
+                rm -f "$tfile.tmp.$$"
+                _vigil_send_failed "$b" "cannot write $tfile"
+                return 1
+            fi
         fi
         while read -r reason count; do
             [ -n "$reason" ] && _vigil_send_dropn "$b" "$reason" "$count"

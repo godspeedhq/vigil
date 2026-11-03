@@ -19,12 +19,16 @@
     became of the batch. The twin of backends.sh, which documents the rules;
     tests/conformance/backend holds the shared cases.
 
-    New-VigilBackendBody -Type <datadog | otel | splunk> -Now <epoch> -Events <file>...
-    returns @{ Body; Points; Drops }, Drops a list of "<reason> <count>".
+    New-VigilBackendBody -Type <datadog | otel | splunk> -Now <epoch> -Events <file>... [-Totals <text>]
+    returns @{ Body; Points; Drops; TotalsNew }, Drops a list of
+    "<reason> <count>"; for otel, TotalsNew holds the running totals of
+    counts after the batch.
 
-    Send-VigilBackend -Root <dir> -Parsed <config> -Name <name> -Type <type> -Events <file>...
-    returns @{ Ok; Sent; Drops; Why }: Ok when the batch is done with,
-    otherwise Why says why it is to be retried later.
+    Send-VigilBackend -Root <dir> -Parsed <config> -Name <name> -Type <type> -Events <file>... [-Totals <text>]
+    returns @{ Ok; Sent; Drops; Why; TotalsNew }: Ok when the batch is done
+    with, otherwise Why says why it is to be retried later. For otel, the
+    caller keeps TotalsNew once the batch is done with, and passes it back
+    with the next batch.
 
     Requires Secrets.ps1, Stores.ps1 and Worker.ps1.
 #>
@@ -45,12 +49,47 @@ function ConvertTo-VigilSplunkKey {
     return $Key
 }
 
+# OTLP counts are cumulative sums (15.3), as in backends.sh, which
+# documents the rules: a series is a name and its tags sorted by key, and
+# its running total on the backend is carried in -Totals, the lines
+# "<series>`t<start ns>`t<total>`t<last ns>".
+function Add-VigilBackendTotals {
+    param($Counts, [string]$Totals, [long]$Now, [System.Text.StringBuilder]$Sb)
+    $tot = New-Object System.Collections.Specialized.OrderedDictionary
+    foreach ($l in $Totals.Split("`n")) {
+        if ($l -cmatch '^([^\t]+)\t(-?[0-9]{1,19})\t([0-9]{1,19})\t([0-9]{1,19})$' -and -not $tot.Contains($Matches[1])) {
+            $tot[$Matches[1]] = @([long]$Matches[2], [long]$Matches[3], [long]$Matches[4])
+        }
+    }
+    foreach ($series in $Counts.Keys) {
+        $c = $Counts[$series]
+        if ($tot.Contains($series)) { $start, $total, $prev = $tot[$series] }
+        else { $start = ($c.First - 1) * 1000000000; $total = [long]0; $prev = [long]0 }
+        $total += $c.Sum
+        $t = $c.Last * 1000000000
+        if ($t -lt $prev + 1000000) { $t = $prev + 1000000 }
+        $tot[$series] = @($start, $total, $t)
+        if ($Sb.Length -gt 0) { [void]$Sb.Append(',') }
+        [void]$Sb.Append("{`"name`":`"$($series.Split(' ')[0])`",`"sum`":{`"aggregationTemporality`":2,`"isMonotonic`":true,`"dataPoints`":[{`"startTimeUnixNano`":`"$start`",`"timeUnixNano`":`"$t`",`"asDouble`":$total,`"attributes`":[$($c.Attrs)]}]}}")
+    }
+    # Forget the series not counted for 7 days.
+    $cutoff = ($Now - 604800) * 1000000000
+    $keep = New-Object System.Collections.Generic.List[string]
+    foreach ($series in $tot.Keys) {
+        $v = $tot[$series]
+        if ($v[2] -ge $cutoff) { $keep.Add("$series`t$($v[0])`t$($v[1])`t$($v[2])") }
+    }
+    return ($keep -join "`n")
+}
+
 function New-VigilBackendBody {
-    param([string]$Type, [long]$Now, [string[]]$Events)
+    param([string]$Type, [long]$Now, [string[]]$Events, [string]$Totals = '')
     $sb = New-Object System.Text.StringBuilder
     $points = 0
     $invalid = 0
     $old = 0
+    # This batch's whole counts, by series, in the order first seen.
+    $counts = New-Object System.Collections.Specialized.OrderedDictionary
     $q = { param([string]$s) if ($s.IndexOf('"') -ge 0 -or $s.IndexOf('\') -ge 0) { ConvertTo-VigilJsonQuoted $s } else { "`"$s`"" } }
     foreach ($f in $Events) {
         if (-not [System.IO.File]::Exists($f)) { continue }
@@ -89,8 +128,35 @@ function New-VigilBackendBody {
                 elseif ($key -ceq 'host') { $res = ",`"resources`":[{`"name`":$(& $q $val),`"type`":`"host`"}]" }
                 else { $tags.Add((& $q "${key}:$val")) }
             }
+            if ($Type -ceq 'otel' -and $kind -ceq 'count' -and $value -cmatch '^(0|[1-9][0-9]{0,14})$') {
+                # A whole count joins its series' running total, sent once the
+                # batch is read. The tags sorted by key, keeping their order
+                # otherwise.
+                $sortedTags = New-Object System.Collections.Generic.List[string]
+                for ($t = 4; $t -lt $w.Length; $t++) {
+                    $k = $w[$t].Substring(0, $w[$t].IndexOf('='))
+                    $j = $sortedTags.Count
+                    while ($j -gt 0 -and [string]::CompareOrdinal($sortedTags[$j - 1].Substring(0, $sortedTags[$j - 1].IndexOf('=')), $k) -gt 0) { $j-- }
+                    $sortedTags.Insert($j, $w[$t])
+                }
+                $series = (@($name) + $sortedTags) -join ' '
+                $attrs = @(foreach ($s in $sortedTags) {
+                        $eq = $s.IndexOf('=')
+                        "{`"key`":`"$($s.Substring(0, $eq))`",`"value`":{`"stringValue`":$(& $q $s.Substring($eq + 1))}}"
+                    }) -join ','
+                $e = [long]$epoch
+                if ($counts.Contains($series)) {
+                    $c = $counts[$series]
+                    if ($e -gt $c.Last) { $c.Last = $e }
+                    $c.Sum += [long]$value
+                    $c.Attrs = $attrs
+                }
+                else { $counts[$series] = @{ First = $e; Last = $e; Sum = [long]$value; Attrs = $attrs } }
+                $points++
+                continue
+            }
             # HEC takes events one after another, not as a list.
-            if ($points -gt 0 -and $Type -cne 'splunk') { [void]$sb.Append(',') }
+            if ($sb.Length -gt 0 -and $Type -cne 'splunk') { [void]$sb.Append(',') }
             if ($Type -ceq 'splunk') {
                 [void]$sb.Append("{`"time`":$epoch,$res`"source`":`"vigil`",`"event`":`"metric`",`"fields`":{`"metric_name`":`"$name`",`"_value`":$value,`"metric_type`":`"$kind`"$($tags -join '')}}")
             }
@@ -99,26 +165,28 @@ function New-VigilBackendBody {
                 [void]$sb.Append("{`"metric`":`"$name`",`"type`":$n,`"points`":[{`"timestamp`":$epoch,`"value`":$value}]$res,`"tags`":[$($tags -join ',')]}")
             }
             else {
-                $start = if ($kind -ceq 'count') { "`"startTimeUnixNano`":`"${epoch}000000000`"," } else { '' }
-                $point = "{$start`"timeUnixNano`":`"${epoch}000000000`",`"asDouble`":$value,`"attributes`":[$($tags -join ',')]}"
-                if ($kind -ceq 'count') { [void]$sb.Append("{`"name`":`"$name`",`"sum`":{`"aggregationTemporality`":1,`"isMonotonic`":true,`"dataPoints`":[$point]}}") }
-                else { [void]$sb.Append("{`"name`":`"$name`",`"gauge`":{`"dataPoints`":[$point]}}") }
+                # A gauge, and a count that is not a whole number: a running
+                # total of those would not be exact, so it goes as a gauge.
+                $point = "{`"timeUnixNano`":`"${epoch}000000000`",`"asDouble`":$value,`"attributes`":[$($tags -join ',')]}"
+                [void]$sb.Append("{`"name`":`"$name`",`"gauge`":{`"dataPoints`":[$point]}}")
             }
             $points++
         }
     }
+    $totalsNew = $Totals
+    if ($Type -ceq 'otel') { $totalsNew = Add-VigilBackendTotals -Counts $counts -Totals $Totals -Now $Now -Sb $sb }
     $body = if ($Type -ceq 'datadog') { "{`"series`":[$($sb.ToString())]}" }
     elseif ($Type -ceq 'splunk') { $sb.ToString() }
     else { "{`"resourceMetrics`":[{`"resource`":{`"attributes`":[{`"key`":`"service.name`",`"value`":{`"stringValue`":`"vigil`"}}]},`"scopeMetrics`":[{`"scope`":{`"name`":`"vigil`"},`"metrics`":[$($sb.ToString())]}]}]}" }
     $drops = New-Object System.Collections.Generic.List[string]
     if ($invalid -gt 0) { $drops.Add("invalid $invalid") }
     if ($old -gt 0) { $drops.Add("too_old $old") }
-    return @{ Body = $body; Points = $points; Drops = $drops }
+    return @{ Body = $body; Points = $points; Drops = $drops; TotalsNew = $totalsNew }
 }
 
 function Send-VigilBackend {
-    param([string]$Root, $Parsed, [string]$Name, [string]$Type, [string[]]$Events)
-    $fail = { param([string]$Why) @{ Ok = $false; Sent = 0; Drops = (New-Object System.Collections.Generic.List[string]); Why = $Why } }
+    param([string]$Root, $Parsed, [string]$Name, [string]$Type, [string[]]$Events, [string]$Totals = '')
+    $fail = { param([string]$Why) @{ Ok = $false; Sent = 0; Drops = (New-Object System.Collections.Generic.List[string]); Why = $Why; TotalsNew = $Totals } }
     $endpoint = ''; $key = ''; $ca = ''; $timeout = 10
     $keyName = if ($Type -ceq 'splunk') { 'token' } else { 'api_key' }
     foreach ($e in $Parsed.Entries) {
@@ -151,8 +219,8 @@ function Send-VigilBackend {
     if ($Type -ceq 'datadog') { $url += '/api/v2/series' }
     elseif ($url.Substring($url.IndexOf('://') + 3).IndexOf('/') -lt 0) { $url += $(if ($Type -ceq 'splunk') { '/services/collector/event' } else { '/v1/metrics' }) }
 
-    $b = New-VigilBackendBody -Type $Type -Now (Get-VigilBackendNow) -Events $Events
-    if ($b.Points -eq 0) { return @{ Ok = $true; Sent = 0; Drops = $b.Drops; Why = '' } }
+    $b = New-VigilBackendBody -Type $Type -Now (Get-VigilBackendNow) -Events $Events -Totals $Totals
+    if ($b.Points -eq 0) { return @{ Ok = $true; Sent = 0; Drops = $b.Drops; Why = ''; TotalsNew = $b.TotalsNew } }
 
     $headers = @('Content-Type: application/json')
     if ($key) {
@@ -190,12 +258,12 @@ function Send-VigilBackend {
         }
         if ($rejected -gt $b.Points) { $rejected = $b.Points }
         if ($rejected -gt 0) { $drops.Add("rejected $rejected") }
-        return @{ Ok = $true; Sent = $b.Points - $rejected; Drops = $drops; Why = '' }
+        return @{ Ok = $true; Sent = $b.Points - $rejected; Drops = $drops; Why = ''; TotalsNew = $b.TotalsNew }
     }
     if ($r.Status -eq 400 -or $r.Status -eq 413) {
         # Malformed or too large: sending it again cannot succeed.
         $drops.Add("rejected $($b.Points)")
-        return @{ Ok = $true; Sent = 0; Drops = $drops; Why = '' }
+        return @{ Ok = $true; Sent = 0; Drops = $drops; Why = ''; TotalsNew = $b.TotalsNew }
     }
     if ($r.Status -eq 401 -or $r.Status -eq 403) { return & $fail "permission denied (HTTP $($r.Status))" }
     return & $fail "HTTP $($r.Status) from $hostPart"

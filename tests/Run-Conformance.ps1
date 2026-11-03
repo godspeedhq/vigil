@@ -346,6 +346,8 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\back
     $Script:storeOut = New-Object 'System.Collections.Generic.List[string]'
     $Script:storeReplies = New-Object 'System.Collections.Generic.List[string]'
     $Script:storeNext = 0
+    # Each backend's running totals carry over to its next send.
+    $caseTotals = @{}
     foreach ($line in [System.IO.File]::ReadAllLines([System.IO.Path]::ChangeExtension($case.FullName, '.exchange'))) {
         if ($line -ceq '' -or $line.StartsWith('#')) { continue }
         $sp = $line.IndexOf(' ')
@@ -357,13 +359,24 @@ foreach ($case in (Get-ChildItem -LiteralPath (Join-Path $here 'conformance\back
             'now' { $Script:backendNow = [long]$rest }
             'reply' { $Script:storeReplies.Add($rest) }
             'fail' { $Script:storeReplies.Add("!$rest") }
+            'totals' {
+                # "totals <backend> <start> <total> <last> <series>".
+                $f = $rest.Split([char[]]@(' '), 5)
+                $l = "$($f[4])`t$($f[1])`t$($f[2])`t$($f[3])"
+                $caseTotals[$f[0]] = if ($caseTotals[$f[0]]) { "$($caseTotals[$f[0]])`n$l" } else { $l }
+            }
             'send' {
                 $Script:storeOut.Add("send $rest")
                 $type = Get-VigilConfigValue $parsed "backend.$rest" 'type' $rest
-                $r = Send-VigilBackend -Root '/opt/vigil' -Parsed $parsed -Name $rest -Type $type -Events @([System.IO.Path]::ChangeExtension($case.FullName, '.events'))
+                $before = if ($caseTotals[$rest]) { $caseTotals[$rest] } else { '' }
+                $r = Send-VigilBackend -Root '/opt/vigil' -Parsed $parsed -Name $rest -Type $type -Events @([System.IO.Path]::ChangeExtension($case.FullName, '.events')) -Totals $before
                 if ($r.Ok) {
                     $Script:storeOut.Add("= sent $($r.Sent)")
                     foreach ($d in $r.Drops) { $Script:storeOut.Add("dropped $d") }
+                    if ($type -ceq 'otel') {
+                        $caseTotals[$rest] = $r.TotalsNew
+                        foreach ($d in $r.TotalsNew.Split("`n")) { if ($d) { $Script:storeOut.Add("total $($d.Replace("`t", ' '))") } }
+                    }
                 }
                 else { $Script:storeOut.Add("! $($r.Why)") }
             }
