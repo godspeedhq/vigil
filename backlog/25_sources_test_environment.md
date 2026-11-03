@@ -97,4 +97,10 @@ tests/integration/backends/
 
 ## Progress
 
-- Written 2026-11-03. Phase 1 started.
+- Written 2026-11-03.
+- **Phase 1: done for Linux and macOS (2026-11-03).** Gitea, nginx, OpenSSH SFTP and local, with the whole lifecycle; see `reports/sources-compatibility.md`.
+  - **Fedora:** Gitea 54/54, nginx 70/70, SFTP 48/48 (an interrupted transfer not run), local 34/34.
+  - **macOS:** the same through tunnels, the restarts not run there.
+  - **Not supported by Vigil, as reported:** SFTP password login.
+  - **Findings:** a verified copy is never fetched again; a pinned file whose content changes is logged, not failed; one invalid job is skipped while the rest is activated (spec 16.3); a source has no `ca_file`.
+- **Next:** `run-source.ps1` for Windows (the test CA in the user's certificate store, for https); then phase 2: GitLab CE, Caddy, SFTPGo.
