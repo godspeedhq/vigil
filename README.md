@@ -24,6 +24,7 @@ Vigil runs the work, records the work, and forwards the evidence. Storage, dashb
 ## Contents
 
 - [Why Vigil](#why-vigil)
+- [Guiding principles](#guiding-principles)
 - [What works today](#what-works-today)
 - [Install](#install)
 - [Update](#update)
@@ -52,6 +53,14 @@ Vigil runs the work, records the work, and forwards the evidence. Storage, dashb
 
 ## Why Vigil
 
+Vigil began with a practical problem: a reliable way to run and monitor operational scripts on Windows servers hosting a database, where PowerShell was already there and introducing another monitoring agent would have meant more approvals. Rather than add another dependency, I built on the tools already available, and wondered whether other people run into the same constraints.
+
+It isn't here to replace the schedulers, collectors and observability tools you already use. If they meet your needs, keep using them. Vigil is simply another option, and it can sit alongside them: sending its telemetry through your OpenTelemetry Collector, or straight to Datadog, Splunk or a Prometheus-based stack.
+
+The whole story, and where Vigil fits beside cron, Telegraf and OpenTelemetry: **[Why Vigil?](WHY.md)**
+
+## Guiding principles
+
 Most hosts already have a scheduler (cron, Task Scheduler, launchd). What they lack is supervision: knowing that a job ran, how long it took, how it ended, whether it is stuck, and having that reach a dashboard without a bespoke wrapper around every script.
 
 Vigil's guiding rules:
@@ -62,8 +71,6 @@ Vigil's guiding rules:
 - **Workers outlive the supervisor.** Stopping, upgrading or crashing the supervisor never stops a running job.
 - **Same behaviour everywhere.** The bash and PowerShell implementations are twins, held to byte-identical results by a shared test suite.
 - **Local first.** Everything works without a network. Remote configuration, scripts, metrics and logs are optional layers on top.
-
-Where Vigil came from, and why it's meant to sit alongside the tools you already have rather than replace them: [Why Vigil?](WHY.md)
 
 ---
 
