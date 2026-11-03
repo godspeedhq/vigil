@@ -3,7 +3,6 @@
 **A job scheduler, supervisor and metrics forwarder for Windows, Linux and macOS, written only in the shells that ship with each one.**
 
 **Documentation:** [godspeedhq.github.io/vigil](https://godspeedhq.github.io/vigil/): the specification, command reference, error codes and examples, generated from this repository.
-
 Vigil runs your scripts on a schedule, watches every run from start to finish, and sends what happened to the monitoring system you already use. There is nothing to compile and no runtime to install: Windows PowerShell 5.1 on Windows, and bash 3.2 or later on Linux and macOS. The only binary in the project is NSSM, used on Windows to register a service.
 
 ```text
@@ -25,6 +24,7 @@ Vigil runs the work, records the work, and forwards the evidence. Storage, dashb
 ## Contents
 
 - [Why Vigil](#why-vigil)
+- [Guiding principles](#guiding-principles)
 - [What works today](#what-works-today)
 - [Install](#install)
 - [Update](#update)
@@ -52,6 +52,14 @@ Vigil runs the work, records the work, and forwards the evidence. Storage, dashb
 ---
 
 ## Why Vigil
+
+Vigil began with a practical problem: a reliable way to run and monitor operational scripts on Windows servers hosting a database, where PowerShell was already there and introducing another monitoring agent would have meant more approvals. Rather than add another dependency, I built on the tools already available, and wondered whether other people run into the same constraints.
+
+It isn't here to replace the schedulers, collectors and observability tools you already use. If they meet your needs, keep using them. Vigil is simply another option, and it can sit alongside them: sending its telemetry through your OpenTelemetry Collector, or straight to Datadog, Splunk or a Prometheus-based stack.
+
+The whole story, and where Vigil fits beside cron, Telegraf and OpenTelemetry: **[Why Vigil?](WHY.md)**
+
+## Guiding principles
 
 Most hosts already have a scheduler (cron, Task Scheduler, launchd). What they lack is supervision: knowing that a job ran, how long it took, how it ended, whether it is stuck, and having that reach a dashboard without a bespoke wrapper around every script.
 
@@ -939,6 +947,7 @@ tools/release/          builds the release archives and SHA256SUMS (package.sh)
 install.sh, install.ps1 the one-line installers
 SPECIFICATION.md        the full design: what Vigil does and why
 VISION.md               the product vision
+WHY.md                  why Vigil exists, and where it fits beside other tools
 ```
 
 Every file in `lib/posix/` has a twin of the same name in `lib/windows/` (`config.sh` and `Config.ps1`). Each follows its own platform's naming convention, and the two must behave identically.

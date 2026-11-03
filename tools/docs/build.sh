@@ -17,6 +17,7 @@
 # so it is never edited by hand and never out of date once rebuilt:
 #
 #   Home            README.md
+#   Why Vigil       WHY.md
 #   Vision          VISION.md
 #   Specification   SPECIFICATION.md, one page per numbered section
 #   Commands        the usage headers of app/vigil and app/vigil.ps1
@@ -67,6 +68,7 @@ relink() {
     sed -E \
         -e 's#\]\(SPECIFICATION\.md\)#](/vigil/spec/)#g' \
         -e 's#\]\(VISION\.md\)#](/vigil/vision/)#g' \
+        -e 's#\]\(WHY\.md\)#](/vigil/why/)#g' \
         -e 's#\]\(README\.md\)#](/vigil/)#g' \
         -e 's#\]\(LICENSE\)#]('"$blob"'/LICENSE)#g' \
         -e 's#\]\(([A-Za-z0-9_.-]+/)([^):]*)\)#]('"$tree"'/\1\2)#g'
@@ -78,6 +80,9 @@ sed '1{/^# /d;}' "$repo/README.md" | relink |
     page index.md 'title: Home' 'layout: home' 'nav_order: 1' 'permalink: /'
 sed '1{/^# /d;}' "$repo/VISION.md" | relink |
     page vision.md 'title: Vision' 'nav_order: 2' 'permalink: /vision/'
+# Between Home and Vision: Just the Docs sorts nav_order as a number.
+sed '1{/^# /d;}' "$repo/WHY.md" | relink |
+    page why.md 'title: Why Vigil' 'nav_order: 1.5' 'permalink: /why/'
 
 # --- Specification, one page per "## N. Title" -----------------------------
 
