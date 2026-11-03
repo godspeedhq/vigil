@@ -128,8 +128,9 @@ Group 9, `compose.secrets.yaml`, tests Vigil's existing secret stores (backlog t
 | `azure` | Floci Azure 0.15.0, Key Vault and an emulated Entra ID, behind an nginx TLS front | 4577 (https); 4578 (http, managed identity only) | `azure_keyvault` | about 40 MB |
 | `gcp` | Floci GCP 0.11.0, Secret Manager and an OAuth2 token endpoint, behind an nginx TLS front | 4588 (https) | `gcp_secret_manager` | about 20 MB |
 | `azure-alt` | Lowkey Vault 7.3.127, a community Key Vault emulator, with its own TLS | 8443 (https); 8081 (http, managed identity only) | `azure_keyvault` | about 270 MB (Java) |
+| `gcp-alt` | Blackwell's Secret Manager emulator 1.9.0, behind an nginx TLS front; it has no sign-in, so start `gcp` too, for Floci's token endpoint | 4598 (https) | `gcp_secret_manager` | about 5 MB |
 
-The other emulators (LocalStack, Blackwell's GCP emulator) are still to come in phase 2 of the task. LocalStack now needs an account's auth token, which is not made for you. An emulator proves Vigil's requests and how it reads the answers, never the real cloud's sign-in: Floci, for one, accepts any key, and `run-store` reports that as an EMULATOR LIMITATION, not a pass.
+LocalStack is not included: since 2026.03.0 it needs a LocalStack account's auth token, which is not made for you. An emulator proves Vigil's requests and how it reads the answers, never the real cloud's sign-in: Floci, for one, accepts any key, and `run-store` reports that as an EMULATOR LIMITATION, not a pass.
 
 ```sh
 scripts/start.sh openbao        # the test CA if new, start, unseal, fixtures

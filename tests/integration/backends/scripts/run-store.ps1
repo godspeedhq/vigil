@@ -15,7 +15,7 @@
     service, on Windows. The twin of run-store.sh, which describes the
     checks.
 .DESCRIPTION
-        .\scripts\run-store.ps1 openbao      (or vault, aws, azure, gcp, azure-alt)
+        .\scripts\run-store.ps1 openbao      (or vault, aws, azure, gcp, azure-alt, gcp-alt)
 
     Needs .secrets\<target>.env and .secrets\tls\ca.pem from the host that
     ran scripts/start.sh, copied to the same paths here, and the service's
@@ -35,7 +35,7 @@ $bk = Split-Path -Parent $here
 $repo = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $bk))
 $shell = (Get-Process -Id $PID).Path
 
-if (@('openbao', 'vault', 'aws', 'azure', 'gcp', 'azure-alt') -cnotcontains $Target) { Write-Output 'usage: run-store.ps1 openbao|vault|aws|azure|gcp|azure-alt'; exit 1 }
+if (@('openbao', 'vault', 'aws', 'azure', 'gcp', 'azure-alt', 'gcp-alt') -cnotcontains $Target) { Write-Output 'usage: run-store.ps1 openbao|vault|aws|azure|gcp|azure-alt|gcp-alt'; exit 1 }
 $envFile = Join-Path $bk ".secrets\$Target.env"
 $caFile = Join-Path $bk '.secrets\tls\ca.pem'
 if (-not (Test-Path -LiteralPath $envFile) -or -not (Test-Path -LiteralPath $caFile)) {
@@ -67,7 +67,7 @@ $labels = @{}
 # label, the reason when refused, and what the emulator lacks.
 $refused = $null
 $noSignIn = $null
-if ($Target -ceq 'gcp') {
+if ($Target -ceq 'gcp' -or $Target -ceq 'gcp-alt') {
     # The keys' contents, as Vigil reads a service_account_key.
     $keys = @{ 'VIGIL_ST_GCP_KEY' = 'gcp-key.json'; 'VIGIL_ST_GCP_KEY_HTTP' = 'gcp-key-http.json'; 'VIGIL_ST_GCP_KEY_OTHER' = 'gcp-key-other.json' }
     foreach ($n in $keys.Keys) {
@@ -246,7 +246,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $bk 'workloads\secret.ps1') -Destination (Join-Path $root 'scripts')
     Copy-Item -LiteralPath $caFile -Destination (Join-Path $root 'config\store-ca.pem')
 
-    $kinds = @{ aws = 'aws_secrets_manager'; azure = 'azure_keyvault'; 'azure-alt' = 'azure_keyvault'; gcp = 'gcp_secret_manager' }
+    $kinds = @{ aws = 'aws_secrets_manager'; azure = 'azure_keyvault'; 'azure-alt' = 'azure_keyvault'; 'gcp-alt' = 'gcp_secret_manager'; gcp = 'gcp_secret_manager' }
     Write-Output "`n$Target, $(if ($kinds.ContainsKey($Target)) { $kinds[$Target] } else { 'hashicorp_vault' }) store"
     # The expiring token must have expired.
     if ($o['ST_EXPIRES_AT']) { while ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -le [long]$o['ST_EXPIRES_AT']) { Start-Sleep -Seconds 1 } }

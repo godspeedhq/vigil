@@ -51,7 +51,7 @@ case $1 in
         config=$(printf 'request = "PUT"\ndata-binary = "{\\"value\\":\\"%s\\"}"\nheader = "Content-Type: application/json"\nheader = "Authorization: Bearer rotation"\nurl = "%s/secrets/vigil-rotating?api-version=7.4"\n' \
             "$new" "$(sed -n 's/^ST_VAULT=//p' "$2")")
         ;;
-    gcp)
+    gcp | gcp-alt)
         config=$(printf 'data-binary = "{\\"payload\\":{\\"data\\":\\"%s\\"}}"\nheader = "Content-Type: application/json"\nurl = "%s/v1/projects/%s/secrets/vigil-rotating:addVersion"\n' \
             "$(printf '%s' "$new" | base64 | tr -d '\n')" "$url" "$(sed -n 's/^ST_PROJECT=//p' "$2")")
         ;;

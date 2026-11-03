@@ -20,6 +20,8 @@
 #   azure           Vigil's azure_keyvault store, against Floci
 #   gcp             Vigil's gcp_secret_manager store, against Floci
 #   azure-alt       Vigil's azure_keyvault store, against Lowkey Vault
+#   gcp-alt         Vigil's gcp_secret_manager store, against Blackwell's
+#                   emulator, signing in at Floci GCP's /token (start gcp too)
 #
 # Needs .secrets/<target>.env and .secrets/tls/ca.pem, which start.sh makes;
 # on another host, copy both, keeping their paths, and reach the service's
@@ -46,7 +48,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/common.sh"
 
 t=${1-}
-case $t in openbao | vault | aws | azure | gcp | azure-alt) ;; *) die 'usage: run-store.sh openbao|vault|aws|azure|gcp|azure-alt' ;; esac
+case $t in openbao | vault | aws | azure | gcp | azure-alt | gcp-alt) ;; *) die 'usage: run-store.sh openbao|vault|aws|azure|gcp|azure-alt|gcp-alt' ;; esac
 envf=$bk_dir/.secrets/$t.env
 ca=$bk_dir/.secrets/tls/ca.pem
 [ -f "$envf" ] && [ -f "$ca" ] || die "no .secrets/$t.env or .secrets/tls/ca.pem: run scripts/start.sh $t first, or copy them from the host that did"
@@ -394,7 +396,7 @@ bk_bad_secret az_bad_secret vigil-probe failed permission_denied ST_PROBE"
     leak_values="${old-} $ST_PROBE $ST_ROTATING $ST_V1 $ST_V2 $VIGIL_ST_CLIENT_SECRET $VIGIL_ST_BAD_CLIENT_SECRET"
 }
 
-# ---- gcp: gcp_secret_manager, against Floci -------------------------------
+# ---- gcp, gcp-alt: gcp_secret_manager, against Floci or Blackwell --------
 gcp_suite() {
     local sec=$bk_dir/.secrets
     [ -f "$sec/gcp-key.json" ] && [ -f "$sec/gcp-key-http.json" ] && [ -f "$sec/gcp-key-other.json" ] ||
@@ -449,12 +451,14 @@ bk_other_key gcp_other_key vigil-probe failed permission_denied ST_PROBE"
     write_config
     expect_refused bk_other_key 'bk_other_key (another private key)' 'sign-in failed' 'the emulator does not check the JWT'
 
-    if here_running 'floci-gcp floci-gcp-tls'; then
-        dc stop floci-gcp floci-gcp-tls > /dev/null 2>&1
+    local services='floci-gcp floci-gcp-tls'
+    [ "$t" = gcp-alt ] && services='blackwell-gcp blackwell-gcp-tls'
+    if here_running "$services"; then
+        dc stop $services > /dev/null 2>&1
         run_job bk_key failed 'cannot connect to' 'bk_key, emulator stopped'
-        dc start floci-gcp floci-gcp-tls > /dev/null 2>&1
+        dc start $services > /dev/null 2>&1
         # In memory: its fixtures are written again, with new values.
-        bash "$bk_dir/configs/secrets/gcp/provision.sh" > /dev/null || bad 'cannot provision the emulator again'
+        bash "$bk_dir/configs/secrets/$t/provision.sh" > /dev/null || bad 'cannot provision the emulator again'
         old="$ST_PROBE $ST_ROTATING $ST_V1 $ST_V2"
         load_env
         gcp_jobs
@@ -474,12 +478,13 @@ kind=hashicorp_vault
 [ "$t" = azure ] && kind=azure_keyvault
 [ "$t" = azure-alt ] && kind=azure_keyvault
 [ "$t" = gcp ] && kind=gcp_secret_manager
+[ "$t" = gcp-alt ] && kind=gcp_secret_manager
 printf '\n%s, %s store\n' "$t" "$kind"
 case $t in
     openbao | vault) vault_suite ;;
     aws) aws_suite ;;
     azure | azure-alt) azure_suite ;;
-    gcp) gcp_suite ;;
+    gcp | gcp-alt) gcp_suite ;;
 esac
 
 # Leaks: every secret value and credential, under the root and in what Vigil

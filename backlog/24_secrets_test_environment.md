@@ -115,7 +115,7 @@ tests/integration/backends/
   - **No differences** between the two in what Vigil uses.
   - **KV v1** is shown to be unreadable by Vigil, as it is: reported Not supported, not changed.
   - Report: `reports/secrets-compatibility.md`.
-- **Phase 3, to come:** run the restart checks from macOS and Windows too, stopping and starting the Docker host's container remotely.
+
 - **Phase 2: started (2026-11-03).**
   - **Floci AWS 2.3.0: done.** It sits behind an nginx TLS front (1.30.5-alpine) with the test CA. 20 of 20 on Fedora with the restart; 18 of 18 on macOS and Windows. One emulator limitation everywhere: any secret key is accepted.
   - **The images, as checked:**
@@ -133,4 +133,6 @@ tests/integration/backends/
   - **Floci GCP 0.11.0: done.** `service_account_key` signs its JWT with a real RSA test key and exchanges it at the emulator's `/token` (the key's `token_uri`). Numbered versions and projects are kept apart, and a plain-http `token_uri` is refused. 22 of 22 on Fedora; 20 of 20 on macOS and Windows. One emulator limitation everywhere: any JWT is accepted. `metadata` is untested: there is no metadata server.
   - **Lowkey Vault 7.3.127: done.** It serves TLS itself with the test certificate (it tells vaults apart by Host and port). Its stores sign in with `managed_identity` through `VIGIL_TEST_IMDS`, since it has no client-credentials endpoint; `service_principal` is an emulator limitation. 22 of 22 on Fedora; 20 of 20 on macOS and Windows.
   - **Real-cloud guides** (phase 4), optional and manual, never provisioned for you: `saas/aws-secrets-manager.md`, `saas/azure-key-vault.md`, `saas/google-secret-manager.md`.
-  - **Next:** Blackwell's GCP emulator, checked by a run before it's accepted.
+  - **Blackwell's emulator 1.9.0: done**, pinned by digest. It has no sign-in at all, so Vigil signs in at Floci GCP's `/token` and reads from Blackwell: retrieval only. 22 of 22 on Fedora; 20 of 20 on macOS and Windows.
+- **Phase 2: done, but for LocalStack** (blocked by licensing; testable if you supply a token in `.env`).
+- **Phase 3, next:** the restart checks from macOS and Windows, stopping and starting the Docker host's containers remotely.

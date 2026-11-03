@@ -13,7 +13,11 @@
 # gcp_secret_manager store. The emulator keeps them in memory, so
 # scripts/start.sh gcp runs this after every start. Safe to run again.
 #
-#   bash configs/secrets/gcp/provision.sh
+#   bash configs/secrets/gcp/provision.sh [gcp-alt]
+#
+# With gcp-alt, the same fixtures go to Blackwell's emulator
+# (https://127.0.0.1:4598) and its values to .secrets/gcp-alt.env. The keys
+# are shared: their token_uri is always Floci's /token, as Blackwell has none.
 #
 # In project vigil-test, each a new random value:
 #   vigil-probe      one version
@@ -38,9 +42,14 @@ here=$(cd "$(dirname "$0")" && pwd)
 
 sec=$bk_dir/.secrets
 url=https://127.0.0.1:4588
+token_uri=$url/token
+out=$sec/gcp.env
+if [ "${1-}" = gcp-alt ]; then
+    url=https://127.0.0.1:4598
+    out=$sec/gcp-alt.env
+fi
 project=vigil-test
 ca=$sec/tls/ca.pem
-out=$sec/gcp.env
 
 # A REST call: method $1, path $2, JSON body $3 on stdin. The answer goes
 # in $sec/.gcp.answer.
@@ -74,9 +83,9 @@ if [ ! -f "$sec/gcp-key.json" ] || [ ! -f "$sec/gcp-key-other.json" ]; then
     work=$(mktemp -d) || exit 1
     openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$work/a.pem" 2> /dev/null &&
         openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$work/b.pem" 2> /dev/null || die 'openssl cannot make an RSA key'
-    key_file "$sec/gcp-key.json" "$url/token" "$work/a.pem"
+    key_file "$sec/gcp-key.json" "$token_uri" "$work/a.pem"
     key_file "$sec/gcp-key-http.json" "http://127.0.0.1:4588/token" "$work/a.pem"
-    key_file "$sec/gcp-key-other.json" "$url/token" "$work/b.pem"
+    key_file "$sec/gcp-key-other.json" "$token_uri" "$work/b.pem"
     rm -rf "$work"
 fi
 
@@ -92,4 +101,4 @@ add vigil-rotating "$rotating" > /dev/null
     printf 'ST_URL=%s\nST_PROJECT=%s\n' "$url" "$project"
     printf 'ST_PROBE=%s\nST_V1=%s\nST_V1_N=%s\nST_V2=%s\nST_ROTATING=%s\n' "$probe" "$v1" "$v1_n" "$v2" "$rotating"
 } > "$out.tmp") && mv -f "$out.tmp" "$out" || die "cannot write $out"
-echo "gcp provisioned: vigil-probe, vigil-versioned (2 versions), vigil-rotating in $project; see .secrets/gcp.env"
+echo "${1:-gcp} provisioned: vigil-probe, vigil-versioned (2 versions), vigil-rotating in $project; see ${out#"$sec"/}"
