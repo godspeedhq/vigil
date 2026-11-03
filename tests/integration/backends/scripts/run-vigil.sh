@@ -93,6 +93,27 @@ section() {
 
 vigil() { bash "$root/app/vigil" --root "$root" "$@" < /dev/null; }
 printf 'run tag: %s\n' "$tag"
+
+# This host's clock against the backend's, from the Date its HTTP answer
+# carries. Telemetry is stamped with this host's time: minutes ahead, and a
+# backend hides it until then (Loki) or refuses it (Prometheus).
+clock_check() {
+    local url=${1#* } hostport base d them now skew
+    hostport=${url#*://}
+    base=${url%%://*}://${hostport%%/*}
+    d=$(curl -s -m 5 -o /dev/null -D - "$base/" 2> /dev/null | tr -d '\r' | sed -n 's/^[Dd]ate: //p' | head -n 1)
+    [ -n "$d" ] || return 0
+    them=$(date -u -d "$d" '+%s' 2> /dev/null || date -u -j -f '%a, %d %b %Y %H:%M:%S GMT' "$d" '+%s' 2> /dev/null) || return 0
+    now=$(date -u '+%s')
+    skew=$((now - them))
+    if [ "${skew#-}" -gt 60 ]; then
+        printf 'WARNING: this clock is %ss %s the backend'"'"'s: set the time right, or its data may be hidden or refused\n' \
+            "${skew#-}" "$([ "$skew" -gt 0 ] && echo ahead of || echo behind)"
+    else
+        printf 'clock: within %ss of the backend'"'"'s\n' "${skew#-}"
+    fi
+}
+clock_check "${bk_metrics:-$bk_logs}"
 # bk_missing's file is missing on purpose, and precheck rightly says so;
 # any other problem stops the run.
 if ! vigil precheck > "$work/precheck.out" 2>&1; then

@@ -16,7 +16,9 @@
 #   scripts/verify.sh <target> <run tag>      run-vigil.sh calls it
 #
 # Checks, for each signal the target takes:
-#   metrics  the probe metric (42) with this run's tag, and job=bk_metrics
+#   metrics  the probe metric (42) with this run's tag. Which job label it
+#            kept goes in the evidence: Prometheus, for one, replaces the
+#            job Vigil sends with job="vigil", from the service name.
 #   logs     a line carrying this run's tag
 # Prints PASS, FAIL or NOT APPLICABLE for each, and saves the answers as
 # evidence in reports/evidence/<target>-<tag>.txt for the compatibility
@@ -36,7 +38,7 @@ fail=0
 
 # PromQL for the probe: Prometheus-style names turn dots into underscores,
 # others keep them, so both are accepted.
-probe="{__name__=~\"bk_metrics[._]vigil_backend_probe\",run=\"$tag\",job=\"bk_metrics\"}"
+probe="{__name__=~\"bk_metrics[._]vigil_backend_probe\",run=\"$tag\"}"
 
 # URL-encodes $1.
 enc() {

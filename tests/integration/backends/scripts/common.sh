@@ -59,7 +59,7 @@ is_upstream() {
 # Every target, for usage messages.
 bk_targets='lgtm prometheus grafana loki tempo mimir pyroscope otel-collector alloy grafana-stack
 splunk victoriametrics victorialogs victoriatraces victoria elastic opensearch influxdb
-jaeger zipkin tracing clickhouse signoz uptrace graylog'
+jaeger zipkin tracing clickhouse signoz uptrace graylog openbao'
 
 # How Vigil reaches target $1. Sets bk_metrics and bk_logs to "<type>
 # <endpoint>" (type otel or splunk), each empty when Vigil cannot send that
@@ -100,6 +100,7 @@ endpoints() {
         pyroscope) bk_why='Vigil sends no profiles' ;;
         uptrace) bk_why='Uptrace wants its DSN in an uptrace-dsn header, which Vigil can send for logs but not metrics: to be worked out at first run' ;;
         graylog) bk_why='Graylog takes OTLP over gRPC, and Vigil sends OTLP over HTTP: needs a collector in between, to be worked out at first run' ;;
+        openbao) bk_why='OpenBao is a secret store, not somewhere Vigil sends: test it with scripts/run-store.sh' ;;
         *) die "unknown target: $1 (one of: $(echo $bk_targets))" ;;
     esac
 }

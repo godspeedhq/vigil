@@ -321,5 +321,19 @@ Results: Passed, Failed, Not supported, Not applicable, Not tested, Blocked by l
 
 ## Progress
 
-- **Written, not run** (per the user's request, nothing is started on the development machine): all eight Compose groups, the configuration for each, `start`/`stop`/`reset`/`verify`/`run-vigil` scripts, the workloads, both SaaS guides and the compatibility matrix, all under `tests/integration/backends/`. Checked without running: `docker compose config` for every profile, `bash -n` on every script, and Vigil's own `precheck` on the configuration `run-vigil.sh` writes for each target.
-- **Next:** Phase 4, the first real run of each group, then the matrix from its evidence. The 13 checks of section 5 beyond the first three are not written yet.
+- **Written** (nothing is started on the development machine; the backends run on a separate Fedora test host): nine Compose groups, the ninth a secret store (OpenBao), the configuration for each, `start`/`stop`/`reset`/`verify`/`run-vigil`/`run-store` scripts with Windows twins of the last two, the workloads, both SaaS guides and the compatibility matrix, all under `tests/integration/backends/`.
+- **Run** (2026-11-03), with Vigil on Linux (Fedora 44), macOS 12 and Windows 11 over SSH, the backends on Fedora reached through SSH tunnels: Grafana LGTM, and the OpenBao store. Results and evidence in `reports/compatibility.md`.
+- **Found by those runs, and fixed:**
+  - counts as OTLP delta sums, dropped by Prometheus-based backends (below)
+  - Windows under a logon WMI refuses (backlog/fixed/23)
+  - the verify probe expecting a `job` label Prometheus replaces
+- **Next:** the other groups one at a time, then the 13 checks of section 5 beyond the first three.
+
+## Decided: counts over OTLP
+
+The first real run (LGTM, 2026-11-03) found that Prometheus-based backends silently drop Vigil's metrics: Vigil sent counts as OTLP delta sums, Prometheus refuses delta temporality, and the collector in front answers `200` regardless. Details in `tests/integration/backends/reports/compatibility.md`. Two ways forward were weighed:
+
+- **A. Vigil sends counts as cumulative sums,** keeping running totals per series in the sender's state, as the `file` backend already does. Works with Prometheus out of the box. A change to spec 15.3 and both twins.
+- **B. Keep delta sums,** and document delta-to-cumulative conversion at the backend (Prometheus's `otlp-deltatocumulative` feature, or the collector's `deltatocumulative` processor). No change to Vigil, but every Prometheus user must know to turn it on.
+
+**A was chosen and done** (PR #64, spec 15.3). The rerun of LGTM with Vigil on Linux stored every metric, counters as `_total`.

@@ -2,7 +2,7 @@
 
 Vigil's telemetry is tested everywhere else against mocks. Here it's tested against the real products: the backends run in Docker, Vigil runs on the host exactly as it would in production, and each test asks the backend, through its own query interface, whether the data arrived. This is backlog task 18.
 
-> **Status: written, not yet run.** None of these stacks has been started yet, so every result in [`reports/compatibility.md`](reports/compatibility.md) is **Not tested**. Expect to adjust some configurations at the first run; that run's results replace the matrix rows.
+> **Status: first runs done.** Grafana LGTM and the OpenBao secret store have been run, with Vigil on Linux, macOS and Windows; every other target is still **Not tested**. See [`reports/compatibility.md`](reports/compatibility.md).
 
 ## Quick start
 
@@ -17,7 +17,7 @@ scripts/reset.sh lgtm          # removes it
 
 `docker compose up -d` on its own starts LGTM and nothing else. Every other target has a profile and starts only when asked for, so nothing heavy ever starts by accident.
 
-**Needs:** Docker Engine or Docker Desktop with Compose 2.20 or later (for `include`), plus bash, curl and git. Vigil's scripts run on Linux and macOS. The Windows twin of `run-vigil.sh` is outstanding.
+**Needs:** Docker Engine or Docker Desktop with Compose 2.20 or later (for `include`), plus bash, curl and git, on the machine running the backends. Vigil can run there or on another machine (see below): `run-vigil.sh` and `run-store.sh` on Linux and macOS, `run-vigil.ps1` and `run-store.ps1` on Windows (PowerShell 5.1 or 7; Git Bash for `verify.sh`).
 
 ## Targets
 
@@ -45,6 +45,7 @@ scripts/reset.sh lgtm          # removes it
 | | official deployment | `signoz` | metrics, logs | OTLP, direct | 8080, 4317, 4318 |
 | | official deployment | `uptrace` | to be worked out | see below | the upstream file's |
 | | official deployment | `graylog` | to be worked out | see below | the upstream file's |
+| 9 Secrets | `compose.secrets.yaml` | `openbao` | — | Vigil's `hashicorp_vault` secret store reads from it (below) | 8200 (https) |
 
 **Notes:**
 - **LGTM and the standalone components** do the same job, so start one or the other, not both. Their ports don't collide, so running both does no harm beyond the memory.
@@ -66,7 +67,9 @@ scripts/reset.sh lgtm          # removes it
 ssh -N -L 4318:127.0.0.1:4318 user@docker-host
 ```
 
-Then run `scripts/run-vigil.sh lgtm` as usual. For Splunk, forward 8088 (HEC) and 8089 (the management API `verify.sh` uses) the same way; for other targets, forward the ports in the table above.
+Then run `scripts/run-vigil.sh lgtm` as usual. For Splunk, forward 8088 (HEC) and 8089 (the management API `verify.sh` uses) the same way; for other targets, forward the ports in the table above. For LGTM, `verify.sh` also needs Grafana's 3000.
+
+**The clocks must agree.** Vigil stamps telemetry with its own machine's time. A clock minutes ahead of the backend's makes Loki hide the lines until that time comes, and Prometheus refuses samples too far ahead. `run-vigil` compares the two, from the `Date` on the backend's HTTP answer, and warns past a minute. Keep the time set automatically on every test machine.
 
 ## What Vigil can and can't reach
 
@@ -106,10 +109,38 @@ So:
    They all run every minute, so several run at once.
 3. Runs the supervisor for about two and a half minutes.
 4. Runs `scripts/verify.sh`, which asks the backend for this run's data, found by a tag unique to the run:
-   - **metrics:** the probe value, 42, with the run's tag and `job=bk_metrics`
+   - **metrics:** the probe value, 42, with the run's tag. Its name, `bk_metrics.vigil_backend_probe`, says which job sent it; Prometheus-based backends replace the `job` label with `vigil`, from the service name.
    - **logs:** a line with the run's tag
 
    It retries for two minutes, since backends index in the background, and saves the backend's answers in `reports/evidence/`. That folder isn't committed; copy what matters into the report.
+
+On Windows, `run-vigil.ps1 <target>` does the same, with `.ps1` workloads and `hostname.exe` as the native program. `-Keep` leaves its temporary folder, with Vigil's logs and state, in place afterwards.
+
+## The secret store
+
+`scripts/start.sh openbao` starts OpenBao 2.7.1, the open-source fork of HashiCorp Vault, in dev mode:
+- It runs in memory, unsealed, on `https://127.0.0.1:8200`.
+- Each start makes a new CA, with a certificate for `localhost` and `127.0.0.1`.
+- Its root token comes from `OPENBAO_ROOT_TOKEN` in `.env`.
+
+Nothing survives a stop, so [`configs/openbao/provision.sh`](configs/openbao/provision.sh), which `start.sh` runs, sets it up again each time:
+- AppRole sign-in, with a role whose tokens can only read `secret/data/vigil/*`
+- a token with the same rights
+- a probe secret, `secret/vigil/probe`, with a new random value
+
+It writes the CA to `.openbao-ca.pem`, and the credentials with the probe's SHA-256 to `.openbao.env`. Both are git-ignored; copy them along with the checkout to any other test machine.
+
+`scripts/run-store.sh openbao` (`run-store.ps1` on Windows) proves Vigil's `hashicorp_vault` store. `vigil precheck` fetches every job's secret, then each job runs once, and each must end as expected:
+
+| Job | Store reached with | Must end |
+| --- | --- | --- |
+| `bk_secret_approle` | AppRole | succeeded: the job's secret hashes to the probe's SHA-256 |
+| `bk_secret_token` | a token | succeeded, the same way |
+| `bk_secret_missing` | AppRole, a path with no secret | failed: `not found (HTTP 404)` |
+| `bk_secret_denied` | AppRole, a path the policy doesn't allow | failed: `permission denied (HTTP 403)` |
+| `bk_secret_untrusted` | a token, without `ca_file` | failed: the certificate is not trusted |
+
+Last, the whole Vigil folder is searched for the probe's value. It must appear nowhere: not in logs, state or spool. From another machine, forward 8200 as above.
 
 ## Not done yet
 
@@ -128,7 +159,7 @@ Section 5 of the backlog lists 16 checks per backend. Today `verify.sh` covers t
 - a healthy destination unaffected by an unhealthy one
 - a supervisor restart
 
-Also outstanding: the Windows harness, Uptrace, Graylog, and an API check for SigNoz instead of its UI.
+Also outstanding: Uptrace, Graylog, and an API check for SigNoz instead of its UI.
 
 ## Resources
 
@@ -142,6 +173,7 @@ Rough guides, to confirm at the first run:
 | `elastic`, `opensearch` | 2 to 3 GB each | 2 GB each |
 | `clickhouse` | 1 to 2 GB | 1 GB |
 | `signoz`, `uptrace`, `graylog` | 4 GB or more each | several GB each |
+| `openbao` | under 100 MB (25 MB measured) | none: in memory |
 
 Every configuration file is mounted read-only with `:ro,z`. The `z` lets containers read it on a host with SELinux enforcing, such as Fedora; elsewhere it does nothing.
 
@@ -158,6 +190,7 @@ sudo sysctl -w vm.max_map_count=262144
 | Grafana, Loki, Tempo, Mimir, Pyroscope, Alloy | AGPLv3 |
 | Prometheus, the OpenTelemetry Collector, VictoriaMetrics, OpenSearch, Jaeger, Zipkin, ClickHouse | Apache 2.0 |
 | InfluxDB 2 | MIT |
+| OpenBao | MPL 2.0 |
 | Elasticsearch and Kibana | Elastic License 2.0 / AGPLv3, free Basic features |
 | SigNoz | MIT, with enterprise features |
 | Uptrace | AGPLv3 |
