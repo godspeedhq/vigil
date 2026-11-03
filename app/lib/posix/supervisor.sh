@@ -62,7 +62,9 @@ _vigil_sup_held() {
             ;;
         macos)
             if ! command -v lsof > /dev/null 2>&1; then _su_held=error; return 0; fi
-            out=$(lsof -t -- "$1" 2>/dev/null)
+            # The subshell and lsof would inherit the supervisor lock on fd 8,
+            # and show up as other holders of it: closed for them first.
+            out=$(exec 8>&-; lsof -t -- "$1" 2>/dev/null)
             for pid in $out; do
                 if [ "$pid" != "$$" ]; then _su_held=yes; return 0; fi
             done
@@ -1068,10 +1070,20 @@ vigil_supervise() {
         fi
     fi
     # An open file, not a pid file: a supervisor that crashed holds nothing, so
-    # the next one starts without anyone cleaning up. The check above and this
-    # open are two steps, so two supervisors started at the very same moment
-    # could both get through: see backlog task 21. On Windows it is one step.
+    # the next one starts without anyone cleaning up.
     exec 8> "$_su_statedir/supervisor.lock"
+    # Opening is not claiming: two supervisors started at the same moment could
+    # both have passed the check above. Whoever now finds another holder gives
+    # way, so at most one carries on. If both open before either looks, both
+    # give way, and the service manager starts one again: better than two
+    # supervisors launching every job twice. On Windows the open is exclusive,
+    # so this is one step there.
+    _vigil_sup_held "$_su_statedir/supervisor.lock"
+    if [ "$_su_held" = yes ]; then
+        exec 8>&-
+        printf 'vigil: another supervisor owns %s\n' "$_su_statedir" >&2
+        return 1
+    fi
     # Temporary files a killed supervisor left mid-write (12.3). Only the
     # supervisor writes these, and it now holds the lock, so none is live.
     rm -f "$_su_statedir"/schedule/*.tmp.* "$_su_statedir"/config.valid.tmp.* \

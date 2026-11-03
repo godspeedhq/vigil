@@ -145,6 +145,60 @@ function Get-VigilLogFile {
     return $f
 }
 
+# Decodes a job's raw output with the encoding its console used, and writes
+# it to a file as UTF-8, a piece at a time. With no raw file (the job never
+# started), the file is written empty.
+function Copy-VigilJobText {
+    param([string]$Raw, $Encoding, [string]$To)
+    $writer = New-Object System.IO.StreamWriter($To, $false, (New-Object System.Text.UTF8Encoding $false))
+    try {
+        if (-not $Encoding -or -not [System.IO.File]::Exists($Raw)) { return }
+        # Byte order marks are honoured, as the console's own reader does.
+        $reader = New-Object System.IO.StreamReader($Raw, $Encoding, $true)
+        try {
+            $buf = New-Object char[] 65536
+            while (($n = $reader.Read($buf, 0, $buf.Length)) -gt 0) { $writer.Write($buf, 0, $n) }
+        }
+        finally { $reader.Dispose() }
+    }
+    finally { $writer.Dispose() }
+}
+
+# Writes a job's output to its log, one "<prefix> <line>" each, a piece at a
+# time: lines end at LF, a line's trailing CRs are dropped, and empty lines at
+# the very end are left out.
+function Write-VigilJobLines {
+    param([string]$Path, $Encoding, [string]$Prefix, $Writer)
+    if (-not $Encoding -or -not [System.IO.File]::Exists($Path)) { return }
+    $reader = New-Object System.IO.StreamReader($Path, $Encoding, $true)
+    try {
+        $buf = New-Object char[] 65536
+        $carry = ''
+        # Empty lines are held back until a line with text follows them.
+        $blank = 0
+        $any = $false
+        $wrote = $false
+        while (($n = $reader.Read($buf, 0, $buf.Length)) -gt 0) {
+            $any = $true
+            $parts = ($carry + [string]::new($buf, 0, $n)).Split("`n")
+            $carry = $parts[$parts.Count - 1]
+            for ($i = 0; $i -lt $parts.Count - 1; $i++) {
+                if ($parts[$i].Length -eq 0) { $blank++; continue }
+                for (; $blank -gt 0; $blank--) { $Writer.Write("$Prefix `r`n") }
+                $Writer.Write("$Prefix $($parts[$i].TrimEnd("`r"))`r`n")
+                $wrote = $true
+            }
+        }
+        if ($carry.Length -gt 0) {
+            for (; $blank -gt 0; $blank--) { $Writer.Write("$Prefix `r`n") }
+            $Writer.Write("$Prefix $($carry.TrimEnd("`r"))`r`n")
+        }
+        # Output of nothing but line ends is one empty line.
+        elseif ($any -and -not $wrote) { $Writer.Write("$Prefix `r`n") }
+    }
+    finally { $reader.Dispose() }
+}
+
 # Loads and validates the configuration and resolves the directories.
 # Returns @{ Error } or the context the worker needs. With sources, a run
 # uses the active configuration and its cached scripts (16.5): the ones it
@@ -364,8 +418,10 @@ function Invoke-VigilWorker {
     $code = '-'
     $outcome = 'failed'
     $reason = ''
-    $stdout = ''
-    $stderr = ''
+    $rawOut = Join-Path $jobLogs "$RunId.out.raw"
+    $rawErr = Join-Path $jobLogs "$RunId.err.raw"
+    $outEncoding = $null
+    $errEncoding = $null
     # A script from a source runs from its cached copy (16.5).
     $cmd = Get-VigilJobCommand -Index $index -Id $Job -Platform 'windows' -Root $Root -Cached $ctx.Script
     $file = (Get-VigilIndexValue -Index $index -Section "job.$Job" -Key 'file').Value
@@ -411,13 +467,17 @@ function Invoke-VigilWorker {
             # No input: a job that asks for some gets end of file at once instead of
             # waiting for ever.
             $p.StandardInput.Close()
-            # Unlike the Linux and macOS worker, which sends output to files as it comes,
-            # this holds a job's whole output in memory until the job ends: see backlog
-            # task 21.
-            # Both streams are read concurrently, so a job filling one cannot
-            # block on the other.
-            $outTask = $p.StandardOutput.ReadToEndAsync()
-            $errTask = $p.StandardError.ReadToEndAsync()
+            # Output goes to files as it comes, as on Linux and macOS, so a job
+            # that prints a lot never costs the worker that much memory. Both
+            # streams are copied at once, so a job filling one cannot block on
+            # the other. The bytes are kept as they are and decoded once the job
+            # ends, with the encoding the console would have used.
+            $outEncoding = $p.StandardOutput.CurrentEncoding
+            $errEncoding = $p.StandardError.CurrentEncoding
+            $outFile = [System.IO.File]::Open($rawOut, 'Create', 'Write', 'Read')
+            $errFile = [System.IO.File]::Open($rawErr, 'Create', 'Write', 'Read')
+            $outTask = $p.StandardOutput.BaseStream.CopyToAsync($outFile)
+            $errTask = $p.StandardError.BaseStream.CopyToAsync($errFile)
             $state.job_pid = $p.Id
             # The process's own name (cmd.exe for a .cmd file), which is what
             # ownership is checked against before any kill (11.5).
@@ -425,8 +485,8 @@ function Invoke-VigilWorker {
             try { $state.job_start = ConvertTo-VigilEpoch $p.StartTime } catch { $state.job_start = '' }
             Write-VigilStateFile -Path $statePath -Fields $state
             $p.WaitForExit()
-            $stdout = $outTask.Result
-            $stderr = $errTask.Result
+            try { $outTask.Wait(); $errTask.Wait() }
+            finally { $outFile.Dispose(); $errFile.Dispose() }
             $code = "$($p.ExitCode)"
             $outcome = Get-VigilOutcome -ExitCodes $exitCodes -Code $code
             if ($outcome -cne 'succeeded') { $reason = "exit code $code" }
@@ -439,14 +499,9 @@ function Invoke-VigilWorker {
     $now = Get-VigilNow
     $duration = $now.Epoch - $started
 
-    # The job log (13.1): its output, then how it ended.
+    # Standard output as UTF-8 text, for the metrics parser and the job log.
     $out = Join-Path $jobLogs "$RunId.out"
-    [System.IO.File]::WriteAllText($out, $stdout, (New-Object System.Text.UTF8Encoding $false))
-    $logLines = New-Object System.Text.StringBuilder
-    foreach ($pair in @(@('out', $stdout), @('err', $stderr))) {
-        if ($pair[1].Length -eq 0) { continue }
-        foreach ($l in $pair[1].TrimEnd("`n").Split("`n")) { [void]$logLines.Append("$($now.Iso) $RunId $($pair[0]) $($l.TrimEnd("`r"))`r`n") }
-    }
+    Copy-VigilJobText -Raw $rawOut -Encoding $outEncoding -To $out
 
     $output = ConvertFrom-VigilJobOutput -Mode $mode -Cap $Script:VigilMetricLinesMax -Path $out
     $events = Get-VigilRunEvents -Parsed $ctx.Parsed -Id $Job -Epoch "$($now.Epoch)" -Outcome $outcome -ExitCode $code `
@@ -467,10 +522,16 @@ function Invoke-VigilWorker {
     $state.dropped_lines = $output.Dropped
     $state.spool_file = $stem
     Write-VigilStateFile -Path $statePath -Fields $state
-    if ($reason) { [void]$logLines.Append("$($now.Iso) $RunId run end $outcome ($reason) in ${duration}s`r`n") }
-    else { [void]$logLines.Append("$($now.Iso) $RunId run end $outcome in ${duration}s`r`n") }
-    [System.IO.File]::AppendAllText($log, $logLines.ToString())
-    [System.IO.File]::Delete($out)
+    # The job log (13.1): its output, then how it ended.
+    $writer = New-Object System.IO.StreamWriter($log, $true, (New-Object System.Text.UTF8Encoding $false))
+    try {
+        Write-VigilJobLines -Path $out -Encoding (New-Object System.Text.UTF8Encoding $false) -Prefix "$($now.Iso) $RunId out" -Writer $writer
+        Write-VigilJobLines -Path $rawErr -Encoding $errEncoding -Prefix "$($now.Iso) $RunId err" -Writer $writer
+        if ($reason) { $writer.Write("$($now.Iso) $RunId run end $outcome ($reason) in ${duration}s`r`n") }
+        else { $writer.Write("$($now.Iso) $RunId run end $outcome in ${duration}s`r`n") }
+    }
+    finally { $writer.Dispose() }
+    foreach ($f in @($out, $rawOut, $rawErr)) { if ([System.IO.File]::Exists($f)) { [System.IO.File]::Delete($f) } }
     if ([System.IO.File]::Exists($timeoutMarker)) { [System.IO.File]::Delete($timeoutMarker) }
 
     # Release the token: close it, then delete it (4.3, step 9).

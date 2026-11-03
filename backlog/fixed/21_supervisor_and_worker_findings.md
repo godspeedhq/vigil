@@ -15,3 +15,8 @@ To do: make taking the lock one step. `flock` isn't on macOS by default, so look
 `Worker.ps1` reads a job's output with `ReadToEndAsync` and keeps it all until the job ends. `worker.sh` sends it to files as it comes. A job that prints a lot uses that much memory on Windows.
 
 To do: stream the output to `<run id>.out` and `<run id>.err` as `worker.sh` does, or cap what is kept. Metrics are already capped at `VigilMetricLinesMax` lines, but that cap doesn't limit what is read.
+
+## Fixed
+
+- **The lock:** after opening it, the supervisor checks again for another holder and gives way if it finds one. Never seen to fail before the fix: four supervisors started at once left exactly one running in 13 tries here, before and after.
+- **Windows output:** copied to `<run id>.out.raw` and `.err.raw` as it comes, decoded once the job ends, and written to the job log a piece at a time. The job log comes out exactly as before: compared against the old code on 5,000 random inputs.
