@@ -645,7 +645,9 @@ function Invoke-VigilSupervisor {
                 $sv.Running++
                 $status.Running += $job
                 if ($acc.State.Kind -ceq 'running' -and $acc.State.Started) {
-                    & $event $job 'running' "$($sv.Epoch - [long]$acc.State.Started)" 'gauge'
+                    # The tick's time is read once, at its start, and a run
+                    # launched by the last tick can start after it: never below 0.
+                    & $event $job 'running' "$([Math]::Max([long]0, $sv.Epoch - [long]$acc.State.Started))" 'gauge'
                 }
             }
             else {

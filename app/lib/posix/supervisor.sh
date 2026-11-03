@@ -810,7 +810,11 @@ _vigil_sup_tick() {
             _su_running=$((_su_running + 1))
             _su_status_running="$_su_status_running $job"
             if [ -n "$_ss_started" ] && [ "$_ss" = running ]; then
-                _vigil_sup_event "$job" running $((_su_epoch - _ss_started)) gauge
+                # The tick's time is read once, at its start, and a run
+                # launched by the last tick can start after it: never below 0.
+                i=$((_su_epoch - _ss_started))
+                [ "$i" -ge 0 ] || i=0
+                _vigil_sup_event "$job" running "$i" gauge
             fi
         else
             # A run held by queue_one is admitted once the active run ends.
