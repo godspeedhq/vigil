@@ -51,6 +51,23 @@ scripts/reset.sh lgtm          # removes it
 - **SigNoz and LGTM** both take OTLP on 4317 and 4318, so stop LGTM before starting SigNoz.
 - **Run the platforms one at a time, alone.** Each is heavy, and their official files publish some of the same ports.
 
+## Plain HTTP, and backends on another machine
+
+**Everything on one machine needs nothing extra.** Vigil sends `https` only, except to its own machine: `http://localhost`, `http://127.0.0.1` and `http://[::1]` are allowed, since the request never leaves the computer. Every port here is published on 127.0.0.1, so when Docker and Vigil run on the same machine, Vigil sends plain HTTP to the backend as-is. That holds for:
+- Docker Engine on Linux.
+- Docker Desktop on Windows or macOS.
+- Vigil inside WSL with Docker Desktop's WSL integration.
+- Vigil on Windows with Docker running inside WSL, through WSL's localhost forwarding.
+
+**Backends on another machine need a tunnel.** Vigil rightly refuses `http://other-machine:4318`, since that traffic crosses a network. An SSH tunnel brings the port back to localhost, encrypted, without exposing anything on the other machine:
+
+```sh
+# On the machine running Vigil: the remote LGTM's OTLP port on local 4318.
+ssh -N -L 4318:127.0.0.1:4318 user@docker-host
+```
+
+Then run `scripts/run-vigil.sh lgtm` as usual. For Splunk, forward 8088 (HEC) and 8089 (the management API `verify.sh` uses) the same way; for other targets, forward the ports in the table above.
+
 ## What Vigil can and can't reach
 
 What Vigil sends today, and nothing is added to it to make a test pass:
