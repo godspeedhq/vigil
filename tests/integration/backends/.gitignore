@@ -1,0 +1,6 @@
+# Credentials, and what start.sh fetches or generates: never committed.
+.env
+configs/*/upstream/
+configs/signoz/pours/
+configs/signoz/casting.yaml.lock
+reports/evidence/

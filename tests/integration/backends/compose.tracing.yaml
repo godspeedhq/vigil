@@ -1,0 +1,29 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Group 7: distributed tracing. Vigil sends no traces, and none of its
+# integrations produces them, so both are available but not applicable:
+# no Vigil test targets them, and tracing is not added to Vigil for them.
+#
+#   docker compose --profile tracing up -d
+
+services:
+  jaeger:
+    image: jaegertracing/jaeger:2.22.0
+    profiles: ["jaeger", "tracing"]
+    ports:
+      - "127.0.0.1:16686:16686" # UI and query API
+      - "127.0.0.1:4517:4317"   # OTLP gRPC
+      - "127.0.0.1:4518:4318"   # OTLP HTTP
+
+  zipkin:
+    image: openzipkin/zipkin:3.6.1
+    profiles: ["zipkin", "tracing"]
+    ports:
+      - "127.0.0.1:9411:9411"   # UI, API and the Zipkin span endpoint

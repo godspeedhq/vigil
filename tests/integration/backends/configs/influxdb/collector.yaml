@@ -1,0 +1,26 @@
+# OTLP metrics from Vigil, into InfluxDB 2.x through the collector's
+# influxdb exporter (line protocol over the v2 write API).
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  influxdb:
+    endpoint: http://influxdb:8086
+    org: vigil
+    bucket: vigil
+    token: ${env:INFLUXDB_TOKEN}
+    metrics_schema: telegraf-prometheus-v1
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [influxdb]

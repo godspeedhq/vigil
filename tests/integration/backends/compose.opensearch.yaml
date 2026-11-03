@@ -1,0 +1,67 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Group 5: OpenSearch and OpenSearch Dashboards, single node, with the
+# security plugin on (its demo certificates, admin password from .env).
+#
+#   docker compose --profile opensearch up -d
+#
+# Vigil has no native OpenSearch backend yet, so its OTLP goes through an
+# OpenTelemetry Collector (opensearch-collector, on 4428) and the
+# collector's opensearch exporter: integration through an intermediary.
+#
+# Apache License 2.0. Wants 2 GB of memory or more, and on Linux
+# vm.max_map_count of at least 262144. Published on other ports than the
+# Elastic group's, so the two can run together.
+
+services:
+  opensearch:
+    image: opensearchproject/opensearch:3.9.0
+    profiles: ["opensearch"]
+    environment:
+      discovery.type: single-node
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_ADMIN_PASSWORD:?set OPENSEARCH_ADMIN_PASSWORD in .env}
+      OPENSEARCH_JAVA_OPTS: -Xms1g -Xmx1g
+    ports:
+      - "127.0.0.1:9201:9200"   # HTTPS, the container's demo certificate
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSk -u admin:$$OPENSEARCH_INITIAL_ADMIN_PASSWORD https://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:3.9.0
+    profiles: ["opensearch"]
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    environment:
+      OPENSEARCH_HOSTS: '["https://opensearch:9200"]'
+    ports:
+      - "127.0.0.1:5602:5601"
+
+  opensearch-collector:
+    image: otel/opentelemetry-collector-contrib:0.163.2
+    profiles: ["opensearch"]
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      OPENSEARCH_ADMIN_PASSWORD: ${OPENSEARCH_ADMIN_PASSWORD:?set OPENSEARCH_ADMIN_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:4428:4318"   # OTLP HTTP: Vigil sends here
+    volumes:
+      - ./configs/opensearch/collector.yaml:/etc/otelcol/config.yaml:ro
+
+volumes:
+  opensearch-data:

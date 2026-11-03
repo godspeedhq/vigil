@@ -1,0 +1,35 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# The real-backend test environment (backlog task 18): one entry point for
+# the eight groups. Only Grafana LGTM has no profile, so
+#
+#   docker compose up -d
+#
+# starts LGTM and nothing else. Every other component has a profile of its
+# own and starts only when asked for:
+#
+#   docker compose --profile prometheus up -d
+#   docker compose --profile splunk up -d
+#
+# scripts/start.sh, stop.sh, reset.sh and verify.sh wrap this, one group or
+# profile at a time; see README.md. Needs Docker Compose 2.20 or later, for
+# include. Vigil itself runs on the host, never in a container.
+
+name: vigil-backends
+
+include:
+  - compose.grafana.yaml
+  - compose.splunk.yaml
+  - compose.victoria.yaml
+  - compose.elastic.yaml
+  - compose.opensearch.yaml
+  - compose.metrics.yaml
+  - compose.tracing.yaml
+  - compose.platforms.yaml

@@ -1,0 +1,28 @@
+# Data sources for the standalone Grafana (profile grafana), one for each
+# standalone component of the group. A data source for a component that is
+# not running shows as failing in Grafana and does no harm.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+  - name: Mimir
+    uid: mimir
+    type: prometheus
+    url: http://mimir:9009/prometheus
+  - name: Loki
+    uid: loki
+    type: loki
+    url: http://loki:3100
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    url: http://tempo:3200
+  - name: Pyroscope
+    uid: pyroscope
+    type: grafana-pyroscope-datasource
+    url: http://pyroscope:4040

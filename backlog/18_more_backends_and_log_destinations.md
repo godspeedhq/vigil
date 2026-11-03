@@ -318,3 +318,8 @@ Results: Passed, Failed, Not supported, Not applicable, Not tested, Blocked by l
 5. The compatibility matrix, with real test evidence.
 6. A full README.
 7. For each new backend type in (1): the conformance suite and an integration test, both twins, and a row in the matrix.
+
+## Progress
+
+- **Written, not run** (per the user's request, nothing is started on the development machine): all eight Compose groups, the configuration for each, `start`/`stop`/`reset`/`verify`/`run-vigil` scripts, the workloads, both SaaS guides and the compatibility matrix, all under `tests/integration/backends/`. Checked without running: `docker compose config` for every profile, `bash -n` on every script, and Vigil's own `precheck` on the configuration `run-vigil.sh` writes for each target.
+- **Next:** Phase 4, the first real run of each group, then the matrix from its evidence. The 13 checks of section 5 beyond the first three are not written yet.

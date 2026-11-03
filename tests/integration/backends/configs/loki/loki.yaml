@@ -1,0 +1,35 @@
+# Single-process Loki on the local filesystem, for tests. OTLP logs arrive
+# at /otlp/v1/logs; service.name becomes the service_name label.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # Needed for OTLP: record attributes become structured metadata.
+  allow_structured_metadata: true
+  # Vigil sends a log line's own time, which may be a little old.
+  reject_old_samples: false

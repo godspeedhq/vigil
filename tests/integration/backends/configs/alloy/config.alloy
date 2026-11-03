@@ -1,0 +1,33 @@
+// Grafana Alloy (profile alloy) as an intermediary: Vigil sends OTLP/HTTP
+// to it on 34318; metrics go on to Prometheus over OTLP, logs to Loki over
+// OTLP. Start it with prometheus and loki, or with grafana-stack.
+
+otelcol.receiver.otlp "vigil" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+    logs    = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    metrics = [otelcol.exporter.otlphttp.prometheus.input]
+    logs    = [otelcol.exporter.otlphttp.loki.input]
+  }
+}
+
+otelcol.exporter.otlphttp "prometheus" {
+  client {
+    endpoint = "http://prometheus:9090/api/v1/otlp"
+  }
+}
+
+otelcol.exporter.otlphttp "loki" {
+  client {
+    endpoint = "http://loki:3100/otlp"
+  }
+}

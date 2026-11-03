@@ -1,0 +1,46 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Group 2: Splunk Enterprise, for Vigil's splunk backend (metrics) and
+# splunk log destination, both over the HTTP Event Collector.
+#
+#   docker compose --profile splunk up -d
+#   scripts/start.sh splunk      also runs configs/splunk/provision.sh
+#
+# Splunk Enterprise runs under its own licence, which only you can accept:
+# set SPLUNK_START_ARGS and SPLUNK_GENERAL_TERMS in .env yourself after
+# reading it. Nothing here accepts it for you. Without a licence key it runs
+# as a trial, then as Splunk Free (500 MB a day). Wants 4 GB of memory or more.
+#
+# provision.sh creates the vigil_metrics (metrics) and vigil_logs (events)
+# indexes and one HEC token for each, since a metrics token's default index
+# must be a metrics index.
+
+services:
+  splunk:
+    image: splunk/splunk:10.6.1
+    profiles: ["splunk"]
+    environment:
+      SPLUNK_START_ARGS: ${SPLUNK_START_ARGS:?read the Splunk licence, then set SPLUNK_START_ARGS in .env}
+      SPLUNK_GENERAL_TERMS: ${SPLUNK_GENERAL_TERMS:?read Splunk's General Terms, then set SPLUNK_GENERAL_TERMS in .env}
+      SPLUNK_PASSWORD: ${SPLUNK_PASSWORD:?set SPLUNK_PASSWORD in .env}
+      # Plain HTTP for the collector: Vigil allows it only to this host, and
+      # never turns certificate checks off, so a self-signed one would fail.
+      SPLUNK_HEC_SSL: "false"
+    ports:
+      - "127.0.0.1:8000:8000"   # web
+      - "127.0.0.1:8088:8088"   # HTTP Event Collector: Vigil sends here
+      - "127.0.0.1:8089:8089"   # management API: provision.sh, verify.sh
+    volumes:
+      - splunk-var:/opt/splunk/var
+      - splunk-etc:/opt/splunk/etc
+
+volumes:
+  splunk-var:
+  splunk-etc:
