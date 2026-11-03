@@ -306,20 +306,19 @@ function Invoke-VigilServiceControl {
             # Stopping the proven supervisor process only; its workers are
             # separate processes and carry on (18.3).
             $p = Get-VigilSupervisorProcess -Root $Root
+            # A restart of nothing is a start, and says so.
+            if (-not $p -and $Action -ceq 'restart') { $Action = 'start' }
             if ($p) {
                 Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop
                 try { (Get-Process -Id $p.ProcessId -ErrorAction Stop).WaitForExit(30000) | Out-Null } catch { }
             }
         }
         if ($Action -cne 'stop' -and -not (Get-VigilSupervisorProcess -Root $Root)) {
-            # Started through WMI, as logon would: detached from this
-            # process, holding none of its handles, hidden.
+            # Started as logon would: detached from this process, holding
+            # none of its handles, hidden, outliving this logon.
             $run = [string](Get-ItemProperty -LiteralPath $Script:VigilRunKey -Name 'Vigil').Vigil
-            $si = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }
-            $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
-                CommandLine = $run; CurrentDirectory = $Root; ProcessStartupInformation = $si
-            }
-            if ($r.ReturnValue -ne 0) { throw "could not start the supervisor (Win32_Process.Create returned $($r.ReturnValue))" }
+            try { Start-VigilDetached -CommandLine $run -Directory $Root }
+            catch { throw "could not start the supervisor ($($_.Exception.Message)); it starts at your next logon" }
             # Started once it holds the lock.
             $deadline = [DateTime]::UtcNow.AddSeconds(30)
             while (-not (Get-VigilSupervisorProcess -Root $Root)) {
@@ -428,9 +427,11 @@ function Invoke-VigilUninstall {
     $runs = Get-VigilServiceRuns -Root $Root -State $state
     $found = Find-VigilService -Root $Root
     $appDir = Join-Path $Root 'app'
+    # app\bin, or app\ where earlier versions put it.
+    $ours = { param([string]$e) $e.TrimEnd('\') -ieq $appDir -or $e.TrimEnd('\') -ieq (Join-Path $appDir 'bin') }
     $paths = @(foreach ($scope in @('User', 'Machine')) {
             $v = [Environment]::GetEnvironmentVariable('Path', $scope)
-            if ($v -and @($v.Split(';') | Where-Object { $_.TrimEnd('\') -ieq $appDir }).Count -gt 0) { $scope }
+            if ($v -and @($v.Split(';') | Where-Object { & $ours $_ }).Count -gt 0) { $scope }
         })
     $scripts = Join-Path $Root 'scripts'
     $n = if ([System.IO.Directory]::Exists($scripts)) { @([System.IO.Directory]::GetFiles($scripts, '*', 'AllDirectories')).Count } else { 0 }
@@ -457,7 +458,7 @@ function Invoke-VigilUninstall {
     foreach ($s in $paths) {
         if ($s -ceq 'Machine' -and -not (Test-VigilAdmin)) { Write-Output "  left $appDir in the machine PATH: removing it needs an elevated prompt"; continue }
         $v = [Environment]::GetEnvironmentVariable('Path', $s)
-        [Environment]::SetEnvironmentVariable('Path', ((@($v.Split(';') | Where-Object { $_ -and $_.TrimEnd('\') -ine $appDir })) -join ';'), $s)
+        [Environment]::SetEnvironmentVariable('Path', ((@($v.Split(';') | Where-Object { $_ -and -not (& $ours $_) })) -join ';'), $s)
     }
 
     # Everything but what is kept; files still held (a process just ended,
@@ -475,7 +476,7 @@ function Invoke-VigilUninstall {
         # short-lived detached cmd.exe finishes the job.
         $what = if ($Keep) { ($left | ForEach-Object { "rmdir /s /q `"$($_.FullName)`" 2>nul & del /f /q `"$($_.FullName)`" 2>nul" }) -join ' & ' } else { "rmdir /s /q `"$Root`"" }
         $cl = "cmd.exe /d /c ping -n 4 127.0.0.1 >nul & $what"
-        [void](Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cl; CurrentDirectory = $env:SystemRoot })
+        Start-VigilDetached -CommandLine $cl -Directory $env:SystemRoot
         Write-Output 'removed Vigil; the last files go in a few seconds, once this command exits'
     }
     elseif ($Keep) { Write-Output "removed Vigil; kept $Root\config and $Root\scripts" }

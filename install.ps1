@@ -336,17 +336,23 @@ try {
         }
     }
 
-    # --- 4. The vigil command: app\ on the PATH ---------------------------------------
+    # --- 4. The vigil command: app\bin on the PATH -----------------------------------
 
+    # app\bin holds only vigil.cmd: with app\ itself on the PATH, PowerShell would
+    # run vigil.ps1, which an execution policy that refuses scripts stops.
     $app = Join-Path $root 'app'
+    $bin = Join-Path $app 'bin'
     $scope = if ($mode -ceq 'system') { 'Machine' } else { 'User' }
     $path = [Environment]::GetEnvironmentVariable('Path', $scope)
     # Read from the registry scope, not $env:Path, which also holds the other
     # scope's entries and would copy them across. Added only once, so reinstalling
-    # does not grow the PATH.
-    if (-not (@("$path".Split(';') | Where-Object { $_.TrimEnd('\') -ieq $app }).Count)) {
-        [Environment]::SetEnvironmentVariable('Path', (@(@("$path".Split(';') | Where-Object { $_ }) + $app) -join ';'), $scope)
-        Write-Output "added $app to the $($scope.ToLowerInvariant()) PATH: new consoles run vigil"
+    # does not grow the PATH; app\, where earlier versions put it, gives way.
+    $entries = @("$path".Split(';') | Where-Object { $_ -and $_.TrimEnd('\') -ine $app })
+    $had = $entries.Count -ne @("$path".Split(';') | Where-Object { $_ }).Count
+    if ($had -or -not (@($entries | Where-Object { $_.TrimEnd('\') -ieq $bin }).Count)) {
+        if (-not (@($entries | Where-Object { $_.TrimEnd('\') -ieq $bin }).Count)) { $entries += $bin }
+        [Environment]::SetEnvironmentVariable('Path', ($entries -join ';'), $scope)
+        Write-Output "added $bin to the $($scope.ToLowerInvariant()) PATH$(if ($had) { " in place of $app" }): new consoles run vigil"
     }
 
     # --- 5. vigil init, on a fresh install ----------------------------------------------
@@ -370,8 +376,8 @@ try {
             Invoke-Vigil service install "--$mode" --host $ShellHost
             if ($LASTEXITCODE -ne 0) {
                 Write-Output ''
-                Write-Output 'Vigil is installed but not running: fix what the checks above report'
-                Write-Output "(edit $root\config\vigil.config, set the environment), then run: vigil service install --$mode --host $ShellHost"
+                Write-Output 'Vigil is installed but not running: the reason is above (a failed check,'
+                Write-Output "or the supervisor would not start). Once it is dealt with, run: vigil service install --$mode --host $ShellHost"
                 Stop-Install 'the service was not registered'
             }
         }

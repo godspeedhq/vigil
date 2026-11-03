@@ -1074,7 +1074,7 @@ Everything lives under one install root (§18.6 gives the root per platform):
 <root>/
   app/                    Vigil's own scripts - replaced on upgrade
     vigil, vigil.ps1        the vigil command (Linux/macOS, Windows)
-    vigil.cmd               runs vigil.ps1 as "vigil" from cmd.exe and PowerShell (Windows)
+    bin/vigil.cmd           runs vigil.ps1 as "vigil" from cmd.exe and PowerShell (Windows); app\bin, not app\, is on the PATH
     VERSION                 the release, in installed copies
     lib/posix/              the bash implementation (Linux, macOS)
     lib/windows/            the PowerShell implementation (Windows); each file has a twin of the same name in lib/posix
@@ -1860,7 +1860,7 @@ The installer:
 1. Runs pre-flight checks for Vigil's prerequisites (§5.1) and stops before changing anything if one is missing.
 2. Downloads a versioned release archive from GitHub Releases and verifies its SHA-256 (`sha256sum`, `shasum -a 256` or `Get-FileHash`) against the release's `SHA256SUMS` before using it. A mismatch, or an archive with no checksum, changes nothing.
 3. Unpacks it into the root (§18.6). On upgrade, only `app/` and `vendor/` are replaced, each swapped whole (`app.old` is removed after), so a process still running the old one keeps reading intact files; `config/` and `scripts/` are never touched. A running service is stopped first and started again after.
-4. Puts the `vigil` command on the `PATH` (§18.6). On Windows, `app\vigil.cmd` runs `vigil.ps1` from cmd.exe and PowerShell alike.
+4. Puts the `vigil` command on the `PATH` (§18.6). On Windows that is `app\bin`, which holds only `vigil.cmd`: it runs `vigil.ps1` from cmd.exe and PowerShell alike, with the execution policy bypassed for that one process, so `vigil` works where the policy refuses scripts (the default on Windows 10 and 11) without the policy being changed. An earlier install's `app\` entry is moved to `app\bin`.
 5. Runs `vigil init` on a fresh install (§19).
 6. Registers the service for the chosen mode (§18.9). When pre-flight fails, Vigil stays installed but not registered, and the installer says what to fix and the command to run after.
 

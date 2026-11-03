@@ -192,6 +192,21 @@ _vigil_svc_running() {
     launchctl print "$_vs_target" 2> /dev/null | grep -q '^[[:space:]]*state = running'
 }
 
+# Loads the launchd service. A user's LaunchAgent goes into the login's GUI
+# domain, which only a desktop login has: from an SSH login it cannot, and
+# says so, and what to do.
+_vigil_svc_bootstrap() {
+    local out
+    if out=$(launchctl bootstrap "${_vs_target%/vigil}" "$_vs_file" 2>&1); then return 0; fi
+    if [ "$_vs_mode" = user ] && [ "$(launchctl managername 2> /dev/null)" != Aqua ]; then
+        _vigil_svc_err 'not started: this login has no desktop session (an SSH login, for one), and a LaunchAgent runs only in one'
+        printf '  it starts at the next desktop login; until then, vigil supervise runs it in this session; a LaunchDaemon (--system) runs unattended\n' >&2
+    else
+        _vigil_svc_err "launchctl bootstrap ${_vs_target%/vigil} failed: $out"
+    fi
+    return 1
+}
+
 # Unloads the launchd service and waits for it to be gone: bootout returns
 # before launchd has finished, and a bootstrap meanwhile fails.
 _vigil_svc_unload() {
@@ -294,10 +309,7 @@ vigil_service_install() {
     elif [ "$start" = 1 ]; then
         # Loading starts it (RunAtLoad); without --no-start it loads at the
         # next boot or login.
-        if ! launchctl bootstrap "${_vs_target%/vigil}" "$_vs_file"; then
-            _vigil_svc_err "launchctl bootstrap ${_vs_target%/vigil} failed"
-            return 1
-        fi
+        _vigil_svc_bootstrap || return 1
         printf 'started vigil\n'
     fi
     if [ "$mode" = user ] && [ "$_vs_os" = launchd ]; then
@@ -365,7 +377,7 @@ vigil_service_control() {
             if _vigil_svc_loaded; then
                 launchctl kickstart "$_vs_target" > /dev/null || return 1
             else
-                launchctl bootstrap "${_vs_target%/vigil}" "$_vs_file" || return 1
+                _vigil_svc_bootstrap || return 1
             fi
         fi
     fi
