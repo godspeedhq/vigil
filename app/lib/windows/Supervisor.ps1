@@ -103,7 +103,9 @@ function Read-VigilRunState {
 function Find-VigilSpoolOutcome {
     param([string]$Spool, [string]$Job, [string]$RunId)
     $r = @{ Found = $false; Outcome = ''; File = '' }
-    $dirs = @(Join-Path $Spool 'incoming')
+    # In fanout too: the sender keeps a file there while it copies it to
+    # each backend's queue.
+    $dirs = @((Join-Path $Spool 'incoming'), (Join-Path $Spool 'fanout'))
     $backends = Join-Path $Spool 'backends'
     if ([System.IO.Directory]::Exists($backends)) { $dirs += [System.IO.Directory]::GetDirectories($backends) }
     foreach ($d in $dirs) {

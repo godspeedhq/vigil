@@ -209,7 +209,10 @@ _vigil_sup_spool() {
     # A worker writes its events before its final state (4.3), so events with an
     # outcome prove the run finished, whatever its state file says. The sender may
     # already have moved them on to a backend's queue.
-    for f in "$_su_spooldir"/incoming/*-"$1"-"$2".events "$_su_spooldir"/backends/*/*-"$1"-"$2".events; do
+    # In fanout/ too: the sender keeps a file there while it copies it to
+    # each backend's queue.
+    for f in "$_su_spooldir"/incoming/*-"$1"-"$2".events "$_su_spooldir"/fanout/*-"$1"-"$2".events \
+        "$_su_spooldir"/backends/*/*-"$1"-"$2".events; do
         [ -f "$f" ] || continue
         while read -r rest name rest; do
             case $name in

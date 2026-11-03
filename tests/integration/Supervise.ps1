@@ -187,6 +187,18 @@ Test-Equal 'vanished worker recorded as crashed' 'crashed' (Get-StateValue (Join
 Test-Equal 'crash delivered' '1' (Get-Prom 'fast_crashes_total')
 Test-Equal 'stale token removed' '0' "$(@(Get-ChildItem -LiteralPath $locks -File).Count)"
 
+# A run whose worker went before its final state, while the sender was
+# copying its events: they are in fanout, and still prove it finished.
+$rid = '20260101T000000Z-1-4'
+[System.IO.File]::WriteAllText((Join-Path $root 'state\jobs\fast.state'),
+    "[state]`nschema_version = 1`njob = fast`nrun_id = $rid`nstatus = running`nboot_id = $boot`nstarted_epoch = 1`n")
+[System.IO.File]::WriteAllText((Join-Path $locks "fast.$rid.token"), '')
+[void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'spool\fanout'))
+[System.IO.File]::WriteAllText((Join-Path $root "spool\fanout\1-fast-$rid.events"), "1 fast.succeeded 1 count host=it`n")
+Invoke-Tick
+$st = Join-Path $root 'state\jobs\fast.state'
+Test-Equal 'run reconciled from its events in the fan-out' 'succeeded|reconciled from the spool file' "$(Get-StateValue $st 'status')|$(Get-StateValue $st 'reason')"
+
 # A launch never claimed within the grace is abandoned; the job did not run.
 $rid = '20260101T000000Z-1-2'
 [System.IO.File]::WriteAllText((Join-Path $locks "slow.$rid.launch"),
