@@ -1,0 +1,2 @@
+2026-11-03T20:04:47Z 20261103T200447Z-1074719 run start
+2026-11-03T20:04:48Z 20261103T200447Z-1074719 run end failed (secret store:st_bad_token/vigil/probe unavailable: permission denied (HTTP 403)) in 1s

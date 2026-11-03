@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_kv1
+run_id           = 20261103T202036Z-3212
+instance         = store-test
+status           = failed
+reason           = secret store:st_kv1/vigil/probe unavailable: not found (HTTP 404)
+boot_id          = boot-1793614138
+started_epoch    = 1793737239
+started_at       = 2026-11-03T20:20:39Z
+deadline_epoch   =
+worker_pid       = 3212
+worker_name      = powershell.exe
+worker_start     = 1793737233
+ended_epoch      = 1793737240
+ended_at         = 2026-11-03T20:20:40Z
+duration_seconds = 1
+exit_code        =
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737240-bk_kv1-20261103T202036Z-3212.events

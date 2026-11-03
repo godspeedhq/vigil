@@ -1,0 +1,58 @@
+# TYPE check_duration_seconds gauge
+check_duration_seconds{host="fedora",instance="source-test",job="check",os="linux"} 0
+# TYPE check_runs_total counter
+check_runs_total{host="fedora",instance="source-test",job="check",os="linux"} 17
+# TYPE check_source_check gauge
+check_source_check{host="fedora",instance="source-test",job="check",os="linux"} 1
+# TYPE check_succeeded_total counter
+check_succeeded_total{host="fedora",instance="source-test",job="check",os="linux"} 17
+# TYPE remote_check_duration_seconds gauge
+remote_check_duration_seconds{host="fedora",instance="source-test",job="remote_check",os="linux"} 0
+# TYPE remote_check_runs_total counter
+remote_check_runs_total{host="fedora",instance="source-test",job="remote_check",os="linux"} 4
+# TYPE remote_check_source_check gauge
+remote_check_source_check{host="fedora",instance="source-test",job="remote_check",os="linux"} 2
+# TYPE remote_check_succeeded_total counter
+remote_check_succeeded_total{host="fedora",instance="source-test",job="remote_check",os="linux"} 4
+# TYPE vigil_config_activated_total counter
+vigil_config_activated_total{host="fedora",instance="source-test",os="linux",revision="02c70fbdd99d"} 2
+vigil_config_activated_total{host="fedora",instance="source-test",os="linux",revision="10346b831546"} 2
+vigil_config_activated_total{host="fedora",instance="source-test",os="linux",revision="398be314b56b"} 1
+vigil_config_activated_total{host="fedora",instance="source-test",os="linux",revision="b4b44f924c92"} 1
+vigil_config_activated_total{host="fedora",instance="source-test",os="linux",revision="bb016eee0bd0"} 1
+vigil_config_activated_total{host="fedora",instance="source-test",os="linux",revision="fa2465f6b140"} 1
+# TYPE vigil_config_info gauge
+vigil_config_info{host="fedora",instance="source-test",os="linux",revision="02c70fbdd99d"} 1
+vigil_config_info{host="fedora",instance="source-test",os="linux",revision="10346b831546"} 1
+vigil_config_info{host="fedora",instance="source-test",os="linux",revision="398be314b56b"} 1
+vigil_config_info{host="fedora",instance="source-test",os="linux",revision="b4b44f924c92"} 1
+vigil_config_info{host="fedora",instance="source-test",os="linux",revision="bb016eee0bd0"} 1
+vigil_config_info{host="fedora",instance="source-test",os="linux",revision="fa2465f6b140"} 1
+# TYPE vigil_source_check_age gauge
+vigil_source_check_age{host="fedora",instance="source-test",os="linux",source="central"} 1
+# TYPE vigil_source_failures_total counter
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="auth",source="fail4"} 1
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="auth",source="noheader"} 1
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="auth",source="wrongtoken"} 1
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="digest",source="fail1"} 2
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="digest",source="fail2"} 2
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="invalid",source="central"} 1
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="invalid",source="fail3"} 1
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="timeout",source="fail9"} 2
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="unreachable",source="central"} 2
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="unreachable",source="fail10"} 2
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="unreachable",source="fail5"} 1
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="unreachable",source="fail6"} 1
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="unreachable",source="fail7"} 1
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="unreachable",source="fail8"} 2
+vigil_source_failures_total{host="fedora",instance="source-test",os="linux",reason="unreachable",source="untrusted"} 1
+# TYPE vigil_spool_bytes gauge
+vigil_spool_bytes{host="fedora",instance="source-test",os="linux"} 106
+# TYPE vigil_supervisor_config_reload_failed gauge
+vigil_supervisor_config_reload_failed{host="fedora",instance="source-test",os="linux"} 0
+# TYPE vigil_supervisor_pending gauge
+vigil_supervisor_pending{host="fedora",instance="source-test",os="linux"} 0
+# TYPE vigil_supervisor_up gauge
+vigil_supervisor_up{host="fedora",instance="source-test",os="linux"} 1
+# TYPE vigil_supervisor_workers gauge
+vigil_supervisor_workers{host="fedora",instance="source-test",os="linux"} 0

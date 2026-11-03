@@ -1,0 +1,4 @@
+2026-11-03T20:17:01Z 20261103T201700Z-60488-13 run start
+2026-11-03T20:17:01Z 20261103T201700Z-60488-13 run end failed (file not found: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-bk.PEcPHg/root/scripts/missing.sh) in 0s
+2026-11-03T20:18:01Z 20261103T201800Z-60488-30 run start
+2026-11-03T20:18:01Z 20261103T201800Z-60488-30 run end failed (file not found: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-bk.PEcPHg/root/scripts/missing.sh) in 0s

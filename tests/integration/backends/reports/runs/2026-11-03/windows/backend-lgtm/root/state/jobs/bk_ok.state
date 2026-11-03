@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_ok
+run_id           = 20261103T213707Z-14760-17
+instance         = backend-test
+status           = succeeded
+reason           =
+boot_id          = boot-1793614138
+started_epoch    = 1793741844
+started_at       = 2026-11-03T21:37:24Z
+deadline_epoch   =
+worker_pid       = 2800
+worker_name      = powershell.exe
+worker_start     = 1793741827
+job_pid          = 6456
+job_name         = powershell.exe
+job_start        = 1793741852
+ended_epoch      = 1793741858
+ended_at         = 2026-11-03T21:37:38Z
+duration_seconds = 14
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793741858-bk_ok-20261103T213707Z-14760-17.events

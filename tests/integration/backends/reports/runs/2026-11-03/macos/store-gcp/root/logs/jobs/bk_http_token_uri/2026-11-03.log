@@ -1,0 +1,2 @@
+2026-11-03T20:12:09Z 20261103T201209Z-18848 run start
+2026-11-03T20:12:09Z 20261103T201209Z-18848 run end failed (secret store:gcp_http/vigil-probe unavailable: service_account_key env:VIGIL_ST_GCP_KEY_HTTP: its token_uri is not https) in 0s

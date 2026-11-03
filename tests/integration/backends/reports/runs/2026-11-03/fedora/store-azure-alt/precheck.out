@@ -1,0 +1,25 @@
+Configuration /tmp/vigil-store.nkCTh9/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_sp
+  ok    job.bk_latest
+  ok    job.bk_version
+  FAIL  job.bk_missing: secret store:az/vigil-nosuch unavailable: not found (HTTP 404)
+  FAIL  job.bk_bad_version: secret store:az/vigil-versioned/0123456789abcdef0123456789abcdef unavailable: not found (HTTP 404)
+  FAIL  job.bk_bad_name: secret store:az/vigil_probe unavailable: not a valid Key Vault secret name
+  FAIL  job.bk_untrusted: secret store:az_untrusted/vigil-probe unavailable: the certificate of 127.0.0.1:8443 is not trusted
+  ok    job.bk_managed_identity
+  ok    job.bk_rotating
+  ok    secret_store.az: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.az_untrusted: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.az_sp: client_secret env:VIGIL_ST_CLIENT_SECRET
+  ok    secret_store.az_sp: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.az_mi: uses Vigil's own HTTPS client (client = http)
+  ok    state directory: /tmp/vigil-store.nkCTh9/root/state
+  ok    log directory: /tmp/vigil-store.nkCTh9/root/logs
+  ok    spool directory: /tmp/vigil-store.nkCTh9/root/spool
+  FAIL  VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)
+
+precheck failed: 5 problem(s)

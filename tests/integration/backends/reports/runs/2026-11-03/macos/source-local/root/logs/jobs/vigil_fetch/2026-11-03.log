@@ -1,0 +1,78 @@
+2026-11-03T20:15:26Z 20261103T201526Z-52182-1 run start
+2026-11-03T20:15:26Z 20261103T201526Z-52182-1 run configuration revision 0c856724f4d7 activated (local)
+2026-11-03T20:15:27Z 20261103T201526Z-52182-1 run end succeeded in 1s
+2026-11-03T20:15:27Z 20261103T201527Z-52320-2 run start
+2026-11-03T20:15:28Z 20261103T201527Z-52320-2 run end succeeded in 1s
+2026-11-03T20:15:29Z 20261103T201529Z-52626-2 run start
+2026-11-03T20:15:29Z 20261103T201529Z-52626-2 run WARN source.share: check.sh no longer matches its sha256; the last verified copy stays in use
+2026-11-03T20:15:30Z 20261103T201529Z-52626-2 run end succeeded in 1s
+2026-11-03T20:15:31Z 20261103T201530Z-52886-2 run start
+2026-11-03T20:15:31Z 20261103T201530Z-52886-2 run WARN source.share: check.sh no longer matches its sha256; the last verified copy stays in use
+2026-11-03T20:15:31Z 20261103T201530Z-52886-2 run end succeeded in 0s
+2026-11-03T20:15:32Z 20261103T201532Z-53184-2 run start
+2026-11-03T20:15:32Z 20261103T201532Z-53184-2 run configuration revision 397050ea6fe0 activated (local)
+2026-11-03T20:15:33Z 20261103T201532Z-53184-2 run end succeeded in 1s
+2026-11-03T20:15:34Z 20261103T201534Z-53449-2 run start
+2026-11-03T20:15:34Z 20261103T201534Z-53449-2 run end succeeded in 0s
+2026-11-03T20:15:35Z 20261103T201535Z-53753-2 run start
+2026-11-03T20:15:35Z 20261103T201535Z-53753-2 run configuration revision 748428e3b09b activated (local)
+2026-11-03T20:15:36Z 20261103T201535Z-53753-2 run end succeeded in 1s
+2026-11-03T20:15:37Z 20261103T201537Z-54023-2 run start
+2026-11-03T20:15:37Z 20261103T201537Z-54023-2 run end succeeded in 0s
+2026-11-03T20:15:39Z 20261103T201539Z-54348-2 run start
+2026-11-03T20:15:39Z 20261103T201539Z-54348-2 run configuration revision 61e1e1d05467 activated (local)
+2026-11-03T20:15:40Z 20261103T201539Z-54348-2 run end succeeded in 1s
+2026-11-03T20:15:40Z 20261103T201540Z-54632-2 run start
+2026-11-03T20:15:41Z 20261103T201540Z-54632-2 run end succeeded in 1s
+2026-11-03T20:15:42Z 20261103T201542Z-54940-2 run start
+2026-11-03T20:15:42Z 20261103T201542Z-54940-2 run configuration revision 9b5a06520c70 activated (local)
+2026-11-03T20:15:42Z 20261103T201542Z-54940-2 run end succeeded in 0s
+2026-11-03T20:15:43Z 20261103T201543Z-55214-2 run start
+2026-11-03T20:15:44Z 20261103T201543Z-55214-2 run end succeeded in 1s
+2026-11-03T20:15:45Z 20261103T201545Z-55527-2 run start
+2026-11-03T20:15:45Z 20261103T201545Z-55527-2 run configuration revision 98c1611ebfbc activated (local)
+2026-11-03T20:15:46Z 20261103T201545Z-55527-2 run end succeeded in 1s
+2026-11-03T20:15:46Z 20261103T201546Z-55799-2 run start
+2026-11-03T20:15:47Z 20261103T201546Z-55799-2 run end succeeded in 1s
+2026-11-03T20:15:48Z 20261103T201548Z-56109-2 run start
+2026-11-03T20:15:48Z 20261103T201548Z-56109-2 run source.fail1: nosuch.sh not found
+2026-11-03T20:15:49Z 20261103T201548Z-56109-2 run end failed (source.fail1: nosuch.sh not found) in 1s
+2026-11-03T20:15:49Z 20261103T201549Z-56376-2 run start
+2026-11-03T20:15:49Z 20261103T201549Z-56376-2 run source.fail1: nosuch.sh not found
+2026-11-03T20:15:50Z 20261103T201549Z-56376-2 run end failed (source.fail1: nosuch.sh not found) in 1s
+2026-11-03T20:15:51Z 20261103T201551Z-56696-2 run start
+2026-11-03T20:15:51Z 20261103T201551Z-56696-2 run source.fail2: not a directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/no such dir
+2026-11-03T20:15:51Z 20261103T201551Z-56696-2 run end failed (source.fail2: not a directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/no such dir) in 0s
+2026-11-03T20:15:52Z 20261103T201552Z-56955-2 run start
+2026-11-03T20:15:52Z 20261103T201552Z-56955-2 run source.fail2: not a directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/no such dir
+2026-11-03T20:15:52Z 20261103T201552Z-56955-2 run end failed (source.fail2: not a directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/no such dir) in 0s
+2026-11-03T20:15:53Z 20261103T201553Z-57254-2 run start
+2026-11-03T20:15:53Z 20261103T201553Z-57254-2 run source.fail3: corrupt.txt does not match its sha256
+2026-11-03T20:15:54Z 20261103T201553Z-57254-2 run end failed (source.fail3: corrupt.txt does not match its sha256) in 1s
+2026-11-03T20:15:55Z 20261103T201554Z-57542-2 run start
+2026-11-03T20:15:55Z 20261103T201554Z-57542-2 run source.fail3: corrupt.txt does not match its sha256
+2026-11-03T20:15:55Z 20261103T201554Z-57542-2 run end failed (source.fail3: corrupt.txt does not match its sha256) in 0s
+2026-11-03T20:15:56Z 20261103T201556Z-57877-2 run start
+2026-11-03T20:15:56Z 20261103T201556Z-57877-2 run source.fail4: cannot copy /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/locked share: cp: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/locked share/check.sh: Permission denied
+2026-11-03T20:15:57Z 20261103T201556Z-57877-2 run end failed (source.fail4: cannot copy /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/locked share: cp: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/locked share/check.sh: Permission denied) in 1s
+2026-11-03T20:15:58Z 20261103T201557Z-58150-2 run start
+2026-11-03T20:15:58Z 20261103T201557Z-58150-2 run source.fail4: cannot copy /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/locked share: cp: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/locked share/check.sh: Permission denied
+2026-11-03T20:15:58Z 20261103T201557Z-58150-2 run end failed (source.fail4: cannot copy /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/locked share: cp: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-source.jJsEe0/locked share/check.sh: Permission denied) in 0s
+2026-11-03T20:15:59Z 20261103T201559Z-58470-2 run start
+2026-11-03T20:15:59Z 20261103T201559Z-58470-2 run configuration revision 488e05d9c216 activated (source.central posix.config)
+2026-11-03T20:16:00Z 20261103T201559Z-58470-2 run end succeeded in 1s
+2026-11-03T20:16:01Z 20261103T201601Z-58827-2 run start
+2026-11-03T20:16:02Z 20261103T201601Z-58827-2 run end succeeded in 1s
+2026-11-03T20:16:03Z 20261103T201603Z-59156-2 run start
+2026-11-03T20:16:03Z 20261103T201603Z-59156-2 run   ERROR    line 5: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:16:03Z 20261103T201603Z-59156-2 run source.central: posix.config has errors
+2026-11-03T20:16:03Z 20261103T201603Z-59156-2 run end failed (source.central: posix.config has errors) in 0s
+2026-11-03T20:16:04Z 20261103T201604Z-59439-2 run start
+2026-11-03T20:16:04Z 20261103T201604Z-59439-2 run   ERROR    line 5: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:16:04Z 20261103T201604Z-59439-2 run source.central: posix.config has errors
+2026-11-03T20:16:05Z 20261103T201604Z-59439-2 run end failed (source.central: posix.config has errors) in 1s
+2026-11-03T20:16:06Z 20261103T201606Z-59771-2 run start
+2026-11-03T20:16:06Z 20261103T201606Z-59771-2 run configuration revision 079404bcf5ef activated (source.central posix.config)
+2026-11-03T20:16:06Z 20261103T201606Z-59771-2 run end succeeded in 0s
+2026-11-03T20:16:07Z 20261103T201607Z-60078-2 run start
+2026-11-03T20:16:08Z 20261103T201607Z-60078-2 run end succeeded in 1s

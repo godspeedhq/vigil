@@ -1,0 +1,42 @@
+Configuration /tmp/vigil-store.MmQ19D/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_probe
+  ok    job.bk_field
+  FAIL  job.bk_missing: secret store:aws/vigil/nosuch unavailable: not found (ResourceNotFoundException)
+  FAIL  job.bk_bad_field: secret store:aws_bad_field/vigil/json unavailable: the secret's value: no nosuch
+  FAIL  job.bk_binary: secret store:aws/vigil/binary unavailable: unexpected answer: no SecretString
+  FAIL  job.bk_other_region: secret store:aws_eu/vigil/probe unavailable: not found (ResourceNotFoundException)
+  FAIL  job.bk_untrusted: secret store:aws_untrusted/vigil/probe unavailable: the certificate of 127.0.0.1:4566 is not trusted
+  ok    job.bk_rotating
+  ok    secret_store.aws: secret_access_key env:VIGIL_ST_SECRET_KEY
+  ok    secret_store.aws: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.aws_field: secret_access_key env:VIGIL_ST_SECRET_KEY
+  ok    secret_store.aws_field: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.aws_bad_field: secret_access_key env:VIGIL_ST_SECRET_KEY
+  ok    secret_store.aws_bad_field: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.aws_eu: secret_access_key env:VIGIL_ST_SECRET_KEY
+  ok    secret_store.aws_eu: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.aws_untrusted: secret_access_key env:VIGIL_ST_SECRET_KEY
+  ok    secret_store.aws_untrusted: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.aws_bad_key: secret_access_key env:VIGIL_ST_BAD_SECRET_KEY
+  ok    secret_store.aws_bad_key: uses Vigil's own HTTPS client (client = http)
+  ok    state directory: /tmp/vigil-store.MmQ19D/root/state
+  ok    log directory: /tmp/vigil-store.MmQ19D/root/logs
+  ok    spool directory: /tmp/vigil-store.MmQ19D/root/spool
+
+precheck failed: 5 problem(s)
+bk_probe: succeeded in 1s, run 20261103T200456Z-1076876
+bk_field: succeeded in 0s, run 20261103T200457Z-1077125
+bk_missing: failed (secret store:aws/vigil/nosuch unavailable: not found (ResourceNotFoundException)) in 1s, run 20261103T200457Z-1077332
+bk_bad_field: failed (secret store:aws_bad_field/vigil/json unavailable: the secret's value: no nosuch) in 0s, run 20261103T200458Z-1077512
+bk_binary: failed (secret store:aws/vigil/binary unavailable: unexpected answer: no SecretString) in 0s, run 20261103T200458Z-1077807
+bk_other_region: failed (secret store:aws_eu/vigil/probe unavailable: not found (ResourceNotFoundException)) in 0s, run 20261103T200459Z-1077932
+bk_untrusted: failed (secret store:aws_untrusted/vigil/probe unavailable: the certificate of 127.0.0.1:4566 is not trusted) in 0s, run 20261103T200459Z-1078057
+bk_rotating: succeeded in 0s, run 20261103T200500Z-1078184
+bk_rotating: succeeded in 0s, run 20261103T200500Z-1078340
+bk_bad_key: succeeded in 0s, run 20261103T200500Z-1078507
+bk_probe: failed (secret store:aws/vigil/probe unavailable: cannot connect to 127.0.0.1:4566) in 1s, run 20261103T200502Z-1078884
+bk_probe: succeeded in 0s, run 20261103T200504Z-1079463

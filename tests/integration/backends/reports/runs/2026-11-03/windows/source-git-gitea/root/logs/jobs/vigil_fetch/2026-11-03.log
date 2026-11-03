@@ -1,0 +1,86 @@
+2026-11-03T20:32:21Z 20261103T203216Z-5668-1 run start
+2026-11-03T20:32:29Z 20261103T203216Z-5668-1 run configuration revision c86d3fcf496b activated (local)
+2026-11-03T20:32:29Z 20261103T203216Z-5668-1 run end succeeded in 8s
+2026-11-03T20:32:35Z 20261103T203232Z-6596-2 run start
+2026-11-03T20:32:42Z 20261103T203232Z-6596-2 run end succeeded in 7s
+2026-11-03T20:32:55Z 20261103T203252Z-11896-2 run start
+2026-11-03T20:33:02Z 20261103T203252Z-11896-2 run configuration revision 1ee01c5fe599 activated (local)
+2026-11-03T20:33:02Z 20261103T203252Z-11896-2 run end succeeded in 7s
+2026-11-03T20:33:23Z 20261103T203311Z-13580-2 run start
+2026-11-03T20:33:30Z 20261103T203311Z-13580-2 run end succeeded in 7s
+2026-11-03T20:33:43Z 20261103T203341Z-15088-2 run start
+2026-11-03T20:33:50Z 20261103T203341Z-15088-2 run WARN source.repo: ref 'test' is a branch: its scripts follow it, and hosts may briefly differ (W_SCRIPT_UNPINNED)
+2026-11-03T20:33:50Z 20261103T203341Z-15088-2 run configuration revision 850c4288931b activated (local)
+2026-11-03T20:33:50Z 20261103T203341Z-15088-2 run end succeeded in 7s
+2026-11-03T20:33:57Z 20261103T203354Z-6572-2 run start
+2026-11-03T20:34:03Z 20261103T203354Z-6572-2 run end succeeded in 6s
+2026-11-03T20:34:30Z 20261103T203426Z-3564-2 run start
+2026-11-03T20:34:37Z 20261103T203426Z-3564-2 run configuration revision c86d3fcf496b activated (local)
+2026-11-03T20:34:38Z 20261103T203426Z-3564-2 run end succeeded in 8s
+2026-11-03T20:34:44Z 20261103T203442Z-14676-2 run start
+2026-11-03T20:34:51Z 20261103T203442Z-14676-2 run end succeeded in 7s
+2026-11-03T20:34:58Z 20261103T203454Z-6132-2 run start
+2026-11-03T20:35:03Z 20261103T203454Z-6132-2 run source.repo: ref 'nosuch' not found
+2026-11-03T20:35:03Z 20261103T203454Z-6132-2 run end failed (source.repo: ref 'nosuch' not found) in 5s
+2026-11-03T20:35:27Z 20261103T203518Z-3868-2 run start
+2026-11-03T20:35:34Z 20261103T203518Z-3868-2 run source.repo: ref 'nosuch' not found
+2026-11-03T20:35:34Z 20261103T203518Z-3868-2 run end failed (source.repo: ref 'nosuch' not found) in 7s
+2026-11-03T20:35:49Z 20261103T203545Z-6212-2 run start
+2026-11-03T20:35:55Z 20261103T203545Z-6212-2 run source.repo: checks/nosuch.ps1 not found
+2026-11-03T20:35:55Z 20261103T203545Z-6212-2 run end failed (source.repo: checks/nosuch.ps1 not found) in 6s
+2026-11-03T20:36:04Z 20261103T203601Z-9580-2 run start
+2026-11-03T20:36:22Z 20261103T203601Z-9580-2 run source.repo: checks/nosuch.ps1 not found
+2026-11-03T20:36:22Z 20261103T203601Z-9580-2 run end failed (source.repo: checks/nosuch.ps1 not found) in 18s
+2026-11-03T20:36:36Z 20261103T203634Z-1656-2 run start
+2026-11-03T20:36:42Z 20261103T203634Z-1656-2 run source.repo: git fetch failed: fatal: Unable to persist credentials with the 'wincredman' credential store.
+2026-11-03T20:36:43Z 20261103T203634Z-1656-2 run end failed (source.repo: git fetch failed: fatal: Unable to persist credentials with the 'wincredman' credential store.) in 7s
+2026-11-03T20:36:50Z 20261103T203646Z-7284-2 run start
+2026-11-03T20:36:54Z 20261103T203646Z-7284-2 run source.repo: git fetch failed: fatal: Unable to persist credentials with the 'wincredman' credential store.
+2026-11-03T20:36:55Z 20261103T203646Z-7284-2 run end failed (source.repo: git fetch failed: fatal: Unable to persist credentials with the 'wincredman' credential store.) in 5s
+2026-11-03T20:37:10Z 20261103T203706Z-10312-2 run start
+2026-11-03T20:37:28Z 20261103T203706Z-10312-2 run source.repo: 'checks/escape' at link is a symbolic link pointing outside the repository
+2026-11-03T20:37:28Z 20261103T203706Z-10312-2 run end failed (source.repo: 'checks/escape' at link is a symbolic link pointing outside the repository) in 18s
+2026-11-03T20:37:36Z 20261103T203733Z-6748-2 run start
+2026-11-03T20:37:43Z 20261103T203733Z-6748-2 run source.repo: 'checks/escape' at link is a symbolic link pointing outside the repository
+2026-11-03T20:37:43Z 20261103T203733Z-6748-2 run end failed (source.repo: 'checks/escape' at link is a symbolic link pointing outside the repository) in 7s
+2026-11-03T20:37:56Z 20261103T203754Z-9628-2 run start
+2026-11-03T20:38:02Z 20261103T203754Z-9628-2 run source.repo: git fetch failed: fatal: Unable to persist credentials with the 'wincredman' credential store.
+2026-11-03T20:38:02Z 20261103T203754Z-9628-2 run end failed (source.repo: git fetch failed: fatal: Unable to persist credentials with the 'wincredman' credential store.) in 6s
+2026-11-03T20:38:16Z 20261103T203806Z-15132-2 run start
+2026-11-03T20:38:26Z 20261103T203806Z-15132-2 run source.repo: git fetch failed: fatal: Unable to persist credentials with the 'wincredman' credential store.
+2026-11-03T20:38:26Z 20261103T203806Z-15132-2 run end failed (source.repo: git fetch failed: fatal: Unable to persist credentials with the 'wincredman' credential store.) in 10s
+2026-11-03T20:38:43Z 20261103T203838Z-11856-2 run start
+2026-11-03T20:38:46Z 20261103T203838Z-11856-2 run configuration revision 88663d063adc activated (local)
+2026-11-03T20:38:46Z 20261103T203838Z-11856-2 run end succeeded in 3s
+2026-11-03T20:38:54Z 20261103T203852Z-13228-2 run start
+2026-11-03T20:38:58Z 20261103T203852Z-13228-2 run end succeeded in 4s
+2026-11-03T20:39:24Z 20261103T203911Z-14856-2 run start
+2026-11-03T20:39:28Z 20261103T203911Z-14856-2 run source.repo: git fetch failed: git@127.0.0.1: Permission denied (publickey).
+2026-11-03T20:39:28Z 20261103T203911Z-14856-2 run end failed (source.repo: git fetch failed: git@127.0.0.1: Permission denied (publickey).) in 4s
+2026-11-03T20:39:37Z 20261103T203934Z-6792-2 run start
+2026-11-03T20:39:42Z 20261103T203934Z-6792-2 run source.repo: git fetch failed: git@127.0.0.1: Permission denied (publickey).
+2026-11-03T20:39:42Z 20261103T203934Z-6792-2 run end failed (source.repo: git fetch failed: git@127.0.0.1: Permission denied (publickey).) in 5s
+2026-11-03T20:39:55Z 20261103T203953Z-4068-2 run start
+2026-11-03T20:39:58Z 20261103T203953Z-4068-2 run source.repo: git fetch failed: No ED25519 host key is known for [127.0.0.1]:2222 and you have requested strict checking.
+2026-11-03T20:39:59Z 20261103T203953Z-4068-2 run end failed (source.repo: git fetch failed: No ED25519 host key is known for [127.0.0.1]:2222 and you have requested strict checking.) in 4s
+2026-11-03T20:40:07Z 20261103T204004Z-3924-2 run start
+2026-11-03T20:40:12Z 20261103T204004Z-3924-2 run source.repo: git fetch failed: No ED25519 host key is known for [127.0.0.1]:2222 and you have requested strict checking.
+2026-11-03T20:40:12Z 20261103T204004Z-3924-2 run end failed (source.repo: git fetch failed: No ED25519 host key is known for [127.0.0.1]:2222 and you have requested strict checking.) in 5s
+2026-11-03T20:40:42Z 20261103T204038Z-13236-2 run start
+2026-11-03T20:40:53Z 20261103T204038Z-13236-2 run configuration revision f6845b9a2943 activated (source.central hosts/windows.config)
+2026-11-03T20:40:53Z 20261103T204038Z-13236-2 run end failed (fetch error: Exception calling "Delete" with "2" argument(s): "Access to the path '7c39e147fba465ac30f5981962451e6d9832cf' is denied.") in 11s
+2026-11-03T20:40:58Z 20261103T204056Z-12508-2 run start
+2026-11-03T20:41:04Z 20261103T204056Z-12508-2 run end succeeded in 6s
+2026-11-03T20:41:28Z 20261103T204126Z-5196-2 run start
+2026-11-03T20:41:35Z 20261103T204126Z-5196-2 run   ERROR    line 9: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:41:36Z 20261103T204126Z-5196-2 run source.central: hosts/windows.config has errors
+2026-11-03T20:41:36Z 20261103T204126Z-5196-2 run end failed (source.central: hosts/windows.config has errors) in 8s
+2026-11-03T20:41:43Z 20261103T204141Z-2044-2 run start
+2026-11-03T20:41:47Z 20261103T204141Z-2044-2 run   ERROR    line 9: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:41:47Z 20261103T204141Z-2044-2 run source.central: hosts/windows.config has errors
+2026-11-03T20:41:47Z 20261103T204141Z-2044-2 run end failed (source.central: hosts/windows.config has errors) in 4s
+2026-11-03T20:42:01Z 20261103T204157Z-576-2 run start
+2026-11-03T20:42:17Z 20261103T204157Z-576-2 run configuration revision de45d3e1051c activated (source.central hosts/windows.config)
+2026-11-03T20:42:18Z 20261103T204157Z-576-2 run end succeeded in 17s
+2026-11-03T20:42:27Z 20261103T204225Z-252-2 run start
+2026-11-03T20:42:34Z 20261103T204225Z-252-2 run end succeeded in 7s

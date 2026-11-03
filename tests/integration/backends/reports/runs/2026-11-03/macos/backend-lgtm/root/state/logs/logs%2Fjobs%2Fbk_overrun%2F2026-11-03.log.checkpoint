@@ -1,0 +1,5 @@
+[checkpoint]
+file        = logs/jobs/bk_overrun/2026-11-03.log
+fingerprint = 2621768915 64
+offset      = 472
+size        = 472

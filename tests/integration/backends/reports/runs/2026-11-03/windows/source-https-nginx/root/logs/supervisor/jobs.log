@@ -1,0 +1,11 @@
+Vigil source-test at 2026-11-03T20:43:35Z
+
+SOURCES
+  revision 4f5a128a54fb (local)
+  last fetch failed: source.untrusted: the certificate of 127.0.0.1:9443 is not trusted
+
+WAITING
+  check: next 2029-12-17T00:00:00Z
+
+LAST RUN
+  check: succeeded

@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = remote_check
+run_id           = 20261103T205025Z-3024
+instance         = source-test
+status           = succeeded
+reason           =
+boot_id          = boot-1793614138
+started_epoch    = 1793739028
+started_at       = 2026-11-03T20:50:28Z
+deadline_epoch   =
+worker_pid       = 3024
+worker_name      = powershell.exe
+worker_start     = 1793739022
+job_pid          = 12096
+job_name         = powershell.exe
+job_start        = 1793739029
+ended_epoch      = 1793739030
+ended_at         = 2026-11-03T20:50:30Z
+duration_seconds = 2
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793739030-remote_check-20261103T205025Z-3024.events

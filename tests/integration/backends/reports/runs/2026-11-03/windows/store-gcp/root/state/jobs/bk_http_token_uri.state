@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_http_token_uri
+run_id           = 20261103T202738Z-13472
+instance         = store-test
+status           = failed
+reason           = secret store:gcp_http/vigil-probe unavailable: service_account_key env:VIGIL_ST_GCP_KEY_HTTP: its token_uri is not https
+boot_id          = boot-1793614138
+started_epoch    = 1793737659
+started_at       = 2026-11-03T20:27:39Z
+deadline_epoch   =
+worker_pid       = 13472
+worker_name      = powershell.exe
+worker_start     = 1793737654
+ended_epoch      = 1793737660
+ended_at         = 2026-11-03T20:27:40Z
+duration_seconds = 1
+exit_code        =
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737660-bk_http_token_uri-20261103T202738Z-13472.events

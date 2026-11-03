@@ -1,0 +1,10 @@
+Vigil source-test at 2026-11-03T20:07:24Z
+
+SOURCES
+  revision 10346b831546 (source.central posix.config)
+
+WAITING
+  remote_check: next 2029-12-17T00:00:00Z
+
+LAST RUN
+  remote_check: succeeded

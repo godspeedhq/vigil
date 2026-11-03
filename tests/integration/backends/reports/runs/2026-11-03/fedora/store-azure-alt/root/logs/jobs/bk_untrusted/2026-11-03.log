@@ -1,0 +1,2 @@
+2026-11-03T20:05:24Z 20261103T200524Z-1085103 run start
+2026-11-03T20:05:24Z 20261103T200524Z-1085103 run end failed (secret store:az_untrusted/vigil-probe unavailable: the certificate of 127.0.0.1:8443 is not trusted) in 0s

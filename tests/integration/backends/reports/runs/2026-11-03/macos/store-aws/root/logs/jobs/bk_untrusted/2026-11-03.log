@@ -1,0 +1,2 @@
+2026-11-03T20:11:51Z 20261103T201151Z-16525 run start
+2026-11-03T20:11:51Z 20261103T201151Z-16525 run end failed (secret store:aws_untrusted/vigil/probe unavailable: the certificate of 127.0.0.1:4566 is not trusted) in 0s

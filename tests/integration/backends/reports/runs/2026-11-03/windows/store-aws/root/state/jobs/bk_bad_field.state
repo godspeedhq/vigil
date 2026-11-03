@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_bad_field
+run_id           = 20261103T202334Z-2552
+instance         = store-test
+status           = failed
+reason           = secret store:aws_bad_field/vigil/json unavailable: the secret's value: no nosuch
+boot_id          = boot-1793614138
+started_epoch    = 1793737415
+started_at       = 2026-11-03T20:23:35Z
+deadline_epoch   =
+worker_pid       = 2552
+worker_name      = powershell.exe
+worker_start     = 1793737411
+ended_epoch      = 1793737418
+ended_at         = 2026-11-03T20:23:38Z
+duration_seconds = 3
+exit_code        =
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737418-bk_bad_field-20261103T202334Z-2552.events

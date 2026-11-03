@@ -1,0 +1,15 @@
+[state]
+schema_version   = 1
+job              = vigil_sender
+run_id           = 20261103T205001Z-8336-1
+status           = succeeded
+reason           =
+boot_id          = boot-1793614138
+started_epoch    = 1793739007
+started_at       = 2026-11-03T20:50:07Z
+worker_pid       = 12528
+worker_name      = powershell.exe
+worker_start     = 1793739001
+ended_epoch      = 1793739016
+ended_at         = 2026-11-03T20:50:16Z
+duration_seconds = 9

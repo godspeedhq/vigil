@@ -1,0 +1,18 @@
+vigil.logs.records_sent host=bankoles-macbook-air instance=backend-test os=macos	1793736969000000000	97	1793737120000000000
+vigil.logs.bytes_sent host=bankoles-macbook-air instance=backend-test os=macos	1793736969000000000	40283	1793737120000000000
+bk_fail.runs host=bankoles-macbook-air instance=backend-test job=bk_fail os=macos	1793737020000000000	2	1793737081000000000
+bk_fail.failures exit_code=2 host=bankoles-macbook-air instance=backend-test job=bk_fail os=macos	1793737020000000000	2	1793737081000000000
+bk_ok.runs host=bankoles-macbook-air instance=backend-test job=bk_ok os=macos	1793737020000000000	2	1793737081000000000
+bk_ok.succeeded host=bankoles-macbook-air instance=backend-test job=bk_ok os=macos	1793737020000000000	2	1793737081000000000
+bk_missing.runs host=bankoles-macbook-air instance=backend-test job=bk_missing os=macos	1793737020000000000	2	1793737081000000000
+bk_missing.failures host=bankoles-macbook-air instance=backend-test job=bk_missing os=macos	1793737020000000000	2	1793737081000000000
+bk_metrics.runs host=bankoles-macbook-air instance=backend-test job=bk_metrics os=macos	1793737030000000000	2	1793737090000000000
+bk_metrics.succeeded host=bankoles-macbook-air instance=backend-test job=bk_metrics os=macos	1793737030000000000	2	1793737090000000000
+bk_output.runs host=bankoles-macbook-air instance=backend-test job=bk_output os=macos	1793737030000000000	2	1793737090000000000
+bk_output.succeeded host=bankoles-macbook-air instance=backend-test job=bk_output os=macos	1793737030000000000	2	1793737090000000000
+bk_native.runs host=bankoles-macbook-air instance=backend-test job=bk_native os=macos	1793737030000000000	2	1793737090000000000
+bk_native.succeeded host=bankoles-macbook-air instance=backend-test job=bk_native os=macos	1793737030000000000	2	1793737090000000000
+bk_overrun.runs host=bankoles-macbook-air instance=backend-test job=bk_overrun os=macos	1793737039000000000	2	1793737100000000000
+bk_overrun.timeouts host=bankoles-macbook-air instance=backend-test job=bk_overrun os=macos	1793737039000000000	2	1793737100000000000
+bk_long.runs host=bankoles-macbook-air instance=backend-test job=bk_long os=macos	1793737060000000000	2	1793737121000000000
+bk_long.succeeded host=bankoles-macbook-air instance=backend-test job=bk_long os=macos	1793737060000000000	2	1793737121000000000

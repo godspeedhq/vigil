@@ -1,0 +1,2 @@
+2026-11-03T20:25:38Z 20261103T202535Z-15288 run start
+2026-11-03T20:25:39Z 20261103T202535Z-15288 run end failed (secret store:az/vigil_probe unavailable: not a valid Key Vault secret name) in 1s

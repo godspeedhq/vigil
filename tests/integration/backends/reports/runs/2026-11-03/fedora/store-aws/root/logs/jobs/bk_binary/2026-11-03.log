@@ -1,0 +1,2 @@
+2026-11-03T20:04:58Z 20261103T200458Z-1077807 run start
+2026-11-03T20:04:58Z 20261103T200458Z-1077807 run end failed (secret store:aws/vigil/binary unavailable: unexpected answer: no SecretString) in 0s

@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_other_project
+run_id           = 20261103T203120Z-13468
+instance         = store-test
+status           = failed
+reason           = secret store:gcp_other/vigil-probe unavailable: not found (HTTP 404)
+boot_id          = boot-1793614138
+started_epoch    = 1793737882
+started_at       = 2026-11-03T20:31:22Z
+deadline_epoch   =
+worker_pid       = 13468
+worker_name      = powershell.exe
+worker_start     = 1793737866
+ended_epoch      = 1793737883
+ended_at         = 2026-11-03T20:31:23Z
+duration_seconds = 1
+exit_code        =
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737883-bk_other_project-20261103T203120Z-13468.events

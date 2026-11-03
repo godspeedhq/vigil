@@ -1,0 +1,80 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261103204352
+Username: DESKTOP-NN48DRS\vigil-test
+RunAs User: DESKTOP-NN48DRS\vigil-test
+Configuration Name: 
+Machine: DESKTOP-NN48DRS (Microsoft Windows NT 10.0.22631.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\run-source.ps1 sftp-openssh
+Process ID: 15064
+PSVersion: 5.1.22621.6133
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22621.6133
+BuildVersion: 10.0.22621.6133
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+== source-sftp-openssh
+date     2026-11-03T20:43:52Z
+host     DESKTOP-NN48DRS
+os       Windows 11 Pro 23H2 (build 22631.6199)
+vigil    4040737fcd2d7092b21fcf4b915e2f64d36cba21 (deployed copy)
+command  C:\Users\vigil-test\vigil\tests\integration\backends\scripts\run-source.ps1 sftp-openssh
+shell    PowerShell 5.1.22621.6133 (Desktop)
+git      git version 2.56.0.windows.4
+curl     curl 8.13.0 (Windows) libcurl/8.13.0 Schannel zlib/1.3.1 WinIDN
+ssh      OpenSSH_for_Windows_9.5p1, LibreSSL 3.8.2
+images   (as compose.sources.yaml pins them)
+         gitea/gitea:28.2.0
+         nginx:1.30.5-alpine
+         atmoz/sftp:alpine@sha256:43dd1c023cf1bae487127d4b54660b0aee6e94c188a6599be36fb89ba115f961
+
+
+sftp-openssh, scripts over SFTP, with a key
+  PASS  a pinned script: fetched and activated
+  PASS  a pinned script: the job runs version 1
+  PASS  a pinned script: the cached file is the fixture
+  NOT SUPPORTED  password authentication: Vigil signs in to sftp with a key only (spec 6.9)
+  PASS  a missing file: the fetch fails
+  PASS  a missing file: says why: source.fail1: sftp failed: File "/files/nosuch.ps1" not found.
+  PASS  a missing file: the last good configuration stays active
+  PASS  a missing file: and its job still runs
+  PASS  a missing directory: the fetch fails
+  PASS  a missing directory: says why: source.fail2: sftp failed: File "/nosuch/check-v1.ps1" not found.
+  PASS  a missing directory: the last good configuration stays active
+  PASS  a missing directory: and its job still runs
+  PASS  a file the account may not read: the fetch fails
+  PASS  a file the account may not read: says why: source.fail3: sftp failed: remote open "/files/locked.sh": Permission denied
+  PASS  a file the account may not read: the last good configuration stays active
+  PASS  a file the account may not read: and its job still runs
+  PASS  a digest that does not match: the fetch fails
+  PASS  a digest that does not match: says why: source.fail4: check-v2.ps1 does not match its sha256
+  PASS  a digest that does not match: the last good configuration stays active
+  PASS  a digest that does not match: and its job still runs
+  PASS  a key the server does not know: the fetch fails
+  PASS  a key the server does not know: says why: source.fail5: sftp failed: Connection closed
+  PASS  a key the server does not know: the last good configuration stays active
+  PASS  a key the server does not know: and its job still runs
+  PASS  a host key not in known_hosts: the fetch fails
+  PASS  a host key not in known_hosts: says why: source.fail6: sftp failed: Connection closed
+  PASS  a host key not in known_hosts: the last good configuration stays active
+  PASS  a host key not in known_hosts: and its job still runs
+
+sftp-openssh, the configuration from the server (remote mode)
+  PASS  v1: activated
+  PASS  v1: its job runs version 1
+  PASS  a configuration invalid outside any job: refused
+  PASS  invalid outside any job: the last good one stays active
+  PASS  invalid outside any job: and its job still runs version 1
+  PASS  v2: the update is activated
+  PASS  no password, token or private key under the Vigil root or in its output
+  NOT RUN  server down and back: run-source.sh does it on the Docker host
+
+34 passed, 0 failed, 1 not run
+evidence: reports\runs\2026-11-03\windows\source-sftp-openssh
+**********************
+Windows PowerShell transcript end
+End time: 20261103205031
+**********************

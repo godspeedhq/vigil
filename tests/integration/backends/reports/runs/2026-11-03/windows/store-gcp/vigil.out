@@ -1,0 +1,40 @@
+Configuration C:\Users\vigil-test\AppData\Local\Temp\vigil-store.11628\root\config\vigil.config
+  no problems
+
+Checks
+  ok    job.bk_key
+  ok    job.bk_latest
+  ok    job.bk_version
+  FAIL  job.bk_missing: secret store:gcp/vigil-nosuch unavailable: not found (HTTP 404)
+  FAIL  job.bk_bad_version: secret store:gcp/vigil-versioned/9999 unavailable: not found (HTTP 404)
+  FAIL  job.bk_other_project: secret store:gcp_other/vigil-probe unavailable: not found (HTTP 404)
+  FAIL  job.bk_http_token_uri: secret store:gcp_http/vigil-probe unavailable: service_account_key env:VIGIL_ST_GCP_KEY_HTTP: its token_uri is not https
+  FAIL  job.bk_untrusted: secret store:gcp_untrusted/vigil-probe unavailable: sign-in failed: the certificate of 127.0.0.1:4588 is not trusted
+  ok    job.bk_rotating
+  ok    secret_store.gcp: service_account_key env:VIGIL_ST_GCP_KEY
+  ok    secret_store.gcp: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.gcp_other: service_account_key env:VIGIL_ST_GCP_KEY
+  ok    secret_store.gcp_other: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.gcp_http: service_account_key env:VIGIL_ST_GCP_KEY_HTTP
+  ok    secret_store.gcp_http: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.gcp_untrusted: service_account_key env:VIGIL_ST_GCP_KEY
+  ok    secret_store.gcp_untrusted: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.gcp_other_key: service_account_key env:VIGIL_ST_GCP_KEY_OTHER
+  ok    secret_store.gcp_other_key: uses Vigil's own HTTPS client (client = http)
+  ok    data format: 1
+  ok    state directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-store.11628\root\state
+  ok    log directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-store.11628\root\logs
+  ok    spool directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-store.11628\root\spool
+
+precheck failed: 5 problem(s)
+bk_key: succeeded in 3s, run 20261103T202641Z-9416
+bk_latest: succeeded in 2s, run 20261103T202649Z-1628
+bk_version: succeeded in 2s, run 20261103T202655Z-11372
+bk_missing: failed (secret store:gcp/vigil-nosuch unavailable: not found (HTTP 404)) in 4s, run 20261103T202703Z-8164
+bk_bad_version: failed (secret store:gcp/vigil-versioned/9999 unavailable: not found (HTTP 404)) in 1s, run 20261103T202722Z-14820
+bk_other_project: failed (secret store:gcp_other/vigil-probe unavailable: not found (HTTP 404)) in 2s, run 20261103T202730Z-4200
+bk_http_token_uri: failed (secret store:gcp_http/vigil-probe unavailable: service_account_key env:VIGIL_ST_GCP_KEY_HTTP: its token_uri is not https) in 1s, run 20261103T202738Z-13472
+bk_untrusted: failed (secret store:gcp_untrusted/vigil-probe unavailable: sign-in failed: the certificate of 127.0.0.1:4588 is not trusted) in 3s, run 20261103T202743Z-6600
+bk_rotating: succeeded in 2s, run 20261103T202750Z-8036
+bk_rotating: succeeded in 2s, run 20261103T202759Z-6928
+bk_other_key: succeeded in 3s, run 20261103T202811Z-12500

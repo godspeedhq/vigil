@@ -1,0 +1,21 @@
+Vigil backend-test at 2026-11-03T20:18:50Z
+
+WAITING
+  bk_ok: next 2026-11-03T20:19:00Z
+  bk_fail: next 2026-11-03T20:19:00Z
+  bk_long: next 2026-11-03T20:19:00Z
+  bk_overrun: next 2026-11-03T20:19:00Z
+  bk_missing: next 2026-11-03T20:19:00Z
+  bk_output: next 2026-11-03T20:19:00Z
+  bk_metrics: next 2026-11-03T20:19:00Z
+  bk_native: next 2026-11-03T20:19:00Z
+
+LAST RUN
+  bk_ok: succeeded
+  bk_fail: failed
+  bk_long: succeeded
+  bk_overrun: timed_out
+  bk_missing: failed
+  bk_output: succeeded
+  bk_metrics: succeeded
+  bk_native: succeeded

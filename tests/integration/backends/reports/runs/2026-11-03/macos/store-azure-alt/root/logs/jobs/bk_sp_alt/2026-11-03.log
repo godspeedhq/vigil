@@ -1,0 +1,2 @@
+2026-11-03T20:12:20Z 20261103T201220Z-20064 run start
+2026-11-03T20:12:21Z 20261103T201220Z-20064 run end failed (secret store:az_sp/vigil-probe unavailable: sign-in failed: permission denied (HTTP 401)) in 1s

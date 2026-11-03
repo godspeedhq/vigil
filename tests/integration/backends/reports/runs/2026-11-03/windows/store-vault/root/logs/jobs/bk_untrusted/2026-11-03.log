@@ -1,0 +1,2 @@
+2026-11-03T20:21:51Z 20261103T202150Z-6688 run start
+2026-11-03T20:21:52Z 20261103T202150Z-6688 run end failed (secret store:st_untrusted/vigil/probe unavailable: the certificate of 127.0.0.1:8210 is not trusted) in 1s

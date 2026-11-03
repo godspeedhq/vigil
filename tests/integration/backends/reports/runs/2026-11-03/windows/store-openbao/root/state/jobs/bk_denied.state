@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_denied
+run_id           = 20261103T201948Z-13396
+instance         = store-test
+status           = failed
+reason           = secret store:st/other/probe unavailable: permission denied (HTTP 403)
+boot_id          = boot-1793614138
+started_epoch    = 1793737189
+started_at       = 2026-11-03T20:19:49Z
+deadline_epoch   =
+worker_pid       = 13396
+worker_name      = powershell.exe
+worker_start     = 1793737184
+ended_epoch      = 1793737191
+ended_at         = 2026-11-03T20:19:51Z
+duration_seconds = 2
+exit_code        =
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737191-bk_denied-20261103T201948Z-13396.events

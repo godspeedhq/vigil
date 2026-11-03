@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_expired
+run_id           = 20261103T202202Z-10164
+instance         = store-test
+status           = failed
+reason           = secret store:st_expired/vigil/probe unavailable: permission denied (HTTP 403)
+boot_id          = boot-1793614138
+started_epoch    = 1793737323
+started_at       = 2026-11-03T20:22:03Z
+deadline_epoch   =
+worker_pid       = 10164
+worker_name      = powershell.exe
+worker_start     = 1793737320
+ended_epoch      = 1793737325
+ended_at         = 2026-11-03T20:22:05Z
+duration_seconds = 2
+exit_code        =
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737325-bk_expired-20261103T202202Z-10164.events

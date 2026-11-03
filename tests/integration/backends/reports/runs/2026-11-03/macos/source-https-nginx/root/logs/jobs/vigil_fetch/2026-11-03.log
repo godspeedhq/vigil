@@ -1,0 +1,119 @@
+2026-11-03T20:13:45Z 20261103T201344Z-32660-1 run start
+2026-11-03T20:13:45Z 20261103T201344Z-32660-1 run configuration revision 02c70fbdd99d activated (local)
+2026-11-03T20:13:45Z 20261103T201344Z-32660-1 run end succeeded in 0s
+2026-11-03T20:13:46Z 20261103T201346Z-33006-2 run start
+2026-11-03T20:13:46Z 20261103T201346Z-33006-2 run configuration revision fa2465f6b140 activated (local)
+2026-11-03T20:13:46Z 20261103T201346Z-33006-2 run end succeeded in 0s
+2026-11-03T20:13:47Z 20261103T201347Z-33250-2 run start
+2026-11-03T20:13:47Z 20261103T201347Z-33250-2 run end succeeded in 0s
+2026-11-03T20:13:48Z 20261103T201348Z-33532-2 run start
+2026-11-03T20:13:48Z 20261103T201348Z-33532-2 run configuration revision bb016eee0bd0 activated (local)
+2026-11-03T20:13:49Z 20261103T201348Z-33532-2 run end succeeded in 1s
+2026-11-03T20:13:49Z 20261103T201349Z-33780-2 run start
+2026-11-03T20:13:49Z 20261103T201349Z-33780-2 run end succeeded in 0s
+2026-11-03T20:13:50Z 20261103T201350Z-34056-2 run start
+2026-11-03T20:13:50Z 20261103T201350Z-34056-2 run configuration revision 02c70fbdd99d activated (local)
+2026-11-03T20:13:51Z 20261103T201350Z-34056-2 run end succeeded in 1s
+2026-11-03T20:13:51Z 20261103T201351Z-34306-2 run start
+2026-11-03T20:13:51Z 20261103T201351Z-34306-2 run end succeeded in 0s
+2026-11-03T20:13:52Z 20261103T201352Z-34532-2 run start
+2026-11-03T20:13:52Z 20261103T201352Z-34532-2 run source.fail1: check-v2.sh does not match its sha256
+2026-11-03T20:13:52Z 20261103T201352Z-34532-2 run end failed (source.fail1: check-v2.sh does not match its sha256) in 0s
+2026-11-03T20:13:53Z 20261103T201353Z-34751-2 run start
+2026-11-03T20:13:53Z 20261103T201353Z-34751-2 run source.fail1: check-v2.sh does not match its sha256
+2026-11-03T20:13:53Z 20261103T201353Z-34751-2 run end failed (source.fail1: check-v2.sh does not match its sha256) in 0s
+2026-11-03T20:13:54Z 20261103T201354Z-35037-2 run start
+2026-11-03T20:13:54Z 20261103T201354Z-35037-2 run source.fail2: corrupt.txt does not match its sha256
+2026-11-03T20:13:54Z 20261103T201354Z-35037-2 run end failed (source.fail2: corrupt.txt does not match its sha256) in 0s
+2026-11-03T20:13:55Z 20261103T201355Z-35285-2 run start
+2026-11-03T20:13:55Z 20261103T201355Z-35285-2 run source.fail2: corrupt.txt does not match its sha256
+2026-11-03T20:13:55Z 20261103T201355Z-35285-2 run end failed (source.fail2: corrupt.txt does not match its sha256) in 0s
+2026-11-03T20:13:56Z 20261103T201356Z-35572-2 run start
+2026-11-03T20:13:56Z 20261103T201356Z-35572-2 run source.fail3: nosuch.sh not found (HTTP 404)
+2026-11-03T20:13:56Z 20261103T201356Z-35572-2 run end failed (source.fail3: nosuch.sh not found (HTTP 404)) in 0s
+2026-11-03T20:13:57Z 20261103T201357Z-35816-2 run start
+2026-11-03T20:13:57Z 20261103T201357Z-35816-2 run source.fail3: nosuch.sh not found (HTTP 404)
+2026-11-03T20:13:57Z 20261103T201357Z-35816-2 run end failed (source.fail3: nosuch.sh not found (HTTP 404)) in 0s
+2026-11-03T20:13:58Z 20261103T201358Z-36099-2 run start
+2026-11-03T20:13:58Z 20261103T201358Z-36099-2 run source.fail4: permission denied (HTTP 403)
+2026-11-03T20:13:59Z 20261103T201358Z-36099-2 run end failed (source.fail4: permission denied (HTTP 403)) in 1s
+2026-11-03T20:13:59Z 20261103T201359Z-36344-2 run start
+2026-11-03T20:13:59Z 20261103T201359Z-36344-2 run source.fail4: permission denied (HTTP 403)
+2026-11-03T20:13:59Z 20261103T201359Z-36344-2 run end failed (source.fail4: permission denied (HTTP 403)) in 0s
+2026-11-03T20:14:00Z 20261103T201400Z-36628-2 run start
+2026-11-03T20:14:00Z 20261103T201400Z-36628-2 run source.fail5: HTTP 500 from 127.0.0.1:9443
+2026-11-03T20:14:01Z 20261103T201400Z-36628-2 run end failed (source.fail5: HTTP 500 from 127.0.0.1:9443) in 1s
+2026-11-03T20:14:01Z 20261103T201401Z-36874-2 run start
+2026-11-03T20:14:01Z 20261103T201401Z-36874-2 run source.fail5: HTTP 500 from 127.0.0.1:9443
+2026-11-03T20:14:01Z 20261103T201401Z-36874-2 run end failed (source.fail5: HTTP 500 from 127.0.0.1:9443) in 0s
+2026-11-03T20:14:02Z 20261103T201402Z-37159-2 run start
+2026-11-03T20:14:02Z 20261103T201402Z-37159-2 run source.fail6: HTTP 503 from 127.0.0.1:9443
+2026-11-03T20:14:03Z 20261103T201402Z-37159-2 run end failed (source.fail6: HTTP 503 from 127.0.0.1:9443) in 1s
+2026-11-03T20:14:03Z 20261103T201403Z-37406-2 run start
+2026-11-03T20:14:03Z 20261103T201403Z-37406-2 run source.fail6: HTTP 503 from 127.0.0.1:9443
+2026-11-03T20:14:03Z 20261103T201403Z-37406-2 run end failed (source.fail6: HTTP 503 from 127.0.0.1:9443) in 0s
+2026-11-03T20:14:04Z 20261103T201404Z-37692-2 run start
+2026-11-03T20:14:04Z 20261103T201404Z-37692-2 run source.fail7: HTTP 301 from 127.0.0.1:9443
+2026-11-03T20:14:05Z 20261103T201404Z-37692-2 run end failed (source.fail7: HTTP 301 from 127.0.0.1:9443) in 1s
+2026-11-03T20:14:05Z 20261103T201405Z-37940-2 run start
+2026-11-03T20:14:05Z 20261103T201405Z-37940-2 run source.fail7: HTTP 301 from 127.0.0.1:9443
+2026-11-03T20:14:06Z 20261103T201405Z-37940-2 run end failed (source.fail7: HTTP 301 from 127.0.0.1:9443) in 1s
+2026-11-03T20:14:06Z 20261103T201406Z-38227-2 run start
+2026-11-03T20:14:06Z 20261103T201406Z-38227-2 run source.fail8: request to 127.0.0.1:9443 failed (curl exit code 52)
+2026-11-03T20:14:07Z 20261103T201406Z-38227-2 run end failed (source.fail8: request to 127.0.0.1:9443 failed (curl exit code 52)) in 1s
+2026-11-03T20:14:07Z 20261103T201407Z-38476-2 run start
+2026-11-03T20:14:07Z 20261103T201407Z-38476-2 run source.fail8: request to 127.0.0.1:9443 failed (curl exit code 52)
+2026-11-03T20:14:08Z 20261103T201407Z-38476-2 run end failed (source.fail8: request to 127.0.0.1:9443 failed (curl exit code 52)) in 1s
+2026-11-03T20:14:08Z 20261103T201408Z-38764-2 run start
+2026-11-03T20:14:08Z 20261103T201408Z-38764-2 run source.fail9: timed out after 5s
+2026-11-03T20:14:14Z 20261103T201408Z-38764-2 run end failed (source.fail9: timed out after 5s) in 6s
+2026-11-03T20:14:15Z 20261103T201414Z-39044-2 run start
+2026-11-03T20:14:15Z 20261103T201414Z-39044-2 run source.fail9: timed out after 5s
+2026-11-03T20:14:20Z 20261103T201414Z-39044-2 run end failed (source.fail9: timed out after 5s) in 5s
+2026-11-03T20:14:21Z 20261103T201421Z-39365-2 run start
+2026-11-03T20:14:21Z 20261103T201421Z-39365-2 run source.fail10: cannot connect to 127.0.0.1:9444
+2026-11-03T20:14:21Z 20261103T201421Z-39365-2 run end failed (source.fail10: cannot connect to 127.0.0.1:9444) in 0s
+2026-11-03T20:14:22Z 20261103T201422Z-39616-2 run start
+2026-11-03T20:14:22Z 20261103T201422Z-39616-2 run source.fail10: cannot connect to 127.0.0.1:9444
+2026-11-03T20:14:22Z 20261103T201422Z-39616-2 run end failed (source.fail10: cannot connect to 127.0.0.1:9444) in 0s
+2026-11-03T20:14:23Z 20261103T201423Z-39906-2 run start
+2026-11-03T20:14:23Z 20261103T201423Z-39906-2 run source.untrusted: the certificate of 127.0.0.1:9443 is not trusted
+2026-11-03T20:14:23Z 20261103T201423Z-39906-2 run end failed (source.untrusted: the certificate of 127.0.0.1:9443 is not trusted) in 0s
+2026-11-03T20:14:24Z 20261103T201424Z-40159-2 run start
+2026-11-03T20:14:24Z 20261103T201424Z-40159-2 run source.untrusted: the certificate of 127.0.0.1:9443 is not trusted
+2026-11-03T20:14:24Z 20261103T201424Z-40159-2 run end failed (source.untrusted: the certificate of 127.0.0.1:9443 is not trusted) in 0s
+2026-11-03T20:14:25Z 20261103T201425Z-40450-2 run start
+2026-11-03T20:14:25Z 20261103T201425Z-40450-2 run configuration revision b4b44f924c92 activated (local)
+2026-11-03T20:14:26Z 20261103T201425Z-40450-2 run end succeeded in 1s
+2026-11-03T20:14:27Z 20261103T201426Z-40735-2 run start
+2026-11-03T20:14:27Z 20261103T201426Z-40735-2 run end succeeded in 0s
+2026-11-03T20:14:28Z 20261103T201428Z-41026-2 run start
+2026-11-03T20:14:28Z 20261103T201428Z-41026-2 run source.noheader: permission denied (HTTP 401)
+2026-11-03T20:14:28Z 20261103T201428Z-41026-2 run end failed (source.noheader: permission denied (HTTP 401)) in 0s
+2026-11-03T20:14:29Z 20261103T201429Z-41271-2 run start
+2026-11-03T20:14:29Z 20261103T201429Z-41271-2 run source.noheader: permission denied (HTTP 401)
+2026-11-03T20:14:29Z 20261103T201429Z-41271-2 run end failed (source.noheader: permission denied (HTTP 401)) in 0s
+2026-11-03T20:14:30Z 20261103T201430Z-41565-2 run start
+2026-11-03T20:14:30Z 20261103T201430Z-41565-2 run source.wrongtoken: permission denied (HTTP 403)
+2026-11-03T20:14:30Z 20261103T201430Z-41565-2 run end failed (source.wrongtoken: permission denied (HTTP 403)) in 0s
+2026-11-03T20:14:31Z 20261103T201431Z-41821-2 run start
+2026-11-03T20:14:31Z 20261103T201431Z-41821-2 run source.wrongtoken: permission denied (HTTP 403)
+2026-11-03T20:14:31Z 20261103T201431Z-41821-2 run end failed (source.wrongtoken: permission denied (HTTP 403)) in 0s
+2026-11-03T20:14:32Z 20261103T201432Z-42116-2 run start
+2026-11-03T20:14:32Z 20261103T201432Z-42116-2 run configuration revision 10346b831546 activated (source.central posix.config)
+2026-11-03T20:14:33Z 20261103T201432Z-42116-2 run end succeeded in 1s
+2026-11-03T20:14:33Z 20261103T201433Z-42414-2 run start
+2026-11-03T20:14:34Z 20261103T201433Z-42414-2 run end succeeded in 1s
+2026-11-03T20:14:35Z 20261103T201435Z-42733-2 run start
+2026-11-03T20:14:35Z 20261103T201435Z-42733-2 run   ERROR    line 8: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:14:35Z 20261103T201435Z-42733-2 run source.central: posix.config has errors
+2026-11-03T20:14:36Z 20261103T201435Z-42733-2 run end failed (source.central: posix.config has errors) in 1s
+2026-11-03T20:14:36Z 20261103T201436Z-43005-2 run start
+2026-11-03T20:14:36Z 20261103T201436Z-43005-2 run   ERROR    line 8: 'tick' must be a duration such as 30s, 5m, 2h or 7d: soon (E_DURATION)
+2026-11-03T20:14:36Z 20261103T201436Z-43005-2 run source.central: posix.config has errors
+2026-11-03T20:14:36Z 20261103T201436Z-43005-2 run end failed (source.central: posix.config has errors) in 0s
+2026-11-03T20:14:37Z 20261103T201437Z-43324-2 run start
+2026-11-03T20:14:37Z 20261103T201437Z-43324-2 run configuration revision 398be314b56b activated (source.central posix.config)
+2026-11-03T20:14:38Z 20261103T201437Z-43324-2 run end succeeded in 1s
+2026-11-03T20:14:39Z 20261103T201438Z-43634-2 run start
+2026-11-03T20:14:39Z 20261103T201438Z-43634-2 run end succeeded in 0s

@@ -1,0 +1,8 @@
+[source]
+identity      = 
+checked_epoch = 1793739302
+ok_epoch      = 
+entry         = 
+kind          = 
+failures      = 2
+error         = not a directory: C:\Users\vigil-test\AppData\Local\Temp\vigil-source.12620\no such dir

@@ -1,0 +1,2 @@
+2026-11-03T20:11:48Z 20261103T201148Z-16013 run start
+2026-11-03T20:11:48Z 20261103T201148Z-16013 run end failed (secret store:aws/vigil/nosuch unavailable: not found (ResourceNotFoundException)) in 0s

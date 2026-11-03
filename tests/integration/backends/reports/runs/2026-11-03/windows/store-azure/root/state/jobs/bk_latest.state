@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_latest
+run_id           = 20261103T202451Z-10700
+instance         = store-test
+status           = succeeded
+reason           =
+boot_id          = boot-1793614138
+started_epoch    = 1793737493
+started_at       = 2026-11-03T20:24:53Z
+deadline_epoch   =
+worker_pid       = 10700
+worker_name      = powershell.exe
+worker_start     = 1793737489
+job_pid          = 3936
+job_name         = powershell.exe
+job_start        = 1793737494
+ended_epoch      = 1793737496
+ended_at         = 2026-11-03T20:24:56Z
+duration_seconds = 3
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793737496-bk_latest-20261103T202451Z-10700.events

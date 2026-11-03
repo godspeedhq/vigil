@@ -1,0 +1,18 @@
+Configuration /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-bk.PEcPHg/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_ok
+  ok    job.bk_fail
+  ok    job.bk_long
+  ok    job.bk_overrun
+  FAIL  job.bk_missing: file not found: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-bk.PEcPHg/root/scripts/missing.sh
+  ok    job.bk_output
+  ok    job.bk_metrics
+  ok    job.bk_native
+  ok    state directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-bk.PEcPHg/root/state
+  ok    log directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-bk.PEcPHg/root/logs
+  ok    spool directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-bk.PEcPHg/root/spool
+
+precheck failed: 1 problem(s)

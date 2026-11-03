@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_rotating
+run_id           = 20261103T201229Z-21270
+instance         = store-test
+status           = succeeded
+reason           = 
+boot_id          = boot-1790391279
+started_epoch    = 1793736749
+started_at       = 2026-11-03T20:12:29Z
+deadline_epoch   = 
+worker_pid       = 21270
+worker_name      = bash
+worker_start     = 
+job_pid          = 21342
+job_name         = bash
+job_start        = 
+ended_epoch      = 1793736750
+ended_at         = 2026-11-03T20:12:30Z
+duration_seconds = 1
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793736750-bk_rotating-20261103T201229Z-21270.events

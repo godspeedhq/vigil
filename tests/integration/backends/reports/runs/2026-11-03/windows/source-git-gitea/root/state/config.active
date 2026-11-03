@@ -1,0 +1,7 @@
+[active]
+schema_version = 1
+revision       = de45d3e1051c
+config         = 097b3937ff492a58bca8c4c68f4bd0f232e57c0f00863367132eca1e4f98b2c3
+origin         = source.central hosts/windows.config
+script         = scripts 695875de35b70c8115a5c5ac3781283ca8341731 11eecfa95d36050232bb47d1fad617e88a983a0d0ca14a526c301f7b9be74fe0 checks/check.ps1
+activated_epoch = 1793738522

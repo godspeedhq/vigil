@@ -1,0 +1,44 @@
+# TYPE check_duration_seconds gauge
+check_duration_seconds{host="desktop-nn48drs",instance="source-test",job="check",os="windows"} 1
+# TYPE check_runs_total counter
+check_runs_total{host="desktop-nn48drs",instance="source-test",job="check",os="windows"} 7
+# TYPE check_source_check gauge
+check_source_check{host="desktop-nn48drs",instance="source-test",job="check",os="windows"} 1
+# TYPE check_succeeded_total counter
+check_succeeded_total{host="desktop-nn48drs",instance="source-test",job="check",os="windows"} 7
+# TYPE remote_check_duration_seconds gauge
+remote_check_duration_seconds{host="desktop-nn48drs",instance="source-test",job="remote_check",os="windows"} 4
+# TYPE remote_check_runs_total counter
+remote_check_runs_total{host="desktop-nn48drs",instance="source-test",job="remote_check",os="windows"} 2
+# TYPE remote_check_source_check gauge
+remote_check_source_check{host="desktop-nn48drs",instance="source-test",job="remote_check",os="windows"} 1
+# TYPE remote_check_succeeded_total counter
+remote_check_succeeded_total{host="desktop-nn48drs",instance="source-test",job="remote_check",os="windows"} 2
+# TYPE vigil_config_activated_total counter
+vigil_config_activated_total{host="desktop-nn48drs",instance="source-test",os="windows",revision="676a9a17358e"} 1
+vigil_config_activated_total{host="desktop-nn48drs",instance="source-test",os="windows",revision="a13064b31c4c"} 1
+vigil_config_activated_total{host="desktop-nn48drs",instance="source-test",os="windows",revision="bff7c1ac60ef"} 1
+# TYPE vigil_config_info gauge
+vigil_config_info{host="desktop-nn48drs",instance="source-test",os="windows",revision="676a9a17358e"} 1
+vigil_config_info{host="desktop-nn48drs",instance="source-test",os="windows",revision="a13064b31c4c"} 1
+vigil_config_info{host="desktop-nn48drs",instance="source-test",os="windows",revision="bff7c1ac60ef"} 1
+# TYPE vigil_source_check_age gauge
+vigil_source_check_age{host="desktop-nn48drs",instance="source-test",os="windows",source="central"} 5
+# TYPE vigil_source_failures_total counter
+vigil_source_failures_total{host="desktop-nn48drs",instance="source-test",os="windows",reason="auth",source="fail3"} 2
+vigil_source_failures_total{host="desktop-nn48drs",instance="source-test",os="windows",reason="digest",source="fail4"} 2
+vigil_source_failures_total{host="desktop-nn48drs",instance="source-test",os="windows",reason="invalid",source="central"} 2
+vigil_source_failures_total{host="desktop-nn48drs",instance="source-test",os="windows",reason="unreachable",source="fail1"} 2
+vigil_source_failures_total{host="desktop-nn48drs",instance="source-test",os="windows",reason="unreachable",source="fail2"} 2
+vigil_source_failures_total{host="desktop-nn48drs",instance="source-test",os="windows",reason="unreachable",source="fail5"} 2
+vigil_source_failures_total{host="desktop-nn48drs",instance="source-test",os="windows",reason="unreachable",source="fail6"} 2
+# TYPE vigil_spool_bytes gauge
+vigil_spool_bytes{host="desktop-nn48drs",instance="source-test",os="windows"} 0
+# TYPE vigil_supervisor_config_reload_failed gauge
+vigil_supervisor_config_reload_failed{host="desktop-nn48drs",instance="source-test",os="windows"} 0
+# TYPE vigil_supervisor_pending gauge
+vigil_supervisor_pending{host="desktop-nn48drs",instance="source-test",os="windows"} 0
+# TYPE vigil_supervisor_up gauge
+vigil_supervisor_up{host="desktop-nn48drs",instance="source-test",os="windows"} 1
+# TYPE vigil_supervisor_workers gauge
+vigil_supervisor_workers{host="desktop-nn48drs",instance="source-test",os="windows"} 0

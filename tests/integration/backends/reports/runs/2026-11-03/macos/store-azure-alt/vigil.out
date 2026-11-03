@@ -1,0 +1,36 @@
+Configuration /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.XmBisC/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_sp
+  ok    job.bk_latest
+  ok    job.bk_version
+  FAIL  job.bk_missing: secret store:az/vigil-nosuch unavailable: not found (HTTP 404)
+  FAIL  job.bk_bad_version: secret store:az/vigil-versioned/0123456789abcdef0123456789abcdef unavailable: not found (HTTP 404)
+  FAIL  job.bk_bad_name: secret store:az/vigil_probe unavailable: not a valid Key Vault secret name
+  FAIL  job.bk_untrusted: secret store:az_untrusted/vigil-probe unavailable: the certificate of 127.0.0.1:8443 is not trusted
+  ok    job.bk_managed_identity
+  ok    job.bk_rotating
+  ok    secret_store.az: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.az_untrusted: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.az_sp: client_secret env:VIGIL_ST_CLIENT_SECRET
+  ok    secret_store.az_sp: uses Vigil's own HTTPS client (client = http)
+  ok    secret_store.az_mi: uses Vigil's own HTTPS client (client = http)
+  ok    state directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.XmBisC/root/state
+  ok    log directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.XmBisC/root/logs
+  ok    spool directory: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-store.XmBisC/root/spool
+  FAIL  VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)
+
+precheck failed: 5 problem(s)
+bk_sp: succeeded in 1s, run 20261103T201214Z-19484
+bk_latest: succeeded in 0s, run 20261103T201215Z-19538
+bk_version: succeeded in 0s, run 20261103T201215Z-19592
+bk_missing: failed (secret store:az/vigil-nosuch unavailable: not found (HTTP 404)) in 0s, run 20261103T201216Z-19646
+bk_bad_version: failed (secret store:az/vigil-versioned/0123456789abcdef0123456789abcdef unavailable: not found (HTTP 404)) in 0s, run 20261103T201217Z-19695
+bk_bad_name: failed (secret store:az/vigil_probe unavailable: not a valid Key Vault secret name) in 0s, run 20261103T201217Z-19744
+bk_untrusted: failed (secret store:az_untrusted/vigil-probe unavailable: the certificate of 127.0.0.1:8443 is not trusted) in 0s, run 20261103T201218Z-19785
+bk_managed_identity: succeeded in 0s, run 20261103T201218Z-19834
+bk_rotating: succeeded in 0s, run 20261103T201219Z-19888
+bk_rotating: succeeded in 0s, run 20261103T201220Z-19979
+bk_sp_alt: failed (secret store:az_sp/vigil-probe unavailable: sign-in failed: permission denied (HTTP 401)) in 1s, run 20261103T201220Z-20064

@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = check
+run_id           = 20261103T201559Z-58413
+instance         = source-test
+status           = succeeded
+reason           = 
+boot_id          = boot-1790391279
+started_epoch    = 1793736959
+started_at       = 2026-11-03T20:15:59Z
+deadline_epoch   = 
+worker_pid       = 58413
+worker_name      = bash
+worker_start     = 
+job_pid          = 58451
+job_name         = sh
+job_start        = 
+ended_epoch      = 1793736959
+ended_at         = 2026-11-03T20:15:59Z
+duration_seconds = 0
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793736959-check-20261103T201559Z-58413.events

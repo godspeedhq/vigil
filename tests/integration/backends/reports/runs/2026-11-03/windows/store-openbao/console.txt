@@ -1,0 +1,70 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261103201901
+Username: DESKTOP-NN48DRS\vigil-test
+RunAs User: DESKTOP-NN48DRS\vigil-test
+Configuration Name: 
+Machine: DESKTOP-NN48DRS (Microsoft Windows NT 10.0.22631.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\run-store.ps1 openbao
+Process ID: 7884
+PSVersion: 5.1.22621.6133
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22621.6133
+BuildVersion: 10.0.22621.6133
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+== store-openbao
+date     2026-11-03T20:19:01Z
+host     DESKTOP-NN48DRS
+os       Windows 11 Pro 23H2 (build 22631.6199)
+vigil    4040737fcd2d7092b21fcf4b915e2f64d36cba21 (deployed copy)
+command  C:\Users\vigil-test\vigil\tests\integration\backends\scripts\run-store.ps1 openbao
+shell    PowerShell 5.1.22621.6133 (Desktop)
+git      git version 2.56.0.windows.4
+curl     curl 8.13.0 (Windows) libcurl/8.13.0 Schannel zlib/1.3.1 WinIDN
+ssh      OpenSSH_for_Windows_9.5p1, LibreSSL 3.8.2
+images   (as compose.secrets.yaml pins them)
+         openbao/openbao:2.7.1
+         hashicorp/vault:2.2.0
+         floci/floci:2.3.0
+         nginx:1.30.5-alpine
+         floci/floci-az:0.15.0
+         floci/floci-gcp:0.11.0
+         nagyesta/lowkey-vault:7.3.127
+         ghcr.io/blackwell-systems/gcp-secret-manager-emulator-dual:1.9.0@sha256:2c9d3bb0453fdff102b29af00b4abd9b2c6fa466031a9d8e6d93a270ba22a6e2
+
+
+openbao, hashicorp_vault store
+  PASS  precheck bk_approle: fetched
+  PASS  precheck bk_token: fetched
+  PASS  precheck bk_missing: not found (HTTP 404)
+  PASS  precheck bk_denied: permission denied (HTTP 403)
+  PASS  precheck bk_untrusted: is not trusted
+  PASS  precheck bk_bad_token: permission denied (HTTP 403)
+  PASS  precheck bk_expired: permission denied (HTTP 403)
+  PASS  precheck bk_bad_secret_id: sign-in failed:
+  PASS  precheck bk_kv1: not found (HTTP 404)
+  PASS  precheck bk_rotating: fetched
+  PASS  bk_approle                           succeeded
+  PASS  bk_token                             succeeded
+  PASS  bk_missing                           failed: secret store:st/vigil/nosuch unavailable: not found (HTTP 404)
+  PASS  bk_denied                            failed: secret store:st/other/probe unavailable: permission denied (HTTP 403)
+  PASS  bk_untrusted                         failed: secret store:st_untrusted/vigil/probe unavailable: the certificate of 127.0.0.1:8200 is not trusted
+  PASS  bk_bad_token                         failed: secret store:st_bad_token/vigil/probe unavailable: permission denied (HTTP 403)
+  PASS  bk_expired                           failed: secret store:st_expired/vigil/probe unavailable: permission denied (HTTP 403)
+  PASS  bk_bad_secret_id                     failed: secret store:st_bad_secret_id/vigil/probe unavailable: sign-in failed: HTTP 400 from 127.0.0.1:8200
+  PASS  bk_kv1 (KV v1: not supported)        failed: secret store:st_kv1/vigil/probe unavailable: not found (HTTP 404)
+  PASS  bk_rotating                          succeeded
+  PASS  bk_rotating after rotation (new value) succeeded
+  NOT RUN  restart: openbao does not run here (run-store.sh does it on the Docker host)
+  PASS  no secret or credential under the Vigil root or in its output
+
+22 passed, 0 failed, 1 not run, 0 emulator limitations
+evidence: reports\runs\2026-11-03\windows\store-openbao
+**********************
+Windows PowerShell transcript end
+End time: 20261103202056
+**********************

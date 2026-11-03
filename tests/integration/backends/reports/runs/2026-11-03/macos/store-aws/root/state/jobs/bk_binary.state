@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_binary
+run_id           = 20261103T201149Z-16269
+instance         = store-test
+status           = failed
+reason           = secret store:aws/vigil/binary unavailable: unexpected answer: no SecretString
+boot_id          = boot-1790391279
+started_epoch    = 1793736709
+started_at       = 2026-11-03T20:11:49Z
+deadline_epoch   = 
+worker_pid       = 16269
+worker_name      = bash
+worker_start     = 
+ended_epoch      = 1793736710
+ended_at         = 2026-11-03T20:11:50Z
+duration_seconds = 1
+exit_code        = 
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793736710-bk_binary-20261103T201149Z-16269.events

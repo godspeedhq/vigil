@@ -1,0 +1,48 @@
+== store-gcp
+date     2026-11-03T20:12:02Z
+host     Bankoles-MacBook-Air.local
+os       macOS 12.7.6 (Darwin 21.6.0 x86_64)
+vigil    4040737fcd2d7092b21fcf4b915e2f64d36cba21 (deployed copy)
+command  scripts/run-store.sh gcp
+bash     3.2.57(1)-release
+git      git version 2.37.1 (Apple Git-137.1)
+curl     curl 8.7.1 (x86_64-apple-darwin21.0) libcurl/8.7.1 (SecureTransport) LibreSSL/3.3.6 zlib/1.2.11 nghttp2/1.45.1
+openssl  LibreSSL 2.8.3
+ssh      OpenSSH_8.6p1, LibreSSL 3.3.6
+images   (as compose.secrets.yaml pins them)
+         floci/floci-az:0.15.0
+         floci/floci-gcp:0.11.0
+         floci/floci:2.3.0
+         ghcr.io/blackwell-systems/gcp-secret-manager-emulator-dual:1.9.0@sha256:2c9d3bb0453fdff102b29af00b4abd9b2c6fa466031a9d8e6d93a270ba22a6e2
+         hashicorp/vault:2.2.0
+         nagyesta/lowkey-vault:7.3.127
+         nginx:1.30.5-alpine
+         openbao/openbao:2.7.1
+
+
+gcp, gcp_secret_manager store
+  PASS  precheck bk_key: fetched
+  PASS  precheck bk_latest: fetched
+  PASS  precheck bk_version: fetched
+  PASS  precheck bk_missing: not found
+  PASS  precheck bk_bad_version: not found
+  PASS  precheck bk_other_project: not found
+  PASS  precheck bk_http_token_uri: is not https
+  PASS  precheck bk_untrusted: is not trusted
+  PASS  precheck bk_rotating: fetched
+  PASS  bk_key                               succeeded
+  PASS  bk_latest                            succeeded
+  PASS  bk_version (the first, by number)    succeeded
+  PASS  bk_missing                           failed: secret store:gcp/vigil-nosuch unavailable: not found (HTTP 404)
+  PASS  bk_bad_version                       failed: secret store:gcp/vigil-versioned/9999 unavailable: not found (HTTP 404)
+  PASS  bk_other_project (vigil-other)       failed: secret store:gcp_other/vigil-probe unavailable: not found (HTTP 404)
+  PASS  bk_http_token_uri                    failed: secret store:gcp_http/vigil-probe unavailable: service_account_key env:VIGIL_ST_GCP_KEY_HTTP: its token_uri is not https
+  PASS  bk_untrusted                         failed: secret store:gcp_untrusted/vigil-probe unavailable: sign-in failed: the certificate of 127.0.0.1:4588 is not trusted
+  PASS  bk_rotating                          succeeded
+  PASS  bk_rotating after rotation (new value) succeeded
+  EMULATOR LIMITATION  bk_other_key (another private key): accepted; the emulator does not check the JWT
+  NOT RUN  restart: gcp does not run here (it needs the Docker host)
+  PASS  no secret or credential under the Vigil root or in its output
+
+20 passed, 0 failed, 1 not run, 1 emulator limitations
+evidence: reports/runs/2026-11-03/macos/store-gcp

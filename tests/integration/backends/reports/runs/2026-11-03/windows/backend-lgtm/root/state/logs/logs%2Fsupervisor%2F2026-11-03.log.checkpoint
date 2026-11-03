@@ -1,0 +1,5 @@
+[checkpoint]
+file        = logs/supervisor/2026-11-03.log
+fingerprint = 972319264 64
+offset      = 2097
+size        = 2097

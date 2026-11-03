@@ -1,0 +1,38 @@
+# TYPE check_duration_seconds gauge
+check_duration_seconds{host="desktop-nn48drs",instance="source-test",job="check",os="windows"} 1
+# TYPE check_runs_total counter
+check_runs_total{host="desktop-nn48drs",instance="source-test",job="check",os="windows"} 7
+# TYPE check_source_check gauge
+check_source_check{host="desktop-nn48drs",instance="source-test",job="check",os="windows"} 1
+# TYPE check_succeeded_total counter
+check_succeeded_total{host="desktop-nn48drs",instance="source-test",job="check",os="windows"} 7
+# TYPE vigil_config_activated_total counter
+vigil_config_activated_total{host="desktop-nn48drs",instance="source-test",os="windows",revision="2de7020634e8"} 1
+vigil_config_activated_total{host="desktop-nn48drs",instance="source-test",os="windows",revision="303811d9d237"} 1
+vigil_config_activated_total{host="desktop-nn48drs",instance="source-test",os="windows",revision="563d963133d9"} 1
+vigil_config_activated_total{host="desktop-nn48drs",instance="source-test",os="windows",revision="bcabd3653516"} 1
+vigil_config_activated_total{host="desktop-nn48drs",instance="source-test",os="windows",revision="da14941d635d"} 1
+# TYPE vigil_config_info gauge
+vigil_config_info{host="desktop-nn48drs",instance="source-test",os="windows",revision="2de7020634e8"} 1
+vigil_config_info{host="desktop-nn48drs",instance="source-test",os="windows",revision="303811d9d237"} 1
+vigil_config_info{host="desktop-nn48drs",instance="source-test",os="windows",revision="563d963133d9"} 1
+vigil_config_info{host="desktop-nn48drs",instance="source-test",os="windows",revision="bcabd3653516"} 1
+vigil_config_info{host="desktop-nn48drs",instance="source-test",os="windows",revision="da14941d635d"} 1
+# TYPE vigil_source_check_age gauge
+vigil_source_check_age{host="desktop-nn48drs",instance="source-test",os="windows",source="fail1"} 24
+vigil_source_check_age{host="desktop-nn48drs",instance="source-test",os="windows",source="followed"} 13
+vigil_source_check_age{host="desktop-nn48drs",instance="source-test",os="windows",source="nested"} 66
+vigil_source_check_age{host="desktop-nn48drs",instance="source-test",os="windows",source="share"} 24
+# TYPE vigil_source_failures_total counter
+vigil_source_failures_total{host="desktop-nn48drs",instance="source-test",os="windows",reason="invalid",source="fail1"} 2
+vigil_source_failures_total{host="desktop-nn48drs",instance="source-test",os="windows",reason="unreachable",source="fail2"} 1
+# TYPE vigil_spool_bytes gauge
+vigil_spool_bytes{host="desktop-nn48drs",instance="source-test",os="windows"} 126
+# TYPE vigil_supervisor_config_reload_failed gauge
+vigil_supervisor_config_reload_failed{host="desktop-nn48drs",instance="source-test",os="windows"} 0
+# TYPE vigil_supervisor_pending gauge
+vigil_supervisor_pending{host="desktop-nn48drs",instance="source-test",os="windows"} 0
+# TYPE vigil_supervisor_up gauge
+vigil_supervisor_up{host="desktop-nn48drs",instance="source-test",os="windows"} 1
+# TYPE vigil_supervisor_workers gauge
+vigil_supervisor_workers{host="desktop-nn48drs",instance="source-test",os="windows"} 0

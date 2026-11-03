@@ -1,0 +1,47 @@
+== store-aws
+date     2026-11-03T20:04:55Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    4040737fcd2d7092b21fcf4b915e2f64d36cba21 (deployed copy)
+command  scripts/run-store.sh aws
+bash     5.3.9(1)-release
+git      git version 2.56.0
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.18.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.secrets.yaml pins them)
+         floci/floci:2.3.0
+         floci/floci-az:0.15.0
+         floci/floci-gcp:0.11.0
+         ghcr.io/blackwell-systems/gcp-secret-manager-emulator-dual:1.9.0@sha256:2c9d3bb0453fdff102b29af00b4abd9b2c6fa466031a9d8e6d93a270ba22a6e2
+         hashicorp/vault:2.2.0
+         nagyesta/lowkey-vault:7.3.127
+         nginx:1.30.5-alpine
+         openbao/openbao:2.7.1
+
+
+aws, aws_secrets_manager store
+  PASS  precheck bk_probe: fetched
+  PASS  precheck bk_field: fetched
+  PASS  precheck bk_missing: not found (ResourceNotFoundException)
+  PASS  precheck bk_bad_field: the secret's value:
+  PASS  precheck bk_binary: SecretString
+  PASS  precheck bk_other_region: not found (ResourceNotFoundException)
+  PASS  precheck bk_untrusted: is not trusted
+  PASS  precheck bk_rotating: fetched
+  PASS  bk_probe                             succeeded
+  PASS  bk_field                             succeeded
+  PASS  bk_missing                           failed: secret store:aws/vigil/nosuch unavailable: not found (ResourceNotFoundException)
+  PASS  bk_bad_field                         failed: secret store:aws_bad_field/vigil/json unavailable: the secret's value: no nosuch
+  PASS  bk_binary                            failed: secret store:aws/vigil/binary unavailable: unexpected answer: no SecretString
+  PASS  bk_other_region (eu-west-2)          failed: secret store:aws_eu/vigil/probe unavailable: not found (ResourceNotFoundException)
+  PASS  bk_untrusted                         failed: secret store:aws_untrusted/vigil/probe unavailable: the certificate of 127.0.0.1:4566 is not trusted
+  PASS  bk_rotating                          succeeded
+  PASS  bk_rotating after rotation (new value) succeeded
+  EMULATOR LIMITATION  bk_bad_key (wrong secret key): accepted; the emulator does not check signatures
+  PASS  bk_probe, emulator stopped           failed: secret store:aws/vigil/probe unavailable: cannot connect to 127.0.0.1:4566
+  PASS  bk_probe, emulator restarted (recovered) succeeded
+  PASS  no secret or credential under the Vigil root or in its output
+
+20 passed, 0 failed, 0 not run, 1 emulator limitations
+evidence: reports/runs/2026-11-03/fedora/store-aws
