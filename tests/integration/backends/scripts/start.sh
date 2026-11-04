@@ -64,18 +64,23 @@ ready_url() {
         pyroscope) echo http://127.0.0.1:4040/ready ;;
         otel-collector) echo http://127.0.0.1:13133/ ;;
         alloy) echo http://127.0.0.1:12345/-/ready ;;
+        # And the collector in front of them.
+        victoriametrics) echo http://127.0.0.1:13134/ ;;
+        victorialogs) echo http://127.0.0.1:9428/health http://127.0.0.1:13134/ ;;
+        victoriatraces) echo http://127.0.0.1:10428/health ;;
     esac
 }
 
-# Waits up to five minutes for target $1's readiness URL to answer 2xx.
+# Waits up to five minutes for each of target $1's readiness URLs to answer
+# 2xx.
 wait_ready() {
     local url i=0
-    url=$(ready_url "$1")
-    [ -n "$url" ] || return 0
-    until curl -fsS -m 5 -o /dev/null "$url" 2> /dev/null; do
-        i=$((i + 1))
-        [ "$i" -ge 60 ] && return 1
-        sleep 5
+    for url in $(ready_url "$1"); do
+        until curl -fsS -m 5 -o /dev/null "$url" 2> /dev/null; do
+            i=$((i + 1))
+            [ "$i" -ge 60 ] && return 1
+            sleep 5
+        done
     done
 }
 

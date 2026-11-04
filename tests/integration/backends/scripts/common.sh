@@ -166,8 +166,9 @@ endpoints() {
         splunk)
             bk_metrics='splunk http://127.0.0.1:8088'
             bk_logs='splunk http://127.0.0.1:8088' ;;
-        victoriametrics) bk_metrics='otel http://127.0.0.1:8428/opentelemetry/v1/metrics' ;;
-        victorialogs) bk_logs='otel http://127.0.0.1:9428/insert/opentelemetry/v1/logs' ;;
+        # Through victoria-collector: both take OTLP as protobuf only.
+        victoriametrics) bk_metrics='otel http://127.0.0.1:4458/v1/metrics' ;;
+        victorialogs) bk_logs='otel http://127.0.0.1:4458/v1/logs' ;;
         elastic)
             bk_metrics='otel http://127.0.0.1:4418/v1/metrics'
             bk_logs='otel http://127.0.0.1:4418/v1/logs' ;;

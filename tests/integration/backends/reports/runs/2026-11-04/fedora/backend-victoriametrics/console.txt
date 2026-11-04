@@ -1,0 +1,107 @@
+== backend-victoriametrics
+date     2026-11-04T12:21:48Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    aa1c9e4 (deployed copy)
+command  scripts/run-vigil.sh victoriametrics
+bash     5.3.9(1)-release
+git      git version 2.56.0
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.18.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose*.yaml pins them)
+         atmoz/sftp:alpine@sha256:43dd1c023cf1bae487127d4b54660b0aee6e94c188a6599be36fb89ba115f961
+         clickhouse/clickhouse-server:26.10.3.7
+         elasticsearch:9.5.5
+         floci/floci:2.3.0
+         floci/floci-az:0.15.0
+         floci/floci-gcp:0.11.0
+         ghcr.io/blackwell-systems/gcp-secret-manager-emulator-dual:1.9.0@sha256:2c9d3bb0453fdff102b29af00b4abd9b2c6fa466031a9d8e6d93a270ba22a6e2
+         gitea/gitea:28.2.0
+         grafana/alloy:v1.21.3
+         grafana/grafana:13.2.5
+         grafana/loki:3.7.9
+         grafana/mimir:3.2.4
+         grafana/otel-lgtm:0.38.1
+         grafana/pyroscope:2.4.2
+         grafana/tempo:2.10.10
+         hashicorp/vault:2.2.0
+         influxdb:2.9.1
+         jaegertracing/jaeger:2.22.0
+         kibana:9.5.5
+         nagyesta/lowkey-vault:7.3.127
+         nginx:1.30.5-alpine
+         openbao/openbao:2.7.1
+         opensearchproject/opensearch:3.9.0
+         opensearchproject/opensearch-dashboards:3.9.0
+         openzipkin/zipkin:3.6.1
+         otel/opentelemetry-collector-contrib:0.163.2
+         prom/prometheus:v3.15.1
+         splunk/splunk:10.6.1
+         victoriametrics/victoria-logs:v1.53.0
+         victoriametrics/victoria-metrics:v1.155.0
+         victoriametrics/victoria-traces:v0.12.1
+
+run tag: bk202611041221482057946
+clock: within 0s of the backend's
+Configuration /tmp/vigil-bk.L9sVet/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_ok
+  ok    job.bk_fail
+  ok    job.bk_long
+  ok    job.bk_overrun
+  FAIL  job.bk_missing: file not found: /tmp/vigil-bk.L9sVet/root/scripts/missing.sh
+  ok    job.bk_output
+  ok    job.bk_metrics
+  ok    job.bk_native
+  ok    state directory: /tmp/vigil-bk.L9sVet/root/state
+  ok    log directory: /tmp/vigil-bk.L9sVet/root/logs
+  ok    spool directory: /tmp/vigil-bk.L9sVet/root/spool
+
+precheck failed: 1 problem(s)
+precheck: only bk_missing, whose file is missing on purpose
+
+jobs.log at the end:
+  Vigil backend-test at 2026-11-04T12:24:09Z
+  
+  RUNNING
+    bk_ok
+    bk_fail
+    bk_long
+    bk_overrun
+    bk_missing
+  
+  PENDING
+    bk_output
+    bk_metrics
+    bk_native
+  
+  WAITING
+    bk_ok: next 2026-11-04T12:25:00Z
+    bk_fail: next 2026-11-04T12:25:00Z
+    bk_long: next 2026-11-04T12:25:00Z
+    bk_overrun: next 2026-11-04T12:25:00Z
+    bk_missing: next 2026-11-04T12:25:00Z
+    bk_output: next 2026-11-04T12:25:00Z
+    bk_metrics: next 2026-11-04T12:25:00Z
+    bk_native: next 2026-11-04T12:25:00Z
+  
+  LAST RUN
+    bk_ok: succeeded
+    bk_fail: failed
+    bk_long: succeeded
+    bk_overrun: timed_out
+    bk_missing: failed
+    bk_output: succeeded
+    bk_metrics: succeeded
+    bk_native: succeeded
+
+victoriametrics, run bk202611041221482057946
+  PASS  metrics
+  NOT APPLICABLE  logs
+  NOT APPLICABLE  traces (Vigil sends none)
+evidence: /home/vigil-test/vigil/tests/integration/backends/reports/evidence/victoriametrics-bk202611041221482057946.txt
+evidence: reports/runs/2026-11-04/fedora/backend-victoriametrics

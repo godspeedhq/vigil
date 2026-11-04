@@ -1,0 +1,10 @@
+target   victoriametrics
+run tag  bk202611041221482057946
+date     2026-11-04T12:24:34Z
+images
+victoria-collector otel/opentelemetry-collector-contrib:0.163.2
+victoriametrics victoriametrics/victoria-metrics:v1.155.0
+
+== metrics: PASS
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"bk_metrics.vigil_backend_probe","host":"fedora","instance":"backend-test","job":"bk_metrics","os":"linux","run":"bk202611041221482057946","scope.name":"vigil","scope.version":"unknown","service.name":"vigil"},"value":[1793795074,"42"]}]},"stats":{"seriesFetched": "1","executionTimeMsec":2}}
+

@@ -46,13 +46,18 @@ command -v jq > /dev/null 2>&1 || die 'run-checks.sh needs jq'
 services=$(services_of "$target")
 [ -n "$services" ] || die "no containers for $target"
 
-# Where to ask: a Prometheus-style API for metrics, a Loki one for logs.
-prom='' loki=''
+# Where to ask: a Prometheus-style API for metrics, and for logs a Loki
+# (loki) or VictoriaLogs (vlogs) one at $logs.
+prom='' logs_api='' logs=''
 case $target in
     prometheus | alloy) prom=http://127.0.0.1:9090/api/v1 ;;
     mimir | otel-collector) prom=http://127.0.0.1:9009/prometheus/api/v1 ;;
+    victoriametrics) prom=http://127.0.0.1:8428/api/v1 ;;
 esac
-case $target in loki | otel-collector | alloy) loki=http://127.0.0.1:3100/loki/api/v1 ;; esac
+case $target in
+    loki | otel-collector | alloy) logs_api=loki logs=http://127.0.0.1:3100/loki/api/v1 ;;
+    victorialogs) logs_api=vlogs logs=http://127.0.0.1:9428/select/logsql ;;
+esac
 
 tag="ck$(date -u '+%Y%m%d%H%M%S')$$"
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-ck.XXXXXX") || exit 1
@@ -135,16 +140,41 @@ config > "$root/config/vigil.config"
 
 # PromQL $1 at time $2 (default now), as JSON.
 pq() { curl -fsS -m 30 -G "$prom/query" --data-urlencode "query=$1" ${2:+--data-urlencode "time=$2"}; }
-# Every stored sample of bk_check.seq for this run, as "<timestamp> <value>".
-samples() { pq "bk_check_seq{run=\"$tag\"}[1h]" | jq -r '.data.result[0].values[]? | "\(.[0]) \(.[1])"'; }
-# Every stored line for this run, as "<nanoseconds> <line>".
+# bk_check.seq for this run, under the name each backend gives it:
+# Prometheus-style names turn the dot into an underscore, others keep it.
+seq_sel="{__name__=~\"bk_check[._]seq\",run=\"$tag\"}"
+# Every stored sample of it, as "<timestamp> <value>".
+samples() { pq "$seq_sel[1h]" | jq -r '.data.result[0].values[]? | "\(.[0]) \(.[1])"'; }
+# The labels of its latest sample, one "key=value" a line.
+labels() { pq "last_over_time($seq_sel[1h])" | jq -r '.data.result[0].metric | to_entries[] | "\(.key)=\(.value)"'; }
+# Stored lines for this run, as "<nanoseconds> <line>", at most $1.
 lines() {
-    curl -fsS -m 30 -G "$loki/query_range" --data-urlencode "query={service_name=\"vigil\"} |= \"line $tag \"" \
-        --data-urlencode "since=1h" --data-urlencode 'limit=5000' --data-urlencode 'direction=forward' |
-        jq -r '.data.result[].values[] | "\(.[0]) \(.[1])"'
+    case $logs_api in
+        loki)
+            curl -fsS -m 30 -G "$logs/query_range" --data-urlencode "query={service_name=\"vigil\"} |= \"line $tag \"" \
+                --data-urlencode "since=1h" --data-urlencode "limit=${1:-5000}" --data-urlencode 'direction=forward' |
+                jq -r '.data.result[].values[] | "\(.[0]) \(.[1])"'
+            ;;
+        vlogs)
+            # One JSON object a line; _time to the second is enough here.
+            curl -fsS -m 30 "$logs/query" --data-urlencode "query=_time:1h \"line $tag \"" --data-urlencode "limit=${1:-5000}" |
+                jq -r '"\((._time | sub("\\.[0-9]+"; "") | fromdateiso8601) * 1000000000) \(._msg)"'
+            ;;
+    esac
 }
-# The labels of the latest bk_check.seq sample, one "key=value" a line.
-labels() { pq "last_over_time(bk_check_seq{run=\"$tag\"}[1h])" | jq -r '.data.result[0].metric | to_entries[] | "\(.key)=\(.value)"'; }
+# The labels or fields one stored line came with, as "key=value ...".
+line_labels() {
+    case $logs_api in
+        loki)
+            curl -fsS -m 30 -G "$logs/query_range" --data-urlencode "query={service_name=\"vigil\"} |= \"line $tag \"" \
+                --data-urlencode "since=1h" --data-urlencode 'limit=1' | jq -r '.data.result[0].stream | to_entries[] | "\(.key)=\(.value)"'
+            ;;
+        vlogs)
+            curl -fsS -m 30 "$logs/query" --data-urlencode "query=_time:1h \"line $tag \"" --data-urlencode 'limit=1' |
+                jq -r 'to_entries[] | select(.key | startswith("_") | not) | "\(.key)=\(.value)"'
+            ;;
+    esac | tr '\n' ' '
+}
 # The value of the first series in the local file backend whose line starts
 # with $1 (its labels are sorted by key), or nothing.
 local_value() { awk -v p="$1" 'index($0, p) == 1 { print $NF; exit }' "$root/metrics/local.prom" 2> /dev/null; }
@@ -153,7 +183,7 @@ ledger_between() { awk -v a="$1" -v b="$2" '$1 >= a && $1 < b' "$ledger"; }
 
 say "$target, run $tag: services $services"
 [ -n "$prom" ] || [ -z "$bk_metrics" ] || say "no query helper for $target's metrics yet: those checks are NOT RUN"
-[ -n "$loki" ] || [ -z "$bk_logs" ] || say "no query helper for $target's logs yet: those checks are NOT RUN"
+[ -n "$logs_api" ] || [ -z "$bk_logs" ] || say "no query helper for $target's logs yet: those checks are NOT RUN"
 vigil precheck > "$work/precheck.out" 2>&1 || { cat "$work/precheck.out"; die 'precheck failed'; }
 # Up at the start, whatever state it was left in.
 start_target || { cat "$work/start.out"; die "$target did not start"; }
@@ -209,7 +239,7 @@ if [ -n "$prom" ]; then
     labels > "$work/labels.txt" 2>&1
     got=$(awk '{ print $2 }' "$work/samples.txt" | sort -n | awk -v m="$t_main" '$1 < m')
 fi
-if [ -n "$loki" ]; then
+if [ -n "$logs_api" ]; then
     lines > "$work/lines.txt" 2> "$work/lines.err"
     gotl=$(awk '{ print $4 }' "$work/lines.txt" | sort -n | awk -v m="$t_main" '$1 < m')
 fi
@@ -233,8 +263,9 @@ if [ -n "$bk_metrics" ]; then
     say 'recovery: up to 3 minutes, for the count to reach the target'
     i=0
     while [ -n "$prom" ] && [ "$i" -lt 36 ]; do
-        # Prometheus adds _total to a counter's name; Mimir, by default, does not.
-        pq "{__name__=~\"vigil_spool_dropped(_total)?\",backend=\"target\",instance=\"backend-check\"}" > "$work/dropped.json" 2>&1
+        # Prometheus adds _total to a counter's name; Mimir, by default, does
+        # not, and VictoriaMetrics may keep the dots.
+        pq "{__name__=~\"vigil[._]spool[._]dropped(_total)?\",backend=\"target\",instance=\"backend-check\"}" > "$work/dropped.json" 2>&1
         jq -e '.data.result | length > 0' "$work/dropped.json" > /dev/null 2>&1 && break
         sleep 5
         i=$((i + 1))
@@ -257,8 +288,8 @@ if [ -n "$prom" ]; then
     job=$(sed -n 's/^job=//p' "$work/labels.txt")
     if [ "$job" = bk_check ]; then
         result PASS '4 job identifiers and labels: job="bk_check" kept'
-    elif grep -q '^__name__=bk_check_' "$work/labels.txt"; then
-        result PASS "4 job identifiers and labels: the job is in the metric name (bk_check_seq); its job label became job=\"$job\""
+    elif grep -q '^__name__=bk_check[._]' "$work/labels.txt"; then
+        result PASS "4 job identifiers and labels: the job is in the metric name ($(sed -n 's/^__name__=//p' "$work/labels.txt")); its job label became job=\"$job\""
     else
         result FAIL '4 job identifiers and labels: the job is in neither the name nor a label'
     fi
@@ -270,9 +301,8 @@ if [ -n "$prom" ]; then
 elif [ -n "$bk_metrics" ]; then
     result 'NOT RUN' "4, 5 labels: no query helper for $target"
 fi
-if [ -n "$loki" ]; then
-    stream=$(curl -fsS -m 30 -G "$loki/query_range" --data-urlencode "query={service_name=\"vigil\"} |= \"line $tag \"" \
-        --data-urlencode "since=1h" --data-urlencode 'limit=1' | jq -r '.data.result[0].stream | to_entries[] | "\(.key)=\(.value)"' | tr '\n' ' ')
+if [ -n "$logs_api" ]; then
+    stream=$(line_labels)
     printf '  stored log labels: %s\n' "$stream"
     case " $stream " in
         *" job=bk_check "*) result PASS '4 logs: job="bk_check" kept as a label' ;;
@@ -294,7 +324,7 @@ if [ -n "$prom" ]; then
         result FAIL "6 timestamps: ${off% *} samples more than 10s from their run (largest ${off#* }s); $late from the outage"
     fi
 fi
-if [ -n "$loki" ]; then
+if [ -n "$logs_api" ]; then
     off=$(awk '{ d = int($1 / 1000000000) - $4; if (d < 0 || d > 10) bad++; if (d > max) max = d } END { printf "%d %d", bad, max }' "$work/lines.txt")
     if [ "${off% *}" -eq 0 ] && [ -s "$work/lines.txt" ]; then
         result PASS "6 timestamps (logs): every line within ${off#* }s of its run"
@@ -346,7 +376,7 @@ if [ -n "$prom" ]; then
     fi
     if [ "$d" -eq 0 ]; then result PASS "12 duplicate delivery: none, $nwant runs, $nwant samples"; else result FAIL "12 duplicate delivery: $d runs stored twice"; fi
 fi
-if [ -n "$loki" ]; then
+if [ -n "$logs_api" ]; then
     m=$(printf '%s\n' "$gotl" | missing) d=$(printf '%s\n' "$gotl" | dups)
     if [ "$m" -eq 0 ]; then
         result PASS "10, 11, 16 logs: every run's line arrived, through the outage, the restart and the supervisor restart"
