@@ -143,7 +143,7 @@ is_upstream() {
 bk_targets='lgtm prometheus grafana loki tempo mimir pyroscope otel-collector alloy grafana-stack
 splunk victoriametrics victorialogs victoriatraces victoria elastic opensearch influxdb
 jaeger zipkin tracing clickhouse signoz uptrace graylog openbao vault aws azure gcp azure-alt gcp-alt
-git-gitea https-nginx sftp-openssh'
+git-gitea https-nginx sftp-openssh postgres-pack nginx-pack'
 
 # How Vigil reaches target $1. Sets bk_metrics and bk_logs to "<type>
 # <endpoint>" (type otel or splunk), each empty when Vigil cannot send that
@@ -192,6 +192,7 @@ endpoints() {
         graylog) bk_why='Graylog takes OTLP over gRPC, and Vigil sends OTLP over HTTP: needs a collector in between, to be worked out at first run' ;;
         openbao | vault | aws | azure | gcp | azure-alt | gcp-alt) bk_why="$1 is a secret store, not somewhere Vigil sends: test it with scripts/run-store.sh $1" ;;
         git-* | https-* | sftp-*) bk_why="$1 is a source Vigil fetches from, not somewhere it sends: test it with scripts/run-source.sh $1" ;;
+        *-pack) bk_why="$1 is a service a pack reads, not somewhere Vigil sends: test it with scripts/run-pack.sh ${1%-pack}" ;;
         *) die "unknown target: $1 (one of: $(echo $bk_targets))" ;;
     esac
 }
