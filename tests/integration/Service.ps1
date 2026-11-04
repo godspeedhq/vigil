@@ -121,15 +121,20 @@ function Test-Lifecycle {
     param([string]$Mode, [string]$Root, [string]$HostName, [string]$HostExe)
     $tag = "$Mode/$HostName"
     Write-Host "$tag, root $Root"
+    # Two lifecycles share a root: the state may still describe the last
+    # one's run, whose processes are gone and whose pids Windows may have
+    # given to something else (backlog 19). Only a run of this service counts.
+    $st = Join-Path $Root 'state\jobs\hold.state'
+    $before = Get-StateValue $st 'run_id'
     $rc = Invoke-Vigil $Root @('service', 'install', "--$Mode", '--host', $HostName)
     Test-Equal "${tag}: service install succeeds" '0' "$rc"
     if ($rc -ne 0) { $script:lastOut.Split("`n") | ForEach-Object { Write-Host "        $_" } }
     Test-Equal "${tag}: the service is active" 'active' (Get-SvcState $Root)
 
-    $st = Join-Path $Root 'state\jobs\hold.state'
-    for ($i = 0; $i -lt 120 -and -not (Get-StateValue $st 'job_pid'); $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 120 -and -not ((Get-StateValue $st 'job_pid') -and (Get-StateValue $st 'run_id') -cne $before); $i++) { Start-Sleep -Milliseconds 500 }
     $worker = Get-StateValue $st 'worker_pid'
     $job = Get-StateValue $st 'job_pid'
+    if ((Get-StateValue $st 'run_id') -ceq $before) { $worker = ''; $job = '' }
     Test-Equal "${tag}: the supervisor started the job" 'True' "$([bool]$job)"
     if (-not $job) {
         [void](Invoke-Vigil $Root @('status')); Write-Host $script:lastOut
@@ -139,6 +144,20 @@ function Test-Lifecycle {
     }
     $wp = Get-Process -Id ([int]$worker) -ErrorAction SilentlyContinue
     Test-Equal "${tag}: the worker runs on the chosen host" $HostExe "$(if ($wp) { $wp.Path })"
+    # Backlog 19: once in a while the worker is already gone here. All that
+    # is known about it, to find out why.
+    if (-not $wp) {
+        Write-Host "        worker $worker gone; job $job alive: $(Test-Alive $job)"
+        Get-Content -LiteralPath $st -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "        state: $_" }
+        foreach ($d in 'logs\jobs\hold', 'logs\supervisor') {
+            Get-ChildItem -LiteralPath (Join-Path $Root $d) -File -ErrorAction SilentlyContinue | ForEach-Object {
+                Write-Host "        [$d\$($_.Name)]"
+                Get-Content -LiteralPath $_.FullName -Tail 25 | ForEach-Object { Write-Host "        $_" }
+            }
+        }
+        Get-Process -Name powershell, pwsh, cmd, PING -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "        process $($_.Id) $($_.ProcessName) started $($_.StartTime.ToString('HH:mm:ss.fff'))" }
+    }
 
     Test-Equal "${tag}: stop succeeds" '0' "$(Invoke-Vigil $Root @('stop'))"
     Test-Equal "${tag}: the service is inactive after stop" 'inactive' (Get-SvcState $Root)

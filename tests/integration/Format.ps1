@@ -140,8 +140,12 @@ try {
 
     Write-Host 'A hot reload'
     $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$root\app\vigil.ps1`"", '-Root', "`"$root`"", 'supervise')
-    $sup = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList $argv
+    $sup = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList $argv `
+        -RedirectStandardOutput "$work\supervise.out" -RedirectStandardError "$work\supervise.err"
     for ($i = 0; $i -lt 120 -and -not (Get-SupervisorLog).Contains("supervisor started, pid $($sup.Id)"); $i++) { Start-Sleep -Milliseconds 500 }
+    # Backlog 19: once, on PowerShell 7, this supervisor had exited before
+    # the checks below. Whether it started at all, and what it said.
+    Test-Equal 'the supervisor starts' 'True' ([string](Get-SupervisorLog).Contains("supervisor started, pid $($sup.Id)"))
     Remove-Item -LiteralPath (Join-Path $root 'state\trace')
     Add-Bad 7
     Set-Version '2.0.0'
@@ -159,6 +163,13 @@ try {
     Test-Equal 'the same process' 'False' ([string]$sup.HasExited)
     Test-Equal 'the data moved' '7' (Get-Stored)
     Test-Equal 'by that one step' '7' ((@(Get-Trace) | ForEach-Object { $_.Split(' ')[0] }) -join ' ')
+    if ($script:fail -gt 0) {
+        Write-Host "        supervisor $($sup.Id) exited: $($sup.HasExited)"
+        (Get-SupervisorLog).Split("`n") | Select-Object -Last 25 | ForEach-Object { Write-Host "        log: $_" }
+        foreach ($f in 'supervise.out', 'supervise.err') {
+            Get-Content -LiteralPath "$work\$f" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "        ${f}: $_" }
+        }
+    }
 }
 finally {
     if ($sup -and -not $sup.HasExited) { try { Stop-Process -Id $sup.Id -Force -ErrorAction Stop } catch { } }
