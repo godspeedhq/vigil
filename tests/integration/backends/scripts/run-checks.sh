@@ -47,16 +47,19 @@ services=$(services_of "$target")
 [ -n "$services" ] || die "no containers for $target"
 
 # Where to ask: a Prometheus-style API for metrics, and for logs a Loki
-# (loki) or VictoriaLogs (vlogs) one at $logs.
+# (loki), VictoriaLogs (vlogs) one at $logs, or Elasticsearch (es) for both.
 prom='' logs_api='' logs=''
 case $target in
     prometheus | alloy) prom=http://127.0.0.1:9090/api/v1 ;;
     mimir | otel-collector) prom=http://127.0.0.1:9009/prometheus/api/v1 ;;
     victoriametrics) prom=http://127.0.0.1:8428/api/v1 ;;
+    # Not PromQL: documents searched in Elasticsearch (es() below).
+    elastic) prom=es ;;
 esac
 case $target in
     loki | otel-collector | alloy) logs_api=loki logs=http://127.0.0.1:3100/loki/api/v1 ;;
     victorialogs) logs_api=vlogs logs=http://127.0.0.1:9428/select/logsql ;;
+    elastic) logs_api=es ;;
 esac
 
 tag="ck$(date -u '+%Y%m%d%H%M%S')$$"
@@ -71,7 +74,7 @@ cleanup() {
     end_workers
     # The target is left running, as start.sh left it.
     [ -n "${down-}" ] && start_target > /dev/null
-    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}"
+    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}" "${ELASTIC_PASSWORD-}" "${OPENSEARCH_ADMIN_PASSWORD-}" "${INFLUXDB_TOKEN-}" "${CLICKHOUSE_PASSWORD-}"
     rm -rf "$work"
 }
 trap cleanup EXIT
@@ -138,15 +141,49 @@ config() {
 }
 config > "$root/config/vigil.config"
 
-# PromQL $1 at time $2 (default now), as JSON.
-pq() { curl -fsS -m 30 -G "$prom/query" --data-urlencode "query=$1" ${2:+--data-urlencode "time=$2"}; }
+# PromQL $1, as JSON.
+pq() { curl -fsS -m 30 -G "$prom/query" --data-urlencode "query=$1"; }
+# An Elasticsearch search of index pattern $1 with body $2, as JSON. The
+# password goes to curl on its standard input, never its command line.
+es() {
+    printf 'user = "elastic:%s"\n' "$ELASTIC_PASSWORD" |
+        curl -fsS -m 30 -K - -H 'Content-Type: application/json' "http://127.0.0.1:9200/$1/_search" -d "$2"
+}
 # bk_check.seq for this run, under the name each backend gives it:
 # Prometheus-style names turn the dot into an underscore, others keep it.
 seq_sel="{__name__=~\"bk_check[._]seq\",run=\"$tag\"}"
+es_seq="{\"size\":5000,\"query\":{\"bool\":{\"filter\":[{\"match\":{\"attributes.run\":\"$tag\"}},{\"exists\":{\"field\":\"metrics.bk_check.seq\"}}]}},\"sort\":[{\"@timestamp\":\"asc\"}]}"
 # Every stored sample of it, as "<timestamp> <value>".
-samples() { pq "$seq_sel[1h]" | jq -r '.data.result[0].values[]? | "\(.[0]) \(.[1])"'; }
+samples() {
+    case $prom in
+        es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor) \(.metrics["bk_check.seq"] | floor)"' ;;
+        *) pq "$seq_sel[1h]" | jq -r '.data.result[0].values[]? | "\(.[0]) \(.[1])"' ;;
+    esac
+}
 # The labels of its latest sample, one "key=value" a line.
-labels() { pq "last_over_time($seq_sel[1h])" | jq -r '.data.result[0].metric | to_entries[] | "\(.key)=\(.value)"'; }
+labels() {
+    case $prom in
+        es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[-1]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"' ;;
+        *) pq "last_over_time($seq_sel[1h])" | jq -r '.data.result[0].metric | to_entries[] | "\(.key)=\(.value)"' ;;
+    esac
+}
+# The drops of the target's events that the target itself holds, as
+# "<reason>=<value>" a line, or nothing. Prometheus adds _total to a
+# counter's name; Mimir, by default, does not; others keep the dots.
+drops() {
+    case $prom in
+        es)
+            # Only this run's: Vigil's own metrics carry no run tag, and a
+            # search, unlike PromQL, finds a series however old it is.
+            es 'metrics-*' "{\"size\":1,\"query\":{\"bool\":{\"filter\":[{\"match\":{\"attributes.backend\":\"target\"}},{\"match\":{\"attributes.instance\":\"backend-check\"}},{\"exists\":{\"field\":\"metrics.vigil.spool.dropped\"}},{\"range\":{\"@timestamp\":{\"gte\":$((t_start * 1000))}}}]}},\"sort\":[{\"@timestamp\":\"desc\"}]}" |
+                jq -r '.hits.hits[]._source | "\(.attributes.reason)=\(.metrics["vigil.spool.dropped"])"'
+            ;;
+        *)
+            pq "{__name__=~\"vigil[._]spool[._]dropped(_total)?\",backend=\"target\",instance=\"backend-check\"}" |
+                jq -r '.data.result[] | "\(.metric.reason)=\(.value[1])"'
+            ;;
+    esac
+}
 # Stored lines for this run, as "<nanoseconds> <line>", at most $1.
 lines() {
     case $logs_api in
@@ -160,6 +197,11 @@ lines() {
             curl -fsS -m 30 "$logs/query" --data-urlencode "query=_time:1h \"line $tag \"" --data-urlencode "limit=${1:-5000}" |
                 jq -r '"\((._time | sub("\\.[0-9]+"; "") | fromdateiso8601) * 1000000000) \(._msg)"'
             ;;
+        es)
+            # @timestamp in milliseconds.
+            es 'logs-*' "{\"size\":${1:-5000},\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}},\"sort\":[{\"@timestamp\":\"asc\"}]}" |
+                jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor | . * 1000000000) \(.body.text)"'
+            ;;
     esac
 }
 # The labels or fields one stored line came with, as "key=value ...".
@@ -172,6 +214,10 @@ line_labels() {
         vlogs)
             curl -fsS -m 30 "$logs/query" --data-urlencode "query=_time:1h \"line $tag \"" --data-urlencode 'limit=1' |
                 jq -r 'to_entries[] | select(.key | startswith("_") | not) | "\(.key)=\(.value)"'
+            ;;
+        es)
+            es 'logs-*' "{\"size\":1,\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}}}" |
+                jq -r '.hits.hits[0]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"'
             ;;
     esac | tr '\n' ' '
 }
@@ -263,10 +309,8 @@ if [ -n "$bk_metrics" ]; then
     say 'recovery: up to 3 minutes, for the count to reach the target'
     i=0
     while [ -n "$prom" ] && [ "$i" -lt 36 ]; do
-        # Prometheus adds _total to a counter's name; Mimir, by default, does
-        # not, and VictoriaMetrics may keep the dots.
-        pq "{__name__=~\"vigil[._]spool[._]dropped(_total)?\",backend=\"target\",instance=\"backend-check\"}" > "$work/dropped.json" 2>&1
-        jq -e '.data.result | length > 0' "$work/dropped.json" > /dev/null 2>&1 && break
+        drops > "$work/dropped.txt" 2> /dev/null
+        [ -s "$work/dropped.txt" ] && break
         sleep 5
         i=$((i + 1))
     done
@@ -391,8 +435,8 @@ if [ -n "$bk_metrics" ]; then
     printf '  dropped, in the file backend: %s\n' "${dropped_local:-none}"
     if [ -z "$dropped_local" ]; then
         result FAIL '13 dropped telemetry: nothing counted'
-    elif [ -n "$prom" ] && jq -e '.data.result | length > 0' "$work/dropped.json" > /dev/null 2>&1; then
-        result PASS "13 dropped telemetry: counted, and reported to $target once it was back ($(jq -r '[.data.result[] | "\(.metric.reason)=\(.value[1])"] | join(" ")' "$work/dropped.json"))"
+    elif [ -n "$prom" ] && [ -s "$work/dropped.txt" ]; then
+        result PASS "13 dropped telemetry: counted, and reported to $target once it was back ($(tr '\n' ' ' < "$work/dropped.txt"))"
     else
         result FAIL "13 dropped telemetry: counted in the file backend, but $target never got the count"
     fi

@@ -89,6 +89,7 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
     ports:
       - "127.0.0.1:4418:4318"   # OTLP HTTP: Vigil sends here
+      - "127.0.0.1:13135:13133"  # health_check: start.sh waits for it
     volumes:
       - ./configs/platforms/elastic/collector.yaml:/etc/otelcol/config.yaml:ro,z
 

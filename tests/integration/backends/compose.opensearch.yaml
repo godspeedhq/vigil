@@ -60,6 +60,7 @@ services:
       OPENSEARCH_ADMIN_PASSWORD: ${OPENSEARCH_ADMIN_PASSWORD:-}
     ports:
       - "127.0.0.1:4428:4318"   # OTLP HTTP: Vigil sends here
+      - "127.0.0.1:13136:13133"  # health_check: start.sh waits for it
     volumes:
       - ./configs/platforms/opensearch/collector.yaml:/etc/otelcol/config.yaml:ro,z
 

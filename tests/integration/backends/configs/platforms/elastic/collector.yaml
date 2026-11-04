@@ -16,15 +16,28 @@ exporters:
     endpoint: http://elasticsearch:9200
     auth:
       authenticator: basicauth/elastic
+    # Once the collector answers Vigil, delivery is the collector's to
+    # finish. By default this exporter retries twice, quickly, then drops:
+    # Elasticsearch restarting lost a minute of data (run-checks.sh, check
+    # 11). Retrying for a few minutes covers a restart.
+    retry:
+      enabled: true
+      max_retries: 60
+      initial_interval: 1s
+      max_interval: 10s
 
 extensions:
+  # The image has no shell for a Compose health check: start.sh asks this
+  # from the host.
+  health_check:
+    endpoint: 0.0.0.0:13133
   basicauth/elastic:
     client_auth:
       username: elastic
       password: ${env:ELASTIC_PASSWORD}
 
 service:
-  extensions: [basicauth/elastic]
+  extensions: [health_check, basicauth/elastic]
   pipelines:
     metrics:
       receivers: [otlp]

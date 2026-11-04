@@ -68,6 +68,11 @@ ready_url() {
         victoriametrics) echo http://127.0.0.1:13134/ ;;
         victorialogs) echo http://127.0.0.1:9428/health http://127.0.0.1:13134/ ;;
         victoriatraces) echo http://127.0.0.1:10428/health ;;
+        # The collectors in front of the stores, which have health checks.
+        elastic) echo http://127.0.0.1:13135/ ;;
+        opensearch) echo http://127.0.0.1:13136/ ;;
+        influxdb) echo http://127.0.0.1:13137/ ;;
+        clickhouse) echo http://127.0.0.1:13138/ ;;
     esac
 }
 

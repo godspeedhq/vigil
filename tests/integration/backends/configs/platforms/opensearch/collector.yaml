@@ -23,13 +23,17 @@ exporters:
         insecure_skip_verify: true
 
 extensions:
+  # The image has no shell for a Compose health check: start.sh asks this
+  # from the host.
+  health_check:
+    endpoint: 0.0.0.0:13133
   basicauth/opensearch:
     client_auth:
       username: admin
       password: ${env:OPENSEARCH_ADMIN_PASSWORD}
 
 service:
-  extensions: [basicauth/opensearch]
+  extensions: [health_check, basicauth/opensearch]
   pipelines:
     logs:
       receivers: [otlp]

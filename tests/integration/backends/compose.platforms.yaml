@@ -57,6 +57,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
     ports:
       - "127.0.0.1:4448:4318"   # OTLP HTTP: Vigil sends here
+      - "127.0.0.1:13138:13133"  # health_check: start.sh waits for it
     volumes:
       - ./configs/platforms/clickhouse/collector.yaml:/etc/otelcol/config.yaml:ro,z
 
