@@ -1,0 +1,42 @@
+== pack-nginx
+date     2026-11-04T20:12:07Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    7faef3ee379680b17fe54702c02e018352963694, with local changes
+command  scripts/run-pack.sh nginx
+bash     5.3.9(1)-release
+git      git version 2.56.0
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.18.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.services.yaml pins them)
+         nginx:1.30.5-alpine
+         postgres:18.1-alpine
+
+psql     none
+
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+nginx at http://127.0.0.1:9082/nginx_status
+  PASS  nginx: enabled
+  PASS  nginx: status runs
+        metric up 1
+        metric active_connections 1
+        metric reading 0
+        metric writing 1
+        metric waiting 0
+        metric accepts_count 130
+        metric handled_count 130
+        metric requests_count 130
+        metric dropped_count 0
+  PASS  nginx: up
+  PASS  nginx: requests counted
+  PASS  nginx: connections seen
+  PASS  nginx: none dropped
+  PASS  nginx: a server that is down still runs
+  PASS  nginx: and reads as up 0
+  PASS  nginx: metrics reach the backend
+11 passed, 0 failed
+evidence: reports/runs/2026-11-04/fedora/pack-nginx
