@@ -47,9 +47,10 @@ function Start-Evidence {
         "shell    PowerShell $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition))"
         "git      $(& $version git @('--version'))"
         "curl     $(& $version curl.exe @('--version'))"
-        "ssh      $(& $version ssh @('-V'))"
-        "images   (as $Compose pins them)")
-    foreach ($f in @(Get-ChildItem -Path (Join-Path $Bk $Compose) -ErrorAction SilentlyContinue)) {
+        "ssh      $(& $version ssh @('-V'))")
+    # A run with no server (run-update.ps1) has no Compose file.
+    if ($Compose) { $lines += "images   (as $Compose pins them)" }
+    foreach ($f in @(if ($Compose) { Get-ChildItem -Path (Join-Path $Bk $Compose) -ErrorAction SilentlyContinue })) {
         foreach ($l in [System.IO.File]::ReadAllLines($f.FullName)) { if ($l -match '^\s*image:\s*(\S+)') { $lines += "         $($Matches[1])" } }
     }
     $lines = @($lines | Select-Object -Unique)

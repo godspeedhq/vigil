@@ -84,8 +84,11 @@ evidence_header() {
     printf 'curl     %s\n' "$(curl --version 2> /dev/null | head -1 || echo none)"
     printf 'openssl  %s\n' "$(openssl version 2> /dev/null || echo none)"
     printf 'ssh      %s\n' "$(ssh -V 2>&1 | head -1)"
-    printf 'images   (as %s pins them)\n' "${file##*/}"
-    sed -n 's/^ *image: *//p' $file | sort -u | sed 's/^/         /'
+    # A run with no server (run-update.sh) has no Compose file.
+    if [ -n "$file" ]; then
+        printf 'images   (as %s pins them)\n' "${file##*/}"
+        sed -n 's/^ *image: *//p' $file | sort -u | sed 's/^/         /'
+    fi
     printf '\n'
 }
 # evidence_save <value>...: from the EXIT trap, before $work goes. A file
