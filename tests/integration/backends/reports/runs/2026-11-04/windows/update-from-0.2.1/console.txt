@@ -1,0 +1,69 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261104061536
+Username: DESKTOP-NN48DRS\vigil-test
+RunAs User: DESKTOP-NN48DRS\vigil-test
+Configuration Name: 
+Machine: DESKTOP-NN48DRS (Microsoft Windows NT 10.0.22631.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\run-update.ps1 -From 0.2.1
+Process ID: 5980
+PSVersion: 5.1.22621.6133
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22621.6133
+BuildVersion: 10.0.22621.6133
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+== update-from-0.2.1
+date     2026-11-04T06:15:36Z
+host     DESKTOP-NN48DRS
+os       Windows 11 Pro 23H2 (build 22631.6199)
+vigil    4df6070 (deployed copy)
+command  C:\Users\vigil-test\vigil\tests\integration\backends\scripts\run-update.ps1 -From 0.2.1
+shell    PowerShell 5.1.22621.6133 (Desktop)
+git      git version 2.56.0.windows.4
+curl     curl 8.13.0 (Windows) libcurl/8.13.0 Schannel zlib/1.3.1 WinIDN
+ssh      OpenSSH_for_Windows_9.5p1, LibreSSL 3.8.2
+
+updating from 0.2.1; the latest release is 0.2.2
+  PASS  Vigil 0.2.1 installs from GitHub
+  PASS  and is 0.2.1
+Vigil 0.2.1 has the release key: its update must be signed by it
+  PASS  jobs run on 0.2.1
+  PASS  the supervisor is 0.2.1
+
+> vigil self update --check
+Vigil 0.2.1 is installed; 0.2.2 is available: vigil self update
+
+> vigil self update
+updating Vigil 0.2.1 to 0.2.2
+verified vigil-0.2.2.zip (SHA-256 afdcda4dc06be77d73b11f7470f9f41e3c8880f2b8057619de037596a9aab00c)
+upgraded C:\Users\vigil-test\AppData\Local\Temp\vigil update.5980\root to Vigil 0.2.2
+done: Vigil 0.2.2
+
+  PASS  it updates itself from GitHub
+  PASS  to 0.2.2
+  PASS  the supervisor came up as 0.2.2
+  PASS  the same process
+  PASS  the configuration is untouched
+  PASS  0.2.2 is signed by the key 0.2.1 has
+  PASS  0.2.2 has the release key
+  PASS  the job running across it finished
+  PASS  and ran once
+  PASS  scheduled jobs carry on
+  PASS  no run crashed
+  PASS  metrics still flow
+  PASS  nothing quarantined
+> vigil self update
+Vigil 0.2.2 is installed: nothing to do
+
+  PASS  a second update finds nothing newer
+  PASS  and leaves 0.2.2 in place
+19 passed, 0 failed
+evidence: reports\runs\2026-11-04\windows\update-from-0.2.1
+**********************
+Windows PowerShell transcript end
+End time: 20261104061734
+**********************

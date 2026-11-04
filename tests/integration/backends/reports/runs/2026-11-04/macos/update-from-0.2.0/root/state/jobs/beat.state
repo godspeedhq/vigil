@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = beat
+run_id           = 20261104T061344Z-65878-25
+instance         = update
+status           = succeeded
+reason           = 
+boot_id          = boot-1790391279
+started_epoch    = 1793772824
+started_at       = 2026-11-04T06:13:44Z
+deadline_epoch   = 
+worker_pid       = 70115
+worker_name      = bash
+worker_start     = 
+job_pid          = 70190
+job_name         = bash
+job_start        = 
+ended_epoch      = 1793772824
+ended_at         = 2026-11-04T06:13:44Z
+duration_seconds = 0
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793772824-beat-20261104T061344Z-65878-25.events

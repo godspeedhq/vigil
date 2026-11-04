@@ -59,7 +59,7 @@ title() {
 mkdir -p "$dir"
 {
     printf '# Real systems\n\n'
-    printf 'Vigil against real servers on real machines: the secret stores, sources and backends of [`tests/integration/backends`](https://github.com/godspeedhq/vigil/tree/main/tests/integration/backends), run on Fedora (the Docker host), macOS 12 (bash 3.2) and Windows 11 (PowerShell 5.1). '
+    printf 'Vigil against real servers on real machines: the secret stores, sources, backends and updates of [`tests/integration/backends`](https://github.com/godspeedhq/vigil/tree/main/tests/integration/backends), run on Fedora (the Docker host), macOS 12 (bash 3.2) and Windows 11 (PowerShell 5.1). '
     printf 'Each run keeps everything it printed, with a header naming the commit and the versions of every tool and image, and Vigil'"'"'s own configuration, logs, state and metrics as the run left them. Nothing here is typed by hand: these pages are built from those files.\n\n'
     printf 'An emulator proves Vigil'"'"'s requests and how it reads the answers, not the real cloud: where one behaves differently, the run says EMULATOR LIMITATION, and never counts it as a pass. NOT RUN always says why.\n\n'
     printf '| Host | Run | Date | Passed | Failed | Not run | Other |\n| --- | --- | --- | --- | --- | --- | --- |\n'
@@ -67,7 +67,8 @@ mkdir -p "$dir"
         c=$runs/$d/$h/$n/console.txt
         [ -f "$c" ] || continue
         set -- $(counts "$c")
-        printf '| %s | [%s](/vigil/real/%s/#%s) | %s | %s | %s | %s | %s |\n' "$(title "$h")" "$n" "$h" "$n" "$d" "$1" "$2" "$3" "$4"
+        # The heading's anchor: kramdown drops the dots (update-from-0.2.0).
+        printf '| %s | [%s](/vigil/real/%s/#%s) | %s | %s | %s | %s | %s |\n' "$(title "$h")" "$n" "$h" "$(printf '%s' "$n" | tr -d .)" "$d" "$1" "$2" "$3" "$4"
     done
     printf '\n*Other* is emulator limitations, and what Vigil does not support or does not send (traces, KV v1).\n'
 } > "$dir/index.md"

@@ -47,9 +47,10 @@ function Start-Evidence {
         "shell    PowerShell $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition))"
         "git      $(& $version git @('--version'))"
         "curl     $(& $version curl.exe @('--version'))"
-        "ssh      $(& $version ssh @('-V'))"
-        "images   (as $Compose pins them)")
-    foreach ($f in @(Get-ChildItem -Path (Join-Path $Bk $Compose) -ErrorAction SilentlyContinue)) {
+        "ssh      $(& $version ssh @('-V'))")
+    # A run with no server (run-update.ps1) has no Compose file.
+    if ($Compose) { $lines += "images   (as $Compose pins them)" }
+    foreach ($f in @(if ($Compose) { Get-ChildItem -Path (Join-Path $Bk $Compose) -ErrorAction SilentlyContinue })) {
         foreach ($l in [System.IO.File]::ReadAllLines($f.FullName)) { if ($l -match '^\s*image:\s*(\S+)') { $lines += "         $($Matches[1])" } }
     }
     $lines = @($lines | Select-Object -Unique)
@@ -65,11 +66,16 @@ function Save-Evidence {
     if (-not $script:evDir -or -not (Test-Path -LiteralPath $script:evDir)) { return }
     $dest = Join-Path $script:evDir 'root'
     [void](New-Item -ItemType Directory -Force -Path $dest)
-    foreach ($d in 'config', 'logs', 'state', 'metrics') {
+    foreach ($d in 'config', 'logs', 'metrics') {
         $p = Join-Path $Root $d
         if (Test-Path -LiteralPath $p) { Copy-Item -LiteralPath $p -Destination $dest -Recurse -Force }
     }
-    Remove-Item -LiteralPath (Join-Path $dest 'state\locks') -Recurse -Force -ErrorAction SilentlyContinue
+    # Not state\locks: a run still finishing holds its lock open.
+    $p = Join-Path $Root 'state'
+    if (Test-Path -LiteralPath $p) {
+        [void](New-Item -ItemType Directory -Force -Path (Join-Path $dest 'state'))
+        Get-ChildItem -LiteralPath $p | Where-Object { $_.Name -cne 'locks' } | Copy-Item -Destination (Join-Path $dest 'state') -Recurse -Force
+    }
     Get-ChildItem -LiteralPath $Work -Filter '*.out' -File -ErrorAction SilentlyContinue | Copy-Item -Destination $script:evDir
     foreach ($f in @(Get-ChildItem -LiteralPath $script:evDir -Recurse -File | Where-Object { $_.Name -cne 'console.txt' })) {
         $text = try { [System.IO.File]::ReadAllText($f.FullName) } catch { '' }

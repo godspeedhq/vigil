@@ -1,0 +1,51 @@
+== update-from-0.2.0
+date     2026-11-04T06:13:17Z
+host     Bankoles-MacBook-Air.local
+os       macOS 12.7.6 (Darwin 21.6.0 x86_64)
+vigil    4df6070 (deployed copy)
+command  scripts/run-update.sh 0.2.0
+bash     3.2.57(1)-release
+git      git version 2.37.1 (Apple Git-137.1)
+curl     curl 8.7.1 (x86_64-apple-darwin21.0) libcurl/8.7.1 (SecureTransport) LibreSSL/3.3.6 zlib/1.2.11 nghttp2/1.45.1
+openssl  LibreSSL 2.8.3
+ssh      OpenSSH_8.6p1, LibreSSL 3.3.6
+
+updating from 0.2.0; the latest release is 0.2.2
+
+  PASS  Vigil 0.2.0 installs from GitHub
+  PASS  and is 0.2.0
+Vigil 0.2.0 has no release key: its update checks the SHA-256 only (signed releases began with 0.2.1)
+  PASS  jobs run on 0.2.0
+  PASS  the supervisor is 0.2.0
+
+$ vigil self update --check
+Vigil 0.2.0 is installed; 0.2.2 is available: vigil self update
+
+$ vigil self update
+updating Vigil 0.2.0 to 0.2.2
+downloading Vigil 0.2.2
+verified vigil-0.2.2.tar.gz (SHA-256 ee5915f867470e9923f80b5c1995e625eb1d8e023705384b8cc7efe8651da0ad)
+upgraded /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-update.xWjbCu/root to Vigil 0.2.2
+done: Vigil 0.2.2
+
+  PASS  it updates itself from GitHub
+  PASS  to 0.2.2
+  PASS  the supervisor came up as 0.2.2
+  PASS  the same process
+  PASS  the configuration is untouched
+  PASS  0.2.2 has the release key
+  PASS  the job running across it finished
+  PASS  and ran once
+  PASS  scheduled jobs carry on
+  PASS  no run crashed
+  PASS  metrics still flow
+  PASS  nothing quarantined
+
+$ vigil self update
+Vigil 0.2.2 is installed: nothing to do
+
+  PASS  a second update finds nothing newer
+  PASS  and leaves 0.2.2 in place
+18 passed, 0 failed
+scripts/run-update.sh: line 51: 65876 Terminated: 15          vigil supervise > "$work/supervise.out" 2>&1
+evidence: reports/runs/2026-11-04/macos/update-from-0.2.0

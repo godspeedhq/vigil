@@ -1,0 +1,11 @@
+downloading Vigil 0.2.0
+verified vigil-0.2.0.zip (SHA-256 5df24d36691800ffffcf4689bb585f0892988fa3b5fb2ae8b9dcb308ebf4cc85)
+installed Vigil 0.2.0 in C:\Users\vigil-test\AppData\Local\Temp\vigil update.1368\root
+added C:\Users\vigil-test\AppData\Local\Temp\vigil update.1368\root\app to the user PATH: new consoles run vigil
+
+wrote C:\Users\vigil-test\AppData\Local\Temp\vigil update.1368\root\config\vigil.config
+wrote C:\Users\vigil-test\AppData\Local\Temp\vigil update.1368\root\scripts\disk.ps1
+
+Next: vigil precheck, then vigil service install
+
+done: Vigil 0.2.0. vigil status shows what it is doing.

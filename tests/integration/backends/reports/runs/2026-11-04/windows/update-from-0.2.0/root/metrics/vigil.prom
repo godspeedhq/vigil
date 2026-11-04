@@ -1,0 +1,34 @@
+# TYPE beat_beats gauge
+beat_beats{host="desktop-nn48drs",instance="update",job="beat",os="windows"} 1
+# TYPE beat_duration_seconds gauge
+beat_duration_seconds{host="desktop-nn48drs",instance="update",job="beat",os="windows"} 6
+# TYPE beat_running gauge
+beat_running{host="desktop-nn48drs",instance="update",job="beat",os="windows"} 9
+# TYPE beat_runs_total counter
+beat_runs_total{host="desktop-nn48drs",instance="update",job="beat",os="windows"} 5
+# TYPE beat_skipped_total counter
+beat_skipped_total{host="desktop-nn48drs",instance="update",job="beat",os="windows"} 33
+# TYPE beat_succeeded_total counter
+beat_succeeded_total{host="desktop-nn48drs",instance="update",job="beat",os="windows"} 5
+# TYPE long_duration_seconds gauge
+long_duration_seconds{host="desktop-nn48drs",instance="update",job="long",os="windows"} 34
+# TYPE long_long gauge
+long_long{host="desktop-nn48drs",instance="update",job="long",os="windows"} 1
+# TYPE long_running gauge
+long_running{host="desktop-nn48drs",instance="update",job="long",os="windows"} 30
+# TYPE long_runs_total counter
+long_runs_total{host="desktop-nn48drs",instance="update",job="long",os="windows"} 1
+# TYPE long_succeeded_total counter
+long_succeeded_total{host="desktop-nn48drs",instance="update",job="long",os="windows"} 1
+# TYPE vigil_config_info gauge
+vigil_config_info{host="desktop-nn48drs",instance="update",os="windows",revision="3dbcd5eca7ae"} 1
+# TYPE vigil_spool_bytes gauge
+vigil_spool_bytes{host="desktop-nn48drs",instance="update",os="windows"} 362
+# TYPE vigil_supervisor_config_reload_failed gauge
+vigil_supervisor_config_reload_failed{host="desktop-nn48drs",instance="update",os="windows"} 0
+# TYPE vigil_supervisor_pending gauge
+vigil_supervisor_pending{host="desktop-nn48drs",instance="update",os="windows"} 0
+# TYPE vigil_supervisor_up gauge
+vigil_supervisor_up{host="desktop-nn48drs",instance="update",os="windows"} 1
+# TYPE vigil_supervisor_workers gauge
+vigil_supervisor_workers{host="desktop-nn48drs",instance="update",os="windows"} 2

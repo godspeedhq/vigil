@@ -185,9 +185,20 @@ scripts/run-source.sh local         # needs no server at all
 
 Results are in [`reports/sources-compatibility.md`](reports/sources-compatibility.md).
 
+## Updates
+
+`run-update` needs no Docker and no server but GitHub. A published release is installed by its own installer from GitHub, into a throwaway folder, and real jobs run on it, one of them across the update. Then its own `vigil self update` moves it to the latest release, with no test overrides: the real release server and the real release key. The supervisor must carry on as the same process, with its configuration, jobs, state and metrics intact.
+
+```sh
+scripts/run-update.sh          # from 0.2.0 (run-update.ps1 -From 0.2.0 on Windows)
+scripts/run-update.sh 0.2.1    # from the first signed release
+```
+
+A release from 0.2.1 on carries the release key, and its update refuses what that key did not sign; it says nothing when the signature is good, so the run verifies the same signature with the same key itself. 0.2.0 predates signing, and checks the SHA-256 only. A Vigil already installed on the machine is not touched. Results are in [`reports/updates.md`](reports/updates.md).
+
 ## Evidence
 
-Every `run-vigil`, `run-store` and `run-source` run, in bash and PowerShell, keeps its evidence in `reports/runs/<date>/<host>/<name>/` before its temporary folder goes:
+Every `run-vigil`, `run-store`, `run-source` and `run-update` run, in bash and PowerShell, keeps its evidence in `reports/runs/<date>/<host>/<name>/` before its temporary folder goes:
 
 - **`console.txt`:** a header (the date, host, OS, the Vigil commit, and the versions of the shell, git, curl, OpenSSL and ssh, with the images the Compose file pins), then everything the run printed. On Windows it is a PowerShell transcript.
 - **`*.out`:** what Vigil itself printed.
