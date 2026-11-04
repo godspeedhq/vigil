@@ -53,7 +53,7 @@ services:
       - gitea-data:/data
       - ./.secrets/tls:/tls:ro,z
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsk https://127.0.0.1:3443/api/healthz > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fs --cacert /tls/ca.pem https://127.0.0.1:3443/api/healthz > /dev/null || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 60

@@ -122,17 +122,20 @@ logs_victorialogs() {
     printf '%s\n' "$out"
     [ -n "$out" ]
 }
-# Elasticsearch and OpenSearch: any document carrying the tag.
+# Elasticsearch and OpenSearch: any document carrying the tag. User and
+# password $1 go to curl on its standard input, never its command line.
 es_hits() {
-    local out
-    out=$(curl -fsS "$@") || return 1
+    local out user=$1
+    shift
+    out=$(printf 'user = "%s"\n' "$user" | curl -fsS -K - "$@") || return 1
     printf '%s\n' "$out"
     case $out in *'"hits":{"total":{"value":0'*) return 1 ;; *'"hits":{"total":{"value":'*) return 0 ;; esac
     return 1
 }
-metrics_elastic() { es_hits -u "elastic:$ELASTIC_PASSWORD" "http://127.0.0.1:9200/metrics-*/_search?q=$(enc "\"$tag\"")"; }
-logs_elastic() { es_hits -u "elastic:$ELASTIC_PASSWORD" "http://127.0.0.1:9200/logs-*/_search?q=$(enc "\"$tag\"")"; }
-logs_opensearch() { es_hits -k -u "admin:$OPENSEARCH_ADMIN_PASSWORD" "https://127.0.0.1:9201/*/_search?q=$(enc "\"$tag\"")"; }
+metrics_elastic() { es_hits "elastic:$ELASTIC_PASSWORD" "http://127.0.0.1:9200/metrics-*/_search?q=$(enc "\"$tag\"")"; }
+logs_elastic() { es_hits "elastic:$ELASTIC_PASSWORD" "http://127.0.0.1:9200/logs-*/_search?q=$(enc "\"$tag\"")"; }
+# OpenSearch's demo certificate, verified against its root CA (ca.sh).
+logs_opensearch() { es_hits "admin:$OPENSEARCH_ADMIN_PASSWORD" --cacert "$bk_dir/.secrets/opensearch/root-ca.pem" "https://127.0.0.1:9201/*/_search?q=$(enc "\"$tag\"")"; }
 metrics_influxdb() {
     local out
     out=$(curl -fsS http://127.0.0.1:8086/api/v2/query?org=vigil -H "Authorization: Token $INFLUXDB_TOKEN" \

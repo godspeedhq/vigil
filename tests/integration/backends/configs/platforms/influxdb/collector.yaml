@@ -18,7 +18,14 @@ exporters:
     token: ${env:INFLUXDB_TOKEN}
     metrics_schema: telegraf-prometheus-v1
 
+extensions:
+  # The image has no shell for a Compose health check: start.sh asks this
+  # from the host.
+  health_check:
+    endpoint: 0.0.0.0:13133
+
 service:
+  extensions: [health_check]
   pipelines:
     metrics:
       receivers: [otlp]

@@ -1,0 +1,17 @@
+ Container vigil-backends-opensearch-1 Running 
+ Container vigil-backends-opensearch-1 Waiting 
+ Container vigil-backends-opensearch-1 Healthy 
+ Container vigil-backends-opensearch-collector-1 Running 
+ Container vigil-backends-opensearch-dashboards-1 Running 
+ Container vigil-backends-opensearch-1 Running 
+ Container vigil-backends-opensearch-1 Waiting 
+ Container vigil-backends-opensearch-1 Waiting 
+ Container vigil-backends-opensearch-1 Healthy 
+ Container vigil-backends-opensearch-1 Healthy 
+ Container vigil-backends-opensearch-1 Waiting 
+ Container vigil-backends-opensearch-collector-1 Waiting 
+ Container vigil-backends-opensearch-dashboards-1 Waiting 
+ Container vigil-backends-opensearch-1 Healthy 
+ Container vigil-backends-opensearch-dashboards-1 Healthy 
+ Container vigil-backends-opensearch-collector-1 Healthy 
+started: opensearch

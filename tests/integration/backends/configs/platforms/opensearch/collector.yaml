@@ -1,8 +1,8 @@
 # OTLP from Vigil, into OpenSearch through the collector's opensearch
-# exporter. Inside the Compose network the collector talks to OpenSearch's
-# demo certificate without checking it: this hop is test-only and never
-# leaves the machine. Vigil's own hop to the collector is plain HTTP on
-# localhost, which Vigil allows.
+# exporter, verifying OpenSearch's demo certificate against its root CA
+# (copied out by ca.sh), under the name the certificate carries. Vigil's
+# own hop to the collector is plain HTTP on localhost, which Vigil
+# allows.
 
 receivers:
   otlp:
@@ -16,20 +16,26 @@ processors:
 exporters:
   opensearch:
     http:
-      endpoint: https://opensearch:9200
+      # The name OpenSearch's demo certificate carries (a network alias), and
+      # its root CA, copied out by ca.sh: the certificate is verified.
+      endpoint: https://node-0.example.com:9200
       auth:
         authenticator: basicauth/opensearch
       tls:
-        insecure_skip_verify: true
+        ca_file: /etc/otelcol/opensearch-ca.pem
 
 extensions:
+  # The image has no shell for a Compose health check: start.sh asks this
+  # from the host.
+  health_check:
+    endpoint: 0.0.0.0:13133
   basicauth/opensearch:
     client_auth:
       username: admin
       password: ${env:OPENSEARCH_ADMIN_PASSWORD}
 
 service:
-  extensions: [basicauth/opensearch]
+  extensions: [health_check, basicauth/opensearch]
   pipelines:
     logs:
       receivers: [otlp]

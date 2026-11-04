@@ -52,6 +52,7 @@ services:
       INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-}
     ports:
       - "127.0.0.1:4438:4318"   # OTLP HTTP: Vigil sends here
+      - "127.0.0.1:13137:13133"  # health_check: start.sh waits for it
     volumes:
       - ./configs/platforms/influxdb/collector.yaml:/etc/otelcol/config.yaml:ro,z
 
