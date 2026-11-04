@@ -15,6 +15,16 @@ The tests print what they know when these fail.
 
 ## Fixed, cause known (2026-11-04)
 
+- `tests/integration/Supervise.ps1`, PowerShell 5.1: `no locks left`, on main
+  (b9c19a6) on 2026-11-04. **The test's:** it stops its supervisor with
+  `Stop-Process -Force`, which landed between writing `vigil_sender`'s launch
+  record and its worker claiming it. Vigil abandons such a launch only once it
+  is older than the 120-second grace (11.3), and the next supervisor did, 133
+  seconds after the launch; the test looked after 7. The test now ages a launch
+  the stop left behind, and the next tick must abandon it; checked locally with
+  one planted. `supervise.sh` stops its supervisor with `TERM`, which it
+  handles, and has never failed this way.
+
 - `tests/integration/Service.ps1`, PowerShell 5.1: `system/pwsh: the worker
   runs on the chosen host`, then `outlives stop` and `outlives remove`, on #67,
   `tests/secrets` and main. **The test's:** the powershell and pwsh lifecycles

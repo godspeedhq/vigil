@@ -155,6 +155,18 @@ Remove-Item -LiteralPath (Join-Path $root 'state\pending') -ErrorAction Silently
 Start-Sleep -Seconds 7
 Invoke-Tick
 Invoke-Tick
+# Stop-Process can land between a launch record and its worker's claim. No
+# worker ever holds that record, and Vigil abandons it once it is older than
+# the 120-second grace (11.3). The test ages it rather than waiting, and the
+# tick below must then abandon it.
+$orphans = @(Get-ChildItem -LiteralPath $locks -Filter '*.launch' -File -ErrorAction SilentlyContinue)
+if ($orphans.Count -gt 0) {
+    Write-Host "  note  the stop left an unclaimed launch: $(($orphans | ForEach-Object Name) -join ' '); aged past the grace"
+    foreach ($o in $orphans) {
+        [System.IO.File]::WriteAllText($o.FullName, ([System.IO.File]::ReadAllText($o.FullName) -replace '(?m)^(launch_epoch *= *)\d+', '${1}1'))
+    }
+    Invoke-Tick
+}
 
 Test-Equal 'concurrency limit never broken' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'overlap'))"
 Test-Equal 'fast ran and succeeded' 'succeeded' (Get-StateValue (Join-Path $root 'state\jobs\fast.state') 'status')
