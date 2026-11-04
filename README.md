@@ -39,7 +39,7 @@ Vigil runs the work, records the work, and forwards the evidence. Storage, dashb
   - [Uncertain runs](#uncertain-runs)
   - [Scheduling: slots and cursors](#scheduling-slots-and-cursors)
   - [The spool and the sender](#the-spool-and-the-sender)
-- [Writing jobs](#writing-jobs)
+- [Writing jobs](#writing-jobs): [where your scripts go](#where-your-scripts-go)
 - [Configuration](#configuration)
 - [Commands](#commands)
 - [Files on disk](#files-on-disk)
@@ -617,7 +617,44 @@ Vigil only runs what your configuration names, so `vigil pack update` changes sc
 
 ## Writing jobs
 
-A job is any script or program. Vigil captures everything it prints. Lines in this form become metrics:
+A job is any script or program. Vigil captures everything it prints.
+
+### Where your scripts go
+
+Anywhere you like. A job's `file` is any path: absolute, or relative to Vigil's root. Vigil only needs the file to be there when the job runs, and readable (and runnable, for a program) by the account Vigil runs as.
+
+```ini
+[job.backup_check]
+file      = /srv/ops/checks/backup_check.sh
+run_every = 1h
+```
+
+The root has a folder for them, though: `scripts/`, beside `config/`. `vigil init` creates it, so every install has it, empty. It's the natural place for scripts that belong to this Vigil: a relative path into it works the same on every machine, upgrades never touch it, and `vigil uninstall --keep-config` keeps it. `vigil about` prints the root as `Installed`.
+
+| Platform | User mode | System mode |
+| --- | --- | --- |
+| Linux, macOS | `~/.local/share/vigil` | `/opt/vigil` |
+| Windows | `%LOCALAPPDATA%\Vigil` | `C:\ProgramData\Vigil` |
+
+So, using `scripts/`, on Linux in user mode:
+
+1. Copy the script in: `cp backup_check.sh ~/.local/share/vigil/scripts/`
+2. Add a job to `config/vigil.config` that names it, relative to the root:
+
+   ```ini
+   [job.backup_check]
+   file      = scripts/backup_check.sh
+   run_every = 1h
+   ```
+3. Check it with `vigil precheck`, and try it once with `vigil run backup_check`.
+
+The supervisor picks the job up at its next tick, with no restart. Copy the script before you save the configuration: a job whose file is missing fails each run until it is there, and `vigil precheck` says which file it is looking for.
+
+`.sh` files run with bash, and `.ps1` with PowerShell, through the `[runners]` that `vigil init` writes. A program that runs on its own (a compiled binary, or a script with `#!` and the executable bit) needs no runner. A script can also come from a git repository or a web server instead: see [Sources](#sources).
+
+### What a script prints
+
+Lines in this form become metrics:
 
 ```text
 metric <name> <value> [key=value ...]
