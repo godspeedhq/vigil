@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_long
+run_id           = 20261104T140204Z-2816076-20
+instance         = backend-test
+status           = succeeded
+reason           = 
+boot_id          = f4d0989a-632d-4986-bf54-590720c04f03
+started_epoch    = 1793800924
+started_at       = 2026-11-04T14:02:04Z
+deadline_epoch   = 1793800979
+worker_pid       = 2822274
+worker_name      = bash
+worker_start     = 1793800923
+job_pid          = 2822410
+job_name         = bash
+job_start        = 1793800923
+ended_epoch      = 1793800964
+ended_at         = 2026-11-04T14:02:44Z
+duration_seconds = 40
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793800964-bk_long-20261104T140204Z-2816076-20.events

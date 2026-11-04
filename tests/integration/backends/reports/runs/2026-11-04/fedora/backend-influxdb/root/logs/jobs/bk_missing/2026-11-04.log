@@ -1,0 +1,4 @@
+2026-11-04T14:01:04Z 20261104T140104Z-2816076-8 run start
+2026-11-04T14:01:04Z 20261104T140104Z-2816076-8 run end failed (file not found: /tmp/vigil-bk.uBMrx9/root/scripts/missing.sh) in 0s
+2026-11-04T14:02:04Z 20261104T140204Z-2816076-22 run start
+2026-11-04T14:02:04Z 20261104T140204Z-2816076-22 run end failed (file not found: /tmp/vigil-bk.uBMrx9/root/scripts/missing.sh) in 0s

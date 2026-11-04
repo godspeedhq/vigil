@@ -1,0 +1,13 @@
+target   influxdb
+run tag  bk202611041400332816023
+date     2026-11-04T14:03:19Z
+images
+influxdb influxdb:2.9.1
+influxdb-collector otel/opentelemetry-collector-contrib:0.163.2
+
+== metrics: PASS
+,result,table,_start,_stop,_time,_value,_field,_measurement,host,instance,job,os,otel.library.name,run,service.name
+,_result,0,2026-11-04T13:03:19.277094847Z,2026-11-04T14:03:19.277094847Z,2026-11-04T14:01:15Z,42,gauge,bk_metrics.vigil_backend_probe,fedora,backend-test,bk_metrics,linux,vigil,bk202611041400332816023,vigil
+,_result,0,2026-11-04T13:03:19.277094847Z,2026-11-04T14:03:19.277094847Z,2026-11-04T14:02:15Z,42,gauge,bk_metrics.vigil_backend_probe,fedora,backend-test,bk_metrics,linux,vigil,bk202611041400332816023,vigil
+
+

@@ -73,6 +73,9 @@ ready_url() {
         opensearch) echo http://127.0.0.1:13136/ ;;
         influxdb) echo http://127.0.0.1:13137/ ;;
         clickhouse) echo http://127.0.0.1:13138/ ;;
+        # Traces only, which Vigil does not send: started to show they run.
+        jaeger) echo http://127.0.0.1:16686/ ;;
+        zipkin) echo http://127.0.0.1:9411/health ;;
     esac
 }
 

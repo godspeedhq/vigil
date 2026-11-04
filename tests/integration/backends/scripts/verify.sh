@@ -138,7 +138,9 @@ logs_elastic() { es_hits "elastic:$ELASTIC_PASSWORD" "http://127.0.0.1:9200/logs
 logs_opensearch() { es_hits "admin:$OPENSEARCH_ADMIN_PASSWORD" --cacert "$bk_dir/.secrets/opensearch/root-ca.pem" "https://127.0.0.1:9201/*/_search?q=$(enc "\"$tag\"")"; }
 metrics_influxdb() {
     local out
-    out=$(curl -fsS http://127.0.0.1:8086/api/v2/query?org=vigil -H "Authorization: Token $INFLUXDB_TOKEN" \
+    # The token on curl's standard input, never its command line.
+    out=$(printf 'header = "Authorization: Token %s"\n' "$INFLUXDB_TOKEN" |
+        curl -fsS -K - http://127.0.0.1:8086/api/v2/query?org=vigil \
         -H 'Content-Type: application/vnd.flux' -H 'Accept: application/csv' \
         --data "from(bucket: \"vigil\") |> range(start: -1h) |> filter(fn: (r) => r.run == \"$tag\")") || return 1
     printf '%s\n' "$out"
