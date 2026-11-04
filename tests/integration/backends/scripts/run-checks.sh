@@ -59,6 +59,7 @@ case $target in
     elastic) prom=es ;;
     influxdb) prom=influx ;;
     clickhouse) prom=ch ;;
+    splunk) prom=splunk ;;
 esac
 case $target in
     loki | otel-collector | alloy) logs_api=loki logs=http://127.0.0.1:3100/loki/api/v1 ;;
@@ -66,9 +67,13 @@ case $target in
     elastic) logs_api=es ;;
     opensearch) logs_api=os ;;
     clickhouse) logs_api=ch ;;
+    splunk) logs_api=splunk ;;
 esac
 
 tag="ck$(date -u '+%Y%m%d%H%M%S')$$"
+# A well-formed HEC token Splunk never issued: check 7's backend sends it.
+BK_BAD_TOKEN=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n' | sed 's/^\(.\{8\}\)\(.\{4\}\)\(.\{4\}\)\(.\{4\}\)/\1-\2-\3-\4-/')
+export BK_BAD_TOKEN
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-ck.XXXXXX") || exit 1
 root=$work/root
 ledger=$work/ledger
@@ -80,7 +85,7 @@ cleanup() {
     end_workers
     # The target is left running, as start.sh left it.
     [ -n "${down-}" ] && start_target > /dev/null
-    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}" "${ELASTIC_PASSWORD-}" "${OPENSEARCH_ADMIN_PASSWORD-}" "${INFLUXDB_TOKEN-}" "${CLICKHOUSE_PASSWORD-}"
+    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}" "${ELASTIC_PASSWORD-}" "${OPENSEARCH_ADMIN_PASSWORD-}" "${INFLUXDB_TOKEN-}" "${CLICKHOUSE_PASSWORD-}" "${SPLUNK_PASSWORD-}" "$BK_BAD_TOKEN"
     rm -rf "$work"
 }
 trap cleanup EXIT
@@ -131,13 +136,21 @@ config() {
     printf '[runner.sh]\ncommand = /bin/bash\n\n[runners]\n.sh = sh\n\n'
     [ -n "${1-}" ] && printf '[spool]\nmax_mb = 1\n\n'
     if [ -n "$bk_metrics" ]; then
-        printf '[backend.target]\ntype     = %s\nendpoint = %s\n\n' "${bk_metrics%% *}" "${bk_metrics#* }"
+        printf '[backend.target]\ntype     = %s\nendpoint = %s\n' "${bk_metrics%% *}" "${bk_metrics#* }"
+        [ "$target" = splunk ] && printf 'token    = env:VIGIL_SPLUNK_METRICS_TOKEN\n'
+        printf '\n'
+    fi
+    # 7: a credential the target must refuse, beside the right one.
+    if [ "$target" = splunk ]; then
+        printf '[backend.badtoken]\ntype     = splunk\nendpoint = %s\ntoken    = env:BK_BAD_TOKEN\n\n' "${bk_metrics#* }"
     fi
     # The second destination, healthy throughout.
     printf '[backend.local]\ntype = file\npath = metrics/local.prom\n\n'
     if [ -n "$bk_logs" ]; then
         printf '[log_forward]\ndestination = target\ninclude     = run, stdout, stderr\ncheck_every = 5s\n\n'
-        printf '[log_destination.target]\ntype     = %s\nendpoint = %s\n\n' "${bk_logs%% *}" "${bk_logs#* }"
+        printf '[log_destination.target]\ntype     = %s\nendpoint = %s\n' "${bk_logs%% *}" "${bk_logs#* }"
+        [ "$target" = splunk ] && printf 'token    = env:VIGIL_SPLUNK_LOGS_TOKEN\n'
+        printf '\n'
     fi
     printf '[job.bk_check]\nfile = scripts/check.sh\nrun_every = 5s\nenv = BK_RUN=%s\nenv = BK_LEDGER=%s\n\n' "$tag" "$ledger"
     # To the target only: the file backend merges about 430 events a second
@@ -161,6 +174,15 @@ ifq() {
     printf 'header = "Authorization: Token %s"\n' "$INFLUXDB_TOKEN" |
         curl -fsS -m 30 -K - 'http://127.0.0.1:8086/api/v2/query?org=vigil' \
             -H 'Content-Type: application/vnd.flux' -H 'Accept: application/csv' --data "$1" | tr -d '\r'
+}
+# A Splunk search $1, from time $2 (default an hour ago), through the
+# management API, as JSON results one a line. The password goes to curl on
+# its standard input; the certificate is the test CA's, verified.
+spl() {
+    printf 'user = "admin:%s"\n' "$SPLUNK_PASSWORD" |
+        curl -fsS -m 60 -K - --cacert "$bk_dir/.secrets/tls/ca.pem" https://127.0.0.1:8089/services/search/jobs/export \
+            --data-urlencode "search=$1" -d output_mode=json -d "earliest_time=${2:--1h}" |
+        jq -c '.result // empty'
 }
 # SQL $1 on ClickHouse, as tab-separated rows. The password goes to curl on
 # its standard input, never its command line.
@@ -191,6 +213,12 @@ samples() {
     case $prom in
         es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor) \(.metrics["bk_check.seq"] | floor)"' ;;
         influx) csv_cols "$(ifq "$flux_seq |> map(fn: (r) => ({t: int(v: r._time) / 1000000000, v: int(v: r._value)}))")" t v ;;
+        splunk)
+            # Per second, how many samples and their value: two in one second
+            # are a duplicate, and are listed twice.
+            spl "| mstats count(_value) AS n latest(_value) AS v WHERE index=vigil_metrics AND metric_name=\"bk_check.seq\" AND run=\"$tag\" span=1s | where n > 0 | eval t=_time" |
+                jq -r '. as $r | range($r.n | tonumber) | "\($r.t | tonumber | floor) \($r.v | tonumber | floor)"'
+            ;;
         ch) chq "SELECT toUnixTimestamp(TimeUnix), toInt64(Value) FROM vigil.otel_metrics_gauge WHERE MetricName = 'bk_check.seq' AND Attributes['run'] = '$tag' ORDER BY TimeUnix" | tr '\t' ' ' ;;
         *) pq "$seq_sel[1h]" | jq -r '.data.result[0].values[]? | "\(.[0]) \(.[1])"' ;;
     esac
@@ -199,6 +227,10 @@ samples() {
 labels() {
     case $prom in
         es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[-1]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"' ;;
+        splunk)
+            spl "| mstats latest(_value) AS v WHERE index=vigil_metrics AND metric_name=\"bk_check.seq\" AND run=\"$tag\" BY host os instance job run" |
+                head -n 1 | jq -r 'to_entries[] | select(.key != "v") | "\(.key)=\(.value)"'
+            ;;
         ch)
             chq "SELECT concat(k, '=', v) FROM (SELECT Attributes AS m FROM vigil.otel_metrics_gauge WHERE MetricName = 'bk_check.seq' AND Attributes['run'] = '$tag' ORDER BY TimeUnix DESC LIMIT 1) ARRAY JOIN mapKeys(m) AS k, mapValues(m) AS v"
             ;;
@@ -220,6 +252,10 @@ drops() {
             # search, unlike PromQL, finds a series however old it is.
             es 'metrics-*' "{\"size\":1,\"query\":{\"bool\":{\"filter\":[{\"match\":{\"attributes.backend\":\"target\"}},{\"match\":{\"attributes.instance\":\"backend-check\"}},{\"exists\":{\"field\":\"metrics.vigil.spool.dropped\"}},{\"range\":{\"@timestamp\":{\"gte\":$((t_start * 1000))}}}]}},\"sort\":[{\"@timestamp\":\"desc\"}]}" |
                 jq -r '.hits.hits[]._source | "\(.attributes.reason)=\(.metrics["vigil.spool.dropped"])"'
+            ;;
+        splunk)
+            spl "| mstats latest(_value) AS v WHERE index=vigil_metrics AND metric_name=\"vigil.spool.dropped\" AND backend=\"target\" AND instance=\"backend-check\" BY reason" "$t_start" |
+                jq -r '"\(.reason)=\(.v)"'
             ;;
         ch)
             chq "SELECT concat(Attributes['reason'], '=', toString(Value)) FROM vigil.otel_metrics_sum WHERE MetricName = 'vigil.spool.dropped' AND Attributes['backend'] = 'target' AND Attributes['instance'] = 'backend-check' AND TimeUnix >= toDateTime($t_start) ORDER BY TimeUnix DESC LIMIT 1"
@@ -252,6 +288,10 @@ lines() {
             es 'logs-*' "{\"size\":${1:-5000},\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}},\"sort\":[{\"@timestamp\":\"asc\"}]}" |
                 jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor | . * 1000000000) \(.body.text)"'
             ;;
+        splunk)
+            spl "search index=vigil_logs \"line $tag\" | spath message | eval t=_time | table t message | head ${1:-5000}" |
+                jq -r '"\(.t | tonumber | floor | . * 1000000000) \(.message)"'
+            ;;
         ch)
             chq "SELECT toUnixTimestamp(Timestamp) * 1000000000, Body FROM vigil.otel_logs WHERE position(Body, 'line $tag ') > 0 ORDER BY Timestamp LIMIT ${1:-5000}" | tr '\t' ' '
             ;;
@@ -276,6 +316,11 @@ line_labels() {
         es)
             es 'logs-*' "{\"size\":1,\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}}}" |
                 jq -r '.hits.hits[0]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"'
+            ;;
+        splunk)
+            # The event's own fields, and the indexed ones HEC set.
+            spl "search index=vigil_logs \"line $tag\" | head 1 | spath | fields - _* index splunk_server linecount punct timestartpos timeendpos date_* eventtype tag* | table *" |
+                head -n 1 | jq -r 'to_entries[] | select(.value | type == "string") | "\(.key)=\(.value)"'
             ;;
         ch)
             chq "SELECT concat(k, '=', v) FROM (SELECT mapUpdate(ResourceAttributes, LogAttributes) AS m FROM vigil.otel_logs WHERE position(Body, 'line $tag ') > 0 LIMIT 1) ARRAY JOIN mapKeys(m) AS k, mapValues(m) AS v"
@@ -442,7 +487,18 @@ if [ -n "$logs_api" ]; then
     fi
 fi
 
-result 'NOT APPLICABLE' "7 authentication rejected: $target takes OTLP without authentication in this environment, so there is nothing to refuse"
+# 7: a wrong credential refused. Only Splunk takes one from Vigil here.
+if [ "$target" = splunk ]; then
+    refused=$(grep -h 'delivery failed: .*badtoken (permission denied (HTTP 40[13]' "$root"/logs/jobs/vigil_sender/*.log 2> /dev/null | head -n 1)
+    badn=$(local_value 'vigil_backend_failures_total{backend="badtoken"')
+    if [ -n "$refused" ] && [ "${badn:-0}" -gt 0 ]; then
+        result PASS "7 authentication rejected: a wrong HEC token refused ($(printf '%s' "$refused" | grep -o 'HTTP 40[13][^)]*' | head -n 1)), $badn failures counted, the right token delivering all along"
+    else
+        result FAIL "7 authentication rejected: refused [${refused:-nothing}], failures counted [${badn:-none}]"
+    fi
+else
+    result 'NOT APPLICABLE' "7 authentication rejected: $target takes OTLP without authentication in this environment, so there is nothing to refuse"
+fi
 
 # 8, 9: the outage, as Vigil recorded it.
 if [ -n "$bk_metrics" ]; then
