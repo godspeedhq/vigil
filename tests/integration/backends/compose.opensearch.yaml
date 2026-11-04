@@ -29,11 +29,18 @@ services:
       OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_ADMIN_PASSWORD:-}
       OPENSEARCH_JAVA_OPTS: -Xms1g -Xmx1g
     ports:
-      - "127.0.0.1:9201:9200"   # HTTPS, the container's demo certificate
+      - "127.0.0.1:9201:9200"   # HTTPS, the demo certificate: verify with .secrets/opensearch/root-ca.pem
     volumes:
       - opensearch-data:/usr/share/opensearch/data
+    # The name the demo certificate carries, so the collector and Dashboards
+    # can verify it.
+    networks:
+      default:
+        aliases: [node-0.example.com]
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsSk -u admin:$$OPENSEARCH_INITIAL_ADMIN_PASSWORD https://localhost:9200/_cluster/health || exit 1"]
+      # Verified against the container's own demo root CA: the certificate
+      # names localhost.
+      test: ["CMD-SHELL", "curl -fsS --cacert /usr/share/opensearch/config/root-ca.pem -u admin:$$OPENSEARCH_INITIAL_ADMIN_PASSWORD https://localhost:9200/_cluster/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 60
@@ -45,9 +52,15 @@ services:
       opensearch:
         condition: service_healthy
     environment:
-      OPENSEARCH_HOSTS: '["https://opensearch:9200"]'
+      OPENSEARCH_HOSTS: '["https://node-0.example.com:9200"]'
+      # The image's own setting is verificationMode none.
+      OPENSEARCH_SSL_VERIFICATIONMODE: full
+      OPENSEARCH_SSL_CERTIFICATEAUTHORITIES: '["/usr/share/opensearch-dashboards/config/root-ca.pem"]'
     ports:
       - "127.0.0.1:5602:5601"
+    volumes:
+      # Copied out of the opensearch container by configs/platforms/opensearch/ca.sh.
+      - ./.secrets/opensearch/root-ca.pem:/usr/share/opensearch-dashboards/config/root-ca.pem:ro,z
 
   opensearch-collector:
     image: otel/opentelemetry-collector-contrib:0.163.2
@@ -63,6 +76,7 @@ services:
       - "127.0.0.1:13136:13133"  # health_check: start.sh waits for it
     volumes:
       - ./configs/platforms/opensearch/collector.yaml:/etc/otelcol/config.yaml:ro,z
+      - ./.secrets/opensearch/root-ca.pem:/etc/otelcol/opensearch-ca.pem:ro,z
 
 volumes:
   opensearch-data:

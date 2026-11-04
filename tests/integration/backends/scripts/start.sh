@@ -123,6 +123,12 @@ for t in "$@"; do
             # The secret stores' certificate exists before they first start.
             case $t in openbao | vault | aws | azure | gcp | azure-alt | gcp-alt) bash "$bk_dir/configs/secrets/tls.sh" || die 'cannot make the test CA' ;; esac
             case $t in git-* | https-* | sftp-*) bash "$bk_dir/configs/secrets/tls.sh" && bash "$bk_dir/configs/sources/keys.sh" || die 'cannot make the test CA or keys' ;; esac
+            # OpenSearch first: its demo root CA is copied out for the
+            # collector and Dashboards before they start, so they verify it.
+            if [ "$t" = opensearch ]; then
+                compose --profile opensearch up -d --wait opensearch || die 'opensearch did not become healthy'
+                bash "$bk_dir/configs/platforms/opensearch/ca.sh" || die "cannot copy OpenSearch's root CA"
+            fi
             # shellcheck disable=SC2086
             compose --profile "$t" up -d --wait $s || die "$t did not become healthy"
             wait_ready "$t" || die "$t did not become ready: $(ready_url "$t")"

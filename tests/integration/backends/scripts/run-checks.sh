@@ -47,7 +47,8 @@ services=$(services_of "$target")
 [ -n "$services" ] || die "no containers for $target"
 
 # Where to ask: a Prometheus-style API for metrics, and for logs a Loki
-# (loki), VictoriaLogs (vlogs) one at $logs, or Elasticsearch (es) for both.
+# (loki) or VictoriaLogs (vlogs) one at $logs, Elasticsearch (es) for both,
+# or OpenSearch (os) for logs.
 prom='' logs_api='' logs=''
 case $target in
     prometheus | alloy) prom=http://127.0.0.1:9090/api/v1 ;;
@@ -60,6 +61,7 @@ case $target in
     loki | otel-collector | alloy) logs_api=loki logs=http://127.0.0.1:3100/loki/api/v1 ;;
     victorialogs) logs_api=vlogs logs=http://127.0.0.1:9428/select/logsql ;;
     elastic) logs_api=es ;;
+    opensearch) logs_api=os ;;
 esac
 
 tag="ck$(date -u '+%Y%m%d%H%M%S')$$"
@@ -149,6 +151,13 @@ es() {
     printf 'user = "elastic:%s"\n' "$ELASTIC_PASSWORD" |
         curl -fsS -m 30 -K - -H 'Content-Type: application/json' "http://127.0.0.1:9200/$1/_search" -d "$2"
 }
+# The same for OpenSearch, its demo certificate verified against the root CA
+# configs/platforms/opensearch/ca.sh copied out.
+osq() {
+    printf 'user = "admin:%s"\n' "$OPENSEARCH_ADMIN_PASSWORD" |
+        curl -fsS -m 30 -K - --cacert "$bk_dir/.secrets/opensearch/root-ca.pem" -H 'Content-Type: application/json' \
+            "https://127.0.0.1:9201/$1/_search" -d "$2"
+}
 # bk_check.seq for this run, under the name each backend gives it:
 # Prometheus-style names turn the dot into an underscore, others keep it.
 seq_sel="{__name__=~\"bk_check[._]seq\",run=\"$tag\"}"
@@ -202,6 +211,11 @@ lines() {
             es 'logs-*' "{\"size\":${1:-5000},\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}},\"sort\":[{\"@timestamp\":\"asc\"}]}" |
                 jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor | . * 1000000000) \(.body.text)"'
             ;;
+        os)
+            # @timestamp as an ISO time, to the second.
+            osq 'ss4o_logs-*' "{\"size\":${1:-5000},\"query\":{\"match_phrase\":{\"body\":\"line $tag \"}},\"sort\":[{\"@timestamp\":\"asc\"}]}" |
+                jq -r '.hits.hits[]._source | "\((.["@timestamp"] | sub("\\.[0-9]+"; "") | fromdateiso8601) * 1000000000) \(.body)"'
+            ;;
     esac
 }
 # The labels or fields one stored line came with, as "key=value ...".
@@ -218,6 +232,10 @@ line_labels() {
         es)
             es 'logs-*' "{\"size\":1,\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}}}" |
                 jq -r '.hits.hits[0]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"'
+            ;;
+        os)
+            osq 'ss4o_logs-*' "{\"size\":1,\"query\":{\"match_phrase\":{\"body\":\"line $tag \"}}}" |
+                jq -r '.hits.hits[0]._source | (.attributes + .resource) | to_entries[] | select(.value | type == "string") | "\(.key)=\(.value)"'
             ;;
     esac | tr '\n' ' '
 }
