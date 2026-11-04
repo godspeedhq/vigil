@@ -1,0 +1,15 @@
+[state]
+schema_version   = 1
+job              = vigil_logs
+run_id           = 20261104T150248Z-2962424-43
+status           = succeeded
+reason           = 
+boot_id          = f4d0989a-632d-4986-bf54-590720c04f03
+started_epoch    = 1793804568
+started_at       = 2026-11-04T15:02:48Z
+worker_pid       = 2974490
+worker_name      = bash
+worker_start     = 1793804567
+ended_epoch      = 1793804568
+ended_at         = 2026-11-04T15:02:48Z
+duration_seconds = 0

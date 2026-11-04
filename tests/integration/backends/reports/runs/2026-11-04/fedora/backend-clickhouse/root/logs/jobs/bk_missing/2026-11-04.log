@@ -1,0 +1,4 @@
+2026-11-04T15:01:08Z 20261104T150108Z-2962424-14 run start
+2026-11-04T15:01:09Z 20261104T150108Z-2962424-14 run end failed (file not found: /tmp/vigil-bk.FnDIMi/root/scripts/missing.sh) in 1s
+2026-11-04T15:02:09Z 20261104T150208Z-2962424-32 run start
+2026-11-04T15:02:09Z 20261104T150208Z-2962424-32 run end failed (file not found: /tmp/vigil-bk.FnDIMi/root/scripts/missing.sh) in 0s

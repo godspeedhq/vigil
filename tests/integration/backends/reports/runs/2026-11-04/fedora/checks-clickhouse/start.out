@@ -1,0 +1,11 @@
+ Container vigil-backends-clickhouse-1 Starting 
+ Container vigil-backends-clickhouse-1 Started 
+ Container vigil-backends-clickhouse-1 Waiting 
+ Container vigil-backends-clickhouse-1 Healthy 
+ Container vigil-backends-clickhouse-collector-1 Starting 
+ Container vigil-backends-clickhouse-collector-1 Started 
+ Container vigil-backends-clickhouse-collector-1 Waiting 
+ Container vigil-backends-clickhouse-1 Waiting 
+ Container vigil-backends-clickhouse-collector-1 Healthy 
+ Container vigil-backends-clickhouse-1 Healthy 
+started: clickhouse
