@@ -493,7 +493,14 @@ vigil_worker() {
     if [ -z "$reason" ]; then
         # Run the job in its own process group (10.3), with its environment,
         # never through a shell. The job inherits the run token on fd 9.
+        # bash sets the group from both sides of the fork, so neither has to
+        # win the race; on macOS the child's call can fail when the parent's
+        # has already done it, and bash then prints "child setpgid ...:
+        # Operation not permitted" on the stderr it has at that moment, the
+        # worker's own. The braces send only that, at the fork, to /dev/null;
+        # the job's own output goes where its redirections say.
         set -m
+        {
         (
             cd "$VIGIL_CMD_CWD" || exit 126
             export VIGIL_RUN_ID="$rid"
@@ -511,6 +518,7 @@ vigil_worker() {
             done
             exec "$prog" ${VIGIL_CMD_ARGS[@]+"${VIGIL_CMD_ARGS[@]}"}
         ) > "$out" 2> "$err" < /dev/null &
+        } 2> /dev/null
         pid=$!
         _vigil_wk_set job_pid "$pid"
         _vigil_wk_set job_name "${prog##*/}"
