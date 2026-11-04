@@ -51,6 +51,7 @@ needs() {
         opensearch) echo OPENSEARCH_ADMIN_PASSWORD ;;
         influxdb) echo INFLUXDB_PASSWORD INFLUXDB_TOKEN ;;
         clickhouse) echo CLICKHOUSE_PASSWORD ;;
+        postgres-pack) echo POSTGRES_PASSWORD POSTGRES_MONITOR_PASSWORD ;;
     esac
 }
 

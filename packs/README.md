@@ -37,6 +37,52 @@ These are starting points, not rules: tune them to what's normal on each machine
 | `system.load.load1`, `load5`, `load15` | Below the number of cores | 1 to 2 times the cores for 15 minutes or more | Above 2 times the cores for 5 minutes or more |
 | `system.services.failed` | 0, or your usual number on macOS and Windows | Higher than usual on macOS | 1 or more on Linux, or still rising elsewhere |
 
+## Service packs
+
+For what a server runs. They are off until you turn one on: `vigil init` never enables them, and nothing touches a database or a web server uninvited.
+
+### postgres
+
+A PostgreSQL server on this machine, through PostgreSQL's own client tools (`psql`, `pg_isready`), which a database server has. It logs in as a read-only role, never a superuser.
+
+1. Create the role once, as a database administrator:
+
+   ```sql
+   CREATE ROLE vigil_monitor LOGIN PASSWORD '...' IN ROLE pg_monitor;
+   ```
+2. Give Vigil its password: `vigil secret set POSTGRES_MONITOR_PASSWORD`. The job reads it with a `secret:` reference when it runs; it is never in the configuration.
+3. `vigil pack enable postgres`. The jobs connect to `localhost:5432`, database `postgres`; for anything else, edit their `env` lines in `vigil.config`.
+
+| Job | Reports | Linux | macOS | Windows |
+| --- | --- | --- | --- | --- |
+| `postgres_status` | Up, connections and the limit, the longest query and transaction, commits, rollbacks, deadlocks, cache hits | Yes | Yes | Yes |
+| `postgres_size` | Each database's size | Yes | Yes | Yes |
+
+A server that does not answer reports `postgres.up` 0, and the run succeeds: that is a reading. A refused login fails the run, and its log says why.
+
+### nginx
+
+An nginx server on this machine, from its `stub_status` page, which you turn on once, reachable from this machine only:
+
+```nginx
+location = /nginx_status { stub_status; allow 127.0.0.1; deny all; }
+```
+
+Then `vigil pack enable nginx`. The job reads `http://127.0.0.1/nginx_status`; for another address, edit its `env` line.
+
+| Job | Reports | Linux | macOS | Windows |
+| --- | --- | --- | --- | --- |
+| `nginx_status` | Up, connections (active, reading, writing, waiting), accepted, handled and dropped connections, requests | Yes | Yes | No |
+
+| Metric | Healthy | Watch | Act |
+| --- | --- | --- | --- |
+| `postgres.up`, `nginx.up` | 1 | | 0 |
+| `postgres.connections_pct` | Below 70 | 70 to 90 | Above 90: new connections will soon be refused |
+| `postgres.longest_transaction_seconds` | Seconds | Minutes: it holds back vacuum | Growing, on a busy database |
+| `postgres.cache_hit_pct` | Above 99, on a busy database | Falling | Well below your usual |
+| `postgres.deadlocks_count` (as a rate) | 0 | Any | Rising |
+| `nginx.dropped_count` (as a rate) | 0 | Any | Rising: nginx is turning connections away |
+
 ## Writing a script
 
 - Use only what ships with the operating system: bash 3.2 and PowerShell 5.1.

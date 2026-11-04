@@ -36,3 +36,4 @@ include:
   - compose.platforms.yaml
   - compose.secrets.yaml
   - compose.sources.yaml
+  - compose.services.yaml
