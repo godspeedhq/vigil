@@ -104,3 +104,19 @@ tests/integration/backends/
   - **Not supported by Vigil, as reported:** SFTP password login.
   - **Findings:** a verified copy is never fetched again; a pinned file whose content changes is logged, not failed; one invalid job is skipped while the rest is activated (spec 16.3); a source has no `ca_file`.
 - **Next:** `run-source.ps1` for Windows (the test CA in the user's certificate store, for https); then phase 2: GitLab CE, Caddy, SFTPGo.
+
+## Closed
+
+Closed on 2026-11-04, by decision, with the real-backend work (backlog 18): enough is covered. Results and evidence are in `tests/integration/backends/reports/sources-compatibility.md` and on the site's Real systems pages.
+
+**Done:**
+- Phase 1, on Fedora, macOS and Windows (`run-source.ps1`): Gitea 28.2 over HTTPS and SSH, nginx 1.30.5 over https, OpenSSH SFTP and a local directory, with the whole lifecycle.
+- Phase 3, on Fedora: outages, refused credentials and host keys, untrusted certificates, corrupted and wrong-digest downloads, invalid updates and restarts, with the last good configuration kept every time.
+- Phase 4: the matrix, with what Vigil does not support (SFTP password login) said so.
+- Found on the way, and fixed in #69: two Windows bugs (a timed-out fetch never ended where `taskkill` is refused, and sftp and git hanging after an error).
+
+**Not done:**
+- **Phase 2, the alternatives:** GitLab CE, Caddy and SFTPGo were not run.
+- **https sources on Windows:** NOT RUN until the test CA is trusted in the test account's certificate store, which Windows allows only interactively.
+- **An interrupted SFTP transfer:** not tested.
+- **The restart checks from macOS and Windows:** reported NOT RUN there, as for the secret stores.
