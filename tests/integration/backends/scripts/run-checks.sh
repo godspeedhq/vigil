@@ -80,6 +80,12 @@ case $target in
     uptrace) logs_api=uptrace ;;
 esac
 
+# Uptrace keeps metrics as aggregates per minute, not each sample: a query
+# gives a value every 30 seconds, the last of its 30 seconds, not every run.
+# Single runs cannot be found there, so its metrics are checked by the
+# minute.
+agg=''
+[ "$target" = uptrace ] && agg=minute
 tag="ck$(date -u '+%Y%m%d%H%M%S')$$"
 # The second the run starts: its job reports seconds after this.
 t0=$(date +%s)
@@ -380,6 +386,12 @@ line_labels() {
 local_value() { awk -v p="$1" 'index($0, p) == 1 { print $NF; exit }' "$root/metrics/local.prom" 2> /dev/null; }
 # The ledger's runs from second $1 up to, not including, second $2.
 ledger_between() { awk -v a="$1" -v b="$2" '$1 >= a && $1 < b' "$ledger"; }
+# How many minutes with a run before t_main have no value of their own in
+# samples.txt: one inside the minute, not a neighbour's carried over.
+minutes_missing() {
+    comm -23 <(ledger_between 0 "$t_main" | awk 'NF { print int($1 / 60) * 60 }' | sort -u) \
+        <(awk '{ m = int($1 / 60) * 60; if (int($2 / 60) * 60 == m) print m }' "$work/samples.txt" | sort -u) | grep -c .
+}
 
 say "$target, run $tag: services $services"
 [ -n "$prom" ] || [ -z "$bk_metrics" ] || say "no query helper for $target's metrics yet: those checks are NOT RUN"
@@ -437,6 +449,14 @@ want=$(ledger_between 0 "$t_main" | sort -n)
 nwant=$(printf '%s\n' "$want" | grep -c .)
 if [ -n "$prom" ]; then
     samples > "$work/samples.txt" 2> "$work/samples.err"
+    # A backend that aggregates by the minute publishes a minute late: ask
+    # again, for up to two minutes, until every minute with a run has one.
+    i=0
+    while [ -n "$agg" ] && [ "$(minutes_missing)" -gt 0 ] && [ "$i" -lt 24 ]; do
+        sleep 5
+        samples > "$work/samples.txt" 2> "$work/samples.err"
+        i=$((i + 1))
+    done
     labels > "$work/labels.txt" 2>&1
     got=$(awk '{ print $2 }' "$work/samples.txt" | sort -n | awk -v m="$t_main" '$1 < m')
 fi
@@ -512,12 +532,6 @@ if [ -n "$logs_api" ]; then
         *) result FAIL "5 logs: host or os missing from $stream" ;;
     esac
 fi
-
-# Uptrace keeps metrics as aggregates per minute, not each sample: a query
-# gives a value every 30 seconds, a minute's mean, not any one run's. Single
-# runs cannot be found there, so its metrics are checked by the minute.
-agg=''
-[ "$target" = uptrace ] && agg=minute
 # 6: a delayed sample keeps the time it was made, not the time it arrived.
 if [ -n "$prom" ] && [ -n "$agg" ]; then
     result 'NOT APPLICABLE' "6 timestamps: $target keeps metrics per minute, not each sample's own time (the logs below keep theirs)"
