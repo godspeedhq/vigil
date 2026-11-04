@@ -4,7 +4,8 @@
 .SYNOPSIS
     memory.ps1 - memory use on Windows
 .DESCRIPTION
-    Reports physical memory in use, from the operating system object.
+    Reports physical memory in use, from the kernel (GlobalMemoryStatusEx),
+    not WMI, which refuses a standard user whose Vigil was started over SSH.
 
     Metrics:
         used_pct     percent of memory in use
@@ -37,11 +38,25 @@
 
 $ErrorActionPreference = 'Stop'
 
-$system = Get-CimInstance -ClassName Win32_OperatingSystem
+Add-Type -Namespace VigilPack -Name Memory -MemberDefinition @'
+[StructLayout(LayoutKind.Sequential)]
+public struct Status {
+    public uint Length; public uint Load;
+    public ulong TotalPhys; public ulong AvailPhys;
+    public ulong TotalPageFile; public ulong AvailPageFile;
+    public ulong TotalVirtual; public ulong AvailVirtual; public ulong AvailExtendedVirtual;
+}
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool GlobalMemoryStatusEx(ref Status status);
+'@
 
-# Both values are in kibibytes.
-$total = [long]$system.TotalVisibleMemorySize * 1024
-$used = $total - [long]$system.FreePhysicalMemory * 1024
+$status = New-Object VigilPack.Memory+Status
+$status.Length = [System.Runtime.InteropServices.Marshal]::SizeOf($status)
+if (-not [VigilPack.Memory]::GlobalMemoryStatusEx([ref]$status)) { throw 'GlobalMemoryStatusEx failed' }
+
+# Available memory is what can be had without swapping: the rest is in use.
+$total = [long]$status.TotalPhys
+$used = $total - [long]$status.AvailPhys
 $percent = [int][Math]::Floor(100 * $used / $total)
 
 Write-Output "metric used_pct $percent"
