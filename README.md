@@ -621,17 +621,25 @@ A job is any script or program. Vigil captures everything it prints.
 
 ### Where your scripts go
 
-Put your scripts in `scripts/` under Vigil's root, the folder beside `config/`. `vigil about` prints the root as `Installed`.
+Anywhere you like. A job's `file` is any path: absolute, or relative to Vigil's root. Vigil only needs the file to be there when the job runs, and readable (and runnable, for a program) by the account Vigil runs as.
+
+```ini
+[job.backup_check]
+file      = /srv/ops/checks/backup_check.sh
+run_every = 1h
+```
+
+The root has a folder for them, though: `scripts/`, beside `config/`. `vigil init` creates it, so every install has it, empty. It's the natural place for scripts that belong to this Vigil: a relative path into it works the same on every machine, upgrades never touch it, and `vigil uninstall --keep-config` keeps it. `vigil about` prints the root as `Installed`.
 
 | Platform | User mode | System mode |
 | --- | --- | --- |
 | Linux, macOS | `~/.local/share/vigil` | `/opt/vigil` |
 | Windows | `%LOCALAPPDATA%\Vigil` | `C:\ProgramData\Vigil` |
 
-So on Linux, in user mode:
+So, using `scripts/`, on Linux in user mode:
 
 1. Copy the script in: `cp backup_check.sh ~/.local/share/vigil/scripts/`
-2. Add a job to `config/vigil.config` that names it. A relative path is taken from the root, so it works the same on every machine:
+2. Add a job to `config/vigil.config` that names it, relative to the root:
 
    ```ini
    [job.backup_check]
@@ -642,7 +650,7 @@ So on Linux, in user mode:
 
 The supervisor picks the job up at its next tick, with no restart. Copy the script before you save the configuration: a job whose file is missing fails each run until it is there, and `vigil precheck` says which file it is looking for.
 
-`.sh` files run with bash, and `.ps1` with PowerShell, through the `[runners]` that `vigil init` writes. A program that runs on its own (a compiled binary, or a script with `#!` and the executable bit) needs no runner. Upgrades never touch `scripts/`. A script can also come from a git repository or a web server instead: see [Sources](#sources).
+`.sh` files run with bash, and `.ps1` with PowerShell, through the `[runners]` that `vigil init` writes. A program that runs on its own (a compiled binary, or a script with `#!` and the executable bit) needs no runner. A script can also come from a git repository or a web server instead: see [Sources](#sources).
 
 ### What a script prints
 
