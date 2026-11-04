@@ -49,3 +49,17 @@ A server reached only over SSH is the normal case, not an edge case.
 
 - On all three, an SSH install either runs Vigil or says exactly why not and
   what to do, and `vigil status` works in the next SSH login.
+
+## Closed
+
+2026-11-04. Checked from a fresh SSH login on each test machine, as `vigil-test`:
+
+| System | Result |
+| --- | --- |
+| Fedora 44 | Running under `systemd --user`; `vigil status` shows it. It stops when the last session ends and starts at the next, as the installer says, until `loginctl enable-linger vigil-test` (an administrator's choice). |
+| Windows 11 | Running, started over SSH; `vigil status` works from the next SSH login, under PowerShell's default execution policy. |
+| macOS 12.7 | Not running, and says exactly why and what to do: no desktop session for a LaunchAgent; `vigil supervise` in the session, or `--system` (a LaunchDaemon) unattended. |
+
+**Found on the way, and fixed:** on Windows every base pack script read through WMI, which refuses a standard user whose Vigil was started over SSH, so all five failed there. They now read the kernel, .NET and the service manager (pack 1.1.0), and four work over SSH. `base_services` cannot: the service manager refuses that logon too, and nothing else has the services' state, so it says so and how to have it.
+
+**Not done, and not needed for this:** a macOS LaunchAgent in the background domain (`launchctl bootstrap user/<uid>` with `LimitLoadToSessionType = Background`), which outlives SSH but needs a design for reboots and desktop logins. A headless Mac takes `--system`.

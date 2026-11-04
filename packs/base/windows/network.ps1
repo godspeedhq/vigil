@@ -5,7 +5,10 @@
     network.ps1 - network traffic on Windows
 .DESCRIPTION
     Reports the bytes each network interface has moved since it started.
-    These are running totals: graph them as a rate.
+    These are running totals: graph them as a rate. Loopback and tunnel
+    interfaces are left out. From .NET's network information, not WMI,
+    which refuses a standard user whose Vigil was started over SSH; an
+    interface is named as Windows shows it (Ethernet, Wi-Fi).
 
     Metrics:
         rx_bytes  bytes received (tag: iface)
@@ -38,12 +41,14 @@
 
 $ErrorActionPreference = 'Stop'
 
-# The raw class holds the running totals. Despite their names, these counters
-# are totals here: only the formatted class turns them into a rate.
-foreach ($interface in Get-CimInstance -ClassName Win32_PerfRawData_Tcpip_NetworkInterface) {
+$skip = @([System.Net.NetworkInformation.NetworkInterfaceType]::Loopback, [System.Net.NetworkInformation.NetworkInterfaceType]::Tunnel)
+foreach ($interface in [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()) {
+    if ($skip -contains $interface.NetworkInterfaceType) { continue }
+    # IPv4 and IPv6 together, since the interface came up.
+    $stats = $interface.GetIPStatistics()
     # A metric tag cannot hold a space, and interface names often do.
     $name = $interface.Name -replace '[^A-Za-z0-9_.-]', '_'
 
-    Write-Output "metric rx_bytes $([long]$interface.BytesReceivedPersec) iface=$name"
-    Write-Output "metric tx_bytes $([long]$interface.BytesSentPersec) iface=$name"
+    Write-Output "metric rx_bytes $([long]$stats.BytesReceived) iface=$name"
+    Write-Output "metric tx_bytes $([long]$stats.BytesSent) iface=$name"
 }

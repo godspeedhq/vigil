@@ -5,7 +5,9 @@
     disk.ps1 - drive use on Windows
 .DESCRIPTION
     Reports each local fixed drive, one set of metrics per drive letter.
-    Network, optical and removable drives are left out.
+    Network, optical and removable drives are left out. From .NET's drive
+    information, not WMI, which refuses a standard user whose Vigil was
+    started over SSH.
 
     Metrics:
         used_pct     percent of the drive in use (tag: mount)
@@ -38,16 +40,19 @@
 
 $ErrorActionPreference = 'Stop'
 
-# DriveType 3 is a local fixed disk.
-foreach ($drive in Get-CimInstance -ClassName Win32_LogicalDisk -Filter 'DriveType=3') {
-    # A drive with no file system has no size.
-    if (-not $drive.Size) { continue }
+foreach ($drive in [System.IO.DriveInfo]::GetDrives()) {
+    # A drive with no file system is not ready, and has no size.
+    if ($drive.DriveType -ne [System.IO.DriveType]::Fixed -or -not $drive.IsReady -or -not $drive.TotalSize) { continue }
 
-    $total = [long]$drive.Size
-    $used = $total - [long]$drive.FreeSpace
+    $total = [long]$drive.TotalSize
+    # TotalFreeSpace, not AvailableFreeSpace: what is used, whatever this
+    # account's quota.
+    $used = $total - [long]$drive.TotalFreeSpace
     $percent = [int][Math]::Floor(100 * $used / $total)
+    # C:\ as C:, the drive letter alone.
+    $mount = $drive.Name.TrimEnd('\')
 
-    Write-Output "metric used_pct $percent mount=$($drive.DeviceID)"
-    Write-Output "metric used_bytes $used mount=$($drive.DeviceID)"
-    Write-Output "metric total_bytes $total mount=$($drive.DeviceID)"
+    Write-Output "metric used_pct $percent mount=$mount"
+    Write-Output "metric used_bytes $used mount=$mount"
+    Write-Output "metric total_bytes $total mount=$mount"
 }

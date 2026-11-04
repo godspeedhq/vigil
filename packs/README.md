@@ -24,6 +24,8 @@ Each release carries the packs, signed with it, and a machine only ever holds it
 | `base_load` | Load averages | Yes | Yes | No |
 | `base_services` | Failed services | Yes | Yes | Yes |
 
+On Windows the scripts read the kernel, .NET and the service manager, not WMI, so they work when Vigil runs as a standard user started over SSH, where WMI refuses. One thing cannot: there, the service manager refuses to list services too, so `base_services` fails and says so. Run Vigil as a service (`--system`), or from a desktop logon, to have it.
+
 ## Reading the results
 
 These are starting points, not rules: tune them to what's normal on each machine. Each script's header has the same guide, with an example of its output.
