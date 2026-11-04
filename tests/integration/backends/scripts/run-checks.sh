@@ -81,6 +81,8 @@ case $target in
 esac
 
 tag="ck$(date -u '+%Y%m%d%H%M%S')$$"
+# The second the run starts: its job reports seconds after this.
+t0=$(date +%s)
 # A well-formed HEC token Splunk never issued: check 7's backend sends it.
 BK_BAD_TOKEN=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n' | sed 's/^\(.\{8\}\)\(.\{4\}\)\(.\{4\}\)\(.\{4\}\)/\1-\2-\3-\4-/')
 export BK_BAD_TOKEN
@@ -127,14 +129,16 @@ start_sup() {
 }
 stop_target() { target_compose stop $services > /dev/null 2>&1; down=1; }
 start_target() { bash "$here/start.sh" "$target" > "$work/start.out" 2>&1 && down=''; }
-
 # The job: writes its run in the ledger, then reports it as a metric and a
-# line. Its metric is bk_check.seq, whose value is the second it ran.
-cat > "$root/scripts/check.sh" << 'EOF'
+# line. Its metric is bk_check.seq, whose value is the second it ran, less
+# the run's start (BK_T0): a small number every backend keeps exactly, which
+# a ten-digit epoch is not (Uptrace returned 1793814604 as 1793814640).
+cat > "$root/scripts/check.sh" << 'EOF2'
 s=$(date +%s)
 echo "$s" >> "$BK_LEDGER"
-echo "metric seq $s run=$BK_RUN"
+echo "metric seq $((s - BK_T0)) run=$BK_RUN"
 echo "line $BK_RUN $s"
+EOF2
 EOF
 # Many series in one run, to fill a small spool: 1000, the most Vigil takes
 # from a run (14.3).
@@ -168,7 +172,7 @@ config() {
         [ "$target" = uptrace ] && printf 'header_name  = uptrace-dsn\nheader_value = env:VIGIL_UPTRACE_DSN\n'
         printf '\n'
     fi
-    printf '[job.bk_check]\nfile = scripts/check.sh\nrun_every = 5s\nenv = BK_RUN=%s\nenv = BK_LEDGER=%s\n\n' "$tag" "$ledger"
+    printf '[job.bk_check]\nfile = scripts/check.sh\nrun_every = 5s\nenv = BK_RUN=%s\nenv = BK_LEDGER=%s\nenv = BK_T0=%s\n\n' "$tag" "$ledger" "$t0"
     # To the target only: the file backend merges about 430 events a second
     # (backlog 29), and would hold up the sender for the flood.
     [ -n "${1-}" ] && printf '[job.bk_flood]\nfile = scripts/flood.sh\nrun_every = 2s\nbackends = target\nenv = BK_RUN=%s\n' "$tag"
@@ -236,8 +240,10 @@ osq() {
 seq_sel="{__name__=~\"bk_check[._]seq\",run=\"$tag\"}"
 es_seq="{\"size\":5000,\"query\":{\"bool\":{\"filter\":[{\"match\":{\"attributes.run\":\"$tag\"}},{\"exists\":{\"field\":\"metrics.bk_check.seq\"}}]}},\"sort\":[{\"@timestamp\":\"asc\"}]}"
 flux_seq="from(bucket: \"vigil\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"bk_check.seq\" and r._field == \"gauge\" and r.run == \"$tag\")"
-# Every stored sample of it, as "<timestamp> <value>".
-samples() {
+# Every stored sample of it, as "<timestamp> <second it ran>", the run's
+# start added back to the value the job reported.
+samples() { raw_samples | awk -v b="$t0" 'NF == 2 { print $1, $2 + b }'; }
+raw_samples() {
     case $prom in
         es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor) \(.metrics["bk_check.seq"] | floor)"' ;;
         influx) csv_cols "$(ifq "$flux_seq |> map(fn: (r) => ({t: int(v: r._time) / 1000000000, v: int(v: r._value)}))")" t v ;;
@@ -396,6 +402,7 @@ for _ in $(seq 1 14); do
     sleep 5
     # The file backend's copy keeps up: the job's latest run is there.
     v=$(local_value 'bk_check_seq{')
+    [ -n "$v" ] && v=$((v + t0))
     [ -n "$v" ] && [ $(($(date +%s) - v)) -le 20 ] || fresh="no (latest $v at $(date +%s))"
 done
 fwd=$(sed -n 's/^failures = //p' "$root/state/logs/forwarder.state" 2> /dev/null)
