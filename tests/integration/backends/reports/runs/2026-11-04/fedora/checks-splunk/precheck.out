@@ -1,0 +1,14 @@
+Configuration /tmp/vigil-ck.69X7Hs/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_check
+  ok    backend.target: token env:VIGIL_SPLUNK_METRICS_TOKEN
+  ok    backend.badtoken: token env:BK_BAD_TOKEN
+  ok    log_destination.target: token env:VIGIL_SPLUNK_LOGS_TOKEN
+  ok    state directory: /tmp/vigil-ck.69X7Hs/root/state
+  ok    log directory: /tmp/vigil-ck.69X7Hs/root/logs
+  ok    spool directory: /tmp/vigil-ck.69X7Hs/root/spool
+
+precheck passed

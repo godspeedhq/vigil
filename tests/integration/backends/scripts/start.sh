@@ -113,7 +113,9 @@ for t in "$@"; do
         uptrace)
             d=$(fetch_upstream uptrace) || exit 1
             # Only the services Uptrace itself needs, not the example's extras.
-            docker compose -p vigil-uptrace -f "$d/docker-compose.yml" up -d --wait clickhouse postgres redis uptrace || die 'uptrace did not start'
+            # With our override: every port on 127.0.0.1 only, as everywhere here.
+            docker compose -p vigil-uptrace -f "$d/docker-compose.yml" -f "$bk_dir/configs/platforms/uptrace/compose.override.yaml" \
+                up -d --wait clickhouse postgres redis uptrace || die 'uptrace did not start'
             ;;
         graylog)
             d=$(fetch_upstream graylog) || exit 1
@@ -127,12 +129,17 @@ for t in "$@"; do
             case $t in openbao | vault | aws | azure | gcp | azure-alt | gcp-alt) bash "$bk_dir/configs/secrets/tls.sh" || die 'cannot make the test CA' ;; esac
             case $t in git-* | https-* | sftp-*) bash "$bk_dir/configs/secrets/tls.sh" && bash "$bk_dir/configs/sources/keys.sh" || die 'cannot make the test CA or keys' ;; esac
             # Splunk's management API serves the test CA's certificate: the
-            # certificate, its key and the CA in one file, as Splunk wants it.
+            # certificate, its key and the CA in one file, as Splunk wants it,
+            # and the vigil_tls app that points Splunk at it, packed for
+            # SPLUNK_APPS_URL.
             if [ "$t" = splunk ]; then
                 bash "$bk_dir/configs/secrets/tls.sh" &&
                     cat "$bk_dir/.secrets/tls/server.pem" "$bk_dir/.secrets/tls/server-key.pem" "$bk_dir/.secrets/tls/ca.pem" \
-                        > "$bk_dir/.secrets/tls/splunk-server.pem" && chmod 644 "$bk_dir/.secrets/tls/splunk-server.pem" ||
-                    die 'cannot make the test CA or Splunk'"'"'s certificate'
+                        > "$bk_dir/.secrets/tls/splunk-server.pem" && chmod 644 "$bk_dir/.secrets/tls/splunk-server.pem" &&
+                    mkdir -p "$bk_dir/.secrets/splunk" &&
+                    tar -czf "$bk_dir/.secrets/splunk/vigil_tls.tgz" -C "$bk_dir/configs/platforms/splunk" vigil_tls &&
+                    chmod 644 "$bk_dir/.secrets/splunk/vigil_tls.tgz" ||
+                    die 'cannot make the test CA, Splunk'"'"'s certificate or its app'
             fi
             # OpenSearch first: its demo root CA is copied out for the
             # collector and Dashboards before they start, so they verify it.

@@ -1,0 +1,5 @@
+[checkpoint]
+file        = logs/jobs/bk_fail/2026-11-04.log
+fingerprint = 3224365624 64
+offset      = 690
+size        = 690

@@ -43,7 +43,15 @@ target=$1
 endpoints "$target"
 [ -z "$bk_why" ] || die "$target: not applicable to Vigil: $bk_why"
 command -v jq > /dev/null 2>&1 || die 'run-checks.sh needs jq'
-services=$(services_of "$target")
+# The containers that are the target: ours, or for an official deployment
+# (its own Compose project) its server alone, its databases left running.
+if is_upstream "$target"; then
+    services=$target
+    target_compose() { docker compose -p "vigil-$target" "$@"; }
+else
+    services=$(services_of "$target")
+    target_compose() { compose --profile "$target" "$@"; }
+fi
 [ -n "$services" ] || die "no containers for $target"
 
 # Where to ask: a Prometheus-style API for metrics, and for logs a Loki
@@ -59,6 +67,8 @@ case $target in
     elastic) prom=es ;;
     influxdb) prom=influx ;;
     clickhouse) prom=ch ;;
+    splunk) prom=splunk ;;
+    uptrace) prom=http://127.0.0.1:14318/api/prometheus/1/api/v1 ;;
 esac
 case $target in
     loki | otel-collector | alloy) logs_api=loki logs=http://127.0.0.1:3100/loki/api/v1 ;;
@@ -66,9 +76,24 @@ case $target in
     elastic) logs_api=es ;;
     opensearch) logs_api=os ;;
     clickhouse) logs_api=ch ;;
+    splunk) logs_api=splunk ;;
+    uptrace) logs_api=uptrace ;;
 esac
 
+# Uptrace keeps metrics as aggregates per minute, not each sample: a query
+# gives a value every 30 seconds, the last of its 30 seconds, not every run.
+# Single runs cannot be found there, so its metrics are checked by the
+# minute.
+agg=''
+[ "$target" = uptrace ] && agg=minute
 tag="ck$(date -u '+%Y%m%d%H%M%S')$$"
+# The second the run starts: its job reports seconds after this.
+t0=$(date +%s)
+# A well-formed HEC token Splunk never issued: check 7's backend sends it.
+BK_BAD_TOKEN=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n' | sed 's/^\(.\{8\}\)\(.\{4\}\)\(.\{4\}\)\(.\{4\}\)/\1-\2-\3-\4-/')
+export BK_BAD_TOKEN
+# The same for Uptrace: a DSN whose token Uptrace never issued.
+export BK_BAD_DSN="http://${BK_BAD_TOKEN}@localhost:14318?grpc=14317"
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-ck.XXXXXX") || exit 1
 root=$work/root
 ledger=$work/ledger
@@ -80,7 +105,7 @@ cleanup() {
     end_workers
     # The target is left running, as start.sh left it.
     [ -n "${down-}" ] && start_target > /dev/null
-    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}" "${ELASTIC_PASSWORD-}" "${OPENSEARCH_ADMIN_PASSWORD-}" "${INFLUXDB_TOKEN-}" "${CLICKHOUSE_PASSWORD-}"
+    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}" "${ELASTIC_PASSWORD-}" "${OPENSEARCH_ADMIN_PASSWORD-}" "${INFLUXDB_TOKEN-}" "${CLICKHOUSE_PASSWORD-}" "${SPLUNK_PASSWORD-}" "$BK_BAD_TOKEN" "${VIGIL_UPTRACE_DSN-}" "${UPTRACE_USER_TOKEN-}"
     rm -rf "$work"
 }
 trap cleanup EXIT
@@ -108,16 +133,18 @@ start_sup() {
     bash "$root/app/vigil" --root "$root" supervise < /dev/null >> "$work/supervise.out" 2>&1 &
     sup=$!
 }
-stop_target() { compose --profile "$target" stop $services > /dev/null 2>&1; down=1; }
+stop_target() { target_compose stop $services > /dev/null 2>&1; down=1; }
 start_target() { bash "$here/start.sh" "$target" > "$work/start.out" 2>&1 && down=''; }
-
 # The job: writes its run in the ledger, then reports it as a metric and a
-# line. Its metric is bk_check.seq, whose value is the second it ran.
-cat > "$root/scripts/check.sh" << 'EOF'
+# line. Its metric is bk_check.seq, whose value is the second it ran, less
+# the run's start (BK_T0): a small number every backend keeps exactly, which
+# a ten-digit epoch is not (Uptrace returned 1793814604 as 1793814640).
+cat > "$root/scripts/check.sh" << 'EOF2'
 s=$(date +%s)
 echo "$s" >> "$BK_LEDGER"
-echo "metric seq $s run=$BK_RUN"
+echo "metric seq $((s - BK_T0)) run=$BK_RUN"
 echo "line $BK_RUN $s"
+EOF2
 EOF
 # Many series in one run, to fill a small spool: 1000, the most Vigil takes
 # from a run (14.3).
@@ -131,15 +158,27 @@ config() {
     printf '[runner.sh]\ncommand = /bin/bash\n\n[runners]\n.sh = sh\n\n'
     [ -n "${1-}" ] && printf '[spool]\nmax_mb = 1\n\n'
     if [ -n "$bk_metrics" ]; then
-        printf '[backend.target]\ntype     = %s\nendpoint = %s\n\n' "${bk_metrics%% *}" "${bk_metrics#* }"
+        printf '[backend.target]\ntype     = %s\nendpoint = %s\n' "${bk_metrics%% *}" "${bk_metrics#* }"
+        [ "$target" = splunk ] && printf 'token    = env:VIGIL_SPLUNK_METRICS_TOKEN\n'
+        [ "$target" = uptrace ] && printf 'api_key  = env:VIGIL_UPTRACE_DSN\n'
+        printf '\n'
+    fi
+    # 7: a credential the target must refuse, beside the right one.
+    if [ "$target" = splunk ]; then
+        printf '[backend.badtoken]\ntype     = splunk\nendpoint = %s\ntoken    = env:BK_BAD_TOKEN\n\n' "${bk_metrics#* }"
+    elif [ "$target" = uptrace ]; then
+        printf '[backend.badtoken]\ntype     = otel\nendpoint = %s\napi_key  = env:BK_BAD_DSN\n\n' "${bk_metrics#* }"
     fi
     # The second destination, healthy throughout.
     printf '[backend.local]\ntype = file\npath = metrics/local.prom\n\n'
     if [ -n "$bk_logs" ]; then
         printf '[log_forward]\ndestination = target\ninclude     = run, stdout, stderr\ncheck_every = 5s\n\n'
-        printf '[log_destination.target]\ntype     = %s\nendpoint = %s\n\n' "${bk_logs%% *}" "${bk_logs#* }"
+        printf '[log_destination.target]\ntype     = %s\nendpoint = %s\n' "${bk_logs%% *}" "${bk_logs#* }"
+        [ "$target" = splunk ] && printf 'token    = env:VIGIL_SPLUNK_LOGS_TOKEN\n'
+        [ "$target" = uptrace ] && printf 'header_name  = uptrace-dsn\nheader_value = env:VIGIL_UPTRACE_DSN\n'
+        printf '\n'
     fi
-    printf '[job.bk_check]\nfile = scripts/check.sh\nrun_every = 5s\nenv = BK_RUN=%s\nenv = BK_LEDGER=%s\n\n' "$tag" "$ledger"
+    printf '[job.bk_check]\nfile = scripts/check.sh\nrun_every = 5s\nenv = BK_RUN=%s\nenv = BK_LEDGER=%s\nenv = BK_T0=%s\n\n' "$tag" "$ledger" "$t0"
     # To the target only: the file backend merges about 430 events a second
     # (backlog 29), and would hold up the sender for the flood.
     [ -n "${1-}" ] && printf '[job.bk_flood]\nfile = scripts/flood.sh\nrun_every = 2s\nbackends = target\nenv = BK_RUN=%s\n' "$tag"
@@ -148,7 +187,19 @@ config() {
 config > "$root/config/vigil.config"
 
 # PromQL $1, as JSON.
-pq() { curl -fsS -m 30 -G "$prom/query" --data-urlencode "query=$1"; }
+# PromQL $1, as JSON. Uptrace's API wants its user token, which goes to curl
+# on its standard input, never its command line.
+pq() {
+    if [ "$target" = uptrace ]; then
+        printf 'header = "Authorization: Bearer %s"\n' "$UPTRACE_USER_TOKEN" |
+            curl -fsS -m 30 -K - -G "$prom/query" --data-urlencode "query=$1"
+    else
+        curl -fsS -m 30 -G "$prom/query" --data-urlencode "query=$1"
+    fi
+}
+# SQL $1 on Uptrace's own ClickHouse, inside its container, as
+# tab-separated rows: Uptrace has no public API for logs.
+upq() { docker exec vigil-uptrace-clickhouse-1 clickhouse-client -d uptrace -q "$1 FORMAT TSV"; }
 # An Elasticsearch search of index pattern $1 with body $2, as JSON. The
 # password goes to curl on its standard input, never its command line.
 es() {
@@ -161,6 +212,15 @@ ifq() {
     printf 'header = "Authorization: Token %s"\n' "$INFLUXDB_TOKEN" |
         curl -fsS -m 30 -K - 'http://127.0.0.1:8086/api/v2/query?org=vigil' \
             -H 'Content-Type: application/vnd.flux' -H 'Accept: application/csv' --data "$1" | tr -d '\r'
+}
+# A Splunk search $1, from time $2 (default an hour ago), through the
+# management API, as JSON results one a line. The password goes to curl on
+# its standard input; the certificate is the test CA's, verified.
+spl() {
+    printf 'user = "admin:%s"\n' "$SPLUNK_PASSWORD" |
+        curl -fsS -m 60 -K - --cacert "$bk_dir/.secrets/tls/ca.pem" https://127.0.0.1:8089/services/search/jobs/export \
+            --data-urlencode "search=$1" -d output_mode=json -d "earliest_time=${2:--1h}" |
+        jq -c '.result // empty'
 }
 # SQL $1 on ClickHouse, as tab-separated rows. The password goes to curl on
 # its standard input, never its command line.
@@ -186,11 +246,19 @@ osq() {
 seq_sel="{__name__=~\"bk_check[._]seq\",run=\"$tag\"}"
 es_seq="{\"size\":5000,\"query\":{\"bool\":{\"filter\":[{\"match\":{\"attributes.run\":\"$tag\"}},{\"exists\":{\"field\":\"metrics.bk_check.seq\"}}]}},\"sort\":[{\"@timestamp\":\"asc\"}]}"
 flux_seq="from(bucket: \"vigil\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"bk_check.seq\" and r._field == \"gauge\" and r.run == \"$tag\")"
-# Every stored sample of it, as "<timestamp> <value>".
-samples() {
+# Every stored sample of it, as "<timestamp> <second it ran>", the run's
+# start added back to the value the job reported.
+samples() { raw_samples | awk -v b="$t0" 'NF == 2 { print $1, $2 + b }'; }
+raw_samples() {
     case $prom in
         es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor) \(.metrics["bk_check.seq"] | floor)"' ;;
         influx) csv_cols "$(ifq "$flux_seq |> map(fn: (r) => ({t: int(v: r._time) / 1000000000, v: int(v: r._value)}))")" t v ;;
+        splunk)
+            # Per second, how many samples and their value: two in one second
+            # are a duplicate, and are listed twice.
+            spl "| mstats count(_value) AS n latest(_value) AS v WHERE index=vigil_metrics AND metric_name=\"bk_check.seq\" AND run=\"$tag\" span=1s | where n > 0 | eval t=_time" |
+                jq -r '. as $r | range($r.n | tonumber) | "\($r.t | tonumber | floor) \($r.v | tonumber | floor)"'
+            ;;
         ch) chq "SELECT toUnixTimestamp(TimeUnix), toInt64(Value) FROM vigil.otel_metrics_gauge WHERE MetricName = 'bk_check.seq' AND Attributes['run'] = '$tag' ORDER BY TimeUnix" | tr '\t' ' ' ;;
         *) pq "$seq_sel[1h]" | jq -r '.data.result[0].values[]? | "\(.[0]) \(.[1])"' ;;
     esac
@@ -199,6 +267,10 @@ samples() {
 labels() {
     case $prom in
         es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[-1]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"' ;;
+        splunk)
+            spl "| mstats latest(_value) AS v WHERE index=vigil_metrics AND metric_name=\"bk_check.seq\" AND run=\"$tag\" BY host os instance job run" |
+                head -n 1 | jq -r 'to_entries[] | select(.key != "v") | "\(.key)=\(.value)"'
+            ;;
         ch)
             chq "SELECT concat(k, '=', v) FROM (SELECT Attributes AS m FROM vigil.otel_metrics_gauge WHERE MetricName = 'bk_check.seq' AND Attributes['run'] = '$tag' ORDER BY TimeUnix DESC LIMIT 1) ARRAY JOIN mapKeys(m) AS k, mapValues(m) AS v"
             ;;
@@ -220,6 +292,10 @@ drops() {
             # search, unlike PromQL, finds a series however old it is.
             es 'metrics-*' "{\"size\":1,\"query\":{\"bool\":{\"filter\":[{\"match\":{\"attributes.backend\":\"target\"}},{\"match\":{\"attributes.instance\":\"backend-check\"}},{\"exists\":{\"field\":\"metrics.vigil.spool.dropped\"}},{\"range\":{\"@timestamp\":{\"gte\":$((t_start * 1000))}}}]}},\"sort\":[{\"@timestamp\":\"desc\"}]}" |
                 jq -r '.hits.hits[]._source | "\(.attributes.reason)=\(.metrics["vigil.spool.dropped"])"'
+            ;;
+        splunk)
+            spl "| mstats latest(_value) AS v WHERE index=vigil_metrics AND metric_name=\"vigil.spool.dropped\" AND backend=\"target\" AND instance=\"backend-check\" BY reason" "$t_start" |
+                jq -r '"\(.reason)=\(.v)"'
             ;;
         ch)
             chq "SELECT concat(Attributes['reason'], '=', toString(Value)) FROM vigil.otel_metrics_sum WHERE MetricName = 'vigil.spool.dropped' AND Attributes['backend'] = 'target' AND Attributes['instance'] = 'backend-check' AND TimeUnix >= toDateTime($t_start) ORDER BY TimeUnix DESC LIMIT 1"
@@ -252,6 +328,13 @@ lines() {
             es 'logs-*' "{\"size\":${1:-5000},\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}},\"sort\":[{\"@timestamp\":\"asc\"}]}" |
                 jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor | . * 1000000000) \(.body.text)"'
             ;;
+        uptrace)
+            upq "SELECT toUnixTimestamp(time) * 1000000000, display_name FROM logs_index WHERE position(display_name, 'line $tag ') > 0 ORDER BY time LIMIT ${1:-5000}" | tr '\t' ' '
+            ;;
+        splunk)
+            spl "search index=vigil_logs \"line $tag\" | spath message | eval t=_time | table t message | head ${1:-5000}" |
+                jq -r '"\(.t | tonumber | floor | . * 1000000000) \(.message)"'
+            ;;
         ch)
             chq "SELECT toUnixTimestamp(Timestamp) * 1000000000, Body FROM vigil.otel_logs WHERE position(Body, 'line $tag ') > 0 ORDER BY Timestamp LIMIT ${1:-5000}" | tr '\t' ' '
             ;;
@@ -277,6 +360,18 @@ line_labels() {
             es 'logs-*' "{\"size\":1,\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}}}" |
                 jq -r '.hits.hits[0]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"'
             ;;
+        uptrace)
+            # Its own columns for the host and service, and the rest of the
+            # record's attributes as JSON.
+            upq "SELECT host_name, service_name, toJSONString(attrs) FROM logs_index WHERE position(display_name, 'line $tag ') > 0 LIMIT 1" |
+                awk -F'\t' '{ print "host=" $1; print "service_name=" $2; print $3 }' |
+                { read -r h; read -r s; read -r j; printf '%s\n%s\n' "$h" "$s"; printf '%s' "$j" | jq -r 'paths(scalars) as $p | "\($p | join("."))=\(getpath($p))"'; }
+            ;;
+        splunk)
+            # The event's own fields, and the indexed ones HEC set.
+            spl "search index=vigil_logs \"line $tag\" | head 1 | table job component category host os instance" |
+                head -n 1 | jq -r 'to_entries[] | select(.value != null) | "\(.key)=\(if (.value | type) == "array" then .value[0] else .value end)"'
+            ;;
         ch)
             chq "SELECT concat(k, '=', v) FROM (SELECT mapUpdate(ResourceAttributes, LogAttributes) AS m FROM vigil.otel_logs WHERE position(Body, 'line $tag ') > 0 LIMIT 1) ARRAY JOIN mapKeys(m) AS k, mapValues(m) AS v"
             ;;
@@ -291,6 +386,12 @@ line_labels() {
 local_value() { awk -v p="$1" 'index($0, p) == 1 { print $NF; exit }' "$root/metrics/local.prom" 2> /dev/null; }
 # The ledger's runs from second $1 up to, not including, second $2.
 ledger_between() { awk -v a="$1" -v b="$2" '$1 >= a && $1 < b' "$ledger"; }
+# How many minutes with a run before t_main have no value of their own in
+# samples.txt: one inside the minute, not a neighbour's carried over.
+minutes_missing() {
+    comm -23 <(ledger_between 0 "$t_main" | awk 'NF { print int($1 / 60) * 60 }' | sort -u) \
+        <(awk '{ m = int($1 / 60) * 60; if (int($2 / 60) * 60 == m) print m }' "$work/samples.txt" | sort -u) | grep -c .
+}
 
 say "$target, run $tag: services $services"
 [ -n "$prom" ] || [ -z "$bk_metrics" ] || say "no query helper for $target's metrics yet: those checks are NOT RUN"
@@ -313,6 +414,7 @@ for _ in $(seq 1 14); do
     sleep 5
     # The file backend's copy keeps up: the job's latest run is there.
     v=$(local_value 'bk_check_seq{')
+    [ -n "$v" ] && v=$((v + t0))
     [ -n "$v" ] && [ $(($(date +%s) - v)) -le 20 ] || fresh="no (latest $v at $(date +%s))"
 done
 fwd=$(sed -n 's/^failures = //p' "$root/state/logs/forwarder.state" 2> /dev/null)
@@ -326,7 +428,7 @@ sleep 40
 # 11: a restart.
 say "restarting $target"
 t_restart=$(date +%s)
-compose --profile "$target" restart $services > /dev/null 2>&1
+target_compose restart $services > /dev/null 2>&1
 start_target
 sleep 30
 
@@ -347,6 +449,14 @@ want=$(ledger_between 0 "$t_main" | sort -n)
 nwant=$(printf '%s\n' "$want" | grep -c .)
 if [ -n "$prom" ]; then
     samples > "$work/samples.txt" 2> "$work/samples.err"
+    # A backend that aggregates by the minute publishes a minute late: ask
+    # again, for up to two minutes, until every minute with a run has one.
+    i=0
+    while [ -n "$agg" ] && [ "$(minutes_missing)" -gt 0 ] && [ "$i" -lt 24 ]; do
+        sleep 5
+        samples > "$work/samples.txt" 2> "$work/samples.err"
+        i=$((i + 1))
+    done
     labels > "$work/labels.txt" 2>&1
     got=$(awk '{ print $2 }' "$work/samples.txt" | sort -n | awk -v m="$t_main" '$1 < m')
 fi
@@ -422,9 +532,10 @@ if [ -n "$logs_api" ]; then
         *) result FAIL "5 logs: host or os missing from $stream" ;;
     esac
 fi
-
 # 6: a delayed sample keeps the time it was made, not the time it arrived.
-if [ -n "$prom" ]; then
+if [ -n "$prom" ] && [ -n "$agg" ]; then
+    result 'NOT APPLICABLE' "6 timestamps: $target keeps metrics per minute, not each sample's own time (the logs below keep theirs)"
+elif [ -n "$prom" ]; then
     off=$(awk '{ d = int($1) - $2; if (d < 0 || d > 10) bad++; if (d > max) max = d } END { printf "%d %d", bad, max }' "$work/samples.txt")
     late=$(awk -v a="$t_down" -v b="$t_up" '$2 >= a && $2 < b' "$work/samples.txt" | grep -c .)
     if [ "${off% *}" -eq 0 ] && [ "$late" -gt 0 ]; then
@@ -442,7 +553,18 @@ if [ -n "$logs_api" ]; then
     fi
 fi
 
-result 'NOT APPLICABLE' "7 authentication rejected: $target takes OTLP without authentication in this environment, so there is nothing to refuse"
+# 7: a wrong credential refused. Splunk and Uptrace take one from Vigil here.
+if [ "$target" = splunk ] || [ "$target" = uptrace ]; then
+    refused=$(grep -h 'delivery failed: .*badtoken (permission denied (HTTP 40[13]' "$root"/logs/jobs/vigil_sender/*.log 2> /dev/null | head -n 1)
+    badn=$(local_value 'vigil_backend_failures_total{backend="badtoken"')
+    if [ -n "$refused" ] && [ "${badn:-0}" -gt 0 ]; then
+        result PASS "7 authentication rejected: a credential $target never issued refused ($(printf '%s' "$refused" | grep -o 'HTTP 40[13][^)]*' | head -n 1)), $badn failures counted, the right token delivering all along"
+    else
+        result FAIL "7 authentication rejected: refused [${refused:-nothing}], failures counted [${badn:-none}]"
+    fi
+else
+    result 'NOT APPLICABLE' "7 authentication rejected: $target takes OTLP without authentication in this environment, so there is nothing to refuse"
+fi
 
 # 8, 9: the outage, as Vigil recorded it.
 if [ -n "$bk_metrics" ]; then
@@ -472,8 +594,23 @@ if [ -n "$bk_logs" ]; then
     if [ "${fwd:-0}" -gt 0 ]; then result PASS "8, 9 logs: the forwarder failed $fwd times and backed off"; else result FAIL "8, 9 logs: no forwarder failure recorded"; fi
 fi
 
-# 10, 11, 12, 16: every run before t_main, once.
-if [ -n "$prom" ]; then
+# 10, 11, 12, 16: every run before t_main, once; by the minute for a
+# backend that keeps metrics per minute.
+if [ -n "$prom" ] && [ -n "$agg" ]; then
+    # Every minute that had a run, the outage's included, has a value of its
+    # own: the mean of its runs' seconds, so inside the minute, not a
+    # neighbour's carried over.
+    have=$(awk '{ m = int($1 / 60) * 60; if (int($2 / 60) * 60 == m) print m }' "$work/samples.txt" | sort -u)
+    need=$(printf '%s\n' "$want" | awk 'NF { print int($1 / 60) * 60 }' | sort -u)
+    m=$(comm -23 <(printf '%s\n' "$need") <(printf '%s\n' "$have") | grep -c .)
+    nm=$(printf '%s\n' "$need" | grep -c .)
+    if [ "$m" -eq 0 ]; then
+        result PASS "10, 11, 16 (by the minute): every one of the $nm minutes with a run has a value, the outage's, the restart's and the supervisor restart's included"
+    else
+        result FAIL "10, 11, 16 (by the minute): $m of $nm minutes with a run have no value"
+    fi
+    result 'NOT APPLICABLE' "12 duplicate delivery: $target keeps metrics per minute, so a sample stored twice cannot be told apart (the logs below can)"
+elif [ -n "$prom" ]; then
     m=$(printf '%s\n' "$got" | missing) d=$(printf '%s\n' "$got" | dups)
     out=$(ledger_between "$t_down" "$t_up" | grep -c .)
     if [ "$m" -eq 0 ]; then

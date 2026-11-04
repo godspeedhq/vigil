@@ -73,6 +73,7 @@ $targets = @{
     'influxdb'        = @('otel http://127.0.0.1:4438/v1/metrics', '')
     'clickhouse'      = @('otel http://127.0.0.1:4448/v1/metrics', 'otel http://127.0.0.1:4448/v1/logs')
     'signoz'          = @('otel http://127.0.0.1:4318/v1/metrics', 'otel http://127.0.0.1:4318/v1/logs')
+    'uptrace'         = @('otel http://127.0.0.1:14318/v1/metrics', 'otel http://127.0.0.1:14318/v1/logs')
 }
 if (-not $targets.ContainsKey($Target)) {
     Write-Output "$Target is not a target Vigil can send to (see common.sh for why); one of: $(($targets.Keys | Sort-Object) -join ', ')"
@@ -92,6 +93,11 @@ function Get-Section {
     $s = "[$Kind.target]`ntype     = $type`nendpoint = $url`n"
     if ($type -ceq 'splunk') {
         $s += if ($Kind -ceq 'backend') { "token    = env:VIGIL_SPLUNK_METRICS_TOKEN`n" } else { "token    = env:VIGIL_SPLUNK_LOGS_TOKEN`n" }
+    }
+    # Uptrace's DSN: the backend's bearer credential, the log destination's
+    # uptrace-dsn header.
+    if ($Target -ceq 'uptrace') {
+        $s += if ($Kind -ceq 'backend') { "api_key  = env:VIGIL_UPTRACE_DSN`n" } else { "header_name  = uptrace-dsn`nheader_value = env:VIGIL_UPTRACE_DSN`n" }
     }
     return "$s`n"
 }

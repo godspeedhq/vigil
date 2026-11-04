@@ -155,6 +155,20 @@ clickhouse_count() {
 }
 metrics_clickhouse() { clickhouse_count "SELECT count() FROM vigil.otel_metrics_gauge WHERE Attributes['run'] = '$tag' AND Value = 42"; }
 logs_clickhouse() { clickhouse_count "SELECT count() FROM vigil.otel_logs WHERE position(Body, '$tag') > 0"; }
+# Uptrace: metrics through its Prometheus-compatible API, its user token on
+# curl's standard input. It has no public API for logs, so they are read
+# from its own ClickHouse, inside its container.
+metrics_uptrace() {
+    printf 'header = "Authorization: Bearer %s"\n' "$UPTRACE_USER_TOKEN" |
+        promql -K - -G http://127.0.0.1:14318/api/prometheus/1/api/v1/query --data-urlencode "query=$probe"
+}
+logs_uptrace() {
+    local out
+    out=$(docker exec vigil-uptrace-clickhouse-1 clickhouse-client -d uptrace \
+        -q "SELECT time, display_name FROM logs_index WHERE position(display_name, '$tag') > 0 LIMIT 5 FORMAT TSV") || return 1
+    printf '%s\n' "$out"
+    [ -n "$out" ]
+}
 # SigNoz's query API needs a signed-in session: checked in its UI for now.
 metrics_signoz() { printf 'SigNoz: open http://127.0.0.1:8080 and look for bk_metrics.vigil_backend_probe with run=%s\n' "$tag"; return 1; }
 logs_signoz() { printf 'SigNoz: open http://127.0.0.1:8080 and search the logs for %s\n' "$tag"; return 1; }

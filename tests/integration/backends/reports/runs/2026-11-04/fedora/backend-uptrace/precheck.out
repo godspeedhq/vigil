@@ -1,0 +1,20 @@
+Configuration /tmp/vigil-bk.LSaaSD/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_ok
+  ok    job.bk_fail
+  ok    job.bk_long
+  ok    job.bk_overrun
+  FAIL  job.bk_missing: file not found: /tmp/vigil-bk.LSaaSD/root/scripts/missing.sh
+  ok    job.bk_output
+  ok    job.bk_metrics
+  ok    job.bk_native
+  ok    backend.target: api_key env:VIGIL_UPTRACE_DSN
+  ok    log_destination.target: header_value env:VIGIL_UPTRACE_DSN
+  ok    state directory: /tmp/vigil-bk.LSaaSD/root/state
+  ok    log directory: /tmp/vigil-bk.LSaaSD/root/logs
+  ok    spool directory: /tmp/vigil-bk.LSaaSD/root/spool
+
+precheck failed: 1 problem(s)

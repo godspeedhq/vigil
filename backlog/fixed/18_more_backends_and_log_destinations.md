@@ -338,7 +338,7 @@ Results: Passed, Failed, Not supported, Not applicable, Not tested, Blocked by l
 - **Group 6, InfluxDB, done** (2026-11-04, Vigil on Fedora, through `influxdb-collector`): metrics passed `run-vigil.sh` and every applicable delivery check.
 - **Group 7, tracing:** Jaeger and Zipkin start and are ready; Vigil sends no traces, so nothing else applies.
 - **Group 8, ClickHouse, done** (2026-11-04, Vigil on Fedora, through `clickhouse-collector`): pinned to 25.8 LTS, since 26.10 stops with `Illegal instruction` on the Fedora host's 2011 CPU (no AVX2). Metrics and logs passed `run-vigil.sh` and every applicable delivery check. SigNoz (needs `foundryctl`, not installed), Uptrace and Graylog are not run yet.
-- **Group 2, Splunk, waits for its licence to be accepted by hand:** `start.sh splunk` needs `SPLUNK_START_ARGS` and `SPLUNK_GENERAL_TERMS` set in `.env` by whoever accepts Splunk's licence and General Terms. It also wants 4 GB or more. Its management API now serves the test CA's certificate (`configs/platforms/splunk/default.yml`), so provisioning and `verify.sh` verify it rather than skip the check; untested until Splunk can start.
+- **Group 2, Splunk, done** (2026-11-04, Vigil on Fedora, HEC direct, its licence accepted in `.env` on the user's say-so): metrics and logs passed `run-vigil.sh` and every delivery check, authentication included: a HEC token Splunk never issued was refused with HTTP 403 and counted. Its management API serves the test CA's certificate through a small app; the image's own `conf` mechanism left Splunk unable to start a second time.
 - **Next:** the other groups one at a time, each with a query helper in `run-checks.sh`.
 
 ## Decided: counts over OTLP
@@ -349,3 +349,21 @@ The first real run (LGTM, 2026-11-03) found that Prometheus-based backends silen
 - **B. Keep delta sums,** and document delta-to-cumulative conversion at the backend (Prometheus's `otlp-deltatocumulative` feature, or the collector's `deltatocumulative` processor). No change to Vigil, but every Prometheus user must know to turn it on.
 
 **A was chosen and done** (PR #64, spec 15.3). The rerun of LGTM with Vigil on Linux stored every metric, counters as `_total`.
+
+## Closed
+
+Closed on 2026-11-04, by decision: enough backends are covered. Results and evidence are in `tests/integration/backends/reports/compatibility.md` and on the site's Real systems pages.
+
+**Done:**
+- The environment: eight Compose groups and a ninth for the secret stores, one `start`/`stop`/`reset` interface, every component started and checked for readiness, every port on 127.0.0.1, and every certificate verified (nothing runs `curl -k` or skips a check).
+- Run with Vigil on Fedora, and passing `run-vigil.sh`: Grafana LGTM (also from macOS and Windows), Prometheus, Loki, Mimir, the OpenTelemetry Collector, Alloy, Splunk Enterprise, VictoriaMetrics, VictoriaLogs, Elasticsearch, OpenSearch, InfluxDB, ClickHouse and Uptrace. Grafana, Tempo, Pyroscope, VictoriaTraces, Jaeger and Zipkin start and are ready; they store nothing Vigil sends.
+- Section 5's checks 4 to 16 for each of those, in `scripts/run-checks.sh`. Every applicable check passed, except data the Elastic and OpenSearch collectors lost when they or their store restarted: the collector's own behaviour, past the point where Vigil's delivery ends.
+- Both SaaS guides (`saas/`).
+- Found and fixed on the way: the bash sender's quadratic time on large batches (#75, and backlog 29 for what is left), leaked supervisors in every test script, and health checks that could never run.
+
+**Not done:**
+- **SigNoz:** needs `foundryctl`, SigNoz's installer, which is not installed on the test host.
+- **Graylog:** not run.
+- **Datadog and Splunk Observability Cloud:** their guides are written; nothing is tested without credentials supplied by hand.
+- **Part 1, new backend types** beyond `file`, `datadog`, `otel` and `splunk`: none added. Everything above is reached with the existing four, directly or through a collector.
+- **The delivery checks from macOS and Windows:** run on Linux only. `run-vigil` covered LGTM from all three.

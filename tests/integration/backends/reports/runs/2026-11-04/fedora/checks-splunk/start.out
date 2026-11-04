@@ -1,0 +1,11 @@
+ Container vigil-backends-splunk-1 Starting 
+ Container vigil-backends-splunk-1 Started 
+ Container vigil-backends-splunk-1 Waiting 
+ Container vigil-backends-splunk-1 Healthy 
+waiting for the management API up
+ok    index vigil_metrics (metrics)
+ok    index vigil_logs (events)
+ok    HTTP Event Collector on, plain HTTP
+ok    token vigil-metrics
+ok    token vigil-logs
+started: splunk

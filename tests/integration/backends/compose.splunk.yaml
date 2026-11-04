@@ -34,6 +34,9 @@ services:
       # Plain HTTP for the collector: Vigil allows it only to this host, and
       # never turns certificate checks off, so a self-signed one would fail.
       SPLUNK_HEC_SSL: "false"
+      # The vigil_tls app (configs/platforms/splunk/vigil_tls), packed by start.sh:
+      # the management API serves the test CA's certificate.
+      SPLUNK_APPS_URL: /tmp/vigil-apps/vigil_tls.tgz
     ports:
       - "127.0.0.1:8000:8000"   # web
       - "127.0.0.1:8088:8088"   # HTTP Event Collector: Vigil sends here
@@ -41,8 +44,8 @@ services:
     volumes:
       - splunk-var:/opt/splunk/var
       - splunk-etc:/opt/splunk/etc
-      # The management API's certificate (configs/platforms/splunk/default.yml).
-      - ./configs/platforms/splunk/default.yml:/tmp/defaults/default.yml:ro,z
+      # The management API's certificate, and the app that sets it.
+      - ./.secrets/splunk:/tmp/vigil-apps:ro,z
       - ./.secrets/tls:/opt/vigil-tls:ro,z
 
 volumes:
