@@ -1003,7 +1003,7 @@ These hold everywhere in the code and are spelled out in [`SPECIFICATION.md`](SP
 
 ## Contributing
 
-Vigil is built to make adding checks easy: a check is just a script that prints `metric` lines, or an existing Nagios plugin. Contributor guidelines are coming. Until then:
+Vigil is built to make adding checks easy: a check is just a script that prints `metric` lines, or an existing Nagios plugin. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the rules for a contributed script, how it is reviewed and tested, and how it reaches a signed release. In short:
 
 - Read the relevant section of [`SPECIFICATION.md`](SPECIFICATION.md) first. The spec leads, and code follows it.
 - Change both implementations together, and add or update a conformance case that proves they agree.
