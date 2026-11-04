@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows; the rest of group 1 (the Grafana ecosystem) and group 3 (Victoria) with Vigil on Linux, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
+How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows; the rest of group 1 (the Grafana ecosystem), group 3 (Victoria) and group 4 (Elastic) with Vigil on Linux, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
 
 **Integration methods:**
 - **Direct Vigil integration:** a Vigil backend or log destination made for this product.
@@ -27,7 +27,7 @@ How each backend works with Vigil, and what a real test showed. **Grafana LGTM h
 | VictoriaMetrics (`v1.155.0`) | Docker | Through an intermediary (collector): its OTLP takes protobuf only | **Passed** | Not supported | Not applicable | **Passed** |
 | VictoriaLogs (`v1.53.0`) | Docker | Through an intermediary (collector): its OTLP takes protobuf only | Not supported | **Passed** | Not applicable | **Passed** |
 | VictoriaTraces (`v0.12.1`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
-| Elasticsearch and Kibana (`9.5.5`) | Docker | Through an intermediary (collector) | Not tested | Not tested | Not applicable | Not tested |
+| Elasticsearch and Kibana (`9.5.5`) | Docker | Through an intermediary (collector, `elasticsearch` exporter) | **Passed** | **Passed** | Not applicable | **Passed**; a line the collector held was lost when it restarted (Delivery checks) |
 | OpenSearch and Dashboards (`3.9.0`) | Docker | Through an intermediary (collector) | Not supported | Not tested | Not applicable | Not tested |
 | InfluxDB (`2.9.1`) | Docker | Through an intermediary (collector) | Not tested | Not supported | Not applicable | Not tested |
 | Jaeger (`2.22.0`) | Docker | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
@@ -69,6 +69,7 @@ Each run adds a row here: date, target, the image versions it ran, the run tag, 
 | 2026-11-04 | `victoriametrics` | Fedora 44, bash 5.3, direct | `victoriametrics/victoria-metrics:v1.155.0` | `bk202611041114291955993` | Failed: HTTP 400, protobuf only | Not supported | not kept: the run through the collector replaced its folder; the answer is below |
 | 2026-11-04 | `victoriametrics` | Fedora 44, bash 5.3, at `aa1c9e4`, through the collector | `victoriametrics/victoria-metrics:v1.155.0`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041221482057946` | **Passed** | Not supported | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-victoriametrics), [files](runs/2026-11-04/fedora/backend-victoriametrics) |
 | 2026-11-04 | `victorialogs` | Fedora 44, bash 5.3, at `aa1c9e4`, through the collector | `victoriametrics/victoria-logs:v1.53.0`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041224462068400` | Not supported | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-victorialogs), [files](runs/2026-11-04/fedora/backend-victorialogs) |
+| 2026-11-04 | `elastic` | Fedora 44, bash 5.3, at `f0310b7`, through the collector | `elasticsearch:9.5.5`, `kibana:9.5.5`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041312432475480` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-elastic), [files](runs/2026-11-04/fedora/backend-elastic) |
 
 ### Victoria: why through a collector
 
@@ -118,8 +119,34 @@ Group 3, Victoria, through `victoria-collector`, with Vigil on Fedora 44, bash 5
 
 Stopping or restarting the target stops or restarts the collector in front of it too.
 
+Group 4, Elastic, through `elastic-collector`, with Vigil on Fedora 44, bash 5.3, at `f0310b7`, 2026-11-04:
+
+| Check | Elasticsearch metrics | Elasticsearch logs |
+| --- | --- | --- |
+| 4 job identifiers | **Passed**, `job="bk_check"` kept | **Passed** |
+| 5 host metadata | **Passed** | **Passed** |
+| 6 timestamps | **Passed**, late ones too | **Passed** |
+| 7 authentication | Not applicable | Not applicable |
+| 8 unavailable | **Passed** | **Passed** |
+| 9 retry and backoff | **Passed** | **Passed** |
+| 10 recovery from the spool | **Passed**, 15 of 15 | **Passed** |
+| 11 a backend restart | **Passed** | **Failed**: 1 of 85 lines, held by the collector when it restarted |
+| 12 duplicates | **Passed**, none | **Passed**, none |
+| 13 dropped telemetry | **Passed** | Not applicable |
+| 14 several destinations | **Passed** | Not applicable |
+| 15 a healthy destination | **Passed** | Not applicable |
+| 16 a supervisor restart | **Passed** | **Passed** |
+| Evidence | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-elastic), [files](runs/2026-11-04/fedora/checks-elastic) | the same run |
+
+**Through a collector, Vigil's delivery ends at the collector.** Once the collector answers 2xx, Vigil has done its part and moves its checkpoint on; finishing the delivery is the collector's. The Elastic runs showed this twice:
+
+- **Elasticsearch restarting.** The collector's `elasticsearch` exporter, by default, retries twice within a second and then drops (`Exporting failed. Dropping data.`). The first run lost 50 seconds of metrics and logs while Elasticsearch came back. With `retry` set to try for minutes (`max_retries: 60`, up to 10 seconds apart), nothing was lost. The collector's `otlphttp` exporter, in groups 1 and 3, retries for 5 minutes by default, and lost nothing.
+- **The collector restarting.** A collector keeps what it has accepted in memory, in its batch and its retry queue. One log line, accepted 8 seconds before the collector itself was restarted, was gone. Groups 1 and 3 restarted their collectors too, with nothing in flight at the time. Only a persistent queue (the collector's `sending_queue` with `file_storage`) survives a collector restart.
+
+So with an intermediary, configure it to retry for as long as its store may be away, and give it a persistent queue if a restart must lose nothing.
+
 **Why not applicable:**
-- **7:** none of groups 1 and 3 takes a credential here, so there is nothing to refuse. Splunk, Elasticsearch and OpenSearch, which do, test it.
+- **7:** Vigil sends to each target without a credential here: groups 1 and 3 take none, and Elasticsearch's password is the collector's, not Vigil's. Splunk, which takes Vigil's own token, tests it.
 - **13 for Loki and VictoriaLogs:** only metrics go through the spool, and it is the spool that drops. The log forwarder reads Vigil's own log files from a checkpoint, so an outage delays lines, never drops them.
 - **14 and 15 for Loki and VictoriaLogs:** they are about metrics backends; Vigil has one log destination at a time.
 
