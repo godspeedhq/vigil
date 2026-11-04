@@ -37,10 +37,13 @@ services:
     ports:
       - "127.0.0.1:8000:8000"   # web
       - "127.0.0.1:8088:8088"   # HTTP Event Collector: Vigil sends here
-      - "127.0.0.1:8089:8089"   # management API: provision.sh, verify.sh
+      - "127.0.0.1:8089:8089"   # management API, the test CA's certificate: provision.sh, verify.sh
     volumes:
       - splunk-var:/opt/splunk/var
       - splunk-etc:/opt/splunk/etc
+      # The management API's certificate (configs/platforms/splunk/default.yml).
+      - ./configs/platforms/splunk/default.yml:/tmp/defaults/default.yml:ro,z
+      - ./.secrets/tls:/opt/vigil-tls:ro,z
 
 volumes:
   splunk-var:

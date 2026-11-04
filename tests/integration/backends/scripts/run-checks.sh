@@ -48,22 +48,24 @@ services=$(services_of "$target")
 
 # Where to ask: a Prometheus-style API for metrics, and for logs a Loki
 # (loki) or VictoriaLogs (vlogs) one at $logs, Elasticsearch (es) for both,
-# or OpenSearch (os) for logs.
+# OpenSearch (os) for logs, or ClickHouse (ch) for both.
 prom='' logs_api='' logs=''
 case $target in
     prometheus | alloy) prom=http://127.0.0.1:9090/api/v1 ;;
     mimir | otel-collector) prom=http://127.0.0.1:9009/prometheus/api/v1 ;;
     victoriametrics) prom=http://127.0.0.1:8428/api/v1 ;;
     # Not PromQL: documents searched in Elasticsearch (es() below), and
-    # Flux on InfluxDB (ifq()).
+    # Flux on InfluxDB (ifq()), and SQL on ClickHouse (chq()).
     elastic) prom=es ;;
     influxdb) prom=influx ;;
+    clickhouse) prom=ch ;;
 esac
 case $target in
     loki | otel-collector | alloy) logs_api=loki logs=http://127.0.0.1:3100/loki/api/v1 ;;
     victorialogs) logs_api=vlogs logs=http://127.0.0.1:9428/select/logsql ;;
     elastic) logs_api=es ;;
     opensearch) logs_api=os ;;
+    clickhouse) logs_api=ch ;;
 esac
 
 tag="ck$(date -u '+%Y%m%d%H%M%S')$$"
@@ -160,6 +162,12 @@ ifq() {
         curl -fsS -m 30 -K - 'http://127.0.0.1:8086/api/v2/query?org=vigil' \
             -H 'Content-Type: application/vnd.flux' -H 'Accept: application/csv' --data "$1" | tr -d '\r'
 }
+# SQL $1 on ClickHouse, as tab-separated rows. The password goes to curl on
+# its standard input, never its command line.
+chq() {
+    printf 'user = "vigil:%s"\n' "$CLICKHOUSE_PASSWORD" |
+        curl -fsS -m 30 -K - http://127.0.0.1:18123/ --data-binary "$1 FORMAT TSV"
+}
 # Columns $2... of CSV $1 (a header line, then rows), space-separated.
 csv_cols() {
     printf '%s\n' "$1" | awk -F, -v want="${*:2}" '
@@ -183,6 +191,7 @@ samples() {
     case $prom in
         es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor) \(.metrics["bk_check.seq"] | floor)"' ;;
         influx) csv_cols "$(ifq "$flux_seq |> map(fn: (r) => ({t: int(v: r._time) / 1000000000, v: int(v: r._value)}))")" t v ;;
+        ch) chq "SELECT toUnixTimestamp(TimeUnix), toInt64(Value) FROM vigil.otel_metrics_gauge WHERE MetricName = 'bk_check.seq' AND Attributes['run'] = '$tag' ORDER BY TimeUnix" | tr '\t' ' ' ;;
         *) pq "$seq_sel[1h]" | jq -r '.data.result[0].values[]? | "\(.[0]) \(.[1])"' ;;
     esac
 }
@@ -190,6 +199,9 @@ samples() {
 labels() {
     case $prom in
         es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[-1]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"' ;;
+        ch)
+            chq "SELECT concat(k, '=', v) FROM (SELECT Attributes AS m FROM vigil.otel_metrics_gauge WHERE MetricName = 'bk_check.seq' AND Attributes['run'] = '$tag' ORDER BY TimeUnix DESC LIMIT 1) ARRAY JOIN mapKeys(m) AS k, mapValues(m) AS v"
+            ;;
         influx)
             # The tags of the last row: every column but Flux's own.
             ifq "$flux_seq |> last()" | awk -F, 'NR == 1 { for (i = 1; i <= NF; i++) h[i] = $i; next }
@@ -208,6 +220,9 @@ drops() {
             # search, unlike PromQL, finds a series however old it is.
             es 'metrics-*' "{\"size\":1,\"query\":{\"bool\":{\"filter\":[{\"match\":{\"attributes.backend\":\"target\"}},{\"match\":{\"attributes.instance\":\"backend-check\"}},{\"exists\":{\"field\":\"metrics.vigil.spool.dropped\"}},{\"range\":{\"@timestamp\":{\"gte\":$((t_start * 1000))}}}]}},\"sort\":[{\"@timestamp\":\"desc\"}]}" |
                 jq -r '.hits.hits[]._source | "\(.attributes.reason)=\(.metrics["vigil.spool.dropped"])"'
+            ;;
+        ch)
+            chq "SELECT concat(Attributes['reason'], '=', toString(Value)) FROM vigil.otel_metrics_sum WHERE MetricName = 'vigil.spool.dropped' AND Attributes['backend'] = 'target' AND Attributes['instance'] = 'backend-check' AND TimeUnix >= toDateTime($t_start) ORDER BY TimeUnix DESC LIMIT 1"
             ;;
         influx)
             csv_cols "$(ifq "from(bucket: \"vigil\") |> range(start: $(date -u -d "@$t_start" +%FT%TZ)) |> filter(fn: (r) => r._measurement == \"vigil.spool.dropped\" and r._field == \"counter\" and r.backend == \"target\" and r.instance == \"backend-check\") |> last()")" reason _value |
@@ -237,6 +252,9 @@ lines() {
             es 'logs-*' "{\"size\":${1:-5000},\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}},\"sort\":[{\"@timestamp\":\"asc\"}]}" |
                 jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor | . * 1000000000) \(.body.text)"'
             ;;
+        ch)
+            chq "SELECT toUnixTimestamp(Timestamp) * 1000000000, Body FROM vigil.otel_logs WHERE position(Body, 'line $tag ') > 0 ORDER BY Timestamp LIMIT ${1:-5000}" | tr '\t' ' '
+            ;;
         os)
             # @timestamp as an ISO time, to the second.
             osq 'ss4o_logs-*' "{\"size\":${1:-5000},\"query\":{\"match_phrase\":{\"body\":\"line $tag \"}},\"sort\":[{\"@timestamp\":\"asc\"}]}" |
@@ -258,6 +276,9 @@ line_labels() {
         es)
             es 'logs-*' "{\"size\":1,\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}}}" |
                 jq -r '.hits.hits[0]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"'
+            ;;
+        ch)
+            chq "SELECT concat(k, '=', v) FROM (SELECT mapUpdate(ResourceAttributes, LogAttributes) AS m FROM vigil.otel_logs WHERE position(Body, 'line $tag ') > 0 LIMIT 1) ARRAY JOIN mapKeys(m) AS k, mapValues(m) AS v"
             ;;
         os)
             osq 'ss4o_logs-*' "{\"size\":1,\"query\":{\"match_phrase\":{\"body\":\"line $tag \"}}}" |

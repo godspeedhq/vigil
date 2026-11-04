@@ -93,12 +93,12 @@ loki() {
     return 1
 }
 
-# Splunk search, through the management API (the container's own
-# certificate: -k, for this local test container only).
+# Splunk search, through the management API, its certificate (the test
+# CA's, configs/platforms/splunk/default.yml) verified.
 splunk_search() {
     local out
     out=$(printf 'user = "admin:%s"\n' "$SPLUNK_PASSWORD" |
-        curl -sk -K - https://127.0.0.1:8089/services/search/jobs/export \
+        curl -s --cacert "$bk_dir/.secrets/tls/ca.pem" -K - https://127.0.0.1:8089/services/search/jobs/export \
             --data-urlencode "search=$1" -d output_mode=csv -d earliest_time=-1h) || return 1
     printf '%s\n' "$out"
     [ "$(printf '%s\n' "$out" | sed 1d | grep -c .)" -gt 0 ]
