@@ -1,0 +1,78 @@
+# TYPE bk_fail_duration_seconds gauge
+bk_fail_duration_seconds{host="fedora",instance="backend-test",job="bk_fail",os="linux"} 1
+# TYPE bk_fail_failures_total counter
+bk_fail_failures_total{exit_code="2",host="fedora",instance="backend-test",job="bk_fail",os="linux"} 2
+# TYPE bk_fail_runs_total counter
+bk_fail_runs_total{host="fedora",instance="backend-test",job="bk_fail",os="linux"} 2
+# TYPE bk_long_duration_seconds gauge
+bk_long_duration_seconds{host="fedora",instance="backend-test",job="bk_long",os="linux"} 41
+# TYPE bk_long_running gauge
+bk_long_running{host="fedora",instance="backend-test",job="bk_long",os="linux"} 31
+# TYPE bk_long_runs_total counter
+bk_long_runs_total{host="fedora",instance="backend-test",job="bk_long",os="linux"} 2
+# TYPE bk_long_slept_seconds gauge
+bk_long_slept_seconds{host="fedora",instance="backend-test",job="bk_long",os="linux"} 40
+# TYPE bk_long_succeeded_total counter
+bk_long_succeeded_total{host="fedora",instance="backend-test",job="bk_long",os="linux"} 2
+# TYPE bk_metrics_duration_seconds gauge
+bk_metrics_duration_seconds{host="fedora",instance="backend-test",job="bk_metrics",os="linux"} 0
+# TYPE bk_metrics_runs_total counter
+bk_metrics_runs_total{host="fedora",instance="backend-test",job="bk_metrics",os="linux"} 2
+# TYPE bk_metrics_succeeded_total counter
+bk_metrics_succeeded_total{host="fedora",instance="backend-test",job="bk_metrics",os="linux"} 2
+# TYPE bk_metrics_vigil_backend_probe gauge
+bk_metrics_vigil_backend_probe{host="fedora",instance="backend-test",job="bk_metrics",os="linux",run="bk202611041338282672634"} 42
+# TYPE bk_missing_duration_seconds gauge
+bk_missing_duration_seconds{host="fedora",instance="backend-test",job="bk_missing",os="linux"} 0
+# TYPE bk_missing_failures_total counter
+bk_missing_failures_total{host="fedora",instance="backend-test",job="bk_missing",os="linux"} 2
+# TYPE bk_missing_runs_total counter
+bk_missing_runs_total{host="fedora",instance="backend-test",job="bk_missing",os="linux"} 2
+# TYPE bk_native_duration_seconds gauge
+bk_native_duration_seconds{host="fedora",instance="backend-test",job="bk_native",os="linux"} 0
+# TYPE bk_native_runs_total counter
+bk_native_runs_total{host="fedora",instance="backend-test",job="bk_native",os="linux"} 2
+# TYPE bk_native_succeeded_total counter
+bk_native_succeeded_total{host="fedora",instance="backend-test",job="bk_native",os="linux"} 2
+# TYPE bk_ok_done gauge
+bk_ok_done{host="fedora",instance="backend-test",job="bk_ok",os="linux"} 1
+# TYPE bk_ok_duration_seconds gauge
+bk_ok_duration_seconds{host="fedora",instance="backend-test",job="bk_ok",os="linux"} 1
+# TYPE bk_ok_runs_total counter
+bk_ok_runs_total{host="fedora",instance="backend-test",job="bk_ok",os="linux"} 2
+# TYPE bk_ok_succeeded_total counter
+bk_ok_succeeded_total{host="fedora",instance="backend-test",job="bk_ok",os="linux"} 2
+# TYPE bk_output_duration_seconds gauge
+bk_output_duration_seconds{host="fedora",instance="backend-test",job="bk_output",os="linux"} 0
+# TYPE bk_output_runs_total counter
+bk_output_runs_total{host="fedora",instance="backend-test",job="bk_output",os="linux"} 2
+# TYPE bk_output_succeeded_total counter
+bk_output_succeeded_total{host="fedora",instance="backend-test",job="bk_output",os="linux"} 2
+# TYPE bk_overrun_duration_seconds gauge
+bk_overrun_duration_seconds{host="fedora",instance="backend-test",job="bk_overrun",os="linux"} 10
+# TYPE bk_overrun_running gauge
+bk_overrun_running{host="fedora",instance="backend-test",job="bk_overrun",os="linux"} 10
+# TYPE bk_overrun_runs_total counter
+bk_overrun_runs_total{host="fedora",instance="backend-test",job="bk_overrun",os="linux"} 2
+# TYPE bk_overrun_timeouts_total counter
+bk_overrun_timeouts_total{host="fedora",instance="backend-test",job="bk_overrun",os="linux"} 2
+# TYPE vigil_config_info gauge
+vigil_config_info{host="fedora",instance="backend-test",os="linux",revision="57f131f0c19e"} 1
+# TYPE vigil_logs_bytes_sent_total counter
+vigil_logs_bytes_sent_total{host="fedora",instance="backend-test",os="linux"} 38649
+# TYPE vigil_logs_enabled gauge
+vigil_logs_enabled{host="fedora",instance="backend-test",os="linux"} 1
+# TYPE vigil_logs_pending_bytes gauge
+vigil_logs_pending_bytes{host="fedora",instance="backend-test",os="linux"} 0
+# TYPE vigil_logs_records_sent_total counter
+vigil_logs_records_sent_total{host="fedora",instance="backend-test",os="linux"} 93
+# TYPE vigil_spool_bytes gauge
+vigil_spool_bytes{host="fedora",instance="backend-test",os="linux"} 260
+# TYPE vigil_supervisor_config_reload_failed gauge
+vigil_supervisor_config_reload_failed{host="fedora",instance="backend-test",os="linux"} 0
+# TYPE vigil_supervisor_pending gauge
+vigil_supervisor_pending{host="fedora",instance="backend-test",os="linux"} 0
+# TYPE vigil_supervisor_up gauge
+vigil_supervisor_up{host="fedora",instance="backend-test",os="linux"} 1
+# TYPE vigil_supervisor_workers gauge
+vigil_supervisor_workers{host="fedora",instance="backend-test",os="linux"} 0

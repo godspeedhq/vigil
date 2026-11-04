@@ -1,0 +1,30 @@
+# TYPE bk_check_duration_seconds gauge
+bk_check_duration_seconds{host="fedora",instance="backend-check",job="bk_check",os="linux"} 0
+# TYPE bk_check_runs_total counter
+bk_check_runs_total{host="fedora",instance="backend-check",job="bk_check",os="linux"} 72
+# TYPE bk_check_seq gauge
+bk_check_seq{host="fedora",instance="backend-check",job="bk_check",os="linux",run="ck202611041341152686521"} 1793800045
+# TYPE bk_check_succeeded_total counter
+bk_check_succeeded_total{host="fedora",instance="backend-check",job="bk_check",os="linux"} 72
+# TYPE vigil_config_info gauge
+vigil_config_info{host="fedora",instance="backend-check",os="linux",revision="37098c7daebe"} 1
+# TYPE vigil_logs_bytes_sent_total counter
+vigil_logs_bytes_sent_total{host="fedora",instance="backend-check",os="linux"} 278770
+# TYPE vigil_logs_enabled gauge
+vigil_logs_enabled{host="fedora",instance="backend-check",os="linux"} 1
+# TYPE vigil_logs_failures_total counter
+vigil_logs_failures_total{host="fedora",instance="backend-check",os="linux",reason="unreachable"} 5
+# TYPE vigil_logs_pending_bytes gauge
+vigil_logs_pending_bytes{host="fedora",instance="backend-check",os="linux"} 0
+# TYPE vigil_logs_records_sent_total counter
+vigil_logs_records_sent_total{host="fedora",instance="backend-check",os="linux"} 646
+# TYPE vigil_spool_bytes gauge
+vigil_spool_bytes{host="fedora",instance="backend-check",os="linux"} 0
+# TYPE vigil_supervisor_config_reload_failed gauge
+vigil_supervisor_config_reload_failed{host="fedora",instance="backend-check",os="linux"} 0
+# TYPE vigil_supervisor_pending gauge
+vigil_supervisor_pending{host="fedora",instance="backend-check",os="linux"} 0
+# TYPE vigil_supervisor_up gauge
+vigil_supervisor_up{host="fedora",instance="backend-check",os="linux"} 1
+# TYPE vigil_supervisor_workers gauge
+vigil_supervisor_workers{host="fedora",instance="backend-check",os="linux"} 1
