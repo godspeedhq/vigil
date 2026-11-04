@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows; the rest of group 1 (the Grafana ecosystem), groups 3 to 6 (Victoria, Elastic, OpenSearch, InfluxDB) and ClickHouse with Vigil on Linux, and group 7 (tracing) started, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
+How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows; the rest of group 1 (the Grafana ecosystem) and groups 2 to 6 (Splunk, Victoria, Elastic, OpenSearch, InfluxDB) and ClickHouse with Vigil on Linux, and group 7 (tracing) started, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
 
 **Integration methods:**
 - **Direct Vigil integration:** a Vigil backend or log destination made for this product.
@@ -23,7 +23,7 @@ How each backend works with Vigil, and what a real test showed. **Grafana LGTM h
 | Pyroscope (`2.4.2`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
 | OpenTelemetry Collector (`0.163.2`) | Docker | Through an intermediary (to Mimir and Loki) | **Passed** | **Passed** | Not applicable | **Passed** |
 | Grafana Alloy (`v1.21.3`) | Docker | Through an intermediary (to Prometheus and Loki) | **Passed** | **Passed** | Not applicable | **Passed** |
-| Splunk Enterprise (`10.6.1`) | Docker | Direct Vigil integration (HEC) | Not tested | Not tested | Not applicable | Not tested |
+| Splunk Enterprise (`10.6.1`) | Docker | Direct Vigil integration (HEC) | **Passed** | **Passed** | Not applicable | **Passed** |
 | VictoriaMetrics (`v1.155.0`) | Docker | Through an intermediary (collector): its OTLP takes protobuf only | **Passed** | Not supported | Not applicable | **Passed** |
 | VictoriaLogs (`v1.53.0`) | Docker | Through an intermediary (collector): its OTLP takes protobuf only | Not supported | **Passed** | Not applicable | **Passed** |
 | VictoriaTraces (`v0.12.1`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
@@ -73,6 +73,7 @@ Each run adds a row here: date, target, the image versions it ran, the run tag, 
 | 2026-11-04 | `opensearch` | Fedora 44, bash 5.3, at `cad74b9`, through the collector, certificate verified | `opensearchproject/opensearch:3.9.0`, `opensearchproject/opensearch-dashboards:3.9.0`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041338282672634` | Not supported | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-opensearch), [files](runs/2026-11-04/fedora/backend-opensearch) |
 | 2026-11-04 | `influxdb` | Fedora 44, bash 5.3, at `4e2b221`, through the collector | `influxdb:2.9.1`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041400332816023` | **Passed** | Not supported | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-influxdb), [files](runs/2026-11-04/fedora/backend-influxdb) |
 | 2026-11-04 | `clickhouse` | Fedora 44, bash 5.3, at `6917da1`, through the collector | `clickhouse/clickhouse-server:25.8.33.6`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041500182962371` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-clickhouse), [files](runs/2026-11-04/fedora/backend-clickhouse) |
+| 2026-11-04 | `splunk` | Fedora 44, bash 5.3, at `4ae1343`, HEC direct | `splunk/splunk:10.6.1` | `bk202611041706553316631` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-splunk), [files](runs/2026-11-04/fedora/backend-splunk) |
 
 ### Victoria: why through a collector
 
@@ -121,6 +122,29 @@ Group 3, Victoria, through `victoria-collector`, with Vigil on Fedora 44, bash 5
 | Evidence | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-victoriametrics), [files](runs/2026-11-04/fedora/checks-victoriametrics) | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-victorialogs), [files](runs/2026-11-04/fedora/checks-victorialogs) |
 
 Stopping or restarting the target stops or restarts the collector in front of it too.
+
+Group 2, Splunk Enterprise, direct over HEC, with Vigil on Fedora 44, bash 5.3, at `e4f51fe`, 2026-11-04:
+
+| Check | Splunk metrics | Splunk logs |
+| --- | --- | --- |
+| 4 job identifiers | **Passed**, `job="bk_check"` kept | **Passed** |
+| 5 host metadata | **Passed** | **Passed** |
+| 6 timestamps | **Passed**, late ones too | **Passed** |
+| 7 authentication | **Passed**: a HEC token Splunk never issued refused with HTTP 403, and counted | the same |
+| 8 unavailable | **Passed** | **Passed** |
+| 9 retry and backoff | **Passed** | **Passed** |
+| 10 recovery from the spool | **Passed**, 17 of 17 | **Passed** |
+| 11 a backend restart | **Passed** | **Passed** |
+| 12 duplicates | **Passed**, none | **Passed**, none |
+| 13 dropped telemetry | **Passed** | Not applicable |
+| 14 several destinations | **Passed** | Not applicable |
+| 15 a healthy destination | **Passed** | Not applicable |
+| 16 a supervisor restart | **Passed** | **Passed** |
+| Evidence | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-splunk), [files](runs/2026-11-04/fedora/checks-splunk) | the same run |
+
+Splunk is the one target here that takes a credential from Vigil itself, its HEC token, so it is the one where check 7 applies. A second Splunk backend in the same Vigil sends a well-formed token Splunk never issued: every request was refused (`permission denied (HTTP 403)`), counted in `vigil.backend.failures`, and kept to retry, while the right token delivered every run.
+
+**Certificates.** Splunk's management API, which `provision.sh` and `verify.sh` use, serves the test CA's certificate, set by a small Splunk app (`configs/platforms/splunk/vigil_tls`) installed through `SPLUNK_APPS_URL`, and both verify it; before, both ran `curl -k`. The image's own way to set it, `conf` entries in `default.yml`, worked once: on every later start the image's setup cannot read the file those entries leave behind (`Permission denied`), and Splunk never starts again. HEC stays plain HTTP on 127.0.0.1, which Vigil allows only to its own host.
 
 Group 4, Elastic, through `elastic-collector`, with Vigil on Fedora 44, bash 5.3, at `f0310b7`, 2026-11-04:
 
@@ -194,7 +218,7 @@ Group 7, tracing: Jaeger and Zipkin start through `start.sh` and answer (Jaeger'
 The rest of group 8 is not run yet: SigNoz needs `foundryctl`, which is not installed, and Uptrace and Graylog were not tried. Uptrace brings its own ClickHouse, which may need the same care on this CPU.
 
 **Why not applicable:**
-- **7:** Vigil sends to each target without a credential here: groups 1 and 3 take none, and Elasticsearch's password is the collector's, not Vigil's. Splunk, which takes Vigil's own token, tests it.
+- **7:** every target but Splunk takes Vigil's data without a credential here: the collectors take none, and the stores' passwords are the collectors', not Vigil's. Splunk, which takes Vigil's own token, tests it (above).
 - **13 for Loki, VictoriaLogs and OpenSearch:** only metrics go through the spool, and it is the spool that drops. The log forwarder reads Vigil's own log files from a checkpoint, so an outage delays lines, never drops them.
 - **14 and 15 for Loki and VictoriaLogs:** they are about metrics backends; Vigil has one log destination at a time.
 

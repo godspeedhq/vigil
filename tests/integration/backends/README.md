@@ -143,7 +143,7 @@ The backend's own query interface is then asked for every run in the ledger:
 | 14 several destinations | the same runs reach the file backend |
 | 15 a healthy destination | the file backend stays current all through the outage |
 
-Prometheus-style, Loki, VictoriaLogs (LogsQL), Elasticsearch, OpenSearch, InfluxDB (Flux) and ClickHouse (SQL) query APIs are supported so far: `prometheus`, `loki`, `mimir`, `otel-collector`, `alloy`, `victoriametrics`, `victorialogs`, `elastic`, `opensearch`, `influxdb` and `clickhouse`. A target without one has those checks NOT RUN, and says so.
+Prometheus-style, Loki, VictoriaLogs (LogsQL), Elasticsearch, OpenSearch, InfluxDB (Flux) and ClickHouse (SQL) and Splunk (SPL) query APIs are supported so far: `prometheus`, `loki`, `mimir`, `otel-collector`, `alloy`, `victoriametrics`, `victorialogs`, `elastic`, `opensearch`, `influxdb`, `clickhouse` and `splunk`. A target without one has those checks NOT RUN, and says so.
 
 ## Secret stores
 
@@ -239,7 +239,6 @@ The run's secrets and credentials are test values. Even so, a file holding one i
 
 ## Not done yet
 
-- **Delivery checks beyond group 1:** `run-checks.sh` needs a query helper for each other backend's API (Splunk), and an authentication case where the target takes a credential.
 - **Uptrace and Graylog,** and an API check for SigNoz instead of its UI.
 
 ## Resources

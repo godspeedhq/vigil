@@ -1,0 +1,20 @@
+Configuration /tmp/vigil-bk.gzQV6f/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_ok
+  ok    job.bk_fail
+  ok    job.bk_long
+  ok    job.bk_overrun
+  FAIL  job.bk_missing: file not found: /tmp/vigil-bk.gzQV6f/root/scripts/missing.sh
+  ok    job.bk_output
+  ok    job.bk_metrics
+  ok    job.bk_native
+  ok    backend.target: token env:VIGIL_SPLUNK_METRICS_TOKEN
+  ok    log_destination.target: token env:VIGIL_SPLUNK_LOGS_TOKEN
+  ok    state directory: /tmp/vigil-bk.gzQV6f/root/state
+  ok    log directory: /tmp/vigil-bk.gzQV6f/root/logs
+  ok    spool directory: /tmp/vigil-bk.gzQV6f/root/spool
+
+precheck failed: 1 problem(s)

@@ -1,0 +1,18 @@
+target   splunk
+run tag  bk202611041706553316631
+date     2026-11-04T17:09:40Z
+images
+splunk splunk/splunk:10.6.1
+
+== metrics: PASS
+job,v
+"bk_metrics",42
+
+== logs: PASS
+"_serial","_time",source,sourcetype,host,index,"splunk_server","_raw"
+0,"2026-11-04 17:09:15.000 GMT",vigil,"vigil:log",fedora,"vigil_logs",fb8e7e3bf0f1,"{""message"":""bk_output stderr bk202611041706553316631"",""component"":""job"",""category"":""stderr"",""job"":""bk_output"",""run_id"":""20261104T170915Z-3316684-45"",""source_file"":""jobs/bk_output/2026-11-04.log""}"
+1,"2026-11-04 17:09:15.000 GMT",vigil,"vigil:log",fedora,"vigil_logs",fb8e7e3bf0f1,"{""message"":""bk_output stdout bk202611041706553316631"",""component"":""job"",""category"":""stdout"",""job"":""bk_output"",""run_id"":""20261104T170915Z-3316684-45"",""source_file"":""jobs/bk_output/2026-11-04.log""}"
+2,"2026-11-04 17:09:15.000 GMT",vigil,"vigil:log",fedora,"vigil_logs",fb8e7e3bf0f1,"{""message"":""metric vigil_backend_probe 42 run=bk202611041706553316631"",""component"":""job"",""category"":""stdout"",""job"":""bk_metrics"",""run_id"":""20261104T170915Z-3316684-46"",""source_file"":""jobs/bk_metrics/2026-11-04.log""}"
+3,"2026-11-04 17:08:15.000 GMT",vigil,"vigil:log",fedora,"vigil_logs",fb8e7e3bf0f1,"{""message"":""bk_output stderr bk202611041706553316631"",""component"":""job"",""category"":""stderr"",""job"":""bk_output"",""run_id"":""20261104T170815Z-3316684-28"",""source_file"":""jobs/bk_output/2026-11-04.log""}"
+4,"2026-11-04 17:08:15.000 GMT",vigil,"vigil:log",fedora,"vigil_logs",fb8e7e3bf0f1,"{""message"":""bk_output stdout bk202611041706553316631"",""component"":""job"",""category"":""stdout"",""job"":""bk_output"",""run_id"":""20261104T170815Z-3316684-28"",""source_file"":""jobs/bk_output/2026-11-04.log""}"
+

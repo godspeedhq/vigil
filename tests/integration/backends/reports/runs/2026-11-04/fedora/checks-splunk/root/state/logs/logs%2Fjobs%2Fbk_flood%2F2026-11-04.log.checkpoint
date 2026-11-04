@@ -1,0 +1,5 @@
+[checkpoint]
+file        = logs/jobs/bk_flood/2026-11-04.log
+fingerprint = 3720734893 64
+offset      = 1100242
+size        = 1100242
