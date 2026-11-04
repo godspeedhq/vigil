@@ -506,8 +506,15 @@ if [ -n "$logs_api" ]; then
     esac
 fi
 
+# Uptrace keeps metrics as aggregates per minute, not each sample: a query
+# gives a value every 30 seconds, a minute's mean, not any one run's. Single
+# runs cannot be found there, so its metrics are checked by the minute.
+agg=''
+[ "$target" = uptrace ] && agg=minute
 # 6: a delayed sample keeps the time it was made, not the time it arrived.
-if [ -n "$prom" ]; then
+if [ -n "$prom" ] && [ -n "$agg" ]; then
+    result 'NOT APPLICABLE' "6 timestamps: $target keeps metrics per minute, not each sample's own time (the logs below keep theirs)"
+elif [ -n "$prom" ]; then
     off=$(awk '{ d = int($1) - $2; if (d < 0 || d > 10) bad++; if (d > max) max = d } END { printf "%d %d", bad, max }' "$work/samples.txt")
     late=$(awk -v a="$t_down" -v b="$t_up" '$2 >= a && $2 < b' "$work/samples.txt" | grep -c .)
     if [ "${off% *}" -eq 0 ] && [ "$late" -gt 0 ]; then
@@ -566,8 +573,23 @@ if [ -n "$bk_logs" ]; then
     if [ "${fwd:-0}" -gt 0 ]; then result PASS "8, 9 logs: the forwarder failed $fwd times and backed off"; else result FAIL "8, 9 logs: no forwarder failure recorded"; fi
 fi
 
-# 10, 11, 12, 16: every run before t_main, once.
-if [ -n "$prom" ]; then
+# 10, 11, 12, 16: every run before t_main, once; by the minute for a
+# backend that keeps metrics per minute.
+if [ -n "$prom" ] && [ -n "$agg" ]; then
+    # Every minute that had a run, the outage's included, has a value of its
+    # own: the mean of its runs' seconds, so inside the minute, not a
+    # neighbour's carried over.
+    have=$(awk '{ m = int($1 / 60) * 60; if (int($2 / 60) * 60 == m) print m }' "$work/samples.txt" | sort -u)
+    need=$(printf '%s\n' "$want" | awk 'NF { print int($1 / 60) * 60 }' | sort -u)
+    m=$(comm -23 <(printf '%s\n' "$need") <(printf '%s\n' "$have") | grep -c .)
+    nm=$(printf '%s\n' "$need" | grep -c .)
+    if [ "$m" -eq 0 ]; then
+        result PASS "10, 11, 16 (by the minute): every one of the $nm minutes with a run has a value, the outage's, the restart's and the supervisor restart's included"
+    else
+        result FAIL "10, 11, 16 (by the minute): $m of $nm minutes with a run have no value"
+    fi
+    result 'NOT APPLICABLE' "12 duplicate delivery: $target keeps metrics per minute, so a sample stored twice cannot be told apart (the logs below can)"
+elif [ -n "$prom" ]; then
     m=$(printf '%s\n' "$got" | missing) d=$(printf '%s\n' "$got" | dups)
     out=$(ledger_between "$t_down" "$t_up" | grep -c .)
     if [ "$m" -eq 0 ]; then
