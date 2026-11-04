@@ -113,7 +113,9 @@ for t in "$@"; do
         uptrace)
             d=$(fetch_upstream uptrace) || exit 1
             # Only the services Uptrace itself needs, not the example's extras.
-            docker compose -p vigil-uptrace -f "$d/docker-compose.yml" up -d --wait clickhouse postgres redis uptrace || die 'uptrace did not start'
+            # With our override: every port on 127.0.0.1 only, as everywhere here.
+            docker compose -p vigil-uptrace -f "$d/docker-compose.yml" -f "$bk_dir/configs/platforms/uptrace/compose.override.yaml" \
+                up -d --wait clickhouse postgres redis uptrace || die 'uptrace did not start'
             ;;
         graylog)
             d=$(fetch_upstream graylog) || exit 1

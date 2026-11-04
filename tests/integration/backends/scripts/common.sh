@@ -183,7 +183,12 @@ endpoints() {
         grafana) bk_why='Grafana stores nothing: it is the interface to the others' ;;
         tempo | jaeger | zipkin | victoriatraces | tracing) bk_why='Vigil sends no traces' ;;
         pyroscope) bk_why='Vigil sends no profiles' ;;
-        uptrace) bk_why='Uptrace wants its DSN in an uptrace-dsn header, which Vigil can send for logs but not metrics: to be worked out at first run' ;;
+        # Direct: Uptrace takes its DSN as an uptrace-dsn header, or whole
+        # as "Authorization: Bearer <DSN>", which is how the otel backend
+        # sends its api_key (VIGIL_UPTRACE_DSN in .env).
+        uptrace)
+            bk_metrics='otel http://127.0.0.1:14318/v1/metrics'
+            bk_logs='otel http://127.0.0.1:14318/v1/logs' ;;
         graylog) bk_why='Graylog takes OTLP over gRPC, and Vigil sends OTLP over HTTP: needs a collector in between, to be worked out at first run' ;;
         openbao | vault | aws | azure | gcp | azure-alt | gcp-alt) bk_why="$1 is a secret store, not somewhere Vigil sends: test it with scripts/run-store.sh $1" ;;
         git-* | https-* | sftp-*) bk_why="$1 is a source Vigil fetches from, not somewhere it sends: test it with scripts/run-source.sh $1" ;;

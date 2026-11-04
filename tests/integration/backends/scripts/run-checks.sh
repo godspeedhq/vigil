@@ -43,7 +43,15 @@ target=$1
 endpoints "$target"
 [ -z "$bk_why" ] || die "$target: not applicable to Vigil: $bk_why"
 command -v jq > /dev/null 2>&1 || die 'run-checks.sh needs jq'
-services=$(services_of "$target")
+# The containers that are the target: ours, or for an official deployment
+# (its own Compose project) its server alone, its databases left running.
+if is_upstream "$target"; then
+    services=$target
+    target_compose() { docker compose -p "vigil-$target" "$@"; }
+else
+    services=$(services_of "$target")
+    target_compose() { compose --profile "$target" "$@"; }
+fi
 [ -n "$services" ] || die "no containers for $target"
 
 # Where to ask: a Prometheus-style API for metrics, and for logs a Loki
@@ -60,6 +68,7 @@ case $target in
     influxdb) prom=influx ;;
     clickhouse) prom=ch ;;
     splunk) prom=splunk ;;
+    uptrace) prom=http://127.0.0.1:14318/api/prometheus/1/api/v1 ;;
 esac
 case $target in
     loki | otel-collector | alloy) logs_api=loki logs=http://127.0.0.1:3100/loki/api/v1 ;;
@@ -68,12 +77,15 @@ case $target in
     opensearch) logs_api=os ;;
     clickhouse) logs_api=ch ;;
     splunk) logs_api=splunk ;;
+    uptrace) logs_api=uptrace ;;
 esac
 
 tag="ck$(date -u '+%Y%m%d%H%M%S')$$"
 # A well-formed HEC token Splunk never issued: check 7's backend sends it.
 BK_BAD_TOKEN=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n' | sed 's/^\(.\{8\}\)\(.\{4\}\)\(.\{4\}\)\(.\{4\}\)/\1-\2-\3-\4-/')
 export BK_BAD_TOKEN
+# The same for Uptrace: a DSN whose token Uptrace never issued.
+export BK_BAD_DSN="http://${BK_BAD_TOKEN}@localhost:14318?grpc=14317"
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-ck.XXXXXX") || exit 1
 root=$work/root
 ledger=$work/ledger
@@ -85,7 +97,7 @@ cleanup() {
     end_workers
     # The target is left running, as start.sh left it.
     [ -n "${down-}" ] && start_target > /dev/null
-    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}" "${ELASTIC_PASSWORD-}" "${OPENSEARCH_ADMIN_PASSWORD-}" "${INFLUXDB_TOKEN-}" "${CLICKHOUSE_PASSWORD-}" "${SPLUNK_PASSWORD-}" "$BK_BAD_TOKEN"
+    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}" "${ELASTIC_PASSWORD-}" "${OPENSEARCH_ADMIN_PASSWORD-}" "${INFLUXDB_TOKEN-}" "${CLICKHOUSE_PASSWORD-}" "${SPLUNK_PASSWORD-}" "$BK_BAD_TOKEN" "${VIGIL_UPTRACE_DSN-}" "${UPTRACE_USER_TOKEN-}"
     rm -rf "$work"
 }
 trap cleanup EXIT
@@ -113,7 +125,7 @@ start_sup() {
     bash "$root/app/vigil" --root "$root" supervise < /dev/null >> "$work/supervise.out" 2>&1 &
     sup=$!
 }
-stop_target() { compose --profile "$target" stop $services > /dev/null 2>&1; down=1; }
+stop_target() { target_compose stop $services > /dev/null 2>&1; down=1; }
 start_target() { bash "$here/start.sh" "$target" > "$work/start.out" 2>&1 && down=''; }
 
 # The job: writes its run in the ledger, then reports it as a metric and a
@@ -138,11 +150,14 @@ config() {
     if [ -n "$bk_metrics" ]; then
         printf '[backend.target]\ntype     = %s\nendpoint = %s\n' "${bk_metrics%% *}" "${bk_metrics#* }"
         [ "$target" = splunk ] && printf 'token    = env:VIGIL_SPLUNK_METRICS_TOKEN\n'
+        [ "$target" = uptrace ] && printf 'api_key  = env:VIGIL_UPTRACE_DSN\n'
         printf '\n'
     fi
     # 7: a credential the target must refuse, beside the right one.
     if [ "$target" = splunk ]; then
         printf '[backend.badtoken]\ntype     = splunk\nendpoint = %s\ntoken    = env:BK_BAD_TOKEN\n\n' "${bk_metrics#* }"
+    elif [ "$target" = uptrace ]; then
+        printf '[backend.badtoken]\ntype     = otel\nendpoint = %s\napi_key  = env:BK_BAD_DSN\n\n' "${bk_metrics#* }"
     fi
     # The second destination, healthy throughout.
     printf '[backend.local]\ntype = file\npath = metrics/local.prom\n\n'
@@ -150,6 +165,7 @@ config() {
         printf '[log_forward]\ndestination = target\ninclude     = run, stdout, stderr\ncheck_every = 5s\n\n'
         printf '[log_destination.target]\ntype     = %s\nendpoint = %s\n' "${bk_logs%% *}" "${bk_logs#* }"
         [ "$target" = splunk ] && printf 'token    = env:VIGIL_SPLUNK_LOGS_TOKEN\n'
+        [ "$target" = uptrace ] && printf 'header_name  = uptrace-dsn\nheader_value = env:VIGIL_UPTRACE_DSN\n'
         printf '\n'
     fi
     printf '[job.bk_check]\nfile = scripts/check.sh\nrun_every = 5s\nenv = BK_RUN=%s\nenv = BK_LEDGER=%s\n\n' "$tag" "$ledger"
@@ -161,7 +177,19 @@ config() {
 config > "$root/config/vigil.config"
 
 # PromQL $1, as JSON.
-pq() { curl -fsS -m 30 -G "$prom/query" --data-urlencode "query=$1"; }
+# PromQL $1, as JSON. Uptrace's API wants its user token, which goes to curl
+# on its standard input, never its command line.
+pq() {
+    if [ "$target" = uptrace ]; then
+        printf 'header = "Authorization: Bearer %s"\n' "$UPTRACE_USER_TOKEN" |
+            curl -fsS -m 30 -K - -G "$prom/query" --data-urlencode "query=$1"
+    else
+        curl -fsS -m 30 -G "$prom/query" --data-urlencode "query=$1"
+    fi
+}
+# SQL $1 on Uptrace's own ClickHouse, inside its container, as
+# tab-separated rows: Uptrace has no public API for logs.
+upq() { docker exec vigil-uptrace-clickhouse-1 clickhouse-client -d uptrace -q "$1 FORMAT TSV"; }
 # An Elasticsearch search of index pattern $1 with body $2, as JSON. The
 # password goes to curl on its standard input, never its command line.
 es() {
@@ -288,6 +316,9 @@ lines() {
             es 'logs-*' "{\"size\":${1:-5000},\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}},\"sort\":[{\"@timestamp\":\"asc\"}]}" |
                 jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor | . * 1000000000) \(.body.text)"'
             ;;
+        uptrace)
+            upq "SELECT toUnixTimestamp(time) * 1000000000, display_name FROM logs_index WHERE position(display_name, 'line $tag ') > 0 ORDER BY time LIMIT ${1:-5000}" | tr '\t' ' '
+            ;;
         splunk)
             spl "search index=vigil_logs \"line $tag\" | spath message | eval t=_time | table t message | head ${1:-5000}" |
                 jq -r '"\(.t | tonumber | floor | . * 1000000000) \(.message)"'
@@ -316,6 +347,13 @@ line_labels() {
         es)
             es 'logs-*' "{\"size\":1,\"query\":{\"match_phrase\":{\"body.text\":\"line $tag \"}}}" |
                 jq -r '.hits.hits[0]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"'
+            ;;
+        uptrace)
+            # Its own columns for the host and service, and the rest of the
+            # record's attributes as JSON.
+            upq "SELECT host_name, service_name, toJSONString(attrs) FROM logs_index WHERE position(display_name, 'line $tag ') > 0 LIMIT 1" |
+                awk -F'\t' '{ print "host=" $1; print "service_name=" $2; print $3 }' |
+                { read -r h; read -r s; read -r j; printf '%s\n%s\n' "$h" "$s"; printf '%s' "$j" | jq -r 'paths(scalars) as $p | "\($p | join("."))=\(getpath($p))"'; }
             ;;
         splunk)
             # The event's own fields, and the indexed ones HEC set.
@@ -371,7 +409,7 @@ sleep 40
 # 11: a restart.
 say "restarting $target"
 t_restart=$(date +%s)
-compose --profile "$target" restart $services > /dev/null 2>&1
+target_compose restart $services > /dev/null 2>&1
 start_target
 sleep 30
 
@@ -487,12 +525,12 @@ if [ -n "$logs_api" ]; then
     fi
 fi
 
-# 7: a wrong credential refused. Only Splunk takes one from Vigil here.
-if [ "$target" = splunk ]; then
+# 7: a wrong credential refused. Splunk and Uptrace take one from Vigil here.
+if [ "$target" = splunk ] || [ "$target" = uptrace ]; then
     refused=$(grep -h 'delivery failed: .*badtoken (permission denied (HTTP 40[13]' "$root"/logs/jobs/vigil_sender/*.log 2> /dev/null | head -n 1)
     badn=$(local_value 'vigil_backend_failures_total{backend="badtoken"')
     if [ -n "$refused" ] && [ "${badn:-0}" -gt 0 ]; then
-        result PASS "7 authentication rejected: a wrong HEC token refused ($(printf '%s' "$refused" | grep -o 'HTTP 40[13][^)]*' | head -n 1)), $badn failures counted, the right token delivering all along"
+        result PASS "7 authentication rejected: a credential $target never issued refused ($(printf '%s' "$refused" | grep -o 'HTTP 40[13][^)]*' | head -n 1)), $badn failures counted, the right token delivering all along"
     else
         result FAIL "7 authentication rejected: refused [${refused:-nothing}], failures counted [${badn:-none}]"
     fi

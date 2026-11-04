@@ -47,7 +47,7 @@ cleanup() {
     end_workers
     # What verify.sh got from the backend, with the rest.
     [ -n "${ev_dir-}" ] && cp "$bk_dir/reports/evidence/$target-$tag.txt" "$ev_dir/backend-answers.txt" 2> /dev/null
-    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}"
+    evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}" "${VIGIL_UPTRACE_DSN-}"
     rm -rf "$work"
 }
 trap cleanup EXIT
@@ -68,6 +68,15 @@ section() {
             printf 'token    = env:VIGIL_SPLUNK_METRICS_TOKEN\n'
         else
             printf 'token    = env:VIGIL_SPLUNK_LOGS_TOKEN\n'
+        fi
+    fi
+    # Uptrace's DSN: the backend's bearer credential, the log destination's
+    # uptrace-dsn header.
+    if [ "$target" = uptrace ]; then
+        if [ "$kind" = backend ]; then
+            printf 'api_key  = env:VIGIL_UPTRACE_DSN\n'
+        else
+            printf 'header_name  = uptrace-dsn\nheader_value = env:VIGIL_UPTRACE_DSN\n'
         fi
     fi
     printf '\n'
