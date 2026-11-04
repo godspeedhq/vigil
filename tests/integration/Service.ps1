@@ -139,6 +139,20 @@ function Test-Lifecycle {
     }
     $wp = Get-Process -Id ([int]$worker) -ErrorAction SilentlyContinue
     Test-Equal "${tag}: the worker runs on the chosen host" $HostExe "$(if ($wp) { $wp.Path })"
+    # Backlog 19: once in a while the worker is already gone here. All that
+    # is known about it, to find out why.
+    if (-not $wp) {
+        Write-Host "        worker $worker gone; job $job alive: $(Test-Alive $job)"
+        Get-Content -LiteralPath $st -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "        state: $_" }
+        foreach ($d in 'logs\jobs\hold', 'logs\supervisor') {
+            Get-ChildItem -LiteralPath (Join-Path $Root $d) -File -ErrorAction SilentlyContinue | ForEach-Object {
+                Write-Host "        [$d\$($_.Name)]"
+                Get-Content -LiteralPath $_.FullName -Tail 25 | ForEach-Object { Write-Host "        $_" }
+            }
+        }
+        Get-Process -Name powershell, pwsh, cmd, PING -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "        process $($_.Id) $($_.ProcessName) started $($_.StartTime.ToString('HH:mm:ss.fff'))" }
+    }
 
     Test-Equal "${tag}: stop succeeds" '0' "$(Invoke-Vigil $Root @('stop'))"
     Test-Equal "${tag}: the service is inactive after stop" 'inactive' (Get-SvcState $Root)
