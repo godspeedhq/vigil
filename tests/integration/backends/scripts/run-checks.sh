@@ -54,8 +54,10 @@ case $target in
     prometheus | alloy) prom=http://127.0.0.1:9090/api/v1 ;;
     mimir | otel-collector) prom=http://127.0.0.1:9009/prometheus/api/v1 ;;
     victoriametrics) prom=http://127.0.0.1:8428/api/v1 ;;
-    # Not PromQL: documents searched in Elasticsearch (es() below).
+    # Not PromQL: documents searched in Elasticsearch (es() below), and
+    # Flux on InfluxDB (ifq()).
     elastic) prom=es ;;
+    influxdb) prom=influx ;;
 esac
 case $target in
     loki | otel-collector | alloy) logs_api=loki logs=http://127.0.0.1:3100/loki/api/v1 ;;
@@ -151,6 +153,19 @@ es() {
     printf 'user = "elastic:%s"\n' "$ELASTIC_PASSWORD" |
         curl -fsS -m 30 -K - -H 'Content-Type: application/json' "http://127.0.0.1:9200/$1/_search" -d "$2"
 }
+# Flux $1 on InfluxDB, as CSV with a header, one row a line. The token goes
+# to curl on its standard input, never its command line.
+ifq() {
+    printf 'header = "Authorization: Token %s"\n' "$INFLUXDB_TOKEN" |
+        curl -fsS -m 30 -K - 'http://127.0.0.1:8086/api/v2/query?org=vigil' \
+            -H 'Content-Type: application/vnd.flux' -H 'Accept: application/csv' --data "$1" | tr -d '\r'
+}
+# Columns $2... of CSV $1 (a header line, then rows), space-separated.
+csv_cols() {
+    printf '%s\n' "$1" | awk -F, -v want="${*:2}" '
+        NR == 1 { n = split(want, w, " "); for (i = 1; i <= NF; i++) col[$i] = i; next }
+        NF > 1 { line = ""; for (j = 1; j <= n; j++) line = line (j > 1 ? " " : "") $(col[w[j]]); print line }'
+}
 # The same for OpenSearch, its demo certificate verified against the root CA
 # configs/platforms/opensearch/ca.sh copied out.
 osq() {
@@ -162,10 +177,12 @@ osq() {
 # Prometheus-style names turn the dot into an underscore, others keep it.
 seq_sel="{__name__=~\"bk_check[._]seq\",run=\"$tag\"}"
 es_seq="{\"size\":5000,\"query\":{\"bool\":{\"filter\":[{\"match\":{\"attributes.run\":\"$tag\"}},{\"exists\":{\"field\":\"metrics.bk_check.seq\"}}]}},\"sort\":[{\"@timestamp\":\"asc\"}]}"
+flux_seq="from(bucket: \"vigil\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"bk_check.seq\" and r._field == \"gauge\" and r.run == \"$tag\")"
 # Every stored sample of it, as "<timestamp> <value>".
 samples() {
     case $prom in
         es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[]._source | "\((.["@timestamp"] | tonumber) / 1000 | floor) \(.metrics["bk_check.seq"] | floor)"' ;;
+        influx) csv_cols "$(ifq "$flux_seq |> map(fn: (r) => ({t: int(v: r._time) / 1000000000, v: int(v: r._value)}))")" t v ;;
         *) pq "$seq_sel[1h]" | jq -r '.data.result[0].values[]? | "\(.[0]) \(.[1])"' ;;
     esac
 }
@@ -173,6 +190,11 @@ samples() {
 labels() {
     case $prom in
         es) es 'metrics-*' "$es_seq" | jq -r '.hits.hits[-1]._source | (.attributes + .resource.attributes) | to_entries[] | "\(.key)=\(.value)"' ;;
+        influx)
+            # The tags of the last row: every column but Flux's own.
+            ifq "$flux_seq |> last()" | awk -F, 'NR == 1 { for (i = 1; i <= NF; i++) h[i] = $i; next }
+                NF > 1 { for (i = 1; i <= NF; i++) if (h[i] != "" && h[i] !~ /^_/ && h[i] != "result" && h[i] != "table") print h[i] "=" $i; exit }'
+            ;;
         *) pq "last_over_time($seq_sel[1h])" | jq -r '.data.result[0].metric | to_entries[] | "\(.key)=\(.value)"' ;;
     esac
 }
@@ -186,6 +208,10 @@ drops() {
             # search, unlike PromQL, finds a series however old it is.
             es 'metrics-*' "{\"size\":1,\"query\":{\"bool\":{\"filter\":[{\"match\":{\"attributes.backend\":\"target\"}},{\"match\":{\"attributes.instance\":\"backend-check\"}},{\"exists\":{\"field\":\"metrics.vigil.spool.dropped\"}},{\"range\":{\"@timestamp\":{\"gte\":$((t_start * 1000))}}}]}},\"sort\":[{\"@timestamp\":\"desc\"}]}" |
                 jq -r '.hits.hits[]._source | "\(.attributes.reason)=\(.metrics["vigil.spool.dropped"])"'
+            ;;
+        influx)
+            csv_cols "$(ifq "from(bucket: \"vigil\") |> range(start: $(date -u -d "@$t_start" +%FT%TZ)) |> filter(fn: (r) => r._measurement == \"vigil.spool.dropped\" and r._field == \"counter\" and r.backend == \"target\" and r.instance == \"backend-check\") |> last()")" reason _value |
+                tr ' ' '='
             ;;
         *)
             pq "{__name__=~\"vigil[._]spool[._]dropped(_total)?\",backend=\"target\",instance=\"backend-check\"}" |
