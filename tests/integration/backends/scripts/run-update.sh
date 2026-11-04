@@ -80,6 +80,15 @@ rc=$?
 check "Vigil $from installs from GitHub" 0 "$rc"
 [ "$rc" -eq 0 ] || { cat "$work/install.out"; exit 1; }
 check "and is $from" "$from" "$(cat "$root/app/VERSION")"
+# From 0.2.1 on, a release carries the release key, and its self update
+# refuses what the key did not sign. It says nothing when the signature is
+# good, so the run checks the same signature with the same key itself.
+if [ -f "$root/app/release-key.pem" ]; then
+    cp "$root/app/release-key.pem" "$work/old-key.pem"
+    printf 'Vigil %s has the release key: its update must be signed by it\n' "$from"
+else
+    printf 'Vigil %s has no release key: its update checks the SHA-256 only (signed releases began with 0.2.1)\n' "$from"
+fi
 
 # Jobs that outlive the update: one always due, one running across it.
 printf 'echo "metric beats 1"\n' > "$root/scripts/beat.sh"
@@ -124,6 +133,11 @@ while [ "$(vigil version --supervisor 2> /dev/null)" != "$latest" ] && [ "$i" -l
 check "the supervisor came up as $latest" "$latest" "$(vigil version --supervisor 2> /dev/null)"
 check 'the same process' yes "$(kill -0 "$sup" 2> /dev/null && echo yes || echo no)"
 check 'the configuration is untouched' "$cfg" "$(cksum < "$root/config/vigil.config")"
+if [ -f "$work/old-key.pem" ]; then
+    for f in SHA256SUMS SHA256SUMS.sig; do curl -fsSL -o "$work/$f" "$github/releases/download/v$latest/$f"; done
+    check "$latest is signed by the key $from has" yes "$(openssl dgst -sha256 -verify "$work/old-key.pem" -signature "$work/SHA256SUMS.sig" "$work/SHA256SUMS" > /dev/null 2>&1 && echo yes || echo no)"
+fi
+check "$latest has the release key" yes "$([ -f "$root/app/release-key.pem" ] && echo yes || echo no)"
 
 # Everything picks up where it left off.
 wait "$long_pid"

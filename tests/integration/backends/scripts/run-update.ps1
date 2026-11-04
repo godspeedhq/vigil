@@ -105,6 +105,16 @@ try {
     Test-Equal "Vigil $From installs from GitHub" '0' ([string]$rc)
     if ($rc -ne 0) { $out | ForEach-Object { Write-Host "        $_" }; throw 'install failed' }
     Test-Equal "and is $From" $From (Get-Version)
+    # From 0.2.1 on, a release carries the release key, and its self update
+    # refuses what the key did not sign. It says nothing when the signature
+    # is good, so the run checks the same signature with the same key itself.
+    $oldKey = $null
+    if (Test-Path -LiteralPath "$root\app\release-key.pem") {
+        $oldKey = "$work\old-key.pem"
+        Copy-Item -LiteralPath "$root\app\release-key.pem" -Destination $oldKey
+        Write-Host "Vigil $From has the release key: its update must be signed by it"
+    }
+    else { Write-Host "Vigil $From has no release key: its update checks the SHA-256 only (signed releases began with 0.2.1)" }
 
     # Jobs that outlive the update: one always due, one running across it.
     Set-Content -LiteralPath "$root\scripts\beat.cmd" -Value @('@echo off', 'echo metric beats 1')
@@ -136,6 +146,14 @@ try {
     Test-Equal "the supervisor came up as $latest" $latest (Invoke-Vigil version --supervisor).Text
     Test-Equal 'the same process' 'False' ([string]$sup.HasExited)
     Test-Equal 'the configuration is untouched' $sum (Get-FileHash -LiteralPath $cfg).Hash
+    if ($oldKey) {
+        # Git for Windows' openssl: Windows has none of its own.
+        $openssl = Join-Path $env:ProgramFiles 'Git\usr\bin\openssl.exe'
+        foreach ($f in 'SHA256SUMS', 'SHA256SUMS.sig') { Invoke-WebRequest -UseBasicParsing -Uri "$github/releases/download/v$latest/$f" -OutFile "$work\$f" }
+        & $openssl dgst -sha256 -verify $oldKey -signature "$work\SHA256SUMS.sig" "$work\SHA256SUMS" 2>&1 | Out-Null
+        Test-Equal "$latest is signed by the key $From has" '0' ([string]$LASTEXITCODE)
+    }
+    Test-Equal "$latest has the release key" 'True' ([string](Test-Path -LiteralPath "$root\app\release-key.pem"))
 
     # Everything picks up where it left off.
     [void]$long.WaitForExit(120000)
