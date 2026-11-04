@@ -50,6 +50,7 @@ A PostgreSQL server on this machine, through PostgreSQL's own client tools (`psq
    ```sql
    CREATE ROLE vigil_monitor LOGIN PASSWORD '...' IN ROLE pg_monitor;
    ```
+
 2. Give Vigil its password: `vigil secret set POSTGRES_MONITOR_PASSWORD`. The job reads it with a `secret:` reference when it runs; it is never in the configuration.
 3. `vigil pack enable postgres`. The jobs connect to `localhost:5432`, database `postgres`; for anything else, edit their `env` lines in `vigil.config`.
 
