@@ -33,8 +33,8 @@ scripts/reset.sh lgtm          # removes it
 | | | `alloy` | metrics, logs | Alloy, then Prometheus and Loki | 12345, 34318 |
 | | | `grafana-stack` | | all of the standalone ones | |
 | 2 Splunk | `compose.splunk.yaml` | `splunk` | metrics, logs | HEC, direct (Vigil's `splunk` backend and log destination) | 8000, 8088 HEC, 8089 |
-| 3 Victoria | `compose.victoria.yaml` | `victoriametrics` | metrics | OTLP, direct | 8428 |
-| | | `victorialogs` | logs | OTLP, direct | 9428 |
+| 3 Victoria | `compose.victoria.yaml` | `victoriametrics` | metrics | collector (`victoria-collector`): OTLP there takes protobuf only | 8428, 4458 |
+| | | `victorialogs` | logs | collector (`victoria-collector`), as above | 9428, 4458 |
 | | | `victoriatraces` | — | not applicable | 10428 |
 | | | `victoria` | | all three | |
 | 4 Elastic | `compose.elastic.yaml` | `elastic` | metrics, logs | collector, `elasticsearch` exporter | 9200, 5601 Kibana, 4418 |
@@ -143,7 +143,7 @@ The backend's own query interface is then asked for every run in the ledger:
 | 14 several destinations | the same runs reach the file backend |
 | 15 a healthy destination | the file backend stays current all through the outage |
 
-Prometheus-style and Loki-style query APIs are supported so far: `prometheus`, `loki`, `mimir`, `otel-collector` and `alloy`. A target without one has those checks NOT RUN, and says so.
+Prometheus-style, Loki and VictoriaLogs (LogsQL) query APIs are supported so far: `prometheus`, `loki`, `mimir`, `otel-collector`, `alloy`, `victoriametrics` and `victorialogs`. A target without one has those checks NOT RUN, and says so.
 
 ## Secret stores
 
@@ -239,7 +239,7 @@ The run's secrets and credentials are test values. Even so, a file holding one i
 
 ## Not done yet
 
-- **Delivery checks beyond group 1:** `run-checks.sh` needs a query helper for each other backend's API (Splunk, VictoriaMetrics and VictoriaLogs, Elasticsearch, OpenSearch, InfluxDB, ClickHouse), and an authentication case where the target takes a credential.
+- **Delivery checks beyond group 1:** `run-checks.sh` needs a query helper for each other backend's API (Splunk, Elasticsearch, OpenSearch, InfluxDB, ClickHouse), and an authentication case where the target takes a credential.
 - **Uptrace and Graylog,** and an API check for SigNoz instead of its UI.
 
 ## Resources

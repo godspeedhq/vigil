@@ -1,0 +1,11 @@
+Configuration /tmp/vigil-ck.FaKzXd/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_check
+  ok    state directory: /tmp/vigil-ck.FaKzXd/root/state
+  ok    log directory: /tmp/vigil-ck.FaKzXd/root/logs
+  ok    spool directory: /tmp/vigil-ck.FaKzXd/root/spool
+
+precheck passed

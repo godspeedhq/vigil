@@ -1,0 +1,6 @@
+2026-11-04T12:22:09Z 20261104T122209Z-2057999-7 run start
+2026-11-04T12:22:09Z 20261104T122209Z-2057999-7 run end failed (file not found: /tmp/vigil-bk.L9sVet/root/scripts/missing.sh) in 0s
+2026-11-04T12:23:09Z 20261104T122309Z-2057999-21 run start
+2026-11-04T12:23:09Z 20261104T122309Z-2057999-21 run end failed (file not found: /tmp/vigil-bk.L9sVet/root/scripts/missing.sh) in 0s
+2026-11-04T12:24:09Z 20261104T122409Z-2057999-35 run start
+2026-11-04T12:24:09Z 20261104T122409Z-2057999-35 run end failed (file not found: /tmp/vigil-bk.L9sVet/root/scripts/missing.sh) in 0s
