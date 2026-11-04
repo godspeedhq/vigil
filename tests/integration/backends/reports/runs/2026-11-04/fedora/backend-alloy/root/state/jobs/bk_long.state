@@ -1,0 +1,17 @@
+[state]
+schema_version   = 1
+job              = bk_long
+run_id           = 20261104T081206Z-790330-43
+instance         = backend-test
+status           = running
+reason           = 
+boot_id          = f4d0989a-632d-4986-bf54-590720c04f03
+started_epoch    = 1793779926
+started_at       = 2026-11-04T08:12:06Z
+deadline_epoch   = 1793779981
+worker_pid       = 807519
+worker_name      = bash
+worker_start     = 1793779925
+job_pid          = 807669
+job_name         = bash
+job_start        = 1793779926

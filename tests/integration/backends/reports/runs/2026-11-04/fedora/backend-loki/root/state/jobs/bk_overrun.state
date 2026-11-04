@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = bk_overrun
+run_id           = 20261104T075803Z-692921-41
+instance         = backend-test
+status           = timed_out
+reason           = stopped after max_runtime 10s
+boot_id          = f4d0989a-632d-4986-bf54-590720c04f03
+started_epoch    = 1793779083
+started_at       = 2026-11-04T07:58:03Z
+deadline_epoch   = 1793779093
+worker_pid       = 709549
+worker_name      = bash
+worker_start     = 1793779082
+job_pid          = 709736
+job_name         = bash
+job_start        = 1793779082
+ended_epoch      = 1793779093
+ended_at         = 2026-11-04T07:58:13Z
+duration_seconds = 10
+exit_code        = 143
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793779093-bk_overrun-20261104T075803Z-692921-41.events

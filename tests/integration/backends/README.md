@@ -116,6 +116,35 @@ So:
 
 On Windows, `run-vigil.ps1 <target>` does the same, with `.ps1` workloads and `hostname.exe` as the native program. `-Keep` leaves its temporary folder, with Vigil's logs and state, in place afterwards. Either way, the run's [evidence](#evidence) is kept.
 
+### Delivery checks
+
+`scripts/run-checks.sh <target>` checks the rest of section 5 of the backlog, on the Docker host, since it stops and starts the target's containers. It needs `jq`, and takes about seven minutes.
+
+One Vigil sends to the target and to a local `file` backend. Its job runs every 5 seconds, writes its run in a ledger outside Vigil, reports the second it ran as a metric (`bk_check.seq`) and prints it as a log line. Then, in turn:
+
+1. the target is stopped for 70 seconds, and started again
+2. the target is restarted
+3. Vigil's supervisor is stopped for 10 seconds, and started again
+4. the target is stopped, the spool cut to 1 MB, and a job floods it
+
+The backend's own query interface is then asked for every run in the ledger:
+
+| Check | Passes when |
+| --- | --- |
+| 4 job identifiers | the job is in a label, or in the metric's name where the backend replaces the label |
+| 5 host metadata | `host`, `os` and `instance` are stored as Vigil sent them |
+| 6 timestamps | every sample and line is stamped within 10 seconds of its run, those delivered late after the outage too |
+| 7 authentication | a wrong credential is refused; not applicable where the target takes none |
+| 8 unavailable | failures are counted, the events held in the target's queue, and jobs run on |
+| 9 retry and backoff | the sender's failed runs are 5, 10, 20... seconds apart, from its own log |
+| 10, 11, 16 recovery | every run of the outage, the restart and the supervisor restart arrives |
+| 12 duplicates | no run is stored twice |
+| 13 dropped telemetry | drops are counted, and the count reaches the target once it is back |
+| 14 several destinations | the same runs reach the file backend |
+| 15 a healthy destination | the file backend stays current all through the outage |
+
+Prometheus-style and Loki-style query APIs are supported so far: `prometheus`, `loki`, `mimir`, `otel-collector` and `alloy`. A target without one has those checks NOT RUN, and says so.
+
 ## Secret stores
 
 Group 9, `compose.secrets.yaml`, tests Vigil's existing secret stores (backlog task 24). Each store has its own profile and starts only when asked for:
@@ -210,22 +239,8 @@ The run's secrets and credentials are test values. Even so, a file holding one i
 
 ## Not done yet
 
-Section 5 of the backlog lists 16 checks per backend. Today `verify.sh` covers the first three, plus job labels for metrics. These are outstanding:
-
-- host metadata
-- timestamps
-- an authentication failure
-- a backend that's down, then back
-- retry and backoff
-- recovery from the spool
-- a backend restart
-- duplicate delivery
-- dropped telemetry
-- several destinations at once
-- a healthy destination unaffected by an unhealthy one
-- a supervisor restart
-
-Also outstanding: Uptrace, Graylog, and an API check for SigNoz instead of its UI.
+- **Delivery checks beyond group 1:** `run-checks.sh` needs a query helper for each other backend's API (Splunk, VictoriaMetrics and VictoriaLogs, Elasticsearch, OpenSearch, InfluxDB, ClickHouse), and an authentication case where the target takes a credential.
+- **Uptrace and Graylog,** and an API check for SigNoz instead of its UI.
 
 ## Resources
 

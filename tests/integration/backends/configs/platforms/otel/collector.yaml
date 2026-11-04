@@ -11,6 +11,12 @@ receivers:
       grpc:
         endpoint: 0.0.0.0:4317
 
+extensions:
+  # The image has no shell for a Compose health check: start.sh asks this
+  # from the host.
+  health_check:
+    endpoint: 0.0.0.0:13133
+
 processors:
   batch: {}
 
@@ -23,6 +29,7 @@ exporters:
     verbosity: basic
 
 service:
+  extensions: [health_check]
   pipelines:
     metrics:
       receivers: [otlp]

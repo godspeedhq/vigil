@@ -1,0 +1,6 @@
+2026-11-04T08:07:09Z 20261104T080708Z-766776-8 run start
+2026-11-04T08:07:09Z 20261104T080708Z-766776-8 run end failed (file not found: /tmp/vigil-bk.VqvzHn/root/scripts/missing.sh) in 0s
+2026-11-04T08:08:08Z 20261104T080808Z-766776-27 run start
+2026-11-04T08:08:08Z 20261104T080808Z-766776-27 run end failed (file not found: /tmp/vigil-bk.VqvzHn/root/scripts/missing.sh) in 0s
+2026-11-04T08:09:08Z 20261104T080908Z-766776-44 run start
+2026-11-04T08:09:08Z 20261104T080908Z-766776-44 run end failed (file not found: /tmp/vigil-bk.VqvzHn/root/scripts/missing.sh) in 0s

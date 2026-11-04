@@ -44,6 +44,7 @@ sup=''
 cleanup() {
     # The supervisor this script started, and nothing else.
     [ -n "$sup" ] && kill "$sup" 2> /dev/null
+    end_workers
     # What verify.sh got from the backend, with the rest.
     [ -n "${ev_dir-}" ] && cp "$bk_dir/reports/evidence/$target-$tag.txt" "$ev_dir/backend-answers.txt" 2> /dev/null
     evidence_save "${VIGIL_SPLUNK_METRICS_TOKEN-}" "${VIGIL_SPLUNK_LOGS_TOKEN-}"
@@ -131,7 +132,9 @@ fi
 # checked without a backend, or Docker, at all.
 [ -z "${BK_PRECHECK_ONLY-}" ] || exit 0
 
-vigil supervise > "$work/supervise.out" 2>&1 &
+# Not through vigil(): a function run in the background is a subshell, and
+# $! would be that subshell, so the supervisor would outlive the run.
+bash "$root/app/vigil" --root "$root" supervise < /dev/null > "$work/supervise.out" 2>&1 &
 sup=$!
 # Two whole minutes of runs, then time for the sender and forwarder.
 sleep 150

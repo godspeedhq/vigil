@@ -1,0 +1,11 @@
+Configuration /tmp/vigil-ck.iq18S0/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_check
+  ok    state directory: /tmp/vigil-ck.iq18S0/root/state
+  ok    log directory: /tmp/vigil-ck.iq18S0/root/logs
+  ok    spool directory: /tmp/vigil-ck.iq18S0/root/spool
+
+precheck passed

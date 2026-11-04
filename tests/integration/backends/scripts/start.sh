@@ -54,6 +54,31 @@ needs() {
     esac
 }
 
+# The readiness URL of target $1, asked from this host, for the images with
+# no shell or HTTP client to run a Compose health check in.
+ready_url() {
+    case $1 in
+        loki) echo http://127.0.0.1:3100/ready ;;
+        mimir) echo http://127.0.0.1:9009/ready ;;
+        tempo) echo http://127.0.0.1:3200/ready ;;
+        pyroscope) echo http://127.0.0.1:4040/ready ;;
+        otel-collector) echo http://127.0.0.1:13133/ ;;
+        alloy) echo http://127.0.0.1:12345/-/ready ;;
+    esac
+}
+
+# Waits up to five minutes for target $1's readiness URL to answer 2xx.
+wait_ready() {
+    local url i=0
+    url=$(ready_url "$1")
+    [ -n "$url" ] || return 0
+    until curl -fsS -m 5 -o /dev/null "$url" 2> /dev/null; do
+        i=$((i + 1))
+        [ "$i" -ge 60 ] && return 1
+        sleep 5
+    done
+}
+
 for t in "$@"; do
     endpoints "$t"
     missing=''
@@ -90,6 +115,7 @@ for t in "$@"; do
             case $t in git-* | https-* | sftp-*) bash "$bk_dir/configs/secrets/tls.sh" && bash "$bk_dir/configs/sources/keys.sh" || die 'cannot make the test CA or keys' ;; esac
             # shellcheck disable=SC2086
             compose --profile "$t" up -d --wait $s || die "$t did not become healthy"
+            wait_ready "$t" || die "$t did not become ready: $(ready_url "$t")"
             [ "$t" = splunk ] && { bash "$bk_dir/configs/platforms/splunk/provision.sh" || die 'provisioning Splunk failed'; }
             case $t in
                 openbao | vault) bash "$bk_dir/configs/secrets/provision.sh" "$t" || die "provisioning $t failed" ;;
