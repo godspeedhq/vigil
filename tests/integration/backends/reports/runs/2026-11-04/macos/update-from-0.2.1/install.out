@@ -1,0 +1,12 @@
+downloading Vigil 0.2.1
+verified vigil-0.2.1.tar.gz (SHA-256 9af55af3cf5a378784d6a5b4618cf04471b21ab761caa0e5f2ee13aeb79516f5)
+installed Vigil 0.2.1 in /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-update.z7CG51/root
+linked /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-update.z7CG51/home/.local/bin/vigil
+note: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-update.z7CG51/home/.local/bin is not on your PATH; add it, or run /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-update.z7CG51/root/app/vigil
+
+wrote /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-update.z7CG51/root/config/vigil.config
+wrote /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-update.z7CG51/root/scripts/disk.sh
+
+Next: vigil precheck, then vigil service install
+
+done: Vigil 0.2.1. vigil status shows what it is doing.

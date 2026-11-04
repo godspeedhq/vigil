@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = long
+run_id           = 20261104T061355Z-71465
+instance         = update
+status           = succeeded
+reason           = 
+boot_id          = boot-1790391279
+started_epoch    = 1793772835
+started_at       = 2026-11-04T06:13:55Z
+deadline_epoch   = 
+worker_pid       = 71465
+worker_name      = bash
+worker_start     = 
+job_pid          = 71576
+job_name         = bash
+job_start        = 
+ended_epoch      = 1793772855
+ended_at         = 2026-11-04T06:14:15Z
+duration_seconds = 20
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793772855-long-20261104T061355Z-71465.events

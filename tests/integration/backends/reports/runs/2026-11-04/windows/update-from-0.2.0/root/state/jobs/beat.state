@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = beat
+run_id           = 20261104T061455Z-14272-1
+instance         = update
+status           = succeeded
+reason           =
+boot_id          =
+started_epoch    = 1793772899
+started_at       = 2026-11-04T06:14:59Z
+deadline_epoch   =
+worker_pid       = 3184
+worker_name      = powershell.exe
+worker_start     = 1793772895
+job_pid          = 11780
+job_name         = cmd.exe
+job_start        = 1793772906
+ended_epoch      = 1793772906
+ended_at         = 2026-11-04T06:15:06Z
+duration_seconds = 7
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793772906-beat-20261104T061455Z-14272-1.events

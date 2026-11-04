@@ -1,0 +1,30 @@
+# TYPE beat_beats gauge
+beat_beats{host="fedora",instance="update",job="beat",os="linux"} 1
+# TYPE beat_duration_seconds gauge
+beat_duration_seconds{host="fedora",instance="update",job="beat",os="linux"} 0
+# TYPE beat_runs_total counter
+beat_runs_total{host="fedora",instance="update",job="beat",os="linux"} 12
+# TYPE beat_succeeded_total counter
+beat_succeeded_total{host="fedora",instance="update",job="beat",os="linux"} 12
+# TYPE long_duration_seconds gauge
+long_duration_seconds{host="fedora",instance="update",job="long",os="linux"} 20
+# TYPE long_long gauge
+long_long{host="fedora",instance="update",job="long",os="linux"} 1
+# TYPE long_running gauge
+long_running{host="fedora",instance="update",job="long",os="linux"} 20
+# TYPE long_runs_total counter
+long_runs_total{host="fedora",instance="update",job="long",os="linux"} 1
+# TYPE long_succeeded_total counter
+long_succeeded_total{host="fedora",instance="update",job="long",os="linux"} 1
+# TYPE vigil_config_info gauge
+vigil_config_info{host="fedora",instance="update",os="linux",revision="9fff2f4def9c"} 1
+# TYPE vigil_spool_bytes gauge
+vigil_spool_bytes{host="fedora",instance="update",os="linux"} 318
+# TYPE vigil_supervisor_config_reload_failed gauge
+vigil_supervisor_config_reload_failed{host="fedora",instance="update",os="linux"} 0
+# TYPE vigil_supervisor_pending gauge
+vigil_supervisor_pending{host="fedora",instance="update",os="linux"} 0
+# TYPE vigil_supervisor_up gauge
+vigil_supervisor_up{host="fedora",instance="update",os="linux"} 1
+# TYPE vigil_supervisor_workers gauge
+vigil_supervisor_workers{host="fedora",instance="update",os="linux"} 0

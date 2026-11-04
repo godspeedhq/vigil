@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = long
+run_id           = 20261104T061408Z-2752
+instance         = update
+status           = succeeded
+reason           =
+boot_id          =
+started_epoch    = 1793772856
+started_at       = 2026-11-04T06:14:16Z
+deadline_epoch   =
+worker_pid       = 2752
+worker_name      = powershell.exe
+worker_start     = 1793772844
+job_pid          = 15144
+job_name         = cmd.exe
+job_start        = 1793772864
+ended_epoch      = 1793772890
+ended_at         = 2026-11-04T06:14:50Z
+duration_seconds = 34
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793772890-long-20261104T061408Z-2752.events

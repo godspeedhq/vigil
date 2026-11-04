@@ -1,0 +1,12 @@
+downloading Vigil 0.2.1
+verified vigil-0.2.1.tar.gz (SHA-256 9af55af3cf5a378784d6a5b4618cf04471b21ab761caa0e5f2ee13aeb79516f5)
+installed Vigil 0.2.1 in /tmp/vigil-update.WEsSWc/root
+linked /tmp/vigil-update.WEsSWc/home/.local/bin/vigil
+note: /tmp/vigil-update.WEsSWc/home/.local/bin is not on your PATH; add it, or run /tmp/vigil-update.WEsSWc/root/app/vigil
+
+wrote /tmp/vigil-update.WEsSWc/root/config/vigil.config
+wrote /tmp/vigil-update.WEsSWc/root/scripts/disk.sh
+
+Next: vigil precheck, then vigil service install
+
+done: Vigil 0.2.1. vigil status shows what it is doing.

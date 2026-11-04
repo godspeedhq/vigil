@@ -1,0 +1,25 @@
+[state]
+schema_version   = 1
+job              = long
+run_id           = 20261104T061320Z-4068085
+instance         = update
+status           = succeeded
+reason           = 
+boot_id          = f4d0989a-632d-4986-bf54-590720c04f03
+started_epoch    = 1793772800
+started_at       = 2026-11-04T06:13:20Z
+deadline_epoch   = 
+worker_pid       = 4068085
+worker_name      = bash
+worker_start     = 1793772799
+job_pid          = 4068141
+job_name         = bash
+job_start        = 1793772799
+ended_epoch      = 1793772820
+ended_at         = 2026-11-04T06:13:40Z
+duration_seconds = 20
+exit_code        = 0
+metric_lines     = 1
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793772820-long-20261104T061320Z-4068085.events
