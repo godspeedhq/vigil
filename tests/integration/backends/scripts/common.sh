@@ -94,6 +94,17 @@ evidence_header() {
 # evidence_save <value>...: from the EXIT trap, before $work goes. A file
 # holding any of the values (the run's secrets and credentials) is left
 # out, and said so: the run has failed its leak check already.
+# Ends what is left running from this run's copy of Vigil, $root: workers
+# outlive their supervisor by design (4.5), and must not outlive the folder.
+# Only processes running $root's own vigil, which this run made.
+end_workers() {
+    local i=0
+    [ -n "${root-}" ] && [ -d "$root/app" ] || return 0
+    while pgrep -f "$root/app/vigil " > /dev/null && [ "$i" -lt 10 ]; do sleep 1; i=$((i + 1)); done
+    pkill -f "$root/app/vigil " 2> /dev/null
+    return 0
+}
+
 evidence_save() {
     local d f v
     [ -n "${ev_dir-}" ] && [ -d "$ev_dir" ] || return 0

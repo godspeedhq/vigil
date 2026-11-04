@@ -130,7 +130,9 @@ printf '6\n' > "$root/state/format"
 
 printf 'A hot reload\n'
 rm -f "$root/state/supervisor.version"
-vigil supervise > /dev/null 2>&1 &
+# Not through vigil(): a function run in the background is a subshell, and
+# $! would be that subshell, not the supervisor.
+bash "$root/app/vigil" --root "$root" supervise > /dev/null 2>&1 &
 sup=$!
 wait_grep '^1.0.0$' "$root/state/supervisor.version"
 : > "$root/state/trace"

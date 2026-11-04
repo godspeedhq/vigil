@@ -52,7 +52,7 @@ cleanup() {
     # The supervisor and run this script started, and nothing else.
     [ -n "$sup" ] && kill "$sup" 2> /dev/null
     [ -n "$long_pid" ] && kill "$long_pid" 2> /dev/null
-    sleep 1
+    end_workers
     evidence_save
     rm -rf "$work"
 }
@@ -107,7 +107,9 @@ sed -i.bak 's/^tick *= *.*/tick = 1s/' "$root/config/vigil.config" && rm -f "$ro
 grep -q '^tick' "$root/config/vigil.config" || printf '\n[scheduler]\ntick = 1s\n' >> "$root/config/vigil.config"
 cfg=$(cksum < "$root/config/vigil.config")
 
-vigil supervise > "$work/supervise.out" 2>&1 &
+# Not through vigil(): a function run in the background is a subshell, and
+# $! would be that subshell, so the supervisor would outlive the run.
+bash "$root/app/vigil" --root "$root" supervise > "$work/supervise.out" 2>&1 &
 sup=$!
 i=0
 while [ "$(runs beat)" -lt 2 ] && [ "$i" -lt 120 ]; do sleep 0.5; i=$((i + 1)); done

@@ -271,7 +271,8 @@ check 'notice: asks at most once a day' 0 "$(grep -c '"path"' "$work/mock/reques
 case $(uname -s) in
     Linux | Darwin)
         vigil self update --version 0.0.1-it > /dev/null 2>&1
-        vigil supervise > /dev/null 2>&1 &
+        # Not through vigil(): $! would be the function's subshell.
+        bash "$root/app/vigil" --root "$root" supervise > /dev/null 2>&1 &
         sup=$!
         i=0
         while [ "$(vigil version --supervisor 2>/dev/null)" != 0.0.1-it ] && [ "$i" -lt 100 ]; do sleep 0.2; i=$((i + 1)); done
