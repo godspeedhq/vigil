@@ -319,8 +319,8 @@ line_labels() {
             ;;
         splunk)
             # The event's own fields, and the indexed ones HEC set.
-            spl "search index=vigil_logs \"line $tag\" | head 1 | spath | fields - _* index splunk_server linecount punct timestartpos timeendpos date_* eventtype tag* | table *" |
-                head -n 1 | jq -r 'to_entries[] | select(.value | type == "string") | "\(.key)=\(.value)"'
+            spl "search index=vigil_logs \"line $tag\" | head 1 | table job component category host os instance" |
+                head -n 1 | jq -r 'to_entries[] | select(.value != null) | "\(.key)=\(if (.value | type) == "array" then .value[0] else .value end)"'
             ;;
         ch)
             chq "SELECT concat(k, '=', v) FROM (SELECT mapUpdate(ResourceAttributes, LogAttributes) AS m FROM vigil.otel_logs WHERE position(Body, 'line $tag ') > 0 LIMIT 1) ARRAY JOIN mapKeys(m) AS k, mapValues(m) AS v"
