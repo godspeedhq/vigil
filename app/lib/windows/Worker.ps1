@@ -329,7 +329,10 @@ function Stop-VigilProcessTree {
                 try { $c = Get-Process -Id $p[0] -ErrorAction Stop; if ($c.StartTime -ge $parent.StartTime) { $tree.Add($c) } } catch { }
             }
         }
-        for ($i = $tree.Count - 1; $i -ge 0; $i--) {
+        # From the root down: a parent ended after its children could carry on
+        # in between, as cmd.exe runs its script's next line once ping ends.
+        # The tree is already known, so the children are still found.
+        for ($i = 0; $i -lt $tree.Count; $i++) {
             try { $tree[$i].Kill() } catch { }
         }
     }
