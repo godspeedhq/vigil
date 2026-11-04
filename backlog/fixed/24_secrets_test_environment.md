@@ -136,3 +136,18 @@ tests/integration/backends/
   - **Blackwell's emulator 1.9.0: done**, pinned by digest. It has no sign-in at all, so Vigil signs in at Floci GCP's `/token` and reads from Blackwell: retrieval only. 22 of 22 on Fedora; 20 of 20 on macOS and Windows.
 - **Phase 2: done, but for LocalStack** (blocked by licensing; testable if you supply a token in `.env`).
 - **Phase 3, next:** the restart checks from macOS and Windows, stopping and starting the Docker host's containers remotely.
+
+## Closed
+
+Closed on 2026-11-04, by decision, with the real-backend work (backlog 18): enough is covered. Results and evidence are in `tests/integration/backends/reports/secrets-compatibility.md` and on the site's Real systems pages.
+
+**Done:**
+- Phase 1: OpenBao 2.7.1 and HashiCorp Vault 2.2.0 in server mode with TLS, on Fedora, macOS and Windows; restarts on Fedora.
+- Phase 2: the cloud emulators, Floci AWS, Azure and GCP, Lowkey Vault and Blackwell's GCP emulator, on all three, with each emulator's limits reported as limitations, never as passes.
+- Phase 3 on Fedora: shutdown, restart, invalid and expired credentials, missing secrets, permission denial and rotation, and that no secret is ever written down.
+- Phase 4: the report, and the three real-cloud guides in `saas/`.
+
+**Not done:**
+- **LocalStack:** blocked. Since 2026.03.0 it needs an account's auth token, which is not made for you.
+- **The restart checks from macOS and Windows:** they need the Docker host's containers stopped from those machines; reported NOT RUN there.
+- **The real clouds:** the guides are written; nothing is tested without credentials supplied by hand.
