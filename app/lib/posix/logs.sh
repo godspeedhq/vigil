@@ -569,7 +569,7 @@ _vigil_logs_send() {
 
 # Forwards what is new in log file $1 (size $2). Returns 1 to end the run.
 _vigil_logs_file() {
-    local file=$1 size=$2 path="$_vw_logdir/$1" offset pos next line len rec bytes
+    local file=$1 size=$2 path="$_vw_logdir/$1" offset pos next line len rec bytes buf
     local -a ends
     _vigil_logs_ckpath "$file"
     _vigil_logs_ckread
@@ -594,6 +594,7 @@ _vigil_logs_file() {
         [ $(($(date '+%s') - _vl_now)) -lt "$VIGIL_LOGS_RUN_SECS" ] || return 1
         pos=$offset
         _vl_batch=''
+        buf=''
         _vl_n=0
         bytes=0
         ends=()
@@ -605,13 +606,21 @@ _vigil_logs_file() {
                 if [ "$_vl_n" -gt 0 ] && { [ "$_vl_n" -ge "$_vl_lines" ] || [ $((bytes + len)) -gt "$_vl_bytes" ]; }; then
                     break
                 fi
-                _vl_batch=$_vl_batch${_vl_batch:+$_vl_join}$_vl_rec
+                # Through a short buffer: appending to the whole batch copies
+                # all of it every time (as in vigil_backend_body).
+                [ "$_vl_n" -gt 0 ] && buf=$buf$_vl_join
+                buf=$buf$_vl_rec
+                if [ "${#buf}" -gt 8192 ]; then
+                    _vl_batch=$_vl_batch$buf
+                    buf=''
+                fi
                 _vl_n=$((_vl_n + 1))
                 bytes=$((bytes + len))
                 ends[${#ends[@]}]=$next
             fi
             pos=$next
         done < <(tail -c +$((offset + 1)) "$path")
+        _vl_batch=$_vl_batch$buf
         # Only an incomplete last line left: it waits for the next run.
         [ "$pos" -gt "$offset" ] || break
         if [ "$_vl_n" -gt 0 ]; then

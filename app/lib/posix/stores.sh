@@ -263,18 +263,31 @@ _vigil_http_encode() {
 }
 
 # $1 with a backslash before every \ and ", into _vh_esc. A loop, since
-# bash versions treat backslashes in ${v//x/y} replacements differently.
+# bash versions treat backslashes in ${v//x/y} replacements differently,
+# and bash 3.2's is slow besides. In pieces of 1 KB, bytes not characters:
+# the loop copies what is left of its string at every match, and appending
+# to one long string copies that too, so a request body escaped whole would
+# take minutes. A piece may split a character; only ASCII \ and " are
+# escaped, so the bytes join up again unchanged.
 _vigil_http_escape() {
-    local v=$1 run
+    local LC_ALL=C
+    local v=$1 c out run i=0 n
     _vh_esc=''
-    while :; do
-        run=${v%%$_vigil_json_pat_str*}
-        if [ "$run" = "$v" ]; then
-            _vh_esc=$_vh_esc$v
-            return 0
-        fi
-        _vh_esc=$_vh_esc$run'\'${v:${#run}:1}
-        v=${v:${#run}+1}
+    n=${#v}
+    while [ "$i" -lt "$n" ]; do
+        c=${v:i:1024}
+        i=$((i + 1024))
+        out=''
+        while :; do
+            run=${c%%$_vigil_json_pat_str*}
+            if [ "$run" = "$c" ]; then
+                out=$out$c
+                break
+            fi
+            out=$out$run'\'${c:${#run}:1}
+            c=${c:${#run}+1}
+        done
+        _vh_esc=$_vh_esc$out
     done
 }
 

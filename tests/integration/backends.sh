@@ -44,14 +44,14 @@ vigil() {
     "$BASH" "$vigil_cmd" --root "$root" "$@"
 }
 
-# One supervisor tick, then wait (up to 60s) for the sender it may have
-# started.
+# One supervisor tick, then wait (up to $1 seconds, default 60) for the
+# sender it may have started.
 tick() {
-    local i=0
+    local i=0 max=$((${1:-60} * 2))
     vigil supervise --once > /dev/null 2>&1
     while ls "$root/state/locks" 2>/dev/null | grep '^vigil_sender\.' > /dev/null; do
         i=$((i + 1))
-        [ "$i" -ge 120 ] && break
+        [ "$i" -ge "$max" ] && break
         sleep 0.5
     done
 }
@@ -199,6 +199,23 @@ rm -f "$root/mock/status"
 tick
 tick
 check "rejected: drop counted" yes "$(grep '^vigil_spool_dropped_total{backend="datadog".*reason="rejected"' "$root/metrics/vigil.prom" > /dev/null && echo yes || echo no)"
+
+# A large batch, as after an outage: 1000 metric lines, the most one run
+# gives (14.3), about 120 KB of events, to three HTTP backends and the file.
+# Building and escaping a body that size once took longer than the 5
+# minutes a sender may run (4.5), so the queue never drained.
+cat > "$root/scripts/many.sh" <<'EOF'
+i=0
+while [ "$i" -lt 1000 ]; do echo "metric series_$i $i shard=s$((i % 7))"; i=$((i + 1)); done
+EOF
+printf '\n[job.many]\nfile      = scripts/many.sh\nrun_every = 3650d\n' >> "$root/config/vigil.config"
+vigil run many > /dev/null
+t0=$(date '+%s')
+tick 240
+printf '        large batch: %ss\n' "$(($(date '+%s') - t0))"
+check "large batch: delivered in one sender run" 0 "$(($(queued datadog) + $(queued otel) + $(queued splunk)))"
+check "large batch: the sender run succeeded" succeeded "$(sed -n 's/^status *= *//p' "$root/state/jobs/vigil_sender.state")"
+check "large batch: the last series sent" yes "$(received '"path": "/v1/metrics"' '\"name\":\"many.series_999\",\"gauge\"' '\"asDouble\":999')"
 
 # The credentials are only ever in headers: never on disk outside the
 # secret store, and never in a URL.

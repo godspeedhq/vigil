@@ -73,6 +73,18 @@ _vigil_backend_quote() {
     esac
 }
 
+# Appends $1 to the body, through a short buffer: appending to one long
+# string copies all of it each time, and a batch of thousands of events
+# would take minutes. vigil_backend_body adds what is left in the buffer.
+_vigil_backend_add() {
+    _vb_buf=$_vb_buf$1
+    _vb_any=1
+    if [ "${#_vb_buf}" -gt 8192 ]; then
+        _vb_body=$_vb_body$_vb_buf
+        _vb_buf=''
+    fi
+}
+
 _vigil_backend_body_line() {
     local line=$1 epoch name value kind tag key val tags='' attrs='' res='' sep='' point IFS=' '
     case $line in
@@ -127,13 +139,13 @@ _vigil_backend_body_line() {
         fi
     done
     # HEC takes events one after another, not as a list.
-    [ -n "$_vb_body" ] && [ "$_vb_type" != splunk ] && sep=,
+    [ -n "$_vb_any" ] && [ "$_vb_type" != splunk ] && sep=,
     if [ "$_vb_type" = splunk ]; then
-        _vb_body="$_vb_body{\"time\":$epoch,$res\"source\":\"vigil\",\"event\":\"metric\",\"fields\":{\"metric_name\":\"$name\",\"_value\":$value,\"metric_type\":\"$kind\"$tags}}"
+        _vigil_backend_add "{\"time\":$epoch,$res\"source\":\"vigil\",\"event\":\"metric\",\"fields\":{\"metric_name\":\"$name\",\"_value\":$value,\"metric_type\":\"$kind\"$tags}}"
     elif [ "$_vb_type" = datadog ]; then
         # Series API types: 1 count, 3 gauge.
         [ "$kind" = count ] && kind=1 || kind=3
-        _vb_body="$_vb_body$sep{\"metric\":\"$name\",\"type\":$kind,\"points\":[{\"timestamp\":$epoch,\"value\":$value}]$res,\"tags\":[$tags]}"
+        _vigil_backend_add "$sep{\"metric\":\"$name\",\"type\":$kind,\"points\":[{\"timestamp\":$epoch,\"value\":$value}]$res,\"tags\":[$tags]}"
     elif [ "$kind" = count ] && [[ $value =~ $_vigil_backend_whole ]]; then
         # A whole count joins its series' running total, sent once the
         # batch is read (vigil_backend_body).
@@ -143,7 +155,7 @@ _vigil_backend_body_line() {
         # of those would not be exact, so it goes as a gauge, as in the file
         # backend.
         point="{\"timeUnixNano\":\"${epoch}000000000\",\"asDouble\":$value,\"attributes\":[$attrs]}"
-        _vb_body="$_vb_body$sep{\"name\":\"$name\",\"gauge\":{\"dataPoints\":[$point]}}"
+        _vigil_backend_add "$sep{\"name\":\"$name\",\"gauge\":{\"dataPoints\":[$point]}}"
     fi
     _vb_points=$((_vb_points + 1))
 }
@@ -256,7 +268,7 @@ _vigil_backend_totals() {
         else
             tot="$tot$nl$series$tab$start$tab$total$tab$t"
         fi
-        _vb_body="$_vb_body${_vb_body:+,}{\"name\":\"${series%% *}\",\"sum\":{\"aggregationTemporality\":2,\"isMonotonic\":true,\"dataPoints\":[{\"startTimeUnixNano\":\"$start\",\"timeUnixNano\":\"$t\",\"asDouble\":$total,\"attributes\":[$attrs]}]}}"
+        _vigil_backend_add "${_vb_any:+,}{\"name\":\"${series%% *}\",\"sum\":{\"aggregationTemporality\":2,\"isMonotonic\":true,\"dataPoints\":[{\"startTimeUnixNano\":\"$start\",\"timeUnixNano\":\"$t\",\"asDouble\":$total,\"attributes\":[$attrs]}]}}"
     done
     # Forget the series not counted for 7 days.
     rest=$tot
@@ -276,6 +288,8 @@ vigil_backend_body() {
     _vb_now=$2
     shift 2
     _vb_body=''
+    _vb_buf=''
+    _vb_any=''
     _vb_points=0
     _vb_invalid=0
     _vb_old=0
@@ -288,6 +302,8 @@ vigil_backend_body() {
         done < "$f"
     done
     [ "$_vb_type" = otel ] && _vigil_backend_totals
+    _vb_body=$_vb_body$_vb_buf
+    _vb_buf=''
     if [ "$_vb_type" = datadog ]; then
         _vb_body="{\"series\":[$_vb_body]}"
     elif [ "$_vb_type" != splunk ]; then
