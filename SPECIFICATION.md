@@ -218,8 +218,9 @@ So a dead Datadog delays only Datadog's queue; Splunk and the local file still r
 - **Removed or disabled backends:** their queues are discarded on the next sender run and counted as dropped.
 - **Old timestamps:** backends limit how old an accepted timestamp may be. Events older than a backend accepts are rejected; they are then dropped and counted, never retried forever.
 - **Supervisor down:** workers keep writing to `spool/incoming/`, and delivery resumes when the supervisor returns. The missing `vigil.supervisor.up` heartbeat is how the backend learns of the outage.
+- **Throughput:** one sender delivers to every backend in turn, so a backend that is slow to accept, but does not fail, delays the others by the time it takes, within the sender's 5-minute limit. The `file` backend merges about a thousand series a second (1000 events in about a second on Linux and Windows, two and a half on macOS's bash 3.2, measured on 2011-era hardware). An HTTP backend is bounded by its `timeout` per request, at most 10 requests a run. A job printing the most metric lines a run allows (§14.3) every few seconds can outrun that; ordinary jobs print a few a run.
 
-A slow or unreachable backend therefore never blocks a job, the scheduler or another backend (VIGIL-009), and its events survive the outage within the spool's size cap.
+A failing or unreachable backend therefore never blocks a job, the scheduler or another backend (VIGIL-009), and its events survive the outage within the spool's size cap. One that accepts slowly delays the others only as the throughput above allows.
 
 ---
 

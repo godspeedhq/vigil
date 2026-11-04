@@ -18,12 +18,19 @@ The escape went through its string once per `\` or `"`, copying what was left ea
 
 `tests/integration/backends.sh` now sends a 1000-series run to three HTTP backends and the file backend in one sender run.
 
-## Still open
+## Then, the file backend
 
-- **The `file` backend** (`app/lib/posix/prom.sh`, `vigil_prom_merge`) merges about 430 events a second: 3 seconds for an events file of 1000 series, 23 seconds for nine more. Its system time is as high as its user time, so most of it is starting processes.
-- **A slow backend holds up the others.** Spec 4.5 promises that a slow or unreachable backend never blocks another. That holds for one that fails: it backs off and is passed over. It does not hold for one that is slow to accept, and the file backend is the one most often enabled beside another. A job printing 1000 metric lines every 2 seconds outran it.
+The bash `file` backend (`vigil_prom_merge`, `prom.sh`) sorted each event's labels with a subshell and a `sort` process: two processes for every event, so its system time was as high as its user time. They are sorted in bash now, in the same order (bytes, by key, then the whole tag), and the output is byte for byte the same: the conformance suite, and 400 generated events with every awkward label (mixed case, digits, underscores, repeated keys, quotes and backslashes in values) merged by both versions, on bash 5.3 and 3.2.
 
-## Done when
+| Merge | Fedora, bash 5.3 | macOS, bash 3.2 | Windows, PowerShell 5.1 |
+| --- | --- | --- | --- |
+| 1000 series into an empty file | 2.9 s, now 1.1 s | 6.3 s, now 2.6 s | 0.9 s |
+| nine more files of them | 22 s, now 5.3 s | 46 s, now 12.6 s | 6.2 s |
 
-- The file backend's process starts per event or line are gone, and a 1000-series run merges in a stated time on both twins.
-- A sender run's time per backend is bounded, so a slow one cannot hold up the rest, or the spec states the limit plainly.
+## A slow backend and the others
+
+One sender delivers to every backend in turn, so a backend slow to accept (not failing) delays the others while it is served. Bounding each backend's share of a run would mean a different sender for a load ordinary jobs do not make. The spec now states the limit plainly instead (§4.5, Throughput): the order, the 5-minute sender limit, the file backend's merge rate, and that a job printing the most metric lines a run allows every few seconds can outrun it.
+
+## Closed
+
+2026-11-04. Both conditions met: the file backend's process starts per event are gone, with the merge times above on both twins, and the spec states the limit.
