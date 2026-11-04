@@ -99,10 +99,17 @@ jobs:
             postgres:18.1-alpine
           docker run -d --name ngx -p 127.0.0.1:9082:80 \
             -v "$services/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" nginx:1.30.5-alpine
+          # Each answers once it is ready: the role exists only after the
+          # init script, and nginx resets connections while it starts.
+          pg=''; ngx=''
           for i in $(seq 1 60); do
-            pg_isready -q -h 127.0.0.1 -p 5432 && docker exec pg psql -U postgres -Atc "SELECT 1 FROM pg_roles WHERE rolname = 'vigil_monitor'" | grep -q 1 && break
+            [ -n "$pg" ] || { pg_isready -q -h 127.0.0.1 -p 5432 && docker exec pg psql -U postgres -Atc "SELECT 1 FROM pg_roles WHERE rolname = 'vigil_monitor'" 2> /dev/null | grep -q 1 && pg=up; }
+            [ -n "$ngx" ] || { curl -fsS -o /dev/null http://127.0.0.1:9082/nginx_status 2> /dev/null && ngx=up; }
+            [ -n "$pg" ] && [ -n "$ngx" ] && break
             sleep 2
           done
+          [ -n "$pg" ] || { echo "PostgreSQL never became ready"; docker logs pg; exit 1; }
+          [ -n "$ngx" ] || { echo "nginx never became ready"; docker logs ngx; exit 1; }
           curl -fsS http://127.0.0.1:9082/nginx_status
       - name: the service packs (/bin/bash)
         env:
