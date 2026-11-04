@@ -314,13 +314,15 @@ if [ -n "$bk_metrics" ]; then
         result FAIL "8 the backend unavailable: failures ${failures:-none}, queued $queued"
     fi
     # The sender's failed runs in the outage, from its own log: each began
-    # at least 5, 10, 20, 40... seconds after the one before, plus at most
-    # a tick and a sender run of slack.
+    # 5, 10, 20, 40... seconds after the one before. A run id has the
+    # second the worker started, and the backoff counts from when the
+    # sender read the clock, a second or two in: 2 seconds of slack below,
+    # and a tick and a sender run above.
     starts=$(grep -h 'run end failed (delivery failed: target' "$root"/logs/jobs/vigil_sender/*.log |
         awk '{ print $2 }' | sed 's/^\([0-9]\{8\}\)T\([0-9]\{2\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)Z.*/\1 \2:\3:\4/' |
         while read -r d t; do date -u -d "$d $t" +%s; done | awk -v a="$t_down" -v b="$t_up" '$1 >= a && $1 < b')
     gaps=$(printf '%s\n' "$starts" | awk 'NR > 1 { printf "%s ", $1 - p } { p = $1 }')
-    ok=$(printf '%s\n' "$gaps" | awk '{ e = 5; for (i = 1; i <= NF; i++) { if ($i < e || $i > e + 15) { print "no"; exit } e = (e * 2 > 300) ? 300 : e * 2 } print "yes" }')
+    ok=$(printf '%s\n' "$gaps" | awk '{ e = 5; for (i = 1; i <= NF; i++) { if ($i < e - 2 || $i > e + 15) { print "no"; exit } e = (e * 2 > 300) ? 300 : e * 2 } print "yes" }')
     if [ "$ok" = yes ] && [ "$(printf '%s\n' $gaps | grep -c .)" -ge 2 ]; then
         result PASS "9 retry and backoff: the sender's failed runs ${gaps}seconds apart"
     else
