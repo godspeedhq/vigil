@@ -9,11 +9,13 @@
 #
 # Group 3: the Victoria ecosystem, each component on its own profile.
 #
-#   victoriametrics   OTLP metrics at /opentelemetry/v1/metrics: Vigil's otel
-#                     backend points there directly
-#   victorialogs      OTLP logs at /insert/opentelemetry/v1/logs: Vigil's otel
-#                     log destination points there directly
+#   victoriametrics   OTLP metrics at /opentelemetry/v1/metrics, protobuf only
+#   victorialogs      OTLP logs at /insert/opentelemetry/v1/logs, protobuf only
 #   victoriatraces    traces, which Vigil does not send: not applicable
+#
+# Vigil sends OTLP/HTTP as JSON, which both answer with HTTP 400, so it
+# sends to victoria-collector on 4458, in both profiles, which forwards
+# protobuf: integration through an intermediary.
 #
 #   docker compose --profile victoria up -d       all three
 
@@ -29,7 +31,7 @@ services:
     volumes:
       - victoriametrics-data:/storage
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8428/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8428/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 30
@@ -44,11 +46,8 @@ services:
       - "127.0.0.1:9428:9428"
     volumes:
       - victorialogs-data:/vlogs
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9428/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
+    # No health check: the image has no shell to run one in. start.sh
+    # waits for /health from the host instead.
 
   victoriatraces:
     image: victoriametrics/victoria-traces:v0.12.1
@@ -59,11 +58,18 @@ services:
       - "127.0.0.1:10428:10428"
     volumes:
       - victoriatraces-data:/vtraces
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:10428/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
+    # As VictoriaLogs: start.sh waits for /health from the host.
+
+  # JSON in from Vigil, protobuf out to VictoriaMetrics and VictoriaLogs.
+  victoria-collector:
+    image: otel/opentelemetry-collector-contrib:0.163.2
+    profiles: ["victoriametrics", "victorialogs", "victoria"]
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "127.0.0.1:4458:4318"    # OTLP HTTP: Vigil sends here
+      - "127.0.0.1:13134:13133"  # health_check: start.sh waits for it
+    volumes:
+      - ./configs/platforms/victoria/collector.yaml:/etc/otelcol/config.yaml:ro,z
 
 volumes:
   victoriametrics-data:

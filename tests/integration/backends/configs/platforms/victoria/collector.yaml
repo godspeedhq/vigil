@@ -1,0 +1,38 @@
+# The Victoria group's OpenTelemetry Collector (victoria-collector, on 4458):
+# an intermediary. VictoriaMetrics and VictoriaLogs take OTLP as protobuf
+# only, and answer Vigil's OTLP/HTTP JSON with HTTP 400 ("json encoding
+# isn't supported"). The collector takes the JSON and forwards protobuf:
+# metrics to VictoriaMetrics, logs to VictoriaLogs.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+extensions:
+  # The image has no shell for a Compose health check: start.sh asks this
+  # from the host.
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+processors:
+  batch: {}
+
+exporters:
+  otlphttp/victoriametrics:
+    metrics_endpoint: http://victoriametrics:8428/opentelemetry/v1/metrics
+  otlphttp/victorialogs:
+    logs_endpoint: http://victorialogs:9428/insert/opentelemetry/v1/logs
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/victoriametrics]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/victorialogs]
