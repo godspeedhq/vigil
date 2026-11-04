@@ -124,7 +124,7 @@ else
     # A wrong password fails the run and says why; it is not "down".
     printf 'not-the-password' | vigil secret set POSTGRES_MONITOR_PASSWORD --stdin > /dev/null
     vigil run postgres_status > "$work/out" 2>&1
-    check 'postgres: a wrong password fails the run' 1 "$?"
+    check 'postgres: a wrong password fails the run' 2 "$?"
     check 'postgres: and says why' yes "$(grep -q 'refused the login' "$root"/logs/jobs/postgres_status/*.log && echo yes || echo no)"
     printf '%s' "$VIGIL_IT_PG_PASSWORD" | vigil secret set POSTGRES_MONITOR_PASSWORD --stdin > /dev/null
 

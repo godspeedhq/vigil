@@ -144,7 +144,7 @@ try {
 
         Set-VigilSecret POSTGRES_MONITOR_PASSWORD 'not-the-password'
         $r = Invoke-Vigil run postgres_status
-        Test-Equal 'postgres: a wrong password fails the run' '1' ([string]$r.Code)
+        Test-Equal 'postgres: a wrong password fails the run' '2' ([string]$r.Code)
         $log = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\postgres_status') -Filter '*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
         Test-Equal 'postgres: and says why' 'True' ([string]$log.Contains('refused the login'))
         Set-VigilSecret POSTGRES_MONITOR_PASSWORD $env:VIGIL_IT_PG_PASSWORD
