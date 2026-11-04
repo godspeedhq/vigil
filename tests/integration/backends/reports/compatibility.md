@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows; the rest of group 1 (the Grafana ecosystem) and groups 3 to 5 (Victoria, Elastic, OpenSearch) with Vigil on Linux, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
+How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows; the rest of group 1 (the Grafana ecosystem) and groups 3 to 6 (Victoria, Elastic, OpenSearch, InfluxDB) with Vigil on Linux, and group 7 (tracing) started, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
 
 **Integration methods:**
 - **Direct Vigil integration:** a Vigil backend or log destination made for this product.
@@ -29,9 +29,9 @@ How each backend works with Vigil, and what a real test showed. **Grafana LGTM h
 | VictoriaTraces (`v0.12.1`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
 | Elasticsearch and Kibana (`9.5.5`) | Docker | Through an intermediary (collector, `elasticsearch` exporter) | **Passed** | **Passed** | Not applicable | **Passed**; a line the collector held was lost when it restarted (Delivery checks) |
 | OpenSearch and Dashboards (`3.9.0`) | Docker | Through an intermediary (collector, `opensearch` exporter) | Not supported | **Passed** | Not applicable | **Passed**; the exporter drops what it cannot send while OpenSearch restarts (Delivery checks) |
-| InfluxDB (`2.9.1`) | Docker | Through an intermediary (collector) | Not tested | Not supported | Not applicable | Not tested |
-| Jaeger (`2.22.0`) | Docker | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
-| Zipkin (`3.6.1`) | Docker | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| InfluxDB (`2.9.1`) | Docker | Through an intermediary (collector, `influxdb` exporter) | **Passed** | Not supported | Not applicable | **Passed** |
+| Jaeger (`2.22.0`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
+| Zipkin (`3.6.1`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
 | ClickHouse (`26.10.3.7`) | Docker | Through an intermediary (collector) | Not tested | Not tested | Not applicable | Not tested |
 | SigNoz | Docker, official (Foundry) | Protocol-compatible (OTLP) | Not tested | Not tested | Not applicable | Not tested |
 | Uptrace | Docker, official (`v2.0.3` example) | To be worked out: needs an `uptrace-dsn` header | Not tested | Not tested | Not applicable | Not tested |
@@ -71,6 +71,7 @@ Each run adds a row here: date, target, the image versions it ran, the run tag, 
 | 2026-11-04 | `victorialogs` | Fedora 44, bash 5.3, at `aa1c9e4`, through the collector | `victoriametrics/victoria-logs:v1.53.0`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041224462068400` | Not supported | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-victorialogs), [files](runs/2026-11-04/fedora/backend-victorialogs) |
 | 2026-11-04 | `elastic` | Fedora 44, bash 5.3, at `f0310b7`, through the collector | `elasticsearch:9.5.5`, `kibana:9.5.5`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041312432475480` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-elastic), [files](runs/2026-11-04/fedora/backend-elastic) |
 | 2026-11-04 | `opensearch` | Fedora 44, bash 5.3, at `cad74b9`, through the collector, certificate verified | `opensearchproject/opensearch:3.9.0`, `opensearchproject/opensearch-dashboards:3.9.0`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041338282672634` | Not supported | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-opensearch), [files](runs/2026-11-04/fedora/backend-opensearch) |
+| 2026-11-04 | `influxdb` | Fedora 44, bash 5.3, at `4e2b221`, through the collector | `influxdb:2.9.1`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041400332816023` | **Passed** | Not supported | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-influxdb), [files](runs/2026-11-04/fedora/backend-influxdb) |
 
 ### Victoria: why through a collector
 
@@ -163,6 +164,29 @@ Group 5, OpenSearch, through `opensearch-collector`, with Vigil on Fedora 44, ba
 **The `opensearch` exporter drops while OpenSearch is away.** It calls an unreachable OpenSearch a permanent error (`not retryable error: Permanent error: flush: dial tcp ...: connect: connection refused`) and drops the batch, 11 times while OpenSearch restarted. Retry settings do not apply to an error the exporter calls permanent, so the remedy that worked for Elasticsearch does not work here. The outage itself lost nothing: the collector was stopped with OpenSearch, so Vigil kept the lines and sent them afterwards.
 
 **Certificates.** OpenSearch serves its demo certificate, which names `node-0.example.com`, `localhost` and `127.0.0.1`. Its root CA is copied out once it starts (`configs/platforms/opensearch/ca.sh`), and everything that talks to it verifies the certificate: the collector and Dashboards under `node-0.example.com`, a network alias, and `verify.sh` and `run-checks.sh` on `127.0.0.1`. Before this, all four skipped verification.
+
+Group 6, InfluxDB, through `influxdb-collector`, with Vigil on Fedora 44, bash 5.3, at `4e2b221`, 2026-11-04. InfluxDB takes metrics only:
+
+| Check | InfluxDB |
+| --- | --- |
+| 4 job identifiers | **Passed**, `job="bk_check"` kept |
+| 5 host metadata | **Passed** |
+| 6 timestamps | **Passed**, late ones too |
+| 7 authentication | Not applicable |
+| 8 unavailable | **Passed** |
+| 9 retry and backoff | **Passed** |
+| 10 recovery from the spool | **Passed**, 14 of 14 |
+| 11 a backend restart | **Passed** |
+| 12 duplicates | **Passed**, none |
+| 13 dropped telemetry | **Passed** |
+| 14 several destinations | **Passed** |
+| 15 a healthy destination | **Passed** |
+| 16 a supervisor restart | **Passed** |
+| Evidence | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-influxdb), [files](runs/2026-11-04/fedora/checks-influxdb) |
+
+The collector's `influxdb` exporter, with the `telegraf-prometheus-v1` schema, keeps Vigil's metric name as the measurement, dots and all (`bk_check.seq`), the value in a `gauge` or `counter` field, and Vigil's tags as InfluxDB tags. A counter also gets a `start_time_unix_nano` field. Unlike the Elasticsearch and OpenSearch exporters, it lost nothing across InfluxDB's restart.
+
+Group 7, tracing: Jaeger and Zipkin start through `start.sh` and answer (Jaeger's UI, Zipkin's `/health` reporting `UP`). Vigil sends no traces, so there is nothing else to test.
 
 **Why not applicable:**
 - **7:** Vigil sends to each target without a credential here: groups 1 and 3 take none, and Elasticsearch's password is the collector's, not Vigil's. Splunk, which takes Vigil's own token, tests it.
