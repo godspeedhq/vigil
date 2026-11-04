@@ -1,0 +1,15 @@
+target   uptrace
+run tag  bk202611041745173696285
+date     2026-11-04T17:48:02Z
+images
+
+== metrics: PASS
+{"data":{"resultType":"vector","result":[{"metric":{"__name__":"bk_metrics_vigil_backend_probe","host":"fedora","instance":"backend-test","job":"bk_metrics","os":"linux","run":"bk202611041745173696285","service_name":"vigil"},"value":[1793814482.863,"42"]}]},"status":"success","warnings":{"step":{}}}
+
+== logs: PASS
+2026-11-04 17:47:17.000000	bk_output stderr bk202611041745173696285
+2026-11-04 17:47:17.000000	bk_output stdout bk202611041745173696285
+2026-11-04 17:47:17.000000	metric vigil_backend_probe 42 run=bk202611041745173696285
+2026-11-04 17:46:18.000000	bk_output stderr bk202611041745173696285
+2026-11-04 17:46:18.000000	bk_output stdout bk202611041745173696285
+

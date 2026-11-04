@@ -1,11 +1,11 @@
-Configuration /tmp/vigil-ck.6C9IxD/root/config/vigil.config
+Configuration /tmp/vigil-ck.L15mBu/root/config/vigil.config
   no problems
 
 Checks
   ok    data format: 1
   ok    job.bk_check
-  ok    state directory: /tmp/vigil-ck.6C9IxD/root/state
-  ok    log directory: /tmp/vigil-ck.6C9IxD/root/logs
-  ok    spool directory: /tmp/vigil-ck.6C9IxD/root/spool
+  ok    state directory: /tmp/vigil-ck.L15mBu/root/state
+  ok    log directory: /tmp/vigil-ck.L15mBu/root/logs
+  ok    spool directory: /tmp/vigil-ck.L15mBu/root/spool
 
 precheck passed

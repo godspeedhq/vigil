@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows; the rest of group 1 (the Grafana ecosystem) and groups 2 to 6 (Splunk, Victoria, Elastic, OpenSearch, InfluxDB) and ClickHouse with Vigil on Linux, and group 7 (tracing) started, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
+How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows; the rest of group 1 (the Grafana ecosystem), groups 2 to 6 (Splunk, Victoria, Elastic, OpenSearch, InfluxDB), ClickHouse and Uptrace with Vigil on Linux, and group 7 (tracing) started, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
 
 **Integration methods:**
 - **Direct Vigil integration:** a Vigil backend or log destination made for this product.
@@ -33,9 +33,9 @@ How each backend works with Vigil, and what a real test showed. **Grafana LGTM h
 | Jaeger (`2.22.0`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
 | Zipkin (`3.6.1`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
 | ClickHouse (`25.8.33.6`) | Docker | Through an intermediary (collector, `clickhouse` exporter) | **Passed** | **Passed** | Not applicable | **Passed** (26.10 needs AVX2: below) |
-| SigNoz | Docker, official (Foundry) | Protocol-compatible (OTLP) | Not tested | Not tested | Not applicable | Not tested |
-| Uptrace | Docker, official (`v2.0.3` example) | To be worked out: needs an `uptrace-dsn` header | Not tested | Not tested | Not applicable | Not tested |
-| Graylog | Docker, official (open-core) | Through an intermediary, to be worked out: OTLP over gRPC only | Not tested | Not tested | Not applicable | Not tested |
+| SigNoz | Docker, official (Foundry) | Protocol-compatible (OTLP) | Not tested | Not tested | Not applicable | Not tested: needs `foundryctl`, not installed |
+| Uptrace (`2.1.0-beta.5`) | Docker, official (`v2.0.3` example), ports on 127.0.0.1 | Direct Vigil integration (OTLP, its DSN as the bearer credential) | **Passed** | **Passed** | Not applicable | **Passed**; metrics kept per minute and approximately (Delivery checks) |
+| Graylog | Docker, official (open-core) | Through an intermediary, to be worked out: OTLP over gRPC only | Not tested | Not tested | Not applicable | Not tested: not run |
 | Datadog | SaaS, credentials supplied by you | Direct Vigil integration | Not tested | Not tested | Not applicable | Not tested |
 | Splunk Observability Cloud | SaaS, credentials supplied by you | Protocol-compatible or through an intermediary, to be confirmed | Not tested | Not supported | Not applicable | Not tested |
 
@@ -74,6 +74,7 @@ Each run adds a row here: date, target, the image versions it ran, the run tag, 
 | 2026-11-04 | `influxdb` | Fedora 44, bash 5.3, at `4e2b221`, through the collector | `influxdb:2.9.1`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041400332816023` | **Passed** | Not supported | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-influxdb), [files](runs/2026-11-04/fedora/backend-influxdb) |
 | 2026-11-04 | `clickhouse` | Fedora 44, bash 5.3, at `6917da1`, through the collector | `clickhouse/clickhouse-server:25.8.33.6`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041500182962371` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-clickhouse), [files](runs/2026-11-04/fedora/backend-clickhouse) |
 | 2026-11-04 | `splunk` | Fedora 44, bash 5.3, at `4ae1343`, HEC direct | `splunk/splunk:10.6.1` | `bk202611041706553316631` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-splunk), [files](runs/2026-11-04/fedora/backend-splunk) |
+| 2026-11-04 | `uptrace` | Fedora 44, bash 5.3, at `f2caa12`, OTLP direct | `uptrace/uptrace:2.1.0-beta.5`, `clickhouse/clickhouse-server:26.3`, `postgres:17-alpine`, `redis:6.2.2-alpine` | `bk202611041745173696285` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-uptrace), [files](runs/2026-11-04/fedora/backend-uptrace) |
 
 ### Victoria: why through a collector
 
@@ -83,7 +84,7 @@ VictoriaMetrics' and VictoriaLogs' OTLP endpoints take protobuf only. Vigil send
 
 `scripts/run-checks.sh`, section 5's checks beyond what `run-vigil` shows: the target stopped for 70 seconds, restarted, Vigil's supervisor stopped for 10 seconds, and the spool cut to 1 MB with the target down. Every run of the test's job is then looked for in the backend's own query interface, from a ledger the job keeps outside Vigil. See the [README](../README.md#delivery-checks) for what each check needs to pass.
 
-Group 1, the Grafana ecosystem, with Vigil on Fedora 44, bash 5.3, at `6d133fa`, 2026-11-04:
+Group 1, the Grafana ecosystem, with Vigil on Fedora 44, bash 5.3, at `6d133fa`, 2026-11-04. Prometheus's was run again at `a858f45`, with the checks' job reporting seconds since the run started: the same results, and its evidence below is that run's.
 
 | Check | Prometheus | Loki | Mimir | Collector (to Mimir, Loki) | Alloy (to Prometheus, Loki) |
 | --- | --- | --- | --- | --- | --- |
@@ -215,10 +216,33 @@ Group 7, tracing: Jaeger and Zipkin start through `start.sh` and answer (Jaeger'
 
 **Group 8, ClickHouse, through `clickhouse-collector`, with Vigil on Fedora 44, bash 5.3, at `6917da1`, 2026-11-04:** metrics and logs passed `run-vigil` and **every applicable delivery check**, restart included ([Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-clickhouse), [files](runs/2026-11-04/fedora/checks-clickhouse)). It is pinned to **25.8 LTS**: 26.10 stops on its first command with `Illegal instruction` (exit 132) on the Fedora host's CPU, an Intel Core i5-2520M from 2011 with AVX but not AVX2 or BMI2, and 25.8 runs there. The collector's `clickhouse` exporter keeps Vigil's names (`bk_check.seq`) and tags (an `Attributes` map), gauges and sums in tables of their own.
 
-The rest of group 8 is not run yet: SigNoz needs `foundryctl`, which is not installed, and Uptrace and Graylog were not tried. Uptrace brings its own ClickHouse, which may need the same care on this CPU.
+The rest of group 8: Uptrace passed (below). SigNoz needs `foundryctl`, which is not installed, and Graylog was not run.
+
+Uptrace, direct over OTLP, with Vigil on Fedora 44, bash 5.3, at `a858f45`, 2026-11-04:
+
+| Check | Uptrace metrics | Uptrace logs |
+| --- | --- | --- |
+| 4 job identifiers | **Passed**, `job="bk_check"` kept | **Passed** |
+| 5 host metadata | **Passed** | **Passed** |
+| 6 timestamps | Not applicable: kept per minute | **Passed** |
+| 7 authentication | **Passed**: a DSN whose token Uptrace never issued refused with HTTP 403, and counted | the same |
+| 8 unavailable | **Passed** | **Passed** |
+| 9 retry and backoff | **Passed** | **Passed** |
+| 10, 11, 16 recovery, a restart, a supervisor restart | **Passed**, by the minute: every minute with a run has its own value | **Passed**, every line |
+| 12 duplicates | Not applicable: kept per minute | **Passed**, none |
+| 13 dropped telemetry | **Passed** | Not applicable |
+| 14 several destinations | **Passed** | Not applicable |
+| 15 a healthy destination | **Passed** | Not applicable |
+| Evidence | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-uptrace), [files](runs/2026-11-04/fedora/checks-uptrace) | the same run |
+
+**How Vigil reaches it.** Uptrace takes its project DSN either in an `uptrace-dsn` header or whole as `Authorization: Bearer <DSN>`. The second is how Vigil's `otel` backend sends its `api_key`, so Vigil sends metrics there directly; the `otel` log destination sends the `uptrace-dsn` header. A token Uptrace never issued gets HTTP 403, which Vigil counts as an authentication failure and keeps to retry; a malformed DSN gets HTTP 400. Metrics are read through Uptrace's Prometheus-compatible API (`/api/prometheus/1`, with a user token); it has no public API for logs, so they are read from its own ClickHouse.
+
+**Uptrace keeps metrics per minute, and approximately.** A query gives one value every 30 seconds, the last of those 30 seconds, not each sample, so single runs, their own times and duplicates cannot be told apart in its metrics; recovery is checked by the minute instead, and the logs, kept line by line, cover the rest. And large values are kept only approximately: an epoch second, 1793814604, came back as 1793814640. The checks' job now reports seconds since the run started, which every backend keeps exactly.
+
+**Its example deployment publishes everything.** Uptrace's own `docker-compose.yml` publishes ClickHouse, Postgres and Uptrace on every interface, with its example passwords. `configs/platforms/uptrace/compose.override.yaml` rebinds Uptrace to 127.0.0.1 and leaves the databases unpublished. Its ClickHouse, 26.3, runs on the test host's CPU, unlike 26.10.
 
 **Why not applicable:**
-- **7:** every target but Splunk takes Vigil's data without a credential here: the collectors take none, and the stores' passwords are the collectors', not Vigil's. Splunk, which takes Vigil's own token, tests it (above).
+- **7:** every target but Splunk and Uptrace takes Vigil's data without a credential here: the collectors take none, and the stores' passwords are the collectors', not Vigil's. Splunk and Uptrace, which take Vigil's own credential, test it.
 - **13 for Loki, VictoriaLogs and OpenSearch:** only metrics go through the spool, and it is the spool that drops. The log forwarder reads Vigil's own log files from a checkpoint, so an outage delays lines, never drops them.
 - **14 and 15 for Loki and VictoriaLogs:** they are about metrics backends; Vigil has one log destination at a time.
 

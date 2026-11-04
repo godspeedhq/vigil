@@ -349,3 +349,21 @@ The first real run (LGTM, 2026-11-03) found that Prometheus-based backends silen
 - **B. Keep delta sums,** and document delta-to-cumulative conversion at the backend (Prometheus's `otlp-deltatocumulative` feature, or the collector's `deltatocumulative` processor). No change to Vigil, but every Prometheus user must know to turn it on.
 
 **A was chosen and done** (PR #64, spec 15.3). The rerun of LGTM with Vigil on Linux stored every metric, counters as `_total`.
+
+## Closed
+
+Closed on 2026-11-04, by decision: enough backends are covered. Results and evidence are in `tests/integration/backends/reports/compatibility.md` and on the site's Real systems pages.
+
+**Done:**
+- The environment: eight Compose groups and a ninth for the secret stores, one `start`/`stop`/`reset` interface, every component started and checked for readiness, every port on 127.0.0.1, and every certificate verified (nothing runs `curl -k` or skips a check).
+- Run with Vigil on Fedora, and passing `run-vigil.sh`: Grafana LGTM (also from macOS and Windows), Prometheus, Loki, Mimir, the OpenTelemetry Collector, Alloy, Splunk Enterprise, VictoriaMetrics, VictoriaLogs, Elasticsearch, OpenSearch, InfluxDB, ClickHouse and Uptrace. Grafana, Tempo, Pyroscope, VictoriaTraces, Jaeger and Zipkin start and are ready; they store nothing Vigil sends.
+- Section 5's checks 4 to 16 for each of those, in `scripts/run-checks.sh`. Every applicable check passed, except data the Elastic and OpenSearch collectors lost when they or their store restarted: the collector's own behaviour, past the point where Vigil's delivery ends.
+- Both SaaS guides (`saas/`).
+- Found and fixed on the way: the bash sender's quadratic time on large batches (#75, and backlog 29 for what is left), leaked supervisors in every test script, and health checks that could never run.
+
+**Not done:**
+- **SigNoz:** needs `foundryctl`, SigNoz's installer, which is not installed on the test host.
+- **Graylog:** not run.
+- **Datadog and Splunk Observability Cloud:** their guides are written; nothing is tested without credentials supplied by hand.
+- **Part 1, new backend types** beyond `file`, `datadog`, `otel` and `splunk`: none added. Everything above is reached with the existing four, directly or through a collector.
+- **The delivery checks from macOS and Windows:** run on Linux only. `run-vigil` covered LGTM from all three.

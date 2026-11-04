@@ -1,8 +1,8 @@
 == checks-prometheus
-date     2026-11-04T10:38:36Z
+date     2026-11-04T18:17:30Z
 host     fedora
 os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
-vigil    6d133fa (deployed copy)
+vigil    a858f45 (deployed copy)
 command  scripts/run-checks.sh prometheus
 bash     5.3.9(1)-release
 git      git version 2.56.0
@@ -11,7 +11,7 @@ openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
 ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
 images   (as compose*.yaml pins them)
          atmoz/sftp:alpine@sha256:43dd1c023cf1bae487127d4b54660b0aee6e94c188a6599be36fb89ba115f961
-         clickhouse/clickhouse-server:26.10.3.7
+         clickhouse/clickhouse-server:25.8.33.6
          elasticsearch:9.5.5
          floci/floci:2.3.0
          floci/floci-az:0.15.0
@@ -42,33 +42,34 @@ images   (as compose*.yaml pins them)
          victoriametrics/victoria-metrics:v1.155.0
          victoriametrics/victoria-traces:v0.12.1
 
-10:38:37 prometheus, run ck202611041038361700975: services prometheus
-10:38:38 baseline: 40 seconds
-10:39:18 stopping prometheus
-10:40:29 starting prometheus
-10:40:40 recovery: 40 seconds
-10:41:20 restarting prometheus
-10:42:01 stopping the supervisor for 10 seconds
-10:42:41 letting delivery catch up: 30 seconds
-10:43:11 the target stopped, the spool cut to 1 MB, and a flood job
-10:43:47 recovery: up to 3 minutes, for the count to reach the target
+scripts/run-checks.sh: line 148: EOF: command not found
+18:17:30 prometheus, run ck202611041817304060984: services prometheus
+18:17:32 baseline: 40 seconds
+18:18:12 stopping prometheus
+18:19:23 starting prometheus
+18:19:34 recovery: 40 seconds
+18:20:14 restarting prometheus
+18:20:55 stopping the supervisor for 10 seconds
+18:21:35 letting delivery catch up: 30 seconds
+18:22:06 the target stopped, the spool cut to 1 MB, and a flood job
+18:22:42 recovery: up to 3 minutes, for the count to reach the target
 
-prometheus, run ck202611041038361700975: 47 runs before 10:42:41Z
-  outage 10:39:18 to 10:40:29, restart 10:41:20, supervisor down 10:42:01 to 10:42:11
-  stored labels: __name__=bk_check_seq host=fedora instance=backend-check job=vigil os=linux run=ck202611041038361700975 service_name=vigil 
-  sent labels:   host=fedora instance=backend-check job=bk_check os=linux run=ck202611041038361700975 
+prometheus, run ck202611041817304060984: 47 runs before 18:21:35Z
+  outage 18:18:12 to 18:19:23, restart 18:20:14, supervisor down 18:20:55 to 18:21:05
+  stored labels: __name__=bk_check_seq host=fedora instance=backend-check job=vigil os=linux run=ck202611041817304060984 service_name=vigil 
+  sent labels:   host=fedora instance=backend-check job=bk_check os=linux run=ck202611041817304060984 
   PASS  4 job identifiers and labels: the job is in the metric name (bk_check_seq); its job label became job="vigil"
   PASS  5 host metadata: host, os and instance kept
   PASS  6 timestamps: every sample within 0s of its run, the 14 delivered late after the outage too
   NOT APPLICABLE  7 authentication rejected: prometheus takes OTLP without authentication in this environment, so there is nothing to refuse
-  PASS  8 the backend unavailable: 7 failures counted, 83 event files held in its queue, jobs ran on
-  PASS  9 retry and backoff: the sender's failed runs 6 10 20 seconds apart
+  PASS  8 the backend unavailable: 8 failures counted, 81 event files held in its queue, jobs ran on
+  PASS  9 retry and backoff: the sender's failed runs 6 10 21 seconds apart
   PASS  10 recovery from the spool: all 14 runs of the outage arrived afterwards
   PASS  11 a backend restart: nothing lost across it
   PASS  16 a supervisor restart: nothing lost across it, the same spool carried on
   PASS  12 duplicate delivery: none, 47 runs, 47 samples
-  dropped, in the file backend: vigil_spool_dropped_total{backend="target",host="fedora",instance="backend-check",os="linux",reason="spool_full"} 1019
-  PASS  13 dropped telemetry: counted, and reported to prometheus once it was back (spool_full=2028)
+  dropped, in the file backend: vigil_spool_dropped_total{backend="target",host="fedora",instance="backend-check",os="linux",reason="spool_full"} 1015
+  PASS  13 dropped telemetry: counted, and reported to prometheus once it was back (spool_full=1015 )
   PASS  14 several destinations: the same runs in the file backend and the target
   PASS  15 a healthy destination unaffected: the file backend stayed current all through the outage
 12 passed, 0 failed, 1 not run or not applicable

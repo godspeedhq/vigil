@@ -43,7 +43,7 @@ scripts/reset.sh lgtm          # removes it
 | 7 Tracing | `compose.tracing.yaml` | `jaeger`, `zipkin` (`tracing`) | — | not applicable | 16686, 4517, 4518, 9411 |
 | 8 Platforms | `compose.platforms.yaml` | `clickhouse` | metrics, logs | collector, `clickhouse` exporter | 18123, 4448 |
 | | official deployment | `signoz` | metrics, logs | OTLP, direct | 8080, 4317, 4318 |
-| | official deployment | `uptrace` | to be worked out | see below | the upstream file's |
+| | official deployment | `uptrace` | metrics, logs | OTLP, direct: its DSN as the `api_key`, and an `uptrace-dsn` header for logs | 14318, on 127.0.0.1 by `compose.override.yaml` |
 | | official deployment | `graylog` | to be worked out | see below | the upstream file's |
 | 9 Secrets | `compose.secrets.yaml` | `openbao`, `vault` | — | Vigil's `hashicorp_vault` secret store reads from them (below) | 8200, 8210 (https) |
 
@@ -82,7 +82,7 @@ What Vigil sends today, and nothing is added to it to make a test pass:
 So:
 - **Not applicable:** Tempo, Pyroscope, VictoriaTraces, Jaeger and Zipkin. They're available, and no test targets them.
 - **OpenSearch:** logs only. The collector's `opensearch` exporter doesn't take metrics.
-- **Uptrace:** wants its DSN in an `uptrace-dsn` header. Vigil's `otel` log destination can send any header, but its metrics backend only sends `Authorization: Bearer`. To be worked out at the first run.
+- **Uptrace:** takes its DSN in an `uptrace-dsn` header, or whole as `Authorization: Bearer <DSN>`, which is how the `otel` backend sends its `api_key`. Both come from `VIGIL_UPTRACE_DSN` in `.env`, its example deployment's own value.
 - **Graylog:** takes OTLP over gRPC, while Vigil sends OTLP over HTTP, so it needs a collector in between. To be worked out at the first run.
 
 ## Official deployments
@@ -143,7 +143,7 @@ The backend's own query interface is then asked for every run in the ledger:
 | 14 several destinations | the same runs reach the file backend |
 | 15 a healthy destination | the file backend stays current all through the outage |
 
-Prometheus-style, Loki, VictoriaLogs (LogsQL), Elasticsearch, OpenSearch, InfluxDB (Flux) and ClickHouse (SQL) and Splunk (SPL) query APIs are supported so far: `prometheus`, `loki`, `mimir`, `otel-collector`, `alloy`, `victoriametrics`, `victorialogs`, `elastic`, `opensearch`, `influxdb`, `clickhouse` and `splunk`. A target without one has those checks NOT RUN, and says so.
+Prometheus-style, Loki, VictoriaLogs (LogsQL), Elasticsearch, OpenSearch, InfluxDB (Flux) and ClickHouse (SQL) and Splunk (SPL) query APIs are supported: `prometheus`, `loki`, `mimir`, `otel-collector`, `alloy`, `victoriametrics`, `victorialogs`, `elastic`, `opensearch`, `influxdb`, `clickhouse`, `splunk` and `uptrace`. A target without one has those checks NOT RUN, and says so.
 
 ## Secret stores
 
@@ -239,7 +239,7 @@ The run's secrets and credentials are test values. Even so, a file holding one i
 
 ## Not done yet
 
-- **Uptrace and Graylog,** and an API check for SigNoz instead of its UI.
+- **SigNoz and Graylog:** not run. SigNoz needs `foundryctl`, SigNoz's installer, which is not installed here.
 
 ## Resources
 
