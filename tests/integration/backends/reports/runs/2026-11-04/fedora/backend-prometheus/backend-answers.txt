@@ -1,0 +1,9 @@
+target   prometheus
+run tag  bk20261104074757644378
+date     2026-11-04T07:50:42Z
+images
+prometheus prom/prometheus:v3.15.1
+
+== metrics: PASS
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"bk_metrics_vigil_backend_probe","host":"fedora","instance":"backend-test","job":"vigil","os":"linux","run":"bk20261104074757644378","service_name":"vigil"},"value":[1793778642.533,"42"]}]}}
+

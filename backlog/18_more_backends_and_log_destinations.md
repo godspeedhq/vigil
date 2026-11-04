@@ -328,7 +328,11 @@ Results: Passed, Failed, Not supported, Not applicable, Not tested, Blocked by l
   - counts as OTLP delta sums, dropped by Prometheus-based backends (below)
   - Windows under a logon WMI refuses (backlog/fixed/23)
   - the verify probe expecting a `job` label Prometheus replaces
-- **Next:** the other groups one at a time, then the 13 checks of section 5 beyond the first three.
+- **Group 1, the Grafana ecosystem, done** (2026-11-04, Vigil on Fedora): all eight components start through `start.sh`, and wait for readiness from the host where the image has no shell for a health check. Prometheus, Loki, Mimir, the OpenTelemetry Collector and Alloy each passed `run-vigil.sh`, and every applicable delivery check of section 5 in the new `run-checks.sh`. Grafana, Tempo and Pyroscope store nothing Vigil sends. Results in `reports/compatibility.md`.
+- **Found by group 1's delivery checks, and fixed:**
+  - the bash sender took time growing with the square of a batch, so after an outage long enough to fill a request, the queue never drained (#75; what is left of it is backlog 29)
+  - the test scripts leaked a supervisor from every run (fixed in the scripts)
+- **Next:** the other groups one at a time, each with a query helper in `run-checks.sh`.
 
 ## Decided: counts over OTLP
 

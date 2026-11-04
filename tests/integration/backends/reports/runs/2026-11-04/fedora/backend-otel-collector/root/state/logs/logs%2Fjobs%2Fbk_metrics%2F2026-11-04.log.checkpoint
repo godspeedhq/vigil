@@ -1,0 +1,5 @@
+[checkpoint]
+file        = logs/jobs/bk_metrics/2026-11-04.log
+fingerprint = 384913163 64
+offset      = 717
+size        = 717

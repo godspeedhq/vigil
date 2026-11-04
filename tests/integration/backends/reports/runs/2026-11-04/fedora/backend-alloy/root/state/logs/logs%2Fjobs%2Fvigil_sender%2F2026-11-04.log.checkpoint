@@ -1,0 +1,5 @@
+[checkpoint]
+file        = logs/jobs/vigil_sender/2026-11-04.log
+fingerprint = 3287469651 64
+offset      = 2004
+size        = 2004

@@ -1,0 +1,11 @@
+target   mimir
+run tag  bk20261104080348745658
+date     2026-11-04T08:06:33Z
+images
+loki grafana/loki:3.7.9
+mimir grafana/mimir:3.2.4
+prometheus prom/prometheus:v3.15.1
+
+== metrics: PASS
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"bk_metrics_vigil_backend_probe","host":"fedora","instance":"backend-test","job":"vigil","os":"linux","run":"bk20261104080348745658"},"value":[1793779593.624,"42"]}]}}
+

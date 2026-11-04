@@ -1,0 +1,22 @@
+[state]
+schema_version   = 1
+job              = bk_missing
+run_id           = 20261104T080908Z-766776-44
+instance         = backend-test
+status           = failed
+reason           = file not found: /tmp/vigil-bk.VqvzHn/root/scripts/missing.sh
+boot_id          = f4d0989a-632d-4986-bf54-590720c04f03
+started_epoch    = 1793779748
+started_at       = 2026-11-04T08:09:08Z
+deadline_epoch   = 
+worker_pid       = 784434
+worker_name      = bash
+worker_start     = 1793779747
+ended_epoch      = 1793779748
+ended_at         = 2026-11-04T08:09:08Z
+duration_seconds = 0
+exit_code        = 
+metric_lines     = 0
+invalid_lines    = 0
+dropped_lines    = 0
+spool_file       = 1793779748-bk_missing-20261104T080908Z-766776-44.events

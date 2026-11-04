@@ -1,0 +1,35 @@
+[vigil]
+instance = backend-check
+
+[scheduler]
+tick = 2s
+
+[runner.sh]
+command = /bin/bash
+
+[runners]
+.sh = sh
+
+[backend.target]
+type     = otel
+endpoint = http://127.0.0.1:24318/v1/metrics
+
+[backend.local]
+type = file
+path = metrics/local.prom
+
+[log_forward]
+destination = target
+include     = run, stdout, stderr
+check_every = 5s
+
+[log_destination.target]
+type     = otel
+endpoint = http://127.0.0.1:24318/v1/logs
+
+[job.bk_check]
+file = scripts/check.sh
+run_every = 5s
+env = BK_RUN=ck202611041055241833394
+env = BK_LEDGER=/tmp/vigil-ck.7RPHd3/ledger
+

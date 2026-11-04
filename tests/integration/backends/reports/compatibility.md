@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run so far,** with Vigil on Linux, macOS and Windows; every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
+How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows, and the rest of group 1, the Grafana ecosystem, with Vigil on Linux, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
 
 **Integration methods:**
 - **Direct Vigil integration:** a Vigil backend or log destination made for this product.
@@ -15,14 +15,14 @@ How each backend works with Vigil, and what a real test showed. **Grafana LGTM h
 | Backend | Deployment | Integration method | Metrics | Logs | Traces | Result |
 | --- | --- | --- | --- | --- | --- | --- |
 | Grafana LGTM (`grafana/otel-lgtm:0.38.1`) | Docker, default | Protocol-compatible (OTLP/HTTP) | **Passed** (counts as cumulative sums; see Runs) | **Passed** | Not applicable | **Passed** |
-| Prometheus (`v3.15.1`) | Docker | Protocol-compatible (OTLP receiver) | Not tested | Not supported | Not applicable | Not tested |
-| Grafana (`13.2.5`) | Docker | Supporting component only | Not applicable | Not applicable | Not applicable | Not applicable |
-| Loki (`3.7.9`) | Docker | Protocol-compatible (OTLP) | Not supported | Not tested | Not applicable | Not tested |
-| Tempo (`2.10.10`) | Docker | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
-| Mimir (`3.2.4`) | Docker | Protocol-compatible (OTLP) | Not tested | Not supported | Not applicable | Not tested |
-| Pyroscope (`2.4.2`) | Docker | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
-| OpenTelemetry Collector (`0.163.2`) | Docker | Through an intermediary (to Mimir and Loki) | Not tested | Not tested | Not applicable | Not tested |
-| Grafana Alloy (`v1.21.3`) | Docker | Through an intermediary (to Prometheus and Loki) | Not tested | Not tested | Not applicable | Not tested |
+| Prometheus (`v3.15.1`) | Docker | Protocol-compatible (OTLP receiver) | **Passed** | Not supported | Not applicable | **Passed** |
+| Grafana (`13.2.5`) | Docker | Supporting component only (starts and is healthy) | Not applicable | Not applicable | Not applicable | Not applicable |
+| Loki (`3.7.9`) | Docker | Protocol-compatible (OTLP) | Not supported | **Passed** | Not applicable | **Passed** |
+| Tempo (`2.10.10`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
+| Mimir (`3.2.4`) | Docker | Protocol-compatible (OTLP) | **Passed** | Not supported | Not applicable | **Passed** |
+| Pyroscope (`2.4.2`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
+| OpenTelemetry Collector (`0.163.2`) | Docker | Through an intermediary (to Mimir and Loki) | **Passed** | **Passed** | Not applicable | **Passed** |
+| Grafana Alloy (`v1.21.3`) | Docker | Through an intermediary (to Prometheus and Loki) | **Passed** | **Passed** | Not applicable | **Passed** |
 | Splunk Enterprise (`10.6.1`) | Docker | Direct Vigil integration (HEC) | Not tested | Not tested | Not applicable | Not tested |
 | VictoriaMetrics (`v1.155.0`) | Docker | Protocol-compatible (OTLP) | Not tested | Not supported | Not applicable | Not tested |
 | VictoriaLogs (`v1.53.0`) | Docker | Protocol-compatible (OTLP) | Not supported | Not tested | Not applicable | Not tested |
@@ -61,6 +61,50 @@ Each run adds a row here: date, target, the image versions it ran, the run tag, 
 | 2026-11-03 | `lgtm` | Fedora 44, bash 5.3, at `4040737`, evidence kept | `grafana/otel-lgtm:0.38.1` | `bk202611032008051138583` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-lgtm), [files](runs/2026-11-03/fedora/backend-lgtm) |
 | 2026-11-03 | `lgtm` | macOS 12.7.6, bash 3.2, tunnels to Fedora, at `4040737`, evidence kept | `grafana/otel-lgtm:0.38.1` | `bk2026110320160960421` | **Passed** | **Passed** | [macOS](https://godspeedhq.github.io/vigil/real/macos/#backend-lgtm), [files](runs/2026-11-03/macos/backend-lgtm) |
 | 2026-11-03 | `lgtm` | Windows 11 Pro, PowerShell 5.1, tunnels to Fedora, at `c278240`, evidence kept | `grafana/otel-lgtm:0.38.1` | `bk202611032135249088` | **Passed** | **Passed** | [Windows](https://godspeedhq.github.io/vigil/real/windows/#backend-lgtm), [files](runs/2026-11-03/windows/backend-lgtm) |
+| 2026-11-04 | `prometheus` | Fedora 44, bash 5.3, at `8a09525` | `prom/prometheus:v3.15.1` | `bk20261104074757644378` | **Passed** | Not supported | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-prometheus), [files](runs/2026-11-04/fedora/backend-prometheus) |
+| 2026-11-04 | `loki` | Fedora 44, bash 5.3, at `8a09525` | `grafana/loki:3.7.9` | `bk20261104075553692852` | Not supported | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-loki), [files](runs/2026-11-04/fedora/backend-loki) |
+| 2026-11-04 | `mimir` | Fedora 44, bash 5.3, at `8a09525` | `grafana/mimir:3.2.4` | `bk20261104080348745658` | **Passed** | Not supported | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-mimir), [files](runs/2026-11-04/fedora/backend-mimir) |
+| 2026-11-04 | `otel-collector` | Fedora 44, bash 5.3, at `8a09525` | `otel/opentelemetry-collector-contrib:0.163.2`, to Mimir and Loki | `bk20261104080648766671` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-otel-collector), [files](runs/2026-11-04/fedora/backend-otel-collector) |
+| 2026-11-04 | `alloy` | Fedora 44, bash 5.3, at `8a09525` | `grafana/alloy:v1.21.3`, to Prometheus and Loki | `bk20261104080955790261` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-alloy), [files](runs/2026-11-04/fedora/backend-alloy) |
+
+## Delivery checks
+
+`scripts/run-checks.sh`, section 5's checks beyond what `run-vigil` shows: the target stopped for 70 seconds, restarted, Vigil's supervisor stopped for 10 seconds, and the spool cut to 1 MB with the target down. Every run of the test's job is then looked for in the backend's own query interface, from a ledger the job keeps outside Vigil. See the [README](../README.md#delivery-checks) for what each check needs to pass.
+
+Vigil on Fedora 44, bash 5.3, at `6d133fa`, 2026-11-04:
+
+| Check | Prometheus | Loki | Mimir | Collector (to Mimir, Loki) | Alloy (to Prometheus, Loki) |
+| --- | --- | --- | --- | --- | --- |
+| 4 job identifiers | **Passed** (in the name) | **Passed** | **Passed** (in the name) | **Passed** | **Passed** |
+| 5 host metadata | **Passed** | **Passed** | **Passed** | **Passed** | **Passed** |
+| 6 timestamps | **Passed**, late ones too | **Passed** | **Passed**, late ones too | **Passed** | **Passed** |
+| 7 authentication | Not applicable | Not applicable | Not applicable | Not applicable | Not applicable |
+| 8 unavailable | **Passed** | **Passed** | **Passed** | **Passed** | **Passed** |
+| 9 retry and backoff | **Passed** | **Passed** | **Passed** | **Passed** | **Passed** |
+| 10 recovery from the spool | **Passed**, 14 of 14 | **Passed** | **Passed**, 14 of 14 | **Passed** | **Passed** |
+| 11 a backend restart | **Passed** | **Passed** | **Passed** | **Passed** | **Passed** |
+| 12 duplicates | **Passed**, none | **Passed**, none | **Passed**, none | **Passed**, none | **Passed**, none |
+| 13 dropped telemetry | **Passed** | Not applicable | **Passed** | **Passed** | **Passed** |
+| 14 several destinations | **Passed** | Not applicable | **Passed** | **Passed** | **Passed** |
+| 15 a healthy destination | **Passed** | Not applicable | **Passed** | **Passed** | **Passed** |
+| 16 a supervisor restart | **Passed** | **Passed** | **Passed** | **Passed** | **Passed** |
+| Evidence | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-prometheus), [files](runs/2026-11-04/fedora/checks-prometheus) | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-loki), [files](runs/2026-11-04/fedora/checks-loki) | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-mimir), [files](runs/2026-11-04/fedora/checks-mimir) | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-otel-collector), [files](runs/2026-11-04/fedora/checks-otel-collector) | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-alloy), [files](runs/2026-11-04/fedora/checks-alloy) |
+
+**Why not applicable:**
+- **7:** none of group 1 takes a credential here, so there is nothing to refuse. Splunk, Elasticsearch and OpenSearch, which do, test it.
+- **13 for Loki:** only metrics go through the spool, and it is the spool that drops. The log forwarder reads Vigil's own log files from a checkpoint, so an outage delays lines, never drops them.
+- **14 and 15 for Loki:** they are about metrics backends; Vigil has one log destination at a time.
+
+**What the checks showed:**
+- **A delayed sample keeps its time.** The 14 runs made during the outage reached Prometheus and Mimir a minute late, each stamped within a second of when it ran, not when it arrived.
+- **Backoff is as the spec says:** the sender's failed runs started 6, 10 and 20 seconds apart (5, 10, 20, and the time a run takes), and the log forwarder backed off on its own.
+- **Prometheus-based backends replace the `job` label** with `job="vigil"`, from the service name, as the first LGTM run found. The job stays in the metric's name, `bk_check_seq`, so it can still be told apart. Loki keeps `job` as a label.
+- **Mimir names a counter without `_total`** (`vigil_spool_dropped`), where Prometheus adds it (`vigil_spool_dropped_total`): Mimir's OTLP translation leaves suffixes off by default. A query for one name misses the other.
+- **A full spool's drops are counted, and the count arrives** once the backend is back: `vigil_spool_dropped` with `reason="spool_full"`.
+
+**What they found in Vigil, and fixed in #75.** With Prometheus stopped and a full batch queued, the sender never finished a run again. The bash twin's escaping of a request body for curl took time growing with the square of its size (over 10 minutes for 385 KB, longer than the 5 minutes a sender may run), and so did building the bodies. Any outage long enough to fill one request would have left that backend's queue stuck, and every other backend waiting behind it. Now linear; what is left (the file backend's own merge speed, and a slow backend holding up the rest) is backlog 29.
+
+**And in the tests, fixed here.** Every test script started Vigil's supervisor through a shell function in the background, so the process it stopped afterwards was a subshell: each run left its supervisor running, 15 of them on the Fedora host and 5 on the Mac. Each now starts the supervisor directly, and ends its own workers.
 
 ### Windows: what the first runs found
 
