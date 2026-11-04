@@ -38,7 +38,8 @@ _vigil_prom_name() {
 # One event line as "<name>\t<labels>\t<type>\t<value>". Result in _vp_rec;
 # empty for a line that is not an event.
 _vigil_prom_event() {
-    local epoch name value type tag key val labels='' sorted IFS=' '
+    local epoch name value type tag key val labels='' IFS=' ' n=0 i j t
+    local -a tags
     _vp_rec=''
     set -f
     # shellcheck disable=SC2086
@@ -55,13 +56,25 @@ _vigil_prom_event() {
         gauge:*) ;;
         *) return 0 ;;
     esac
-    # Labels sorted by key: tag keys are [A-Za-z0-9_]+, so a byte sort of
-    # "key=value" lines sorts by key.
-    sorted=$(for tag in "$@"; do printf '%s\n' "$tag"; done | LC_ALL=C sort -t= -k1,1)
-    local nl=$'\n'
-    while [ -n "$sorted" ]; do
-        tag=${sorted%%"$nl"*}
-        case $sorted in *"$nl"*) sorted=${sorted#*"$nl"} ;; *) sorted='' ;; esac
+    # Labels sorted by key, bytes not characters (vigil_prom_merge sets
+    # LC_ALL=C), ties by the whole tag: as LC_ALL=C sort -t= -k1,1 orders
+    # them. In bash, not sort: a process for each event made the merge slow.
+    for tag in "$@"; do tags[n]=$tag; n=$((n + 1)); done
+    i=1
+    while [ "$i" -lt "$n" ]; do
+        t=${tags[i]}
+        j=$((i - 1))
+        while [ "$j" -ge 0 ] && [[ ${tags[j]%%=*} > ${t%%=*} || ( ${tags[j]%%=*} == "${t%%=*}" && ${tags[j]} > $t ) ]]; do
+            tags[j + 1]=${tags[j]}
+            j=$((j - 1))
+        done
+        tags[j + 1]=$t
+        i=$((i + 1))
+    done
+    i=0
+    while [ "$i" -lt "$n" ]; do
+        tag=${tags[i]}
+        i=$((i + 1))
         key=${tag%%=*}
         val=${tag#*=}
         case $key in [0-9]*) key=_$key ;; esac
