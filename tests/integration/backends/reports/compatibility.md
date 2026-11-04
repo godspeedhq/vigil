@@ -32,7 +32,7 @@ How each backend works with Vigil, and what a real test showed. **Grafana LGTM h
 | InfluxDB (`2.9.1`) | Docker | Through an intermediary (collector, `influxdb` exporter) | **Passed** | Not supported | Not applicable | **Passed** |
 | Jaeger (`2.22.0`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
 | Zipkin (`3.6.1`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
-| ClickHouse (`26.10.3.7`) | Docker | Through an intermediary (collector) | Not tested | Not tested | Not applicable | Not tested |
+| ClickHouse (`26.10.3.7`) | Docker | Through an intermediary (collector) | Not tested | Not tested | Not applicable | Blocked: the test host's CPU (below) |
 | SigNoz | Docker, official (Foundry) | Protocol-compatible (OTLP) | Not tested | Not tested | Not applicable | Not tested |
 | Uptrace | Docker, official (`v2.0.3` example) | To be worked out: needs an `uptrace-dsn` header | Not tested | Not tested | Not applicable | Not tested |
 | Graylog | Docker, official (open-core) | Through an intermediary, to be worked out: OTLP over gRPC only | Not tested | Not tested | Not applicable | Not tested |
@@ -187,6 +187,8 @@ Group 6, InfluxDB, through `influxdb-collector`, with Vigil on Fedora 44, bash 5
 The collector's `influxdb` exporter, with the `telegraf-prometheus-v1` schema, keeps Vigil's metric name as the measurement, dots and all (`bk_check.seq`), the value in a `gauge` or `counter` field, and Vigil's tags as InfluxDB tags. A counter also gets a `start_time_unix_nano` field. Unlike the Elasticsearch and OpenSearch exporters, it lost nothing across InfluxDB's restart.
 
 Group 7, tracing: Jaeger and Zipkin start through `start.sh` and answer (Jaeger's UI, Zipkin's `/health` reporting `UP`). Vigil sends no traces, so there is nothing else to test.
+
+**Group 8, the platforms: blocked on this test host.** ClickHouse 26.10 stops on its first command with `Illegal instruction` (exit 132): the Fedora host's CPU, an Intel Core i5-2520M from 2011, has AVX but not AVX2 or BMI2, which this build needs. SigNoz and Uptrace store their data in ClickHouse, so they are blocked the same way. They need a newer machine, or a ClickHouse build for older CPUs if one fits; neither is chosen here. Graylog's open-core deployment was not tried.
 
 **Why not applicable:**
 - **7:** Vigil sends to each target without a credential here: groups 1 and 3 take none, and Elasticsearch's password is the collector's, not Vigil's. Splunk, which takes Vigil's own token, tests it.
