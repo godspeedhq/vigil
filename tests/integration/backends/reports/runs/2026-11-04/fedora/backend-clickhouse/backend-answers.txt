@@ -1,0 +1,13 @@
+target   clickhouse
+run tag  bk202611041500182962371
+date     2026-11-04T15:03:03Z
+images
+clickhouse clickhouse/clickhouse-server:25.8.33.6
+clickhouse-collector otel/opentelemetry-collector-contrib:0.163.2
+
+== metrics: PASS
+2
+
+== logs: PASS
+6
+

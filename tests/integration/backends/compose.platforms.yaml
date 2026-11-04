@@ -25,7 +25,9 @@
 
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:26.10.3.7
+    # 25.8 LTS: 26.10 stops with "Illegal instruction" on a CPU without
+    # AVX2, such as the Fedora test host's (an i5-2520M); 25.8 runs there.
+    image: clickhouse/clickhouse-server:25.8.33.6
     profiles: ["clickhouse"]
     environment:
       CLICKHOUSE_USER: vigil

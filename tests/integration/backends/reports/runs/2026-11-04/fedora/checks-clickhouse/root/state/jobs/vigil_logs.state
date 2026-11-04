@@ -1,0 +1,15 @@
+[state]
+schema_version   = 1
+job              = vigil_logs
+run_id           = 20261104T150822Z-3007682-91
+status           = failed
+reason           = delivery to target failed: cannot connect to 127.0.0.1:4448
+boot_id          = f4d0989a-632d-4986-bf54-590720c04f03
+started_epoch    = 1793804902
+started_at       = 2026-11-04T15:08:22Z
+worker_pid       = 3028733
+worker_name      = bash
+worker_start     = 1793804901
+ended_epoch      = 1793804902
+ended_at         = 2026-11-04T15:08:22Z
+duration_seconds = 0

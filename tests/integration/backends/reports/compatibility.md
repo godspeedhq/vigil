@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows; the rest of group 1 (the Grafana ecosystem) and groups 3 to 6 (Victoria, Elastic, OpenSearch, InfluxDB) with Vigil on Linux, and group 7 (tracing) started, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
+How each backend works with Vigil, and what a real test showed. **Grafana LGTM has been run with Vigil on Linux, macOS and Windows; the rest of group 1 (the Grafana ecosystem), groups 3 to 6 (Victoria, Elastic, OpenSearch, InfluxDB) and ClickHouse with Vigil on Linux, and group 7 (tracing) started, including the delivery checks of section 5** (below). Every other result is Not tested. Secret stores are in [`secrets-compatibility.md`](secrets-compatibility.md). A result changes only with evidence from a run: the software version, the date, the configuration, and what the backend's own query returned, saved by `scripts/verify.sh` in `reports/evidence/`. A test that didn't run is never marked Passed.
 
 **Integration methods:**
 - **Direct Vigil integration:** a Vigil backend or log destination made for this product.
@@ -32,7 +32,7 @@ How each backend works with Vigil, and what a real test showed. **Grafana LGTM h
 | InfluxDB (`2.9.1`) | Docker | Through an intermediary (collector, `influxdb` exporter) | **Passed** | Not supported | Not applicable | **Passed** |
 | Jaeger (`2.22.0`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
 | Zipkin (`3.6.1`) | Docker | Not applicable (starts and is ready) | Not applicable | Not applicable | Not applicable | Not applicable |
-| ClickHouse (`26.10.3.7`) | Docker | Through an intermediary (collector) | Not tested | Not tested | Not applicable | Blocked: the test host's CPU (below) |
+| ClickHouse (`25.8.33.6`) | Docker | Through an intermediary (collector, `clickhouse` exporter) | **Passed** | **Passed** | Not applicable | **Passed** (26.10 needs AVX2: below) |
 | SigNoz | Docker, official (Foundry) | Protocol-compatible (OTLP) | Not tested | Not tested | Not applicable | Not tested |
 | Uptrace | Docker, official (`v2.0.3` example) | To be worked out: needs an `uptrace-dsn` header | Not tested | Not tested | Not applicable | Not tested |
 | Graylog | Docker, official (open-core) | Through an intermediary, to be worked out: OTLP over gRPC only | Not tested | Not tested | Not applicable | Not tested |
@@ -72,6 +72,7 @@ Each run adds a row here: date, target, the image versions it ran, the run tag, 
 | 2026-11-04 | `elastic` | Fedora 44, bash 5.3, at `f0310b7`, through the collector | `elasticsearch:9.5.5`, `kibana:9.5.5`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041312432475480` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-elastic), [files](runs/2026-11-04/fedora/backend-elastic) |
 | 2026-11-04 | `opensearch` | Fedora 44, bash 5.3, at `cad74b9`, through the collector, certificate verified | `opensearchproject/opensearch:3.9.0`, `opensearchproject/opensearch-dashboards:3.9.0`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041338282672634` | Not supported | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-opensearch), [files](runs/2026-11-04/fedora/backend-opensearch) |
 | 2026-11-04 | `influxdb` | Fedora 44, bash 5.3, at `4e2b221`, through the collector | `influxdb:2.9.1`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041400332816023` | **Passed** | Not supported | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-influxdb), [files](runs/2026-11-04/fedora/backend-influxdb) |
+| 2026-11-04 | `clickhouse` | Fedora 44, bash 5.3, at `6917da1`, through the collector | `clickhouse/clickhouse-server:25.8.33.6`, `otel/opentelemetry-collector-contrib:0.163.2` | `bk202611041500182962371` | **Passed** | **Passed** | [Fedora](https://godspeedhq.github.io/vigil/real/fedora/#backend-clickhouse), [files](runs/2026-11-04/fedora/backend-clickhouse) |
 
 ### Victoria: why through a collector
 
@@ -188,7 +189,9 @@ The collector's `influxdb` exporter, with the `telegraf-prometheus-v1` schema, k
 
 Group 7, tracing: Jaeger and Zipkin start through `start.sh` and answer (Jaeger's UI, Zipkin's `/health` reporting `UP`). Vigil sends no traces, so there is nothing else to test.
 
-**Group 8, the platforms: blocked on this test host.** ClickHouse 26.10 stops on its first command with `Illegal instruction` (exit 132): the Fedora host's CPU, an Intel Core i5-2520M from 2011, has AVX but not AVX2 or BMI2, which this build needs. SigNoz and Uptrace store their data in ClickHouse, so they are blocked the same way. They need a newer machine, or a ClickHouse build for older CPUs if one fits; neither is chosen here. Graylog's open-core deployment was not tried.
+**Group 8, ClickHouse, through `clickhouse-collector`, with Vigil on Fedora 44, bash 5.3, at `6917da1`, 2026-11-04:** metrics and logs passed `run-vigil` and **every applicable delivery check**, restart included ([Fedora](https://godspeedhq.github.io/vigil/real/fedora/#checks-clickhouse), [files](runs/2026-11-04/fedora/checks-clickhouse)). It is pinned to **25.8 LTS**: 26.10 stops on its first command with `Illegal instruction` (exit 132) on the Fedora host's CPU, an Intel Core i5-2520M from 2011 with AVX but not AVX2 or BMI2, and 25.8 runs there. The collector's `clickhouse` exporter keeps Vigil's names (`bk_check.seq`) and tags (an `Attributes` map), gauges and sums in tables of their own.
+
+The rest of group 8 is not run yet: SigNoz needs `foundryctl`, which is not installed, and Uptrace and Graylog were not tried. Uptrace brings its own ClickHouse, which may need the same care on this CPU.
 
 **Why not applicable:**
 - **7:** Vigil sends to each target without a credential here: groups 1 and 3 take none, and Elasticsearch's password is the collector's, not Vigil's. Splunk, which takes Vigil's own token, tests it.

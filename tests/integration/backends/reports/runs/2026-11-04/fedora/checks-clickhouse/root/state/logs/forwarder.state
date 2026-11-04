@@ -1,0 +1,6 @@
+[forwarder]
+destination = target
+failures = 4
+next_try = 1793804942
+checked_epoch = 1793804902
+total = 1248108

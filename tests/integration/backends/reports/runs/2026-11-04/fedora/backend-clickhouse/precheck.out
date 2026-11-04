@@ -1,0 +1,18 @@
+Configuration /tmp/vigil-bk.FnDIMi/root/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  ok    job.bk_ok
+  ok    job.bk_fail
+  ok    job.bk_long
+  ok    job.bk_overrun
+  FAIL  job.bk_missing: file not found: /tmp/vigil-bk.FnDIMi/root/scripts/missing.sh
+  ok    job.bk_output
+  ok    job.bk_metrics
+  ok    job.bk_native
+  ok    state directory: /tmp/vigil-bk.FnDIMi/root/state
+  ok    log directory: /tmp/vigil-bk.FnDIMi/root/logs
+  ok    spool directory: /tmp/vigil-bk.FnDIMi/root/spool
+
+precheck failed: 1 problem(s)

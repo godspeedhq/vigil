@@ -126,6 +126,14 @@ for t in "$@"; do
             # The secret stores' certificate exists before they first start.
             case $t in openbao | vault | aws | azure | gcp | azure-alt | gcp-alt) bash "$bk_dir/configs/secrets/tls.sh" || die 'cannot make the test CA' ;; esac
             case $t in git-* | https-* | sftp-*) bash "$bk_dir/configs/secrets/tls.sh" && bash "$bk_dir/configs/sources/keys.sh" || die 'cannot make the test CA or keys' ;; esac
+            # Splunk's management API serves the test CA's certificate: the
+            # certificate, its key and the CA in one file, as Splunk wants it.
+            if [ "$t" = splunk ]; then
+                bash "$bk_dir/configs/secrets/tls.sh" &&
+                    cat "$bk_dir/.secrets/tls/server.pem" "$bk_dir/.secrets/tls/server-key.pem" "$bk_dir/.secrets/tls/ca.pem" \
+                        > "$bk_dir/.secrets/tls/splunk-server.pem" && chmod 644 "$bk_dir/.secrets/tls/splunk-server.pem" ||
+                    die 'cannot make the test CA or Splunk'"'"'s certificate'
+            fi
             # OpenSearch first: its demo root CA is copied out for the
             # collector and Dashboards before they start, so they verify it.
             if [ "$t" = opensearch ]; then
