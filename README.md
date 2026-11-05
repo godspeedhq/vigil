@@ -441,7 +441,7 @@ Evidence of a run must exist **before** its process does. Otherwise a supervisor
                                     disk.<run>.token  deleted                 close and delete token, exit
 ```
 
-The claim is a race with exactly one winner. If the supervisor decides a launch has been sitting unclaimed too long (past the 120-second grace), it abandons it with the same filesystem operation the worker uses to claim it, so one side always wins and the other knows it lost:
+The claim is a race with exactly one winner. If the supervisor decides a launch has been sitting unclaimed too long (past the 30-second grace), it abandons it with the same filesystem operation the worker uses to claim it, so one side always wins and the other knows it lost:
 
 ```text
                       disk.<run>.launch
@@ -505,7 +505,7 @@ Each tick, for each job, the supervisor turns the evidence into exactly one conc
  launch record present?
  |-- held by a worker ...................................... ALIVE (being claimed)
  |-- from an earlier boot .................................. ABANDON
- |-- younger than the 120 s grace .......................... LAUNCHING (hold, start nothing)
+ |-- younger than the 30 s grace ........................... LAUNCHING (hold, start nothing)
  '-- older than the grace
        |-- a process carries the run id .................... LAUNCHING (slow worker)
        |-- no such process ................................. ABANDON

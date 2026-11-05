@@ -28,9 +28,12 @@
 # outcome.sh, metrics.sh, events.sh, recovery.sh, worker.sh and precheck.sh.
 
 # How long, in seconds, a launch record may wait for its worker to claim it
-# before the supervisor goes looking for the worker's process (11.3). Starting
-# bash on a busy machine can take a while, so this is generous.
-VIGIL_LAUNCH_GRACE=120
+# before the supervisor goes looking for the worker's process (11.3). A worker
+# carries its run id from the moment it starts, so this only has to cover
+# starting the process; one that is slow to claim is found and kept. A
+# worker that could not start (app/ was being swapped by an update) holds
+# its job no longer than this.
+VIGIL_LAUNCH_GRACE=30
 # How often, in seconds, the sleep between ticks looks for a new version in
 # app/.
 VIGIL_RELOAD_CHECK=3
