@@ -335,6 +335,67 @@ vigil_schedule_decide() {
     fi
 }
 
+# vigil_schedule_busiest <now>
+# The minute of the next 24 hours at which the most enabled jobs start (8,
+# 16.4), from the parsed configuration; now as for vigil_schedule_decide.
+# Sets VIGIL_SCHED_BUSY_COUNT (0 when nothing is scheduled) and
+# VIGIL_SCHED_BUSY_AT, that minute's local time as HH:MM, the earliest of
+# equals. A job counts once per minute. Local slots are taken at the current
+# UTC offset. run_every slots are stepped through directly: one every minute
+# is 1440 of them.
+vigil_schedule_busiest() {
+    local now_e off end s name c idx last best=0 bidx=-1 i
+    local -a bucket
+    bucket=()
+    VIGIL_SCHED_BUSY_COUNT=0
+    VIGIL_SCHED_BUSY_AT=''
+    _vigil_sched_parse "$1" || return 1
+    now_e=$_vs_secs off=$_vs_off
+    end=$((now_e + 86400))
+    s=0
+    while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
+        name=${VIGIL_CFG_SEC_NAME[$s]}
+        s=$((s + 1))
+        case $name in job.*) ;; *) continue ;; esac
+        _vigil_sched_job "${name#job.}" || continue
+        [ "$_vs_enabled" = true ] || continue
+        last=-1
+        if [ "$_vs_every" -gt 0 ]; then
+            c=$((now_e / _vs_every * _vs_every + _vs_every))
+            while [ "$c" -lt "$end" ]; do
+                idx=$((c / 60 - now_e / 60))
+                if [ "$idx" -ne "$last" ] && _vigil_sched_day_ok $(((c + off) / 86400)); then
+                    bucket[idx]=$((${bucket[idx]-0} + 1))
+                    last=$idx
+                fi
+                c=$((c + _vs_every))
+            done
+        elif [ "${#_vs_times[@]}" -gt 0 ]; then
+            c=$((now_e + off))
+            while :; do
+                _vigil_sched_next "$c" "$off"
+                [ "$_vs_slot" -ge 0 ] && [ $((_vs_slot - off)) -lt "$end" ] || break
+                c=$_vs_slot
+                idx=$(((c - off) / 60 - now_e / 60))
+                if [ "$idx" -ne "$last" ]; then
+                    bucket[idx]=$((${bucket[idx]-0} + 1))
+                    last=$idx
+                fi
+            done
+        fi
+    done
+    for i in ${bucket[@]+"${!bucket[@]}"}; do
+        if [ "${bucket[i]}" -gt "$best" ]; then
+            best=${bucket[i]}
+            bidx=$i
+        fi
+    done
+    [ "$bidx" -ge 0 ] || return 0
+    VIGIL_SCHED_BUSY_COUNT=$best
+    _vigil_sched_format $(((now_e / 60 + bidx) * 60 + off)) local
+    VIGIL_SCHED_BUSY_AT=${_vs_text:11:5}
+}
+
 # vigil_schedule_table_dump <table file>
 # Reads a decisions table - one row per tick, whitespace-separated:
 #   <job> <now> <prev> <cursor> <active> <decision> <slot> <next>

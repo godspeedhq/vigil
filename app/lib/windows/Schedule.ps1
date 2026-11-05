@@ -303,6 +303,64 @@ function Get-VigilScheduleDecision {
     return $result
 }
 
+# The minute of the next 24 hours at which the most enabled jobs start (8,
+# 16.4); $Now as for Get-VigilScheduleDecision. Returns @{ Count; At }: At is
+# that minute's local time as HH:MM, the earliest of equals; Count is 0 when
+# nothing is scheduled. A job counts once per minute. Local slots are taken
+# at the current UTC offset. run_every slots are stepped through inline: one
+# every minute is 1440 of them, too many for a function call each.
+function Get-VigilScheduleBusiest {
+    param([Parameter(Mandatory = $true)]$Index, [Parameter(Mandatory = $true)][string]$Now)
+    $none = @{ Count = 0; At = '' }
+    $n = ConvertFrom-VigilScheduleTime $Now
+    if (-not $n) { return $none }
+    $nowE = [long]$n.Secs
+    $off = [long]$n.Off
+    $end = $nowE + 86400
+    $base = [Math]::Floor($nowE / 60)
+    $bucket = @{}
+    foreach ($name in @($Index.Sections.Keys)) {
+        if (-not $name.StartsWith('job.', [System.StringComparison]::Ordinal)) { continue }
+        $job = Get-VigilScheduleJob -Index $Index -Id $name.Substring(4)
+        if (-not $job -or $job.Enabled -cne 'true') { continue }
+        $last = [long]-1
+        if ($job.Every -gt 0) {
+            $every = [long]$job.Every
+            $c = ([Math]::Floor($nowE / $every)) * $every + $every
+            while ($c -lt $end) {
+                $idx = [long]([Math]::Floor($c / 60) - $base)
+                $day = [long][Math]::Floor(($c + $off) / 86400)
+                if ($idx -ne $last -and $job.Mask[[int](($day + 4) % 7)] -ceq '1') {
+                    $bucket[$idx] = 1 + $(if ($bucket.ContainsKey($idx)) { $bucket[$idx] } else { 0 })
+                    $last = $idx
+                }
+                $c += $every
+            }
+        }
+        elseif ($job.Times.Count -gt 0) {
+            $c = $nowE + $off
+            while ($true) {
+                $slot = Get-VigilNextSlot $job $c $off
+                if ($slot -lt 0 -or ($slot - $off) -ge $end) { break }
+                $c = $slot
+                $idx = [long]([Math]::Floor(($c - $off) / 60) - $base)
+                if ($idx -ne $last) {
+                    $bucket[$idx] = 1 + $(if ($bucket.ContainsKey($idx)) { $bucket[$idx] } else { 0 })
+                    $last = $idx
+                }
+            }
+        }
+    }
+    $best = 0
+    $bidx = [long]-1
+    foreach ($k in ($bucket.Keys | Sort-Object)) {
+        if ($bucket[$k] -gt $best) { $best = $bucket[$k]; $bidx = $k }
+    }
+    if ($bidx -lt 0) { return $none }
+    $text = Format-VigilSlot -Seconds ((($base + $bidx) * 60) + $off) -Utc $false
+    return @{ Count = $best; At = $text.Substring(11, 5) }
+}
+
 # Splits a decisions-table line into its eight columns, as bash `read` does:
 # blank lines and # comments give $null.
 function Split-VigilScheduleRow {

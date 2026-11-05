@@ -108,10 +108,8 @@ _vigil_val_keytype() {
         vigil:config_file) _vv_type=srcpath ;;
         vigil:instance) _vv_type=name ;;
         vigil:state_dir) _vv_type=path ;;
-        vigil:max_concurrent) _vv_type=int1 ;;
         scheduler:tick) _vv_type=dur ;;
         scheduler:late_start_window) _vv_type=dur0 ;;
-        scheduler:max_pending) _vv_type=int ;;
         log:dir) _vv_type=path ;;
         log:stdout) _vv_type=bool ;;
         log:retain_days | log:max_file_mb) _vv_type=int1 ;;

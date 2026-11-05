@@ -132,10 +132,10 @@ require_env = VIGIL_IT_SURELY_UNSET
     Test-Equal 'no secret value printed' '' (@($script:lines | Where-Object { $_.Contains("pg value $PID") -or $_.Contains("vault value $PID") }) -join ' ')
 
     # 4. A rejected configuration: every problem, in file order, and nothing else.
-    [System.IO.File]::WriteAllText($cfg, "[vigil]`nmax_concurrent = 0`n`n[job.x]`nfile = a.ps1`n`n[weird]`n")
+    [System.IO.File]::WriteAllText($cfg, "[log]`nretain_days = 0`n`n[job.x]`nfile = a.ps1`n`n[weird]`n")
     $rc = Invoke-Vigil @('precheck')
     Test-Equal 'rejected: exit code' '1' "$rc"
-    Test-Equal 'rejected: first problem' 'True' (Test-Has "  ERROR    line 2: 'max_concurrent' must be at least 1 (E_INTEGER)")
+    Test-Equal 'rejected: first problem' 'True' (Test-Has "  ERROR    line 2: 'retain_days' must be at least 1 (E_INTEGER)")
     Test-Equal 'rejected: invalid job' 'True' (Test-Has '  INVALID  job.x, line 4: [job.x] needs run_every or run_at (E_SCHEDULE_NONE)')
     Test-Equal 'rejected: last problem' 'True' (Test-Has '  ERROR    line 7: unknown section [weird] (E_SECTION_UNKNOWN)')
     Test-Equal 'rejected: result' 'True' (Test-Has 'precheck failed: the configuration is rejected; nothing else was checked')
@@ -144,7 +144,20 @@ require_env = VIGIL_IT_SURELY_UNSET
     $rc = Invoke-Vigil @('supervise', '--once')
     Test-Equal 'supervisor refuses: exit code' '1' "$rc"
     Test-Equal 'supervisor refuses: summary' 'True' (Test-Has 'vigil: the configuration has errors; run vigil precheck')
-    Test-Equal 'supervisor refuses: every problem' 'True' (Test-Has "  ERROR    line 2: 'max_concurrent' must be at least 1 (E_INTEGER)")
+    Test-Equal 'supervisor refuses: every problem' 'True' (Test-Has "  ERROR    line 2: 'retain_days' must be at least 1 (E_INTEGER)")
+
+    # 6. The busiest minute (8, 16.4): information, never a failure. A
+    # disabled job does not count, and each job counts once.
+    [System.IO.File]::WriteAllText($cfg, ("[job.a]`nfile   = scripts\ok.ps1`nrun_at = 03:00`n`n" +
+        "[job.b]`nfile   = scripts\ok.ps1`nrun_at = 03:00, 15:00`n`n" +
+        "[job.c]`nfile   = scripts\ok.ps1`nrun_at = 03:00`n`n" +
+        "[job.d]`nfile   = scripts\ok.ps1`nrun_at = 04:00`n`n" +
+        "[job.e]`nfile    = scripts\ok.ps1`nrun_at  = 03:00`nenabled = false`n"))
+    $rc = Invoke-Vigil @('precheck')
+    Test-Equal 'busiest minute: exit code' '0' "$rc"
+    Test-Equal 'busiest minute: said' 'True' (Test-Has '  note  busiest minute in the next 24 hours: 03:00, 3 jobs start together')
+    [void](Invoke-Vigil @('precheck', 'a'))
+    Test-Equal 'busiest minute: not for one job' 'False' "$(@($script:lines | Where-Object { $_ -match 'busiest minute' }).Count -gt 0)"
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

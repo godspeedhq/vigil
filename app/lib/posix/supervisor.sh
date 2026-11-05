@@ -14,8 +14,8 @@
 # The long-running tick loop the service manager runs (SPECIFICATION.md
 # 4.1). Each tick it reloads the configuration when it changed, accounts
 # for every job's latest run (11.3), reaches each job's schedule decision
-# (7.9), admits due runs within max_concurrent (8), launches each as a
-# detached worker (4.3), and writes jobs.log (13.2) and its own events.
+# (7.9), starts every due run (8) as a detached worker (4.3), and writes
+# jobs.log (13.2) and its own events.
 #
 #   vigil_supervise <root> <once: 0|1>
 #     Returns 1 when another supervisor owns the state directory or the
@@ -599,10 +599,6 @@ _vigil_sup_settings() {
     _su_spooldir=$_vw_dir
     _vigil_wk_get vigil instance vigil
     _su_instance=$_vw_value
-    _vigil_wk_get vigil max_concurrent 5
-    _su_max=$_vw_value
-    _vigil_wk_get scheduler max_pending 20
-    _su_max_pending=$_vw_value
     _vigil_wk_get scheduler tick 60s
     case $_vw_value in
         *s) _su_tick=${_vw_value%s} ;;
@@ -873,36 +869,19 @@ _vigil_sup_tick() {
         [ "$VIGIL_SCHED_NEXT" != - ] && _su_status_waiting="$_su_status_waiting$job: next $VIGIL_SCHED_NEXT"$'\n'
     done
 
-    # Admission (8): oldest pending first, within max_concurrent; beyond
-    # max_pending, runs are skipped.
-    next=''
+    # Admission (8): every due run starts now, oldest first. Vigil sets no
+    # limit on how many run at once: the machine is its operator's.
     for job in $_su_pending; do
-        if [ "$_su_running" -lt "$_su_max" ]; then
-            _vigil_sup_script "$job" || continue
-            _vigil_sup_start "$job" "$_su_script"
-            _su_status_running="$_su_status_running $job"
-        else
-            next="$next $job"
-        fi
+        _vigil_sup_script "$job" || continue
+        _vigil_sup_start "$job" "$_su_script"
+        _su_status_running="$_su_status_running $job"
     done
     _su_pending=''
-    i=0
-    for job in $next; do
-        i=$((i + 1))
-        if [ "$i" -le "$_su_max_pending" ]; then
-            _su_pending="$_su_pending $job"
-        else
-            _vigil_sup_event "$job" skipped 1 count
-            _vigil_sup_log WARN "job $job: skipped: more than $_su_max_pending runs pending"
-        fi
-    done
 
     _vigil_sup_queue_save
 
     _vigil_sup_event '' up 1 gauge
     _vigil_sup_event '' workers "$_su_running" gauge
-    set -- $_su_pending
-    _vigil_sup_event '' pending $# gauge
     _vigil_sup_event '' config_reload_failed "$_su_reload_failed" gauge
     # The active revision, and how long since each source was last
     # checked successfully (14.5).
@@ -930,8 +909,7 @@ _vigil_sup_tick() {
     done > "$i.tmp.$$" && mv -f "$i.tmp.$$" "$i"
 
     # The sender (4.5): one at a time, started whenever the spool holds
-    # anything. It is Vigil's own worker and does not count against
-    # max_concurrent.
+    # anything. It is Vigil's own worker.
     _vigil_sup_account vigil_sender
     if [ "$_su_active" = - ] && [ "$_su_waiting" = 0 ]; then
         for i in "$_su_spooldir"/incoming/*.events "$_su_spooldir"/fanout/*.events "$_su_spooldir"/backends/*/*.events; do
@@ -942,8 +920,8 @@ _vigil_sup_tick() {
         done
     fi
 
-    # The fetcher (16.5): like the sender, one at a time, outside
-    # max_concurrent, so a slow source never delays a tick.
+    # The fetcher (16.5): like the sender, one at a time, started apart from
+    # the jobs, so a slow source never delays a tick.
     if [ "$_su_mode" = fetch ]; then
         _vigil_sup_account vigil_fetch
         if [ "$_su_active" = - ] && _vigil_sup_fetch_due; then
@@ -1010,10 +988,6 @@ _vigil_sup_status() {
         if [ -n "$_su_status_running" ]; then
             printf '\nRUNNING\n'
             for j in $_su_status_running; do printf '  %s\n' "$j"; done
-        fi
-        if [ -n "$_su_pending" ]; then
-            printf '\nPENDING\n'
-            for j in $_su_pending; do printf '  %s\n' "$j"; done
         fi
         if [ -n "$_su_status_waiting" ]; then
             printf '\nWAITING\n'

@@ -390,6 +390,11 @@ vigil_precheck() {
     _vigil_pc_dir 'log directory' "$_vw_dir"
     _vigil_wk_dir spool dir spool
     _vigil_pc_dir 'spool directory' "$_vw_dir"
+    # Information, never a failure (8): how many jobs start together at the
+    # busiest minute, each with a worker of its own.
+    if [ -z "$only" ] && vigil_schedule_busiest "$(date '+%Y-%m-%dT%H:%M:%S%z')" && [ "$VIGIL_SCHED_BUSY_COUNT" -ge 2 ]; then
+        printf '  note  busiest minute in the next 24 hours: %s, %d jobs start together\n' "$VIGIL_SCHED_BUSY_AT" "$VIGIL_SCHED_BUSY_COUNT"
+    fi
     [ -z "${VIGIL_FAULT-}" ] || _vigil_pc_fail 'VIGIL_FAULT is set: fault injection is for tests only (22.4.1)'
     [ -z "${VIGIL_TEST_IMDS-}" ] || _vigil_pc_fail 'VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)'
     [ -z "${VIGIL_TEST_SSH_CONFIG-}" ] || _vigil_pc_fail 'VIGIL_TEST_SSH_CONFIG is set: the ssh configuration override is for tests only (22.4.3)'

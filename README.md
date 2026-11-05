@@ -80,7 +80,7 @@ Vigil's guiding rules:
 | --- | --- |
 | Configuration parsing and validation, with errors by line and code | Done |
 | Scheduling: `run_every`, `run_at`, `run_on_days`, missed runs, `late_start_window` | Done |
-| Concurrency: `max_concurrent`, pending queue, overlap `skip` / `queue_one` | Done |
+| Every due run starts at its time, with no concurrency ceiling; overlap `skip` / `queue_one` | Done |
 | Workers: runners, arguments, environment, stdout/stderr capture, job logs | Done |
 | Outcomes: `standard`, `nagios`, explicit exit-code lists | Done |
 | Metrics from job output: `metric` lines and Nagios performance data | Done |
@@ -109,6 +109,7 @@ Vigil's guiding rules:
 ## Install
 
 One command per platform. The installer:
+
 1. Checks the prerequisites.
 2. Downloads the latest release and verifies its SHA-256 before using it.
 3. Unpacks it and puts `vigil` on your `PATH`.
@@ -341,7 +342,7 @@ Vigil is a handful of cooperating processes that talk **only through files**. Th
                          |     reload config if changed                            |
                          |     account for every job's last run   <-- reads ----+  |
                          |     decide each job's schedule                      |  |
-                         |     admit due runs within max_concurrent            |  |
+                         |     start every due run                             |  |
                          |     write launch record, start worker (detached)    |  |
                          |     stop runs past max_runtime (if proven theirs)   |  |
                          |     write jobs.log and its own metrics              |  |
@@ -395,8 +396,8 @@ The supervisor wakes once per `[scheduler] tick` (default `60s`) and does the sa
  +------------------------------------------------------------------------------+
          |
          v
- 3. ADMIT      start pending runs, oldest first, while workers < max_concurrent;
-               beyond max_pending, runs are skipped and counted
+ 3. START      start every due run, oldest first: there is no ceiling, the
+               configuration is the limit
          |
          v
  4. SENDER     start one if the spool holds anything and none is running
@@ -767,11 +768,9 @@ Every metric carries `host`, `os` and `instance` tags plus your `[tags]`. A job'
 One instance has one configuration file, `config/vigil.config`, in a plain `key = value` format with `[sections]`. The same parser runs on every platform.
 
 ```ini
-# instance names the deployment and becomes the "instance" tag;
-# max_concurrent caps running workers across all jobs.
+# instance names the deployment and becomes the "instance" tag.
 [vigil]
-instance       = db01
-max_concurrent = 5
+instance = db01
 
 # late_start_window: how late a missed run may still start.
 [scheduler]
@@ -818,8 +817,8 @@ Comments are whole lines starting with `#` or `;`. There are no inline comments:
 
 | Section | Purpose |
 | --- | --- |
-| `[vigil]` | Instance name, state directory, global concurrency, and optionally where to fetch the configuration from |
-| `[scheduler]` | Tick, late-start window, pending limit |
+| `[vigil]` | Instance name, state directory, and optionally where to fetch the configuration from |
+| `[scheduler]` | Tick and late-start window |
 | `[log]`, `[spool]` | Log and spool locations, retention and size caps |
 | `[tags]` | Tags added to every metric |
 | `[backend.<name>]` | A metrics destination |
@@ -1094,7 +1093,7 @@ powershell -File tests\Run-Conformance.ps1 # Windows PowerShell 5.1
 
 **Integration.** The tests in `tests/integration/` run real jobs and a real supervisor, then check the results end to end:
 - runs, outcomes, logs and events;
-- concurrency limits and overlap;
+- overlap, and every due run starting;
 - crashes and abandoned launches;
 - `max_runtime` stopping a job that ignores TERM;
 - uncertain runs under each policy, with an unrelated process that must never be killed;

@@ -122,10 +122,10 @@ check "fails: result" yes "$(has 'precheck failed: 7 problem(s)')"
 check "no secret value printed" "" "$(printf '%s\n' "$out" | grep -e "pg value $$" -e "vault value $$")"
 
 # 4. A rejected configuration: every problem, in file order, and nothing else.
-printf '[vigil]\nmax_concurrent = 0\n\n[job.x]\nfile = a.sh\n\n[weird]\n' > "$root/config/vigil.config"
+printf '[log]\nretain_days = 0\n\n[job.x]\nfile = a.sh\n\n[weird]\n' > "$root/config/vigil.config"
 out=$(vigil precheck 2>&1)
 check "rejected: exit code" 1 "$?"
-check "rejected: first problem" yes "$(has "  ERROR    line 2: 'max_concurrent' must be at least 1 (E_INTEGER)")"
+check "rejected: first problem" yes "$(has "  ERROR    line 2: 'retain_days' must be at least 1 (E_INTEGER)")"
 check "rejected: invalid job" yes "$(has '  INVALID  job.x, line 4: [job.x] needs run_every or run_at (E_SCHEDULE_NONE)')"
 check "rejected: last problem" yes "$(has '  ERROR    line 7: unknown section [weird] (E_SECTION_UNKNOWN)')"
 check "rejected: result" yes "$(has 'precheck failed: the configuration is rejected; nothing else was checked')"
@@ -134,7 +134,43 @@ check "rejected: result" yes "$(has 'precheck failed: the configuration is rejec
 out=$(vigil supervise --once 2>&1)
 check "supervisor refuses: exit code" 1 "$?"
 check "supervisor refuses: summary" yes "$(has 'vigil: the configuration has errors; run vigil precheck')"
-check "supervisor refuses: every problem" yes "$(has "  ERROR    line 2: 'max_concurrent' must be at least 1 (E_INTEGER)")"
+check "supervisor refuses: every problem" yes "$(has "  ERROR    line 2: 'retain_days' must be at least 1 (E_INTEGER)")"
+
+# 6. The busiest minute (8, 16.4): information, never a failure. A disabled
+# job does not count, and each job counts once.
+cat > "$root/config/vigil.config" <<EOF
+[runner.sh]
+command = /bin/sh
+
+[runners]
+.sh = sh
+
+[job.a]
+file   = scripts/ok.sh
+run_at = 03:00
+
+[job.b]
+file   = scripts/ok.sh
+run_at = 03:00, 15:00
+
+[job.c]
+file   = scripts/ok.sh
+run_at = 03:00
+
+[job.d]
+file   = scripts/ok.sh
+run_at = 04:00
+
+[job.e]
+file    = scripts/ok.sh
+run_at  = 03:00
+enabled = false
+EOF
+out=$(vigil precheck 2>&1)
+check "busiest minute: exit code" 0 "$?"
+check "busiest minute: said" yes "$(has '  note  busiest minute in the next 24 hours: 03:00, 3 jobs start together')"
+out=$(vigil precheck a 2>&1)
+check "busiest minute: not for one job" no "$(printf '%s\n' "$out" | grep -q 'busiest minute' && echo yes || echo no)"
 
 rm -rf "$root"
 printf '%d passed, %d failed\n' "$pass" "$fail"
