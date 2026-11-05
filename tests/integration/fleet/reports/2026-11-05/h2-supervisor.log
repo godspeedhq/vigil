@@ -1,0 +1,203 @@
+2026-11-05T11:04:27Z INFO supervisor waiting for the first fetch from the configuration's sources
+2026-11-05T11:04:27Z INFO supervisor supervisor started, pid 1076
+2026-11-05T11:04:27Z INFO supervisor job vigil_fetch: run 20261105T110427Z-1076-1 started
+2026-11-05T11:05:27Z INFO supervisor configuration revision 01165367a117 loaded (source.fleet groups/git.config)
+2026-11-05T11:05:27Z INFO supervisor job vigil_fetch: run 20261105T110528Z-1076-3 started
+2026-11-05T11:05:42Z INFO supervisor job vigil_fetch: run 20261105T110542Z-1076-9 started
+2026-11-05T11:05:52Z INFO supervisor job vigil_fetch: run 20261105T110552Z-1076-13 started
+2026-11-05T11:06:02Z INFO supervisor job vigil_fetch: run 20261105T110602Z-1076-17 started
+2026-11-05T11:06:12Z INFO supervisor job vigil_fetch: run 20261105T110612Z-1076-21 started
+2026-11-05T11:06:27Z INFO supervisor job vigil_fetch: run 20261105T110627Z-1076-26 started
+2026-11-05T11:06:37Z INFO supervisor job vigil_fetch: run 20261105T110637Z-1076-30 started
+2026-11-05T11:06:47Z INFO supervisor job vigil_fetch: run 20261105T110647Z-1076-34 started
+2026-11-05T11:06:57Z INFO supervisor job vigil_fetch: run 20261105T110657Z-1076-38 started
+2026-11-05T11:07:07Z INFO supervisor job vigil_fetch: run 20261105T110707Z-1076-42 started
+2026-11-05T11:07:17Z INFO supervisor job vigil_fetch: run 20261105T110717Z-1076-46 started
+2026-11-05T11:07:27Z INFO supervisor job vigil_fetch: run 20261105T110727Z-1076-50 started
+2026-11-05T11:07:37Z INFO supervisor job vigil_fetch: run 20261105T110737Z-1076-54 started
+2026-11-05T11:07:47Z INFO supervisor job vigil_fetch: run 20261105T110747Z-1076-58 started
+2026-11-05T11:07:57Z INFO supervisor job vigil_fetch: run 20261105T110757Z-1076-62 started
+2026-11-05T11:08:07Z INFO supervisor job vigil_fetch: run 20261105T110808Z-1076-66 started
+2026-11-05T11:08:22Z INFO supervisor job vigil_fetch: run 20261105T110822Z-1076-72 started
+2026-11-05T11:08:32Z INFO supervisor job vigil_fetch: run 20261105T110832Z-1076-76 started
+2026-11-05T11:08:42Z INFO supervisor job vigil_fetch: run 20261105T110842Z-1076-80 started
+2026-11-05T11:08:52Z INFO supervisor job vigil_fetch: run 20261105T110852Z-1076-84 started
+2026-11-05T11:09:07Z INFO supervisor job vigil_fetch: run 20261105T110907Z-1076-89 started
+2026-11-05T11:09:17Z INFO supervisor job vigil_fetch: run 20261105T110917Z-1076-93 started
+2026-11-05T11:09:27Z INFO supervisor job vigil_fetch: run 20261105T110927Z-1076-97 started
+2026-11-05T11:09:37Z INFO supervisor job vigil_fetch: run 20261105T110937Z-1076-101 started
+2026-11-05T11:09:47Z INFO supervisor job vigil_fetch: run 20261105T110947Z-1076-105 started
+2026-11-05T11:10:02Z INFO supervisor job vigil_fetch: run 20261105T111002Z-1076-111 started
+2026-11-05T11:10:12Z INFO supervisor job vigil_fetch: run 20261105T111012Z-1076-115 started
+2026-11-05T11:10:22Z INFO supervisor job vigil_fetch: run 20261105T111022Z-1076-119 started
+2026-11-05T11:10:32Z INFO supervisor job vigil_fetch: run 20261105T111032Z-1076-123 started
+2026-11-05T11:10:47Z INFO supervisor job vigil_fetch: run 20261105T111047Z-1076-128 started
+2026-11-05T11:10:57Z INFO supervisor job vigil_fetch: run 20261105T111057Z-1076-132 started
+2026-11-05T11:11:07Z INFO supervisor job vigil_fetch: run 20261105T111107Z-1076-136 started
+2026-11-05T11:11:17Z INFO supervisor job vigil_fetch: run 20261105T111117Z-1076-140 started
+2026-11-05T11:11:27Z INFO supervisor job vigil_fetch: run 20261105T111128Z-1076-144 started
+2026-11-05T11:11:42Z INFO supervisor job vigil_fetch: run 20261105T111142Z-1076-150 started
+2026-11-05T11:11:52Z INFO supervisor job vigil_fetch: run 20261105T111152Z-1076-154 started
+2026-11-05T11:12:02Z INFO supervisor job vigil_fetch: run 20261105T111202Z-1076-158 started
+2026-11-05T11:12:12Z INFO supervisor job vigil_fetch: run 20261105T111213Z-1076-162 started
+2026-11-05T11:12:27Z INFO supervisor job vigil_fetch: run 20261105T111227Z-1076-167 started
+2026-11-05T11:12:37Z INFO supervisor job vigil_fetch: run 20261105T111237Z-1076-171 started
+2026-11-05T11:12:47Z INFO supervisor job vigil_fetch: run 20261105T111247Z-1076-175 started
+2026-11-05T11:12:57Z INFO supervisor job vigil_fetch: run 20261105T111257Z-1076-179 started
+2026-11-05T11:13:07Z INFO supervisor job vigil_fetch: run 20261105T111308Z-1076-183 started
+2026-11-05T11:13:22Z INFO supervisor job vigil_fetch: run 20261105T111322Z-1076-189 started
+2026-11-05T11:13:32Z INFO supervisor job vigil_fetch: run 20261105T111332Z-1076-193 started
+2026-11-05T11:13:42Z INFO supervisor job vigil_fetch: run 20261105T111342Z-1076-197 started
+2026-11-05T11:13:52Z INFO supervisor job vigil_fetch: run 20261105T111353Z-1076-201 started
+2026-11-05T11:14:07Z INFO supervisor job vigil_fetch: run 20261105T111407Z-1076-206 started
+2026-11-05T11:14:17Z INFO supervisor job vigil_fetch: run 20261105T111417Z-1076-210 started
+2026-11-05T11:14:27Z INFO supervisor job vigil_fetch: run 20261105T111427Z-1076-214 started
+2026-11-05T11:14:37Z INFO supervisor job vigil_fetch: run 20261105T111437Z-1076-218 started
+2026-11-05T11:14:52Z INFO supervisor job vigil_fetch: run 20261105T111452Z-1076-224 started
+2026-11-05T11:15:02Z INFO supervisor job vigil_fetch: run 20261105T111502Z-1076-228 started
+2026-11-05T11:15:12Z INFO supervisor job vigil_fetch: run 20261105T111512Z-1076-232 started
+2026-11-05T11:15:22Z INFO supervisor job vigil_fetch: run 20261105T111522Z-1076-236 started
+2026-11-05T11:15:37Z INFO supervisor job vigil_fetch: run 20261105T111537Z-1076-241 started
+2026-11-05T11:15:47Z INFO supervisor job vigil_fetch: run 20261105T111547Z-1076-245 started
+2026-11-05T11:15:57Z INFO supervisor job vigil_fetch: run 20261105T111557Z-1076-249 started
+2026-11-05T11:16:07Z INFO supervisor job vigil_fetch: run 20261105T111607Z-1076-253 started
+2026-11-05T11:16:12Z INFO supervisor configuration revision 1e3555103546 loaded (source.fleet groups/git.config)
+2026-11-05T11:16:12Z INFO supervisor updating Vigil 99.1.0 to 99.2.0, as the configuration asks
+2026-11-05T11:16:12Z INFO supervisor job vigil_update: run 20261105T111612Z-1076-256 started
+2026-11-05T11:16:12Z INFO supervisor reloading: Vigil 99.1.0 to 99.2.0
+2026-11-05T11:16:16Z INFO supervisor configuration revision 1e3555103546 loaded (source.fleet groups/git.config)
+2026-11-05T11:16:16Z INFO supervisor supervisor started, pid 1076
+2026-11-05T11:16:21Z INFO supervisor job vigil_fetch: run 20261105T111621Z-1076-4 started
+2026-11-05T11:16:21Z INFO supervisor Vigil is now 99.2.0, as the configuration asks
+2026-11-05T11:16:31Z INFO supervisor job vigil_fetch: run 20261105T111631Z-1076-8 started
+2026-11-05T11:16:41Z INFO supervisor job vigil_fetch: run 20261105T111641Z-1076-12 started
+2026-11-05T11:16:51Z INFO supervisor job vigil_fetch: run 20261105T111651Z-1076-16 started
+2026-11-05T11:17:06Z INFO supervisor job vigil_fetch: run 20261105T111706Z-1076-21 started
+2026-11-05T11:17:16Z INFO supervisor job vigil_fetch: run 20261105T111716Z-1076-25 started
+2026-11-05T11:17:26Z INFO supervisor job vigil_fetch: run 20261105T111726Z-1076-29 started
+2026-11-05T11:17:36Z INFO supervisor job vigil_fetch: run 20261105T111736Z-1076-33 started
+2026-11-05T11:17:46Z INFO supervisor job vigil_fetch: run 20261105T111746Z-1076-37 started
+2026-11-05T11:18:01Z INFO supervisor job vigil_fetch: run 20261105T111801Z-1076-43 started
+2026-11-05T11:18:11Z INFO supervisor job vigil_fetch: run 20261105T111811Z-1076-47 started
+2026-11-05T11:18:16Z INFO supervisor configuration revision 01165367a117 loaded (source.fleet groups/git.config)
+2026-11-05T11:18:16Z INFO supervisor updating Vigil 99.2.0 to 99.1.0, as the configuration asks
+2026-11-05T11:18:16Z INFO supervisor job vigil_update: run 20261105T111816Z-1076-49 started
+2026-11-05T11:18:16Z INFO supervisor reloading: Vigil 99.2.0 to 99.1.0
+2026-11-05T11:18:19Z INFO supervisor configuration revision 01165367a117 loaded (source.fleet groups/git.config)
+2026-11-05T11:18:19Z INFO supervisor supervisor started, pid 1076
+2026-11-05T11:18:24Z INFO supervisor job vigil_fetch: run 20261105T111824Z-1076-4 started
+2026-11-05T11:18:24Z INFO supervisor Vigil is now 99.1.0, as the configuration asks
+2026-11-05T11:18:34Z INFO supervisor job vigil_fetch: run 20261105T111835Z-1076-8 started
+2026-11-05T11:18:49Z INFO supervisor job vigil_fetch: run 20261105T111849Z-1076-13 started
+2026-11-05T11:18:59Z INFO supervisor job vigil_fetch: run 20261105T111859Z-1076-17 started
+2026-11-05T11:19:09Z INFO supervisor job vigil_fetch: run 20261105T111909Z-1076-21 started
+2026-11-05T11:19:19Z INFO supervisor job vigil_fetch: run 20261105T111919Z-1076-25 started
+2026-11-05T11:19:29Z INFO supervisor job vigil_fetch: run 20261105T111929Z-1076-29 started
+2026-11-05T11:19:39Z INFO supervisor job vigil_fetch: run 20261105T111939Z-1076-33 started
+2026-11-05T11:19:49Z INFO supervisor job vigil_fetch: run 20261105T111949Z-1076-37 started
+2026-11-05T11:19:59Z INFO supervisor job vigil_fetch: run 20261105T111959Z-1076-41 started
+2026-11-05T11:20:09Z INFO supervisor job vigil_fetch: run 20261105T112009Z-1076-45 started
+2026-11-05T11:20:24Z INFO supervisor job vigil_fetch: run 20261105T112024Z-1076-51 started
+2026-11-05T11:20:34Z INFO supervisor job vigil_fetch: run 20261105T112034Z-1076-55 started
+2026-11-05T11:20:44Z INFO supervisor job vigil_fetch: run 20261105T112044Z-1076-59 started
+2026-11-05T11:20:54Z INFO supervisor job vigil_fetch: run 20261105T112054Z-1076-63 started
+2026-11-05T11:20:59Z INFO supervisor configuration revision a8f6868177b3 loaded (source.fleet groups/git.config)
+2026-11-05T11:20:59Z INFO supervisor updating Vigil 99.1.0 to 99.3.0, as the configuration asks
+2026-11-05T11:20:59Z INFO supervisor job vigil_update: run 20261105T112059Z-1076-65 started
+2026-11-05T11:21:04Z INFO supervisor job vigil_fetch: run 20261105T112105Z-1076-68 started
+2026-11-05T11:21:04Z WARN supervisor Vigil 99.3.0, which the configuration asks for, could not be downloaded: cannot download Vigil 99.3.0: is there such a release?; staying on 99.1.0, trying again in 5 minutes
+2026-11-05T11:21:19Z INFO supervisor job vigil_fetch: run 20261105T112119Z-1076-73 started
+2026-11-05T11:21:29Z INFO supervisor job vigil_fetch: run 20261105T112129Z-1076-77 started
+2026-11-05T11:21:39Z INFO supervisor job vigil_fetch: run 20261105T112139Z-1076-81 started
+2026-11-05T11:21:49Z INFO supervisor job vigil_fetch: run 20261105T112149Z-1076-85 started
+2026-11-05T11:21:59Z INFO supervisor job vigil_fetch: run 20261105T112200Z-1076-89 started
+2026-11-05T11:22:14Z INFO supervisor job vigil_fetch: run 20261105T112214Z-1076-95 started
+2026-11-05T11:22:24Z INFO supervisor job vigil_fetch: run 20261105T112224Z-1076-99 started
+2026-11-05T11:22:34Z INFO supervisor job vigil_fetch: run 20261105T112234Z-1076-103 started
+2026-11-05T11:22:44Z INFO supervisor job vigil_fetch: run 20261105T112244Z-1076-107 started
+2026-11-05T11:22:54Z INFO supervisor job vigil_fetch: run 20261105T112255Z-1076-111 started
+2026-11-05T11:23:09Z INFO supervisor job vigil_fetch: run 20261105T112309Z-1076-116 started
+2026-11-05T11:23:19Z INFO supervisor job vigil_fetch: run 20261105T112319Z-1076-120 started
+2026-11-05T11:23:29Z INFO supervisor job vigil_fetch: run 20261105T112329Z-1076-124 started
+2026-11-05T11:23:39Z INFO supervisor job vigil_fetch: run 20261105T112339Z-1076-128 started
+2026-11-05T11:23:49Z INFO supervisor job vigil_fetch: run 20261105T112350Z-1076-132 started
+2026-11-05T11:24:04Z INFO supervisor job vigil_fetch: run 20261105T112404Z-1076-138 started
+2026-11-05T11:24:14Z INFO supervisor job vigil_fetch: run 20261105T112414Z-1076-142 started
+2026-11-05T11:24:24Z INFO supervisor job vigil_fetch: run 20261105T112424Z-1076-146 started
+2026-11-05T11:24:34Z INFO supervisor job vigil_fetch: run 20261105T112434Z-1076-150 started
+2026-11-05T11:24:45Z INFO supervisor job vigil_fetch: run 20261105T112445Z-1076-154 started
+2026-11-05T11:24:59Z INFO supervisor job vigil_fetch: run 20261105T112459Z-1076-159 started
+2026-11-05T11:25:09Z INFO supervisor job vigil_fetch: run 20261105T112509Z-1076-163 started
+2026-11-05T11:25:19Z INFO supervisor job vigil_fetch: run 20261105T112519Z-1076-167 started
+2026-11-05T11:25:29Z INFO supervisor job vigil_fetch: run 20261105T112529Z-1076-171 started
+2026-11-05T11:25:39Z INFO supervisor job vigil_fetch: run 20261105T112539Z-1076-175 started
+2026-11-05T11:25:49Z INFO supervisor job vigil_fetch: run 20261105T112549Z-1076-179 started
+2026-11-05T11:25:59Z INFO supervisor job vigil_fetch: run 20261105T112559Z-1076-183 started
+2026-11-05T11:26:04Z INFO supervisor updating Vigil 99.1.0 to 99.3.0, as the configuration asks
+2026-11-05T11:26:04Z INFO supervisor job vigil_update: run 20261105T112604Z-1076-186 started
+2026-11-05T11:26:04Z INFO supervisor reloading: Vigil 99.1.0 to 99.3.0
+2026-11-05T11:26:07Z INFO supervisor configuration revision a8f6868177b3 loaded (source.fleet groups/git.config)
+2026-11-05T11:26:07Z INFO supervisor supervisor started, pid 1076
+2026-11-05T11:26:12Z INFO supervisor job vigil_fetch: run 20261105T112612Z-1076-4 started
+2026-11-05T11:26:12Z INFO supervisor Vigil is now 99.3.0, as the configuration asks
+2026-11-05T11:26:22Z INFO supervisor job vigil_fetch: run 20261105T112622Z-1076-8 started
+2026-11-05T11:26:32Z INFO supervisor job vigil_fetch: run 20261105T112632Z-1076-12 started
+2026-11-05T11:26:42Z INFO supervisor job vigil_fetch: run 20261105T112642Z-1076-16 started
+2026-11-05T11:26:52Z INFO supervisor job vigil_fetch: run 20261105T112652Z-1076-20 started
+2026-11-05T11:27:07Z INFO supervisor job vigil_fetch: run 20261105T112707Z-1076-25 started
+2026-11-05T11:27:17Z INFO supervisor job vigil_fetch: run 20261105T112717Z-1076-29 started
+2026-11-05T11:27:27Z INFO supervisor job vigil_fetch: run 20261105T112727Z-1076-33 started
+2026-11-05T11:27:37Z INFO supervisor job vigil_fetch: run 20261105T112737Z-1076-37 started
+2026-11-05T11:27:52Z INFO supervisor job vigil_fetch: run 20261105T112752Z-1076-43 started
+2026-11-05T11:28:02Z INFO supervisor job vigil_fetch: run 20261105T112802Z-1076-47 started
+2026-11-05T11:28:12Z INFO supervisor job vigil_fetch: run 20261105T112812Z-1076-51 started
+2026-11-05T11:28:22Z INFO supervisor job vigil_fetch: run 20261105T112822Z-1076-55 started
+2026-11-05T11:28:37Z INFO supervisor job vigil_fetch: run 20261105T112837Z-1076-60 started
+2026-11-05T11:28:47Z INFO supervisor job vigil_fetch: run 20261105T112847Z-1076-64 started
+2026-11-05T11:28:57Z INFO supervisor job vigil_fetch: run 20261105T112857Z-1076-68 started
+2026-11-05T11:29:07Z INFO supervisor job vigil_fetch: run 20261105T112907Z-1076-72 started
+2026-11-05T11:29:17Z INFO supervisor job vigil_fetch: run 20261105T112917Z-1076-76 started
+2026-11-05T11:29:22Z INFO supervisor configuration revision e57c31c79489 loaded (source.fleet groups/git.config)
+2026-11-05T11:29:22Z INFO supervisor updating Vigil 99.3.0 to 99.9.0, as the configuration asks
+2026-11-05T11:29:22Z INFO supervisor job vigil_update: run 20261105T112922Z-1076-79 started
+2026-11-05T11:29:27Z INFO supervisor job vigil_fetch: run 20261105T112927Z-1076-81 started
+2026-11-05T11:29:27Z ERROR supervisor Vigil 99.9.0, which the configuration asks for, could not be installed: install: the new version (99.9.0) does not run; went back to the version that was installed; staying on 99.3.0 until the configuration names another version
+2026-11-05T11:29:37Z INFO supervisor job vigil_fetch: run 20261105T112937Z-1076-85 started
+2026-11-05T11:29:47Z INFO supervisor job vigil_fetch: run 20261105T112947Z-1076-89 started
+2026-11-05T11:29:57Z INFO supervisor job vigil_fetch: run 20261105T112957Z-1076-93 started
+2026-11-05T11:30:07Z INFO supervisor job vigil_fetch: run 20261105T113007Z-1076-97 started
+2026-11-05T11:30:17Z INFO supervisor job vigil_fetch: run 20261105T113017Z-1076-101 started
+2026-11-05T11:30:27Z INFO supervisor job vigil_fetch: run 20261105T113027Z-1076-105 started
+2026-11-05T11:30:37Z INFO supervisor job vigil_fetch: run 20261105T113037Z-1076-109 started
+2026-11-05T11:30:47Z INFO supervisor job vigil_fetch: run 20261105T113047Z-1076-113 started
+2026-11-05T11:31:02Z INFO supervisor job vigil_fetch: run 20261105T113102Z-1076-119 started
+2026-11-05T11:31:12Z INFO supervisor job vigil_fetch: run 20261105T113112Z-1076-123 started
+2026-11-05T11:31:22Z INFO supervisor job vigil_fetch: run 20261105T113122Z-1076-127 started
+2026-11-05T11:31:32Z INFO supervisor job vigil_fetch: run 20261105T113132Z-1076-131 started
+2026-11-05T11:31:43Z INFO supervisor job vigil_fetch: run 20261105T113143Z-1076-135 started
+2026-11-05T11:31:53Z INFO supervisor job vigil_fetch: run 20261105T113153Z-1076-139 started
+2026-11-05T11:32:03Z INFO supervisor job vigil_fetch: run 20261105T113203Z-1076-143 started
+2026-11-05T11:32:13Z INFO supervisor job vigil_fetch: run 20261105T113213Z-1076-147 started
+2026-11-05T11:32:23Z INFO supervisor job vigil_fetch: run 20261105T113223Z-1076-151 started
+2026-11-05T11:32:34Z INFO supervisor job vigil_fetch: run 20261105T113234Z-1076-155 started
+2026-11-05T11:32:44Z INFO supervisor job vigil_fetch: run 20261105T113244Z-1076-159 started
+2026-11-05T11:32:54Z INFO supervisor job vigil_fetch: run 20261105T113254Z-1076-163 started
+2026-11-05T11:33:04Z INFO supervisor job vigil_fetch: run 20261105T113304Z-1076-167 started
+2026-11-05T11:33:14Z INFO supervisor job vigil_fetch: run 20261105T113314Z-1076-171 started
+2026-11-05T11:33:24Z INFO supervisor job vigil_fetch: run 20261105T113325Z-1076-175 started
+2026-11-05T11:33:39Z INFO supervisor job vigil_fetch: run 20261105T113339Z-1076-180 started
+2026-11-05T11:33:49Z INFO supervisor job vigil_fetch: run 20261105T113349Z-1076-184 started
+2026-11-05T11:33:59Z INFO supervisor job vigil_fetch: run 20261105T113359Z-1076-188 started
+2026-11-05T11:34:09Z INFO supervisor job vigil_fetch: run 20261105T113409Z-1076-192 started
+2026-11-05T11:34:19Z INFO supervisor job vigil_fetch: run 20261105T113420Z-1076-196 started
+2026-11-05T11:34:34Z INFO supervisor job vigil_fetch: run 20261105T113434Z-1076-202 started
+2026-11-05T11:34:44Z INFO supervisor job vigil_fetch: run 20261105T113444Z-1076-206 started
+2026-11-05T11:34:54Z INFO supervisor job vigil_fetch: run 20261105T113454Z-1076-210 started
+2026-11-05T11:35:04Z INFO supervisor job vigil_fetch: run 20261105T113504Z-1076-214 started
+2026-11-05T11:35:15Z INFO supervisor job vigil_fetch: run 20261105T113515Z-1076-218 started
+2026-11-05T11:35:25Z INFO supervisor job vigil_fetch: run 20261105T113525Z-1076-222 started
+2026-11-05T11:35:35Z INFO supervisor job vigil_fetch: run 20261105T113535Z-1076-226 started
+2026-11-05T11:35:45Z INFO supervisor job vigil_fetch: run 20261105T113545Z-1076-230 started
+2026-11-05T11:35:55Z INFO supervisor job vigil_fetch: run 20261105T113555Z-1076-234 started
+2026-11-05T11:36:10Z INFO supervisor job vigil_fetch: run 20261105T113610Z-1076-240 started
+2026-11-05T11:36:20Z INFO supervisor job vigil_fetch: run 20261105T113620Z-1076-244 started

@@ -1,0 +1,2 @@
+ERROR    line 3: 'version' must be a release number such as 0.3.1: 0.3 (E_VERSION)
+ERROR    line 6: unknown key 'version' in [defaults] (E_KEY_UNKNOWN)

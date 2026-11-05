@@ -395,6 +395,27 @@ vigil_precheck() {
     if [ -z "$only" ] && vigil_schedule_busiest "$(date '+%Y-%m-%dT%H:%M:%S%z')" && [ "$VIGIL_SCHED_BUSY_COUNT" -ge 2 ]; then
         printf '  note  busiest minute in the next 24 hours: %s, %d jobs start together\n' "$VIGIL_SCHED_BUSY_AT" "$VIGIL_SCHED_BUSY_COUNT"
     fi
+    # The release the configuration names (18.11), and whether this account
+    # can move app/ to it. Last, because it reads the active configuration.
+    if [ -z "$only" ]; then
+        vigil_config_version "$_vw_root"
+        if [ -n "$_vu_want" ]; then
+            value=''
+            [ -f "$app/VERSION" ] && read -r value < "$app/VERSION"
+            if [ "$_vu_want" = "$value" ]; then
+                printf '  note  version %s: this is %s\n' "$_vu_want" "$value"
+            else
+                printf '  note  version %s: this is %s; the supervisor updates to it\n' "$_vu_want" "${value:-a copy from the repository}"
+            fi
+            if [ -O "$app" ]; then
+                printf '  note  this account can update Vigil: it owns %s\n' "$app"
+            elif command -v sudo > /dev/null 2>&1 && sudo -n -l "$app/vigil" self update --from-config > /dev/null 2>&1; then
+                printf '  note  this account can update Vigil: through the --update-by sudo rule\n'
+            else
+                printf '  note  this account cannot update Vigil: %s belongs to another account and there is no --update-by rule (18.7)\n' "$app"
+            fi
+        fi
+    fi
     [ -z "${VIGIL_FAULT-}" ] || _vigil_pc_fail 'VIGIL_FAULT is set: fault injection is for tests only (22.4.1)'
     [ -z "${VIGIL_TEST_IMDS-}" ] || _vigil_pc_fail 'VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)'
     [ -z "${VIGIL_TEST_SSH_CONFIG-}" ] || _vigil_pc_fail 'VIGIL_TEST_SSH_CONFIG is set: the ssh configuration override is for tests only (22.4.3)'

@@ -20,8 +20,20 @@
 #     Prints "Vigil <version>", or says this is a copy from the repository.
 #   vigil_about <root> <app dir>
 #     What this is, who made it and where it runs.
-#   vigil_self_update <root> <app dir> <check: 0|1> <version, or empty>
+#   vigil_self_update <root> <app dir> <check: 0|1> <version, or empty> [wait]
 #     Returns 0, or 1 with the reason on stderr; nothing is changed then.
+#     Without wait this process becomes the installer. With wait (the
+#     vigil_update worker) the installer runs as a child and this returns
+#     when it has finished. Either way _vu_kind says what went wrong: refused
+#     (nothing to retry: ownership, signature, a repository copy), download
+#     (the release could not be fetched: worth trying again) or install (the
+#     installer ran and went back to what was installed).
+#   vigil_config_version <root>
+#     The release [vigil] version asks for, in _vu_want: the active
+#     configuration's when it is fetched, else the file's. Empty when unset.
+#   vigil_update
+#     The body of the vigil_update worker (18.11): moves this install to the
+#     configuration's version and records the outcome in state/update.state.
 #   vigil_supervisor_version <root>
 #     Prints the version the supervisor last started as; returns 1 if none.
 #   vigil_update_notice <root> <app dir>
@@ -166,8 +178,9 @@ _vigil_self_die() {
 # This function never changes the install itself. pinned remembers that a
 # version was asked for, since want is filled in with the latest one below.
 vigil_self_update() {
-    local root=$1 app=$2 check=$3 want=$4 pinned=$4 base=$VIGIL_RELEASES current tag work sum got file f key
+    local root=$1 app=$2 check=$3 want=$4 pinned=$4 wait=${5-} base=$VIGIL_RELEASES current tag work sum got file f key rc
     local -a curlopts
+    _vu_kind=refused
     curlopts=(-q --proto =https --proto-redir =https --max-time 60)
     # Tests only (22.4.4): releases from a local server, never over the
     # network.
@@ -193,7 +206,7 @@ vigil_self_update() {
     if [ -z "$want" ]; then
         # The latest release, from where GitHub redirects /releases/latest.
         tag=$(curl "${curlopts[@]}" -fsSLI -o /dev/null -w '%{url_effective}' "$base/releases/latest") ||
-            { _vigil_self_die 'cannot reach GitHub to find the latest release'; return 1; }
+            { _vu_kind=download; _vigil_self_die 'cannot reach GitHub to find the latest release'; return 1; }
         want=${tag##*/v}
         case $want in
             '' | */*)
@@ -215,11 +228,22 @@ vigil_self_update() {
     # system install needs it, so a user's own must not go through root.
     # Refused rather than attempted, so a failed update cannot leave a partial one.
     if [ ! -O "$app" ]; then
-        # A sudo rule from install --update-by (18.7) allows the latest
-        # release only.
+        # A sudo rule from install --update-by (18.7) allows two commands: the
+        # latest release, or the release the configuration asks for, which
+        # root reads from the configuration itself (18.11).
         if [ -z "$pinned" ] && command -v sudo > /dev/null 2>&1 && sudo -n -l "$app/vigil" self update > /dev/null 2>&1; then
             # sudo checks the rule again here. -n means it fails rather than prompts.
             exec sudo -n "$app/vigil" self update
+        fi
+        if [ -n "$wait" ] && command -v sudo > /dev/null 2>&1 && sudo -n -l "$app/vigil" self update --from-config > /dev/null 2>&1; then
+            sudo -n "$app/vigil" self update --from-config
+            rc=$?
+            case $rc in
+                0) return 0 ;;
+                2) _vu_kind=download ;;
+                3) _vu_kind=install ;;
+            esac
+            return 1
         fi
         _vigil_self_die "$root was installed by another account: run this as that account (sudo for a system install)"
         return 1
@@ -229,6 +253,7 @@ vigil_self_update() {
     for f in install.sh "$file" SHA256SUMS; do
         if ! curl "${curlopts[@]}" -fsSL -o "$work/$f" "$base/releases/download/v$want/$f"; then
             rm -rf "$work"
+            _vu_kind=download
             _vigil_self_die "cannot download Vigil $want: is there such a release?"
             return 1
         fi
@@ -267,7 +292,75 @@ vigil_self_update() {
         return 1
     fi
     printf 'updating Vigil %s to %s\n' "$current" "$want"
+    if [ -n "$wait" ]; then
+        # The worker stays, to record how it went. It runs from memory, so app/
+        # moving under it does not matter.
+        sh "$work/install.sh" --upgrade --reload --prefix "$root" --archive "$work/$file"
+        rc=$?
+        rm -rf "$work"
+        [ "$rc" -eq 0 ] && return 0
+        _vu_kind=install
+        return 1
+    fi
     # This process goes: its own file is about to be moved.
     # shellcheck disable=SC2016
     exec sh -c 'sh "$1/install.sh" --upgrade --prefix "$2" --archive "$1/$3"; rc=$?; rm -rf "$1"; exit "$rc"' sh "$work" "$root" "$file"
+}
+
+vigil_config_version() {
+    _vu_want=''
+    _vw_root=$1
+    vigil_config_parse "$1/config/vigil.config" 2> /dev/null || return 0
+    if vigil_fetch_mode; then
+        _vigil_wk_dir vigil state_dir state
+        vigil_active_read "$_vw_dir" && vigil_config_parse "$VIGIL_ACT_CONFIG" 2> /dev/null || return 0
+    fi
+    _vigil_wk_get vigil version ''
+    _vu_want=$_vw_value
+}
+
+# How long a release that could not be downloaded waits before it is tried
+# again (18.11). One that installed and failed is not tried again until the
+# configuration names another.
+VIGIL_UPDATE_RETRY=300
+
+vigil_update() {
+    local want current='' out result line reason=''
+    _vigil_wk_get vigil version ''
+    want=$_vw_value
+    if [ -z "$want" ]; then
+        _vw_reason='the configuration names no version'
+        return 1
+    fi
+    [ -f "$app/VERSION" ] && read -r current < "$app/VERSION"
+    out="$_vw_statedir/update.out.$$"
+    vigil_self_update "$_vw_root" "$app" 0 "$want" wait > "$out" 2>&1
+    if [ "$?" -eq 0 ]; then
+        result=succeeded
+    elif [ "$_vu_kind" = download ]; then
+        result=unavailable
+    else
+        result=failed
+    fi
+    _vigil_wk_now
+    # Everything the update and its installer said, in the worker's log.
+    while IFS= read -r line || [ -n "$line" ]; do
+        _vigil_wk_log "${_vw_run-} out $line"
+        case $line in
+            '') ;;
+            *) reason=${line#vigil: } ;;
+        esac
+    done < "$out"
+    rm -f "$out"
+    {
+        printf '[update]\n'
+        printf 'version = %s\n' "$want"
+        printf 'from    = %s\n' "$current"
+        printf 'result  = %s\n' "$result"
+        printf 'epoch   = %s\n' "$(date '+%s')"
+        printf 'reason  = %s\n' "$reason"
+    } > "$_vw_statedir/update.state.tmp.$$" && mv -f "$_vw_statedir/update.state.tmp.$$" "$_vw_statedir/update.state"
+    [ "$result" = succeeded ] && return 0
+    _vw_reason=$reason
+    return 1
 }

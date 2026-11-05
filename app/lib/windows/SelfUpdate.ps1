@@ -23,9 +23,20 @@
         "Vigil <version>", or says this is a copy from the repository.
     Get-VigilAbout -Root <dir> -App <app dir>
         What this is, who made it and where it runs.
-    Invoke-VigilSelfUpdate -Root <dir> -App <app dir> -Check <bool> -Want <version>
+    Invoke-VigilSelfUpdate -Root <dir> -App <app dir> -Check <bool> -Want <version> [-FromConfig <bool>]
         Returns an exit code: 0, or 1 with the reason on stderr; nothing is
-        changed then.
+        changed then. $Script:VigilUpdateKind says what went wrong: refused
+        (nothing to retry: rights, signature, a repository copy), download
+        (the release could not be fetched: worth trying again) or install
+        (the installer ran and went back). -FromConfig lets an install that
+        is not writable go through the task of install -UpdateBy (18.11).
+    Get-VigilConfigVersion -Root <dir>
+        The release [vigil] version asks for: the active configuration's
+        when it is fetched, else the file's. Empty when unset.
+    Invoke-VigilUpdate -Ctx <worker context> -Root <dir> -App <app dir> -Log <file> -RunId <id>
+        The body of the vigil_update worker (18.11): self update
+        --from-config in a process of its own, the outcome recorded in
+        state\update.state.
     Invoke-VigilSelfUpdateTask -Root <dir> -App <app dir>
         The same, as the scheduled task of install -UpdateBy.
 #>
@@ -250,7 +261,10 @@ function Invoke-VigilSelfUpdateTask {
     $env:TEMP = $tmp
     $env:TMP = $tmp
     $shell = (Get-Process -Id $PID).Path
-    & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $App 'vigil.ps1') -Root $Root self update 2>&1 |
+    # The release the configuration names, when it names one (18.11).
+    $how = @()
+    if (Get-VigilConfigVersion -Root $Root) { $how = @('--from-config') }
+    & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $App 'vigil.ps1') -Root $Root self update @how 2>&1 |
         ForEach-Object { [System.IO.File]::AppendAllText($out, "$_`n") }
     $code = $LASTEXITCODE
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
@@ -263,8 +277,9 @@ function Invoke-VigilSelfUpdateTask {
 # This function never changes the install itself. $pinned remembers that a
 # version was asked for, since $Want is filled in with the latest one below.
 function Invoke-VigilSelfUpdate {
-    param([string]$Root, [string]$App, [bool]$Check, [string]$Want)
+    param([string]$Root, [string]$App, [bool]$Check, [string]$Want, [bool]$FromConfig = $false)
     $die = { param($Why) [Console]::Error.WriteLine("vigil: $Why"); return 1 }
+    $Script:VigilUpdateKind = 'refused'
     $pinned = [bool]$Want
     $base = 'https://github.com/godspeedhq/vigil'
     # Tests only (22.4.4): releases from a local server, never over the
@@ -287,7 +302,7 @@ function Invoke-VigilSelfUpdate {
                 $r = Invoke-WebRequest -UseBasicParsing -Method Head -TimeoutSec 60 -Uri "$base/releases/latest"
                 $tag = if ($r.BaseResponse.ResponseUri) { [string]$r.BaseResponse.ResponseUri.AbsoluteUri } else { [string]$r.BaseResponse.RequestMessage.RequestUri.AbsoluteUri }
             }
-            catch { return & $die 'cannot reach GitHub to find the latest release' }
+            catch { $Script:VigilUpdateKind = 'download'; return & $die 'cannot reach GitHub to find the latest release' }
             if ($tag -cnotmatch '/v([^/]+)$') { return & $die "cannot tell the latest release from $tag" }
             $Want = $Matches[1]
         }
@@ -308,10 +323,16 @@ function Invoke-VigilSelfUpdate {
             [System.IO.File]::Delete($probe)
         }
         catch {
-            # The task of install -UpdateBy (18.7) goes to the latest release
-            # only.
-            $task = if ($pinned) { $null } else { Get-VigilUpdateTask -Root $Root }
-            if ($task) { return Invoke-VigilUpdateByTask -Root $Root -Task $task }
+            # The task of install -UpdateBy (18.7) goes to the latest release,
+            # or to the one the configuration names (18.11): never to one given
+            # on the command line.
+            $task = if ($pinned -and -not $FromConfig) { $null } else { Get-VigilUpdateTask -Root $Root }
+            if ($task) {
+                $code = Invoke-VigilUpdateByTask -Root $Root -Task $task
+                if ($code -eq 2) { $Script:VigilUpdateKind = 'download' }
+                elseif ($code -eq 3) { $Script:VigilUpdateKind = 'install' }
+                return $code
+            }
             return & $die "$Root is not writable: run this from an elevated prompt for a system install"
         }
 
@@ -325,7 +346,7 @@ function Invoke-VigilSelfUpdate {
                 Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/releases/download/v$Want/$f" -OutFile (Join-Path $work $f)
             }
         }
-        catch { return & $die "cannot download Vigil ${Want}: is there such a release?" }
+        catch { $Script:VigilUpdateKind = 'download'; return & $die "cannot download Vigil ${Want}: is there such a release?" }
         # The signature (17): whatever else was replaced on the server, the
         # key that checks it is the one already installed here. The archive
         # is handed to the installer, so what is verified is what is installed.
@@ -358,11 +379,84 @@ function Invoke-VigilSelfUpdate {
         Write-Output "updating Vigil $current to $Want"
         # A process of its own: the running one's files are about to move.
         $shell = (Get-Process -Id $PID).Path
-        & $shell -NoProfile -ExecutionPolicy Bypass -File $script -Upgrade -Prefix $Root -Archive (Join-Path $work $file)
-        if ($LASTEXITCODE -ne 0) { return 1 }
+        # Following the configuration, a supervisor is running whether or not
+        # there is a service: the installer waits for it to reload (18.11).
+        $reloadArg = @()
+        if ($FromConfig) { $reloadArg = @('-Reload') }
+        & $shell -NoProfile -ExecutionPolicy Bypass -File $script -Upgrade @reloadArg -Prefix $Root -Archive (Join-Path $work $file)
+        if ($LASTEXITCODE -ne 0) {
+            $Script:VigilUpdateKind = 'install'
+            return 1
+        }
     }
     finally {
         $ProgressPreference = $saved
         if ($work) { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }
     }
+}
+
+function Get-VigilConfigVersion {
+    param([string]$Root)
+    try {
+        $parsed = ConvertFrom-VigilConfig -Path (Join-Path $Root 'config\vigil.config')
+        if (Test-VigilFetchMode $parsed) {
+            $d = Get-VigilConfigValue $parsed 'vigil' 'state_dir' 'state'
+            if (-not [System.IO.Path]::IsPathRooted($d)) { $d = Join-Path $Root $d }
+            $a = Read-VigilActive -Root $Root -State $d
+            if ($a) { $parsed = ConvertFrom-VigilConfig -Path $a.Config }
+        }
+        return [string](Get-VigilConfigValue $parsed 'vigil' 'version' '')
+    }
+    catch { return '' }
+}
+
+# How long a release that could not be downloaded waits before it is tried
+# again (18.11). One that installed and failed is not tried again until the
+# configuration names another.
+$Script:VigilUpdateRetry = 300
+
+function Invoke-VigilUpdate {
+    param($Ctx, [string]$Root, [string]$App, [string]$Log, [string]$RunId)
+    $want = [string](Get-VigilConfigValue $Ctx.Parsed 'vigil' 'version' '')
+    if (-not $want) { return @{ Ok = $false; Reason = 'the configuration names no version' } }
+    $verFile = Join-Path $App 'VERSION'
+    $current = if ([System.IO.File]::Exists($verFile)) { [System.IO.File]::ReadAllText($verFile).Trim() } else { '' }
+    # A process of its own, as for vigil self update: the installer replaces
+    # app\ while it runs. It reads the version from the configuration itself.
+    $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $App 'vigil.ps1'),
+        '-Root', $Root, 'self', 'update', '--from-config')
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = (Get-Process -Id $PID).Path
+    $psi.Arguments = ($argv | ForEach-Object { ConvertTo-VigilQuotedArg -Arg $_ -Always $false }) -join ' '
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $p = [System.Diagnostics.Process]::Start($psi)
+    $outTask = $p.StandardOutput.ReadToEndAsync()
+    $errTask = $p.StandardError.ReadToEndAsync()
+    $p.WaitForExit()
+    $text = $outTask.Result + $errTask.Result
+    $code = $p.ExitCode
+    $result = if ($code -eq 0) { 'succeeded' } elseif ($code -eq 2) { 'unavailable' } else { 'failed' }
+    # Everything the update and its installer said, in the worker's log. The
+    # reason is the last line that says why: the installer throws, so its
+    # message comes back as an error record of several lines.
+    $now = Get-VigilNow
+    $reason = ''
+    $last = ''
+    $lines = New-Object System.Text.StringBuilder
+    foreach ($l in $text.Split("`n")) {
+        $l = $l.TrimEnd("`r")
+        if (-not $l.Trim()) { continue }
+        [void]$lines.Append("$($now.Iso) $RunId out $l`r`n")
+        $last = $l.Trim()
+        if ($l -cmatch '^(vigil|install): ') { $reason = $l -replace '^vigil: ', '' }
+    }
+    if (-not $reason) { $reason = $last }
+    [System.IO.File]::AppendAllText($Log, $lines.ToString())
+    Write-VigilFileAtomic -Path (Join-Path $Ctx.State 'update.state') -Text ("[update]`nversion = $want`nfrom    = $current`nresult  = $result`n" +
+        "epoch   = $($now.Epoch)`nreason  = $reason`n")
+    if ($result -ceq 'succeeded') { return @{ Ok = $true; Reason = '' } }
+    return @{ Ok = $false; Reason = $reason }
 }

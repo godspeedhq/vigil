@@ -193,6 +193,7 @@ function Get-VigilKeyType {
                 'config_file' { $t = 'srcpath' }
                 'instance' { $t = 'name' }
                 'state_dir' { $t = 'path' }
+                'version' { $t = 'release' }
             }
         }
         'scheduler' {
@@ -354,6 +355,11 @@ function Test-VigilValue {
         'name' {
             if ($Value -cnotmatch $re.Name) {
                 $r.Code = 'E_NAME'; $r.Message = "'$Key' may contain only letters, digits, '_', '.' and '-': $Value"
+            }
+        }
+        'release' {
+            if ($Value -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$') {
+                $r.Code = 'E_VERSION'; $r.Message = "'$Key' must be a release number such as 0.3.1: $Value"
             }
         }
         'metric' {

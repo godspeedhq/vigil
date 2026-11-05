@@ -48,6 +48,8 @@ _vigil_val_re_int='^[0-9]{1,6}$'
 _vigil_val_re_zero='^0+$'
 _vigil_val_re_name='^[A-Za-z0-9_.-]+$'
 _vigil_val_re_metric='^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$'
+# A release number: x.y.z, with an optional suffix such as -rc1 (18.11).
+_vigil_val_re_release='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'
 _vigil_val_re_time='^([01][0-9]|2[0-3]):[0-5][0-9]$'
 _vigil_val_re_code='^([0-9]{1,3})(-([0-9]{1,3}))?$'
 _vigil_val_re_envname='^[A-Za-z_][A-Za-z0-9_]*$'
@@ -108,6 +110,7 @@ _vigil_val_keytype() {
         vigil:config_file) _vv_type=srcpath ;;
         vigil:instance) _vv_type=name ;;
         vigil:state_dir) _vv_type=path ;;
+        vigil:version) _vv_type=release ;;
         scheduler:tick) _vv_type=dur ;;
         scheduler:late_start_window) _vv_type=dur0 ;;
         log:dir) _vv_type=path ;;
@@ -367,6 +370,12 @@ _vigil_val_check() {
             if ! [[ $value =~ $_vigil_val_re_name ]]; then
                 _vv_code=E_NAME
                 _vv_msg="'$key' may contain only letters, digits, '_', '.' and '-': $value"
+            fi
+            ;;
+        release)
+            if ! [[ $value =~ $_vigil_val_re_release ]]; then
+                _vv_code=E_VERSION
+                _vv_msg="'$key' must be a release number such as 0.3.1: $value"
             fi
             ;;
         metric)

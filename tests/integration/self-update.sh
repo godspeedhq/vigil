@@ -339,7 +339,7 @@ else
     latest 0.0.2-it
     sudo sh "$repo/install.sh" --system --prefix "$sys" --archive "$www/releases/download/v0.0.2-it/vigil-0.0.2-it.tar.gz" --update-by "$me" < /dev/null > "$work/out" 2>&1
     check 'update-by: installed' 0 "$?"
-    check 'update-by: the rule is one command' 1 "$(sudo grep -c "^$me ALL=(root) NOPASSWD: $sys/app/vigil self update\$" /etc/sudoers.d/vigil)"
+    check 'update-by: the rule is two commands' 1 "$(sudo grep -c "^$me ALL=(root) NOPASSWD: $sys/app/vigil self update, $sys/app/vigil self update --from-config\$" /etc/sudoers.d/vigil)"
     printf 'Defaults env_keep += "VIGIL_TEST_RELEASE_URL VIGIL_TEST_RELEASE_KEY"\n' | sudo tee /etc/sudoers.d/vigil-test > /dev/null
     latest 0.0.1-it
     /usr/local/bin/vigil self update > "$work/out" 2>&1
@@ -350,6 +350,17 @@ else
     check 'update-by: the service is active' active "$(active)"
     /usr/local/bin/vigil self update --version 0.0.2-it > "$work/out" 2>&1
     check 'update-by: no version of your own choosing' 1 "$?"
+    # The configuration's version (18.11): the rule's second command, which
+    # root reads from the configuration itself.
+    sudo awk '{ print } /^\[vigil\]$/ { print "version = 0.0.2-it" }' "$sys/config/vigil.config" > "$work/cfg"
+    sudo cp "$work/cfg" "$sys/config/vigil.config"
+    /usr/local/bin/vigil self update > "$work/out" 2>&1
+    check 'update-by: refused while the configuration names a version' 1 "$(grep -c 'set in the configuration (version = 0.0.2-it)' "$work/out")"
+    sudo -n "$sys/app/vigil" self update --from-config > "$work/out" 2>&1
+    rc=$?
+    check 'update-by: the configuration''s version, through the rule' 0 "$rc"
+    [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+    check 'update-by: that release is installed' 0.0.2-it "$(cat "$sys/app/VERSION")"
     sudo rm -f /etc/sudoers.d/vigil-test
     sudo /usr/local/bin/vigil uninstall --yes > /dev/null 2>&1
     check 'system: uninstall succeeds' 0 "$?"

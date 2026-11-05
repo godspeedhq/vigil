@@ -351,6 +351,16 @@ case ${1-} in
         fi
         [ "${2-}" = update ] || usage
         shift 2
+        vigil_config_version "$root"
+        # Internal (18.11): the one command the --update-by rule lets the service
+        # account run as root to follow the configuration. Root reads the version
+        # itself; the exit code tells the worker what went wrong.
+        if [ "$#" -eq 1 ] && [ "$1" = --from-config ]; then
+            [ -n "$_vu_want" ] || { printf 'vigil: the configuration names no version\n' >&2; exit 1; }
+            vigil_self_update "$root" "$app" 0 "$_vu_want" wait && exit 0
+            case $_vu_kind in download) exit 2 ;; install) exit 3 ;; esac
+            exit 1
+        fi
         check=0 want=''
         while [ "$#" -gt 0 ]; do
             case $1 in
@@ -364,6 +374,12 @@ case ${1-} in
             esac
             shift
         done
+        # The configuration decides the version when it names one (18.11):
+        # an update here would be undone at its next load.
+        if [ "$check" = 0 ] && [ -n "$_vu_want" ]; then
+            printf 'vigil: the version is set in the configuration (version = %s): change it there to update\n' "$_vu_want" >&2
+            exit 1
+        fi
         vigil_self_update "$root" "$app" "$check" "$want"
         exit $?
         ;;

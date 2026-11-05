@@ -232,7 +232,7 @@ _vigil_wk_config() {
     vigil_config_section "job.$_vw_job"
     if [ "$VIGIL_CFG_SEC" -lt 0 ]; then
         case $_vw_job in
-            vigil_sender | vigil_fetch | vigil_logs) ;;
+            vigil_sender | vigil_fetch | vigil_logs | vigil_update) ;;
             *)
                 _vw_error="no job '$_vw_job' in the configuration"
                 return 1
@@ -381,6 +381,10 @@ vigil_worker() {
             ;;
         vigil_logs)
             _vigil_wk_internal "$rid" "$token" "$started" vigil_logs
+            return $?
+            ;;
+        vigil_update)
+            _vigil_wk_internal "$rid" "$token" "$started" vigil_update
             return $?
             ;;
         vigil_sender)

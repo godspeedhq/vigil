@@ -97,6 +97,7 @@ Vigil's guiding rules:
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done |
 | One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums | Done |
 | `vigil self update`: verified, rolls back if the new version does not run, keeps your configuration, scripts and running jobs | Done |
+| `[vigil] version`: the configuration names the release, and a fleet follows it up or down | Done |
 | Fetching configuration and scripts from git, https, sftp and local directories or shares: digests, atomic activation, last good configuration | Done |
 | Forwarding Vigil's own logs over OTLP, Splunk HEC or Datadog's logs intake, with checkpoints, backoff and reported gaps | Done |
 | Log retention: `retain_days`, `log_retain_days` | Done |
@@ -219,11 +220,29 @@ vigil self update --check   # only say whether there is one
 vigil version               # what is installed
 ```
 
-A user install needs no admin rights. For a system install, use `sudo` on Linux and macOS and an elevated prompt on Windows. You can grant that once: installing with `--update-by <user or %group>` (Linux, macOS) or `-UpdateBy <account or group>` (Windows) lets that account run `vigil self update` itself, to the latest release only, and nothing else with admin rights.
+A user install needs no admin rights. For a system install, use `sudo` on Linux and macOS and an elevated prompt on Windows. You can grant that once: installing with `--update-by <user or %group>` (Linux, macOS) or `-UpdateBy <account or group>` (Windows) lets that account run `vigil self update` itself, to the latest release or to the version its configuration names, and nothing else with admin rights.
 
 Only Vigil's own code is replaced: your configuration, scripts, packs, state, spool and logs are left alone. The service is not restarted: the supervisor sees the new version within seconds and replaces itself in place, keeping its process id, while running jobs finish under the code they started with. If the new version does not come up, the old one is put back. Re-running the one-line installer does the same job.
 
-Updates only ever happen when you run them. `vigil status`, `vigil version` and `vigil precheck` tell you at a terminal when one is available; `VIGIL_NO_UPDATE_CHECK=1` turns that off.
+Updates happen when you run them, or when your configuration names a version (below). `vigil status`, `vigil version` and `vigil precheck` tell you at a terminal when one is available; `VIGIL_NO_UPDATE_CHECK=1` turns that off.
+
+### A fleet: the version in the configuration
+
+Put the release a machine should run in its configuration, and Vigil updates or downgrades itself to it. With a configuration fetched from a [source](#sources), the whole fleet follows one line:
+
+```ini
+[vigil]
+instance = db-windows
+# Change it to update or downgrade; remove it to go back to manual updates.
+version  = 0.3.1
+```
+
+- Vigil compares it with what is installed and moves only when they differ. Jobs keep running across the update.
+- A release that is not there yet, or can't be downloaded, is logged, and tried again every 5 minutes. Vigil keeps what it has.
+- A release that does not run is rolled back and logged, and not tried again until you change the line. Going back past a data format change is refused the same way.
+- While the line is set, `vigil self update` refuses and tells you to change the line. Remove the line to update by hand again.
+- Vigil never writes to your configuration: `vigil version` and `vigil status` show what is running, and `vigil status` says when it is not yet the version you asked for.
+- Roll out with canaries: point a few machines at their own `config_file` with the new version, then move one group's file at a time.
 
 ## Try it from a clone
 

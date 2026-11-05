@@ -606,6 +606,59 @@ function Invoke-VigilSupervisor {
         }
     }
 
+    # state\update.state, the last update the configuration asked for.
+    $updateRead = {
+        $r = @{ Version = ''; Result = ''; Epoch = [long]0; Reason = '' }
+        $f = Join-Path $sv.State 'update.state'
+        try { $lines = [System.IO.File]::ReadAllLines($f) } catch { return $r }
+        foreach ($l in $lines) {
+            if ($l -cnotmatch '^(\w+) *= ?(.*)$') { continue }
+            switch -CaseSensitive ($Matches[1]) {
+                'version' { $r.Version = $Matches[2] }
+                'result' { $r.Result = $Matches[2] }
+                'epoch' { $e = [long]0; if ([long]::TryParse($Matches[2], [ref]$e)) { $r.Epoch = $e } }
+                'reason' { $r.Reason = $Matches[2] }
+            }
+        }
+        return $r
+    }
+
+    # Whether vigil_update should run (18.11): [vigil] version names another
+    # release than app\VERSION, and that release has not failed, nor failed to
+    # download in the last VigilUpdateRetry seconds. @{ Want; Cur }, or $null.
+    $updateDue = {
+        $want = [string](Get-VigilConfigValue $sv.Parsed 'vigil' 'version' '')
+        if (-not $want) { return $null }
+        $f = Join-Path $App 'VERSION'
+        $cur = if ([System.IO.File]::Exists($f)) { [System.IO.File]::ReadAllText($f).Trim() } else { '' }
+        if ($want -ceq $cur) { return $null }
+        $r = & $updateRead
+        if ($r.Version -ceq $want) {
+            if ($r.Result -ceq 'failed') { return $null }
+            if ($r.Result -ceq 'unavailable' -and ($sv.Epoch - $r.Epoch) -lt $Script:VigilUpdateRetry) { return $null }
+        }
+        return @{ Want = $want; Cur = $cur }
+    }
+
+    # Logs the outcome of an update once, when vigil_update has written it.
+    # What was reported is kept on disk: a successful update is written after
+    # the supervisor has reloaded, so by a process that did not start it.
+    $updateReport = {
+        $r = & $updateRead
+        if ($r.Epoch -eq 0) { return }
+        $seenFile = Join-Path $sv.State 'update.reported'
+        $seen = ''
+        try { $seen = [System.IO.File]::ReadAllText($seenFile).Trim() } catch { }
+        if ("$($r.Epoch)" -ceq $seen) { return }
+        Write-VigilFileAtomic -Path $seenFile -Text "$($r.Epoch)`n"
+        $on = if ($version) { $version } else { 'this version' }
+        switch -CaseSensitive ($r.Result) {
+            'succeeded' { & $log 'INFO' "Vigil is now $($r.Version), as the configuration asks" }
+            'unavailable' { & $log 'WARN' "Vigil $($r.Version), which the configuration asks for, could not be downloaded: $($r.Reason); staying on $on, trying again in $([int]($Script:VigilUpdateRetry / 60)) minutes" }
+            'failed' { & $log 'ERROR' "Vigil $($r.Version), which the configuration asks for, could not be installed: $($r.Reason); staying on $on until the configuration names another version" }
+        }
+    }
+
     $tick = {
         $now = [DateTimeOffset]::Now
         $sv.Epoch = $now.ToUnixTimeSeconds()
@@ -774,6 +827,21 @@ function Invoke-VigilSupervisor {
             if ($acc.Active -ceq '-' -and (& $fetchDue)) { & $start 'vigil_fetch' }
         }
 
+        # Vigil's own version (18.11): the same again, when the configuration
+        # names another release than the one installed.
+        & $updateReport
+        if (-not $sv.Waiting) {
+            $u = & $updateDue
+            if ($u) {
+                $acc = & $account 'vigil_update'
+                if ($acc.Active -ceq '-') {
+                    $from = if ($u.Cur) { $u.Cur } else { '(no release)' }
+                    & $log 'INFO' "updating Vigil $from to $($u.Want), as the configuration asks"
+                    & $start 'vigil_update'
+                }
+            }
+        }
+
         # Retention (13.1): at the start, then once a day.
         $day = [long][Math]::Floor($sv.Epoch / 86400)
         if (-not $sv.Waiting -and $sv.Retained -ne $day) {
@@ -803,6 +871,18 @@ function Invoke-VigilSupervisor {
                     $why = @($fl | Where-Object { $_ -cmatch '^reason +=' } | ForEach-Object { $_ -creplace '^reason +=\s?', '' })[0]
                     [void]$sb.Append("  last fetch failed: $why`r`n")
                 }
+            }
+        }
+        # Only while this is not the release the configuration asks for (18.11).
+        $uw = [string](Get-VigilConfigValue $sv.Parsed 'vigil' 'version' '')
+        $uc = if ([System.IO.File]::Exists((Join-Path $App 'VERSION'))) { [System.IO.File]::ReadAllText((Join-Path $App 'VERSION')).Trim() } else { '' }
+        if ($uw -and $uw -cne $uc) {
+            $shown = if ($uc) { $uc } else { 'a copy from the repository' }
+            [void]$sb.Append("`r`nVERSION`r`n  the configuration asks for $uw; this is $shown`r`n")
+            $ur = & $updateRead
+            if ($ur.Version -ceq $uw) {
+                if ($ur.Result -ceq 'failed') { [void]$sb.Append("  could not be installed: $($ur.Reason); not tried again until the version changes`r`n") }
+                elseif ($ur.Result -ceq 'unavailable') { [void]$sb.Append("  could not be downloaded: $($ur.Reason); trying again`r`n") }
             }
         }
         foreach ($s in @(@('FILE MISSING', $status.Missing), @('UNCERTAIN', $sv.Uncertain), @('CRASHED', $sv.Crashed), @('INVALID', $status.Invalid),
