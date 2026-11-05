@@ -355,7 +355,15 @@ function Get-VigilServiceStatus {
     $cfgFile = Join-Path $Root 'config\vigil.config'
     if ([System.IO.File]::Exists($cfgFile)) {
         $cp = ConvertFrom-VigilConfig -Path $cfgFile
-        if ($cp.Errors.Count -eq 0 -and -not ($cp.Sections | Where-Object { $_.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) })) {
+        # The backends of the configuration in effect: the active one when it
+        # is fetched (6.8, 16.5). Before the first fetch there is nothing to say.
+        if ($cp.Errors.Count -eq 0 -and (Test-VigilFetchMode $cp)) {
+            $sd = Get-VigilConfigValue $cp 'vigil' 'state_dir' 'state'
+            if (-not [System.IO.Path]::IsPathRooted($sd)) { $sd = Join-Path $Root $sd }
+            $act = Read-VigilActive -Root $Root -State $sd
+            $cp = if ($act) { ConvertFrom-VigilConfig -Path $act.Config } else { $null }
+        }
+        if ($cp -and $cp.Errors.Count -eq 0 -and -not ($cp.Sections | Where-Object { $_.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) })) {
             Write-Output 'metrics: no backend, so they go nowhere until you add one'
         }
     }
