@@ -211,7 +211,7 @@ try {
     Test-Equal 'jobs carry on' 'True' ([string]((Get-Runs 'beat') -ge $before + 2))
     $r = Invoke-Vigil self update
     Test-Equal 'self update is refused while version is set' '1' ([string]$r.Code)
-    Test-Equal 'saying where to go' 'True' ([string]$r.Text.Contains('the version is set in the configuration (version = 0.2.0-it): change it there to update'))
+    Test-Equal 'saying where to go' 'True' ([string]$r.Text.Contains('the version is set in the configuration (version = 0.2.0-it): change it there to update, or remove it to use vigil self update'))
     Test-Equal 'with --version too' '1' ([string](Invoke-Vigil self update --version 0.1.0-it).Code)
     Test-Equal '--check still works' '0' ([string](Invoke-Vigil self update --check).Code)
     $saved = $env:VIGIL_TEST_RELEASE_URL

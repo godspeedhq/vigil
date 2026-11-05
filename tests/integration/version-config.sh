@@ -91,10 +91,11 @@ set_version() {
 
 # What the run did, when a check fails.
 explain() {
-    printf '        app/VERSION %s; update.state:\n' "$(version_of)"
+    printf '        app/VERSION %s; update.reported %s; update.state:\n' "$(version_of)" "$(cat "$root/state/update.reported" 2> /dev/null)"
     sed 's/^/          /' "$root/state/update.state" 2> /dev/null
-    sup_log | tail -15 | sed 's/^/        sup: /'
-    cat "$root"/logs/jobs/vigil_update/*.log 2> /dev/null | tail -15 | sed 's/^/        update: /'
+    # Every line about updates and reloads, not only the last ones.
+    sup_log | grep -E 'as the configuration asks|could not be|reloading|staying on|started, pid|stopped' | sed 's/^/        sup: /'
+    cat "$root"/logs/jobs/vigil_update/*.log 2> /dev/null | tail -40 | sed 's/^/        update: /'
 }
 
 printf 'bash %s on %s\n' "$BASH_VERSION" "$(uname -s)"
@@ -192,7 +193,7 @@ check 'jobs carry on' yes "$([ "$(runs beat)" -ge $((before + 2)) ] && echo yes 
 
 vigil self update > "$work/out" 2>&1
 check 'self update is refused while version is set' 1 "$?"
-check 'saying where to go' 1 "$(grep -c 'the version is set in the configuration (version = 0.2.0-it): change it there to update' "$work/out")"
+check 'saying where to go' 1 "$(grep -c 'the version is set in the configuration (version = 0.2.0-it): change it there to update, or remove it to use vigil self update' "$work/out")"
 vigil self update --version 0.1.0-it > /dev/null 2>&1
 check 'with --version too' 1 "$?"
 vigil self update --check > /dev/null 2>&1
