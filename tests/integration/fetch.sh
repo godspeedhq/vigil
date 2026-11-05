@@ -165,12 +165,15 @@ EOF
 }
 
 local_config() {
+    local every=''
+    [ -z "${3-}" ] || every="check_every = $3"
     base_config
     cat <<EOF
 [source.ops]
 type = git
 url  = ${1:-$url/ops.git}
 ref  = ${2:-v1}
+$every
 
 [source.files]
 type         = https
@@ -311,6 +314,47 @@ fetch
 check "large script: fetched" succeeded "$(fetch_status)"
 check "large script: runs" 'big: succeeded|metric big 6' "$(run big)"
 rm -f "$root/share/big.sh"
+
+# A commit in ref, full or abbreviated: that commit, and not a branch.
+c1=$(git --git-dir="$root/mock/www/ops.git" rev-parse v1)
+local_config "$url/ops.git" "$c1" > "$root/config/vigil.config"
+fetch
+check "commit: fetched" succeeded "$(fetch_status)"
+check "commit: unpacked at it" yes "$(yes_no test -f "$root/cache/ops/$c1/checks/hello.sh")"
+check "commit: its version runs" 'from_git: succeeded|metric hello 1' "$(run from_git)"
+local_config "$url/ops.git" "$(printf '%.12s' "$c1")" > "$root/config/vigil.config"
+fetch
+check "abbreviated commit: its version runs" 'from_git: succeeded|metric hello 1' "$(run from_git)"
+check "commit: never reported unpinned" no "$(yes_no grep -rqE "ref '[0-9a-f]+' is a branch" "$root/logs/jobs/vigil_fetch")"
+
+# A tag moved to another commit: the commit it named stays, and it is said.
+# Checked every second, so the fetch below looks at the source again.
+local_config "$url/ops.git" v2 1s > "$root/config/vigil.config"
+fetch
+check "tag: v2 again" 'from_git: succeeded|metric hello 2' "$(run from_git)"
+revv2=$(revision)
+printf 'echo "metric hello 7"\n' > "$root/work/checks/hello.sh"
+(
+    cd "$root/work" &&
+        git add -A &&
+        git -c user.name=vigil -c user.email=vigil@example.com commit -q -m seven &&
+        git tag -f v2 > /dev/null &&
+        git push -q -f --tags "$root/mock/www/ops.git" HEAD:main 2>/dev/null &&
+        git --git-dir="$root/mock/www/ops.git" update-server-info
+)
+moved=$(git --git-dir="$root/mock/www/ops.git" rev-parse v2)
+check "moved tag: the tag did move" yes "$([ "$moved" != "$(cat "$root/state/sources/ops.state" 2>/dev/null | sed -n 's/^entry *= *//p')" ] && echo yes || echo no)"
+sleep 1
+fetch
+check "moved tag: revision unchanged" "$revv2" "$(revision)"
+check "moved tag: the commit it named runs" 'from_git: succeeded|metric hello 2' "$(run from_git)"
+check "moved tag: said so" yes "$(yes_no grep -rq "tag 'v2' moved from .* to $moved; still using .*(W_TAG_MOVED)" "$root/logs/jobs/vigil_fetch")"
+local_config "$url/ops.git" "$moved" > "$root/config/vigil.config"
+fetch
+check "moved tag: ref set to the new commit takes it" 'from_git: succeeded|metric hello 7' "$(run from_git)"
+# The branch below starts from hello 2 again.
+printf 'echo "metric hello 2"\n' > "$root/work/checks/hello.sh"
+publish eight
 
 # Remote configuration (6.8): a pointer file, following a branch.
 cat > "$root/work/hosts/h1.config" <<EOF

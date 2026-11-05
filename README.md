@@ -878,6 +878,16 @@ run_at    = 06:00
 
 A worker of Vigil's own, `vigil_fetch`, fetches what the configuration needs into `cache/`, checks each `sha256`, and only then activates it. Jobs always run a cached copy, never a file on a share or a server. If anything fails (a source down, a digest that does not match, a broken configuration), nothing changes: the last valid configuration keeps running, and `jobs.log` says why. With `config_source` and `config_file` in `[vigil]`, the local file only points at the real configuration, and every host following that source picks up a change at its next `check_every`. `jobs.log` shows the active revision; hosts with the same revision run the same configuration and the same scripts.
 
+A git source's `ref` is a commit, a tag or a branch:
+
+| `ref` | What runs |
+| --- | --- |
+| A commit, such as `3f9c2a1e7b04` (7 to 64 hex digits) | That commit, always. The only pin nobody can move. |
+| A tag, such as `v2.3.1` | The commit the tag named when Vigil first fetched it. If someone moves the tag, Vigil keeps that commit and logs `W_TAG_MOVED` until you change `ref`. |
+| A branch, such as `main` | Whatever the branch holds at each `check_every`. It's logged as unpinned (`W_SCRIPT_UNPINNED`). Add `sha256` to a job to pin its script. |
+
+Vigil fetches only branches and tags, so a commit has to be on one of them.
+
 ### Secrets
 
 Secrets are never written in the configuration file. Every credential is a **reference** that names where its value comes from:

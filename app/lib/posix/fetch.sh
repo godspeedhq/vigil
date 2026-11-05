@@ -320,6 +320,19 @@ _vigil_fetch_git() {
         _vf_why="ref '$_vfs_ref' not found"
         return 1
     fi
+    # A tag is a pin (6.9): one that now names another commit keeps the commit
+    # it named before, as a job's sha256 keeps its verified copy. Changing
+    # ref takes the new one.
+    _vf_moved=''
+    if [ "$_vf_kind" = tag ] && [ "$_vft_kind" = tag ] && [ "$_vft_identity" = "$_vfs_identity" ] &&
+        [ -n "$_vft_entry" ] && [ "$_vft_entry" != "$commit" ]; then
+        _vf_moved=$commit
+        commit=$_vft_entry
+        if [ ! -d "$_vw_root/cache/$name/$commit" ] && ! git --git-dir="$mirror" rev-parse -q --verify "$commit^{commit}" > /dev/null 2>&1; then
+            _vf_why="tag '$_vfs_ref' moved from $commit to $_vf_moved, and $commit is no longer available; set ref to the commit to use"
+            return 1
+        fi
+    fi
     _vf_entry=$commit
     [ -d "$_vw_root/cache/$name/$commit" ] && return 0
     _vigil_fetch_links "$mirror" "$commit"
@@ -504,6 +517,7 @@ _vigil_fetch_sync() {
         i=$((i + 1))
     done
     _vf_kind=""
+    _vf_moved=''
     _vigil_fetch_state_read "$name"
     _vf_entry=$_vft_entry
     _vf_why=''
@@ -526,6 +540,9 @@ _vigil_fetch_sync() {
         if [ $? -eq 0 ]; then
             if [ "$_vf_kind" = branch ] && [ "$_vf_entry" != "$_vft_entry" ]; then
                 _vigil_wk_log "$_vw_run run WARN source.$name: ref '$_vfs_ref' is a branch: its scripts follow it, and hosts may briefly differ (W_SCRIPT_UNPINNED)"
+            fi
+            if [ -n "${_vf_moved-}" ]; then
+                _vigil_wk_log "$_vw_run run WARN source.$name: tag '$_vfs_ref' moved from $_vf_entry to $_vf_moved; still using $_vf_entry; to use the new commit, set ref to it (W_TAG_MOVED)"
             fi
             _vft_identity=$_vfs_identity
             _vft_entry=$_vf_entry

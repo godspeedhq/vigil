@@ -294,7 +294,7 @@ function Invoke-VigilFetch {
 
     # git: fetch into the bare mirror, resolve the ref and unpack its tree.
     $syncGit = {
-        param($S)
+        param($S, $Prev)
         $git = Find-VigilProgram 'git'
         if (-not $git) { return @{ Why = 'git not found' } }
         $mirror = Join-Path $cache "$($S.Name)\repo.git"
@@ -324,7 +324,18 @@ function Invoke-VigilFetch {
         if (-not $commit) { $kind = 'branch'; $commit = & $resolve "refs/heads/$($S.Ref)^{commit}" }
         if (-not $commit -and $S.Ref -cmatch '^[0-9a-f]{7,64}$') { $kind = 'commit'; $commit = & $resolve "$($S.Ref)^{commit}" }
         if (-not $commit) { return @{ Why = "ref '$($S.Ref)' not found" } }
-        if ([System.IO.Directory]::Exists((Join-Path $cache "$($S.Name)\$commit"))) { return @{ Entry = $commit; Kind = $kind } }
+        # A tag is a pin (6.9): one that now names another commit keeps the
+        # commit it named before, as a job's sha256 keeps its verified copy.
+        # Changing ref takes the new one.
+        $moved = ''
+        if ($kind -ceq 'tag' -and $Prev.kind -ceq 'tag' -and $Prev.identity -ceq $S.Identity -and $Prev.entry -and $Prev.entry -cne $commit) {
+            $moved = $commit
+            $commit = $Prev.entry
+            if (-not [System.IO.Directory]::Exists((Join-Path $cache "$($S.Name)\$commit")) -and -not (& $resolve "$commit^{commit}")) {
+                return @{ Why = "tag '$($S.Ref)' moved from $commit to $moved, and $commit is no longer available; set ref to the commit to use" }
+            }
+        }
+        if ([System.IO.Directory]::Exists((Join-Path $cache "$($S.Name)\$commit"))) { return @{ Entry = $commit; Kind = $kind; Moved = $moved } }
         $x = Invoke-VigilFetchProcess $git @("--git-dir=$mirror", 'ls-tree', '-r', '-z', $commit) 60
         foreach ($rec in $x.Out.Split([char]0)) {
             if (-not $rec.StartsWith('120000 ', [System.StringComparison]::Ordinal)) { continue }
@@ -345,7 +356,7 @@ function Invoke-VigilFetch {
         catch { return @{ Why = "cannot unpack ${commit}: $($_.Exception.Message)" } }
         [System.IO.File]::Delete($zip)
         & $place $tree $S.Name $commit
-        return @{ Entry = $commit; Kind = $kind }
+        return @{ Entry = $commit; Kind = $kind; Moved = $moved }
     }
 
     # local: a copy of the directory, so a job never runs a file from a
@@ -485,7 +496,7 @@ function Invoke-VigilFetch {
             -not [System.IO.Directory]::Exists((Join-Path $cache "$($S.Name)\$($ss.entry)")) -or
             ([long]$ss.checked_epoch + $S.Every) -le $f.Now) {
             switch -CaseSensitive ($S.Type) {
-                'git' { $r = & $syncGit $S }
+                'git' { $r = & $syncGit $S $ss }
                 'local' { $r = & $syncLocal $S }
                 default {
                     $tmp = Join-Path $st 'config'
@@ -509,6 +520,9 @@ function Invoke-VigilFetch {
             else {
                 if ($r.Kind -ceq 'branch' -and $r.Entry -cne $ss.entry) {
                     & $note "WARN source.$($S.Name): ref '$($S.Ref)' is a branch: its scripts follow it, and hosts may briefly differ (W_SCRIPT_UNPINNED)"
+                }
+                if ($r.Moved) {
+                    & $note "WARN source.$($S.Name): tag '$($S.Ref)' moved from $($r.Entry) to $($r.Moved); still using $($r.Entry); to use the new commit, set ref to it (W_TAG_MOVED)"
                 }
                 $ss.identity = $S.Identity; $ss.entry = $r.Entry; $ss.kind = $r.Kind; $ss.failures = '0'; $ss.ok_epoch = [string]$f.Now
                 & $writeState $S.Name $ss ''
