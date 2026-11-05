@@ -180,14 +180,16 @@ try {
 
     $base = "[vigil]`ninstance = fe`n`n[scheduler]`ntick = 1s`n`n[backend.file]`npath = metrics\vigil.prom`n`n"
     $localConfig = {
-        param([string]$GitUrl, [string]$Ref)
+        param([string]$GitUrl, [string]$Ref, [string]$Every)
         if (-not $GitUrl) { $GitUrl = "$url/ops.git" }
         if (-not $Ref) { $Ref = 'v1' }
+        $everyLine = if ($Every) { "check_every = $Every" } else { '' }
         return $base + @"
 [source.ops]
 type = git
 url  = $GitUrl
 ref  = $Ref
+$everyLine
 
 [source.files]
 type         = https
@@ -315,6 +317,41 @@ run_every = 3650d
     Test-Equal 'large script: fetched' 'succeeded' (Get-FetchStatus)
     Test-Equal 'large script: runs' 'big: succeeded|metric big 6' (Invoke-Run 'big')
     Remove-Item -LiteralPath "$root\share\big.cmd"
+
+    # A commit in ref, full or abbreviated: that commit, and not a branch.
+    Write-Text $cfg (& $localConfig "$url/ops.git" $c1)
+    Invoke-Fetch
+    Test-Equal 'commit: fetched' 'succeeded' (Get-FetchStatus)
+    Test-Equal 'commit: its version runs' 'from_git: succeeded|metric hello 1' (Invoke-Run 'from_git')
+    Write-Text $cfg (& $localConfig "$url/ops.git" $c1.Substring(0, 12))
+    Invoke-Fetch
+    Test-Equal 'abbreviated commit: its version runs' 'from_git: succeeded|metric hello 1' (Invoke-Run 'from_git')
+    Test-Equal 'commit: never reported unpinned' 'no' (Test-InFiles "$root\logs\jobs\vigil_fetch" "is a branch: its scripts follow it")
+
+    # A tag moved to another commit: the commit it named stays, and it is said.
+    # Checked every second, so the fetch below looks at the source again.
+    Write-Text $cfg (& $localConfig "$url/ops.git" 'v2' '1s')
+    Invoke-Fetch
+    Test-Equal 'tag: v2 again' 'from_git: succeeded|metric hello 2' (Invoke-Run 'from_git')
+    $revv2 = Get-Revision
+    Write-Text "$work\checks\hello.cmd" "@echo off`necho metric hello 7`n"
+    [void](Invoke-Git @('-C', $work, 'add', '-A'))
+    [void](Invoke-Git @('-C', $work, 'commit', '-q', '-m', 'seven'))
+    [void](Invoke-Git @('-C', $work, 'tag', '-f', 'v2'))
+    [void](Invoke-Git @('-C', $work, 'push', '-q', '-f', '--tags', "$root\mock\www\ops.git", 'HEAD:main'))
+    [void](Invoke-Git @("--git-dir=$root\mock\www\ops.git", 'update-server-info'))
+    $moved = (Invoke-Git @("--git-dir=$root\mock\www\ops.git", 'rev-parse', 'v2')).Trim()
+    Start-Sleep -Seconds 1
+    Invoke-Fetch
+    Test-Equal 'moved tag: revision unchanged' $revv2 (Get-Revision)
+    Test-Equal 'moved tag: the commit it named runs' 'from_git: succeeded|metric hello 2' (Invoke-Run 'from_git')
+    Test-Equal 'moved tag: said so' 'yes' (Test-InFiles "$root\logs\jobs\vigil_fetch" "to $moved; still using")
+    Write-Text $cfg (& $localConfig "$url/ops.git" $moved)
+    Invoke-Fetch
+    Test-Equal 'moved tag: ref set to the new commit takes it' 'from_git: succeeded|metric hello 7' (Invoke-Run 'from_git')
+    # The branch below starts from hello 2 again.
+    Write-Text "$work\checks\hello.cmd" "@echo off`necho metric hello 2`n"
+    Publish-Work 'eight' ''
 
     # Remote configuration (6.8): a pointer file, following a branch.
     $h1 = $base + "[source.scripts]`ntype        = git`nurl         = $url/ops.git`nref         = main`ncheck_every = 1s`n`n" +

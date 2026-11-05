@@ -703,7 +703,7 @@ run_at    = 06:00
 | `path` | `local`, `sftp` | The source directory: a local path or a network share for `local` (relative paths resolve against the install root), a remote directory for `sftp`. Required for those types. |
 | `url` | `git`, `https` | The repository URL for `git`: `https://`, `ssh://` or `user@host:path`. The base URL for `https`, which must use `https://`. Plain `http://` is accepted only for this host (`localhost`, `127.0.0.1`, `[::1]`), as for a metrics backend (§15.3). Credentials in a URL are rejected. Required for those types. |
 | `host`, `port`, `user` | `sftp` | Server, port (default `22`) and login. Authentication uses the service account's SSH key; `user` is not a secret. `host` is required. |
-| `ref` | `git` | The tag, commit or branch everything from this source is taken at. Required. |
+| `ref` | `git` | The tag, commit or branch everything from this source is taken at. Required. Looked up as a tag first, then as a branch, then as a commit (7 to 64 hex digits); only branches and tags are fetched, so a commit must be on one of them. |
 | `check_every` | all | How often the source is checked for changes. Default `5m`. |
 | `timeout` | all | Limit for one fetch from the source. Default `60s`. |
 | `header_name`, `header_value` | `https` | An authentication header. `header_value` is a credential (`env:NAME`, §6.5). |
@@ -714,7 +714,7 @@ run_at    = 06:00
 
 | Source type | Fixed by |
 | --- | --- |
-| `git` | A tag or commit in `ref`. A branch follows the branch: changes are picked up every `check_every`, and the script is reported as unpinned (`W_SCRIPT_UNPINNED`) unless the job sets `sha256`. |
+| `git` | A commit or a tag in `ref`. A tag is held to the commit it first named: if the tag is later moved, the fetcher keeps that commit and logs `W_TAG_MOVED` at each check until `ref` is changed. Only a commit can never be moved. A branch follows the branch: changes are picked up every `check_every`, and the script is reported as unpinned (`W_SCRIPT_UNPINNED`) unless the job sets `sha256`. |
 | `https`, `sftp` | The job's `sha256`, required: these sources have no versions. |
 | `local` | The job's `sha256` if set; otherwise changes in the directory are picked up every `check_every`, and the script is reported as unpinned. |
 
@@ -1661,6 +1661,7 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | Command | `E_BATCH_ARG`, `E_BATCH_PATH` | A batch file argument or path containing a `cmd.exe` metacharacter (§6.4). |
 | Warnings | `W_BACKEND_DISABLED` | A job names a disabled backend. |
 | | `W_SCRIPT_UNPINNED` | A script from a `local` source without `sha256`. Also reported when fetching, for a `git` source whose `ref` turns out to be a branch (§6.9). |
+| | `W_TAG_MOVED` | Reported when fetching, not by validation: a `git` source's tag now names another commit than the one it was pinned to. The pinned commit is kept (§6.9). |
 | | `W_METRIC_COLLISION` | Two jobs' different base metric names become the same name in a Prometheus-format backend they both send to (§14.1). |
 
 Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rule on credential keys; the keys specific to each backend type are checked by that backend (§15).
@@ -1702,7 +1703,7 @@ Install and start abort with no changes if any check fails.
 
 ### 16.5 Sources and Reconciliation
 
-Vigil watches the configuration and the sources it names. A source pinned to a tag, a commit or a digest never changes; one following a branch or a directory is picked up at its next check (§6.9). Nothing is activated until everything it needs is present and verified.
+Vigil watches the configuration and the sources it names. A source pinned to a commit, a tag or a digest stays where it is, even when a tag is moved; one following a branch or a directory is picked up at its next check (§6.9). Nothing is activated until everything it needs is present and verified.
 
 **Fetcher.** Fetching is done by a worker, `vigil_fetch`, started and supervised like `vigil_sender` (§4.5): detached, with its own state, run token, log and identity checks. A slow or unreachable source therefore never delays a tick, and at most one fetcher runs at a time. The supervisor starts it when a source is due for its check, or when the local file changed: each fetcher run leaves `state/fetch.next`, with the time of the earliest next check and the digest of the local file it read.
 
@@ -1734,7 +1735,7 @@ activated_epoch = 1793526428
 
 The revision is computed over the lines `config <digest>` and, for each script in the order the jobs name them, `script <source> <file> <digest>`, each ending in a newline. The configuration itself is kept in `state/`, not in the cache, so deleting the cache never loses it.
 
-A job pinned by `sha256` whose source now holds other content keeps its last verified copy: the fetcher logs that it no longer matches, and the record keeps naming that copy (§6.9). A `git` source whose `ref` is a branch is logged as unpinned (`W_SCRIPT_UNPINNED`) in the fetcher's log whenever it moves.
+A job pinned by `sha256` whose source now holds other content keeps its last verified copy: the fetcher logs that it no longer matches, and the record keeps naming that copy (§6.9). A `git` source whose `ref` is a branch is logged as unpinned (`W_SCRIPT_UNPINNED`) in the fetcher's log whenever it moves. A `git` source whose tag has moved keeps the commit the tag named before, and logs `W_TAG_MOVED`, with both commits, at every check until its `ref` changes; if that commit is no longer in the mirror or the cache, the fetch fails and says so.
 
 **Running jobs.** A run executes the cached copy named when it was launched, recorded in its launch record and state. Activating a new revision never touches a running run or its files.
 
