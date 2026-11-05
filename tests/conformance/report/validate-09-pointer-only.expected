@@ -1,4 +1,5 @@
 ERROR    line 6: 'instance' belongs in the configuration fetched from [source.central], not in this file (E_POINTER_ONLY)
-ERROR    line 14: [source.scripts] belongs in the configuration fetched from [source.central], not in this file (E_POINTER_ONLY)
-INVALID  job.disk, line 19: [job.disk] belongs in the configuration fetched from [source.central], not in this file (E_POINTER_ONLY)
-ERROR    line 23: [backend.file] belongs in the configuration fetched from [source.central], not in this file (E_POINTER_ONLY)
+ERROR    line 7: 'version' belongs in the configuration fetched from [source.central], not in this file (E_POINTER_ONLY)
+ERROR    line 15: [source.scripts] belongs in the configuration fetched from [source.central], not in this file (E_POINTER_ONLY)
+INVALID  job.disk, line 20: [job.disk] belongs in the configuration fetched from [source.central], not in this file (E_POINTER_ONLY)
+ERROR    line 24: [backend.file] belongs in the configuration fetched from [source.central], not in this file (E_POINTER_ONLY)

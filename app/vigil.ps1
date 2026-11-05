@@ -334,12 +334,35 @@ switch ($Command) {
         if ($Job -cne 'update') { Exit-Usage }
         $argv = @($Rest | Where-Object { $_ })
         if ($argv.Count -eq 1 -and $argv[0] -ceq '--task') { exit (Invoke-VigilSelfUpdateTask -Root $Root -App $app) }
+        $configured = Get-VigilConfigVersion -Root $Root
+        # Internal (18.11): what the vigil_update worker and the task of install
+        # -UpdateBy run to follow the configuration. The version is read here,
+        # never given; the exit code tells the worker what went wrong.
+        if ($argv.Count -eq 1 -and $argv[0] -ceq '--from-config') {
+            if (-not $configured) {
+                [Console]::Error.WriteLine('vigil: the configuration names no version')
+                exit 1
+            }
+            $code = 0
+            Invoke-VigilSelfUpdate -Root $Root -App $app -Check $false -Want $configured -FromConfig $true |
+                ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+            if ($code -eq 0) { exit 0 }
+            if ($Script:VigilUpdateKind -ceq 'download') { exit 2 }
+            if ($Script:VigilUpdateKind -ceq 'install') { exit 3 }
+            exit 1
+        }
         $check = $false
         $want = ''
         for ($i = 0; $i -lt $argv.Count; $i++) {
             if ($argv[$i] -ceq '--check') { $check = $true }
             elseif ($argv[$i] -ceq '--version' -and $i + 1 -lt $argv.Count) { $i++; $want = $argv[$i].TrimStart('v') }
             else { Exit-Usage }
+        }
+        # The configuration decides the version when it names one (18.11): an
+        # update here would be undone at its next load.
+        if (-not $check -and $configured) {
+            [Console]::Error.WriteLine("vigil: the version is set in the configuration (version = $configured): change it there to update")
+            exit 1
         }
         $code = 0
         Invoke-VigilSelfUpdate -Root $Root -App $app -Check $check -Want $want | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }

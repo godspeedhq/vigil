@@ -1,0 +1,32 @@
+2026-11-05T11:16:42Z 20261105T111632Z-3260-54 run start
+2026-11-05T11:17:39Z 20261105T111632Z-3260-54 out updating Vigil 99.1.0 to 99.2.0
+2026-11-05T11:17:39Z 20261105T111632Z-3260-54 out verified vigil-99.2.0.zip (SHA-256 462961b9c589bbaf53187fdc7ab26855c0e0545758d7955399d2c0da2259a8ec)
+2026-11-05T11:17:39Z 20261105T111632Z-3260-54 out upgraded C:\Users\vigil-test\fleet\https\root to Vigil 99.2.0
+2026-11-05T11:17:39Z 20261105T111632Z-3260-54 out done: Vigil 99.2.0
+2026-11-05T11:17:39Z 20261105T111632Z-3260-54 run end succeeded in 57s
+2026-11-05T11:18:32Z 20261105T111821Z-3260-9 run start
+2026-11-05T11:19:28Z 20261105T111821Z-3260-9 out updating Vigil 99.2.0 to 99.1.0
+2026-11-05T11:19:28Z 20261105T111821Z-3260-9 out verified vigil-99.1.0.zip (SHA-256 de1536d2d71c8047b80dc025977ac7bd85bd289235624019b4fd77bfc90c5f35)
+2026-11-05T11:19:28Z 20261105T111821Z-3260-9 out upgraded C:\Users\vigil-test\fleet\https\root to Vigil 99.1.0
+2026-11-05T11:19:28Z 20261105T111821Z-3260-9 out done: Vigil 99.1.0
+2026-11-05T11:19:28Z 20261105T111821Z-3260-9 run end succeeded in 56s
+2026-11-05T11:21:18Z 20261105T112103Z-3260-20 run start
+2026-11-05T11:21:38Z 20261105T112103Z-3260-20 out vigil: cannot download Vigil 99.3.0: is there such a release?
+2026-11-05T11:21:38Z 20261105T112103Z-3260-20 run end failed (cannot download Vigil 99.3.0: is there such a release?) in 20s
+2026-11-05T11:26:50Z 20261105T112643Z-3260-71 run start
+2026-11-05T11:27:43Z 20261105T112643Z-3260-71 out updating Vigil 99.1.0 to 99.3.0
+2026-11-05T11:27:43Z 20261105T112643Z-3260-71 out verified vigil-99.3.0.zip (SHA-256 65f583b5ef89c0c55325dd5071689ff7b2c55145a427cbdf55302c61b2cb9aa2)
+2026-11-05T11:27:43Z 20261105T112643Z-3260-71 out upgraded C:\Users\vigil-test\fleet\https\root to Vigil 99.3.0
+2026-11-05T11:27:43Z 20261105T112643Z-3260-71 out done: Vigil 99.3.0
+2026-11-05T11:27:43Z 20261105T112643Z-3260-71 run end succeeded in 53s
+2026-11-05T11:29:53Z 20261105T112943Z-3260-21 run start
+2026-11-05T11:30:43Z 20261105T112943Z-3260-21 out updating Vigil 99.3.0 to 99.9.0
+2026-11-05T11:30:43Z 20261105T112943Z-3260-21 out verified vigil-99.9.0.zip (SHA-256 951255d1875440fe990d3f2815a943e2abd9b9d18f20f75bd6b5aed50a3efdb3)
+2026-11-05T11:30:43Z 20261105T112943Z-3260-21 out install: the new version (99.9.0) does not run; went back to the version that was installed
+2026-11-05T11:30:43Z 20261105T112943Z-3260-21 out At C:\Users\vigil-test\AppData\Local\Temp\vigil-update.5380\install.ps1:96 char:5
+2026-11-05T11:30:43Z 20261105T112943Z-3260-21 out +     throw "install: $Message"
+2026-11-05T11:30:43Z 20261105T112943Z-3260-21 out +     ~~~~~~~~~~~~~~~~~~~~~~~~~
+2026-11-05T11:30:43Z 20261105T112943Z-3260-21 out     + CategoryInfo          : OperationStopped: (install: the ne...t was installed:String) [], RuntimeException
+2026-11-05T11:30:43Z 20261105T112943Z-3260-21 out     + FullyQualifiedErrorId : install: the new version (99.9.0) does not run; went back to the version that was instal 
+2026-11-05T11:30:43Z 20261105T112943Z-3260-21 out    led
+2026-11-05T11:30:43Z 20261105T112943Z-3260-21 run end failed (install: the new version (99.9.0) does not run; went back to the version that was installed) in 50s

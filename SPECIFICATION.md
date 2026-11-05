@@ -302,7 +302,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 
 | Section | Purpose |
 | --- | --- |
-| `[vigil]` | Instance name, state directory, and where the configuration comes from (§6.8). |
+| `[vigil]` | Instance name, state directory, where the configuration comes from (§6.8), and the Vigil release to run (§18.11). |
 | `[scheduler]` | Tick interval and late-start window. |
 | `[log]` | Log directory, stdout mirroring, retention, file size cap. |
 | `[tags]` | Tags attached to every metric. |
@@ -658,6 +658,7 @@ check_every = 5m
 - The fetched file is a complete configuration in the same format, validated the same way (§16.3). It may define its own `[source.*]` sections for scripts.
 - The fetched file cannot set `config_source`, `config_file` or `state_dir` (`E_NOT_FROM_SOURCE`): where the configuration comes from, and where Vigil keeps its state, are decided on the host. Configuration is never chained.
 - A new version of the fetched file is picked up every `check_every`. It is validated as a whole and becomes active only when it, and every script it names, is present and verified (§16.5). A broken or unreachable configuration never replaces a working one.
+- The fetched file can name the Vigil release to run, `[vigil] version`, so a fleet is updated by changing one line (§18.11).
 
 Jobs are the same in both modes: each job names a script, local or from a source (§6.9). The three common layouts are:
 
@@ -1303,7 +1304,7 @@ timeout      = 10s
 | `stdout` | `out` lines of job logs | Unspecified: Vigil never guesses the severity of a job's output. |
 | `stderr` | `err` lines of job logs | Unspecified. |
 
-The internal workers `vigil_sender` and `vigil_fetch` write job logs like any job and are forwarded with them. **The forwarder's own log, `logs/jobs/vigil_logs/`, is never forwarded**, so a failing destination cannot produce errors that are themselves forwarded, fail, and produce more. Its failures are reported as metrics instead (§13.4.6).
+The internal workers `vigil_sender`, `vigil_fetch` and `vigil_update` write job logs like any job and are forwarded with them. **The forwarder's own log, `logs/jobs/vigil_logs/`, is never forwarded**, so a failing destination cannot produce errors that are themselves forwarded, fail, and produce more. Its failures are reported as metrics instead (§13.4.6).
 
 Every record carries: the time from the line, `host`, `os`, `instance` and the `[tags]` section (§14.6), the component (`supervisor` or `job`), for job lines the job id and run id, the category, the severity when there is one, the message (the line's text, unchanged), the source file name, and the active configuration revision (§16.5). Run ids are fine in log records, unlike metric tags: logs are not aggregated into series.
 
@@ -1668,6 +1669,7 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | | `E_DURATION`, `E_INTEGER`, `E_BOOLEAN`, `E_ENUM` | Not a duration (`30s`, `5m`, `2h`, `7d`; zero only for `grace` and `late_start_window`), a whole number, `true`/`false`, or one of the listed words. |
 | | `E_TIME`, `E_DAY`, `E_EXIT_CODES` | Not `HH:MM`, a weekday, or `standard`/`nagios`/codes `0-255`. |
 | | `E_NAME`, `E_METRIC_NAME` | An instance name or metric name with characters outside its set. |
+| | `E_VERSION` | A `version` that is not a release number such as `0.3.1` (§18.11). |
 | References | `E_RUNNER_UNKNOWN`, `E_BACKEND_UNKNOWN`, `E_BACKEND_TYPE`, `E_EXTENSION` | A runner or backend that is not defined, an unknown backend type, or a `[runners]` key that is not an extension. |
 | | `E_DESTINATION_UNKNOWN` | `[log_forward] destination` names a `[log_destination.*]` that is not defined (§13.4.1). |
 | Tags and environment | `E_TAG_SYNTAX`, `E_TAG_RESERVED`, `E_TAG_DUPLICATE` | A malformed tag, a reserved tag key (§14.6), or a tag name repeated in one section. |
@@ -1907,9 +1909,9 @@ Release assets, built by `tools/release/package.sh <version>`: `vigil-<version>.
 
 **Hot reload.** The service is not stopped. Workers start fresh for each run, so only the supervisor is long-lived, and it checks `app/VERSION` every few seconds. When it changes, the supervisor finishes its tick, releases its lock and becomes the new version in the same process: `exec` on Linux and macOS, the new `vigil.ps1` run in place on Windows. The process id stays the same, so the service manager sees nothing and no right to control a service is needed. It records the version it started as in `state/supervisor.version`, and the installer waits up to 30 seconds for that, or restores the old version, which the supervisor reloads in turn. A supervisor from before hot reload is stopped and started instead.
 
-Replacing `app/` itself still needs write access to it, so a system install needs `sudo` or an elevated prompt. On Linux and macOS that can be granted once: `install.sh --system --update-by <user or %group>` writes `/etc/sudoers.d/vigil`, a rule for the one command `<root>/app/vigil self update` with no other arguments, and that account can then run `vigil self update` as itself. It reaches the latest release only: `--version` is not part of the rule, so nobody can choose an older one. Uninstall removes the rule. It runs a release's installer as root on an ordinary account's request, which is why self-update checks the release's signature first.
+Replacing `app/` itself still needs write access to it, so a system install needs `sudo` or an elevated prompt. On Linux and macOS that can be granted once: `install.sh --system --update-by <user or %group>` writes `/etc/sudoers.d/vigil`, a rule for two commands with no other arguments, `<root>/app/vigil self update` and `<root>/app/vigil self update --from-config`, and that account can then run `vigil self update` as itself. The first reaches the latest release; the second, which the `vigil_update` worker uses, the release the configuration names (§18.11), read by root from the configuration itself. `--version` is not part of the rule, so nobody can choose a release on the command line. Uninstall removes the rule. It runs a release's installer as root on an ordinary account's request, which is why self-update checks the release's signature first.
 
-On Windows the same grant is `install.ps1 -System -UpdateBy <account or group>`. It registers a scheduled task, `Vigil Update`, that runs as SYSTEM and always runs `self update --task` for this root, and gives that account the right to read and run the task and nothing else over it. `vigil self update` finds the task when it cannot write to the root, starts it, and shows what it writes to `update\output`; with `--version` it does not, so nobody can choose an older release. The root is locked to SYSTEM and Administrators first, with or without a service, and the account gets read access to `app\`, to run `vigil` at all, and to `update\`, and no other; `app\` keeps that access through each update. The task's temporary files stay under `update\`, not the machine's temporary folder, where any account can create files. Uninstall removes the task.
+On Windows the same grant is `install.ps1 -System -UpdateBy <account or group>`. It registers a scheduled task, `Vigil Update`, that runs as SYSTEM and always runs `self update --task` for this root (which goes to the release the configuration names when it names one, §18.11, and to the latest otherwise), and gives that account the right to read and run the task and nothing else over it. `vigil self update` finds the task when it cannot write to the root, starts it, and shows what it writes to `update\output`; with `--version` it does not, so nobody can choose an older release. The root is locked to SYSTEM and Administrators first, with or without a service, and the account gets read access to `app\`, to run `vigil` at all, and to `update\`, and no other; `app\` keeps that access through each update. The task's temporary files stay under `update\`, not the machine's temporary folder, where any account can create files. Uninstall removes the task.
 
 - The new files are copied in before anything is stopped, so a full disk changes nothing.
 - The old version is removed only once the new one has answered `vigil version` and, if the service was running, the supervisor has come up as the new version. Otherwise the old version is put back, and the command fails saying so.
@@ -1917,7 +1919,7 @@ On Windows the same grant is `install.ps1 -System -UpdateBy <account or group>`.
 - `state/format` holds one number for everything Vigil keeps under `state/` and `spool/`, cursors and checkpoints included; an install without it is format 1. A format change is a numbered script in `app/migrations`, `N.sh` and `N.ps1`, which moves the data from `N-1` to `N` and is given the state, spool and log directories; the highest `N` is the format that version writes. The supervisor runs them in order under its lock, the number moving after each, so a failed step is the one retried. Runs in progress finish under the code they started with (§18.3), so a migration must leave data they can still write to, and the new version must read what they write. On a hot reload the running supervisor runs the new version's migrations before it becomes that version: if they fail it logs why and carries on, and the installer, finding no new version, puts the old one back. A version refuses to start on data of a newer format, or a `state/format` it cannot read, and `vigil precheck` reports both, so a downgrade past a format change fails instead of misreading the data.
 - It runs as whoever installed Vigil, or an account given `--update-by` (`-UpdateBy`): otherwise `sudo` for a system install on Linux and macOS, an elevated prompt on Windows. It refuses a copy from the repository.
 - A release is verified before anything runs: `SHA256SUMS` must carry a signature (`SHA256SUMS.sig`) from the release key, whose public half is `app/release-key.pem` of the version already installed, checked with `openssl`, or .NET on Windows. The installer and the archive must then match `SHA256SUMS`, and the archive verified is the one installed. A release with a bad or missing signature is refused, and nothing changes. So is any update when `app/release-key.pem` is missing: there is then nothing to check with. A first install has no earlier copy to hold the key, so the one-line installer relies on GitHub and HTTPS; the reviewed path can check the signature by hand.
-- `vigil self update` runs when an operator or their tooling runs it. Vigil never updates itself on a schedule.
+- `vigil self update` runs when an operator or their tooling runs it, and refuses while the configuration names a version (§18.11). Vigil updates itself only to a version its configuration names, never on a schedule of its own.
 
 **Update notices.** `vigil status`, `vigil version` and `vigil precheck` say on stderr when a newer release is known, at a terminal only: never in a pipe, a script or CI. They read a per-user cache, and at most once a day start a detached process to refresh it, with a 10-second limit, so a command is never delayed and a host with no way out shows nothing. The supervisor and workers never check. `VIGIL_NO_UPDATE_CHECK=1` turns it off.
 
@@ -2020,6 +2022,33 @@ The supervisor's command line is `<bash> <app>/vigil --root <root> supervise`, o
 **Control.** `start`, `stop` and `restart` use the service manager: `systemctl [--user]`; `launchctl kill TERM` (the supervisor exits 0, which `KeepAlive` does not restart) and `launchctl kickstart`; `Start-Service` and `Stop-Service`. Windows user mode has no manager: `stop` terminates the supervisor once its ownership is proven — it holds `state\supervisor.lock`, the lock records its pid, and that process's command line is `vigil.ps1 ... -Root <root> supervise` — and `start` launches the Run entry's command through `Win32_Process.Create`, detached and hidden, as logon would. A supervisor stopped mid-tick leaves nothing a restart does not clean up (§12.3).
 
 **Removal.** `vigil service remove` stops the supervisor and deletes the registration; the `vigil` system account, the root and running workers are left alone. Removing when nothing is registered succeeds and changes nothing.
+
+### 18.11 The Version in the Configuration
+
+`version` under `[vigil]` names the release a machine runs. Vigil updates or downgrades itself to it, through the self-update of §18.7, so a fleet that reads one fetched configuration (§6.8) is moved by changing one line:
+
+```ini
+[vigil]
+instance = db-windows
+# The Vigil release this machine runs. Change it to update or downgrade;
+# remove it to go back to manual updates.
+version  = 0.3.1
+```
+
+- **The value** is an exact release number, `x.y.z` with an optional suffix such as `-rc1` (`E_VERSION` otherwise). There is no `latest`: a whole fleet would move the moment a release is published.
+- **Where.** It means the same in a local configuration and in a fetched one. It cannot be in a pointer file (`E_POINTER_ONLY`): it goes in the file the pointer names. Without it, nothing changes, and updates are made with `vigil self update`.
+- **When.** At each tick the supervisor compares it with `app/VERSION`. When they differ it starts `vigil_update`, Vigil's own worker, started and accounted like the sender (§4.5), one at a time. A machine already on that release does nothing and contacts nothing.
+- **How.** The worker runs the self-update of §18.7 to that release, waits for its installer, and records the outcome in `state/update.state` (`version`, `from`, `result`, `epoch`, `reason`). The installer is told a supervisor is running (`--reload`, `-Reload`), so it waits for the supervisor to reload onto the new version even without a service, and puts the old version back if it does not. Running jobs carry on across the reload (§18.3).
+- **Not available or unreachable** (no such release, no network, a failed download): `result = unavailable`, logged as a warning, and tried again after 5 minutes. Vigil carries on with what it has.
+- **Installed but failed** (the new version does not run, or the supervisor did not come up as it): the installer puts the old version back, `result = failed`, logged as an error, and that release is not tried again until the configuration names another. Every other refusal (a bad signature, a copy from the repository, no right to replace `app/`) is recorded the same way.
+- **Downgrades** work like updates, except past a data format change: an older release refuses data of a newer format (§18.7), so the supervisor stays where it is and the update is recorded as failed. Nor can it go back to a release from before this section, whose installer does not know `--reload`.
+- **The supervisor log** says when an update starts (`updating Vigil 0.3.0 to 0.3.1, as the configuration asks`) and how it ended, once. `jobs.log` (`vigil status`) shows a `VERSION` block while this is not the release the configuration names, with the reason when it could not be had. `vigil precheck` notes the version, and whether the account running it can update Vigil: it owns `app/`, or has the `--update-by` rule (the `-UpdateBy` task on Windows).
+- **`vigil self update` refuses** while the configuration names a version: `the version is set in the configuration (version = 0.3.1): change it there to update`. Otherwise it would install a release the next tick takes back. `--check` and the update notices only report, and work as before.
+- **System installs** update through the `--update-by` rule (§18.7): the worker runs `sudo -n <root>/app/vigil self update --from-config`, and root reads the version from the configuration itself; on Windows the task does the same. The version is then whatever the configuration says, older releases included: whoever can change the configuration already decides what every machine runs.
+
+**Vigil never writes to its configuration.** The configuration is the operator's instructions: often kept in git or written by configuration management, sometimes owned by root, and for a fetched one not writable at all. It says what is wanted, not what happened, so after a failed update it still says what was asked for. The release that is running is reported by `vigil version`, `vigil status`, and the supervisor log.
+
+**Fleets.** Machines that share one fetched file share its `instance`, which then names the group; the automatic `host` tag tells them apart (§14.6). A canary is a machine pointed at its own `config_file` with the new `version`; a rollout moves one group's file at a time. Rollback catches a release that does not run, not one that runs and misbehaves, so a rollout starts with canaries. Each machine checks its source `check_every` after its own last check, so a fleet's checks and downloads are spread out, and the size of each wave bounds the rest.
 
 ---
 

@@ -69,6 +69,9 @@ jobs:
       - name: upgrade from the latest release (/bin/bash)
         run: /bin/bash tests/integration/upgrade.sh
         timeout-minutes: 10
+      - name: the version in the configuration (/bin/bash)
+        run: /bin/bash tests/integration/version-config.sh
+        timeout-minutes: 15
       - name: service registration (/bin/bash)
         run: /bin/bash tests/integration/service.sh
         timeout-minutes: 15
@@ -212,6 +215,9 @@ jobs:
       - name: upgrade from the latest release
         run: ./tests/integration/Upgrade.ps1
         timeout-minutes: 15
+      - name: the version in the configuration
+        run: ./tests/integration/Version-Config.ps1
+        timeout-minutes: 30
       - name: service registration
         run: ./tests/integration/Service.ps1
         timeout-minutes: 15

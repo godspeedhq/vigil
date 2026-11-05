@@ -52,10 +52,14 @@
     Do not register the service.
 .PARAMETER UpdateBy
     System mode: let this account or group run vigil self update without
-    admin rights, to the latest release only.
+    admin rights, to the latest release, or to the release the
+    configuration names.
 .PARAMETER Upgrade
     Only replace an installed Vigil, as vigil self update does: no vigil
     init, no PATH change, and the service is left as it was found.
+.PARAMETER Reload
+    With -Upgrade: a supervisor runs this root without a service (the
+    vigil_update worker says so). Wait for it to reload, as for a service.
 #>
 
 param(
@@ -70,8 +74,12 @@ param(
     [switch]$NoInit,
     [switch]$NoService,
     [string]$UpdateBy,
-    [switch]$Upgrade
+    [switch]$Upgrade,
+    [switch]$Reload
 )
+# Read now: PowerShell names ignore case, so $reload below is this same variable.
+$reloadAsked = $Reload.IsPresent
+$needActive = $true
 
 # Restored at the end, for the same reason.
 $savedPreferences = @($ErrorActionPreference, $ProgressPreference)
@@ -219,7 +227,7 @@ try {
         param([string]$Want)
         for ($n = 0; $n -lt 30; $n++) {
             if ("$(Invoke-Vigil version --supervisor 2>$null)" -ceq $Want -and
-                "$(Invoke-Vigil status 2>$null | Select-Object -First 1)".StartsWith('service: active')) { return $true }
+                (-not $needActive -or "$(Invoke-Vigil status 2>$null | Select-Object -First 1)".StartsWith('service: active'))) { return $true }
             Start-Sleep -Seconds 1
         }
         return $false
@@ -244,6 +252,13 @@ try {
                 }
             }
         }
+    }
+    # A supervisor running without a service (18.11): it reloads itself all
+    # the same, and is waited for the same way, without a service to be
+    # active. There is no service to start again if it goes wrong.
+    if ($present -and $reloadAsked -and -not $reload) {
+        $reload = $true
+        $needActive = $false
     }
 
     # Windows refuses to rename a folder while a process has a file in it
@@ -280,7 +295,7 @@ try {
             }
             Remove-Item -LiteralPath (Join-Path $root "$d.new") -Recurse -Force -ErrorAction SilentlyContinue
         }
-        if ($reload) { if (-not (Test-OnVersion $oldVersion)) { Invoke-Vigil start | Out-Null } }
+        if ($reload) { if (-not (Test-OnVersion $oldVersion) -and $needActive) { Invoke-Vigil start | Out-Null } }
         elseif ($running) { Invoke-Vigil start | Out-Null }
         Stop-Install "$Why; went back to the version that was installed"
     }

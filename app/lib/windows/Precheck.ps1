@@ -286,6 +286,24 @@ function Invoke-VigilPrecheck {
         $busy = Get-VigilScheduleBusiest -Index $jobsIndex -Now ($now.ToString('yyyy-MM-ddTHH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture) + $now.ToString('zzz').Replace(':', ''))
         if ($busy.Count -ge 2) { $out.Add("  note  busiest minute in the next 24 hours: $($busy.At), $($busy.Count) jobs start together") }
     }
+    # The release the configuration names (18.11), and whether this account
+    # can move app\ to it.
+    if (-not $Job) {
+        $want = Get-VigilConfigVersion -Root $Root
+        if ($want) {
+            $appDir = if ($app) { $app } else { Join-Path $Root 'app' }
+            $vf = Join-Path $appDir 'VERSION'
+            $have = if ([System.IO.File]::Exists($vf)) { [System.IO.File]::ReadAllText($vf).Trim() } else { '' }
+            if ($want -ceq $have) { $out.Add("  note  version ${want}: this is $have") }
+            else { $out.Add("  note  version ${want}: this is $(if ($have) { $have } else { 'a copy from the repository' }); the supervisor updates to it") }
+            $probe = Join-Path $Root ".vigil-precheck.$PID"
+            $writable = $true
+            try { [System.IO.File]::WriteAllText($probe, ''); [System.IO.File]::Delete($probe) } catch { $writable = $false }
+            if ($writable) { $out.Add("  note  this account can update Vigil: it can write to $Root") }
+            elseif (Get-VigilUpdateTask -Root $Root) { $out.Add('  note  this account can update Vigil: through the task of install -UpdateBy') }
+            else { $out.Add("  note  this account cannot update Vigil: $Root is not writable and there is no -UpdateBy task (18.7)") }
+        }
+    }
     if ($env:VIGIL_FAULT) { & $fail 'VIGIL_FAULT is set: fault injection is for tests only (22.4.1)' }
     if ($env:VIGIL_TEST_IMDS) { & $fail 'VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)' }
     if ($env:VIGIL_TEST_SSH_CONFIG) { & $fail 'VIGIL_TEST_SSH_CONFIG is set: the ssh configuration override is for tests only (22.4.3)' }

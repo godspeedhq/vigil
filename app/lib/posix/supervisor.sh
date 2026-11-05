@@ -932,6 +932,17 @@ _vigil_sup_tick() {
         fi
     fi
 
+    # Vigil's own version (18.11): the same again, when the configuration
+    # names another release than the one installed.
+    _vigil_sup_update_report
+    if [ "$_su_waiting" = 0 ] && _vigil_sup_update_due; then
+        _vigil_sup_account vigil_update
+        if [ "$_su_active" = - ]; then
+            _vigil_sup_log INFO "updating Vigil ${_su_cur:-(no release)} to $_su_want, as the configuration asks"
+            _vigil_sup_start vigil_update
+        fi
+    fi
+
     # Retention (13.1): at the start, then once a day.
     if [ "$_su_waiting" = 0 ] && [ "${_su_retained-}" != $((_su_epoch / 86400)) ]; then
         _su_retained=$((_su_epoch / 86400))
@@ -949,6 +960,59 @@ _vigil_sup_tick() {
 
     _vigil_sup_status
     _su_prev=$_su_now
+}
+
+# state/update.state, the last update the configuration asked for, in
+# _su_uv (version), _su_ur (result), _su_ue (epoch) and _su_uw (reason).
+_vigil_sup_update_read() {
+    local line
+    _su_uv='' _su_ur='' _su_ue=0 _su_uw=''
+    [ -f "$_su_statedir/update.state" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        case $line in
+            'version '*) _su_uv=${line#*= } ;;
+            'result '*) _su_ur=${line#*= } ;;
+            'epoch '*) _su_ue=${line#*= } ;;
+            'reason '*) _su_uw=${line#*= } ;;
+        esac
+    done < "$_su_statedir/update.state"
+    case $_su_ue in '' | *[!0-9]*) _su_ue=0 ;; esac
+}
+
+# Whether vigil_update should run (18.11): [vigil] version names another
+# release than app/VERSION, and that release has not failed, nor failed to
+# download in the last VIGIL_UPDATE_RETRY seconds. Sets _su_want and _su_cur.
+_vigil_sup_update_due() {
+    _su_cur=''
+    _vigil_wk_get vigil version ''
+    _su_want=$_vw_value
+    [ -n "$_su_want" ] || return 1
+    [ -f "$_su_app/VERSION" ] && read -r _su_cur < "$_su_app/VERSION"
+    [ "$_su_want" != "$_su_cur" ] || return 1
+    _vigil_sup_update_read
+    if [ "$_su_uv" = "$_su_want" ]; then
+        [ "$_su_ur" = failed ] && return 1
+        [ "$_su_ur" = unavailable ] && [ $((_su_epoch - _su_ue)) -lt "$VIGIL_UPDATE_RETRY" ] && return 1
+    fi
+    return 0
+}
+
+# Logs the outcome of an update once, when vigil_update has written it.
+# What was reported is kept on disk: a successful update is written after
+# the supervisor has reloaded, so by a process that did not start it.
+_vigil_sup_update_report() {
+    local seen=''
+    _vigil_sup_update_read
+    [ "$_su_ue" != 0 ] || return 0
+    [ -f "$_su_statedir/update.reported" ] && read -r seen < "$_su_statedir/update.reported"
+    [ "$_su_ue" != "$seen" ] || return 0
+    printf '%s\n' "$_su_ue" > "$_su_statedir/update.reported.tmp.$$" &&
+        mv -f "$_su_statedir/update.reported.tmp.$$" "$_su_statedir/update.reported"
+    case $_su_ur in
+        succeeded) _vigil_sup_log INFO "Vigil is now $_su_uv, as the configuration asks" ;;
+        unavailable) _vigil_sup_log WARN "Vigil $_su_uv, which the configuration asks for, could not be downloaded: $_su_uw; staying on ${_su_version:-this version}, trying again in $((VIGIL_UPDATE_RETRY / 60)) minutes" ;;
+        failed) _vigil_sup_log ERROR "Vigil $_su_uv, which the configuration asks for, could not be installed: $_su_uw; staying on ${_su_version:-this version} until the configuration names another version" ;;
+    esac
 }
 
 # jobs.log (13.2): rewritten every tick.
@@ -970,6 +1034,22 @@ _vigil_sup_status() {
                 grep '^status *= *failed' "$_su_statedir/jobs/vigil_fetch.state" > /dev/null 2>&1; then
                 j=$(sed -n 's/^reason *= *//p' "$_su_statedir/jobs/vigil_fetch.state")
                 printf '  last fetch failed: %s\n' "$j"
+            fi
+        fi
+        # Only while this is not the release the configuration asks for (18.11).
+        _vigil_wk_get vigil version ''
+        if [ -n "$_vw_value" ]; then
+            j=''
+            [ -f "$_su_app/VERSION" ] && read -r j < "$_su_app/VERSION"
+            if [ "$_vw_value" != "$j" ]; then
+                printf '\nVERSION\n  the configuration asks for %s; this is %s\n' "$_vw_value" "${j:-a copy from the repository}"
+                _vigil_sup_update_read
+                if [ "$_su_uv" = "$_vw_value" ]; then
+                    case $_su_ur in
+                        failed) printf '  could not be installed: %s; not tried again until the version changes\n' "$_su_uw" ;;
+                        unavailable) printf '  could not be downloaded: %s; trying again\n' "$_su_uw" ;;
+                    esac
+                fi
             fi
         fi
         if [ -n "$_su_status_missing" ]; then

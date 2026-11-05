@@ -32,10 +32,14 @@
 #   --no-service           do not register the service
 #   --update-by <who>      system mode: let this user, or %group, run vigil
 #                          self update without being root, through a sudo
-#                          rule for that one command
+#                          rule for that command, and for following the
+#                          version the configuration names
 #   --upgrade              only replace an installed Vigil, as vigil self
 #                          update does: no vigil init, no link, and the
 #                          service is left as it was found
+#   --reload               with --upgrade: a supervisor runs this root
+#                          without a service (the vigil_update worker says
+#                          so): wait for it to reload, as for a service
 #
 # Steps: check the prerequisites, download the archive and verify its
 # SHA-256 before using it, unpack it into the root (on upgrade only app/ is
@@ -63,6 +67,7 @@ update_by=''
 do_init=1
 do_service=1
 only_upgrade=0
+reload_asked=0
 
 say() { printf '%s\n' "$*"; }
 die() {
@@ -82,6 +87,7 @@ while [ "$#" -gt 0 ]; do
             only_upgrade=1
             do_init=0
             ;;
+        --reload) reload_asked=1 ;;
         --prefix | --version | --archive | --account | --instance | --backend | --update-by)
             [ "$#" -ge 2 ] || die "$1 needs a value"
             case $1 in
@@ -246,7 +252,7 @@ on_version() {
     n=0
     while [ "$n" -lt 30 ]; do
         if [ "$(vigil version --supervisor 2> /dev/null)" = "$1" ] &&
-            vigil status 2> /dev/null | head -n 1 | grep -q '^service: active'; then
+            { [ "$need_active" = 0 ] || vigil status 2> /dev/null | head -n 1 | grep -q '^service: active'; }; then
             return 0
         fi
         sleep 1
@@ -258,6 +264,7 @@ on_version() {
 # puts back exactly that, so an upgrade never starts a service that was stopped.
 running=0
 reload=0
+need_active=1
 old_version=$(cat "$root/app/VERSION" 2> /dev/null)
 if [ "$upgrade" = 1 ] && [ "$do_service" = 1 ] &&
     vigil status 2> /dev/null | head -n 1 | grep -q '^service: active'; then
@@ -270,6 +277,13 @@ if [ "$upgrade" = 1 ] && [ "$do_service" = 1 ] &&
         vigil stop > /dev/null || { rm -rf "$root/app.new"; die 'cannot stop the running service for the upgrade; nothing was changed'; }
     fi
 fi
+# A supervisor running without a service (18.11): it reloads itself all the
+# same, and is waited for the same way, without a service to be active.
+# There is no service to start again if it goes wrong.
+if [ "$upgrade" = 1 ] && [ "$reload_asked" = 1 ] && [ "$reload" = 0 ]; then
+    reload=1
+    need_active=0
+fi
 # Back to the version that was running, and its service.
 # Whoever is running this reads the reason from die, so that message has to be
 # the last thing that happens. A supervisor that reloaded to the new version
@@ -279,7 +293,7 @@ rollback() {
     rm -rf "$root/app"
     mv "$root/app.old" "$root/app"
     if [ "$reload" = 1 ]; then
-        on_version "$old_version" || vigil start > /dev/null
+        on_version "$old_version" || { [ "$need_active" = 0 ] || vigil start > /dev/null; }
     elif [ "$running" = 1 ]; then
         vigil start > /dev/null
     fi
@@ -356,13 +370,14 @@ case :$PATH: in
     *) say "note: $bindir is not on your PATH; add it, or run $root/app/vigil" ;;
 esac
 
-# One command, with no arguments of its own: the latest release only, never
-# a version of the caller's choosing (18.7).
+# Two commands, with no arguments of their own: the latest release, or the
+# release the configuration names, which root reads from the configuration
+# itself (18.7, 18.11). Never a version given on the command line.
 if [ -n "$update_by" ]; then
     # Checked with visudo before it goes anywhere near /etc/sudoers.d: one bad file
     # in there stops sudo working for everyone on the machine.
     rule="$work/sudoers"
-    printf '%s ALL=(root) NOPASSWD: %s/app/vigil self update\n' "$update_by" "$root" > "$rule"
+    printf '%s ALL=(root) NOPASSWD: %s/app/vigil self update, %s/app/vigil self update --from-config\n' "$update_by" "$root" "$root" > "$rule"
     visudo -cf "$rule" > /dev/null 2>&1 || die "the sudo rule for $update_by is not valid"
     chmod 440 "$rule"
     cp "$rule" /etc/sudoers.d/vigil && chown 0:0 /etc/sudoers.d/vigil 2> /dev/null && chmod 440 /etc/sudoers.d/vigil ||
