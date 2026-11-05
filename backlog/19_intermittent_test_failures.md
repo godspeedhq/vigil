@@ -21,6 +21,14 @@ The tests print what they know when these fail.
   "uncertain", which only says the worker was still waiting for its job's
   output. The marker now names the run and the time, and a failure prints
   the job log, so the next one shows which run lived on and when.
+- `tests/integration/version-config.sh`, macOS: `a release that will not
+  install is logged as an error` (expected 1 ERROR line, got 0), on #101 on
+  2026-11-05. The same run before it failed on a GitHub 504 downloading
+  0.2.2, which is not this. It passed on the next CI run and twice in a row
+  on the Mac (48 of 48). Cause unknown. A failure now prints
+  `update.reported` and every supervisor line about the update (asks,
+  could not be, reloading, staying on, started, stopped), so the next one
+  shows whether the supervisor saw the failed install at all.
 
 ## Fixed, cause known (2026-11-05)
 
