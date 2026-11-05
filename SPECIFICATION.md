@@ -329,6 +329,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `metric_name` | No | Base metric name. Default: the job id. |
 | `run_every` | One of | Fixed interval. |
 | `run_at` | One of | One or more local times of day. |
+| `cron` | One of | A standard five-field cron expression, in local time (§7.10). |
 | `run_on_days` | No | Restricts `run_every` or `run_at` to weekdays. |
 | `max_runtime` | No | Runtime limit. Absent means unlimited. |
 | `grace` | No | Time between polite stop and forced kill. |
@@ -764,8 +765,10 @@ run_on_days = mon, wed, fri, sun
 | `run_every` + `run_on_days` | Yes |
 | `run_at` + `run_on_days` | Yes |
 | `run_every` + `run_at` | No — list the times in `run_at` |
+| `cron` | Yes |
+| `cron` + `run_every`, `run_at` or `run_on_days` | No — one schedule per job; cron takes its days in its fifth field |
 | `run_on_days` alone | No — nothing says when to run |
-| neither | No |
+| none of `run_every`, `run_at` and `cron` | No |
 
 ### 7.6 New Jobs
 
@@ -794,7 +797,7 @@ A worker that crashed is not respawned immediately; the job runs again at its ne
 
 Each tick, the supervisor reaches exactly one decision per job. The decision is a pure function of the inputs below, so it is tested as a table (§22.1) without waiting for real time to pass.
 
-**Slots.** A scheduled time is a *slot*. `run_every` slots are UTC instants (§7.2). `run_at` slots are local wall-clock times: the local date and time with no offset, so a time that occurs twice is the same slot both times. `run_on_days` keeps only slots whose local date falls on a listed day; for `run_every` the day is taken at the current UTC offset.
+**Slots.** A scheduled time is a *slot*. `run_every` slots are UTC instants (§7.2). `run_at` and `cron` slots are local wall-clock times: the local date and time with no offset, so a time that occurs twice is the same slot both times. `run_on_days` keeps only slots whose local date falls on a listed day; for `run_every` the day is taken at the current UTC offset.
 
 **Cursor.** The last slot the job has dealt with — run, skipped, queued or missed — in the same form as its slots. A slot is due when it is at or before now and after the cursor; when several are due, only the latest counts and the earlier ones are passed over (VIGIL-008). The cursor is supervisor-owned, kept in `state/schedule/<job id>.cursor` and written atomically (§12.3) whenever it moves. A job with no cursor is new; a disabled job's cursor is deleted, so re-enabling it makes it new again, and a change between `run_every` and `run_at` does the same.
 
@@ -823,6 +826,36 @@ Each tick, the supervisor reaches exactly one decision per job. The decision is 
 | `skip` | On time and a run is active, otherwise | the slot |
 
 Every decision except `disabled` also reports the next slot that can run — the first after both now and the cursor — shown as `NEXT` in `jobs.log`. `run` and `queue` hand the slot to admission (§8), which may still hold it as pending for capacity.
+
+### 7.10 Cron
+
+`cron` is a third way to write a schedule, for what `run_every` and `run_at` cannot say: a day of the month, hours of the day, or a line copied from a crontab. Those two stay the plain way; nothing they can express needs cron.
+
+```ini
+# 02:00 on the 1st of every month.
+cron = 0 2 1 * *
+# Every 15 minutes from 09:00 to 17:45, Monday to Friday.
+cron = */15 9-17 * * 1-5
+# Midnight: the same as 0 0 * * *.
+cron = @daily
+```
+
+It is standard five-field cron, read by Vigil's own scheduler: no cron daemon is involved (VIGIL-012).
+
+| Field | Values | Names |
+| --- | --- | --- |
+| Minute | 0-59 | |
+| Hour | 0-23 | |
+| Day of the month | 1-31 | |
+| Month | 1-12 | `jan` to `dec` |
+| Day of the week | 0-7, Sunday being 0 and 7 | `sun` to `sat` |
+
+Each field is `*`, a value, a range `a-b`, a step `*/n` or `a-b/n`, or `a/n` (from `a` to the end of the range, every `n`), or a comma-separated list of these. Names are case-insensitive. The shorthands are `@hourly`, `@daily` (or `@midnight`), `@weekly`, `@monthly` and `@yearly` (or `@annually`).
+
+- **The two day fields combine as cron has it.** When both are restricted, a day matches if either does: `0 9 1 * mon` runs on the 1st of the month and on every Monday. Validation warns when it sees that (`W_CRON_DAYS`). When either starts with `*`, both must match.
+- **Local time**, as for `run_at`: slots are local wall-clock times (§7.9), so new jobs, missed runs, the late-start window and daylight saving (§7.6 to §7.8) behave as they do for `run_at`.
+- **Rejected** (`E_CRON`): any other number of fields (so no seconds or year field), the extensions of other crons (`L`, `W`, `#`, `?`), `@reboot` and any other `@` word, a value out of range, a step below 1, and a day of the month that none of the chosen months has (`0 0 30 2 *`).
+- **A job's only schedule:** not with `run_every`, `run_at` or `run_on_days` (`E_SCHEDULE_BOTH`), and not in `[defaults]`.
 
 ---
 
@@ -1646,12 +1679,14 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | | `E_URL` | A malformed URL, a source URL using plain `http://` to another host, or a URL containing credentials (never shown). |
 | | `E_SHA256`, `E_SHA256_REQUIRED` | Not 64 hex digits, or missing for a script from an `https` or `sftp` source. |
 | Jobs | `E_SCHEDULE_NONE`, `E_SCHEDULE_BOTH`, `E_SCHEDULE_DAYS_ONLY` | An invalid schedule combination (§7.5). |
+| | `E_CRON` | A `cron` expression that is not standard five-field cron, or that names no real date (§7.10). |
 | | `E_JOB_ID_RESERVED` | A job id starting with `vigil_`. |
 | Command | `E_BATCH_ARG`, `E_BATCH_PATH` | A batch file argument or path containing a `cmd.exe` metacharacter (§6.4). |
 | Warnings | `W_BACKEND_DISABLED` | A job names a disabled backend. |
 | | `W_SCRIPT_UNPINNED` | A script from a `local` source without `sha256`. Also reported when fetching, for a `git` source whose `ref` turns out to be a branch (§6.9). |
 | | `W_TAG_MOVED` | Reported when fetching, not by validation: a `git` source's tag now names another commit than the one it was pinned to. The pinned commit is kept (§6.9). |
 | | `W_METRIC_COLLISION` | Two jobs' different base metric names become the same name in a Prometheus-format backend they both send to (§14.1). |
+| | `W_CRON_DAYS` | A `cron` expression restricting both the day of the month and the day of the week: it runs when either matches (§7.10). |
 
 Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rule on credential keys; the keys specific to each backend type are checked by that backend (§15).
 

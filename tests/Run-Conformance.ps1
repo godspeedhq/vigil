@@ -132,6 +132,8 @@ foreach ($suite in @('parser', 'validate', 'effective', 'command', 'schedule')) 
                 $actual += Format-VigilCommandDump -Parsed $parsed -Records $records -Platform $platform -Root $installRoot
             }
             elseif ($suite -eq 'schedule') {
+                # Warnings do not change decisions; the validate suite tests them.
+                $actual = -join @(($actual -split '(?<=\n)') | Where-Object { -not $_.StartsWith("WARN`t") })
                 $expectedPath = [System.IO.Path]::ChangeExtension($case.FullName, '.table')
                 $actual += Format-VigilScheduleTableDump -Parsed $parsed -Path $expectedPath
             }

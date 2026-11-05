@@ -126,7 +126,7 @@ printf '[log]\nretain_days = 0\n\n[job.x]\nfile = a.sh\n\n[weird]\n' > "$root/co
 out=$(vigil precheck 2>&1)
 check "rejected: exit code" 1 "$?"
 check "rejected: first problem" yes "$(has "  ERROR    line 2: 'retain_days' must be at least 1 (E_INTEGER)")"
-check "rejected: invalid job" yes "$(has '  INVALID  job.x, line 4: [job.x] needs run_every or run_at (E_SCHEDULE_NONE)')"
+check "rejected: invalid job" yes "$(has '  INVALID  job.x, line 4: [job.x] needs run_every, run_at or cron (E_SCHEDULE_NONE)')"
 check "rejected: last problem" yes "$(has '  ERROR    line 7: unknown section [weird] (E_SECTION_UNKNOWN)')"
 check "rejected: result" yes "$(has 'precheck failed: the configuration is rejected; nothing else was checked')"
 
@@ -161,6 +161,10 @@ run_at = 03:00
 file   = scripts/ok.sh
 run_at = 04:00
 
+[job.f]
+file = scripts/ok.sh
+cron = 0 3 * * *
+
 [job.e]
 file    = scripts/ok.sh
 run_at  = 03:00
@@ -168,7 +172,7 @@ enabled = false
 EOF
 out=$(vigil precheck 2>&1)
 check "busiest minute: exit code" 0 "$?"
-check "busiest minute: said" yes "$(has '  note  busiest minute in the next 24 hours: 03:00, 3 jobs start together')"
+check "busiest minute: said" yes "$(has '  note  busiest minute in the next 24 hours: 03:00, 4 jobs start together')"
 out=$(vigil precheck a 2>&1)
 check "busiest minute: not for one job" no "$(printf '%s\n' "$out" | grep -q 'busiest minute' && echo yes || echo no)"
 

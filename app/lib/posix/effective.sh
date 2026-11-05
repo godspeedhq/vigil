@@ -265,6 +265,10 @@ vigil_config_effective() {
         _vigil_eff_list "$_ve_value"
         _vigil_eff_add run_at "$_ve_list" job
     fi
+    _vigil_eff_get "$job" cron
+    if [ "$_ve_found" -eq 1 ]; then
+        _vigil_eff_add cron "$_ve_value" job
+    fi
     _vigil_eff_get "$job" run_on_days
     if [ "$_ve_found" -eq 1 ]; then
         _vigil_lower "$_ve_value"

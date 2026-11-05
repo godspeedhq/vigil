@@ -136,7 +136,7 @@ require_env = VIGIL_IT_SURELY_UNSET
     $rc = Invoke-Vigil @('precheck')
     Test-Equal 'rejected: exit code' '1' "$rc"
     Test-Equal 'rejected: first problem' 'True' (Test-Has "  ERROR    line 2: 'retain_days' must be at least 1 (E_INTEGER)")
-    Test-Equal 'rejected: invalid job' 'True' (Test-Has '  INVALID  job.x, line 4: [job.x] needs run_every or run_at (E_SCHEDULE_NONE)')
+    Test-Equal 'rejected: invalid job' 'True' (Test-Has '  INVALID  job.x, line 4: [job.x] needs run_every, run_at or cron (E_SCHEDULE_NONE)')
     Test-Equal 'rejected: last problem' 'True' (Test-Has '  ERROR    line 7: unknown section [weird] (E_SECTION_UNKNOWN)')
     Test-Equal 'rejected: result' 'True' (Test-Has 'precheck failed: the configuration is rejected; nothing else was checked')
 
@@ -152,10 +152,11 @@ require_env = VIGIL_IT_SURELY_UNSET
         "[job.b]`nfile   = scripts\ok.ps1`nrun_at = 03:00, 15:00`n`n" +
         "[job.c]`nfile   = scripts\ok.ps1`nrun_at = 03:00`n`n" +
         "[job.d]`nfile   = scripts\ok.ps1`nrun_at = 04:00`n`n" +
+        "[job.f]`nfile = scripts\ok.ps1`ncron = 0 3 * * *`n`n" +
         "[job.e]`nfile    = scripts\ok.ps1`nrun_at  = 03:00`nenabled = false`n"))
     $rc = Invoke-Vigil @('precheck')
     Test-Equal 'busiest minute: exit code' '0' "$rc"
-    Test-Equal 'busiest minute: said' 'True' (Test-Has '  note  busiest minute in the next 24 hours: 03:00, 3 jobs start together')
+    Test-Equal 'busiest minute: said' 'True' (Test-Has '  note  busiest minute in the next 24 hours: 03:00, 4 jobs start together')
     [void](Invoke-Vigil @('precheck', 'a'))
     Test-Equal 'busiest minute: not for one job' 'False' "$(@($script:lines | Where-Object { $_ -match 'busiest minute' }).Count -gt 0)"
 }

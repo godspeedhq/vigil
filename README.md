@@ -79,7 +79,7 @@ Vigil's guiding rules:
 | Area | Status |
 | --- | --- |
 | Configuration parsing and validation, with errors by line and code | Done |
-| Scheduling: `run_every`, `run_at`, `run_on_days`, missed runs, `late_start_window` | Done |
+| Scheduling: `run_every`, `run_at`, `run_on_days`, `cron`, missed runs, `late_start_window` | Done |
 | Every due run starts at its time, with no concurrency ceiling; overlap `skip` / `queue_one` | Done |
 | Workers: runners, arguments, environment, stdout/stderr capture, job logs | Done |
 | Outcomes: `standard`, `nagios`, explicit exit-code lists | Done |
@@ -594,7 +594,7 @@ What happens next is the job's `on_uncertain` policy:
 
 ### Scheduling: slots and cursors
 
-Every scheduled time is a **slot**. `run_every` slots are aligned to UTC (`5m` means :00, :05, :10, ...); `run_at` slots are local wall-clock times. Each job has a **cursor**, the last slot it dealt with, saved in `state/schedule/<job>.cursor`.
+Every scheduled time is a **slot**. `run_every` slots are aligned to UTC (`5m` means :00, :05, :10, ...); `run_at` and `cron` slots are local wall-clock times. Each job has a **cursor**, the last slot it dealt with, saved in `state/schedule/<job>.cursor`.
 
 ```text
  run_every = 5m                       now
@@ -814,6 +814,17 @@ require_env  = PGPASSWORD
 ```
 
 Comments are whole lines starting with `#` or `;`. There are no inline comments: a `#` or `;` inside a value is part of the value.
+
+**Schedules.** Each job has one. Usually it's `run_every`, an interval, or `run_at`, times of day, and either can be narrowed to weekdays with `run_on_days`. For what those can't say, such as a day of the month or office hours, `cron` takes a standard five-field cron expression in local time, so a line from an existing crontab works as it is:
+
+```ini
+[job.invoice_archive]
+file = scripts/archive-invoices.sh
+# 02:00 on the 1st of every month.
+cron = 0 2 1 * *
+```
+
+The plain keys stay the simpler choice whenever they fit. [SPECIFICATION.md §7.10](SPECIFICATION.md#710-cron) has what cron accepts, and what it rejects.
 
 | Section | Purpose |
 | --- | --- |

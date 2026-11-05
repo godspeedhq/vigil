@@ -169,7 +169,7 @@ function Get-VigilKeyType {
     $credential = @('username', 'password', 'token', 'api_key', 'api_token', 'api_key_id',
         'header_value', 'access_key_id', 'client_id', 'tenant_id')
     $jobOnly = @('file', 'source', 'sha256', 'arg', 'metric_name', 'run_every', 'run_at',
-        'run_on_days', 'runner', 'tag', 'env', 'secret', 'require_env')
+        'run_on_days', 'cron', 'runner', 'tag', 'env', 'secret', 'require_env')
 
     switch -CaseSensitive ($Kind) {
         'source' {
@@ -295,6 +295,7 @@ function Get-VigilKeyType {
                 'max_runtime' { $t = 'dur' }
                 'run_at' { $t = 'times' }
                 'run_on_days' { $t = 'days' }
+                'cron' { $t = 'cron' }
                 'grace' { $t = 'dur0' }
                 'late_start_window' { $t = 'dur0' }
                 'overlap' { $t = 'overlap' }
@@ -359,6 +360,10 @@ function Test-VigilValue {
             if ($Value -cnotmatch $re.Metric) {
                 $r.Code = 'E_METRIC_NAME'; $r.Message = "'$Key' must be dotted words of letters, digits and '_': $Value"
             }
+        }
+        'cron' {
+            $c = ConvertFrom-VigilCron $Value
+            if ($c.Error) { $r.Code = 'E_CRON'; $r.Message = "'$Key' $($c.Error)" }
         }
         'times' {
             foreach ($item in (Split-VigilList $Value)) {
@@ -781,7 +786,8 @@ function Test-VigilConfig {
         $seen = New-VigilNameSet @()
         $tagKeys = New-VigilNameSet @()
         $envNames = New-VigilNameSet @()
-        $has = @{ file = $false; run_every = $false; run_at = $false; run_on_days = $false; command = $false; type = $false; sha256 = $false; config_file = $false }
+        $has = @{ file = $false; run_every = $false; run_at = $false; run_on_days = $false; cron = $false; command = $false; type = $false; sha256 = $false; config_file = $false }
+        $cronLine = ''; $cronValue = ''
 
         while ($e -lt $count -and $entries[$e].Section -ceq $name) {
             $key = $entries[$e].Key
@@ -790,6 +796,7 @@ function Test-VigilConfig {
             $e++
 
             if ($has.ContainsKey($key)) { $has[$key] = $true }
+            if ($key -ceq 'cron') { $cronLine = $line; $cronValue = $value }
 
             if ($kind -ceq 'tags') {
                 if ($key -cnotmatch $re.TagKey) {
@@ -890,7 +897,20 @@ function Test-VigilConfig {
                 if (-not $has.file) {
                     & $report $sline 'E_KEY_REQUIRED' "[$name] needs 'file'"
                 }
-                if ($has.run_every -and $has.run_at) {
+                if ($has.cron -and ($has.run_every -or $has.run_at)) {
+                    & $report $sline 'E_SCHEDULE_BOTH' 'use cron, run_every or run_at, not two of them'
+                }
+                elseif ($has.cron -and $has.run_on_days) {
+                    & $report $sline 'E_SCHEDULE_BOTH' 'cron takes its days in its fifth field, not in run_on_days'
+                }
+                elseif ($has.cron) {
+                    # Both day fields restricted: cron runs when either matches (7.10).
+                    $c = ConvertFrom-VigilCron $cronValue
+                    if (-not $c.Error -and -not $c.DomStar -and -not $c.DowStar) {
+                        & $add 'WARN' '' $cronLine 'W_CRON_DAYS' "'cron' sets both the day of the month and the day of the week: it runs on either, not only when both match"
+                    }
+                }
+                elseif ($has.run_every -and $has.run_at) {
                     & $report $sline 'E_SCHEDULE_BOTH' 'use run_every or run_at, not both; list the times in run_at'
                 }
                 elseif (-not $has.run_every -and -not $has.run_at) {
@@ -898,7 +918,7 @@ function Test-VigilConfig {
                         & $report $sline 'E_SCHEDULE_DAYS_ONLY' 'run_on_days needs run_every or run_at'
                     }
                     else {
-                        & $report $sline 'E_SCHEDULE_NONE' "[$name] needs run_every or run_at"
+                        & $report $sline 'E_SCHEDULE_NONE' "[$name] needs run_every, run_at or cron"
                     }
                 }
                 # Scripts from versionless sources are pinned by digest (6.9).
