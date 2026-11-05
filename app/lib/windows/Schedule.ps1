@@ -113,6 +113,155 @@ function ConvertFrom-VigilDuration {
     }
 }
 
+# --- cron (7.10) ---------------------------------------------------------------
+# Standard five-field cron and its @ shorthands, nothing else. A field
+# becomes a string of 0 and 1, one character per value from 0, so a value v
+# is in the field when its character v is '1'.
+
+# Field $Field with values $Lo to $Hi; $Names names the values from $Lo up,
+# or is empty. Returns @{ Bits } or @{ Error }.
+function ConvertFrom-VigilCronField {
+    param([string]$Field, [int]$Lo, [int]$Hi, [string[]]$Names)
+    $bits = ('0' * ($Hi + 1)).ToCharArray()
+    foreach ($item in $Field.Split(',')) {
+        $step = 1
+        $base = $item
+        $slash = $item.IndexOf('/')
+        if ($slash -ge 0) {
+            $s = $item.Substring($slash + 1)
+            $base = $item.Substring(0, $slash)
+            if ($s -cnotmatch '^[0-9]+$') { return @{ Error = "has a step that is not a number: '$item'" } }
+            $step = [int]$s
+            if ($step -lt 1) { return @{ Error = "has a step below 1: '$item'" } }
+        }
+        if ($base -ceq '*') { $ends = @("$Lo", "$Hi") }
+        elseif ($base -cmatch '^(.+)-(.+)$') { $ends = @($Matches[1], $Matches[2]) }
+        elseif ($slash -ge 0) { $ends = @($base, "$Hi") }  # 5/15: from 5 to the end, every 15
+        else { $ends = @($base, $base) }
+        $v = @()
+        foreach ($n in $ends) {
+            if ($n -cmatch '^[0-9]+$') { $v += [int]$n }
+            elseif ($n -cmatch '^[a-zA-Z]+$' -and $Names -and [Array]::IndexOf($Names, $n.ToLowerInvariant()) -ge 0) {
+                $v += $Lo + [Array]::IndexOf($Names, $n.ToLowerInvariant())
+            }
+            else { return @{ Error = "has something that is not a value: '$item'" } }
+        }
+        if ($v[0] -lt $Lo -or $v[1] -gt $Hi -or $v[0] -gt $v[1]) { return @{ Error = "has a value outside $Lo-${Hi}: '$item'" } }
+        for ($a = $v[0]; $a -le $v[1]; $a += $step) { $bits[$a] = '1' }
+    }
+    return @{ Bits = -join $bits }
+}
+
+# ConvertFrom-VigilCron <expression> returns @{ Min; Hour; Dom; Mon (index
+# 1-12); Dow (0-6, Sunday 0; 7 is Sunday too); DomStar; DowStar: whether
+# that field starts with *, which decides how the two day fields combine },
+# or @{ Error }: the rest of a sentence that starts "'cron' ", when the
+# expression is not standard cron or names no real date.
+function ConvertFrom-VigilCron {
+    param([string]$Text)
+    $expr = $Text
+    switch -CaseSensitive ($Text) {
+        { $_ -ceq '@yearly' -or $_ -ceq '@annually' } { $expr = '0 0 1 1 *' }
+        '@monthly' { $expr = '0 0 1 * *' }
+        '@weekly' { $expr = '0 0 * * 0' }
+        { $_ -ceq '@daily' -or $_ -ceq '@midnight' } { $expr = '0 0 * * *' }
+        '@hourly' { $expr = '0 * * * *' }
+        '@reboot' { return @{ Error = 'cannot be @reboot: a job runs at its times' } }
+    }
+    if ($expr.StartsWith('@')) { return @{ Error = "has an unknown shorthand '$Text': use five fields, or @hourly, @daily, @weekly, @monthly or @yearly" } }
+    $parts = @($expr.Split([char[]]@(' ', "`t"), [System.StringSplitOptions]::RemoveEmptyEntries))
+    if ($parts.Count -ne 5) { return @{ Error = "needs five fields, minute hour day-of-month month day-of-week: '$Text'" } }
+    $c = @{}
+    $f = ConvertFrom-VigilCronField $parts[0] 0 59 @(); if ($f.Error) { return $f }; $c.Min = $f.Bits
+    $f = ConvertFrom-VigilCronField $parts[1] 0 23 @(); if ($f.Error) { return $f }; $c.Hour = $f.Bits
+    $f = ConvertFrom-VigilCronField $parts[2] 1 31 @(); if ($f.Error) { return $f }; $c.Dom = $f.Bits
+    $f = ConvertFrom-VigilCronField $parts[3] 1 12 @('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'); if ($f.Error) { return $f }; $c.Mon = $f.Bits
+    $f = ConvertFrom-VigilCronField $parts[4] 0 7 @('sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'); if ($f.Error) { return $f }
+    # 7 is Sunday as well as 0.
+    $dow = $f.Bits
+    if ($dow[7] -ceq '1') { $dow = '1' + $dow.Substring(1) }
+    $c.Dow = $dow.Substring(0, 7)
+    $c.DomStar = $parts[2].StartsWith('*')
+    $c.DowStar = $parts[4].StartsWith('*')
+    # A day of the month that no chosen month has (30 February) never runs.
+    if ($c.DowStar -and -not $c.DomStar) {
+        $last = @(0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+        for ($m = 1; $m -le 12; $m++) {
+            if ($c.Mon[$m] -cne '1') { continue }
+            for ($d = 1; $d -le $last[$m]; $d++) { if ($c.Dom[$d] -ceq '1') { return $c } }
+        }
+        return @{ Error = "matches no real date: '$Text'" }
+    }
+    return $c
+}
+
+# Whether local day $Day (days since 1970-01-01) matches the job's cron days:
+# its month, and its day of the month and of the week. When both day fields
+# are restricted, either may match, as cron has it; otherwise both must.
+function Test-VigilCronDay {
+    param($Cron, [long]$Day)
+    $z = $Day + 719468
+    $era = Get-VigilQuotient $z 146097
+    $doe = $z - $era * 146097
+    $yoe = Get-VigilQuotient ($doe - (Get-VigilQuotient $doe 1460) + (Get-VigilQuotient $doe 36524) - (Get-VigilQuotient $doe 146096)) 365
+    $doy = $doe - (365 * $yoe + (Get-VigilQuotient $yoe 4) - (Get-VigilQuotient $yoe 100))
+    $mp = Get-VigilQuotient (5 * $doy + 2) 153
+    $d = $doy - (Get-VigilQuotient (153 * $mp + 2) 5) + 1
+    if ($mp -lt 10) { $m = $mp + 3 } else { $m = $mp - 9 }
+    $w = [int](($Day + 4) % 7)
+    if ($Cron.Mon[[int]$m] -cne '1') { return $false }
+    $dom = $Cron.Dom[[int]$d] -ceq '1'
+    $dow = $Cron.Dow[$w] -ceq '1'
+    if ($Cron.DomStar -or $Cron.DowStar) { return ($dom -and $dow) }
+    return ($dom -or $dow)
+}
+
+# The first cron slot after local seconds $Now, or -1. Looks up to four
+# years ahead: 29 February is within them.
+function Get-VigilCronNext {
+    param($Cron, [long]$Now)
+    $t = (Get-VigilQuotient $Now 60) * 60 + 60
+    $day = Get-VigilQuotient $t 86400
+    $h = [int](Get-VigilQuotient ($t % 86400) 3600)
+    $m = [int](Get-VigilQuotient ($t % 3600) 60)
+    for ($k = 0; $k -lt 1462; $k++) {
+        if (Test-VigilCronDay $Cron $day) {
+            for ($hh = $h; $hh -le 23; $hh++) {
+                if ($Cron.Hour[$hh] -cne '1') { continue }
+                $mm = if ($hh -eq $h) { $m } else { 0 }
+                for (; $mm -le 59; $mm++) {
+                    if ($Cron.Min[$mm] -ceq '1') { return [long]($day * 86400 + $hh * 3600 + $mm * 60) }
+                }
+            }
+        }
+        $day++; $h = 0; $m = 0
+    }
+    return [long]-1
+}
+
+# The latest cron slot at or before local seconds $Now, or -1. Looks up to
+# four years back.
+function Get-VigilCronLatest {
+    param($Cron, [long]$Now)
+    $t = (Get-VigilQuotient $Now 60) * 60
+    $day = Get-VigilQuotient $t 86400
+    $h = [int](Get-VigilQuotient ($t % 86400) 3600)
+    $m = [int](Get-VigilQuotient ($t % 3600) 60)
+    for ($k = 0; $k -lt 1462 -and $day -ge 0; $k++) {
+        if (Test-VigilCronDay $Cron $day) {
+            for ($hh = $h; $hh -ge 0; $hh--) {
+                if ($Cron.Hour[$hh] -cne '1') { continue }
+                $mm = if ($hh -eq $h) { $m } else { 59 }
+                for (; $mm -ge 0; $mm--) {
+                    if ($Cron.Min[$mm] -ceq '1') { return [long]($day * 86400 + $hh * 3600 + $mm * 60) }
+                }
+            }
+        }
+        $day--; $h = 23; $m = 59
+    }
+    return [long]-1
+}
+
 # A job's effective schedule settings, or $null when the job does not exist.
 function Get-VigilScheduleJob {
     param([Parameter(Mandatory = $true)]$Index, [Parameter(Mandatory = $true)][string]$Id)
@@ -120,6 +269,7 @@ function Get-VigilScheduleJob {
     if (-not $Index.Sections.ContainsKey("job.$Id")) { return $null }
     $job = @{
         Every   = [long]0
+        Cron    = $null
         Times   = New-Object 'System.Collections.Generic.List[long]'
         Mask    = '1111111'
         Window  = [long]0
@@ -131,6 +281,11 @@ function Get-VigilScheduleJob {
     foreach ($row in (Get-VigilEffectiveJob -Index $Index -Id $Id)) {
         switch -CaseSensitive ($row.Key) {
             'run_every' { $job.Every = ConvertFrom-VigilDuration $row.Value }
+            'cron' {
+                # Validated already; a parse that fails leaves no slots.
+                $c = ConvertFrom-VigilCron $row.Value
+                if (-not $c.Error) { $job.Cron = $c }
+            }
             'late_start_window' { $job.Window = ConvertFrom-VigilDuration $row.Value }
             'overlap' { $job.Overlap = $row.Value }
             'enabled' { $job.Enabled = $row.Value }
@@ -168,6 +323,7 @@ function Test-VigilScheduleDay {
 # every allowed weekday is within a week.
 function Get-VigilLatestSlot {
     param($Job, [long]$Now, [long]$Off)
+    if ($Job.Cron) { return Get-VigilCronLatest $Job.Cron $Now }
     $every = $Job.Every
     if ($every -gt 0) {
         $c = (Get-VigilQuotient $Now $every) * $every
@@ -196,6 +352,7 @@ function Get-VigilLatestSlot {
 # The first slot after $Now (schedule seconds), or -1.
 function Get-VigilNextSlot {
     param($Job, [long]$Now, [long]$Off)
+    if ($Job.Cron) { return Get-VigilCronNext $Job.Cron $Now }
     $every = $Job.Every
     if ($every -gt 0) {
         $c = (Get-VigilQuotient $Now $every) * $every + $every
@@ -337,7 +494,7 @@ function Get-VigilScheduleBusiest {
                 $c += $every
             }
         }
-        elseif ($job.Times.Count -gt 0) {
+        elseif ($job.Cron -or $job.Times.Count -gt 0) {
             $c = $nowE + $off
             while ($true) {
                 $slot = Get-VigilNextSlot $job $c $off

@@ -163,7 +163,7 @@ _vigil_val_keytype() {
         source:header_value) _vv_type=credential ;;
         defaults:file | defaults:source | defaults:sha256 | \
         defaults:arg | defaults:metric_name | defaults:run_every | \
-        defaults:run_at | defaults:run_on_days | defaults:runner | defaults:tag | \
+        defaults:run_at | defaults:run_on_days | defaults:cron | defaults:runner | defaults:tag | \
         defaults:env | defaults:secret | defaults:require_env)
             _vv_type=job_only ;;
         job:file)
@@ -181,6 +181,7 @@ _vigil_val_keytype() {
                 run_every | max_runtime) _vv_type=dur ;;
                 run_at) _vv_type=times ;;
                 run_on_days) _vv_type=days ;;
+                cron) _vv_type=cron ;;
                 grace | late_start_window) _vv_type=dur0 ;;
                 overlap) _vv_type=overlap ;;
                 exit_codes) _vv_type=exit_codes ;;
@@ -372,6 +373,12 @@ _vigil_val_check() {
             if ! [[ $value =~ $_vigil_val_re_metric ]]; then
                 _vv_code=E_METRIC_NAME
                 _vv_msg="'$key' must be dotted words of letters, digits and '_': $value"
+            fi
+            ;;
+        cron)
+            if ! vigil_cron_parse "$value"; then
+                _vv_code=E_CRON
+                _vv_msg="'$key' $_vc_error"
             fi
             ;;
         times)
@@ -672,7 +679,7 @@ vigil_config_validate() {
     local nl=$'\n'
     local count=${#VIGIL_CFG_KEY[@]}
     local s si e name sline kind sub key value line seen req auth pointer=''
-    local has_file has_every has_at has_days has_command has_type has_sha256
+    local has_file has_every has_at has_days has_cron cron_line cron_value has_command has_type has_sha256
     local has_config_file i n
     local tag_keys env_names
 
@@ -796,7 +803,7 @@ vigil_config_validate() {
         seen=$nl
         tag_keys=$nl
         env_names=$nl
-        has_file=0 has_every=0 has_at=0 has_days=0 has_command=0 has_type=0 has_sha256=0
+        has_file=0 has_every=0 has_at=0 has_days=0 has_cron=0 cron_line='' cron_value='' has_command=0 has_type=0 has_sha256=0
         has_config_file=0
 
         while [ "$e" -lt "$count" ] && [ "${VIGIL_CFG_SECTION[$e]}" = "$name" ]; do
@@ -810,6 +817,7 @@ vigil_config_validate() {
                 run_every) has_every=1 ;;
                 run_at) has_at=1 ;;
                 run_on_days) has_days=1 ;;
+                cron) has_cron=1 cron_line=$line cron_value=$value ;;
                 command) has_command=1 ;;
                 type) has_type=1 ;;
                 sha256) has_sha256=1 ;;
@@ -939,13 +947,22 @@ vigil_config_validate() {
                 if [ "$has_file" -eq 0 ]; then
                     _vigil_val_report "$sline" E_KEY_REQUIRED "[$name] needs 'file'"
                 fi
-                if [ "$has_every" -eq 1 ] && [ "$has_at" -eq 1 ]; then
+                if [ "$has_cron" -eq 1 ] && [ $((has_every + has_at)) -gt 0 ]; then
+                    _vigil_val_report "$sline" E_SCHEDULE_BOTH "use cron, run_every or run_at, not two of them"
+                elif [ "$has_cron" -eq 1 ] && [ "$has_days" -eq 1 ]; then
+                    _vigil_val_report "$sline" E_SCHEDULE_BOTH "cron takes its days in its fifth field, not in run_on_days"
+                elif [ "$has_cron" -eq 1 ]; then
+                    # Both day fields restricted: cron runs when either matches (7.10).
+                    if vigil_cron_parse "$cron_value" && [ "$_vc_domstar" = 0 ] && [ "$_vc_dowstar" = 0 ]; then
+                        _vigil_val_add WARN '' "$cron_line" W_CRON_DAYS "'cron' sets both the day of the month and the day of the week: it runs on either, not only when both match"
+                    fi
+                elif [ "$has_every" -eq 1 ] && [ "$has_at" -eq 1 ]; then
                     _vigil_val_report "$sline" E_SCHEDULE_BOTH "use run_every or run_at, not both; list the times in run_at"
                 elif [ "$has_every" -eq 0 ] && [ "$has_at" -eq 0 ]; then
                     if [ "$has_days" -eq 1 ]; then
                         _vigil_val_report "$sline" E_SCHEDULE_DAYS_ONLY "run_on_days needs run_every or run_at"
                     else
-                        _vigil_val_report "$sline" E_SCHEDULE_NONE "[$name] needs run_every or run_at"
+                        _vigil_val_report "$sline" E_SCHEDULE_NONE "[$name] needs run_every, run_at or cron"
                     fi
                 fi
                 # Scripts from versionless sources are pinned by digest (6.9).

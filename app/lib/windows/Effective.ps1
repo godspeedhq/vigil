@@ -169,6 +169,8 @@ function Get-VigilEffectiveJob {
     if ($r.Found) { & $add 'run_every' $r.Value 'job' }
     $r = Get-VigilIndexValue -Index $Index -Section $job -Key 'run_at'
     if ($r.Found) { & $add 'run_at' (ConvertTo-VigilListText $r.Value) 'job' }
+    $r = Get-VigilIndexValue -Index $Index -Section $job -Key 'cron'
+    if ($r.Found) { & $add 'cron' $r.Value 'job' }
     $r = Get-VigilIndexValue -Index $Index -Section $job -Key 'run_on_days'
     if ($r.Found) { & $add 'run_on_days' (ConvertTo-VigilListText $r.Value.ToLowerInvariant()) 'job' }
 

@@ -180,7 +180,8 @@ for suite in parser validate effective command schedule; do
                          vigil_job_command_dump "$platform" "$install_root") ;;
             schedule)
                 expected_file=${cfg%.config}.table
-                actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump
+                # Warnings do not change decisions; the validate suite tests them.
+                actual=$(vigil_config_parse "$cfg"; vigil_config_validate; vigil_config_validate_dump | grep -v "^WARN$(printf '\t')"
                          vigil_schedule_table_dump "$expected_file") ;;
         esac
         if [ "$suite" = schedule ]; then
