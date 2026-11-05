@@ -26,7 +26,7 @@ Vigil runs the work, records the work, and forwards the evidence. Storage, dashb
 - [Why Vigil](#why-vigil)
 - [Guiding principles](#guiding-principles)
 - [What works today](#what-works-today)
-- [Install](#install)
+- [Install](#install): [Linux](#linux), [macOS](#macos), [Windows](#windows)
 - [Update](#update)
 - [Try it from a clone](#try-it-from-a-clone)
 - [How it works](#how-it-works)
@@ -108,20 +108,75 @@ Vigil's guiding rules:
 
 ## Install
 
-One line, from the latest release. Each installer checks the prerequisites, downloads the release archive and verifies its SHA-256 before using it, unpacks it, puts `vigil` on your `PATH`, writes a starting configuration with `vigil init`, and registers the service. Run it again to upgrade: only `app/` (and `vendor\` on Windows) is replaced; your `config/` and `scripts/` are never touched.
+One command per platform. The installer:
+1. Checks the prerequisites.
+2. Downloads the latest release and verifies its SHA-256 before using it.
+3. Unpacks it and puts `vigil` on your `PATH`.
+4. Writes a starting configuration (`vigil init`) and registers the service.
+
+Run it again to upgrade: only Vigil's own code is replaced, and your configuration and scripts are never touched.
+
+Each platform has two modes:
+
+- **User mode**, as yourself, with no admin rights. Vigil runs while you are logged in. It's good for trying Vigil out.
+- **System mode**, with `sudo` or an elevated prompt. Vigil runs at boot as a service. It's the mode for servers.
+
+You get system mode when you run the installer as root or from an elevated prompt, and user mode otherwise.
+
+### Linux
+
+Any distribution with systemd. It needs `bash`, `curl`, `tar`, `gzip` and `systemd`, which most have already.
 
 ```sh
-# Linux, macOS: as yourself (user mode), or with sudo (system mode, /opt/vigil)
+# System mode: /opt/vigil, the vigil.service unit, run by a "vigil" account
+curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.sh | sudo sh -s -- --system
+
+# User mode: ~/.local/share/vigil, a systemd --user unit
 curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.sh | sh
-curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.sh | sudo sh -s -- --system --backend file,datadog
+# Keep it running after you log out (some distributions need admin for this, once)
+loginctl enable-linger "$USER"
 ```
 
+In user mode, the command goes in `~/.local/bin`; the installer says so if that folder isn't on your `PATH`.
+
+### macOS
+
+Nothing to install first: bash 3.2, curl and launchd come with macOS.
+
+```sh
+# System mode: /opt/vigil, a LaunchDaemon that runs at boot
+curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.sh | sudo sh -s -- --system
+
+# User mode: ~/.local/share/vigil, a LaunchAgent that runs while you are logged in
+curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.sh | sh
+```
+
+### Windows
+
+Windows PowerShell 5.1 is enough. It's built into Windows 10 and 11 and Windows Server 2016 and later; Server 2012 R2 needs WMF 5.1 first. PowerShell 7 works too, but is never required.
+
 ```powershell
-# Windows: an elevated prompt installs the service (system mode, C:\ProgramData\Vigil)
+# System mode, from an elevated prompt: C:\ProgramData\Vigil, the "Vigil" service
+# User mode, from an ordinary prompt: %LOCALAPPDATA%\Vigil, started at logon
 [Net.ServicePointManager]::SecurityProtocol = 'Tls12'; irm https://github.com/godspeedhq/vigil/releases/latest/download/install.ps1 | iex
-# With options, such as PowerShell 7 for the service:
+
+# With options, such as running the service on PowerShell 7:
 & ([scriptblock]::Create((irm https://github.com/godspeedhq/vigil/releases/latest/download/install.ps1))) -System -ShellHost pwsh
 ```
+
+In user mode nothing restarts Vigil if it stops, so use system mode on a server. Open a new prompt afterwards, so it picks up the new `PATH`.
+
+### Check that it works
+
+```sh
+vigil status     # the service, and the jobs it runs
+vigil precheck   # checks the configuration and everything it needs
+vigil about      # the version, and where Vigil is installed
+```
+
+Then turn on what you need: `vigil pack list` shows the [packs](#packs), and [Writing jobs](#writing-jobs) adds your own scripts.
+
+### Installer options
 
 | `install.sh` | `install.ps1` | |
 | --- | --- | --- |
@@ -134,9 +189,26 @@ curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.
 | `--no-init`, `--no-service` | `-NoInit`, `-NoService` | Skip a step |
 | `--update-by <who>` | `-UpdateBy <who>` | System mode: let this account update Vigil without admin rights |
 
-**If your organisation does not pipe scripts into a shell:** download `vigil-<version>.tar.gz` (or `.zip`), `SHA256SUMS` and the installer from the [releases page](https://github.com/godspeedhq/vigil/releases), check `sha256sum -c SHA256SUMS --ignore-missing` (or `Get-FileHash`), read the installer, then run it with `--archive` (`-Archive`). It is the same installer.
+With `sh`, options go after `sh -s --`, as in `curl ... | sudo sh -s -- --system --backend file,datadog`.
 
-To remove Vigil: `vigil uninstall`.
+### Without piping a script into a shell
+
+If your organisation doesn't allow piping scripts into a shell, or the machine has no internet access:
+
+1. From the [releases page](https://github.com/godspeedhq/vigil/releases), download the archive (`vigil-<version>.tar.gz` for Linux and macOS, `vigil-<version>.zip` for Windows), `SHA256SUMS` and the installer (`install.sh` or `install.ps1`).
+2. Check the archive: `sha256sum -c SHA256SUMS --ignore-missing` on Linux, `shasum -a 256 -c SHA256SUMS --ignore-missing` on macOS, or compare `Get-FileHash vigil-<version>.zip` with its line in `SHA256SUMS` on Windows.
+3. Read the installer. It's the same one the one-line command runs.
+4. Run it with the archive:
+   - Linux and macOS: `sudo sh install.sh --system --archive vigil-<version>.tar.gz`
+   - Windows, from an elevated prompt: `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -System -Archive .\vigil-<version>.zip`
+
+### Package managers
+
+Not yet. `.deb` and `.rpm` packages, Homebrew, Scoop, Chocolatey and later winget are planned: [backlog 30](backlog/30_package_managers.md) has what that needs.
+
+### Remove
+
+`vigil uninstall` lists what it will remove and asks first. `--keep-config` keeps `config/` and `scripts/`.
 
 ## Update
 
