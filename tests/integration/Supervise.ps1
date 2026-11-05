@@ -16,10 +16,10 @@
 .DESCRIPTION
     Runs a real supervisor with a one-second tick against real jobs, then
     checks what it did through the file backend's Prometheus file: runs
-    started, the concurrency limit held, overlaps skipped, a crashed run and
-    an abandoned launch recorded, events for a backend type not implemented
-    yet counted as dropped, and a second supervisor refused. The twin of
-    supervise.sh.
+    started, jobs running together with no ceiling, overlaps skipped, a
+    crashed run and an abandoned launch recorded, events for a backend type
+    not implemented yet counted as dropped, and a second supervisor refused.
+    The twin of supervise.sh.
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -86,8 +86,9 @@ Write-Host "PowerShell $($PSVersionTable.PSVersion)"
 [void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'config'), (Join-Path $root 'scripts'))
 $locks = Join-Path $root 'state\locks'
 
-# Both jobs take the same in-flight marker: if they ever overlap, the
-# concurrency limit of 1 was broken. ping -n <n+1> waits about n seconds.
+# Both jobs take the same in-flight marker. Nothing caps how many run at
+# once (8), so slow (4s, every 2s) and fast must overlap at some point.
+# ping -n <n+1> waits about n seconds.
 Set-Content -LiteralPath (Join-Path $root 'scripts\work.cmd') -Value @(
     '@echo off',
     'mkdir "%IT_ROOT%\inflight" 2>nul || echo overlap>>"%IT_ROOT%\overlap"',
@@ -97,8 +98,7 @@ Set-Content -LiteralPath (Join-Path $root 'scripts\work.cmd') -Value @(
 
 Set-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value @"
 [vigil]
-instance       = sup
-max_concurrent = 1
+instance = sup
 
 [scheduler]
 tick = 1s
@@ -168,7 +168,7 @@ if ($orphans.Count -gt 0) {
     Invoke-Tick
 }
 
-Test-Equal 'concurrency limit never broken' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'overlap'))"
+Test-Equal 'jobs run together: no ceiling' 'True' "$(Test-Path -LiteralPath (Join-Path $root 'overlap'))"
 Test-Equal 'fast ran and succeeded' 'succeeded' (Get-StateValue (Join-Path $root 'state\jobs\fast.state') 'status')
 Test-Equal 'slow ran and succeeded' 'succeeded' (Get-StateValue (Join-Path $root 'state\jobs\slow.state') 'status')
 Test-Equal 'sender ran and succeeded' 'succeeded' (Get-StateValue (Join-Path $root 'state\jobs\vigil_sender.state') 'status')

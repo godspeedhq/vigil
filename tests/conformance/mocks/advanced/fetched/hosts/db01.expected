@@ -1,5 +1,5 @@
-WARN	1281	W_SCRIPT_UNPINNED
-WARN	1333	W_SCRIPT_UNPINNED
+WARN	1275	W_SCRIPT_UNPINNED
+WARN	1327	W_SCRIPT_UNPINNED
 disk_usage	file	checks/posix/disk_usage.sh	job
 disk_usage	runner	bash	runners
 disk_usage	metric_name	os.disk	job

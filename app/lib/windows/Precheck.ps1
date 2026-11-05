@@ -279,6 +279,13 @@ function Invoke-VigilPrecheck {
         $w = Test-VigilWritableDir $d
         if ($w.Ok) { & $ok "${what}: $d" } else { & $fail "${what}: not writable: $($w.Dir)" }
     }
+    # Information, never a failure (8): how many jobs start together at the
+    # busiest minute, each with a worker of its own.
+    if (-not $Job -and $checkJobs) {
+        $now = [DateTimeOffset]::Now
+        $busy = Get-VigilScheduleBusiest -Index $jobsIndex -Now ($now.ToString('yyyy-MM-ddTHH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture) + $now.ToString('zzz').Replace(':', ''))
+        if ($busy.Count -ge 2) { $out.Add("  note  busiest minute in the next 24 hours: $($busy.At), $($busy.Count) jobs start together") }
+    }
     if ($env:VIGIL_FAULT) { & $fail 'VIGIL_FAULT is set: fault injection is for tests only (22.4.1)' }
     if ($env:VIGIL_TEST_IMDS) { & $fail 'VIGIL_TEST_IMDS is set: the metadata endpoint override is for tests only (22.4.2)' }
     if ($env:VIGIL_TEST_SSH_CONFIG) { & $fail 'VIGIL_TEST_SSH_CONFIG is set: the ssh configuration override is for tests only (22.4.3)' }

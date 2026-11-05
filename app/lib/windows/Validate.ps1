@@ -193,14 +193,12 @@ function Get-VigilKeyType {
                 'config_file' { $t = 'srcpath' }
                 'instance' { $t = 'name' }
                 'state_dir' { $t = 'path' }
-                'max_concurrent' { $t = 'int1' }
             }
         }
         'scheduler' {
             switch -CaseSensitive ($Key) {
                 'tick' { $t = 'dur' }
                 'late_start_window' { $t = 'dur0' }
-                'max_pending' { $t = 'int' }
             }
         }
         'log' {

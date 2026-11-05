@@ -1,5 +1,5 @@
 ERROR    line 2: 'instance' may contain only letters, digits, '_', '.' and '-': my host (E_NAME)
-ERROR    line 3: 'max_concurrent' must be at least 1 (E_INTEGER)
+ERROR    line 3: unknown key 'max_concurrent' in [vigil] (E_KEY_UNKNOWN)
 ERROR    line 5: 'tick' must be a duration such as 30s, 5m, 2h or 7d: 60 (E_DURATION)
 ERROR    line 7: 'stdout' must be true or false: yes (E_BOOLEAN)
 ERROR    line 9: tag 'host' is set by Vigil and cannot be declared (E_TAG_RESERVED)

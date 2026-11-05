@@ -12,10 +12,10 @@
 # Integration test: the supervisor and the sender (SPECIFICATION.md 4.1,
 # 4.5, 7, 8, 11.3) on Linux and macOS. Runs a real supervisor with a
 # one-second tick against real jobs, then checks what it did through the
-# file backend's Prometheus file: runs started, the concurrency limit held,
-# overlaps skipped, a crashed run and an abandoned launch recorded, events
-# for a backend type not implemented yet counted as dropped, and a second
-# supervisor refused.
+# file backend's Prometheus file: runs started, jobs running together with
+# no ceiling, overlaps skipped, a crashed run and an abandoned launch
+# recorded, events for a backend type not implemented yet counted as
+# dropped, and a second supervisor refused.
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -67,8 +67,8 @@ printf 'bash %s\n' "$BASH_VERSION"
 mkdir -p "$root/config" "$root/scripts"
 root=$(cd "$root" && pwd)
 
-# Both jobs take the same in-flight marker: if they ever overlap, the
-# concurrency limit of 1 was broken.
+# Both jobs take the same in-flight marker. Nothing caps how many run at
+# once (8), so slow (3s, every 2s) and fast must overlap at some point.
 cat > "$root/scripts/work.sh" <<'EOF'
 if ! mkdir "$IT_ROOT/inflight" 2>/dev/null; then echo overlap >> "$IT_ROOT/overlap"; fi
 sleep "$1"
@@ -78,8 +78,7 @@ EOF
 
 cat > "$root/config/vigil.config" <<EOF
 [vigil]
-instance       = sup
-max_concurrent = 1
+instance = sup
 
 [scheduler]
 tick = 1s
@@ -142,7 +141,7 @@ sleep 5
 tick
 tick
 
-check "concurrency limit never broken" "" "$(cat "$root/overlap" 2>/dev/null)"
+check "jobs run together: no ceiling" yes "$([ -s "$root/overlap" ] && echo yes || echo no)"
 check "fast ran and succeeded" succeeded "$(state_value "$root/state/jobs/fast.state" status)"
 check "slow ran and succeeded" succeeded "$(state_value "$root/state/jobs/slow.state" status)"
 check "sender ran and succeeded" succeeded "$(state_value "$root/state/jobs/vigil_sender.state" status)"

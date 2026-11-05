@@ -55,7 +55,7 @@ Scripts crash, hang, exit with misleading codes or print malformed output. None 
 
 ### 2.4 Bounded Execution
 
-Concurrency is limited globally. A job may declare a runtime limit; when it does, the limit is enforced (§10.3).
+Every job runs at its time, however many are due at once: the configuration is the limit (§8). A job may declare a runtime limit; when it does, the limit is enforced (§10.3).
 
 ### 2.5 Observable Behaviour
 
@@ -119,7 +119,6 @@ The long-running process managed by the OS service manager. Responsible for:
 - Loading, validating and hot-reloading configuration.
 - Evaluating every job once per tick.
 - Spawning workers when jobs are due.
-- Enforcing the global concurrency limit.
 - Detecting crashed workers and overrunning jobs.
 - Enforcing `max_runtime` where declared.
 - Writing the live status file (`jobs.log`).
@@ -303,8 +302,8 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 
 | Section | Purpose |
 | --- | --- |
-| `[vigil]` | Instance name, state directory, global concurrency limit, and where the configuration comes from (§6.8). |
-| `[scheduler]` | Tick interval, late-start window, pending limit. |
+| `[vigil]` | Instance name, state directory, and where the configuration comes from (§6.8). |
+| `[scheduler]` | Tick interval and late-start window. |
 | `[log]` | Log directory, stdout mirroring, retention, file size cap. |
 | `[tags]` | Tags attached to every metric. |
 | `[spool]` | Spool directory, size cap, overflow policy. |
@@ -568,7 +567,7 @@ Rules:
 
 - `backends` replaces the global choice; it is not merged. A job that lists backends sends only to those.
 - Job-only keys may not appear in `[defaults]`: `file`, `source`, `sha256`, `arg`, `metric_name`, `run_every`, `run_at`, `run_on_days`, `runner`, `tag`, `env`, `secret` and `require_env`. A default schedule would silently schedule every job that forgot its own; a default runner, tag or environment belongs in `[runners]`, `[tags]` or a runner. Setting one is a validation error.
-- Global-only settings cannot be set on a job: `[vigil]` (instance, state directory, `max_concurrent`), `[scheduler]` `tick` and `max_pending`, `[log]` `dir`, `stdout` and `max_file_mb`, `[spool]` and the `[backend.*]` definitions. A job chooses *which* backends receive its metrics, not how they connect.
+- Global-only settings cannot be set on a job: `[vigil]` (instance, state directory), `[scheduler]` `tick`, `[log]` `dir`, `stdout` and `max_file_mb`, `[spool]` and the `[backend.*]` definitions. A job chooses *which* backends receive its metrics, not how they connect.
 - In `env`, `secret` and `tag`, a repeated name within the same section is a validation error, and so is a name in both `env` and `secret`; repeating one across layers is an override.
 - Relative `working_dir` paths resolve against the install root; the directory must exist (checked by pre-flight).
 - Merged `tag` and `env` lists keep the global order: a job value with the same name replaces the global one in place, and the job's other names follow in job order. `require_env` lists the runner's names, then the job's, each once.
@@ -829,17 +828,11 @@ Every decision except `disabled` also reports the next slot that can run — the
 
 ## 8. Concurrency
 
-`max_concurrent` (default `5`) limits the number of running workers across all jobs.
+Vigil runs every job the configuration names, at its time, however many are due at once. It never delays or skips a run to limit how many run together: how much a server can take is its operator's decision, and the configuration is the limit. A job has at most one run active at a time (§9), so N jobs never need more than N workers.
 
-When the limit is reached:
+Each run has a worker of its own: a bash process on Linux and macOS, a PowerShell process on Windows. Many jobs due in the same minute start that many processes together. `vigil precheck` reports the minute of the next 24 hours at which the most jobs start, and how many (§16.4), so it can be seen before it happens. It is information, never a failure.
 
-1. Due jobs become pending.
-2. Running workers continue.
-3. Pending jobs start as capacity frees, oldest first.
-4. Scheduling delay is recorded.
-5. `max_pending` (default `20`) bounds the pending queue; beyond it, runs are skipped and recorded.
-
-Because workers outlive the supervisor, a restarted supervisor counts workers that are still alive (from their state files) before admitting new work.
+Runs that `queue_one` holds (§9) survive a supervisor restart, in `state/pending`, because their jobs' cursors have already moved past them (§7.9). Because workers outlive the supervisor, a restarted supervisor accounts for the workers that are still alive (from their state files) before it starts anything.
 
 ---
 
@@ -850,7 +843,7 @@ Each job has an overlap policy:
 - **`skip`** (default): if the previous run is still active when the next is due, the new run is skipped and recorded as skipped.
 - **`queue_one`**: at most one run is held pending until the active run finishes.
 
-A skipped run is never reported as a failure. Pending runs are held in supervisor memory and are not persisted; a supervisor restart drops them (documented in §24).
+A skipped run is never reported as a failure. Queued runs survive a supervisor restart (§8).
 
 ---
 
@@ -1141,11 +1134,9 @@ instance         = ops-windows
 status           = succeeded
 reason           =
 boot_id          = 6f1c0e2a-9b4d-4a57-8e0f-2c1d3b5a7e90
-scheduled_epoch  = 1793304000
 started_epoch    = 1793304003
 deadline_epoch   =
 ended_epoch      = 1793304870
-scheduled_at     = 2026-10-29T20:00:00Z
 started_at       = 2026-10-29T20:00:03Z
 ended_at         = 2026-10-29T20:14:30Z
 duration_seconds = 867
@@ -1219,7 +1210,6 @@ Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every
 - `INVALID` (with the validation reason)
 - `FILE MISSING`
 - `RUNNING` (PID, elapsed, time to `max_runtime`)
-- `PENDING` (waiting for capacity)
 - `WAITING` (next scheduled time)
 - `DISABLED`
 - `LAST RUN` (outcome, end time, duration)
@@ -1381,7 +1371,7 @@ Posted for each job under its `metric_name`:
 | `<m>.uncertain` | gauge | `1` every tick while a run's liveness cannot be established (§11.4). |
 | `<m>.possible_duplicates` | count | A run started under `on_uncertain = replace`. |
 | `<m>.state_corrupt` | count | The job's state file was unreadable. |
-| `<m>.skipped` | count | Overlap or pending-limit skip. |
+| `<m>.skipped` | count | A slot skipped because the job's previous run was still active (§9). |
 | `<m>.missed` | count | Missed while the supervisor was down. |
 | `<m>.running` | gauge | Elapsed seconds, every tick while running. |
 | `<m>.invalid_config` | gauge | `1` every tick while the job fails validation. |
@@ -1454,7 +1444,6 @@ This works for every plugin, whether its labels are fixed names (`rta`, `pl`, `t
 | --- | --- |
 | `vigil.supervisor.up` | gauge, every tick (heartbeat) |
 | `vigil.supervisor.workers` | gauge |
-| `vigil.supervisor.pending` | gauge |
 | `vigil.supervisor.config_reload_failed` | gauge, `1` while a reload is rejected |
 | `vigil.config.info` | gauge, `1` every tick, tagged `revision` (the active configuration revision, §16.5) |
 | `vigil.config.activated` | count, when a new revision becomes active |
@@ -1675,6 +1664,7 @@ Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rul
 - Every `secret` of every job resolves, and every `require_env` variable is set (or provided by a `secret`). Backend and secret store credentials (`env:`, `secret:` references) resolve, and each cloud secret store says whether it uses its vendor's CLI or Vigil's own HTTPS (§6.5.3). Values are fetched and thrown away; only references are printed.
 - State, log and spool directories are writable: each, or the nearest folder above it that exists, since precheck creates nothing.
 - `VIGIL_FAULT` and `VIGIL_TEST_IMDS` are not set (§22.4.1, §22.4.2).
+- The minute of the next 24 hours at which the most jobs start, and how many, when it is more than one: a `note`, never a failure (§8). Each job's starts are worked out from its schedule as the supervisor would, at the current UTC offset.
 
 `vigil precheck <job>` checks only that job, and also prints its effective settings and their sources (§6.6).
 
@@ -1690,6 +1680,7 @@ Checks
   ok    state directory: /opt/vigil/state
   ok    log directory: /opt/vigil/logs
   ok    spool directory: /opt/vigil/spool
+  note  busiest minute in the next 24 hours: 01:00, 12 jobs start together
 
 precheck failed: 2 problem(s)
 ```
@@ -1885,7 +1876,7 @@ On Windows the same grant is `install.ps1 -System -UpdateBy <account or group>`.
 
 - The new files are copied in before anything is stopped, so a full disk changes nothing.
 - The old version is removed only once the new one has answered `vigil version` and, if the service was running, the supervisor has come up as the new version. Otherwise the old version is put back, and the command fails saying so.
-- `config/`, `scripts/`, `state/`, `spool/`, `cache/` and `logs/` are never touched, so everything picks up where it left off: running jobs finish under the code they started with (§18.3), and the new supervisor accounts for them from their evidence (§11.3); schedules, queued metrics, log checkpoints and the active configuration are read back from disk. Runs waiting for a slot are kept in `state/pending`, because a job's cursor has already moved past them.
+- `config/`, `scripts/`, `state/`, `spool/`, `cache/` and `logs/` are never touched, so everything picks up where it left off: running jobs finish under the code they started with (§18.3), and the new supervisor accounts for them from their evidence (§11.3); schedules, queued metrics, log checkpoints and the active configuration are read back from disk. Runs that `queue_one` holds are kept in `state/pending`, because a job's cursor has already moved past them.
 - `state/format` holds one number for everything Vigil keeps under `state/` and `spool/`, cursors and checkpoints included; an install without it is format 1. A format change is a numbered script in `app/migrations`, `N.sh` and `N.ps1`, which moves the data from `N-1` to `N` and is given the state, spool and log directories; the highest `N` is the format that version writes. The supervisor runs them in order under its lock, the number moving after each, so a failed step is the one retried. Runs in progress finish under the code they started with (§18.3), so a migration must leave data they can still write to, and the new version must read what they write. On a hot reload the running supervisor runs the new version's migrations before it becomes that version: if they fail it logs why and carries on, and the installer, finding no new version, puts the old one back. A version refuses to start on data of a newer format, or a `state/format` it cannot read, and `vigil precheck` reports both, so a downgrade past a format change fails instead of misreading the data.
 - It runs as whoever installed Vigil, or an account given `--update-by` (`-UpdateBy`): otherwise `sudo` for a system install on Linux and macOS, an elevated prompt on Windows. It refuses a copy from the repository.
 - A release is verified before anything runs: `SHA256SUMS` must carry a signature (`SHA256SUMS.sig`) from the release key, whose public half is `app/release-key.pem` of the version already installed, checked with `openssl`, or .NET on Windows. The installer and the archive must then match `SHA256SUMS`, and the archive verified is the one installed. A release with a bad or missing signature is refused, and nothing changes. So is any update when `app/release-key.pem` is missing: there is then nothing to check with. A first install has no earlier copy to hold the key, so the one-line installer relies on GitHub and HTTPS; the reviewed path can check the signature by hand.
@@ -2024,7 +2015,6 @@ The repository includes a `checks/` library of ready-made job scripts, per platf
 
 Explicit, configurable limits exist for:
 
-- Concurrent workers and pending runs.
 - Log file size and retention.
 - Spool size.
 - Metric lines per run.
@@ -2185,7 +2175,7 @@ Every result records Vigil version, OS and version, shell version, test id, resu
 
 **VIGIL-001 — Single Supervisor Ownership.** Only one supervisor may own a state directory.
 
-**VIGIL-002 — Bounded Concurrency.** Running workers never exceed `max_concurrent` while the supervisor is running.
+**VIGIL-002 — No Concurrency Ceiling.** Every due run starts at its time. The supervisor never delays or skips a run to limit how many run at once; only a job's own previous run, through its overlap policy, holds it back (§8, §9).
 
 **VIGIL-003 — Declared Runtime Limits.** A declared `max_runtime` is enforced by tree termination within one tick of expiry while the supervisor runs. Jobs without one are unbounded by design.
 
@@ -2227,7 +2217,6 @@ Each invariant has a documented enforcement mechanism and regression tests.
 
 - `max_runtime` is not enforced while the supervisor is down, and is accurate to one tick.
 - Scheduling resolution is one tick (default 60 seconds).
-- `queue_one` pending runs are lost on supervisor restart.
 - Processes that deliberately escape their process group or tree may survive termination.
 - Cygwin emulates fork/exec; Windows parent/child links may differ from Cygwin's, so tree termination of Cygwin jobs needs its own verification.
 - On Windows, a program that splits its command line by rules other than the Microsoft C runtime's may receive different arguments from those configured. Batch files reject arguments containing `cmd.exe` metacharacters (§6.4).
@@ -2273,7 +2262,7 @@ Vigil v1 is ready when:
 - [ ] Runners, the extension map, `{file}` substitution and direct execution work.
 - [ ] Per-job overrides follow §6.6 identically on PowerShell and bash, and `vigil precheck <job>` shows each effective value's source.
 - [ ] Standard, Nagios and explicit exit-code classification work.
-- [ ] Global concurrency and overlap policies are enforced.
+- [ ] Overlap policies are enforced, and no run is held back for any other reason.
 - [ ] Workers survive supervisor stop and restart on all three platforms.
 - [ ] Crashed, orphaned and identity-mismatched workers are handled per §11.3.
 - [ ] Corrupt or missing state never, by itself, causes a run to be killed or a duplicate run to start.

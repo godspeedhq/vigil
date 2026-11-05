@@ -16,8 +16,8 @@
     The long-running tick loop the service manager runs (SPECIFICATION.md
     4.1). Each tick it reloads the configuration when it changed, accounts
     for every job's latest run (11.3), reaches each job's schedule decision
-    (7.9), admits due runs within max_concurrent (8), launches each as a
-    detached worker (4.3), and writes jobs.log (13.2) and its own events.
+    (7.9), starts every due run (8) as a detached worker (4.3), and writes
+    jobs.log (13.2) and its own events.
 
     Invoke-VigilSupervisor -Root <dir> -App <app dir> [-Once]
         Returns 1 when another supervisor owns the state directory or the
@@ -216,8 +216,6 @@ function Invoke-VigilSupervisor {
         $sv.Logs = & $dir 'log' 'dir' 'logs'
         $sv.Spool = & $dir 'spool' 'dir' 'spool'
         $sv.Instance = Get-VigilConfigValue $Parsed 'vigil' 'instance' 'vigil'
-        $sv.Max = [int](Get-VigilConfigValue $Parsed 'vigil' 'max_concurrent' '5')
-        $sv.MaxPending = [int](Get-VigilConfigValue $Parsed 'scheduler' 'max_pending' '20')
         $tick = Get-VigilConfigValue $Parsed 'scheduler' 'tick' '60s'
         $n = [int]$tick.Substring(0, $tick.Length - 1)
         $sv.Tick = switch ($tick[-1]) { 's' { $n } 'm' { $n * 60 } 'h' { $n * 3600 } default { $n * 86400 } }
@@ -714,26 +712,15 @@ function Invoke-VigilSupervisor {
             if ($d.Next -cne '-') { $status.Waiting += "${job}: next $($d.Next)" }
         }
 
-        # Admission (8): oldest pending first, within max_concurrent; beyond
-        # max_pending, runs are skipped.
-        $next = New-Object 'System.Collections.Generic.List[string]'
+        # Admission (8): every due run starts now, oldest first. Vigil sets no
+        # limit on how many run at once: the machine is its operator's.
         foreach ($job in $sv.Pending) {
-            if ($sv.Running -lt $sv.Max) {
-                $sc = & $scriptOf $job
-                if (-not $sc.Ok) { continue }
-                & $start $job $sc.Path
-                $status.Running += $job
-            }
-            else { $next.Add($job) }
+            $sc = & $scriptOf $job
+            if (-not $sc.Ok) { continue }
+            & $start $job $sc.Path
+            $status.Running += $job
         }
         $sv.Pending = New-Object 'System.Collections.Generic.List[string]'
-        foreach ($job in $next) {
-            if ($sv.Pending.Count -lt $sv.MaxPending) { $sv.Pending.Add($job) }
-            else {
-                & $event $job 'skipped' '1' 'count'
-                & $log 'WARN' "job ${job}: skipped: more than $($sv.MaxPending) runs pending"
-            }
-        }
 
         if ($sv.Pending.Count + $sv.Queued.Count -gt 0) {
             Write-VigilFileAtomic -Path $queueFile -Text "pending=$($sv.Pending -join ' ')`nqueued=$(@($sv.Queued) -join ' ')`n"
@@ -742,7 +729,6 @@ function Invoke-VigilSupervisor {
 
         & $event '' 'up' '1' 'gauge'
         & $event '' 'workers' "$($sv.Running)" 'gauge'
-        & $event '' 'pending' "$($sv.Pending.Count)" 'gauge'
         & $event '' 'config_reload_failed' "$($sv.ReloadFailed)" 'gauge'
         # The active revision, and how long since each source was last
         # checked successfully (14.5).
@@ -762,8 +748,7 @@ function Invoke-VigilSupervisor {
         Write-VigilFileAtomic -Path (Join-Path $incoming "$($sv.Epoch)-vigil_supervisor.events") -Text (($sv.Events | ForEach-Object { "$_`n" }) -join '')
 
         # The sender (4.5): one at a time, started whenever the spool holds
-        # anything. It is Vigil's own worker and does not count against
-        # max_concurrent.
+        # anything. It is Vigil's own worker.
         $acc = & $account 'vigil_sender'
         if ($acc.Active -ceq '-' -and -not $sv.Waiting) {
             $queued = $false
@@ -779,8 +764,8 @@ function Invoke-VigilSupervisor {
             if ($queued) { & $start 'vigil_sender' }
         }
 
-        # The fetcher (16.5): like the sender, one at a time, outside
-        # max_concurrent, so a slow source never delays a tick.
+        # The fetcher (16.5): like the sender, one at a time, started apart
+        # from the jobs, so a slow source never delays a tick.
         if ($sv.Mode -ceq 'fetch') {
             $acc = & $account 'vigil_fetch'
             if ($acc.Active -ceq '-' -and (& $fetchDue)) { & $start 'vigil_fetch' }
@@ -818,7 +803,7 @@ function Invoke-VigilSupervisor {
             }
         }
         foreach ($s in @(@('FILE MISSING', $status.Missing), @('UNCERTAIN', $sv.Uncertain), @('CRASHED', $sv.Crashed), @('INVALID', $status.Invalid),
-                @('RUNNING', $status.Running), @('PENDING', $sv.Pending), @('WAITING', $status.Waiting),
+                @('RUNNING', $status.Running), @('WAITING', $status.Waiting),
                 @('DISABLED', $status.Disabled), @('LAST RUN', $status.Last))) {
             if (@($s[1]).Count -eq 0) { continue }
             [void]$sb.Append("`r`n$($s[0])`r`n")

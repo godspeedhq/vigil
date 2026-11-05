@@ -76,7 +76,6 @@ EOF
 cat > "$root/config/vigil.config" <<EOF
 [vigil]
 instance       = mrt
-max_concurrent = 5
 
 [scheduler]
 tick = 1s
