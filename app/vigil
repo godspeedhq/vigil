@@ -377,7 +377,7 @@ case ${1-} in
         # The configuration decides the version when it names one (18.11):
         # an update here would be undone at its next load.
         if [ "$check" = 0 ] && [ -n "$_vu_want" ]; then
-            printf 'vigil: the version is set in the configuration (version = %s): change it there to update\n' "$_vu_want" >&2
+            printf 'vigil: the version is set in the configuration (version = %s): change it there to update, or remove it to use vigil self update\n' "$_vu_want" >&2
             exit 1
         fi
         vigil_self_update "$root" "$app" "$check" "$want"

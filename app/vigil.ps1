@@ -361,7 +361,7 @@ switch ($Command) {
         # The configuration decides the version when it names one (18.11): an
         # update here would be undone at its next load.
         if (-not $check -and $configured) {
-            [Console]::Error.WriteLine("vigil: the version is set in the configuration (version = $configured): change it there to update")
+            [Console]::Error.WriteLine("vigil: the version is set in the configuration (version = $configured): change it there to update, or remove it to use vigil self update")
             exit 1
         }
         $code = 0
