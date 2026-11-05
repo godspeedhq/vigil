@@ -88,6 +88,8 @@ _vigil_prom_event() {
 
 vigil_prom_merge() {
     local old=$1 line name labels type value
+    # Byte order here, in bash. A local is not exported, so the sort below
+    # sets its own: it would otherwise sort in the machine's locale.
     local LC_ALL=C
     shift
     {
@@ -136,7 +138,7 @@ vigil_prom_merge() {
                 print k[1] "\t" (k[2] == "" ? "-" : k[2]) "\t" type[order[i]] "\t" value[order[i]]
             }
         }
-    ' | sort -t "$(printf '\t')" -k1,1 -k2,2 | {
+    ' | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -k2,2 | {
         local last=''
         while IFS="$(printf '\t')" read -r name labels type value; do
             if [ "$name" != "$last" ]; then
