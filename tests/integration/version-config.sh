@@ -286,6 +286,8 @@ check 'a fetched configuration moves it' 0.7.0-it "$(version_of)"
 [ "$(version_of)" = 0.7.0-it ] || explain
 vigil self update > "$work/out" 2>&1
 check 'self update is refused by the fetched version' 1 "$(grep -c 'version = 0.7.0-it' "$work/out")"
+vigil status > "$work/out" 2>&1
+check 'status reads the backends of the fetched configuration' 0 "$(grep -c 'no backend' "$work/out")"
 # Latest first, so that once the line is gone self update finds nothing to do.
 printf '/releases/latest /releases/tag/v0.7.0-it\n' > "$work/mock/redirects"
 set_version "$work/fleet/hosts/vc.config" -

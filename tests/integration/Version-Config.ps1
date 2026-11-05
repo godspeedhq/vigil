@@ -294,6 +294,7 @@ try {
     Test-Equal 'a fetched configuration moves it' '0.7.0-it' (Get-Version)
     if ((Get-Version) -cne '0.7.0-it') { Show-Run }
     Test-Equal 'self update is refused by the fetched version' 'True' ([string](Invoke-Vigil self update).Text.Contains('version = 0.7.0-it'))
+    Test-Equal 'status reads the backends of the fetched configuration' 'False' ([string](Invoke-Vigil status).Text.Contains('no backend'))
     # Latest first, so that once the line is gone self update finds nothing to do.
     Set-Latest '0.7.0-it'
     Set-ConfigVersion "$fleet\hosts\vc.config" '-'

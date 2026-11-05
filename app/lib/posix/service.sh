@@ -412,7 +412,19 @@ vigil_service_status() {
         fi
     fi
     printf 'service: %s\n' "$state"
+    # The backends of the configuration in effect: the active one when it is
+    # fetched (6.8, 16.5). Before the first fetch there is nothing to say.
+    local known=0
     if vigil_config_parse "$root/config/vigil.config" 2> /dev/null; then
+        known=1
+        _vw_root=$root
+        if vigil_fetch_mode; then
+            _vigil_wk_dir vigil state_dir state
+            known=0
+            vigil_active_read "$_vw_dir" && vigil_config_parse "$VIGIL_ACT_CONFIG" 2> /dev/null && known=1
+        fi
+    fi
+    if [ "$known" = 1 ]; then
         case " ${VIGIL_CFG_SEC_NAME[*]-} " in
             *' backend.'*) ;;
             *) printf 'metrics: no backend, so they go nowhere until you add one\n' ;;
