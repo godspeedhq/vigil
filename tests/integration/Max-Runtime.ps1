@@ -69,10 +69,11 @@ Write-Host "PowerShell $($PSVersionTable.PSVersion)"
 [void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'config'), (Join-Path $root 'scripts'))
 
 # The job would finish after about 30 seconds and leave a marker; it may not.
+# The marker names the run and the time, so a failure shows which run lived on.
 Set-Content -LiteralPath (Join-Path $root 'scripts\long.cmd') -Value @(
     '@echo off',
     'ping -n 31 127.0.0.1 >nul',
-    'echo done>"%IT_ROOT%\long.finished"')
+    'echo %VIGIL_RUN_ID% at %TIME%>>"%IT_ROOT%\long.finished"')
 
 Set-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value @"
 [vigil]
@@ -122,6 +123,15 @@ Start-Sleep -Seconds 30
 Test-Equal "long's process did not survive" 'False' "$(Test-Path -LiteralPath (Join-Path $root 'long.finished'))"
 
 if ($script:fail -gt 0) {
+    $marker = Join-Path $root 'long.finished'
+    if (Test-Path -LiteralPath $marker) {
+        Write-Host "`nlong.finished (local time), now $(Get-Date -Format 'HH:mm:ss') local, $([DateTime]::UtcNow.ToString('HH:mm:ss')) UTC:"
+        Write-Host ([System.IO.File]::ReadAllText($marker))
+    }
+    foreach ($f in Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\long') -Filter '*.log' -ErrorAction SilentlyContinue) {
+        Write-Host "`njob log $($f.Name):"
+        Write-Host ([System.IO.File]::ReadAllText($f.FullName))
+    }
     Write-Host "`nsupervisor log:"
     Write-Host ($supLog.Split("`n") | Select-Object -Last 30 | Out-String)
 }

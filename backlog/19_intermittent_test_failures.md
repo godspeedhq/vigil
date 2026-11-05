@@ -12,6 +12,37 @@ The tests print what they know when these fail.
   refused update. Cause unknown; one guess is that it never started (the test
   did not check). The test now checks that it starts, and on a failure prints
   its log, stdout and stderr.
+- `tests/integration/Max-Runtime.ps1`, PowerShell 7: `long's process did not
+  survive`, on main (the merge of #95) on 2026-11-05. Some run's `cmd.exe`
+  lived on to write its marker after the supervisor ended its tree. The fix
+  below for PowerShell 5.1 orders Vigil's own kill from the root down, but
+  with WMI the kill is `taskkill /T /F`, and 30 tries locally never let
+  `cmd.exe` run its next line. Each kill was followed a tick later by
+  "uncertain", which only says the worker was still waiting for its job's
+  output. The marker now names the run and the time, and a failure prints
+  the job log, so the next one shows which run lived on and when.
+
+## Fixed, cause known (2026-11-05)
+
+- `tests/integration/upgrade.sh`, Linux: `scheduled jobs carry on`, on #94
+  on 2026-11-05 (and on macOS on the merge of #41, below). **Vigil's:** the
+  installer swaps `app/` with two renames, and for that instant there is no
+  `app/`. A worker started then cannot run, so it never claims its launch,
+  and the supervisor held the job for the 120-second launch grace (11.3).
+  The test waited 60. Reproduced on Fedora: with `app/` swapped 80 times
+  while a job launched every second, one launch was never claimed. The
+  grace only has to cover starting a process, since a started worker
+  carries its run id however slow it is to claim, so it is now 30 seconds;
+  the same repro then abandoned both stranded launches (`beat` and
+  `vigil_sender`) after 30 seconds and the jobs carried on. On a failure,
+  both upgrade tests now list the lock files and the supervisor log without
+  the skipped slots.
+- `tests/integration/Supervise.ps1`, PowerShell 5.1, run locally: `jobs run
+  together: no ceiling`, twice on 2026-11-05. **The test's:** `fast`'s job
+  (`ping -n 1`) ended at once, so on a slow machine it could start and end
+  before `slow` took the in-flight marker. Both start on the same slots, so
+  `fast` now lasts 2 seconds (1 in `supervise.sh`) and the two are in flight
+  together however long each takes to start.
 
 ## Fixed, cause known (2026-11-04)
 
@@ -58,7 +89,7 @@ nor in 24 macOS upgrades and self updates and 12 Windows service runs before.
 
 - `tests/integration/upgrade.sh`, macOS: `scheduled jobs carry on`, on the
   merge of #41. A job did not run three more times within 60 seconds of the
-  update.
+  update. Most likely the stranded launch fixed above (2026-11-05).
 - `tests/integration/Service.ps1`, PowerShell 7: `user/pwsh: start succeeds`,
   on #43. `vigil start` exited 1 and the service stayed inactive. The user
   lifecycles share a root too, but this check comes after the run, so the
@@ -76,4 +107,5 @@ nor in 24 macOS upgrades and self updates and 12 Windows service runs before.
   2026-11-03: work in progress there, not on main.
 
 ## Done when
+
 - Each has a known cause and is fixed, or is shown to be the test's timing.

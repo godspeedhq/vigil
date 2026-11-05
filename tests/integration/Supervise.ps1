@@ -87,7 +87,8 @@ Write-Host "PowerShell $($PSVersionTable.PSVersion)"
 $locks = Join-Path $root 'state\locks'
 
 # Both jobs take the same in-flight marker. Nothing caps how many run at
-# once (8), so slow (4s, every 2s) and fast must overlap at some point.
+# once (8), and both start on the same slots, so slow (3s) and fast (2s)
+# are in flight together whatever it takes each to start.
 # ping -n <n+1> waits about n seconds.
 Set-Content -LiteralPath (Join-Path $root 'scripts\work.cmd') -Value @(
     '@echo off',
@@ -112,7 +113,7 @@ api_key = env:NEW_RELIC_KEY
 
 [job.fast]
 file      = scripts\work.cmd
-arg       = 1
+arg       = 3
 env       = IT_ROOT=$root
 run_every = 2s
 
@@ -157,7 +158,7 @@ Invoke-Tick
 Invoke-Tick
 # Stop-Process can land between a launch record and its worker's claim. No
 # worker ever holds that record, and Vigil abandons it once it is older than
-# the 120-second grace (11.3). The test ages it rather than waiting, and the
+# the 30-second grace (11.3). The test ages it rather than waiting, and the
 # tick below must then abandon it.
 $orphans = @(Get-ChildItem -LiteralPath $locks -Filter '*.launch' -File -ErrorAction SilentlyContinue)
 if ($orphans.Count -gt 0) {
@@ -175,7 +176,7 @@ Test-Equal 'sender ran and succeeded' 'succeeded' (Get-StateValue (Join-Path $ro
 $runs = Get-Prom 'fast_runs_total'
 Test-Equal 'fast ran more than once' 'True' "$([int]('0' + $runs) -ge 2)"
 Test-Equal 'fast succeeded counted' $runs (Get-Prom 'fast_succeeded_total')
-Test-Equal 'job metric delivered' '1' (Get-Prom 'fast_slept')
+Test-Equal 'job metric delivered' '3' (Get-Prom 'fast_slept')
 Test-Equal 'slow overlaps were skipped' 'True' "$((Get-Prom 'slow_skipped_total') -ne '')"
 Test-Equal 'heartbeat delivered' '1' (Get-Prom 'vigil_supervisor_up')
 $promText = [System.IO.File]::ReadAllText((Join-Path $root 'metrics\vigil.prom'))

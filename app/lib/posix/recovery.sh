@@ -19,7 +19,7 @@
 #
 #   vigil_recovery_conclude <launch> <token> <process> <boot> <state> <spool>
 #     launch   none, held (a worker is claiming it), young (not held, within
-#              the 120 second launch grace), old (not held, past the grace)
+#              the 30 second launch grace), old (not held, past the grace)
 #              or prevboot (written during an earlier boot)
 #     token    none, held or free (exists, not held)
 #     process  yes (a process carries the run id), no, or error (the probe

@@ -1016,12 +1016,14 @@ Applying the table to damaged or absent state:
 | Launch record | Evidence | Conclusion |
 | --- | --- | --- |
 | Present, held (worker is claiming) | — | Alive |
-| Present, not held, younger than the launch grace (120 seconds) | — | Launching: hold the job, start nothing |
+| Present, not held, younger than the launch grace (30 seconds) | — | Launching: hold the job, start nothing |
 | Present, not held, older than the grace | A process carries the run id | Launching: the worker is slow; keep holding |
 | Present, not held, older than the grace | No process carries the run id | Abandon (§11.2). If the supervisor wins, the run never started: record it, post `<m>.abandoned_launches`, and treat the scheduled time under §7.7. If it loses, Alive. |
 | Present, from a previous boot | — | Abandon immediately: nothing from that boot can claim it |
 
 An abandoned launch is not a crash and not a failure: the job never ran. `<m>.abandoned_launches` makes a repeated launch problem visible.
+
+A worker that cannot start at all never claims its launch, and nothing carries its run id. The commonest cause is a worker started at the moment an update swaps `app/` (§18.7): for an instant there is no `app/` to run. The job is held for the launch grace, then the launch is abandoned and the job runs at its next slot. The grace only has to cover starting a process, because a started worker carries its run id however slow it is to claim.
 
 When the state file is unreadable or missing, the run id is recovered from the launch, token and spool file names for that job. The process scan for a run id is only done in these cases and for launch records past their grace, not every tick.
 
@@ -2274,7 +2276,7 @@ Each invariant has a documented enforcement mechanism and regression tests.
 - `https` and `sftp` sources deliver single files; scripts that need files beside them should come from `git` or `local` sources.
 - A `git` reference to a commit that is not the tip of a branch or a tag must be fetchable by its id; most hosted Git services allow this, a self-hosted server may need `uploadpack.allowReachableSHA1InWant`.
 - Scripts without a digest, from a `local` source or a `git` branch, may briefly differ between hosts until each has made its next check (§6.9).
-- A worker reads `config/vigil.config` when it starts. If that file was saved with an error after the supervisor launched the run, the worker refuses to run, and the launch is abandoned after the 120-second launch grace (§11.3); the job runs again at its next slot once the file is fixed.
+- A worker reads `config/vigil.config` when it starts. If that file was saved with an error after the supervisor launched the run, the worker refuses to run, and the launch is abandoned after the 30-second launch grace (§11.3); the job runs again at its next slot once the file is fixed.
 - A changed environment variable (`env:`) reaches Linux and macOS runs only after Vigil is next started (§6.5.1); use `secret:` or `store:` for anything rotated.
 - A secret given to a job is in its environment, readable while it runs by its own account and administrators (§6.5.4).
 

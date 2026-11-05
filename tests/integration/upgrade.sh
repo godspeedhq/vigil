@@ -161,7 +161,11 @@ check 'scheduled jobs carry on' yes "$([ "$(runs beat)" -gt $((before + 2)) ] &&
 if [ "$(runs beat)" -le $((before + 2)) ]; then
     printf '        beat ran %s times, %s before the update; now %s\n' "$(runs beat)" "$before" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     sed 's/^/        state: /' "$root/state/jobs/beat.state"
-    cat "$root"/logs/supervisor/2*.log | tail -30 | sed 's/^/        sup: /'
+    # A launch left unclaimed holds its job for the launch grace (11.3).
+    for f in "$root"/state/locks/*; do
+        [ -e "$f" ] && printf '        lock: %s %s\n' "${f##*/}" "$(sed -n 's/^launch_epoch *= */launched at /p' "$f")"
+    done
+    grep -hv 'skipped: a run is still active' "$root"/logs/supervisor/2*.log | tail -30 | sed 's/^/        sup: /'
     cat "$root"/logs/jobs/beat/*.log | tail -12 | sed 's/^/        beat: /'
 fi
 check 'no run crashed' 0 "$(grep -hc 'crashed' "$root"/logs/supervisor/2*.log | sort -n | tail -1)"

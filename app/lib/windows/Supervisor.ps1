@@ -32,9 +32,12 @@
 #>
 
 # How long, in seconds, a launch record may wait for its worker to claim it
-# before the supervisor goes looking for the worker's process (11.3). Starting
-# PowerShell on a busy machine can take a while, so this is generous.
-$Script:VigilLaunchGrace = 120
+# before the supervisor goes looking for the worker's process (11.3). A worker
+# carries its run id from the moment it starts, so this only has to cover
+# starting the process; one that is slow to claim is found and kept. A
+# worker that could not start (app\ was being swapped by an update) holds
+# its job no longer than this.
+$Script:VigilLaunchGrace = 30
 
 # Whether another process holds a file open: Windows refuses an exclusive
 # open while it does. Returns yes, no or error.

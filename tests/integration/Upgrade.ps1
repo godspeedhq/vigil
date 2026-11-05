@@ -146,7 +146,15 @@ try {
     Test-Equal 'no run crashed' 'False' ([string]$sv.Contains('crashed'))
     Test-Equal 'metrics still flow' 'True' ([string]([System.IO.File]::ReadAllText("$root\metrics\vigil.prom") -cmatch '(?m)^beat_beats'))
     Test-Equal 'nothing quarantined' 'False' ([string](Test-Path -LiteralPath "$root\state\quarantine"))
-    if ($script:fail -gt 0) { Write-Host ($sv.Split("`n") | Select-Object -Last 20) }
+    if ($script:fail -gt 0) {
+        Write-Host (($sv.Split("`n") | Where-Object { $_ -notmatch 'skipped: a run is still active' }) | Select-Object -Last 20)
+        # A launch left unclaimed holds its job for the launch grace (11.3).
+        foreach ($f in Get-ChildItem -LiteralPath "$root\state\locks" -File -ErrorAction SilentlyContinue) {
+            $at = ''
+            try { if ([System.IO.File]::ReadAllText($f.FullName) -cmatch '(?m)^launch_epoch *= *(\d+)') { $at = "launched at $($Matches[1])" } } catch { }
+            Write-Host "        lock: $($f.Name) $at"
+        }
+    }
 }
 finally {
     foreach ($p in @($sup, $mock, $long)) { if ($p -and -not $p.HasExited) { try { Stop-Process -Id $p.Id -Force -ErrorAction Stop } catch { } } }

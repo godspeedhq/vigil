@@ -68,7 +68,8 @@ mkdir -p "$root/config" "$root/scripts"
 root=$(cd "$root" && pwd)
 
 # Both jobs take the same in-flight marker. Nothing caps how many run at
-# once (8), so slow (3s, every 2s) and fast must overlap at some point.
+# once (8), and both start on the same slots, so slow (3s) and fast (1s)
+# are in flight together whatever it takes each to start.
 cat > "$root/scripts/work.sh" <<'EOF'
 if ! mkdir "$IT_ROOT/inflight" 2>/dev/null; then echo overlap >> "$IT_ROOT/overlap"; fi
 sleep "$1"
@@ -98,8 +99,8 @@ command = /bin/sh
 
 [job.fast]
 file      = scripts/work.sh
-arg       = 0
-env       = IT_ROOT=$root
+arg       = 1
+env      = IT_ROOT=$root
 run_every = 2s
 
 [job.slow]
@@ -148,7 +149,7 @@ check "sender ran and succeeded" succeeded "$(state_value "$root/state/jobs/vigi
 runs=$(prom fast_runs_total)
 check "fast ran more than once" yes "$([ "${runs:-0}" -ge 2 ] && echo yes || echo "no (${runs:-0})")"
 check "fast succeeded counted" "$runs" "$(prom fast_succeeded_total)"
-check "job metric delivered" 0 "$(prom fast_slept)"
+check "job metric delivered" 1 "$(prom fast_slept)"
 check "slow overlaps were skipped" yes "$([ -n "$(prom slow_skipped_total)" ] && echo yes || echo no)"
 check "heartbeat delivered" 1 "$(prom vigil_supervisor_up)"
 check "unimplemented backend counted as dropped" yes "$(grep '^vigil_spool_dropped_total{backend="newrelic".*reason="not_implemented"' "$root/metrics/vigil.prom" > /dev/null && echo yes || echo no)"
