@@ -125,3 +125,50 @@ sees which machines have caught up.
   `upgrade.sh` uses.
 - SPECIFICATION (§6.8, §18.7) and README document it, with the canary and
   wave practice.
+
+## Closed
+
+Closed on 2026-11-05.
+
+**Done:**
+- `[vigil] version`, validated in both twins (`E_VERSION`; `E_POINTER_ONLY`
+  in a pointer file), documented in SPECIFICATION §18.11 (with §6.8, §18.7,
+  §16.3) and the README.
+- `vigil_update`, Vigil's own worker, moves the install to the version named
+  and records the outcome in `state/update.state`. Unavailable: retried
+  after 5 minutes. Installed but failed, or refused: not tried again until
+  the line changes. The supervisor logs each outcome once; `jobs.log` shows
+  a `VERSION` block while the release is not the one named.
+- `vigil self update` refuses while the line is set; `--check` still works.
+- `vigil precheck` notes the version and whether this account can update
+  Vigil.
+- System installs: the `--update-by` rule gains a second command,
+  `self update --from-config`, in which root reads the version itself; the
+  Windows task follows the configuration's version the same way. Up and
+  down, as decided.
+- Tests: conformance cases; `version-config.sh` (47 passed on Fedora and on
+  macOS) and `Version-Config.ps1` (45 passed on Windows PowerShell 5.1); the
+  sudo rule's second command in `self-update.sh`.
+- A real fleet in `tests/integration/fleet`: seven Debian containers on
+  Fedora following git over SSH, https, sftp and a local folder, macOS on
+  git and Windows on https and sftp through tunnels. A canary, the fleet, a
+  downgrade, a release not yet published (taken at the 5-minute retry), a
+  release that does not run (rolled back everywhere, tried once), and
+  `vigil self update` refused, with no run crashed. Evidence in
+  `tests/integration/fleet/reports/2026-11-05`.
+
+**Different from the plan:**
+- The installer had to learn `--reload` (`-Reload`). Without a registered
+  service it did not wait for the supervisor to reload, so a downgrade past
+  a data format change was reported as done while the supervisor stayed on
+  the newer release. The worker now says a supervisor is running, and the
+  installer waits and rolls back as it does for a service.
+- So a release from before this item cannot be named: its installer does
+  not know `--reload`, and the update is recorded as failed.
+
+**Not done:**
+- **A release mirror:** separate, as planned.
+- **Package-manager installs:** parked with backlog 30.
+- **Seen on the way, not changed:** `vigil status` on a host with a pointer
+  file reads only that file, so it says "no backend" though the fetched
+  configuration has one.
