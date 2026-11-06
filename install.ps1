@@ -367,7 +367,7 @@ try {
     if ($had -or -not (@($entries | Where-Object { $_.TrimEnd('\') -ieq $bin }).Count)) {
         if (-not (@($entries | Where-Object { $_.TrimEnd('\') -ieq $bin }).Count)) { $entries += $bin }
         [Environment]::SetEnvironmentVariable('Path', ($entries -join ';'), $scope)
-        Write-Output "added $bin to the $($scope.ToLowerInvariant()) PATH$(if ($had) { " in place of $app" }): new consoles run vigil"
+        Write-Output "added $bin to the $($scope.ToLowerInvariant()) PATH$(if ($had) { " in place of $app" }): close every terminal window (all of Windows Terminal), then a new one runs vigil"
     }
 
     # --- 5. vigil init, on a fresh install ----------------------------------------------
