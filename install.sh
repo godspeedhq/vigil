@@ -317,6 +317,9 @@ if [ "$mode" = system ]; then
     # Root owns the code in system mode, so the account the service runs as cannot
     # rewrite what it will run next.
     chown -R 0:0 "$root/app" 2> /dev/null
+    # ...and has to read it, whatever modes the archive or the umask gave it:
+    # the 0.2.2 and 0.3.0 archives hold app/ readable by its owner only.
+    chmod -R a+rX,go-w "$root/app"
     chmod 755 "$root"
 fi
 # The old version goes only once the new one has proved it runs.
@@ -393,6 +396,11 @@ if [ "$do_init" = 1 ] && [ ! -f "$root/config/vigil.config" ]; then
     [ -n "$instance" ] && set -- "$@" --instance "$instance"
     [ -n "$backend" ] && set -- "$@" --backend "$backend"
     say ''
+    # The first question prints with no newline after it, easy to miss in a
+    # long install: say they are coming.
+    if { [ -z "$instance" ] || [ -z "$backend" ]; } && { [ -t 0 ] || (: < /dev/tty) 2> /dev/null; }; then
+        say 'vigil init asks for the instance name and the backends; Enter takes the default shown'
+    fi
     # Piped into sh, standard input is this script: questions go to the terminal.
     if [ ! -t 0 ] && (: < /dev/tty) 2> /dev/null; then
         vigil init "$@" < /dev/tty || die 'vigil init failed'

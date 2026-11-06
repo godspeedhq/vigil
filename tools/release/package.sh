@@ -30,6 +30,10 @@
 # Needs tar and gzip, and for the .zip: zip, python3 or (Git Bash) PowerShell.
 
 set -u
+# Whatever umask this runs under, the archives hold folders 755 and files 644
+# (scripts 755): a system install copies app/ as it is, and the service
+# account has to read it. 0.2.2 and 0.3.0 were built under umask 077.
+umask 022
 
 [ "$#" -ge 1 ] || { printf 'usage: package.sh <version> [<out dir>]\n' >&2; exit 64; }
 version=$1
@@ -64,6 +68,7 @@ for p in "$repo"/packs/*/; do
     p=${p%/}
     stage_pack "$stage/$name/packs/${p##*/}" "$p" linux macos
 done
+chmod -R u+rwX,go+rX,go-w "$stage/$name" || exit 1
 chmod 755 "$stage/$name/app/vigil" "$stage/$name/install.sh"
 
 # Zips folder $1 of the stage to $2.
@@ -99,6 +104,7 @@ for os in linux macos windows; do
         mkdir -p "$stage/$packs/${p##*/}" && cp "$p/pack.config" "$stage/$packs/${p##*/}/" || exit 1
         [ ! -d "$p/$os" ] || cp "$p/$os"/* "$stage/$packs/${p##*/}/" || exit 1
     done
+    chmod -R u+rwX,go+rX,go-w "$stage/$packs" || exit 1
     if [ "$os" = windows ]; then
         zip_it "$packs" "$out/$packs-$os.zip" || exit 1
         pack_files="$pack_files $packs-$os.zip"
