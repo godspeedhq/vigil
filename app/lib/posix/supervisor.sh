@@ -1179,7 +1179,10 @@ vigil_supervise() {
             # sleep runs in the background and is waited for because bash runs a trap only
             # once a foreground command ends, while wait returns as soon as a signal
             # arrives. A stop is seen at once, not at the end of the sleep.
-            if [ $((deadline - now)) -gt "$VIGIL_RELOAD_CHECK" ]; then sleep "$VIGIL_RELOAD_CHECK" & else sleep $((deadline - now)) & fi
+            # The sleep closes the lock: on a stop it outlives the supervisor
+            # (KillMode=process), and a supervisor started meanwhile would
+            # find the lock held by it.
+            if [ $((deadline - now)) -gt "$VIGIL_RELOAD_CHECK" ]; then sleep "$VIGIL_RELOAD_CHECK" 8>&- & else sleep $((deadline - now)) 8>&- & fi
             wait $!
             [ "$_su_stop" -eq 1 ] && break
             now=$(date '+%s')

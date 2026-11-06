@@ -20,6 +20,10 @@ jobs:
           fetch-depth: 0
       - name: only what is on main
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: nfpm, for the .deb and .rpm
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: build and sign
         env:
           VIGIL_RELEASE_KEY: ${{ secrets.VIGIL_RELEASE_KEY }}
@@ -31,10 +35,12 @@ jobs:
           (umask 077 && printf '%s\n' "$VIGIL_RELEASE_KEY" > "$RUNNER_TEMP/release.key")
           VIGIL_SIGN_KEY="$RUNNER_TEMP/release.key" bash tools/release/package.sh "${GITHUB_REF_NAME#v}" dist
           rm -f "$RUNNER_TEMP/release.key"
+          v=${GITHUB_REF_NAME#v}
+          test -f "dist/vigil_${v}-1_all.deb" && test -f "dist/vigil-${v}-1.noarch.rpm"
           openssl dgst -sha256 -verify app/release-key.pem -signature dist/SHA256SUMS.sig dist/SHA256SUMS
       - name: create the draft
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "Vigil ${GITHUB_REF_NAME#v}" --generate-notes \
-            dist/vigil-* dist/install.sh dist/install.ps1 dist/SHA256SUMS dist/SHA256SUMS.sig
+            dist/vigil-* dist/vigil_*.deb dist/install.sh dist/install.ps1 dist/SHA256SUMS dist/SHA256SUMS.sig

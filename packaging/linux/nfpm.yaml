@@ -1,0 +1,81 @@
+# The .deb and .rpm of Vigil (backlog 30, step 1), built by
+# tools/release/linux-packages.sh with nfpm from a staged release, in which
+# the paths below are relative. ${VIGIL_VERSION} comes from that script.
+#
+# The program goes in /usr/lib/vigil, read-only and the package's. The root,
+# /opt/vigil, is where the install script puts it too, and is never the
+# package's: its configuration, scripts, packs, state and logs are made by
+# postinstall.sh and kept when the package is removed (only a purge of the
+# .deb removes them).
+name: vigil
+arch: all
+platform: linux
+version: ${VIGIL_VERSION}
+release: 1
+section: admin
+priority: optional
+maintainer: Bankole Ogundero <bjo004@gmail.com>
+description: |-
+  Runs your scripts on a schedule and reports what they find.
+  Vigil schedules and supervises plain shell scripts, keeps their logs and
+  sends the metrics they print to Datadog, OpenTelemetry or a file. It is
+  bash and the system's own tools: no agent, no runtime.
+vendor: Vigil
+homepage: https://github.com/godspeedhq/vigil
+license: Apache-2.0
+
+contents:
+  - src: app
+    dst: /usr/lib/vigil/app
+    type: tree
+  - src: packs
+    dst: /usr/lib/vigil/packs
+    type: tree
+  - src: /usr/lib/vigil/app/vigil
+    dst: /usr/bin/vigil
+    type: symlink
+  - src: vigil.service
+    dst: /usr/lib/systemd/system/vigil.service
+  - src: LICENSE
+    dst: /usr/share/doc/vigil/LICENSE
+  - src: README.md
+    dst: /usr/share/doc/vigil/README.md
+  # Each format names its own package manager in app/PACKAGED.
+  - src: PACKAGED.deb
+    dst: /usr/lib/vigil/app/PACKAGED
+    packager: deb
+  - src: PACKAGED.rpm
+    dst: /usr/lib/vigil/app/PACKAGED
+    packager: rpm
+
+scripts:
+  preinstall: preinstall.sh
+  postinstall: postinstall.sh
+  preremove: preremove.sh
+  postremove: postremove.sh
+
+# The distributions' names for what Vigil calls.
+overrides:
+  deb:
+    depends:
+      - bash
+      - curl
+      - openssl
+      - procps
+      - hostname
+      - tar
+      - gzip
+      - passwd
+  rpm:
+    depends:
+      - bash
+      - curl
+      - openssl
+      - procps-ng
+      - hostname
+      - tar
+      - gzip
+      - findutils
+      - gawk
+      - shadow-utils
+      - util-linux

@@ -53,6 +53,10 @@ _vigil_svc_paths() {
     if [ "$_vs_os" = systemd ]; then
         if [ "$1" = system ]; then
             _vs_file=/etc/systemd/system/vigil.service
+            # The vigil package's unit, when none in /etc takes its place.
+            if [ ! -f "$_vs_file" ] && [ -f /usr/lib/systemd/system/vigil.service ]; then
+                _vs_file=/usr/lib/systemd/system/vigil.service
+            fi
         else
             _vs_file=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/vigil.service
         fi
@@ -65,6 +69,14 @@ _vigil_svc_paths() {
             _vs_target=gui/$(id -u)/vigil
         fi
     fi
+}
+
+# True when _vs_file is the vigil package's unit, which the package manager
+# owns: vigil service install and remove leave it to systemctl and the
+# package.
+_vigil_svc_packaged() {
+    case $_vs_file in /usr/lib/*) return 0 ;; esac
+    return 1
 }
 
 # systemctl, for the user's own manager in user mode.
@@ -259,6 +271,10 @@ vigil_service_install() {
     fi
     _vs_mode=$mode
     _vigil_svc_paths "$mode"
+    if _vigil_svc_packaged && _vigil_svc_mine "$root"; then
+        _vigil_svc_err 'the vigil package installed this service: start it with sudo systemctl enable --now vigil'
+        return 1
+    fi
     if [ -f "$_vs_file" ] && ! _vigil_svc_mine "$root"; then
         _vigil_svc_err "$_vs_file belongs to another Vigil install: remove that one first"
         return 1
@@ -331,6 +347,10 @@ vigil_service_remove() {
         return 1
     fi
     _vigil_svc_paths "$_vs_mode"
+    if _vigil_svc_packaged; then
+        _vigil_svc_err 'the vigil package installed this service: stop it with sudo systemctl disable --now vigil, or remove the package'
+        return 1
+    fi
     if [ "$_vs_os" = systemd ]; then
         # Stopping leaves workers running (18.3).
         _vigil_svc_systemctl disable --now vigil > /dev/null 2>&1

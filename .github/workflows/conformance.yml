@@ -125,6 +125,42 @@ jobs:
           VIGIL_IT_NGINX_URL: http://127.0.0.1:9082/nginx_status
         run: /bin/bash tests/integration/service-packs.sh
 
+  # The .deb and .rpm (backlog 30, step 1), built as a release builds them,
+  # for two versions: each installed, upgraded and removed in a clean
+  # container of its distributions, and once on the runner itself, where
+  # systemd runs, for the service.
+  linux-packages:
+    name: linux packages (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [debian:13, ubuntu:24.04, fedora:43, rockylinux/rockylinux:9, systemd]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: nfpm
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: build 0.0.1 and 0.0.2
+        run: |
+          bash tools/release/package.sh 0.0.1 "$RUNNER_TEMP/old" > /dev/null
+          bash tools/release/package.sh 0.0.2 "$RUNNER_TEMP/new" > /dev/null
+          ls -l "$RUNNER_TEMP"/old/vigil[_-]0.0.1* "$RUNNER_TEMP"/new/vigil[_-]0.0.2*
+      - name: install, upgrade, remove (${{ matrix.target }})
+        if: matrix.target != 'systemd'
+        run: |
+          case "${{ matrix.target }}" in
+            debian:* | ubuntu:*) prep='apt-get update -q > /dev/null' ;;
+            *) prep=: ;;
+          esac
+          docker run --rm -v "$RUNNER_TEMP:/pk:ro" -v "$PWD:/src:ro" "${{ matrix.target }}" \
+            sh -c "$prep && sh /src/tests/packages/linux.sh /pk/old /pk/new"
+      - name: install, upgrade, remove, with systemd (the runner)
+        if: matrix.target == 'systemd'
+        run: sudo sh tests/packages/linux.sh "$RUNNER_TEMP/old" "$RUNNER_TEMP/new"
+
   # Windows in six jobs side by side: each PowerShell, in three parts of
   # about 12 minutes (core, sources, install), where one job took 35. Git
   # Bash and the command-line round trip need only one PowerShell, and run
