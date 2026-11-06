@@ -30,6 +30,22 @@ The tests print what they know when these fail.
   could not be, reloading, staying on, started, stopped), so the next one
   shows whether the supervisor saw the failed install at all.
 
+## Fixed, cause known (2026-11-06)
+
+- `tests/integration/Version-Config.ps1`, PowerShell 5.1: `and changes
+  nothing`, then four more that followed from it, on #107. **Vigil's:** an
+  update that has to go back removes the new `app` before renaming the old
+  one into place, and Windows refuses to delete a file a process has open:
+  here `Pack.ps1`, read by a worker of the 2-second `beat` job as it
+  started. The rename already waits out that refusal (`Rename-Waiting`); the
+  delete did not, so the rollback stopped and left the release that failed
+  installed. `install.ps1` now retries the delete as long as it retries a
+  rename. Version-Config.ps1 then passed locally (46 checks).
+- `tests/integration/Self-Update.ps1`, PowerShell 5.1, run locally on
+  2026-11-06: `its version` got more than one line from `vigil version`.
+  Passed on the rerun; the extra lines were not captured. Listed here to
+  watch: if it returns, print the whole output.
+
 ## Fixed, cause known (2026-11-05)
 
 - `tests/integration/upgrade.sh`, Linux: `scheduled jobs carry on`, on #94
