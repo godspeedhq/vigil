@@ -25,6 +25,9 @@
 #     Change the configuration, or nothing when the result is not valid.
 #   vigil_pack_update <root> <app dir> <check: 0|1>
 #     Replaces the scripts with the latest release's.
+#   vigil_pack_seed <root> <app dir>
+#     A packaged program only: copies in the packs the package keeps beside
+#     app/, those not here yet.
 #   Each returns 0, or 1 with the reason on stderr; nothing is changed then.
 #
 # Requires config.sh, validate.sh, worker.sh and selfupdate.sh.
@@ -42,6 +45,31 @@ _vigil_pack_os() {
         Darwin) _vp_os=macos ;;
         *) _vp_os=linux ;;
     esac
+}
+
+# The first packs of a packaged program (18.6), from the packs/ folder the
+# package keeps beside app/. The install script copies them itself, from the
+# archive. A pack already in the root stays as it is, so this never undoes a
+# vigil pack update.
+vigil_pack_seed() {
+    local root=$1 src p
+    vigil_packaged "$2" || return 0
+    src=${2%/app}/packs
+    [ -d "$src" ] || return 0
+    _vigil_pack_os
+    for p in "$src"/*/; do
+        [ -f "$p/pack.config" ] || continue
+        p=${p%/}
+        [ ! -e "$root/packs/${p##*/}" ] || continue
+        mkdir -p "$root/packs/${p##*/}" && cp "$p/pack.config" "$root/packs/${p##*/}/" ||
+            { _vigil_pack_die "cannot write to $root/packs"; return 1; }
+        if [ -d "$p/$_vp_os" ]; then
+            cp "$p/$_vp_os"/* "$root/packs/${p##*/}/" || { _vigil_pack_die "cannot write to $root/packs"; return 1; }
+        fi
+        # The service account has to read them.
+        chmod -R a+rX "$root/packs/${p##*/}"
+    done
+    return 0
 }
 
 # A key of a parsed section, into _vp_value.

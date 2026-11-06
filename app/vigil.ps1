@@ -67,7 +67,8 @@
     vigil [-Root <dir>] worker <job> --run-id <run id>
         Internal: the worker the supervisor starts for a launched run.
 
-    The install root defaults to the folder that contains this app folder.
+    The install root is -Root, else $env:VIGIL_ROOT, else the root a package
+    names in app\PACKAGED, else the folder that contains this app folder.
 #>
 
 param(
@@ -78,11 +79,20 @@ param(
 )
 
 $app = Split-Path -Parent $MyInvocation.MyCommand.Path
-if (-not $Root) { $Root = Split-Path -Parent $app }
-$Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
 foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate', 'Pack', 'ConfigEdit')) {
     . (Join-Path $app "lib\windows\$lib.ps1")
+}
+
+# The root (18.6): -Root, else VIGIL_ROOT, else a package's, else the folder
+# above app\. Only a package's may not exist yet: vigil init makes it.
+$packaged = Get-VigilPackaged -App $app
+if (-not $Root -and -not $env:VIGIL_ROOT -and $packaged -and $packaged.Root) {
+    $Root = [System.IO.Path]::GetFullPath($packaged.Root)
+}
+else {
+    if (-not $Root) { $Root = if ($env:VIGIL_ROOT) { $env:VIGIL_ROOT } else { Split-Path -Parent $app } }
+    $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 }
 
 function Exit-Usage {
@@ -261,6 +271,7 @@ switch ($Command) {
         if ($asked) { Write-Output '' }
         try { Invoke-VigilInit -Root $Root -Instance $instance -Backends @($backends.Replace(' ', '').Split(',') | Where-Object { $_ }) -Refs $refs }
         catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
+        if ((Copy-VigilPackSeed -Root $Root -App $app) -ne 0) { exit 1 }
         foreach ($n in $secrets) {
             Write-Output "The value of $n, which is not shown:"
             & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File (Join-Path $app 'vigil.ps1') -Root $Root secret set $n
@@ -281,6 +292,10 @@ switch ($Command) {
         $keep = $false
         foreach ($a in $argv) {
             if ($a -ceq '--yes') { $yes = $true } elseif ($a -ceq '--keep-config') { $keep = $true } else { Exit-Usage }
+        }
+        if ($packaged) {
+            [Console]::Error.WriteLine("vigil: Vigil was installed by $($packaged.Manager): remove it with that, which stops the service and keeps $Root")
+            exit 1
         }
         $code = 1
         try { Invoke-VigilUninstall -Root $Root -App $app -Yes $yes -Keep $keep | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
@@ -368,7 +383,8 @@ switch ($Command) {
         }
         # The configuration decides the version when it names one (18.11): an
         # update here would be undone at its next load.
-        if (-not $check -and $configured) {
+        # A package's program is refused whatever the configuration says.
+        if (-not $check -and $configured -and -not $packaged) {
             [Console]::Error.WriteLine("vigil: the version is set in the configuration (version = $configured): change it there to update, or remove it to use vigil self update")
             exit 1
         }

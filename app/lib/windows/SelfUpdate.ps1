@@ -19,6 +19,9 @@
     back if the new version does not run. This only finds the release and
     starts it. The twin of selfupdate.sh.
 
+    Get-VigilPackaged -App <app dir>
+        @{ Manager; Upgrade; Root } when a package manager installed this
+        program (app\PACKAGED), else $null.
     Get-VigilVersion -App <app dir>
         "Vigil <version>", or says this is a copy from the repository.
     Get-VigilAbout -Root <dir> -App <app dir>
@@ -41,6 +44,34 @@
         The same, as the scheduled task of install -UpdateBy.
 #>
 
+# app\PACKAGED is written by a package's build (18.6), never by Vigil: the
+# package manager owns this program, so self update leaves it to that, and the
+# root is elsewhere. Lines of key = value: manager, upgrade and root.
+function Get-VigilPackaged {
+    param([string]$App)
+    $f = Join-Path $App 'PACKAGED'
+    if (-not [System.IO.File]::Exists($f)) { return $null }
+    $r = @{ Manager = ''; Upgrade = ''; Root = '' }
+    foreach ($l in [System.IO.File]::ReadAllLines($f)) {
+        if ($l -cmatch '^(manager|upgrade|root) *= *(.*)$') {
+            $k = @{ manager = 'Manager'; upgrade = 'Upgrade'; root = 'Root' }[$Matches[1]]
+            if (-not $r[$k]) { $r[$k] = $Matches[2].TrimEnd() }
+        }
+    }
+    if (-not $r.Manager) { $r.Manager = 'a package manager' }
+    if (-not $r.Upgrade) { $r.Upgrade = 'its package manager' }
+    return [pscustomobject]$r
+}
+
+# How this install is updated: vigil self update, or the package manager's
+# command.
+function Get-VigilUpdateHow {
+    param([string]$App)
+    $p = Get-VigilPackaged -App $App
+    if ($p) { return $p.Upgrade }
+    return 'vigil self update'
+}
+
 function Get-VigilVersion {
     param([string]$App)
     $f = Join-Path $App 'VERSION'
@@ -59,6 +90,8 @@ function Get-VigilAbout {
     '{0,-11} {1}' -f 'Source', 'https://github.com/godspeedhq/vigil'
     '{0,-11} {1}' -f 'Docs', 'https://godspeedhq.github.io/vigil/'
     '{0,-11} {1}' -f 'Installed', $Root
+    $p = Get-VigilPackaged -App $App
+    if ($p) { '{0,-11} {1}, by {2}' -f 'Program', (Split-Path -Parent $App), $p.Manager }
     '{0,-11} {1}' -f 'Platform', "Windows, PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
 }
 
@@ -149,7 +182,7 @@ function Show-VigilUpdateNotice {
     catch { }
     $current = [System.IO.File]::ReadAllText((Join-Path $App 'VERSION')).Trim()
     if ($latest -and (Test-VigilNewer $latest $current)) {
-        [Console]::Error.WriteLine("`nVigil $latest is available (this is $current). To update: vigil self update")
+        [Console]::Error.WriteLine("`nVigil $latest is available (this is $current). To update: $(Get-VigilUpdateHow -App $App)")
     }
     if ([DateTimeOffset]::Now.ToUnixTimeSeconds() - $at -ge 86400) {
         try {
@@ -291,6 +324,10 @@ function Invoke-VigilSelfUpdate {
     $verFile = Join-Path $App 'VERSION'
     if (-not (Test-Path -LiteralPath $verFile)) { return & $die 'this copy comes from the repository, not a release: update it with git' }
     $current = [System.IO.File]::ReadAllText($verFile).Trim()
+    # A package manager's program is its to replace: refused before anything is
+    # downloaded. --check still says what is available.
+    $packaged = Get-VigilPackaged -App $App
+    if (-not $Check -and $packaged) { return & $die "Vigil was installed by $($packaged.Manager): update it with $($packaged.Upgrade)" }
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     $saved = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'
@@ -311,7 +348,7 @@ function Invoke-VigilSelfUpdate {
             return
         }
         if ($Check) {
-            Write-Output "Vigil $current is installed; $Want is available: vigil self update"
+            Write-Output "Vigil $current is installed; $Want is available: $(Get-VigilUpdateHow -App $App)"
             return
         }
 

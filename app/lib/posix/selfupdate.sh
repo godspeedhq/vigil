@@ -16,6 +16,9 @@
 # one path that replaces Vigil, and it verifies, swaps and goes back if the
 # new version does not run. This only finds the release and starts it.
 #
+#   vigil_packaged <app dir>
+#     Whether a package manager installed this program (app/PACKAGED): sets
+#     _vp_manager, _vp_upgrade (its update command) and _vp_root.
 #   vigil_version <app dir>
 #     Prints "Vigil <version>", or says this is a copy from the repository.
 #   vigil_about <root> <app dir>
@@ -50,6 +53,26 @@
 # updates.
 VIGIL_RELEASES=https://github.com/godspeedhq/vigil
 
+# app/PACKAGED is written by a package's build (18.6), never by Vigil: the
+# package manager owns this program, so self update leaves it to that, and the
+# root is elsewhere. Lines of key = value: manager, upgrade and root.
+vigil_packaged() {
+    _vp_manager='' _vp_upgrade='' _vp_root=''
+    [ -f "$1/PACKAGED" ] || return 1
+    _vp_manager=$(sed -n 's/^manager *= *//p' "$1/PACKAGED" | head -n 1 | sed 's/[[:space:]]*$//')
+    _vp_upgrade=$(sed -n 's/^upgrade *= *//p' "$1/PACKAGED" | head -n 1 | sed 's/[[:space:]]*$//')
+    _vp_root=$(sed -n 's/^root *= *//p' "$1/PACKAGED" | head -n 1 | sed 's/[[:space:]]*$//')
+    [ -n "$_vp_manager" ] || _vp_manager='a package manager'
+    [ -n "$_vp_upgrade" ] || _vp_upgrade='its package manager'
+    return 0
+}
+
+# How this install is updated, into _vu_how: vigil self update, or the
+# package manager's command.
+_vigil_update_how() {
+    if vigil_packaged "$1"; then _vu_how=$_vp_upgrade; else _vu_how='vigil self update'; fi
+}
+
 vigil_version() {
     if [ -f "$1/VERSION" ]; then
         printf 'Vigil %s\n' "$(cat "$1/VERSION")"
@@ -73,6 +96,9 @@ vigil_about() {
     printf '%-11s %s\n' Source "$VIGIL_RELEASES"
     printf '%-11s %s\n' Docs https://godspeedhq.github.io/vigil/
     printf '%-11s %s\n' Installed "$1"
+    if vigil_packaged "$2"; then
+        printf '%-11s %s, by %s\n' Program "${2%/app}" "$_vp_manager"
+    fi
     printf '%-11s %s, bash %s\n' Platform "$os" "${BASH_VERSION%%(*}"
 }
 
@@ -137,7 +163,8 @@ vigil_update_notice() {
     [ -f "$_vu_cache" ] && read -r at latest < "$_vu_cache"
     current=$(cat "$2/VERSION")
     if [ -n "$latest" ] && _vigil_self_newer "$latest" "$current"; then
-        printf '\nVigil %s is available (this is %s). To update: vigil self update\n' "$latest" "$current" >&2
+        _vigil_update_how "$2"
+        printf '\nVigil %s is available (this is %s). To update: %s\n' "$latest" "$current" "$_vu_how" >&2
     fi
     case $at in '' | *[!0-9]*) at=0 ;; esac
     if [ $(($(date '+%s') - at)) -ge 86400 ]; then
@@ -201,6 +228,12 @@ vigil_self_update() {
         return 1
     fi
     current=$(cat "$app/VERSION")
+    # A package manager's program is its to replace: refused before anything is
+    # downloaded. --check still says what is available.
+    if [ "$check" = 0 ] && vigil_packaged "$app"; then
+        _vigil_self_die "Vigil was installed by $_vp_manager: update it with $_vp_upgrade"
+        return 1
+    fi
     command -v curl > /dev/null 2>&1 || { _vigil_self_die 'curl not found'; return 1; }
 
     if [ -z "$want" ]; then
@@ -220,7 +253,8 @@ vigil_self_update() {
         return 0
     fi
     if [ "$check" = 1 ]; then
-        printf 'Vigil %s is installed; %s is available: vigil self update\n' "$current" "$want"
+        _vigil_update_how "$app"
+        printf 'Vigil %s is installed; %s is available: %s\n' "$current" "$want" "$_vu_how"
         return 0
     fi
 
