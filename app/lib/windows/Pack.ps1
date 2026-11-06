@@ -27,6 +27,9 @@
         Change the configuration, or nothing when the result is not valid.
     Update-VigilPack -Root <dir> -App <app dir> -Check <bool>
         Replaces the scripts with the latest release's.
+    Copy-VigilPackSeed -Root <dir> -App <app dir>
+        A packaged program only: copies in the packs the package keeps beside
+        app\, those not here yet.
     Each returns an exit code: 0, or 1 with the reason on stderr; nothing is
     changed then.
 
@@ -325,6 +328,33 @@ function Disable-VigilPack {
 
 # Windows refuses to rename a folder while a process has a file in it open,
 # and a job reads its script as it starts, so the refusal lasts a moment.
+# The first packs of a packaged program (18.6), from the packs folder the
+# package keeps beside app\. The install script copies them itself, from the
+# archive. A pack already in the root stays as it is, so this never undoes a
+# vigil pack update. Returns an exit code.
+function Copy-VigilPackSeed {
+    param([string]$Root, [string]$App)
+    if (-not (Get-VigilPackaged -App $App)) { return 0 }
+    $src = Join-Path (Split-Path -Parent $App) 'packs'
+    if (-not [System.IO.Directory]::Exists($src)) { return 0 }
+    try {
+        foreach ($p in Get-ChildItem -LiteralPath $src -Directory) {
+            if (-not [System.IO.File]::Exists((Join-Path $p.FullName 'pack.config'))) { continue }
+            $to = Join-Path $Root "packs\$($p.Name)"
+            if (Test-Path -LiteralPath $to) { continue }
+            [void](New-Item -ItemType Directory -Force -Path $to -ErrorAction Stop)
+            Copy-Item -LiteralPath (Join-Path $p.FullName 'pack.config') -Destination $to -ErrorAction Stop
+            $own = Join-Path $p.FullName 'windows'
+            if ([System.IO.Directory]::Exists($own)) { Get-ChildItem -LiteralPath $own -File | Copy-Item -Destination $to -ErrorAction Stop }
+        }
+    }
+    catch {
+        Stop-VigilPack "cannot write to $(Join-Path $Root 'packs'): $($_.Exception.Message)"
+        return 1
+    }
+    return 0
+}
+
 function Move-VigilPackFolder {
     param([string]$From, [string]$To)
     for ($i = 0; ; $i++) {

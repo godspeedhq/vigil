@@ -279,6 +279,22 @@ try {
         }
     }
 
+    # The same refusal holds a delete back: retried as long as a rename is.
+    function Remove-Waiting {
+        param([string]$Path)
+        for ($i = 0; ; $i++) {
+            try {
+                Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+                return
+            }
+            catch {
+                if ($i -ge 120) { throw }
+                if ($i -eq 0) { Write-Output "waiting for processes reading $Path" }
+                Start-Sleep -Milliseconds 250
+            }
+        }
+    }
+
     # Back to what was installed: whatever was swapped, and the service.
     # Works from whatever is there, not from how far the swap got: it can be called
     # with app\ swapped and vendor\ not. The reason goes last, in Stop-Install, so
@@ -290,7 +306,7 @@ try {
             $old = Join-Path $root "$d.old"
             if (Test-Path -LiteralPath $old) {
                 $to = Join-Path $root $d
-                if (Test-Path -LiteralPath $to) { Remove-Item -LiteralPath $to -Recurse -Force }
+                if (Test-Path -LiteralPath $to) { Remove-Waiting -Path $to }
                 Rename-Waiting -Path $old -Name $d
             }
             Remove-Item -LiteralPath (Join-Path $root "$d.new") -Recurse -Force -ErrorAction SilentlyContinue

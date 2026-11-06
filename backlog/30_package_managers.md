@@ -66,6 +66,9 @@ Assumes the program sits in the root:
 
 ## Proposed
 
+Items 1 to 4 and 7 are step 0, built on the `packaged-root` branch: see
+"Step 0 as built" below.
+
 1. **A marker for a packaged program**, `app/PACKAGED`, written by the
    package build: which package manager, and its upgrade command
    (`brew upgrade vigil`, `sudo dnf upgrade vigil`, `choco upgrade vigil`).
@@ -127,6 +130,27 @@ Assumes the program sits in the root:
 Not now: Homebrew core (it needs Vigil to be well known first), official
 Fedora and Debian packages (a sponsor, a review, and their rule against bundled
 code like `vendor/`), MacPorts, the AUR, Alpine. Each when someone asks.
+
+## Step 0 as built
+
+Where it differs from the proposal above:
+
+- `app/PACKAGED` also carries the root (`manager`, `upgrade`, `root`, as
+  `key = value` lines), so each package names its own and Vigil holds no list
+  of packaged roots. Which root each package writes is decided in step 1.
+- Self update on a packaged program exits 1, as its other refusals do, not
+  with an exit code of its own; it is refused before anything is downloaded,
+  and ahead of the configured-version refusal. `--check` and the notice name
+  the package's command.
+- `vigil init` copies the packs only for a packaged program; the install
+  script keeps copying them itself, so a fresh install with an existing
+  configuration, where `vigil init` does not run, still gets them.
+- `vigil uninstall` on a packaged program is refused and names the package
+  manager.
+- `vigil about` shows the program's folder and its package manager.
+- Tests: `tests/integration/packaged.sh` and `Packaged.ps1` lay out a
+  read-only packaged program and check the root, init's packs, both refusals,
+  and that nothing is written into the program.
 
 ## Also to settle
 

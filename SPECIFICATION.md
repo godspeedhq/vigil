@@ -1098,7 +1098,7 @@ Vigil does not guarantee exactly-once execution of a job's external effects. Job
 
 ### 12.1 Layout
 
-Everything lives under one install root (§18.6 gives the root per platform):
+Everything lives under one install root (§18.6 gives the root per platform). A program installed by a package manager keeps `app/`, `vendor/` and the packs it carries in the package's own folder, read-only, and everything else here (§18.6):
 
 ```text
 <root>/
@@ -1893,6 +1893,23 @@ Outside the root, Vigil creates only:
 
 `--prefix <path>` installs to a custom root.
 
+**Where the root comes from.** Every command takes it from `--root` (`-Root`), else the `VIGIL_ROOT` environment variable, else the root a package names (below), else the folder that contains `app/`. The service registration and the supervisor's workers always pass `--root`.
+
+**A packaged program.** A package (`.deb`, `.rpm`, Homebrew, Chocolatey, an MSI) installs the program where its package manager keeps programs, owned by it and read-only, and the root elsewhere. Its build writes `app/PACKAGED`, which Vigil itself never writes, as `key = value` lines:
+
+```ini
+manager = rpm
+upgrade = sudo dnf upgrade vigil
+root    = /var/lib/vigil
+```
+
+- `root` is the root this program uses when no `--root` or `VIGIL_ROOT` is given. It need not exist yet: `vigil init` makes it.
+- `vigil self update` is refused with the package manager's `upgrade` command, exit 1, before anything is downloaded, whatever the configuration's `version` says; a configured version (§18.11) fails the same way, with that reason. `--check` and the update notice name that command instead of `vigil self update`.
+- `vigil uninstall` is refused, and says to remove the package with its package manager, which stops the service and keeps the root.
+- `vigil init` puts the packs the package carries beside `app/` into the root's `packs/` (§18.10).
+- `vigil about` shows the program's folder and its package manager.
+- Nothing else differs: the root's layout (§12.1), the service registration (§18.9) and every other command are the same.
+
 Rationale:
 
 - **One root over OS conventions.** Splitting across `/etc`, `/var/lib` and `/var/log` is more conventional on Linux, but one root makes uninstall a single delete and lets an operator find everything.
@@ -1938,7 +1955,7 @@ On Windows the same grant is `install.ps1 -System -UpdateBy <account or group>`.
 - The old version is removed only once the new one has answered `vigil version` and, if the service was running, the supervisor has come up as the new version. Otherwise the old version is put back, and the command fails saying so.
 - `config/`, `scripts/`, `state/`, `spool/`, `cache/` and `logs/` are never touched, so everything picks up where it left off: running jobs finish under the code they started with (§18.3), and the new supervisor accounts for them from their evidence (§11.3); schedules, queued metrics, log checkpoints and the active configuration are read back from disk. Runs that `queue_one` holds are kept in `state/pending`, because a job's cursor has already moved past them.
 - `state/format` holds one number for everything Vigil keeps under `state/` and `spool/`, cursors and checkpoints included; an install without it is format 1. A format change is a numbered script in `app/migrations`, `N.sh` and `N.ps1`, which moves the data from `N-1` to `N` and is given the state, spool and log directories; the highest `N` is the format that version writes. The supervisor runs them in order under its lock, the number moving after each, so a failed step is the one retried. Runs in progress finish under the code they started with (§18.3), so a migration must leave data they can still write to, and the new version must read what they write. On a hot reload the running supervisor runs the new version's migrations before it becomes that version: if they fail it logs why and carries on, and the installer, finding no new version, puts the old one back. A version refuses to start on data of a newer format, or a `state/format` it cannot read, and `vigil precheck` reports both, so a downgrade past a format change fails instead of misreading the data.
-- It runs as whoever installed Vigil, or an account given `--update-by` (`-UpdateBy`): otherwise `sudo` for a system install on Linux and macOS, an elevated prompt on Windows. It refuses a copy from the repository.
+- It runs as whoever installed Vigil, or an account given `--update-by` (`-UpdateBy`): otherwise `sudo` for a system install on Linux and macOS, an elevated prompt on Windows. It refuses a copy from the repository, and a packaged program, which its package manager updates (§18.6).
 - A release is verified before anything runs: `SHA256SUMS` must carry a signature (`SHA256SUMS.sig`) from the release key, whose public half is `app/release-key.pem` of the version already installed, checked with `openssl`, or .NET on Windows. The installer and the archive must then match `SHA256SUMS`, and the archive verified is the one installed. A release with a bad or missing signature is refused, and nothing changes. So is any update when `app/release-key.pem` is missing: there is then nothing to check with. A first install has no earlier copy to hold the key, so the one-line installer relies on GitHub and HTTPS; the reviewed path can check the signature by hand.
 - `vigil self update` runs when an operator or their tooling runs it, and refuses while the configuration names a version (§18.11). Vigil updates itself only to a version its configuration names, never on a schedule of its own.
 
@@ -1961,7 +1978,7 @@ Before deleting, it lists what will be removed — including how many scripts ar
 - `--keep-config` keeps `config/`, `scripts/` and `packs/`, so a reinstall picks up where it left off.
 - Without `--yes`, and with no terminal to ask at, it refuses and removes nothing.
 
-It refuses a folder that holds no `app/vigil` (`app\vigil.ps1`), so a mistyped `--root` deletes nothing. A worker is proven by its command line naming the run and the root (`worker <job> --run-id <run id>`) and by being the `worker_pid` of that run's state; a job process by holding the run token (Linux, macOS) or by its PID, name, start time and parent matching the state file (Windows, as for `max_runtime`, §11.5). Proven processes get TERM, then KILL after 10 seconds (on Windows the tree ends at once); a process the state names but that cannot be proven is listed as left running, and nothing else is ever touched.
+It refuses a folder that holds no `app/vigil` (`app\vigil.ps1`), so a mistyped `--root` deletes nothing, and a packaged program, which its package manager removes (§18.6). A worker is proven by its command line naming the run and the root (`worker <job> --run-id <run id>`) and by being the `worker_pid` of that run's state; a job process by holding the run token (Linux, macOS) or by its PID, name, start time and parent matching the state file (Windows, as for `max_runtime`, §11.5). Proven processes get TERM, then KILL after 10 seconds (on Windows the tree ends at once); a process the state names but that cannot be proven is listed as left running, and nothing else is ever touched.
 
 Environment variables set outside Vigil (machine environment, `vigil.env` aside) are left untouched. Uninstall is idempotent: running it on a clean machine succeeds and changes nothing. On Windows, when the root cannot be deleted because the uninstall itself is running from inside it, deletion is completed by a short-lived detached process after Vigil exits.
 
@@ -1995,7 +2012,7 @@ max_runtime = 30s
 
 `vigil` is the oldest Vigil it runs on. A job runs `<job>.sh` on Linux and macOS and `<job>.ps1` on Windows, and is left out on a platform with no script. `metrics` lists what it reports. Every other key is copied to the job.
 
-**In a release,** the `.tar.gz` holds the Linux and macOS scripts and the `.zip` the Windows ones, and the installer copies only its own platform's into `packs/<name>/`, flat, so a machine never holds another platform's scripts. Each release also has `vigil-packs-<version>-linux.tar.gz`, `-macos.tar.gz` and `-windows.zip`, covered by its `SHA256SUMS` and signature.
+**In a release,** the `.tar.gz` holds the Linux and macOS scripts and the `.zip` the Windows ones, and the installer copies only its own platform's into `packs/<name>/`, flat, so a machine never holds another platform's scripts. A package carries the packs beside `app/` instead, and `vigil init` copies them into the root the same way, each pack not already there (§18.6). Each release also has `vigil-packs-<version>-linux.tar.gz`, `-macos.tar.gz` and `-windows.zip`, covered by its `SHA256SUMS` and signature.
 
 **Vigil runs only what the configuration names.** That decides what each command may touch:
 

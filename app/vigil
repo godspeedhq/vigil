@@ -64,7 +64,8 @@
 #   vigil [--root <dir>] worker <job> --run-id <run id>
 #       Internal: the worker the supervisor starts for a launched run.
 #
-# The install root defaults to the folder that contains this app/ folder.
+# The install root is --root, else $VIGIL_ROOT, else the root a package names
+# in app/PACKAGED, else the folder that contains this app/ folder.
 
 set -u
 
@@ -89,6 +90,14 @@ for lib in config validate effective command schedule outcome metrics events rec
     # shellcheck source=/dev/null
     . "$app/lib/posix/$lib.sh"
 done
+
+# The root (18.6): --root, else VIGIL_ROOT, else a package's, else the folder
+# above app/.
+if [ -n "${VIGIL_ROOT-}" ]; then
+    root=$(cd "$VIGIL_ROOT" && pwd) || exit 64
+elif vigil_packaged "$app" && [ -n "$_vp_root" ]; then
+    root=$_vp_root
+fi
 
 usage() {
     printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list | enable <what> | disable <what> | update [--check]\n' >&2
@@ -255,6 +264,7 @@ case ${1-} in
         [ -n "$backends" ] || [ "$empty" = 1 ] || backends=file
         [ "$asked" = 1 ] && printf '\n'
         vigil_init "$root" "$instance" "$(printf '%s' "$backends" | tr -d ' ')" || exit $?
+        vigil_pack_seed "$root" "$app" || exit 1
         for name in $secrets; do
             printf 'The value of %s, which is not shown:\n' "$name"
             "$BASH" "$app/vigil" --root "$root" secret set "$name" || printf 'not stored: run vigil secret set %s\n' "$name"
@@ -276,6 +286,10 @@ case ${1-} in
             esac
             shift
         done
+        if vigil_packaged "$app"; then
+            printf 'vigil: Vigil was installed by %s: remove it with that, which stops the service and keeps %s\n' "$_vp_manager" "$root" >&2
+            exit 1
+        fi
         vigil_uninstall "$root" "$yes" "$keep"
         exit $?
         ;;
@@ -390,7 +404,8 @@ case ${1-} in
         done
         # The configuration decides the version when it names one (18.11):
         # an update here would be undone at its next load.
-        if [ "$check" = 0 ] && [ -n "$_vu_want" ]; then
+        # A package's program is refused whatever the configuration says.
+        if [ "$check" = 0 ] && [ -n "$_vu_want" ] && ! vigil_packaged "$app"; then
             printf 'vigil: the version is set in the configuration (version = %s): change it there to update, or remove it to use vigil self update\n' "$_vu_want" >&2
             exit 1
         fi
