@@ -104,6 +104,10 @@ if [ "$systemd" = yes ]; then
     check 'service install: says to use systemctl' yes "$(has 'the vigil package installed this service')"
     out=$(vigil restart 2>&1)
     check 'vigil restart works on the package unit' 0 "$?"
+    # A supervisor stopped while it sleeps leaves its sleep behind for a moment;
+    # the one restarted must not mistake that for another supervisor.
+    sleep 3
+    check 'after a restart, the service stays up' yes "$(yn systemctl is-active --quiet vigil)"
 fi
 
 # --- upgrade --------------------------------------------------------------------
