@@ -167,7 +167,7 @@ Windows PowerShell 5.1 is enough. It's built into Windows 10 and 11 and Windows 
 & ([scriptblock]::Create((irm https://github.com/godspeedhq/vigil/releases/latest/download/install.ps1))) -System -ShellHost pwsh
 ```
 
-In user mode nothing restarts Vigil if it stops, so use system mode on a server. Open a new prompt afterwards, so it picks up the new `PATH`.
+In user mode nothing restarts Vigil if it stops, so use system mode on a server. Afterwards, close every terminal window, all of Windows Terminal included, and open a new one: Windows Terminal hands each new tab the `PATH` it started with, so `vigil` is not found until it restarts.
 
 ### Check that it works
 

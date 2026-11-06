@@ -77,7 +77,12 @@ while [ -L "$self" ]; do
         *) self="$(dirname "$self")/$link" ;;
     esac
 done
-app=$(cd "$(dirname "$self")" && pwd)
+# An absolute path needs no cd: a cd from a folder that was deleted (one an
+# update replaced, say) prints an error on every command.
+case $self in
+    /*) app=$(dirname "$self") ;;
+    *) app=$(cd "$(dirname "$self")" && pwd) ;;
+esac
 root=$(dirname "$app")
 
 for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker backends sender fetch logs format supervisor precheck service init selfupdate pack configedit; do
