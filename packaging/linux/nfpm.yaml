@@ -49,6 +49,7 @@ contents:
     packager: rpm
 
 scripts:
+  preinstall: preinstall.sh
   postinstall: postinstall.sh
   preremove: preremove.sh
   postremove: postremove.sh

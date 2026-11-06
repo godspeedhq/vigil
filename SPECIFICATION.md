@@ -1898,9 +1898,9 @@ Outside the root, Vigil creates only:
 **A packaged program.** A package (`.deb`, `.rpm`, Homebrew, Chocolatey, an MSI) installs the program where its package manager keeps programs, owned by it and read-only, and the root elsewhere. Its build writes `app/PACKAGED`, which Vigil itself never writes, as `key = value` lines:
 
 ```ini
-manager = rpm
+manager = dnf
 upgrade = sudo dnf upgrade vigil
-root    = /var/lib/vigil
+root    = /opt/vigil
 ```
 
 - `root` is the root this program uses when no `--root` or `VIGIL_ROOT` is given. It need not exist yet: `vigil init` makes it.
@@ -1908,8 +1908,25 @@ root    = /var/lib/vigil
 - `vigil uninstall` is refused, and says to remove the package with its package manager, which stops the service and keeps the root.
 - `vigil init` puts the packs the package carries beside `app/` into the root's `packs/` (§18.10).
 - `vigil about` shows the program's folder and its package manager.
-- Nothing else differs: the root's layout (§12.1), the service registration (§18.9) and every other command are the same.
+- Nothing else differs: the root's layout (§12.1) and every other command are the same. A package that registers the service itself does so with the platform's own definition (below), and `vigil status`, `start`, `stop` and `restart` work on it.
 
+**The `.deb` and `.rpm`.** Built from the release's `.tar.gz` with nfpm (`tools/release/linux-packages.sh`, `packaging/linux/`), for every distribution with systemd: `vigil_<version>-1_all.deb` and `vigil-<version>-1.noarch.rpm`, on the release page and in `SHA256SUMS`.
+
+| Path | What | Whose |
+| --- | --- | --- |
+| `/usr/lib/vigil/app/` | the program, with `PACKAGED` naming `/opt/vigil` | the package |
+| `/usr/lib/vigil/packs/` | the packs, Linux's scripts | the package |
+| `/usr/bin/vigil` | a link to `/usr/lib/vigil/app/vigil` | the package |
+| `/usr/lib/systemd/system/vigil.service` | the service, as the `vigil` account | the package |
+| `/opt/vigil` | the root, the same as the install script's | never the package's |
+
+- **Installing** creates the `vigil` account and the root's folders, as `vigil service install --system` does, and when there is no configuration runs `vigil init` with the defaults it takes on Enter (the host name, metrics to a file, the base pack). An existing configuration is never touched.
+- **The service** follows each distribution: the `.deb` starts it once pre-flight passes as `vigil`; the `.rpm` leaves it off, as Fedora and RHEL do with a new service (`sudo systemctl enable --now vigil`). An upgrade restarts a running service; running jobs carry on (§18.3). `vigil service install` and `remove` refuse the package's unit and name the `systemctl` command.
+- **Removing** stops and disables the service and keeps `/opt/vigil` and the `vigil` account. Purging the `.deb` removes `/opt/vigil`.
+- **The root stays `/opt/vigil`,** where the install script puts it, so one path holds on every Linux machine whichever way Vigil came, and moving from the install script to the package keeps the configuration, scripts and packs where they are. Distributions keep `/opt` for software outside them, which these packages are; an official distribution package would use `/var/lib/vigil`.
+- **Moving from the install script:** the package finds that install's unit in `/etc/systemd/system`, which would run the old program in its place, leaves the service alone and prints the three commands that finish the move: `sudo /opt/vigil/app/vigil service remove`, `sudo rm -rf /opt/vigil/app /opt/vigil/vendor /usr/local/bin/vigil /etc/sudoers.d/vigil`, `sudo systemctl enable --now vigil`.
+- **Without systemd** (a container), the program and the root are installed and nothing is started; `vigil supervise` runs it.
+)
 Rationale:
 
 - **One root over OS conventions.** Splitting across `/etc`, `/var/lib` and `/var/log` is more conventional on Linux, but one root makes uninstall a single delete and lets an operator find everything.

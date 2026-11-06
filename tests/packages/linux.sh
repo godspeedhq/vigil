@@ -42,7 +42,7 @@ check() {
     fi
 }
 has() { if printf '%s\n' "$out" | grep -F -e "$1" > /dev/null; then echo yes; else echo no; fi; }
-yn() { if "$@"; then echo yes; else echo no; fi; }
+yn() { if "$@" > /dev/null 2>&1; then echo yes; else echo no; fi; }
 as_vigil() { out=$(runuser -u vigil -- "$@" < /dev/null 2>&1); }
 
 if command -v apt-get > /dev/null 2>&1; then
@@ -64,7 +64,7 @@ printf 'vigil %s on %s, systemd %s\n' "$format" "$(. /etc/os-release && echo "$P
 
 out=$(pkg_install "$pkg_old")
 check 'install: succeeds' 0 "$?"
-check 'the command is on PATH' /usr/bin/vigil "$(command -v vigil)"
+check 'the command is on PATH' /usr/lib/vigil/app/vigil "$(readlink -f "$(command -v vigil)")"
 out=$(vigil about 2>&1)
 check 'about: the root is /opt/vigil' yes "$(has "Installed   $root")"
 check 'about: the program and its package manager' yes "$(has "Program     /usr/lib/vigil, by $manager")"
@@ -117,7 +117,16 @@ check 'upgrade: the new version runs' yes "$([ "$(vigil version)" != "$before" ]
 check 'upgrade: the configuration is kept' 1 "$(grep -c '^# kept across the upgrade' $root/config/vigil.config)"
 check 'upgrade: scripts are kept' yes "$(yn test -f $root/scripts/mine.sh)"
 if [ "$systemd" = yes ]; then
+    out="$out
+$(systemctl status vigil --no-pager 2>&1)"
     check 'upgrade: the service is running' yes "$(yn systemctl is-active --quiet vigil)"
+    want=$(vigil version | sed 's/^Vigil //')
+    i=0
+    while [ "$(cat $root/state/supervisor.version 2> /dev/null)" != "$want" ] && [ "$i" -lt 20 ]; do
+        sleep 0.5
+        i=$((i + 1))
+    done
+    check 'upgrade: the supervisor is on the new version' "$want" "$(cat $root/state/supervisor.version 2> /dev/null)"
 fi
 
 # --- remove ---------------------------------------------------------------------

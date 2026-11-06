@@ -49,7 +49,7 @@ for p in "$src"/packs/*/; do
     [ ! -d "$p/linux" ] || cp -R "$p/linux" "$pkg/packs/${p##*/}/" || exit 1
 done
 cp "$repo"/packaging/linux/nfpm.yaml "$repo"/packaging/linux/vigil.service "$pkg/" || exit 1
-cp "$repo"/packaging/linux/postinstall.sh "$repo"/packaging/linux/preremove.sh "$repo"/packaging/linux/postremove.sh "$pkg/" || exit 1
+cp "$repo"/packaging/linux/preinstall.sh "$repo"/packaging/linux/postinstall.sh "$repo"/packaging/linux/preremove.sh "$repo"/packaging/linux/postremove.sh "$pkg/" || exit 1
 
 # What a packaged Vigil says about itself (SPECIFICATION.md 18.6): who
 # updates it, and its root, where the install script puts it too.

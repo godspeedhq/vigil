@@ -80,9 +80,12 @@ systemctl daemon-reload > /dev/null 2>&1
 [ "$legacy" = 1 ] && exit 0
 
 if [ "$action" = upgrade ]; then
-    # Running jobs carry on (KillMode=process); the supervisor comes back on
-    # the new version.
-    systemctl try-restart vigil > /dev/null 2>&1
+    # preinstall.sh stopped a running service before the files changed: it
+    # comes back on the new version. Running jobs carried on.
+    if [ -f /run/vigil.package-restart ]; then
+        rm -f /run/vigil.package-restart
+        systemctl start vigil > /dev/null 2>&1 || echo 'vigil: the service did not start again: sudo systemctl status vigil says why' >&2
+    fi
     exit 0
 fi
 

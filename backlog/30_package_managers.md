@@ -152,6 +152,43 @@ Where it differs from the proposal above:
   read-only packaged program and check the root, init's packs, both refusals,
   and that nothing is written into the program.
 
+## Step 1 as built
+
+- **The root is `/opt/vigil`**, as the install script's, not `/var/lib/vigil`:
+  one path on every Linux machine whichever way Vigil came, and a move from
+  the install script keeps everything in place. `/var/lib/vigil` is for an
+  official distribution package, if one ever comes.
+- **The program is in `/usr/lib/vigil`** (`app/`, and `packs/` with Linux's
+  scripts for `vigil init` to copy), with `/usr/bin/vigil` linking to it. Not
+  in `/opt/vigil/app`: the package's files and the root's never mix, and the
+  root's `packs/` (flat, rewritten by `vigil pack update`) stays apart from the
+  package's.
+- **Built by nfpm** (pinned, v2.48.0) from the release's `.tar.gz`:
+  `tools/release/linux-packages.sh` and `packaging/linux/`. `package.sh` builds
+  them when nfpm is on `PATH`; the release workflow installs it and fails
+  without them. Files: `vigil_<version>-1_all.deb`,
+  `vigil-<version>-1.noarch.rpm`, both in `SHA256SUMS`.
+- **`PACKAGED`** says `manager = apt` or `dnf`, and until the repositories of
+  step 3, `upgrade` names installing the newer file from the releases page.
+- **The service**: the unit in `/usr/lib/systemd/system`, as `vigil`. The
+  `.deb` enables and starts it once pre-flight passes as `vigil`; the `.rpm`
+  applies the distribution's preset, which leaves it off on Fedora and RHEL,
+  and says how to start it. An upgrade runs `systemctl try-restart`. `vigil
+  status`, `start`, `stop` and `restart` find the package's unit;
+  `vigil service install` and `remove` refuse it.
+- **Moving from the install script** is detected (its unit in `/etc` names
+  `/opt/vigil/app/vigil`) and not done for the operator: the package leaves the
+  old service running and prints the three commands that finish the move.
+- **Dependencies**: bash, curl, openssl, procps, hostname, tar, gzip, and the
+  account tools (`passwd` on Debian; `shadow-utils`, `util-linux`,
+  `findutils`, `gawk` on the `.rpm` side).
+- **Tests**: `tests/packages/linux.sh` installs one version, upgrades to the
+  next and removes it, in Debian 13, Ubuntu 24.04, Fedora 43 and Rocky 9
+  containers, and on the CI runner with systemd for the service (the
+  `linux-packages` job of the conformance workflow).
+- Not yet: `lintian` and `rpmlint`, GPG signatures on the `.rpm`, SELinux
+  enforcing, openSUSE.
+
 ## Also to settle
 
 - **Signing for the repositories.** `SHA256SUMS.sig` (OpenSSL, our own key)
@@ -176,12 +213,8 @@ Where it differs from the proposal above:
   containers on every release.
 
 ## Open questions
-- Packaged system root: `/var/lib/vigil`, or keep `/opt/vigil` for our own
-  repositories and use `/var/lib/vigil` only for official distribution packages?
 - Should a package upgrade also refresh `<root>/packs`, or leave that to
   `vigil pack update` as now?
-- Which account owns a packaged system root: the `vigil` service account,
-  created by the package, as `vigil service install --system` does now?
 - Where to host the apt repository: GitHub Pages, or a hosted service
   (Cloudsmith, packagecloud).
 

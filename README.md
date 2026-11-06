@@ -207,11 +207,26 @@ If your organisation doesn't allow piping scripts into a shell, or the machine h
 
 ### Package managers
 
-Not yet. `.deb` and `.rpm` packages, Homebrew, Scoop, Chocolatey and later winget are planned: [backlog 30](backlog/30_package_managers.md) has what that needs.
+From Vigil 0.5.0, each release has a `.deb` and an `.rpm` for Linux, on the [releases page](https://github.com/godspeedhq/vigil/releases) and in `SHA256SUMS`:
+
+```sh
+# Debian, Ubuntu
+sudo apt install ./vigil_<version>-1_all.deb
+
+# Fedora, RHEL, Rocky, Alma
+sudo dnf install ./vigil-<version>-1.noarch.rpm
+sudo systemctl enable --now vigil    # Fedora and RHEL leave a new service off
+```
+
+The package puts the program in `/usr/lib/vigil` and keeps everything else in `/opt/vigil`, the same place as the install script, so the paths in this README hold either way. It creates the `vigil` account, writes a starting configuration (the host name, metrics to a file, the base pack) when there is none, and installs the `vigil` systemd service. Update by installing the newer package the same way; `vigil self update` says so. Removing the package (`sudo apt remove vigil`, `sudo dnf remove vigil`) stops the service and keeps `/opt/vigil`; `sudo apt purge vigil` removes that too.
+
+If the install script put Vigil on the machine before, the package keeps its configuration, scripts and packs, and prints the three commands that switch the service over.
+
+Homebrew, Scoop, `apt` and `dnf` repositories, Chocolatey and winget are planned: [backlog 30](backlog/30_package_managers.md) has what that needs.
 
 ### Remove
 
-`vigil uninstall` lists what it will remove and asks first. `--keep-config` keeps `config/` and `scripts/`.
+`vigil uninstall` lists what it will remove and asks first. `--keep-config` keeps `config/` and `scripts/`. A `.deb` or `.rpm` is removed with its package manager instead.
 
 ## Update
 
