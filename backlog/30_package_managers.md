@@ -173,7 +173,10 @@ Where it differs from the proposal above:
 - **The service**: the unit in `/usr/lib/systemd/system`, as `vigil`. The
   `.deb` enables and starts it once pre-flight passes as `vigil`; the `.rpm`
   applies the distribution's preset, which leaves it off on Fedora and RHEL,
-  and says how to start it. An upgrade runs `systemctl try-restart`. `vigil
+  and says how to start it. An upgrade stops a running service before any file
+  changes (`preinstall.sh`) and starts it after: the package manager replaces
+  files one at a time, and the supervisor, which reloads itself on a new
+  `VERSION`, must never load half a version. `vigil
   status`, `start`, `stop` and `restart` find the package's unit;
   `vigil service install` and `remove` refuse it.
 - **Moving from the install script** is detected (its unit in `/etc` names
@@ -186,6 +189,13 @@ Where it differs from the proposal above:
   next and removes it, in Debian 13, Ubuntu 24.04, Fedora 43 and Rocky 9
   containers, and on the CI runner with systemd for the service (the
   `linux-packages` job of the conformance workflow).
+- **Found on the way**: the supervisor's background `sleep` between ticks kept
+  its lock open, and outlived a stop (`KillMode=process`), so a supervisor
+  started within seconds of a stop (`vigil restart`, a package upgrade) found
+  the lock held and exited. The `sleep` now closes it.
+- The `.rpm` with systemd running is not tested in CI yet (the Fedora and
+  Rocky containers have none); its service steps are the `.deb`'s, with the
+  preset.
 - Not yet: `lintian` and `rpmlint`, GPG signatures on the `.rpm`, SELinux
   enforcing, openSUSE.
 
