@@ -93,7 +93,13 @@ function Invoke-VigilInit {
     & $w '[runners]'
     & $w '.ps1 = ps'
     & $w ''
-    & $w '# Your jobs: one [job.<name>] section each, with your scripts in scripts\.'
+    & $w "# Your jobs: one [job.<name>] section each. A job's file is the script it runs:"
+    & $w "#   file = scripts\backup.ps1        in this install's scripts folder, $Root\scripts"
+    & $w '#   file = D:\ops\backup.ps1         or anywhere else, by its full path'
+    & $w "# A relative path always starts from $Root,"
+    & $w "# so a bare backup.ps1 means $Root\backup.ps1: write the scripts\ out."
+    & $w '# Wherever the script is, the account the service runs as must be able to'
+    & $w "# read and run it: vigil precheck, run as that account, checks every job's file."
     & $w '# [job.backup]'
     & $w '# file        = scripts\backup.ps1'
     & $w '# run_every   = 1h'

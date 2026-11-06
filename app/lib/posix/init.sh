@@ -94,7 +94,13 @@ vigil_init() {
         printf '[runners]\n.sh = sh\n'
         [ -n "$py" ] && printf '.py = py\n'
         printf '\n'
-        printf '# Your jobs: one [job.<name>] section each, with your scripts in scripts/.\n'
+        printf '# Your jobs: one [job.<name>] section each. A job'"'"'s file is the script it runs:\n'
+        printf '#   file = scripts/backup.sh         in this install'"'"'s scripts folder, %s/scripts\n' "$root"
+        printf '#   file = /home/you/bin/backup.sh   or anywhere else, by its full path\n'
+        printf '# A relative path always starts from %s,\n' "$root"
+        printf '# so a bare backup.sh means %s/backup.sh: write the scripts/ out.\n' "$root"
+        printf '# Wherever the script is, the account the service runs as must be able to\n'
+        printf '# read and run it: vigil precheck, run as that account, checks every job'"'"'s file.\n'
         printf '# [job.backup]\n# file        = scripts/backup.sh\n# run_every   = 1h\n# max_runtime = 30m\n'
     } > "$cfg.tmp.$$" && mv -f "$cfg.tmp.$$" "$cfg" || return 1
     printf 'wrote %s\n' "$cfg"
