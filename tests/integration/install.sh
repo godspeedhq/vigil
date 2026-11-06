@@ -42,10 +42,25 @@ check() {
 }
 
 printf 'bash %s on %s\n' "$BASH_VERSION" "$(uname -s)"
-bash "$repo/tools/release/package.sh" 0.0.1-it "$work/r1" > /dev/null || { printf 'packaging failed\n'; exit 1; }
+# The first under umask 077, as the release workflow once built 0.2.2 and
+# 0.3.0: their archives held app/ readable by its owner only.
+(umask 077 && bash "$repo/tools/release/package.sh" 0.0.1-it "$work/r1" > /dev/null) || { printf 'packaging failed\n'; exit 1; }
 bash "$repo/tools/release/package.sh" 0.0.2-it "$work/r2" > /dev/null || { printf 'packaging failed\n'; exit 1; }
 a1=$work/r1/vigil-0.0.1-it.tar.gz
 a2=$work/r2/vigil-0.0.2-it.tar.gz
+
+# --- the archives' modes ------------------------------------------------------
+
+# Folders 755, files 644, scripts 755, whatever the umask: any other mode is
+# listed.
+modes() { tar -tvzf "$1" | awk '$1 != "drwxr-xr-x" && $1 != "-rw-r--r--" && $1 != "-rwxr-xr-x" { print "        " $1, $NF }'; }
+modes "$a1" > "$work/modes"
+check 'the archive is readable by all, under umask 077' 0 "$(wc -l < "$work/modes" | tr -d ' ')"
+head -5 "$work/modes"
+modes "$work/r1/vigil-packs-0.0.1-it-linux.tar.gz" > "$work/modes"
+check 'and so are the packs' 0 "$(wc -l < "$work/modes" | tr -d ' ')"
+head -5 "$work/modes"
+check 'app/vigil is executable' 1 "$(tar -tvzf "$a1" | awk '$NF ~ /\/app\/vigil$/ && $1 == "-rwxr-xr-x"' | wc -l | tr -d ' ')"
 
 # --- a tampered archive -----------------------------------------------------
 
@@ -98,10 +113,18 @@ if ! sudo -n true 2> /dev/null; then
     printf 'SKIP system mode: needs sudo without a password\n'
 else
     root=/opt/vigil-inst-$$
-    sudo sh "$repo/install.sh" --system --prefix "$root" --archive "$a1" --instance it-sys < /dev/null > "$work/out" 2>&1
+    # From an archive like 0.2.2's and 0.3.0's, readable by its owner only:
+    # the installer has to open app/ up for the service account.
+    mkdir "$work/strict" "$work/strict/x"
+    tar -xzf "$a1" -C "$work/strict/x" && chmod -R go-rwx "$work/strict/x"
+    (cd "$work/strict/x" && tar -czf ../vigil-0.0.1-it.tar.gz vigil-0.0.1-it)
+    (cd "$work/strict" && { sha256sum vigil-0.0.1-it.tar.gz 2> /dev/null || shasum -a 256 vigil-0.0.1-it.tar.gz; } > SHA256SUMS)
+    sudo sh "$repo/install.sh" --system --prefix "$root" --archive "$work/strict/vigil-0.0.1-it.tar.gz" --instance it-sys < /dev/null > "$work/out" 2>&1
     rc=$?
     check 'system: install succeeds' 0 "$rc"
     [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+    check 'system: app/ is readable by all, from an owner-only archive' 0 "$(sudo find "$root/app" ! -perm -0444 | wc -l | tr -d ' ')"
+    check 'system: and not writable by others' 0 "$(sudo find "$root/app" -perm -0002 | wc -l | tr -d ' ')"
     check 'system: the command is linked' "$root/app/vigil" "$(readlink /usr/local/bin/vigil)"
     check 'system: the service is active' active "$(sudo /usr/local/bin/vigil status 2> /dev/null | sed -n '1s/^service: \([a-z]*\).*/\1/p')"
     sudo sh "$repo/install.sh" --system --prefix "$root" --archive "$a2" < /dev/null > "$work/out" 2>&1

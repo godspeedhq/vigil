@@ -26,8 +26,9 @@ jobs:
         run: |
           test -f app/release-key.pem
           test -n "$VIGIL_RELEASE_KEY"
-          umask 077
-          printf '%s\n' "$VIGIL_RELEASE_KEY" > "$RUNNER_TEMP/release.key"
+          # Only the key is private: the archives are built under the
+          # runner's own umask, and package.sh sets their modes itself.
+          (umask 077 && printf '%s\n' "$VIGIL_RELEASE_KEY" > "$RUNNER_TEMP/release.key")
           VIGIL_SIGN_KEY="$RUNNER_TEMP/release.key" bash tools/release/package.sh "${GITHUB_REF_NAME#v}" dist
           rm -f "$RUNNER_TEMP/release.key"
           openssl dgst -sha256 -verify app/release-key.pem -signature dist/SHA256SUMS.sig dist/SHA256SUMS
