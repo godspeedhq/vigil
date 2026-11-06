@@ -724,6 +724,8 @@ run_every = 1h
 
 The root has a folder for them, though: `scripts/`, beside `config/`. `vigil init` creates it, so every install has it, empty. It's the natural place for scripts that belong to this Vigil: a relative path into it works the same on every machine, upgrades never touch it, and `vigil uninstall --keep-config` keeps it. `vigil about` prints the root as `Installed`.
 
+A relative path always starts from the root, never from `scripts/`, so write the folder out: `file = scripts/backup_check.sh`. A bare `backup_check.sh` means a file in the root itself, which is rarely what you want; `vigil precheck` shows the full path it looked for.
+
 | Platform | User mode | System mode |
 | --- | --- | --- |
 | Linux, macOS | `~/.local/share/vigil` | `/opt/vigil` |
@@ -740,6 +742,8 @@ So, using `scripts/`, on Linux in user mode:
    run_every = 1h
    ```
 3. Check it with `vigil precheck`, and try it once with `vigil run backup_check`.
+
+In system mode, run `vigil precheck` as the account the service runs as, since that account has to read the script: `sudo -u vigil vigil precheck` on Linux, `sudo vigil precheck` on macOS, an elevated prompt on Windows. A script in your home folder can work for you and still fail for the service.
 
 The supervisor picks the job up at its next tick, with no restart. Copy the script before you save the configuration: a job whose file is missing fails each run until it is there, and `vigil precheck` says which file it is looking for.
 
