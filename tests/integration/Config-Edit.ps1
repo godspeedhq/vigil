@@ -90,7 +90,15 @@ Set-Content -LiteralPath "$e\race.cmd" -Value "@(echo.& echo # changed by someon
 # An editor with an argument before the file.
 Set-Content -LiteralPath "$e\args.cmd" -Value "@if not `"%1`"==`"--wait`" exit /b 9`r`n@(echo.& echo # with an argument)>> %2"
 Remove-Item Env:\VISUAL, Env:\EDITOR -ErrorAction SilentlyContinue
-$acl = (Get-Acl -LiteralPath $cfg).Sddl
+# Who may do what: the owner and each allow or deny rule, as a set. Saving
+# from an elevated prompt may turn inherited rules into explicit ones too
+# (ReplaceFile does), which grants nothing new.
+function Get-Access {
+    $a = Get-Acl -LiteralPath $cfg
+    $rules = @($a.Access | ForEach-Object { "$($_.IdentityReference) $($_.AccessControlType) $($_.FileSystemRights)" } | Sort-Object -Unique)
+    return "$($a.Owner); $($rules -join '; ')"
+}
+$acl = Get-Access
 
 # --- nothing to save ---------------------------------------------------------
 
@@ -135,7 +143,7 @@ $env:EDITOR = "$e\add.cmd"
 Test-Equal 'a valid change: exit 0' '0' (Invoke-Config)
 Test-Equal 'a valid change: says it is saved' 'True' (Test-Has "saved $cfg")
 Test-Equal 'a valid change: it is in the file' '1' (Get-Count $cfg '[job.second]')
-Test-Equal 'a valid change: the ACL is kept' $acl (Get-Acl -LiteralPath $cfg).Sddl
+Test-Equal 'a valid change: the same access' $acl (Get-Access)
 Test-Equal 'a valid change: no working folder left' '0' (Get-Leftovers)
 & $shell -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root supervise --once *> $null
 Test-Equal 'the supervisor runs the saved configuration' 'True' "$((Get-Count (Join-Path $root 'logs\supervisor\jobs.log') 'second') -ne '0')"

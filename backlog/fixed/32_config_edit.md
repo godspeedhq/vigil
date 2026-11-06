@@ -84,3 +84,10 @@ Checked:
 - The `Edit again? [Y/n]` prompt, which needs a terminal, by hand on macOS
   through `script`: yes reopened the copy with the mistake still in it and
   saved the fix; no left the file byte for byte as it was.
+
+On Windows, saving from an elevated prompt (as CI runs) makes the file's
+inherited access rules explicit as well: `ReplaceFile` writes them onto the
+file. Who may do what is unchanged, and the test checks exactly that, but a
+later tightening of `config\`'s permissions would not reach this file
+without a reset (`icacls vigil.config /reset`). Not worth a non-atomic save
+to avoid.
