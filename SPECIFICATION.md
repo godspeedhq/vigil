@@ -1642,7 +1642,7 @@ Adding a job never needs a restart:
 
 On a fleet, the same change is made in the configuration source instead, and each host adopts it at its next check (§16.5).
 
-Copy the script before editing the config. A config saved with a mistake is rejected, the previous configuration keeps running, and `jobs.log` shows the reason. A new job first runs at its next scheduled time (§7.6); `vigil run <job>` runs it once immediately in the foreground for testing. Scripts reached through the `[runners]` map need no executable bit; only files executed directly do, and pre-flight reports them.
+Copy the script before editing the config. `vigil config` checks the change before saving it (§16.6). A config saved some other way with a mistake is rejected, the previous configuration keeps running, and `jobs.log` shows the reason. A new job first runs at its next scheduled time (§7.6); `vigil run <job>` runs it once immediately in the foreground for testing. Scripts reached through the `[runners]` map need no executable bit; only files executed directly do, and pre-flight reports them.
 
 ### 16.3 Validation
 
@@ -1782,6 +1782,26 @@ A job pinned by `sha256` whose source now holds other content keeps its last ver
 
 On Windows, `git archive` writes a zip file, which .NET unpacks. Every fetch is bounded by the source's `timeout`, and the fetcher ends the process tree it started at that limit; a fetched configuration file larger than 1 MiB is rejected. A script may be any size, as a local one may. Git is never allowed to stop and ask for a credential.
 
+### 16.6 Editing the Configuration
+
+`vigil config` edits `config/vigil.config` as `crontab -e` edits a crontab: the change is checked before it goes live, not after.
+
+1. A copy of the file opens in `$VISUAL`, else `$EDITOR`, else `vi` (on Windows, Notepad). The copy is kept in a private folder beside the configuration. The editor setting may carry arguments, such as `code --wait`; a setting that is the path of a program is used whole, so `C:\Program Files\...` needs no quotes.
+2. When the editor exits with a failure, or the copy is unchanged, nothing is changed.
+3. The copy is parsed and validated exactly as the supervisor would (§16.3). When anything in it is `ERROR` or `INVALID`, it is not saved and the report is shown in file order with line numbers. At a terminal, `Edit again? [Y/n]` reopens the same copy, and no discards it; otherwise the command exits 1. An `INVALID` job is refused here, though the supervisor would only skip it, because a job that silently stops running is the mistake this command exists to catch. Warnings are shown and do not stop the save.
+4. The copy replaces the configuration in one rename, keeping its permissions, so the supervisor never reads half a file. It is used from the next tick (§16.1).
+5. When the configuration changed while it was being edited, it is left as it is, and the edited copy is kept as `config/vigil.config.edited`.
+
+Exit codes: 0 saved or nothing to save, 1 nothing saved.
+
+It refuses, changing nothing:
+
+- **No configuration:** `vigil init` writes one.
+- **A configuration it cannot write:** in system mode the file belongs to root (Administrators on Windows), so it is `sudo vigil config` or an elevated prompt.
+- **A pointer file** (§6.8): the configuration lives in its source, which it names. The pointer itself is edited with any editor. A configuration that only fetches scripts from sources is edited as usual.
+
+Only the checks that read nothing but the file run here. Pre-flight's others, on programs, folders and backends, stay in `vigil precheck` (§16.4), so a typo check never waits on the network.
+
 ---
 
 ## 17. Security
@@ -1846,6 +1866,7 @@ Each service manager is configured so stopping the service stops only the superv
 | --- | --- |
 | `init` | Onboarding (§19). |
 | `precheck [<job>]` | Pre-flight checks (§16.4); with a job, also its effective settings (§6.6). |
+| `config` | Edit the configuration in `$VISUAL` / `$EDITOR`, saved only when valid (§16.6). |
 | `service install [--user \| --system] [--account <name>] [--host powershell \| pwsh] [--no-start]` / `service remove` | Register or unregister the service without touching files (for example to switch mode). See §18.9. |
 | `start` / `stop` / `restart` | Service control. Stop leaves workers running. |
 | `status` | Print the service's state (`service: active, pid <n> (<manager>, <mode> mode)`, `inactive` or `not registered`), then `jobs.log`. |
