@@ -1,0 +1,21 @@
+# Installed by the vigil package. Change the environment with
+# systemctl edit vigil, which survives upgrades.
+[Unit]
+Description=Vigil job scheduler and supervisor
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=vigil
+WorkingDirectory=/opt/vigil
+ExecStart=/bin/bash /usr/lib/vigil/app/vigil --root /opt/vigil supervise
+KillMode=process
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

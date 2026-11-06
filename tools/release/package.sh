@@ -20,6 +20,8 @@
 #   install.sh, install.ps1  the installers, also published on their own
 #   vigil-packs-<version>-linux.tar.gz, -macos.tar.gz, -windows.zip
 #                            one platform's packs, for vigil pack update
+#   vigil_<version>-1_all.deb, vigil-<version>-1.noarch.rpm
+#                            when nfpm is on PATH (linux-packages.sh)
 #   SHA256SUMS               the SHA-256 of each, as sha256sum prints them
 #   SHA256SUMS.sig           its signature, when VIGIL_SIGN_KEY names a key
 #
@@ -115,14 +117,26 @@ for os in linux macos windows; do
 done
 cp "$repo/install.sh" "$repo/install.ps1" "$out/"
 
+# The .deb and .rpm, from the .tar.gz just written, when nfpm is here: the
+# release workflow has it, and checks they were built.
+rm -f "$out"/vigil_"$version"-1_all.deb "$out"/vigil-"$version"-1.noarch.rpm
+linux_files=''
+if command -v "${NFPM:-nfpm}" > /dev/null 2>&1; then
+    bash "$here/linux-packages.sh" "$version" "$out" || exit 1
+    linux_files="vigil_${version}-1_all.deb vigil-$version-1.noarch.rpm"
+else
+    printf 'package: nfpm not found, so no .deb or .rpm
+' >&2
+fi
+
 (
     cd "$out" || exit 1
     if command -v sha256sum > /dev/null 2>&1; then
         # shellcheck disable=SC2086
-        sha256sum "$name.tar.gz" "$name.zip" install.sh install.ps1 $pack_files
+        sha256sum "$name.tar.gz" "$name.zip" install.sh install.ps1 $pack_files $linux_files
     else
         # shellcheck disable=SC2086
-        shasum -a 256 "$name.tar.gz" "$name.zip" install.sh install.ps1 $pack_files
+        shasum -a 256 "$name.tar.gz" "$name.zip" install.sh install.ps1 $pack_files $linux_files
     fi
 ) | sed 's/ \*/  /' > "$out/SHA256SUMS" || exit 1
 # Signed in CI only, by .github/workflows/release.yml (17).
