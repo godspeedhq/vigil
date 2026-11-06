@@ -118,7 +118,9 @@ check 'upgrade: the configuration is kept' 1 "$(grep -c '^# kept across the upgr
 check 'upgrade: scripts are kept' yes "$(yn test -f $root/scripts/mine.sh)"
 if [ "$systemd" = yes ]; then
     out="$out
-$(systemctl status vigil --no-pager 2>&1)"
+$(systemctl status vigil --no-pager 2>&1)
+$(journalctl -u vigil --no-pager -n 40 2>&1)
+$(tail -n 20 $root/logs/supervisor/2*.log 2>&1)"
     check 'upgrade: the service is running' yes "$(yn systemctl is-active --quiet vigil)"
     want=$(vigil version | sed 's/^Vigil //')
     i=0
