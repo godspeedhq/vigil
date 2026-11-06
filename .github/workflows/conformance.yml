@@ -41,6 +41,8 @@ jobs:
         run: /bin/bash tests/integration/secrets.sh
       - name: precheck (/bin/bash)
         run: /bin/bash tests/integration/precheck.sh
+      - name: vigil config (/bin/bash)
+        run: /bin/bash tests/integration/config-edit.sh
       - name: secret stores (/bin/bash)
         run: /bin/bash tests/integration/stores.sh
       - name: metrics backends (/bin/bash)
@@ -187,6 +189,9 @@ jobs:
       - name: precheck
         if: matrix.part == 'core'
         run: ./tests/integration/Precheck.ps1
+      - name: vigil config
+        if: matrix.part == 'core'
+        run: ./tests/integration/Config-Edit.ps1
       - name: secret stores
         if: matrix.part == 'core'
         run: ./tests/integration/Stores.ps1

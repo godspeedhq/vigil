@@ -65,3 +65,22 @@ should not wait on the network.
   an `INVALID` job refused, a failing editor, a file changed during the edit,
   a pointer file refused, an unwritable file refused, `$VISUAL` over
   `$EDITOR`, an editor with arguments.
+
+## Closed (2026-11-06)
+
+Done as described: `app/lib/posix/configedit.sh` and
+`app/lib/windows/ConfigEdit.ps1`, spec §16.6 and §18.5, the README.
+
+One addition from testing: an editor setting that is the path of a program
+is used whole, so an unquoted `C:\Program Files\...` (or any path with a
+space) works. Found because the test's temporary folder was under
+`C:\Users\Bankole Ogundero`.
+
+Checked:
+- `tests/integration/config-edit.sh`: 42 passed on Fedora (bash 5.3) and on
+  macOS with bash 5.2 and the system's bash 3.2.
+- `tests/integration/Config-Edit.ps1`: 40 passed under Windows PowerShell 5.1
+  and PowerShell 7.
+- The `Edit again? [Y/n]` prompt, which needs a terminal, by hand on macOS
+  through `script`: yes reopened the copy with the mistake still in it and
+  saved the fix; no left the file byte for byte as it was.

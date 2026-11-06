@@ -93,6 +93,7 @@ Vigil's guiding rules:
 | Backends: `datadog` (Series API v2), `otel` (OTLP/HTTP JSON) and `splunk` (HTTP Event Collector) | Done |
 | Backends: the rest | Specified, not built |
 | `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done |
+| `vigil config`: edit the configuration like `crontab -e`, saved only when valid | Done |
 | Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done |
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done |
 | One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums | Done |
@@ -731,7 +732,7 @@ The root has a folder for them, though: `scripts/`, beside `config/`. `vigil ini
 So, using `scripts/`, on Linux in user mode:
 
 1. Copy the script in: `cp backup_check.sh ~/.local/share/vigil/scripts/`
-2. Add a job to `config/vigil.config` that names it, relative to the root:
+2. Add a job that names it, relative to the root, with `vigil config` (which opens `config/vigil.config` in your editor and saves it only when it is valid):
 
    ```ini
    [job.backup_check]
@@ -1011,6 +1012,7 @@ The full reference is in [`SPECIFICATION.md`](SPECIFICATION.md) (§6), and [`tes
 | `vigil run <job>` | Runs one job now, in the foreground, recorded exactly as a scheduled run would be. Exits 0 succeeded, 1 warning, 2 failed, 3 unknown, 4 not run. |
 | `vigil resolve <job>` | Confirms that the uncertain run holding a job is over. Never kills anything. |
 | `vigil precheck [<job>]` | Checks everything without starting or changing anything: every configuration problem with its line, then each job's file, runner, working folder, secrets and required variables, store credentials and writable folders. With a job, also its effective settings and where each came from. Exits 0 when nothing failed. |
+| `vigil config` | Edits the configuration like `crontab -e`: a copy opens in `$VISUAL` or `$EDITOR` (`vi`, or Notepad on Windows), and is saved only when nothing in it is wrong. Otherwise it shows each problem with its line and offers to edit again. `sudo vigil config` for a system install. Exits 0 saved or unchanged, 1 not saved. |
 | `vigil secret set <NAME>` / `list` / `delete <NAME>` | Manages Vigil's own secret store. `set` prompts without echoing, or reads `--stdin` for deployment tools; `list` never shows values. |
 | `vigil service install [--user \| --system]` | Runs the pre-flight checks, then registers the supervisor with systemd, launchd or NSSM and starts it. `--account <name>` (Linux, macOS), `--host powershell \| pwsh` (Windows), `--no-start`. |
 | `vigil service remove` | Unregisters it. Running jobs carry on. |

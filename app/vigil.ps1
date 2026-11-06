@@ -23,6 +23,10 @@
         Pre-flight checks (16.4), changing nothing: the configuration's
         problems, then everything runs need. With a job, also its effective
         settings (6.6). Exits 0 when nothing failed, 1 otherwise.
+    vigil [-Root <dir>] config
+        Edits the configuration as crontab -e does (16.6): a copy opens in
+        %VISUAL%, %EDITOR% or Notepad, and is saved only when it has no
+        ERROR or INVALID line. Exits 0 saved or unchanged, 1 not saved.
     vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>
         Vigil's own secret store (6.5.2), encrypted with DPAPI. set prompts
         without echo, or reads the value from stdin; list never shows values.
@@ -77,12 +81,12 @@ $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Root) { $Root = Split-Path -Parent $app }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate', 'Pack')) {
+foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate', 'Pack', 'ConfigEdit')) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list | enable <what> | disable <what> | update [--check]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list | enable <what> | disable <what> | update [--check]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -129,6 +133,10 @@ switch ($Command) {
         $r = Invoke-VigilPrecheck -Root $Root -Job $Job
         foreach ($l in $r.Lines) { Write-Output $l }
         exit $r.Code
+    }
+    'config' {
+        if ($Job -or $Rest) { Exit-Usage }
+        exit (Invoke-VigilConfigEdit -Root $Root)
     }
     'secret' {
         # Vigil's own secret store (6.5.2). Values are read from the console
