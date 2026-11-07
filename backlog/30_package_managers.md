@@ -1,8 +1,13 @@
 # Package managers
 
 Install Vigil through the package managers people already use: `.deb` and
-`.rpm` files, Homebrew, Scoop, Chocolatey, COPR, an MSI, winget and a macOS
-`.pkg`. The install script stays the quick start.
+`.rpm` files, Homebrew, Scoop and MacPorts. The install script stays the
+quick start.
+
+The owner settled the scope on 2026-11-07: after MacPorts, packages are
+done. The MSI and winget wait for a code-signing certificate (backlog 33, on
+hold). COPR, an apt repository, Chocolatey and a macOS `.pkg` are not needed
+(not_needed/34).
 
 The reason is servers more than convenience: many companies forbid piping a
 script to a shell there, and install only through internal mirrors
@@ -21,16 +26,11 @@ Ticked as each is released and installed on a clean machine.
 | [x] | 1 | `.deb` and `.rpm`, on each release and in `SHA256SUMS` (0.5.0) | `sudo apt install ./vigil_….deb`, `sudo dnf install ./vigil-….rpm` | nothing |
 | [x] | 2 | Homebrew tap (macOS, Linux) (0.5.1) | `brew install godspeedhq/vigil/vigil` | a `homebrew-vigil` repository |
 | [x] | 2 | Scoop bucket (Windows) (0.5.1) | `scoop bucket add vigil …`, `scoop install vigil` | a `scoop-vigil` repository |
-| [ ] | 3 | Fedora COPR, so `dnf upgrade` updates it | `sudo dnf copr enable godspeedhq/vigil`, `sudo dnf install vigil` | a COPR account |
-| [ ] | 3 | An apt repository, so `apt upgrade` updates it | `sudo apt install vigil` | where to host it |
-| [ ] | 3 | Chocolatey (moderated by hand, days per version) | `choco install vigil` | a Chocolatey account |
-| [ ] | 4 | MSI built with WiX, for Intune, Group Policy and SCCM | `msiexec /i vigil-….msi /qn` | the code-signing certificate (backlog 12) |
-| [ ] | 4 | winget, from the MSI | `winget install GodspeedHQ.Vigil` | the MSI |
-| [ ] | 5 | macOS `.pkg`, for Jamf, Intune and Kandji | `sudo installer -pkg vigil-….pkg -target /` | an Apple Developer ID, for signing and notarizing |
+| [ ] | 3 | MacPorts (macOS), in the MacPorts ports tree | `sudo port install vigil` | a pull request to `macports/macports-ports`, from the owner's GitHub account |
 
 Not `.app` (a bundle is for programs with a window; Vigil is a command and a
-service) and not NSIS (an `.exe` wizard: companies ask for an MSI, and winget
-takes the MSI).
+service). The MSI and winget are backlog 33; NSIS, COPR, apt, Chocolatey and
+the `.pkg` are not_needed/34.
 
 ## What the code does today (checked 2026-11-05)
 
@@ -274,8 +274,6 @@ Where it differs from the proposal above:
 ## Open questions
 - Should a package upgrade also refresh `<root>/packs`, or leave that to
   `vigil pack update` as now?
-- Where to host the apt repository: GitHub Pages, or a hosted service
-  (Cloudsmith, packagecloud).
 
 ## Done when
 - A packaged program runs read-only, with its root elsewhere, on Linux, macOS

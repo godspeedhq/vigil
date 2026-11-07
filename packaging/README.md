@@ -454,4 +454,4 @@ Both check for a new Vigil release every hour. Before writing anything, each ver
 
 ## 🗺️ Next
 
-`apt` and `dnf` repositories, Chocolatey and winget: [backlog 30](https://github.com/godspeedhq/vigil/blob/main/backlog/30_package_managers.md) has what that needs.
+MacPorts, the last package manager planned: [backlog 30](https://github.com/godspeedhq/vigil/blob/main/backlog/30_package_managers.md). An MSI and winget wait for code signing: [backlog 33](https://github.com/godspeedhq/vigil/blob/main/backlog/33_signed_packages.md).

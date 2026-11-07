@@ -2435,7 +2435,7 @@ Not every backend type is required for v1. Reliable scheduling and supervision c
 - Cron-style expressions.
 - Per-job CPU and memory limits where the OS supports them for unprivileged users.
 - Stronger process containment: Windows Job Objects and Linux cgroups (`systemd-run --scope`) for complete tree termination. Deferred from v1 because Job Objects need compiled code from PowerShell 5.1 and cgroup scopes differ between user and system mode; the run token and run id already establish ownership without them.
-- Package-manager distribution (winget, Chocolatey, Homebrew, apt, dnf).
+- Package-manager distribution: MacPorts, and an MSI and winget once releases can be code-signed.
 - Signature verification of configuration revisions (signed Git tags or commits, signed manifests) before activation.
 - Log forwarding: more than one destination (§13.4).
 - Per-host overrides of jobs received from a source.
