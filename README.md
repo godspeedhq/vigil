@@ -222,7 +222,7 @@ The package puts the program in `/usr/lib/vigil` and keeps everything else in `/
 
 If the install script put Vigil on the machine before, the package keeps its configuration, scripts and packs, and prints the three commands that switch the service over.
 
-From Vigil 0.5.1, Homebrew (macOS, Linux) and Scoop (Windows) install it too, from Vigil's own tap and bucket:
+From Vigil 0.5.1, Homebrew (Apple Silicon Macs and Linux: Homebrew no longer installs on Intel Macs) and Scoop (Windows) install it too, from Vigil's own tap and bucket:
 
 ```sh
 # Homebrew

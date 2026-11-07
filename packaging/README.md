@@ -226,6 +226,8 @@ The formula is made from [`packaging/homebrew/vigil.rb.in`](https://github.com/g
 - `brew uninstall vigil` removes the program and keeps `$(brew --prefix)/var/vigil`.
 - ⚠️ `brew services stop vigil` ends running jobs as well as the supervisor: Homebrew stops the whole process group.
 
+⚠️ Homebrew itself no longer installs on Intel Macs, only on Apple Silicon (and Linux). That is why the Intel macOS test machine has no Homebrew output here: on an Intel Mac, use the install script.
+
 CI installs, runs, upgrades and removes it on every change, on Homebrew 7 on macOS (`tests/packages/homebrew.sh`):
 
 ```

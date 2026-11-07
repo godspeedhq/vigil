@@ -19,8 +19,8 @@ Ticked as each is released and installed on a clean machine.
 | --- | --- | --- | --- | --- |
 | [x] | 0 | Groundwork: a packaged program, read-only, with its root elsewhere (0.5.0) | n/a | nothing |
 | [x] | 1 | `.deb` and `.rpm`, on each release and in `SHA256SUMS` (0.5.0) | `sudo apt install ./vigil_….deb`, `sudo dnf install ./vigil-….rpm` | nothing |
-| [ ] | 2 | Homebrew tap (macOS, Linux) | `brew install godspeedhq/vigil/vigil` | a `homebrew-vigil` repository |
-| [ ] | 2 | Scoop bucket (Windows) | `scoop bucket add vigil …`, `scoop install vigil` | a `scoop-vigil` repository |
+| [ ] | 2 | Homebrew tap (macOS, Linux): released in 0.5.1, tested in CI only | `brew install godspeedhq/vigil/vigil` | a `homebrew-vigil` repository |
+| [x] | 2 | Scoop bucket (Windows) (0.5.1) | `scoop bucket add vigil …`, `scoop install vigil` | a `scoop-vigil` repository |
 | [ ] | 3 | Fedora COPR, so `dnf upgrade` updates it | `sudo dnf copr enable godspeedhq/vigil`, `sudo dnf install vigil` | a COPR account |
 | [ ] | 3 | An apt repository, so `apt upgrade` updates it | `sudo apt install vigil` | where to host it |
 | [ ] | 3 | Chocolatey (moderated by hand, days per version) | `choco install vigil` | a Chocolatey account |
@@ -212,6 +212,27 @@ Where it differs from the proposal above:
   containers have none): only by hand, as above.
 - Not yet: `lintian` and `rpmlint`, GPG signatures on the `.rpm`, SELinux
   enforcing, openSUSE.
+
+## Step 2 as built
+
+- The formula and manifest are made from `packaging/homebrew/vigil.rb.in` and
+  `packaging/scoop/vigil.json.in` by `tools/release/tap-bucket.sh`. The tap
+  `godspeedhq/homebrew-vigil` and the bucket `godspeedhq/scoop-vigil` run it
+  hourly from the latest release's tag, after verifying its `SHA256SUMS`
+  against the release key they keep.
+- `PACKAGED` gains `service`: how the package starts the service. With it,
+  `vigil service install` refuses and names that command.
+- CI on every change: `tests/packages/homebrew.sh` (Homebrew 7, macOS arm64)
+  and `tests/packages/Scoop.ps1` (Windows).
+- **Released in 0.5.1** (2026-11-07):
+  - Scoop, on the Windows 11 test machine as a standard user: `scoop bucket
+    add` and `scoop install` from the bucket minutes after the release, `vigil
+    service install --user`, and `scoop uninstall` (the logon entry removed,
+    the persist folder kept).
+  - Homebrew on a real machine: not yet. Homebrew no longer installs on Intel
+    Macs, which the macOS test machine is (macOS 12.7.6). It needs an Apple
+    Silicon Mac, or Homebrew on Linux (`brew services` there is a systemd user
+    unit, untested).
 
 ## Also to settle
 
