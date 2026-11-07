@@ -24,13 +24,29 @@
 #
 # Running it again is safe: it skips what is already done.
 #
-# To undo it:
-#   rm -rf ~/homebrew ~/Library/Caches/Homebrew
-#   and delete the brew shellenv line from ~/.zprofile (or ~/.bash_profile)
+# To remove it all again, with everything installed through it:
+#
+#   curl -fsSL https://raw.githubusercontent.com/godspeedhq/vigil/main/packaging/homebrew/intel-mac.sh | bash -s -- --uninstall
+#
+# It says what it will remove and asks first; --yes skips the question.
 
 set -u
 
 prefix=$HOME/homebrew
+line='eval "$(~/homebrew/bin/brew shellenv)"'
+
+uninstall=0
+yes=0
+for a in "$@"; do
+    case $a in
+        --uninstall) uninstall=1 ;;
+        --yes) yes=1 ;;
+        *)
+            echo "unknown option $a: the options are --uninstall and --yes"
+            exit 1
+            ;;
+    esac
+done
 
 if [ "$(id -u)" -eq 0 ]; then
     echo 'Run this as yourself, not with sudo: Homebrew refuses to run as root.'
@@ -40,6 +56,79 @@ if [ "$(uname -s)" != Darwin ]; then
     echo 'This is for macOS. On Linux, use the installer at https://brew.sh'
     exit 1
 fi
+
+# New terminals find brew through the shell profile.
+case ${SHELL##*/} in
+    bash) profile=$HOME/.bash_profile ;;
+    *) profile=$HOME/.zprofile ;;
+esac
+
+if [ "$uninstall" = 1 ]; then
+    # Only a Homebrew clone is ever deleted: a folder of that name holding
+    # anything else is left alone.
+    if [ -e "$prefix" ] && [ ! -x "$prefix/bin/brew" ]; then
+        echo "$prefix is not a Homebrew clone: leaving it alone"
+        exit 1
+    fi
+    echo 'This removes:'
+    if [ -x "$prefix/bin/brew" ]; then
+        echo "  $prefix, with everything installed through it and its data in $prefix/var:"
+        formulae=$("$prefix/bin/brew" list --formula -1 2> /dev/null | xargs)
+        casks=$("$prefix/bin/brew" list --cask -1 2> /dev/null | xargs)
+        echo "    formulae: ${formulae:-none}"
+        echo "    casks:    ${casks:-none}"
+    fi
+    # Homebrew's caches, logs and settings, unless another Homebrew (an
+    # older one in /usr/local) shares them.
+    shared=1
+    if [ -x /usr/local/bin/brew ]; then
+        shared=0
+        echo '  (not the caches, logs and settings: the Homebrew in /usr/local uses them too)'
+    fi
+    [ "$shared" = 1 ] && for d in "$HOME/Library/Caches/Homebrew" "$HOME/Library/Logs/Homebrew" "$HOME/.homebrew"; do
+        [ -e "$d" ] && echo "  $d"
+    done
+    for f in "$HOME/.zprofile" "$HOME/.bash_profile"; do
+        [ -f "$f" ] && grep -qxF "$line" "$f" && echo "  the brew shellenv line in $f"
+    done
+    if [ "$yes" = 0 ]; then
+        # Piped into bash, standard input is this script: ask the terminal.
+        if ! (: < /dev/tty) 2> /dev/null; then
+            echo 'No terminal to ask in: run it again with --yes to go ahead.'
+            exit 1
+        fi
+        printf 'Remove? [y/N] '
+        read -r answer < /dev/tty
+        case $answer in
+            y | Y | yes | YES) ;;
+            *)
+                echo 'Nothing was removed.'
+                exit 0
+                ;;
+        esac
+    fi
+    if [ -x "$prefix/bin/brew" ]; then
+        # Otherwise their LaunchAgents stay behind, failing at every login.
+        "$prefix/bin/brew" services stop --all
+        rm -rf "$prefix" || exit 1
+        echo "removed $prefix"
+    fi
+    [ "$shared" = 1 ] && for d in "$HOME/Library/Caches/Homebrew" "$HOME/Library/Logs/Homebrew" "$HOME/.homebrew"; do
+        [ -e "$d" ] && rm -rf "$d" && echo "removed $d"
+    done
+    for f in "$HOME/.zprofile" "$HOME/.bash_profile"; do
+        [ -f "$f" ] && grep -qxF "$line" "$f" || continue
+        # Rewritten in place, so the file keeps its owner and permissions; one
+        # left empty held only this line, so it was this script's.
+        rest=$(grep -vxF "$line" "$f")
+        if [ -n "$rest" ]; then printf '%s\n' "$rest" > "$f"; else rm -f "$f"; fi
+        echo "removed the brew shellenv line from $f"
+    done
+    echo
+    echo 'Done. Open a new terminal: the one you have still has brew on its PATH.'
+    exit 0
+fi
+
 if [ "$(uname -m)" != x86_64 ]; then
     echo 'This Mac is not Intel: use the installer at https://brew.sh'
     exit 1
@@ -65,13 +154,7 @@ else
     fi
 fi
 
-# New terminals find brew through the shell profile.
-case ${SHELL##*/} in
-    bash) profile=$HOME/.bash_profile ;;
-    *) profile=$HOME/.zprofile ;;
-esac
-line='eval "$(~/homebrew/bin/brew shellenv)"'
-if [ -f "$profile" ] && grep -qF "$line" "$profile"; then
+if [ -f "$profile" ] && grep -qxF "$line" "$profile"; then
     echo "$profile already sets up brew"
 else
     echo "$line" >> "$profile" || exit 1
@@ -87,3 +170,4 @@ echo "  $line"
 echo 'Homebrew warns that the Mac is Intel, the prefix is not /usr/local and,'
 echo 'on an older macOS, that it is unsupported: formulae with nothing to build'
 echo 'install as usual; others build from source, which takes longer.'
+echo 'To remove it all again: intel-mac.sh --uninstall'

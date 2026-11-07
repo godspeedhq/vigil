@@ -243,6 +243,30 @@ brew install godspeedhq/vigil/vigil
 curl -fsSL https://raw.githubusercontent.com/godspeedhq/vigil/main/packaging/homebrew/intel-mac.sh | bash
 ```
 
+`--uninstall` takes it all away again: it lists what it will remove, with every formula and cask installed through it, and asks first. It stops anything `brew services` runs, then removes `~/homebrew`, Homebrew's caches, logs and settings, and its line in your shell profile, leaving the rest of the profile as it was:
+
+```
+$ curl -fsSL https://raw.githubusercontent.com/godspeedhq/vigil/main/packaging/homebrew/intel-mac.sh | bash -s -- --uninstall
+This removes:
+  /Users/vigil-test/homebrew, with everything installed through it and its data in /Users/vigil-test/homebrew/var:
+    formulae: vigil
+    casks:    none
+  /Users/vigil-test/Library/Caches/Homebrew
+  /Users/vigil-test/Library/Logs/Homebrew
+  /Users/vigil-test/.homebrew
+  the brew shellenv line in /Users/vigil-test/.zprofile
+Remove? [y/N] y
+removed /Users/vigil-test/homebrew
+removed /Users/vigil-test/Library/Caches/Homebrew
+removed /Users/vigil-test/Library/Logs/Homebrew
+removed /Users/vigil-test/.homebrew
+removed the brew shellenv line from /Users/vigil-test/.zprofile
+
+Done. Open a new terminal: the one you have still has brew on its PATH.
+```
+
+A `~/homebrew` that is not a Homebrew clone is left alone, and with an older Homebrew in `/usr/local` the caches, logs and settings it shares stay.
+
 Homebrew warns about the Intel Mac, the old macOS and the prefix; none of that matters to Vigil, which builds nothing. This is the macOS test machine, an Intel MacBook Air on macOS 12.7.6, the day 0.5.1 came out:
 
 ```
