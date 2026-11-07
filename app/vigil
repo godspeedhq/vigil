@@ -272,7 +272,9 @@ case ${1-} in
         if [ -n "$pack" ] && [ -f "$root/packs/$pack/pack.config" ]; then
             vigil_pack_enable "$root" "$pack" || exit 1
         fi
-        printf '\nNext: vigil precheck, then vigil service install\n'
+        # A package registers its own service, and its install says how to
+        # start it: vigil service install would refuse (18.6).
+        vigil_packaged "$app" || printf '\nNext: vigil precheck, then vigil service install\n'
         exit 0
         ;;
     uninstall)

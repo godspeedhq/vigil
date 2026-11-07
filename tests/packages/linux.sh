@@ -64,6 +64,7 @@ printf 'vigil %s on %s, systemd %s\n' "$format" "$(. /etc/os-release && echo "$P
 
 out=$(pkg_install "$pkg_old")
 check 'install: succeeds' 0 "$?"
+check 'install: no advice to run vigil service install, which refuses' no "$(has 'vigil service install')"
 check 'the command is on PATH' /usr/lib/vigil/app/vigil "$(readlink -f "$(command -v vigil)")"
 out=$(vigil about 2>&1)
 check 'about: the root is /opt/vigil' yes "$(has "Installed   $root")"
