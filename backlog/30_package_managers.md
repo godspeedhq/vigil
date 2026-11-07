@@ -235,12 +235,18 @@ Where it differs from the proposal above:
     the refusals, `brew services start vigil` (`sh.brew.vigil`) and `vigil
     status` on it. Upgrade and uninstall are CI's (macOS arm64).
   - Homebrew on Linux (`brew services` there is a systemd user unit): untested.
-- **Homebrew 7.0.12 deprecates `post_install`** for `post_install_steps`, a
-  fixed set of file actions with no step that runs a command, so it can't run
-  `vigil init` yet. Installing prints `Warning: Calling post_install is
-  deprecated!` and works. Before Homebrew disables it: move the starting
-  configuration to a step if one appears, or have `brew services start` and
-  the caveats say to run `vigil init` first.
+- **Homebrew 7 deprecates `post_install`** for `post_install_steps`.
+  Installing 0.5.1 and 0.5.2 printed `Warning: Calling post_install is
+  deprecated! Use post_install_steps instead.` and worked. That was wrongly
+  noted here as having no step that runs a command: it has `run` (from
+  Homebrew 6.0.x), with a literal argument list, inside Homebrew's sandbox,
+  writing only where `writable_paths` allows. The formula now makes
+  `var/vigil` and, unless `var/vigil/config/vigil.config` exists, runs
+  `vigil init --backend file` with `var/vigil` writable. On the Intel test Mac
+  (Homebrew 7.0.12): no warning on install, reinstall or `brew postinstall`,
+  the configuration written, an edited one kept, and `brew audit --strict`
+  and `brew style` clean once the description was cut to under 80
+  characters. The CI test now fails on `deprecated` in the install output.
 
 ## Also to settle
 
