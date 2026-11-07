@@ -999,14 +999,18 @@ _vigil_sup_update_due() {
 
 # Logs the outcome of an update once, when vigil_update has written it.
 # What was reported is kept on disk: a successful update is written after
-# the supervisor has reloaded, so by a process that did not start it.
+# the supervisor has reloaded, so by a process that did not start it. An
+# outcome is its epoch, version and result: two can share a second, as a
+# release that fails just after one that succeeded. Before 0.5.1 it was the
+# epoch alone, still taken as seen.
 _vigil_sup_update_report() {
-    local seen=''
+    local seen='' key
     _vigil_sup_update_read
     [ "$_su_ue" != 0 ] || return 0
+    key="$_su_ue $_su_uv $_su_ur"
     [ -f "$_su_statedir/update.reported" ] && read -r seen < "$_su_statedir/update.reported"
-    [ "$_su_ue" != "$seen" ] || return 0
-    printf '%s\n' "$_su_ue" > "$_su_statedir/update.reported.tmp.$$" &&
+    [ "$seen" != "$key" ] && [ "$seen" != "$_su_ue" ] || return 0
+    printf '%s\n' "$key" > "$_su_statedir/update.reported.tmp.$$" &&
         mv -f "$_su_statedir/update.reported.tmp.$$" "$_su_statedir/update.reported"
     case $_su_ur in
         succeeded) _vigil_sup_log INFO "Vigil is now $_su_uv, as the configuration asks" ;;

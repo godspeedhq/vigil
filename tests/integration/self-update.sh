@@ -271,6 +271,10 @@ check 'notice: asks at most once a day' 0 "$(grep -c '"path"' "$work/mock/reques
 case $(uname -s) in
     Linux | Darwin)
         vigil self update --version 0.0.1-it > /dev/null 2>&1
+        # An earlier supervisor's version is still on disk: without this, the
+        # wait below can end before this one has started, and the update
+        # land before it reads its version, leaving nothing to reload.
+        rm -f "$root/state/supervisor.version"
         # Not through vigil(): $! would be the function's subshell.
         bash "$root/app/vigil" --root "$root" supervise > /dev/null 2>&1 &
         sup=$!

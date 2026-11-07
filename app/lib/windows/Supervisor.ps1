@@ -642,15 +642,19 @@ function Invoke-VigilSupervisor {
 
     # Logs the outcome of an update once, when vigil_update has written it.
     # What was reported is kept on disk: a successful update is written after
-    # the supervisor has reloaded, so by a process that did not start it.
+    # the supervisor has reloaded, so by a process that did not start it. An
+    # outcome is its epoch, version and result: two can share a second, as a
+    # release that fails just after one that succeeded. Before 0.5.1 it was
+    # the epoch alone, still taken as seen.
     $updateReport = {
         $r = & $updateRead
         if ($r.Epoch -eq 0) { return }
+        $key = "$($r.Epoch) $($r.Version) $($r.Result)"
         $seenFile = Join-Path $sv.State 'update.reported'
         $seen = ''
         try { $seen = [System.IO.File]::ReadAllText($seenFile).Trim() } catch { }
-        if ("$($r.Epoch)" -ceq $seen) { return }
-        Write-VigilFileAtomic -Path $seenFile -Text "$($r.Epoch)`n"
+        if ($key -ceq $seen -or "$($r.Epoch)" -ceq $seen) { return }
+        Write-VigilFileAtomic -Path $seenFile -Text "$key`n"
         $on = if ($version) { $version } else { 'this version' }
         switch -CaseSensitive ($r.Result) {
             'succeeded' { & $log 'INFO' "Vigil is now $($r.Version), as the configuration asks" }
