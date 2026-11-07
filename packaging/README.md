@@ -267,7 +267,7 @@ Done. Open a new terminal: the one you have still has brew on its PATH.
 
 A `~/homebrew` that is not a Homebrew clone is left alone, and with an older Homebrew in `/usr/local` the caches, logs and settings it shares stay.
 
-Homebrew warns about the Intel Mac, the old macOS and the prefix; none of that matters to Vigil, which builds nothing. This is the macOS test machine, an Intel MacBook Air on macOS 12.7.6, the day 0.5.1 came out:
+Homebrew warns about the Intel Mac, the old macOS and the prefix; none of that matters to Vigil, which builds nothing. This is the macOS test machine, an Intel MacBook Air on macOS 12.7.6, the day 0.5.1 came out (the account and Mac names are replaced with `you` and `your-mac`):
 
 ```
 $ brew --version
@@ -277,7 +277,7 @@ $ brew install godspeedhq/vigil/vigil
 ==> Pouring portable-ruby-4.0.9.big_sur.bottle.tar.gz
 ...
 ==> Tapping godspeedhq/vigil
-Cloning into '/Users/bankoleogundero/homebrew/Library/Taps/godspeedhq/homebrew-vigil'...
+Cloning into '/Users/you/homebrew/Library/Taps/godspeedhq/homebrew-vigil'...
 Tapped 1 formula (18 files, 32.3KB).
 Warning: Your Homebrew's prefix is not /usr/local.
 ...
@@ -288,13 +288,13 @@ We (and Apple) do not provide support for this old version.
 ✔︎ Formula vigil (0.5.1)
 ==> Installing vigil from godspeedhq/vigil
 ...
-🍺  /Users/bankoleogundero/homebrew/Cellar/vigil/0.5.1: 85 files, 1.1MB, built in 8 seconds
+🍺  /Users/you/homebrew/Cellar/vigil/0.5.1: 85 files, 1.1MB, built in 8 seconds
 
 $ vigil about
 Vigil 0.5.1
 ...
-Installed   /Users/bankoleogundero/homebrew/var/vigil
-Program     /Users/bankoleogundero/homebrew/opt/vigil/libexec, by Homebrew
+Installed   /Users/you/homebrew/var/vigil
+Program     /Users/you/homebrew/opt/vigil/libexec, by Homebrew
 Platform    macOS, bash 3.2.57
 
 $ vigil self update
@@ -309,7 +309,7 @@ $ brew services start vigil
 $ vigil status
 service: active, pid 61955 (launchd, user mode)
 
-Vigil Bankoles-MacBook-Air at 2026-11-07T12:35:57Z
+Vigil your-mac at 2026-11-07T12:35:57Z
 
 WAITING
   base_cpu: next 2026-11-07T12:36:00Z
@@ -321,7 +321,7 @@ WAITING
 
 $ brew services list
 Name  Status User            File
-vigil started         bankoleogundero ~/Library/LaunchAgents/sh.brew.vigil.plist
+vigil started         you             ~/Library/LaunchAgents/sh.brew.vigil.plist
 ```
 
 ### In CI
