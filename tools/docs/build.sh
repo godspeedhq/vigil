@@ -31,6 +31,8 @@
 #   Test evidence   console output of a real CI run (evidence.sh)
 #   Real systems    the runs the real-backend tests kept, on each machine
 #                   (runs-page.sh)
+#   Packages        packaging/README.md: the package managers, with their
+#                   console output on real machines
 #   Logs and output a tour of Vigil on each system, from CI (tour-page.sh)
 #
 # The output is Markdown with front matter for Jekyll and the Just the Docs
@@ -72,6 +74,7 @@ relink() {
         -e 's#\]\(VISION\.md\)#](/vigil/vision/)#g' \
         -e 's#\]\(WHY\.md\)#](/vigil/why/)#g' \
         -e 's#\]\(README\.md\)#](/vigil/)#g' \
+        -e 's#\]\(packaging/README\.md\)#](/vigil/packages/)#g' \
         -e 's#\]\(LICENSE\)#]('"$blob"'/LICENSE)#g' \
         -e 's#\]\(([A-Za-z0-9_.-]+/)([^):]*)\)#]('"$tree"'/\1\2)#g'
 }
@@ -217,6 +220,13 @@ if bash "$here/runs-page.sh" "$runs"; then
     done
 fi
 rm -rf "$runs"
+
+# --- Packages ------------------------------------------------------------------
+
+# packaging/README.md: each package manager, with the console output of its
+# tests on real machines.
+sed '1{/^# /d;}' "$repo/packaging/README.md" | relink |
+    page packages.md 'title: Packages' 'nav_order: 6.7' 'permalink: /packages/'
 
 # --- Logs and output ---------------------------------------------------------------
 
