@@ -18,8 +18,8 @@ Hyper-V VMs on the Windows 11 Pro test machine:
 
 | Version | Status | Note |
 | --- | --- | --- |
-| Server 2025 | fetched | supported; OpenSSH built in |
-| Server 2016 | fetched | supported; OpenSSH not built in (install Win32-OpenSSH, or reach it over PowerShell remoting) |
+| Server 2025 | in Hyper-V | supported; OpenSSH built in |
+| Server 2016 | in Hyper-V | supported; OpenSSH not built in (install Win32-OpenSSH, or reach it over PowerShell remoting) |
 | Server 2012 R2 | to fetch | WMF 5.1 to install |
 | Server 2012 | to fetch | WMF 5.1 to install |
 | Server 2008 R2 SP1 | to fetch | WMF 5.1 to install (it needs .NET Framework 4.5 or later first); out of support since January 2020 |
@@ -52,3 +52,7 @@ The specification's support table is then updated to say what was shown, version
 ## Progress
 
 - Written 2026-11-03. Waiting for the VMs: 2016 and 2025 fetched; 2012, 2012 R2 and 2008 R2 to fetch.
+- 2026-11-07: 2016 and 2025 are installed in Hyper-V on the Windows 11 test
+  machine. Only one can run at a time there, so the versions are tested one
+  after the other, never side by side. Next: the owner makes each reachable
+  over SSH as `vigil-test`.
