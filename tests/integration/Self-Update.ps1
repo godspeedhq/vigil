@@ -282,7 +282,11 @@ try {
     Remove-Item Env:\VIGIL_NO_UPDATE_CHECK
     $env:LOCALAPPDATA = $saved
 
-    # Hot reload: a supervisor that is running, whoever started it.
+    # Hot reload: a supervisor that is running, whoever started it. An
+    # earlier supervisor's version is still on disk: without removing it, the
+    # wait below can end before this one has started, and the update land
+    # before it reads its version, leaving nothing to reload.
+    Remove-Item -LiteralPath "$root\state\supervisor.version" -Force -ErrorAction SilentlyContinue
     $sup = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$root\app\vigil.ps1`"", '-Root', "`"$root`"", 'supervise')
     for ($i = 0; $i -lt 150 -and (Invoke-Vigil version --supervisor).Text -cne '0.0.1-it'; $i++) { Start-Sleep -Milliseconds 200 }
     Test-Equal 'reload: the supervisor is running' '0.0.1-it' (Invoke-Vigil version --supervisor).Text
