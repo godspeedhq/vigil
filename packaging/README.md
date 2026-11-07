@@ -226,7 +226,74 @@ The formula is made from [`packaging/homebrew/vigil.rb.in`](https://github.com/g
 - `brew uninstall vigil` removes the program and keeps `$(brew --prefix)/var/vigil`.
 - ⚠️ `brew services stop vigil` ends running jobs as well as the supervisor: Homebrew stops the whole process group.
 
-⚠️ Homebrew itself no longer installs on Intel Macs, only on Apple Silicon (and Linux). That is why the Intel macOS test machine has no Homebrew output here: on an Intel Mac, use the install script.
+### On an Intel Mac
+
+Homebrew's installer refuses Intel Macs (`Homebrew on macOS is only supported on Apple Silicon processors!`), but Homebrew itself still runs on them, as a [Tier 3](https://docs.brew.sh/Support-Tiers) configuration, until September 2027. With Apple's Command Line Tools in place (`xcode-select --install`), clone it into your home folder, which needs no sudo:
+
+```sh
+git clone https://github.com/Homebrew/brew ~/homebrew
+eval "$(~/homebrew/bin/brew shellenv)"     # add this line to your shell profile too
+brew install godspeedhq/vigil/vigil
+```
+
+Homebrew warns about the Intel Mac, the old macOS and the prefix; none of that matters to Vigil, which builds nothing. This is the macOS test machine, an Intel MacBook Air on macOS 12.7.6, the day 0.5.1 came out:
+
+```
+$ brew --version
+Homebrew 7.0.12
+
+$ brew install godspeedhq/vigil/vigil
+==> Pouring portable-ruby-4.0.9.big_sur.bottle.tar.gz
+...
+==> Tapping godspeedhq/vigil
+Cloning into '/Users/bankoleogundero/homebrew/Library/Taps/godspeedhq/homebrew-vigil'...
+Tapped 1 formula (18 files, 32.3KB).
+Warning: Your Homebrew's prefix is not /usr/local.
+...
+Warning: You are using macOS 12.
+We (and Apple) do not provide support for this old version.
+...
+==> Fetching downloads for: vigil
+✔︎ Formula vigil (0.5.1)
+==> Installing vigil from godspeedhq/vigil
+...
+🍺  /Users/bankoleogundero/homebrew/Cellar/vigil/0.5.1: 85 files, 1.1MB, built in 8 seconds
+
+$ vigil about
+Vigil 0.5.1
+...
+Installed   /Users/bankoleogundero/homebrew/var/vigil
+Program     /Users/bankoleogundero/homebrew/opt/vigil/libexec, by Homebrew
+Platform    macOS, bash 3.2.57
+
+$ vigil self update
+vigil: Vigil was installed by Homebrew: update it with brew upgrade vigil
+
+$ vigil service install
+vigil: Vigil was installed by Homebrew, which runs its service: brew services start vigil
+
+$ brew services start vigil
+==> Successfully started `vigil` (label: sh.brew.vigil)
+
+$ vigil status
+service: active, pid 61955 (launchd, user mode)
+
+Vigil Bankoles-MacBook-Air at 2026-11-07T12:35:57Z
+
+WAITING
+  base_cpu: next 2026-11-07T12:36:00Z
+  base_memory: next 2026-11-07T12:36:00Z
+  base_disk: next 2026-11-07T12:40:00Z
+  base_network: next 2026-11-07T12:36:00Z
+  base_load: next 2026-11-07T12:36:00Z
+  base_services: next 2026-11-07T12:36:00Z
+
+$ brew services list
+Name  Status User            File
+vigil started         bankoleogundero ~/Library/LaunchAgents/sh.brew.vigil.plist
+```
+
+### In CI
 
 CI installs, runs, upgrades and removes it on every change, on Homebrew 7 on macOS (`tests/packages/homebrew.sh`):
 

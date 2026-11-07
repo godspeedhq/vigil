@@ -19,7 +19,7 @@ Ticked as each is released and installed on a clean machine.
 | --- | --- | --- | --- | --- |
 | [x] | 0 | Groundwork: a packaged program, read-only, with its root elsewhere (0.5.0) | n/a | nothing |
 | [x] | 1 | `.deb` and `.rpm`, on each release and in `SHA256SUMS` (0.5.0) | `sudo apt install ./vigil_….deb`, `sudo dnf install ./vigil-….rpm` | nothing |
-| [ ] | 2 | Homebrew tap (macOS, Linux): released in 0.5.1, tested in CI only | `brew install godspeedhq/vigil/vigil` | a `homebrew-vigil` repository |
+| [x] | 2 | Homebrew tap (macOS, Linux) (0.5.1) | `brew install godspeedhq/vigil/vigil` | a `homebrew-vigil` repository |
 | [x] | 2 | Scoop bucket (Windows) (0.5.1) | `scoop bucket add vigil …`, `scoop install vigil` | a `scoop-vigil` repository |
 | [ ] | 3 | Fedora COPR, so `dnf upgrade` updates it | `sudo dnf copr enable godspeedhq/vigil`, `sudo dnf install vigil` | a COPR account |
 | [ ] | 3 | An apt repository, so `apt upgrade` updates it | `sudo apt install vigil` | where to host it |
@@ -229,10 +229,18 @@ Where it differs from the proposal above:
     add` and `scoop install` from the bucket minutes after the release, `vigil
     service install --user`, and `scoop uninstall` (the logon entry removed,
     the persist folder kept).
-  - Homebrew on a real machine: not yet. Homebrew no longer installs on Intel
-    Macs, which the macOS test machine is (macOS 12.7.6). It needs an Apple
-    Silicon Mac, or Homebrew on Linux (`brew services` there is a systemd user
-    unit, untested).
+  - Homebrew, on the macOS test machine (Intel, macOS 12.7.6): Homebrew's
+    installer refuses Intel Macs, but Homebrew 7.0.12 cloned into `~/homebrew`
+    runs there (Tier 3, until September 2027). `brew install` from the tap,
+    the refusals, `brew services start vigil` (`sh.brew.vigil`) and `vigil
+    status` on it. Upgrade and uninstall are CI's (macOS arm64).
+  - Homebrew on Linux (`brew services` there is a systemd user unit): untested.
+- **Homebrew 7.0.12 deprecates `post_install`** for `post_install_steps`, a
+  fixed set of file actions with no step that runs a command, so it can't run
+  `vigil init` yet. Installing prints `Warning: Calling post_install is
+  deprecated!` and works. Before Homebrew disables it: move the starting
+  configuration to a step if one appears, or have `brew services start` and
+  the caveats say to run `vigil init` first.
 
 ## Also to settle
 
