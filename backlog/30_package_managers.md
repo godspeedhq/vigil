@@ -248,6 +248,48 @@ Where it differs from the proposal above:
   and `brew style` clean once the description was cut to under 80
   characters. The CI test now fails on `deprecated` in the install output.
 
+## Step 3 as built
+
+- **The Portfile**: `packaging/macports/Portfile.in`, written for a release by
+  `tools/release/portfile.sh` (category `sysutils`, `noarch`, maintainer
+  `@bjo004`). MacPorts asks for the archive's RIPEMD-160 and size as well as
+  its SHA-256, which `SHA256SUMS` does not hold, so the script reads the
+  archive, and refuses one whose SHA-256 differs from the signed
+  `SHA256SUMS`.
+- **Layout**: the program in `${prefix}/libexec/vigil`, read-only, with
+  `app/PACKAGED` (MacPorts; `sudo port selfupdate && sudo port upgrade
+  vigil`; `sudo port load vigil`); `${prefix}/bin/vigil` runs it with
+  `/bin/bash`; the root `${prefix}/var/vigil`, made on activation, kept on
+  deactivation and uninstall. `post-activate` runs `vigil init --backend
+  file` only when there is no configuration.
+- **The service**: a LaunchDaemon of Vigil's own (`startupitem.custom_file`,
+  label `org.macports.vigil`, as root like the install script's system
+  service: KeepAlive on failure only, AbandonProcessGroup, its log in
+  `logs/supervisor/service.log`), disabled until `port load`. MacPorts
+  unloads it on deactivation, and `port upgrade` loads it again after.
+- **Vigil**: `service.sh` knows `org.macports.vigil.plist` as a package's
+  registration (MacPorts; `sudo port load` and `unload vigil`). Found while
+  testing beside the install script's Vigil: with two registrations,
+  `_vigil_svc_paths` took the first that existed, so each install's `vigil
+  status` could report the other's service. Once `_vigil_svc_find` has set
+  the root, the first registration that is that root's now wins.
+- **Tested on the Intel test Mac** (MacPorts 2.11.1, macOS 12.7.6), test
+  builds 0.5.3 and 0.5.4 from the branch, beside the install script's
+  Vigil: install, the refusals, `port load`, `vigil status`, `stop` and
+  `start`, the upgrade with the service running (unloaded, swapped, loaded
+  again), the configuration kept, `port unload`, uninstall, the root kept.
+  `port lint --nitpick`: 0 errors, 0 warnings. The first of three runs also
+  ran `port uninstall inactive`, which removed every inactive version of
+  every port on that Mac, not only vigil's: the test scripts now uninstall
+  vigil by exact version and nothing else.
+- **CI**: `tests/packages/macports.sh` on macos-latest, on MacPorts' own
+  installer for the runner's macOS.
+- **Still to do**: the pull request adding `sysutils/vigil/Portfile` to
+  `macports/macports-ports`, from the owner's account; then, at each
+  release, a pull request updating the version and checksums
+  (`portfile.sh`). Step 3 is ticked once the port is in the ports tree and
+  installed from it.
+
 ## Also to settle
 
 - **Signing for the repositories.** `SHA256SUMS.sig` (OpenSSL, our own key)

@@ -176,6 +176,35 @@ jobs:
       - name: install, run, upgrade, remove
         run: bash tests/packages/homebrew.sh "$RUNNER_TEMP/old" "$RUNNER_TEMP/new"
 
+  # The MacPorts port (backlog 30, step 3), from its Portfile, with archives
+  # built here, on MacPorts' own installer for the runner's macOS.
+  macports:
+    name: macports port (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - name: install MacPorts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          major=$(sw_vers -productVersion | cut -d. -f1)
+          url=$(gh api repos/macports/macports-base/releases/latest \
+            --jq ".assets[].browser_download_url | select(test(\"-${major}-[A-Za-z]+\\\\.pkg$\"))" | head -n 1)
+          [ -n "$url" ] || { echo "no MacPorts installer for macOS $major"; exit 1; }
+          echo "$url"
+          curl -fsSL -o "$RUNNER_TEMP/MacPorts.pkg" "$url"
+          sudo installer -pkg "$RUNNER_TEMP/MacPorts.pkg" -target /
+          # The ports tree, for the github PortGroup the Portfile uses.
+          sudo /opt/local/bin/port -q selfupdate
+          /opt/local/bin/port version
+      - name: build 0.0.1 and 0.0.2
+        run: |
+          bash tools/release/package.sh 0.0.1 "$RUNNER_TEMP/old" > /dev/null
+          bash tools/release/package.sh 0.0.2 "$RUNNER_TEMP/new" > /dev/null
+      - name: install, load, upgrade, remove
+        run: sudo bash tests/packages/macports.sh "$RUNNER_TEMP/old" "$RUNNER_TEMP/new"
+
   scoop:
     name: scoop manifest (Windows)
     runs-on: windows-latest

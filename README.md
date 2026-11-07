@@ -239,7 +239,7 @@ vigil service install --user         # starts it at every logon
 
 Homebrew keeps everything else in `$(brew --prefix)/var/vigil`, and Scoop in `~\scoop\persist\vigil`; both write a starting configuration there when there is none, and keep it when Vigil is removed. Update with `brew upgrade vigil` or `scoop update vigil`: a running supervisor picks up the new version by itself. One difference: under `brew services`, stopping the service ends running jobs too, where every other install lets them finish.
 
-[Packages](packaging/README.md) shows each one installing, updating and refusing what it leaves to the package manager, with console output from real machines. MacPorts is planned ([backlog 30](backlog/30_package_managers.md)); an MSI and winget wait for code signing ([backlog 33](backlog/33_signed_packages.md)).
+[Packages](packaging/README.md) shows each one installing, updating and refusing what it leaves to the package manager, with console output from real machines. MacPorts is written and tested, and waits to go into the MacPorts ports tree ([backlog 30](backlog/30_package_managers.md)); an MSI and winget wait for code signing ([backlog 33](backlog/33_signed_packages.md)).
 
 ### Remove
 
