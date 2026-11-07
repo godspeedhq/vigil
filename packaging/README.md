@@ -228,13 +228,44 @@ The formula is made from [`packaging/homebrew/vigil.rb.in`](https://github.com/g
 
 ### On an Intel Mac
 
-Homebrew's installer refuses Intel Macs (`Homebrew on macOS is only supported on Apple Silicon processors!`), but Homebrew itself still runs on them, as a [Tier 3](https://docs.brew.sh/Support-Tiers) configuration, until September 2027. With Apple's Command Line Tools in place (`xcode-select --install`), clone it into your home folder, which needs no sudo:
+Homebrew's installer refuses Intel Macs (`Homebrew on macOS is only supported on Apple Silicon processors!`), but Homebrew itself still runs on them, as a [Tier 3](https://docs.brew.sh/Support-Tiers) configuration, until September 2027. With Apple's Command Line Tools in place (`xcode-select --install`), clone it into your home folder, which needs no sudo, and add it to your shell profile so new terminals find `brew`:
 
 ```sh
 git clone https://github.com/Homebrew/brew ~/homebrew
-eval "$(~/homebrew/bin/brew shellenv)"     # add this line to your shell profile too
+echo 'eval "$(~/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(~/homebrew/bin/brew shellenv)"
 brew install godspeedhq/vigil/vigil
 ```
+
+[`intel-mac.sh`](https://github.com/godspeedhq/vigil/blob/main/packaging/homebrew/intel-mac.sh) does the first three for you, on the latest Homebrew release, and checks the Mac first. It has nothing to do with Vigil: it is for anyone with an Intel Mac, new or second-hand, who wants Homebrew. Run it as yourself, not with sudo:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/godspeedhq/vigil/main/packaging/homebrew/intel-mac.sh | bash
+```
+
+`--uninstall` takes it all away again: it lists what it will remove, with every formula and cask installed through it, and asks first. It stops anything `brew services` runs, then removes `~/homebrew`, Homebrew's caches, logs and settings, and its line in your shell profile, leaving the rest of the profile as it was:
+
+```
+$ curl -fsSL https://raw.githubusercontent.com/godspeedhq/vigil/main/packaging/homebrew/intel-mac.sh | bash -s -- --uninstall
+This removes:
+  /Users/vigil-test/homebrew, with everything installed through it and its data in /Users/vigil-test/homebrew/var:
+    formulae: vigil
+    casks:    none
+  /Users/vigil-test/Library/Caches/Homebrew
+  /Users/vigil-test/Library/Logs/Homebrew
+  /Users/vigil-test/.homebrew
+  the brew shellenv line in /Users/vigil-test/.zprofile
+Remove? [y/N] y
+removed /Users/vigil-test/homebrew
+removed /Users/vigil-test/Library/Caches/Homebrew
+removed /Users/vigil-test/Library/Logs/Homebrew
+removed /Users/vigil-test/.homebrew
+removed the brew shellenv line from /Users/vigil-test/.zprofile
+
+Done. Open a new terminal: the one you have still has brew on its PATH.
+```
+
+A `~/homebrew` that is not a Homebrew clone is left alone, and with an older Homebrew in `/usr/local` the caches, logs and settings it shares stay.
 
 Homebrew warns about the Intel Mac, the old macOS and the prefix; none of that matters to Vigil, which builds nothing. This is the macOS test machine, an Intel MacBook Air on macOS 12.7.6, the day 0.5.1 came out:
 
