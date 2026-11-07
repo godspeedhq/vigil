@@ -77,6 +77,7 @@ formula "$old"
 out=$(brew install "$tap/vigil" 2>&1)
 check 'install: succeeds' 0 "$?"
 check 'install: says how to start it' yes "$(has 'brew services start vigil')"
+check 'install: nothing in the formula is deprecated' no "$(has 'deprecated')"
 check 'install: no advice to run vigil service install' no "$(has 'then vigil service install')"
 check 'the command is on PATH' "$prefix/bin/vigil" "$(command -v vigil)"
 check 'it runs the version installed' "Vigil $v_old" "$(vigil version)"
