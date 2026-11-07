@@ -239,7 +239,7 @@ vigil service install --user         # starts it at every logon
 
 Homebrew keeps everything else in `$(brew --prefix)/var/vigil`, and Scoop in `~\scoop\persist\vigil`; both write a starting configuration there when there is none, and keep it when Vigil is removed. Update with `brew upgrade vigil` or `scoop update vigil`: a running supervisor picks up the new version by itself. One difference: under `brew services`, stopping the service ends running jobs too, where every other install lets them finish.
 
-`apt` and `dnf` repositories, Chocolatey and winget are planned: [backlog 30](backlog/30_package_managers.md) has what that needs.
+[Packages](packaging/README.md) shows each one installing, updating and refusing what it leaves to the package manager, with console output from real machines. `apt` and `dnf` repositories, Chocolatey and winget are planned: [backlog 30](backlog/30_package_managers.md) has what that needs.
 
 ### Remove
 

@@ -203,9 +203,13 @@ Where it differs from the proposal above:
     remove (`apt purge` deletes it).
   - Found on the way, fixed before publishing (#110): `vigil init` in the
     package's install said to run `vigil service install`, which refuses there.
+- The `.rpm` upgrade with systemd running, on the Fedora test machine, 0.5.0
+  to 0.5.1 (2026-11-07): the service stopped, and started 8 seconds later on
+  0.5.1 with the configuration untouched. Found on the way (#114): without
+  sudo, `vigil service install` and `service remove` advised commands that
+  refuse anyway; they now name the package's `systemctl` command.
 - The `.rpm` with systemd running is not tested in CI (the Fedora and Rocky
-  containers have none), and its upgrade with systemd running is not tested
-  anywhere yet: on the Fedora test machine with 0.5.1.
+  containers have none): only by hand, as above.
 - Not yet: `lintian` and `rpmlint`, GPG signatures on the `.rpm`, SELinux
   enforcing, openSUSE.
 
