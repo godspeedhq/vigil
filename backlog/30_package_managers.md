@@ -17,8 +17,8 @@ Ticked as each is released and installed on a clean machine.
 
 | Done | Step | Format | Installs with | Needs from the owner |
 | --- | --- | --- | --- | --- |
-| [ ] | 0 | Groundwork: a packaged program, read-only, with its root elsewhere | n/a | nothing |
-| [ ] | 1 | `.deb` and `.rpm`, on each release and in `SHA256SUMS` | `sudo apt install ./vigil_….deb`, `sudo dnf install ./vigil-….rpm` | nothing |
+| [x] | 0 | Groundwork: a packaged program, read-only, with its root elsewhere (0.5.0) | n/a | nothing |
+| [x] | 1 | `.deb` and `.rpm`, on each release and in `SHA256SUMS` (0.5.0) | `sudo apt install ./vigil_….deb`, `sudo dnf install ./vigil-….rpm` | nothing |
 | [ ] | 2 | Homebrew tap (macOS, Linux) | `brew install godspeedhq/vigil/vigil` | a `homebrew-vigil` repository |
 | [ ] | 2 | Scoop bucket (Windows) | `scoop bucket add vigil …`, `scoop install vigil` | a `scoop-vigil` repository |
 | [ ] | 3 | Fedora COPR, so `dnf upgrade` updates it | `sudo dnf copr enable godspeedhq/vigil`, `sudo dnf install vigil` | a COPR account |
@@ -193,9 +193,19 @@ Where it differs from the proposal above:
   its lock open, and outlived a stop (`KillMode=process`), so a supervisor
   started within seconds of a stop (`vigil restart`, a package upgrade) found
   the lock held and exited. The `sleep` now closes it.
-- The `.rpm` with systemd running is not tested in CI yet (the Fedora and
-  Rocky containers have none); its service steps are the `.deb`'s, with the
-  preset.
+- **Released in 0.5.0** (2026-11-07) and installed by hand:
+  - The Fedora 44 test machine, running 0.4.0 from the install script as a
+    system service, moved to the `.rpm` with the three printed commands: same
+    configuration and jobs, now on `/usr/lib/vigil`.
+  - Fresh in Fedora 44 and Debian 13 containers with systemd running: the
+    `.rpm` leaves the service off until enabled, the `.deb` starts it; both
+    run the base pack, refuse `self update`, and keep `/opt/vigil` on
+    remove (`apt purge` deletes it).
+  - Found on the way, fixed before publishing (#110): `vigil init` in the
+    package's install said to run `vigil service install`, which refuses there.
+- The `.rpm` with systemd running is not tested in CI (the Fedora and Rocky
+  containers have none), and its upgrade with systemd running is not tested
+  anywhere yet: on the Fedora test machine with 0.5.1.
 - Not yet: `lintian` and `rpmlint`, GPG signatures on the `.rpm`, SELinux
   enforcing, openSUSE.
 
