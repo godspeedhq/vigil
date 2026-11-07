@@ -434,6 +434,9 @@ function Invoke-VigilSelfUpdate {
 
 function Get-VigilConfigVersion {
     param([string]$Root)
+    # A configuration this account may not read (-UpdateBy's account, 18.7)
+    # means no version: Test-Path's "Access is denied" is caught, not printed.
+    $ErrorActionPreference = 'Stop'
     try {
         $parsed = ConvertFrom-VigilConfig -Path (Join-Path $Root 'config\vigil.config')
         if (Test-VigilFetchMode $parsed) {

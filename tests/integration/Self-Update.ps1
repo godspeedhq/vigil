@@ -190,10 +190,19 @@ try {
     Set-Content -LiteralPath "$work\hold.ps1" -Value @('param($File, $Marker)', '$f = [System.IO.File]::Open($File, ''Open'', ''Read'', ''Read'')', '[System.IO.File]::WriteAllText($Marker, ''held'')', 'Start-Sleep -Seconds 25', '$f.Close()')
     $hold = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$work\hold.ps1`"", "`"$root\app\vigil.ps1`"", "`"$work\held`"")
     for ($i = 0; $i -lt 100 -and -not (Test-Path -LiteralPath "$work\held"); $i++) { Start-Sleep -Milliseconds 200 }
+    # And a program runs from vendor.old, as a service's NSSM does after an
+    # earlier update renamed its vendor\, until the service restarts: it
+    # cannot be deleted, so the update moves it aside instead of failing.
+    [void](New-Item -ItemType Directory -Force -Path "$root\vendor.old")
+    Copy-Item -LiteralPath "$env:SystemRoot\System32\PING.EXE" -Destination "$root\vendor.old\held.exe"
+    $running = Start-Process -FilePath "$root\vendor.old\held.exe" -ArgumentList @('-n', '120', '127.0.0.1') -PassThru -WindowStyle Hidden
     $r = Invoke-Vigil self update --version 0.0.1-it
     Test-Equal '--version goes back' '0.0.1-it' (Get-Version)
     Test-Equal 'an update waits for a held folder' 'True' ([string]$r.Text.Contains('waiting for processes reading'))
     if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    Test-Equal 'a vendor.old in use is moved aside' 'True' ([string](@(Get-ChildItem -LiteralPath $root -Directory -Filter 'vendor.old.*').Count -eq 1))
+    Stop-Process -Id $running.Id -ErrorAction SilentlyContinue
+    [void]$running.WaitForExit(10000)
     [void]$hold.WaitForExit(40000)
     $r = Invoke-Vigil self update --version 9.9.9
     Test-Equal 'no such release: fails' '1' ([string]$r.Code)
@@ -259,6 +268,7 @@ try {
     Test-Equal 'the old version is back' '0.0.1-it' (Get-Version)
     Test-Equal 'and works' 'Vigil 0.0.1-it' (Invoke-Vigil version).Text
     Test-Equal 'no app.old is left' 'False' ([string](Test-Path -LiteralPath "$root\app.old"))
+    Test-Equal 'the vendor.old moved aside goes once free' '0' ([string]@(Get-ChildItem -LiteralPath $root -Directory -Filter 'vendor.old.*').Count)
 
     # Runs waiting for a slot survive a restart.
     Set-Content -LiteralPath "$root\scripts\waited.cmd" -Value @('@echo off', 'echo waited')

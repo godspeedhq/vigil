@@ -202,9 +202,17 @@ try {
     # vendor\ holds NSSM, which only Windows needs, so it is replaced with app\.
     $parts = @('app', 'vendor')
     foreach ($d in $parts) {
+        Get-ChildItem -LiteralPath $root -Directory -Filter "$d.old.*" -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
         foreach ($p in @("$d.new", "$d.old")) {
             $q = Join-Path $root $p
-            if (Test-Path -LiteralPath $q) { Remove-Item -LiteralPath $q -Recurse -Force }
+            if (-not (Test-Path -LiteralPath $q)) { continue }
+            Remove-Item -LiteralPath $q -Recurse -Force -ErrorAction SilentlyContinue
+            # The service's NSSM runs on from the vendor\ an earlier upgrade
+            # renamed to vendor.old, until the service restarts: a running
+            # program cannot be deleted, but it can be moved aside, and goes
+            # at a later upgrade.
+            if (Test-Path -LiteralPath $q) { Rename-Item -LiteralPath $q -NewName "$p.$((Get-Date).ToString('yyyyMMddHHmmss'))" }
         }
         try { Copy-Item -LiteralPath (Join-Path $src $d) -Destination (Join-Path $root "$d.new") -Recurse }
         catch {
