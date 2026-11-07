@@ -228,12 +228,19 @@ The formula is made from [`packaging/homebrew/vigil.rb.in`](https://github.com/g
 
 ### On an Intel Mac
 
-Homebrew's installer refuses Intel Macs (`Homebrew on macOS is only supported on Apple Silicon processors!`), but Homebrew itself still runs on them, as a [Tier 3](https://docs.brew.sh/Support-Tiers) configuration, until September 2027. With Apple's Command Line Tools in place (`xcode-select --install`), clone it into your home folder, which needs no sudo:
+Homebrew's installer refuses Intel Macs (`Homebrew on macOS is only supported on Apple Silicon processors!`), but Homebrew itself still runs on them, as a [Tier 3](https://docs.brew.sh/Support-Tiers) configuration, until September 2027. With Apple's Command Line Tools in place (`xcode-select --install`), clone it into your home folder, which needs no sudo, and add it to your shell profile so new terminals find `brew`:
 
 ```sh
 git clone https://github.com/Homebrew/brew ~/homebrew
-eval "$(~/homebrew/bin/brew shellenv)"     # add this line to your shell profile too
+echo 'eval "$(~/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(~/homebrew/bin/brew shellenv)"
 brew install godspeedhq/vigil/vigil
+```
+
+[`intel-mac.sh`](https://github.com/godspeedhq/vigil/blob/main/packaging/homebrew/intel-mac.sh) does the first three for you, on the latest Homebrew release, and checks the Mac first. It has nothing to do with Vigil: it is for anyone with an Intel Mac, new or second-hand, who wants Homebrew. Run it as yourself, not with sudo:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/godspeedhq/vigil/main/packaging/homebrew/intel-mac.sh | bash
 ```
 
 Homebrew warns about the Intel Mac, the old macOS and the prefix; none of that matters to Vigil, which builds nothing. This is the macOS test machine, an Intel MacBook Air on macOS 12.7.6, the day 0.5.1 came out:
