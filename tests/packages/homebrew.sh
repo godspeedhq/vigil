@@ -134,9 +134,10 @@ wait_for 60 test "$(sup_version)" = "$v_new"
 check 'upgrade: the service runs the new version' "$v_new" "$(sup_version)"
 out=$(vigil status 2>&1)
 check 'upgrade: the service is active' yes "$(has 'service: active')"
-check 'upgrade: the old version is gone' no "$(yn test -d "$prefix/Cellar/vigil/$v_old")"
-printf '        (supervisor pid %s before, %s after: %s)\n' "$pid" "$(vigil status | sed -n 's/^service: active, pid \([0-9]*\).*/\1/p')" \
-    "$(grep -c "reloading: Vigil $v_old to $v_new" "$root"/logs/supervisor/2*.log 2> /dev/null | tail -n 1) reload line(s)"
+# Through opt/, the running supervisor sees the new version and reloads in
+# place: the same process, no restart (18.7).
+check 'upgrade: the same supervisor process' "$pid" "$(vigil status | sed -n 's/^service: active, pid \([0-9]*\).*/\1/p')"
+check 'upgrade: it reloaded' yes "$(yn grep -q "reloading: Vigil $v_old to $v_new" "$root"/logs/supervisor/2*.log)"
 [ "$fail" -eq 0 ] || diagnose
 
 # --- remove ---------------------------------------------------------------------------
