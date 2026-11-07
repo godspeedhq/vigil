@@ -48,9 +48,9 @@ class Vigil < Formula
   def caveats
     <<~EOS
       Vigil's configuration, scripts, state and logs are in #{var}/vigil:
-        vigil config          edits the configuration
-        brew services start vigil
-      runs it now and at every login. Removing the formula keeps #{var}/vigil.
+        vigil config                 edits the configuration
+        brew services start vigil    runs it now and at every login
+      Removing the formula keeps #{var}/vigil.
     EOS
   end
 
