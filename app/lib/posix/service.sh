@@ -47,36 +47,63 @@ _vigil_svc_os() {
     esac
 }
 
-# Sets _vs_file (the unit or plist) and _vs_target (the launchd service
-# target) for mode $1.
+# Sets _vs_file (the unit or plist), _vs_name (the unit or launchd label)
+# and _vs_target (the launchd service target) for mode $1. Vigil's own
+# registration comes first; else a package's: the .deb or .rpm unit, or
+# the one brew services writes (homebrew.vigil, homebrew.mxcl.vigil).
 _vigil_svc_paths() {
+    local f
+    _vs_name=vigil
     if [ "$_vs_os" = systemd ]; then
         if [ "$1" = system ]; then
             _vs_file=/etc/systemd/system/vigil.service
-            # The vigil package's unit, when none in /etc takes its place.
-            if [ ! -f "$_vs_file" ] && [ -f /usr/lib/systemd/system/vigil.service ]; then
-                _vs_file=/usr/lib/systemd/system/vigil.service
-            fi
+            for f in /usr/lib/systemd/system/vigil.service /etc/systemd/system/homebrew.vigil.service /usr/lib/systemd/system/homebrew.vigil.service; do
+                [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f
+            done
         else
             _vs_file=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/vigil.service
+            f=${_vs_file%/*}/homebrew.vigil.service
+            [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f
         fi
+        case $_vs_file in */homebrew.vigil.service) _vs_name=homebrew.vigil ;; esac
     else
         if [ "$1" = system ]; then
             _vs_file=/Library/LaunchDaemons/vigil.plist
-            _vs_target=system/vigil
+            _vs_target=system
         else
             _vs_file=$HOME/Library/LaunchAgents/vigil.plist
-            _vs_target=gui/$(id -u)/vigil
+            _vs_target=gui/$(id -u)
         fi
+        f=${_vs_file%/*}/homebrew.mxcl.vigil.plist
+        [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f && _vs_name=homebrew.mxcl.vigil
+        _vs_target=$_vs_target/$_vs_name
     fi
+    return 0
 }
 
-# True when _vs_file is the vigil package's unit, which the package manager
-# owns: vigil service install and remove leave it to systemctl and the
-# package.
+# True when _vs_file is a package's registration, which the package manager
+# owns: vigil service install and remove leave it to systemctl or brew
+# services, and the package.
 _vigil_svc_packaged() {
-    case $_vs_file in /usr/lib/*) return 0 ;; esac
+    case $_vs_file in /usr/lib/* | */homebrew.*) return 0 ;; esac
     return 1
+}
+
+# Who owns a package's registration, and how it is started ($1 = start) or
+# stopped ($1 = stop): into _vs_who and _vs_how.
+_vigil_svc_package_how() {
+    local sudo=''
+    [ "$_vs_mode" = system ] && sudo='sudo '
+    case $_vs_name in
+        homebrew.*)
+            _vs_who=Homebrew
+            _vs_how="${sudo}brew services $1 vigil"
+            ;;
+        *)
+            _vs_who='the vigil package'
+            if [ "$1" = start ]; then _vs_how='sudo systemctl enable --now vigil'; else _vs_how='sudo systemctl disable --now vigil'; fi
+            ;;
+    esac
 }
 
 # systemctl, for the user's own manager in user mode.
@@ -93,6 +120,9 @@ _vigil_svc_systemctl() {
 _vigil_svc_mine() {
     if [ "$_vs_os" = systemd ]; then
         grep -Fx -- "WorkingDirectory=$1" "$_vs_file" > /dev/null 2>&1
+    elif [ "$_vs_name" != vigil ]; then
+        # brew services writes each key and value on lines of their own.
+        grep -F -- "<string>$1</string>" "$_vs_file" > /dev/null 2>&1
     else
         grep -F -- "<key>WorkingDirectory</key><string>$1</string>" "$_vs_file" > /dev/null 2>&1
     fi
@@ -209,12 +239,12 @@ _vigil_svc_running() {
 # says so, and what to do.
 _vigil_svc_bootstrap() {
     local out
-    if out=$(launchctl bootstrap "${_vs_target%/vigil}" "$_vs_file" 2>&1); then return 0; fi
+    if out=$(launchctl bootstrap "${_vs_target%/*}" "$_vs_file" 2>&1); then return 0; fi
     if [ "$_vs_mode" = user ] && [ "$(launchctl managername 2> /dev/null)" != Aqua ]; then
         _vigil_svc_err 'not started: this login has no desktop session (an SSH login, for one), and a LaunchAgent runs only in one'
         printf '  it starts at the next desktop login; until then, vigil supervise runs it in this session; a LaunchDaemon (--system) runs unattended\n' >&2
     else
-        _vigil_svc_err "launchctl bootstrap ${_vs_target%/vigil} failed: $out"
+        _vigil_svc_err "launchctl bootstrap ${_vs_target%/*} failed: $out"
     fi
     return 1
 }
@@ -272,7 +302,15 @@ vigil_service_install() {
     _vs_mode=$mode
     _vigil_svc_paths "$mode"
     if _vigil_svc_packaged && _vigil_svc_mine "$root"; then
-        _vigil_svc_err 'the vigil package installed this service: start it with sudo systemctl enable --now vigil'
+        _vigil_svc_package_how start
+        _vigil_svc_err "$_vs_who installed this service: start it with $_vs_how"
+        return 1
+    fi
+    # A package that runs the service itself says how in PACKAGED, before
+    # it has registered anything: a registration of Vigil's own would name
+    # a program path the next upgrade replaces.
+    if vigil_packaged "$app" && [ -n "$_vp_service" ]; then
+        _vigil_svc_err "Vigil was installed by $_vp_manager, which runs its service: $_vp_service"
         return 1
     fi
     if [ -f "$_vs_file" ] && ! _vigil_svc_mine "$root"; then
@@ -310,12 +348,12 @@ vigil_service_install() {
 
     if [ "$_vs_os" = systemd ]; then
         _vigil_svc_systemctl daemon-reload || return 1
-        _vigil_svc_systemctl enable vigil > /dev/null 2>&1 || {
-            _vigil_svc_err 'systemctl enable vigil failed'
+        _vigil_svc_systemctl enable "$_vs_name" > /dev/null 2>&1 || {
+            _vigil_svc_err "systemctl enable $_vs_name failed"
             return 1
         }
         if [ "$start" = 1 ]; then
-            _vigil_svc_systemctl restart vigil || return 1
+            _vigil_svc_systemctl restart "$_vs_name" || return 1
             printf 'started vigil\n'
         fi
         if [ "$mode" = user ] && command -v loginctl > /dev/null 2>&1 &&
@@ -348,12 +386,13 @@ vigil_service_remove() {
     fi
     _vigil_svc_paths "$_vs_mode"
     if _vigil_svc_packaged; then
-        _vigil_svc_err 'the vigil package installed this service: stop it with sudo systemctl disable --now vigil, or remove the package'
+        _vigil_svc_package_how stop
+        _vigil_svc_err "$_vs_who installed this service: stop it with $_vs_how, or remove the package"
         return 1
     fi
     if [ "$_vs_os" = systemd ]; then
         # Stopping leaves workers running (18.3).
-        _vigil_svc_systemctl disable --now vigil > /dev/null 2>&1
+        _vigil_svc_systemctl disable --now "$_vs_name" > /dev/null 2>&1
         rm -f "$_vs_file" || return 1
         _vigil_svc_systemctl daemon-reload
     else
@@ -377,7 +416,7 @@ vigil_service_control() {
     fi
     _vigil_svc_paths "$_vs_mode"
     if [ "$_vs_os" = systemd ]; then
-        _vigil_svc_systemctl "$action" vigil || return 1
+        _vigil_svc_systemctl "$action" "$_vs_name" || return 1
     else
         if [ "$action" != start ] && _vigil_svc_running; then
             # TERM: the supervisor finishes its tick and exits 0, which
@@ -416,8 +455,8 @@ vigil_service_status() {
         if [ -n "$_vs_mode" ]; then
             _vigil_svc_paths "$_vs_mode"
             if [ "$_vs_os" = systemd ]; then
-                state=$(_vigil_svc_systemctl is-active vigil 2> /dev/null)
-                pid=$(_vigil_svc_systemctl show -p MainPID --value vigil 2> /dev/null)
+                state=$(_vigil_svc_systemctl is-active "$_vs_name" 2> /dev/null)
+                pid=$(_vigil_svc_systemctl show -p MainPID --value "$_vs_name" 2> /dev/null)
             elif _vigil_svc_running; then
                 state=active
                 pid=$(launchctl print "$_vs_target" 2> /dev/null | sed -n 's/^[[:space:]]*pid = //p' | head -n 1)

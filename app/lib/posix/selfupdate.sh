@@ -55,13 +55,15 @@ VIGIL_RELEASES=https://github.com/godspeedhq/vigil
 
 # app/PACKAGED is written by a package's build (18.6), never by Vigil: the
 # package manager owns this program, so self update leaves it to that, and the
-# root is elsewhere. Lines of key = value: manager, upgrade and root.
+# root is elsewhere. Lines of key = value: manager, upgrade and root, and
+# service when the package runs the service itself: how to start it.
 vigil_packaged() {
-    _vp_manager='' _vp_upgrade='' _vp_root=''
+    _vp_manager='' _vp_upgrade='' _vp_root='' _vp_service=''
     [ -f "$1/PACKAGED" ] || return 1
     _vp_manager=$(sed -n 's/^manager *= *//p' "$1/PACKAGED" | head -n 1 | sed 's/[[:space:]]*$//')
     _vp_upgrade=$(sed -n 's/^upgrade *= *//p' "$1/PACKAGED" | head -n 1 | sed 's/[[:space:]]*$//')
     _vp_root=$(sed -n 's/^root *= *//p' "$1/PACKAGED" | head -n 1 | sed 's/[[:space:]]*$//')
+    _vp_service=$(sed -n 's/^service *= *//p' "$1/PACKAGED" | head -n 1 | sed 's/[[:space:]]*$//')
     [ -n "$_vp_manager" ] || _vp_manager='a package manager'
     [ -n "$_vp_upgrade" ] || _vp_upgrade='its package manager'
     return 0

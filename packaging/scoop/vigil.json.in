@@ -1,0 +1,44 @@
+{
+    "##": "Vigil's Scoop manifest, for the godspeedhq/scoop-vigil bucket. Written from packaging/scoop/vigil.json.in in the Vigil repository by tools/release/tap-bucket.sh, from a release's signed SHA256SUMS: change it there, not in the bucket.",
+    "version": "@VERSION@",
+    "description": "Job scheduler, supervisor and metrics forwarder, written only in the shells that ship with each OS.",
+    "homepage": "https://github.com/godspeedhq/vigil",
+    "license": "Apache-2.0",
+    "url": "https://github.com/godspeedhq/vigil/releases/download/v@VERSION@/vigil-@VERSION@.zip",
+    "hash": "@SHA256@",
+    "extract_dir": "vigil-@VERSION@",
+    "installer": {
+        "script": [
+            "# The package manager owns the program (18.6): self update leaves it to Scoop, and the root is",
+            "# Scoop's persist folder, which an update and scoop uninstall keep (scoop uninstall -p removes it).",
+            "New-Item -ItemType Directory -Force -Path $persist_dir | Out-Null",
+            "[System.IO.File]::WriteAllText(\"$dir\\app\\PACKAGED\", \"manager = scoop`nupgrade = scoop update vigil`nroot    = $persist_dir`n\")",
+            "if (-not (Test-Path -LiteralPath \"$persist_dir\\config\\vigil.config\")) {",
+            "    '' | & powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$dir\\app\\vigil.ps1\" init --backend file",
+            "    Write-Host 'Next: vigil precheck, then vigil service install --user to start it at every logon'",
+            "}"
+        ]
+    },
+    "uninstaller": {
+        "script": [
+            "# Removing, not updating: the user's Run entry goes with the program. The root stays.",
+            "if ($cmd -eq 'uninstall') { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$dir\\app\\vigil.ps1\" service remove }"
+        ]
+    },
+    "bin": [
+        [
+            "app\\bin\\vigil.cmd",
+            "vigil"
+        ]
+    ],
+    "checkver": {
+        "github": "https://github.com/godspeedhq/vigil"
+    },
+    "autoupdate": {
+        "url": "https://github.com/godspeedhq/vigil/releases/download/v$version/vigil-$version.zip",
+        "extract_dir": "vigil-$version",
+        "hash": {
+            "url": "$baseurl/SHA256SUMS"
+        }
+    }
+}

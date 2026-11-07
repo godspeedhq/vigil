@@ -1,0 +1,61 @@
+# Vigil's Homebrew formula, for the godspeedhq/vigil tap. Written from
+# packaging/homebrew/vigil.rb.in in the Vigil repository by
+# tools/release/tap-bucket.sh, from a release's signed SHA256SUMS: change it
+# there, not in the tap.
+class Vigil < Formula
+  desc "Job scheduler, supervisor and metrics forwarder in the shells that ship with each OS"
+  homepage "https://github.com/godspeedhq/vigil"
+  url "https://github.com/godspeedhq/vigil/releases/download/v@VERSION@/vigil-@VERSION@.tar.gz"
+  sha256 "@SHA256@"
+  license "Apache-2.0"
+
+  def install
+    libexec.install "app", "packs"
+    # The package manager owns the program (18.6): self update leaves it to
+    # brew, the root is in Homebrew's var/, and brew services runs it.
+    (libexec/"app/PACKAGED").write <<~EOS
+      manager = brew
+      upgrade = brew upgrade vigil
+      root    = #{var}/vigil
+      service = brew services start vigil
+    EOS
+    # Through opt/, not this version's Cellar folder: an upgrade switches
+    # opt/ in one step, and a running supervisor reloads onto the new version
+    # before brew removes the old one.
+    (bin/"vigil").write <<~EOS
+      #!/bin/bash
+      exec /bin/bash "#{opt_libexec}/app/vigil" "$@"
+    EOS
+  end
+
+  # A starting configuration only when there is none: the defaults vigil init
+  # takes on Enter (the host name, metrics to a file, the base pack).
+  def post_install
+    (var/"vigil").mkpath
+    return if (var/"vigil/config/vigil.config").exist?
+
+    system "/bin/bash", "-c", '/bin/bash "$0" init --backend file < /dev/null', (libexec/"app/vigil").to_s
+  end
+
+  service do
+    run ["/bin/bash", opt_libexec/"app/vigil", "--root", var/"vigil", "supervise"]
+    working_dir var/"vigil"
+    keep_alive successful_exit: false
+    log_path var/"vigil/logs/supervisor/service.log"
+    error_log_path var/"vigil/logs/supervisor/service.log"
+  end
+
+  def caveats
+    <<~EOS
+      Vigil's configuration, scripts, state and logs are in #{var}/vigil:
+        vigil config          edits the configuration
+        brew services start vigil
+      runs it now and at every login. Removing the formula keeps #{var}/vigil.
+    EOS
+  end
+
+  test do
+    assert_match "Vigil @VERSION@", shell_output("#{bin}/vigil version")
+    assert_match "by brew", shell_output("#{bin}/vigil about")
+  end
+end

@@ -1901,9 +1901,11 @@ Outside the root, Vigil creates only:
 manager = dnf
 upgrade = sudo dnf upgrade vigil
 root    = /opt/vigil
+service = sudo systemctl enable --now vigil
 ```
 
 - `root` is the root this program uses when no `--root` or `VIGIL_ROOT` is given. It need not exist yet: `vigil init` makes it.
+- `service`, when the package runs the service itself, is how to start it: `vigil service install` is refused with it, since a registration of Vigil's own would name a program path the next upgrade replaces. Without it (Scoop) `vigil service install` works as for the install script.
 - `vigil self update` is refused with the package manager's `upgrade` command, exit 1, before anything is downloaded, whatever the configuration's `version` says; a configured version (§18.11) fails the same way, with that reason. `--check` and the update notice name that command instead of `vigil self update`.
 - `vigil uninstall` is refused, and says to remove the package with its package manager, which stops the service and keeps the root.
 - `vigil init` puts the packs the package carries beside `app/` into the root's `packs/` (§18.10).
@@ -1926,7 +1928,19 @@ root    = /opt/vigil
 - **The root stays `/opt/vigil`,** where the install script puts it, so one path holds on every Linux machine whichever way Vigil came, and moving from the install script to the package keeps the configuration, scripts and packs where they are. Distributions keep `/opt` for software outside them, which these packages are; an official distribution package would use `/var/lib/vigil`.
 - **Moving from the install script:** the package finds that install's unit in `/etc/systemd/system`, which would run the old program in its place, leaves the service alone and prints the three commands that finish the move: `sudo /opt/vigil/app/vigil service remove`, `sudo rm -rf /opt/vigil/app /opt/vigil/vendor /usr/local/bin/vigil /etc/sudoers.d/vigil`, `sudo systemctl enable --now vigil`.
 - **Without systemd** (a container), the program and the root are installed and nothing is started; `vigil supervise` runs it.
-)
+
+**Homebrew** (macOS and Linux): the formula in the `godspeedhq/vigil` tap (`brew install godspeedhq/vigil/vigil`), written for each release from `packaging/homebrew/vigil.rb.in` by `tools/release/tap-bucket.sh`, with the `.tar.gz`'s hash from the signed `SHA256SUMS`.
+
+- The program is in the formula's `libexec/`; `bin/vigil` runs it through Homebrew's `opt/` link, not the version's own folder, so an upgrade, which switches `opt/` in one step, is picked up by a running supervisor as a new version (§18.7) before the old folder is removed.
+- The root is `$(brew --prefix)/var/vigil`, made at install with `vigil init`'s defaults when it has no configuration. Removing the formula keeps it.
+- `brew services start vigil` runs the supervisor as the user, at every login (`sudo brew services start vigil`: as root, at boot). Vigil finds that registration (`homebrew.mxcl.vigil` with launchd, `homebrew.vigil` with systemd): `vigil status`, `start`, `stop` and `restart` work on it, and `vigil service install` and `remove` name the `brew services` command instead. Homebrew's service definition cannot keep a job running past a stop (§18.3), so `brew services stop` and `restart` end running jobs; an upgrade does not stop the service.
+
+**Scoop** (Windows): the manifest in the `godspeedhq/scoop-vigil` bucket (`scoop bucket add vigil https://github.com/godspeedhq/scoop-vigil`, `scoop install vigil`), written from `packaging/scoop/vigil.json.in` the same way, with the `.zip`'s hash.
+
+- The program is Scoop's `apps\vigil\<version>`, run through `apps\vigil\current`, which an update switches to the new version; the command is a Scoop shim for `app\bin\vigil.cmd`.
+- The root is Scoop's persist folder, `~\scoop\persist\vigil`, which an update and `scoop uninstall` keep and `scoop uninstall -p` removes. It is made at install with `vigil init`'s defaults when it has no configuration.
+- Scoop installs commands for one user and runs no services, so its `PACKAGED` names none: `vigil service install --user` starts Vigil at every logon, from `current`, and a running supervisor reloads onto an update's version. `scoop uninstall` removes that Run entry.
+
 Rationale:
 
 - **One root over OS conventions.** Splitting across `/etc`, `/var/lib` and `/var/log` is more conventional on Linux, but one root makes uninstall a single delete and lets an operator find everything.
