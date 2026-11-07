@@ -282,8 +282,12 @@ switch ($Command) {
             Enable-VigilPack -Root $Root -What $pack | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
             if ($code -ne 0) { exit 1 }
         }
-        Write-Output ''
-        Write-Output 'Next: vigil precheck, then vigil service install'
+        # A package registers its own service, and its install says how to
+        # start it: vigil service install would refuse (18.6).
+        if (-not $packaged) {
+            Write-Output ''
+            Write-Output 'Next: vigil precheck, then vigil service install'
+        }
         exit 0
     }
     'uninstall' {
