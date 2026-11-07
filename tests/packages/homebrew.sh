@@ -82,7 +82,7 @@ check 'the command is on PATH' "$prefix/bin/vigil" "$(command -v vigil)"
 check 'it runs the version installed' "Vigil $v_old" "$(vigil version)"
 out=$(vigil about 2>&1)
 check 'about: the root is var/vigil' yes "$(has "Installed   $root")"
-check 'about: the program and its package manager' yes "$(has 'by brew')"
+check 'about: the program and its package manager' yes "$(has 'by Homebrew')"
 check 'a starting configuration was written' yes "$(yn test -f "$root/config/vigil.config")"
 check 'the base pack is in the root' yes "$(yn test -f "$root/packs/base/cpu.sh")"
 out=$(vigil run base_cpu 2>&1)

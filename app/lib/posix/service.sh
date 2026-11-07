@@ -50,22 +50,26 @@ _vigil_svc_os() {
 # Sets _vs_file (the unit or plist), _vs_name (the unit or launchd label)
 # and _vs_target (the launchd service target) for mode $1. Vigil's own
 # registration comes first; else a package's: the .deb or .rpm unit, or
-# the one brew services writes (homebrew.vigil, homebrew.mxcl.vigil).
+# the one brew services writes (sh.brew.vigil in Homebrew 7, earlier
+# homebrew.mxcl.vigil, or homebrew.vigil with systemd).
 _vigil_svc_paths() {
-    local f
-    _vs_name=vigil
+    local f d
     if [ "$_vs_os" = systemd ]; then
         if [ "$1" = system ]; then
             _vs_file=/etc/systemd/system/vigil.service
-            for f in /usr/lib/systemd/system/vigil.service /etc/systemd/system/homebrew.vigil.service /usr/lib/systemd/system/homebrew.vigil.service; do
+            for f in /usr/lib/systemd/system/vigil.service /etc/systemd/system/sh.brew.vigil.service /usr/lib/systemd/system/sh.brew.vigil.service \
+                /etc/systemd/system/homebrew.vigil.service /usr/lib/systemd/system/homebrew.vigil.service; do
                 [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f
             done
         else
             _vs_file=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/vigil.service
-            f=${_vs_file%/*}/homebrew.vigil.service
-            [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f
+            d=${_vs_file%/*}
+            for f in "$d/sh.brew.vigil.service" "$d/homebrew.vigil.service"; do
+                [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f
+            done
         fi
-        case $_vs_file in */homebrew.vigil.service) _vs_name=homebrew.vigil ;; esac
+        _vs_name=${_vs_file##*/}
+        _vs_name=${_vs_name%.service}
     else
         if [ "$1" = system ]; then
             _vs_file=/Library/LaunchDaemons/vigil.plist
@@ -74,8 +78,12 @@ _vigil_svc_paths() {
             _vs_file=$HOME/Library/LaunchAgents/vigil.plist
             _vs_target=gui/$(id -u)
         fi
-        f=${_vs_file%/*}/homebrew.mxcl.vigil.plist
-        [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f && _vs_name=homebrew.mxcl.vigil
+        d=${_vs_file%/*}
+        for f in "$d/sh.brew.vigil.plist" "$d/homebrew.mxcl.vigil.plist"; do
+            [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f
+        done
+        _vs_name=${_vs_file##*/}
+        _vs_name=${_vs_name%.plist}
         _vs_target=$_vs_target/$_vs_name
     fi
     return 0
@@ -85,7 +93,7 @@ _vigil_svc_paths() {
 # owns: vigil service install and remove leave it to systemctl or brew
 # services, and the package.
 _vigil_svc_packaged() {
-    case $_vs_file in /usr/lib/* | */homebrew.*) return 0 ;; esac
+    case $_vs_file in /usr/lib/* | */homebrew.* | */sh.brew.*) return 0 ;; esac
     return 1
 }
 
@@ -95,7 +103,7 @@ _vigil_svc_package_how() {
     local sudo=''
     [ "$_vs_mode" = system ] && sudo='sudo '
     case $_vs_name in
-        homebrew.*)
+        homebrew.* | sh.brew.*)
             _vs_who=Homebrew
             _vs_how="${sudo}brew services $1 vigil"
             ;;

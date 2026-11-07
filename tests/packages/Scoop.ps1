@@ -8,7 +8,7 @@
 # for any claim, damages or other liability arising from its use. See the
 # LICENSE file for the full terms.
 #
-# The Scoop manifest (backlog 30, step 2), for real: installed from a bucket
+# The Scoop manifest (backlog 30, step 2), for real: installed from a file
 # of its own, started with vigil service install --user, updated, removed.
 # On a Windows machine that runs no Vigil of its own (the CI runner), with
 # Scoop installed if it is not:
@@ -68,26 +68,24 @@ $scoopDir = if ($env:SCOOP) { $env:SCOOP } else { Join-Path $env:USERPROFILE 'sc
 $root = Join-Path $scoopDir 'persist\vigil'
 Write-Host "vigil manifest $OldVersion then $NewVersion, Scoop in $scoopDir, PowerShell $($PSVersionTable.PSVersion)"
 
-# A bucket of our own: a git repository, as scoop bucket add wants.
+# Installed from a manifest file, which Scoop reads again to update: the
+# new version's manifest replaces it there.
 $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-scoop-$PID"
-$bucket = Join-Path $work 'bucket'
-New-Item -ItemType Directory -Force -Path (Join-Path $bucket 'bucket') | Out-Null
-Copy-Item -LiteralPath $Old -Destination (Join-Path $bucket 'bucket\vigil.json')
-git -C $bucket init -q
-git -C $bucket add .
-git -C $bucket -c user.name=test -c user.email=test@example.invalid commit -q -m old
-scoop bucket add vigil-test $bucket *> $null
+New-Item -ItemType Directory -Force -Path $work | Out-Null
+$manifest = Join-Path $work 'vigil.json'
+Copy-Item -LiteralPath $Old -Destination $manifest
 
 # --- install ----------------------------------------------------------------------
 
-$c = Invoke-Out { scoop install vigil-test/vigil }
+$c = Invoke-Out { scoop install $manifest }
+if (-not (Get-Command vigil -ErrorAction SilentlyContinue)) { Write-Host "        scoop install: $($Script:Out)" }
 Test-Equal 'install: says what to do next' 'True' (Test-Has 'vigil service install --user')
 $cmd = Get-Command vigil -ErrorAction SilentlyContinue
 Test-Equal 'the command is on PATH, as a Scoop shim' 'True' ([string]($cmd -and $cmd.Source.StartsWith((Join-Path $scoopDir 'shims'), [System.StringComparison]::OrdinalIgnoreCase)))
 Test-Equal 'it runs the version installed' "Vigil $OldVersion" ((vigil version | Out-String).Trim())
 $c = Invoke-Out { vigil about }
 Test-Equal 'about: the root is the persist folder' 'True' (Test-Has "Installed   $root")
-Test-Equal 'about: the program and its package manager' 'True' (Test-Has 'by scoop')
+Test-Equal 'about: the program and its package manager' 'True' (Test-Has 'by Scoop')
 Test-Equal 'a starting configuration was written' 'True' ([string](Test-Path -LiteralPath (Join-Path $root 'config\vigil.config')))
 Test-Equal 'the base pack is in the root' 'True' ([string](Test-Path -LiteralPath (Join-Path $root 'packs\base\cpu.ps1')))
 $c = Invoke-Out { vigil run base_cpu }
@@ -109,10 +107,9 @@ if ($Script:Fail) { Write-Host "        Run entry: $run"; Show-Diagnosis }
 # --- update -----------------------------------------------------------------------------
 
 Add-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value '# a job of our own: kept'
-Copy-Item -LiteralPath $New -Destination (Join-Path $bucket 'bucket\vigil.json') -Force
-git -C $bucket -c user.name=test -c user.email=test@example.invalid commit -q -am new
-scoop update *> $null
+Copy-Item -LiteralPath $New -Destination $manifest -Force
 $c = Invoke-Out { scoop update vigil }
+if ((vigil version | Out-String).Trim() -cne "Vigil $NewVersion") { Write-Host "        scoop update: $($Script:Out)" }
 Test-Equal 'update: the new version' "Vigil $NewVersion" ((vigil version | Out-String).Trim())
 Test-Equal 'update: the configuration is kept' 'True' ([string]([System.IO.File]::ReadAllText((Join-Path $root 'config\vigil.config')).Contains('a job of our own')))
 Wait-For 60 { (Get-SupVersion) -ceq $NewVersion }
@@ -127,7 +124,6 @@ Test-Equal 'uninstall: the Run entry is gone' '' ([string](Get-ItemProperty -Lit
 $left = @(Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'pwsh.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('supervise') -and $_.CommandLine.Contains($root) })
 Test-Equal 'uninstall: the supervisor is stopped' '0' ([string]$left.Count)
 Test-Equal 'uninstall: the root is kept' 'True' ([string](Test-Path -LiteralPath (Join-Path $root 'config\vigil.config')))
-scoop bucket rm vigil-test *> $null
 Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "$($Script:Pass) passed, $($Script:Fail) failed"
