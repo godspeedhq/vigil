@@ -161,6 +161,47 @@ jobs:
         if: matrix.target == 'systemd'
         run: sudo sh tests/packages/linux.sh "$RUNNER_TEMP/old" "$RUNNER_TEMP/new"
 
+  # The Homebrew formula and the Scoop manifest (backlog 30, step 2), each
+  # from a tap or bucket of its own, with archives built here.
+  homebrew:
+    name: homebrew formula (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: build 0.0.1 and 0.0.2
+        run: |
+          bash tools/release/package.sh 0.0.1 "$RUNNER_TEMP/old" > /dev/null
+          bash tools/release/package.sh 0.0.2 "$RUNNER_TEMP/new" > /dev/null
+      - name: install, run, upgrade, remove
+        run: bash tests/packages/homebrew.sh "$RUNNER_TEMP/old" "$RUNNER_TEMP/new"
+
+  scoop:
+    name: scoop manifest (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - name: build 0.0.1 and 0.0.2, and their manifests
+        shell: bash
+        run: |
+          for v in old:0.0.1 new:0.0.2; do
+            d=${v%%:*}
+            bash tools/release/package.sh "${v#*:}" "$RUNNER_TEMP/$d" > /dev/null
+            VIGIL_PACKAGE_URL="http://127.0.0.1:8765/$d" bash tools/release/tap-bucket.sh "${v#*:}" "$RUNNER_TEMP/$d/SHA256SUMS" "$RUNNER_TEMP/$d-manifest"
+          done
+      - name: install, run, update, remove
+        shell: pwsh
+        run: |
+          $server = Start-Process -FilePath python -ArgumentList '-m', 'http.server', '8765', '--bind', '127.0.0.1', '--directory', $env:RUNNER_TEMP -PassThru -WindowStyle Hidden
+          try {
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/packages/Scoop.ps1 `
+              -Old "$env:RUNNER_TEMP\old-manifest\bucket\vigil.json" -New "$env:RUNNER_TEMP\new-manifest\bucket\vigil.json" `
+              -OldVersion 0.0.1 -NewVersion 0.0.2
+            exit $LASTEXITCODE
+          }
+          finally { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
+
   # Windows in six jobs side by side: each PowerShell, in three parts of
   # about 12 minutes (core, sources, install), where one job took 35. Git
   # Bash and the command-line round trip need only one PowerShell, and run

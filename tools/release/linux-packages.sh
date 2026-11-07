@@ -54,8 +54,8 @@ cp "$repo"/packaging/linux/preinstall.sh "$repo"/packaging/linux/postinstall.sh 
 # What a packaged Vigil says about itself (SPECIFICATION.md 18.6): who
 # updates it, and its root, where the install script puts it too.
 releases=https://github.com/godspeedhq/vigil/releases
-printf 'manager = apt\nupgrade = sudo apt install ./vigil_<version>-1_all.deb, from %s\nroot    = /opt/vigil\n' "$releases" > "$pkg/PACKAGED.deb"
-printf 'manager = dnf\nupgrade = sudo dnf install ./vigil-<version>-1.noarch.rpm, from %s\nroot    = /opt/vigil\n' "$releases" > "$pkg/PACKAGED.rpm"
+printf 'manager = apt\nupgrade = sudo apt install ./vigil_<version>-1_all.deb, from %s\nroot    = /opt/vigil\nservice = sudo systemctl enable --now vigil\n' "$releases" > "$pkg/PACKAGED.deb"
+printf 'manager = dnf\nupgrade = sudo dnf install ./vigil-<version>-1.noarch.rpm, from %s\nroot    = /opt/vigil\nservice = sudo systemctl enable --now vigil\n' "$releases" > "$pkg/PACKAGED.rpm"
 
 chmod -R u+rwX,go+rX,go-w "$pkg" || exit 1
 chmod 755 "$pkg/app/vigil" "$pkg"/*.sh

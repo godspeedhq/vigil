@@ -189,6 +189,9 @@ function Remove-VigilUpdateTask {
 
 function Install-VigilService {
     param([string]$Root, [string]$App, [string]$Mode, [string]$HostName, [bool]$Start)
+    # A package that runs the service itself says how in PACKAGED (18.6).
+    $pkg = Get-VigilPackaged -App $App
+    if ($pkg -and $pkg.Service) { throw "Vigil was installed by $($pkg.Manager), which runs its service: $($pkg.Service)" }
     $admin = Test-VigilAdmin
     if (-not $Mode) { $Mode = if ($admin) { 'system' } else { 'user' } }
     if ($Mode -ceq 'system' -and -not $admin) { throw 'system mode needs an elevated (administrator) prompt; or use --user' }

@@ -51,10 +51,10 @@ function Get-VigilPackaged {
     param([string]$App)
     $f = Join-Path $App 'PACKAGED'
     if (-not [System.IO.File]::Exists($f)) { return $null }
-    $r = @{ Manager = ''; Upgrade = ''; Root = '' }
+    $r = @{ Manager = ''; Upgrade = ''; Root = ''; Service = '' }
     foreach ($l in [System.IO.File]::ReadAllLines($f)) {
-        if ($l -cmatch '^(manager|upgrade|root) *= *(.*)$') {
-            $k = @{ manager = 'Manager'; upgrade = 'Upgrade'; root = 'Root' }[$Matches[1]]
+        if ($l -cmatch '^(manager|upgrade|root|service) *= *(.*)$') {
+            $k = @{ manager = 'Manager'; upgrade = 'Upgrade'; root = 'Root'; service = 'Service' }[$Matches[1]]
             if (-not $r[$k]) { $r[$k] = $Matches[2].TrimEnd() }
         }
     }

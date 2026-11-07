@@ -222,11 +222,28 @@ The package puts the program in `/usr/lib/vigil` and keeps everything else in `/
 
 If the install script put Vigil on the machine before, the package keeps its configuration, scripts and packs, and prints the three commands that switch the service over.
 
-Homebrew, Scoop, `apt` and `dnf` repositories, Chocolatey and winget are planned: [backlog 30](backlog/30_package_managers.md) has what that needs.
+From Vigil 0.5.1, Homebrew (macOS, Linux) and Scoop (Windows) install it too, from Vigil's own tap and bucket:
+
+```sh
+# Homebrew
+brew install godspeedhq/vigil/vigil
+brew services start vigil            # runs it now and at every login
+```
+
+```powershell
+# Scoop
+scoop bucket add vigil https://github.com/godspeedhq/scoop-vigil
+scoop install vigil
+vigil service install --user         # starts it at every logon
+```
+
+Homebrew keeps everything else in `$(brew --prefix)/var/vigil`, and Scoop in `~\scoop\persist\vigil`; both write a starting configuration there when there is none, and keep it when Vigil is removed. Update with `brew upgrade vigil` or `scoop update vigil`: a running supervisor picks up the new version by itself. One difference: under `brew services`, stopping the service ends running jobs too, where every other install lets them finish.
+
+`apt` and `dnf` repositories, Chocolatey and winget are planned: [backlog 30](backlog/30_package_managers.md) has what that needs.
 
 ### Remove
 
-`vigil uninstall` lists what it will remove and asks first. `--keep-config` keeps `config/` and `scripts/`. A `.deb` or `.rpm` is removed with its package manager instead.
+`vigil uninstall` lists what it will remove and asks first. `--keep-config` keeps `config/` and `scripts/`. A `.deb`, `.rpm`, Homebrew or Scoop install is removed with its package manager instead.
 
 ## Update
 
