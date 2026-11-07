@@ -304,6 +304,13 @@ vigil_service_install() {
 
     _vigil_svc_find "$root"
     if [ -n "$_vs_mode" ] && [ "$_vs_mode" != "$mode" ]; then
+        # A package's registration is not one to remove first.
+        _vigil_svc_paths "$_vs_mode"
+        if _vigil_svc_packaged; then
+            _vigil_svc_package_how start
+            _vigil_svc_err "$_vs_who installed this service: start it with $_vs_how"
+            return 1
+        fi
         _vigil_svc_err "this root is already registered in $_vs_mode mode: run vigil service remove first"
         return 1
     fi
@@ -388,14 +395,14 @@ vigil_service_remove() {
         printf 'vigil is not registered as a service for %s; nothing to do\n' "$root"
         return 0
     fi
-    if [ "$_vs_mode" = system ] && [ "$(id -u)" -ne 0 ]; then
-        _vigil_svc_err 'the service is registered in system mode: run it with sudo'
-        return 1
-    fi
     _vigil_svc_paths "$_vs_mode"
     if _vigil_svc_packaged; then
         _vigil_svc_package_how stop
         _vigil_svc_err "$_vs_who installed this service: stop it with $_vs_how, or remove the package"
+        return 1
+    fi
+    if [ "$_vs_mode" = system ] && [ "$(id -u)" -ne 0 ]; then
+        _vigil_svc_err 'the service is registered in system mode: run it with sudo'
         return 1
     fi
     if [ "$_vs_os" = systemd ]; then

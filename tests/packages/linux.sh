@@ -103,6 +103,15 @@ if [ "$systemd" = yes ]; then
     out=$(vigil service install 2>&1)
     check 'service install: refused' 1 "$?"
     check 'service install: says to use systemctl' yes "$(has 'the vigil package installed this service')"
+    # Without sudo it is user mode, and the package's unit is in system mode:
+    # that is the package's, not one to remove first.
+    out=$(runuser -u vigil -- vigil service install 2>&1)
+    check 'service install, not root: refused' 1 "$?"
+    check 'service install, not root: says sudo systemctl' yes "$(has 'start it with sudo systemctl enable --now vigil')"
+    check 'service install, not root: no advice to remove' no "$(has 'service remove first')"
+    out=$(runuser -u vigil -- vigil service remove 2>&1)
+    check 'service remove, not root: refused' 1 "$?"
+    check 'service remove, not root: says the package' yes "$(has 'stop it with sudo systemctl disable --now vigil, or remove the package')"
     out=$(vigil restart 2>&1)
     check 'vigil restart works on the package unit' 0 "$?"
     # A supervisor stopped while it sleeps leaves its sleep behind for a moment;
