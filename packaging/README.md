@@ -279,9 +279,27 @@ scoop install vigil
 vigil service install --user     # starts it at every logon
 ```
 
-The manifest is made from [`packaging/scoop/vigil.json.in`](https://github.com/godspeedhq/vigil/blob/main/packaging/scoop/vigil.json.in) and published in the bucket [`godspeedhq/scoop-vigil`](https://github.com/godspeedhq/scoop-vigil). No administrator is needed. The Windows 11 test machine, 0.5.1, as a standard user:
+The manifest is made from [`packaging/scoop/vigil.json.in`](https://github.com/godspeedhq/vigil/blob/main/packaging/scoop/vigil.json.in) and published in the bucket [`godspeedhq/scoop-vigil`](https://github.com/godspeedhq/scoop-vigil). No administrator is needed. The Windows 11 test machine, 0.5.1, as a standard user, minutes after the release. A configuration was already in `~\scoop\persist\vigil` from an earlier install, so the installer kept it and wrote nothing:
 
 ```
+PS> scoop bucket add vigil https://github.com/godspeedhq/scoop-vigil
+Checking repo...
+OK.
+The vigil bucket was added successfully.
+
+PS> scoop install vigil
+Installing 'vigil' (0.5.1) [64bit] from 'vigil' bucket
+Downloading https://github.com/godspeedhq/vigil/releases/download/v0.5.1/vigil-0.5.1.zip (619.3 KB)...
+Checking hash of vigil-0.5.1.zip...
+OK.
+Extracting vigil-0.5.1.zip...
+Done.
+Running installer script...
+Done.
+Linking ~\scoop\apps\vigil\current => ~\scoop\apps\vigil\0.5.1
+Creating shim for 'vigil'.
+'vigil' (0.5.1) was installed successfully!
+
 PS> vigil about
 Vigil 0.5.1
 ...
@@ -315,7 +333,17 @@ WAITING
 
 - Your configuration, scripts, state and logs live in Scoop's persist folder, `~\scoop\persist\vigil`, so they survive every update.
 - The logon entry runs `apps\vigil\current`, so after `scoop update vigil` it starts the new version, and a running supervisor reloads itself.
-- `scoop uninstall vigil` removes the program and its logon entry and keeps your work; `scoop uninstall -p vigil` removes that too.
+- `scoop uninstall vigil` removes the program and its logon entry and keeps your work; `scoop uninstall -p vigil` removes that too:
+  ```
+  PS> scoop uninstall vigil
+  Uninstalling 'vigil' (0.5.1).
+  Running uninstaller script... Done.
+  Unlinking ~\scoop\apps\vigil\current
+  'vigil' was uninstalled.
+  removed the Vigil Run entry; running workers continue
+  Removing shim 'vigil'.
+  Removing shim 'vigil.cmd'.
+  ```
 - For a service that runs with nobody logged on, use the install script as an administrator: Scoop installs per user.
 
 CI installs, updates and removes it on every change (`tests/packages/Scoop.ps1`).
