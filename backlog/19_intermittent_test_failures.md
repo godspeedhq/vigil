@@ -29,6 +29,24 @@ The tests print what they know when these fail.
   `update.reported` and every supervisor line about the update (asks,
   could not be, reloading, staying on, started, stopped), so the next one
   shows whether the supervisor saw the failed install at all.
+- `tests/integration/Version-Config.ps1`, PowerShell 7 (install): `a release
+  not there: recorded as unavailable` (got `succeeded`), then 19 more, on
+  main (the merge of #117, 5ddfc1c) on 2026-11-07. The supervisor log the
+  test printed showed every tick failing, once a second, until the test
+  ended: `You cannot call a method on a null-valued expression` at
+  `Supervisor.ps1:131`, `$name.EndsWith('.succeeded')`. **Vigil's, in
+  part:** some run's spool file held a blank line or one with no event
+  name, which made `$name` null and failed the tick, and every tick after
+  it while the file stayed. The supervisor now passes such a line over, as
+  the POSIX one's `case` already did (#119, released in 0.5.2), and
+  `Supervise.ps1` plants both kinds. **Still open: what wrote the line.**
+  Run events are written whole, through a temporary file and a rename, and
+  none of the writers (worker, sender, fetch, logs, supervisor) can emit an
+  empty event. Whether the first failure, three minutes before the first
+  logged tick error, came from the same cause is not known: the printed log
+  starts with the failing ticks. A failure there now prints the first
+  failed tick, and any spool file with a nameless line, line by line with
+  each line's length.
 
 ## Fixed, cause known (2026-11-06)
 

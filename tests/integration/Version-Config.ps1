@@ -94,7 +94,17 @@ function Set-ConfigVersion {
 function Show-Run {
     Write-Host "        app\VERSION $(Get-Version); update.state:"
     try { [System.IO.File]::ReadAllLines("$root\state\update.state") | ForEach-Object { Write-Host "          $_" } } catch { }
-    (Get-SupLog).Split("`n") | Select-Object -Last 15 | ForEach-Object { Write-Host "        sup: $_" }
+    $sup = (Get-SupLog).Split("`n")
+    # The first failed tick, which the last 15 lines may not reach (backlog 19).
+    $sup | Where-Object { $_ -match 'tick failed' } | Select-Object -First 1 | ForEach-Object { Write-Host "        first failed tick: $_" }
+    $sup | Select-Object -Last 15 | ForEach-Object { Write-Host "        sup: $_" }
+    # Any spool file with a line that has no event name in it, line by line.
+    foreach ($f in Get-ChildItem -LiteralPath "$root\spool" -Recurse -File -Filter '*.events' -ErrorAction SilentlyContinue) {
+        try { $lines = [System.IO.File]::ReadAllLines($f.FullName) } catch { continue }
+        if (-not ($lines | Where-Object { @($_.Split(' ')).Count -lt 2 })) { continue }
+        Write-Host "        spool file with a line without a name: $($f.FullName.Substring($root.Length + 1))"
+        foreach ($l in $lines) { Write-Host "          [$($l.Length)] $l" }
+    }
     foreach ($f in Get-ChildItem -LiteralPath "$root\logs\jobs\vigil_update" -Filter '*.log' -ErrorAction SilentlyContinue) {
         [System.IO.File]::ReadAllLines($f.FullName) | Select-Object -Last 15 | ForEach-Object { Write-Host "        update: $_" }
     }
