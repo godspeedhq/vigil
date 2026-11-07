@@ -8,6 +8,7 @@ Vigil installs from a package manager as well as from its install script: a `.de
 | 🎩 Fedora, RHEL, Rocky, Alma | `sudo dnf install ./vigil-<version>-1.noarch.rpm` | 0.5.0 | `/usr/lib/vigil` | `/opt/vigil` |
 | 🍺 Homebrew, macOS and Linux | `brew install godspeedhq/vigil/vigil` | 0.5.1 | `$(brew --prefix)/opt/vigil` | `$(brew --prefix)/var/vigil` |
 | 🥄 Scoop, Windows | `scoop install vigil`, from the bucket `godspeedhq/scoop-vigil` | 0.5.1 | `~\scoop\apps\vigil\current` | `~\scoop\persist\vigil` |
+| ⚓ MacPorts, macOS | `sudo port install vigil`, once the port is in the ports tree | not yet | `/opt/local/libexec/vigil` | `/opt/local/var/vigil` |
 
 In every case:
 
@@ -371,6 +372,85 @@ vigil formula 0.0.1 then 0.0.2, Homebrew 7.0.11 on Darwin arm64
 38 passed, 0 failed
 ```
 
+## ⚓ MacPorts
+
+```sh
+sudo port install vigil
+sudo port load vigil           # runs it now and at every boot
+```
+
+🚧 **Not in the MacPorts ports tree yet:** the port is written and tested, and goes to [`macports/macports-ports`](https://github.com/macports/macports-ports) as a pull request. Until it is merged, `port install vigil` does not find it.
+
+The Portfile is made from [`packaging/macports/Portfile.in`](https://github.com/godspeedhq/vigil/blob/main/packaging/macports/Portfile.in) by [`tools/release/portfile.sh`](https://github.com/godspeedhq/vigil/blob/main/tools/release/portfile.sh), which reads the release's archive for the RIPEMD-160 and size MacPorts asks for, and refuses an archive whose SHA-256 is not the one in the signed `SHA256SUMS`. Like the Homebrew formula, it builds nothing: it puts the scripts in place and writes a starting configuration.
+
+| What | Where |
+| --- | --- |
+| The program, the port's | `/opt/local/libexec/vigil` |
+| The `vigil` command | `/opt/local/bin/vigil` |
+| Your configuration, scripts, state, logs and metrics | `/opt/local/var/vigil` |
+| The service | the LaunchDaemon `org.macports.vigil`, as root, like the install script's system service |
+
+- `sudo port load vigil` starts the service, and `sudo port unload vigil` stops it. `vigil status`, `stop`, `start` and `restart` find it.
+- `sudo port selfupdate && sudo port upgrade vigil` updates it. MacPorts stops the service, swaps the versions and starts it again, and running jobs carry on.
+- `sudo port uninstall vigil` removes the program and keeps `/opt/local/var/vigil`.
+
+This is the macOS test machine, with test builds 0.5.3 and 0.5.4 of this port made from the branch that added it, beside the install script's Vigil (the Mac's name is replaced with `your-mac`):
+
+```
+$ sudo port -D ports-0.5.3/sysutils/vigil install
+--->  Installing vigil @0.5.3_0
+--->  Activating vigil @0.5.3_0
+...
+$ vigil about
+Vigil 0.5.3
+...
+Installed   /opt/local/var/vigil
+Program     /opt/local/libexec/vigil, by MacPorts
+Platform    macOS, bash 3.2.57
+
+$ vigil self update
+vigil: Vigil was installed by MacPorts: update it with sudo port selfupdate && sudo port upgrade vigil
+
+$ sudo vigil service install
+vigil: MacPorts installed this service: start it with sudo port load vigil
+
+$ sudo port -D ports-0.5.3/sysutils/vigil load
+--->  Loading startupitem 'vigil' for vigil
+
+$ vigil status
+service: active, pid 39550 (launchd, system mode)
+
+Vigil your-mac at 2026-11-07T23:09:03Z
+
+$ sudo vigil stop; sudo vigil start
+stopped vigil; running workers continue
+started vigil
+
+$ sudo port -D ports-0.5.4/sysutils/vigil install
+--->  Installing vigil @0.5.4_0
+--->  Unloading startupitem 'vigil' for vigil
+--->  Deactivating vigil @0.5.3_0
+--->  Activating vigil @0.5.4_0
+$ sudo port -D ports-0.5.4/sysutils/vigil load
+--->  Loading startupitem 'vigil' for vigil
+
+$ vigil version; vigil status
+Vigil 0.5.4
+service: active, pid 40581 (launchd, system mode)
+
+$ sudo port -D ports-0.5.4/sysutils/vigil unload
+--->  Unloading startupitem 'vigil' for vigil
+
+$ sudo port uninstall vigil @0.5.3_0; sudo port uninstall vigil @0.5.4_0
+--->  Uninstalling vigil @0.5.3_0
+--->  Deactivating vigil @0.5.4_0
+--->  Uninstalling vigil @0.5.4_0
+```
+
+A port installed from its folder (`-D`) is outside the ports tree, so the commands name the folder, and `port upgrade`, which looks the port up in the tree, is its two steps: installing 0.5.4 over 0.5.3, which unloads, deactivates and activates, then loading again. The configuration edited before the upgrade was kept, and so was `/opt/local/var/vigil` after uninstalling. The install script's Vigil ran on throughout, and each `vigil status` found its own service.
+
+CI does the same on every change, on MacPorts' own installer for the runner's macOS: [`tests/packages/macports.sh`](https://github.com/godspeedhq/vigil/blob/main/tests/packages/macports.sh), with `port lint --nitpick` first.
+
 ## 🥄 Scoop
 
 ```powershell
@@ -454,4 +534,4 @@ Both check for a new Vigil release every hour. Before writing anything, each ver
 
 ## 🗺️ Next
 
-MacPorts, the last package manager planned: [backlog 30](https://github.com/godspeedhq/vigil/blob/main/backlog/30_package_managers.md). An MSI and winget wait for code signing: [backlog 33](https://github.com/godspeedhq/vigil/blob/main/backlog/33_signed_packages.md).
+MacPorts, once the port is in the ports tree, is the last package manager planned: [backlog 30](https://github.com/godspeedhq/vigil/blob/main/backlog/30_package_managers.md). An MSI and winget wait for code signing: [backlog 33](https://github.com/godspeedhq/vigil/blob/main/backlog/33_signed_packages.md).
