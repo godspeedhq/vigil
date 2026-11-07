@@ -49,51 +49,59 @@ _vigil_svc_os() {
 
 # Sets _vs_file (the unit or plist), _vs_name (the unit or launchd label)
 # and _vs_target (the launchd service target) for mode $1. Vigil's own
-# registration comes first; else a package's: the .deb or .rpm unit, or
-# the one brew services writes (sh.brew.vigil in Homebrew 7, earlier
-# homebrew.mxcl.vigil, or homebrew.vigil with systemd).
+# registration comes first; else a package's: the .deb or .rpm unit, the
+# one brew services writes (sh.brew.vigil in Homebrew 7, earlier
+# homebrew.mxcl.vigil, or homebrew.vigil with systemd), or MacPorts's
+# LaunchDaemon (org.macports.vigil). Once _vigil_svc_find has set _vs_root,
+# the first that is that root's wins, so two installs on one machine each
+# find their own.
 _vigil_svc_paths() {
-    local f d
+    local mode=$1 f d target='' first=''
     if [ "$_vs_os" = systemd ]; then
-        if [ "$1" = system ]; then
-            _vs_file=/etc/systemd/system/vigil.service
-            for f in /usr/lib/systemd/system/vigil.service /etc/systemd/system/sh.brew.vigil.service /usr/lib/systemd/system/sh.brew.vigil.service \
-                /etc/systemd/system/homebrew.vigil.service /usr/lib/systemd/system/homebrew.vigil.service; do
-                [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f
-            done
+        if [ "$mode" = system ]; then
+            set -- /etc/systemd/system/vigil.service /usr/lib/systemd/system/vigil.service \
+                /etc/systemd/system/sh.brew.vigil.service /usr/lib/systemd/system/sh.brew.vigil.service \
+                /etc/systemd/system/homebrew.vigil.service /usr/lib/systemd/system/homebrew.vigil.service
         else
-            _vs_file=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/vigil.service
-            d=${_vs_file%/*}
-            for f in "$d/sh.brew.vigil.service" "$d/homebrew.vigil.service"; do
-                [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f
-            done
+            d=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
+            set -- "$d/vigil.service" "$d/sh.brew.vigil.service" "$d/homebrew.vigil.service"
         fi
-        _vs_name=${_vs_file##*/}
-        _vs_name=${_vs_name%.service}
     else
-        if [ "$1" = system ]; then
-            _vs_file=/Library/LaunchDaemons/vigil.plist
-            _vs_target=system
+        if [ "$mode" = system ]; then
+            d=/Library/LaunchDaemons
+            target=system
         else
-            _vs_file=$HOME/Library/LaunchAgents/vigil.plist
-            _vs_target=gui/$(id -u)
+            d=$HOME/Library/LaunchAgents
+            target=gui/$(id -u)
         fi
-        d=${_vs_file%/*}
-        for f in "$d/sh.brew.vigil.plist" "$d/homebrew.mxcl.vigil.plist"; do
-            [ ! -f "$_vs_file" ] && [ -f "$f" ] && _vs_file=$f
-        done
-        _vs_name=${_vs_file##*/}
-        _vs_name=${_vs_name%.plist}
-        _vs_target=$_vs_target/$_vs_name
+        set -- "$d/vigil.plist" "$d/sh.brew.vigil.plist" "$d/homebrew.mxcl.vigil.plist" "$d/org.macports.vigil.plist"
     fi
+    for f in "$@"; do
+        [ -f "$f" ] || continue
+        [ -n "$first" ] || first=$f
+        [ -n "${_vs_root-}" ] || break
+        _vigil_svc_at "$f" "$target"
+        _vigil_svc_mine "$_vs_root" && return 0
+    done
+    _vigil_svc_at "${first:-$1}" "$target"
+}
+
+# Sets _vs_file to $1, and _vs_name and _vs_target from it ($2 is the
+# launchd domain).
+_vigil_svc_at() {
+    _vs_file=$1
+    _vs_name=${1##*/}
+    _vs_name=${_vs_name%.service}
+    _vs_name=${_vs_name%.plist}
+    [ "$_vs_os" = systemd ] || _vs_target=$2/$_vs_name
     return 0
 }
 
 # True when _vs_file is a package's registration, which the package manager
-# owns: vigil service install and remove leave it to systemctl or brew
-# services, and the package.
+# owns: vigil service install and remove leave it to systemctl, brew
+# services or port load, and the package.
 _vigil_svc_packaged() {
-    case $_vs_file in /usr/lib/* | */homebrew.* | */sh.brew.*) return 0 ;; esac
+    case $_vs_file in /usr/lib/* | */homebrew.* | */sh.brew.* | */org.macports.*) return 0 ;; esac
     return 1
 }
 
@@ -106,6 +114,10 @@ _vigil_svc_package_how() {
         homebrew.* | sh.brew.*)
             _vs_who=Homebrew
             _vs_how="${sudo}brew services $1 vigil"
+            ;;
+        org.macports.*)
+            _vs_who=MacPorts
+            if [ "$1" = start ]; then _vs_how='sudo port load vigil'; else _vs_how='sudo port unload vigil'; fi
             ;;
         *)
             _vs_who='the vigil package'
@@ -141,6 +153,7 @@ _vigil_svc_mine() {
 # _vs_other names a registration that belongs to another root.
 _vigil_svc_find() {
     local root=$1 m
+    _vs_root=$root
     _vs_mode=''
     _vs_other=''
     for m in system user; do
