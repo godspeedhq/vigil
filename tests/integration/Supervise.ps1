@@ -207,7 +207,8 @@ $rid = '20260101T000000Z-1-4'
     "[state]`nschema_version = 1`njob = fast`nrun_id = $rid`nstatus = running`nboot_id = $boot`nstarted_epoch = 1`n")
 [System.IO.File]::WriteAllText((Join-Path $locks "fast.$rid.token"), '')
 [void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'spool\fanout'))
-[System.IO.File]::WriteAllText((Join-Path $root "spool\fanout\1-fast-$rid.events"), "1 fast.succeeded 1 count host=it`n")
+# A blank line and one with no name in it are passed over, not a failed tick.
+[System.IO.File]::WriteAllText((Join-Path $root "spool\fanout\1-fast-$rid.events"), "`n1`n1 fast.succeeded 1 count host=it`n")
 Invoke-Tick
 $st = Join-Path $root 'state\jobs\fast.state'
 Test-Equal 'run reconciled from its events in the fan-out' 'succeeded|reconciled from the spool file' "$(Get-StateValue $st 'status')|$(Get-StateValue $st 'reason')"

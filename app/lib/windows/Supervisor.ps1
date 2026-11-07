@@ -127,7 +127,9 @@ function Find-VigilSpoolOutcome {
             # The sender may move the file on between listing and reading.
             try { $lines = [System.IO.File]::ReadAllLines($f) } catch { continue }
             foreach ($l in $lines) {
-                $name = ($l.Split(' '))[1]
+                # A line without a name says nothing, and must not end the
+                # tick: it would end every tick while the file is there.
+                $name = "$(($l.Split(' '))[1])"
                 if ($name.EndsWith('.succeeded')) { $r.Outcome = 'succeeded' }
                 elseif ($name.EndsWith('.warnings')) { $r.Outcome = 'warning' }
                 elseif ($name.EndsWith('.failures')) { $r.Outcome = 'failed' }
