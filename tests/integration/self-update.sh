@@ -358,7 +358,7 @@ else
     # A narrow sudo rule: one person, one command, without being root.
     me=$(id -un)
     latest 0.0.2-it
-    sudo sh "$repo/install.sh" --system --prefix "$sys" --archive "$www/releases/download/v0.0.2-it/vigil-0.0.2-it.tar.gz" --update-by "$me" < /dev/null > "$work/out" 2>&1
+    sudo sh "$repo/install.sh" --system --prefix "$sys" --archive "$www/releases/download/v0.0.2-it/vigil-0.0.2-it.tar.gz" --key "$VIGIL_TEST_RELEASE_KEY" --update-by "$me" < /dev/null > "$work/out" 2>&1
     check 'update-by: installed' 0 "$?"
     check 'update-by: the rule is two commands' 1 "$(sudo grep -c "^$me ALL=(root) NOPASSWD: $sys/app/vigil self update, $sys/app/vigil self update --from-config\$" /etc/sudoers.d/vigil)"
     printf 'Defaults env_keep += "VIGIL_TEST_RELEASE_URL VIGIL_TEST_RELEASE_KEY"\n' | sudo tee /etc/sudoers.d/vigil-test > /dev/null

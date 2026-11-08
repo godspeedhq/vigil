@@ -68,6 +68,16 @@ can replace the archive. Self update does check the signature.
 
 This can be done on its own, before the setting.
 
+**Built (2026-11-08):** the key is `--key` (`-Key`), else, on an upgrade,
+the installed `app/release-key.pem`; with a key, `SHA256SUMS.sig` is
+required, not checked only when present (whoever can replace the archive can
+remove it). A fresh install without `--key` checks no signature, as before.
+Not the archive's own key: a key that comes with the files proves nothing
+about them. Self update needs no change: the `.sig` it has already checked
+is beside the archive it hands the installer. Tests: `install.sh` and
+`Install.ps1` (a forged `SHA256SUMS`, no `.sig`, another key, a missing
+key, an upgrade checked against the installed key).
+
 ## Done when
 
 - A fleet with `release_url` set installs, updates (by hand, by `version =`,

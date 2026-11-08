@@ -186,7 +186,8 @@ Then turn on what you need: `vigil pack list` shows the [packs](#packs), and [Wr
 | `--user`, `--system` | `-User`, `-System` | The mode; by default system as root or elevated, user otherwise |
 | `--prefix <dir>` | `-Prefix <dir>` | Another install root |
 | `--version <v>` | `-Version <v>` | A release other than the latest |
-| `--archive <file>` | `-Archive <file>` | Install a downloaded archive; `SHA256SUMS` must be beside it |
+| `--archive <file>` | `-Archive <file>` | Install a downloaded archive; `SHA256SUMS` must be beside it, and `SHA256SUMS.sig` when there is a key |
+| `--key <file>` | `-Key <file>` | The release key to check `SHA256SUMS.sig` with; an upgrade uses the installed one |
 | `--instance`, `--backend` | `-Instance`, `-Backend` | Passed to `vigil init` |
 | `--account <name>` | `-ShellHost powershell \| pwsh` | The service account (Linux, macOS); the PowerShell the service runs on (Windows) |
 | `--no-init`, `--no-service` | `-NoInit`, `-NoService` | Skip a step |
@@ -198,12 +199,14 @@ With `sh`, options go after `sh -s --`, as in `curl ... | sudo sh -s -- --system
 
 If your organisation doesn't allow piping scripts into a shell, or the machine has no internet access:
 
-1. From the [releases page](https://github.com/godspeedhq/vigil/releases), download the archive (`vigil-<version>.tar.gz` for Linux and macOS, `vigil-<version>.zip` for Windows), `SHA256SUMS` and the installer (`install.sh` or `install.ps1`).
-2. Check the archive: `sha256sum -c SHA256SUMS --ignore-missing` on Linux, `shasum -a 256 -c SHA256SUMS --ignore-missing` on macOS, or compare `Get-FileHash vigil-<version>.zip` with its line in `SHA256SUMS` on Windows.
+1. From the [releases page](https://github.com/godspeedhq/vigil/releases), download the archive (`vigil-<version>.tar.gz` for Linux and macOS, `vigil-<version>.zip` for Windows), `SHA256SUMS`, `SHA256SUMS.sig` and the installer (`install.sh` or `install.ps1`), all into one folder.
+2. Get the release key, [`app/release-key.pem`](https://raw.githubusercontent.com/godspeedhq/vigil/main/app/release-key.pem), once, and keep your own copy.
 3. Read the installer. It's the same one the one-line command runs.
-4. Run it with the archive:
-   - Linux and macOS: `sudo sh install.sh --system --archive vigil-<version>.tar.gz`
-   - Windows, from an elevated prompt: `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -System -Archive .\vigil-<version>.zip`
+4. Run it with the archive and the key. Before it changes anything, it checks that the release key signed `SHA256SUMS`, and that the archive matches `SHA256SUMS`:
+   - Linux and macOS: `sudo sh install.sh --system --archive vigil-<version>.tar.gz --key release-key.pem`
+   - Windows, from an elevated prompt: `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -System -Archive .\vigil-<version>.zip -Key .\release-key.pem`
+
+To upgrade this way, leave out `--key`: the installer checks the signature against the key of the Vigil already installed. `SHA256SUMS.sig` is still needed.
 
 ### Package managers
 
