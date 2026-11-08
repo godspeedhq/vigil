@@ -193,6 +193,62 @@ check 'no such release: fails' 1 "$?"
 check 'no such release: says so' 1 "$(grep -c 'cannot download' "$work/out")"
 check 'no such release: nothing changed' 0.0.1-it "$(version_of)"
 
+# --- a release_url: the releases from a copy of their own (18.7) ------------------------------
+
+# The copy holds the release files as GitHub's, and names the latest in
+# releases/latest/VERSION. GitHub's stand-in names no latest at all, so
+# whatever is found comes from the copy, and the mock's log shows nothing
+# else was asked.
+m=$www/mirror
+mkdir -p "$m/releases/download" "$m/releases/latest"
+cp -R "$www/releases/download/v0.0.1-it" "$www/releases/download/v0.0.2-it" "$m/releases/download/"
+printf '0.0.2-it\n' > "$m/releases/latest/VERSION"
+rm -f "$work/mock/redirects"
+cp "$root/config/vigil.config" "$work/config.saved"
+awk -v u="$VIGIL_TEST_RELEASE_URL/mirror" '{ print } /^\[vigil\]$/ { print "release_url = " u }' "$work/config.saved" > "$root/config/vigil.config"
+from_copy() { grep '"path"' "$work/mock/requests.log" | grep -vc '"path": "/mirror/'; }
+check 'release_url: about names it' 1 "$(vigil about 2>/dev/null | grep -cF "Releases    $VIGIL_TEST_RELEASE_URL/mirror")"
+: > "$work/mock/requests.log"
+vigil self update --check > "$work/out" 2>&1
+check 'release_url: --check names the copy''s latest' 1 "$(grep -c '0.0.2-it is available' "$work/out")"
+vigil self update > "$work/out" 2>&1
+rc=$?
+check 'release_url: update succeeds' 0 "$rc"
+[ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+check 'release_url: the new version is installed' 0.0.2-it "$(version_of)"
+check 'release_url: nothing was asked of GitHub' 0 "$(from_copy)"
+printf '0.0.1-it\n' > "$m/releases/latest/VERSION"
+vigil self update > "$work/out" 2>&1
+check 'release_url: an older latest is not taken' 0 "$?"
+check 'release_url: saying why' 1 "$(grep -c 'newer than the latest release from' "$work/out")"
+check 'release_url: and nothing changed' 0.0.2-it "$(version_of)"
+# SHA256SUMS changed on the copy, to match a changed archive.
+cp "$m/releases/download/v0.0.1-it/SHA256SUMS" "$work/sums.good"
+(cd "$m/releases/download/v0.0.1-it" && printf 'x' >> vigil-0.0.1-it.tar.gz && { sha256sum vigil-0.0.1-it.tar.gz install.sh 2>/dev/null || shasum -a 256 vigil-0.0.1-it.tar.gz install.sh; } | sed 's/ \*/  /' > SHA256SUMS)
+vigil self update --version 0.0.1-it > "$work/out" 2>&1
+check 'release_url: a changed release is refused' 1 "$?"
+check 'release_url: saying why' 1 "$(grep -c 'not signed by the Vigil release key' "$work/out")"
+check 'release_url: and nothing changed' 0.0.2-it "$(version_of)"
+rm "$m/releases/latest/VERSION"
+vigil self update > "$work/out" 2>&1
+check 'release_url: unreachable, refused' 1 "$?"
+check 'release_url: naming it' 1 "$(grep -cF "cannot reach $VIGIL_TEST_RELEASE_URL/mirror to find the latest release" "$work/out")"
+printf '0.0.2-it\n' > "$m/releases/latest/VERSION"
+: > "$work/mock/requests.log"
+vigil pack update --check > "$work/out" 2>&1
+rc=$?
+check 'release_url: pack update finds the packs there' 0 "$rc"
+[ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+check 'release_url: pack update asked nothing of GitHub' 0 "$(from_copy)"
+: > "$work/mock/requests.log"
+XDG_CACHE_HOME=$work/cache-copy vigil self refresh-check
+check 'release_url: the notice''s check asks the copy' 0.0.2-it "$(cut -d ' ' -f 2 "$work/cache-copy/vigil/update-check" 2> /dev/null)"
+check 'release_url: and nothing of GitHub' 0 "$(from_copy)"
+cp "$work/config.saved" "$root/config/vigil.config"
+latest 0.0.2-it
+vigil self update --version 0.0.1-it > /dev/null 2>&1
+check 'release_url: back as it was' 0.0.1-it "$(version_of)"
+
 # --- what does not verify changes nothing ---------------------------------------------------
 
 d=$www/releases/download/v0.0.2-it
@@ -358,30 +414,29 @@ else
     # A narrow sudo rule: one person, one command, without being root.
     me=$(id -un)
     latest 0.0.2-it
-    sudo sh "$repo/install.sh" --system --prefix "$sys" --archive "$www/releases/download/v0.0.2-it/vigil-0.0.2-it.tar.gz" --key "$VIGIL_TEST_RELEASE_KEY" --update-by "$me" < /dev/null > "$work/out" 2>&1
+    sudo sh "$repo/install.sh" --system --prefix "$sys" --archive "$www/releases/download/v0.0.1-it/vigil-0.0.1-it.tar.gz" --key "$VIGIL_TEST_RELEASE_KEY" --update-by "$me" < /dev/null > "$work/out" 2>&1
     check 'update-by: installed' 0 "$?"
     check 'update-by: the rule is two commands' 1 "$(sudo grep -c "^$me ALL=(root) NOPASSWD: $sys/app/vigil self update, $sys/app/vigil self update --from-config\$" /etc/sudoers.d/vigil)"
     printf 'Defaults env_keep += "VIGIL_TEST_RELEASE_URL VIGIL_TEST_RELEASE_KEY"\n' | sudo tee /etc/sudoers.d/vigil-test > /dev/null
-    latest 0.0.1-it
     /usr/local/bin/vigil self update > "$work/out" 2>&1
     rc=$?
     check 'update-by: updated, not as root' 0 "$rc"
     [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
-    check 'update-by: the release is installed' 0.0.1-it "$(cat "$sys/app/VERSION")"
+    check 'update-by: the release is installed' 0.0.2-it "$(cat "$sys/app/VERSION")"
     check 'update-by: the service is active' active "$(active)"
-    /usr/local/bin/vigil self update --version 0.0.2-it > "$work/out" 2>&1
+    /usr/local/bin/vigil self update --version 0.0.1-it > "$work/out" 2>&1
     check 'update-by: no version of your own choosing' 1 "$?"
     # The configuration's version (18.11): the rule's second command, which
-    # root reads from the configuration itself.
-    sudo awk '{ print } /^\[vigil\]$/ { print "version = 0.0.2-it" }' "$sys/config/vigil.config" > "$work/cfg"
+    # root reads from the configuration itself. Older included.
+    sudo awk '{ print } /^\[vigil\]$/ { print "version = 0.0.1-it" }' "$sys/config/vigil.config" > "$work/cfg"
     sudo cp "$work/cfg" "$sys/config/vigil.config"
     /usr/local/bin/vigil self update > "$work/out" 2>&1
-    check 'update-by: refused while the configuration names a version' 1 "$(grep -c 'set in the configuration (version = 0.0.2-it)' "$work/out")"
+    check 'update-by: refused while the configuration names a version' 1 "$(grep -c 'set in the configuration (version = 0.0.1-it)' "$work/out")"
     sudo -n "$sys/app/vigil" self update --from-config > "$work/out" 2>&1
     rc=$?
     check 'update-by: the configuration''s version, through the rule' 0 "$rc"
     [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
-    check 'update-by: that release is installed' 0.0.2-it "$(cat "$sys/app/VERSION")"
+    check 'update-by: that release is installed' 0.0.1-it "$(cat "$sys/app/VERSION")"
     sudo rm -f /etc/sudoers.d/vigil-test
     sudo /usr/local/bin/vigil uninstall --yes > /dev/null 2>&1
     check 'system: uninstall succeeds' 0 "$?"

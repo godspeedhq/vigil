@@ -126,32 +126,22 @@ _vigil_pack_read() {
 
 # Finds the latest release and puts this platform's packs in _vp_src, verified:
 # the signature against the key installed here, then the file against
-# SHA256SUMS. The caller removes _vp_work.
+# SHA256SUMS. From GitHub, or the configuration's release_url. The caller
+# removes _vp_work.
 _vigil_pack_fetch() {
-    local app=$1 base=$VIGIL_RELEASES tag want file f key sum got
+    local root=$1 app=$2 base tag want file f key sum got
     local -a curlopts
-    curlopts=(-q --proto =https --proto-redir =https --max-time 60)
-    # Tests only (22.4.4): releases from a local server, never over the
-    # network.
-    if [ -n "${VIGIL_TEST_RELEASE_URL-}" ]; then
-        case $VIGIL_TEST_RELEASE_URL in
-            http://127.0.0.1:*)
-                base=$VIGIL_TEST_RELEASE_URL
-                curlopts=(-q --proto =http --proto-redir =http --noproxy '*' --max-time 60)
-                ;;
-            *)
-                _vigil_pack_die 'VIGIL_TEST_RELEASE_URL must be http://127.0.0.1:<port>'
-                return 1
-                ;;
-        esac
-    fi
+    vigil_config_version "$root"
+    vigil_release_source || return 1
+    base=$_vu_base
+    curlopts=("${_vu_curl[@]}" --max-time 60)
     command -v curl > /dev/null 2>&1 || { _vigil_pack_die 'curl not found'; return 1; }
     command -v openssl > /dev/null 2>&1 || { _vigil_pack_die 'openssl not found: packs cannot be verified; nothing was changed'; return 1; }
     key=$app/release-key.pem
     [ -n "${VIGIL_TEST_RELEASE_URL-}" ] && [ -n "${VIGIL_TEST_RELEASE_KEY-}" ] && key=$VIGIL_TEST_RELEASE_KEY
     [ -f "$key" ] || { _vigil_pack_die 'no release key here: packs cannot be verified; nothing was changed'; return 1; }
-    want=$(vigil_latest_version "$base" "${curlopts[@]}") ||
-        { _vigil_pack_die 'cannot reach GitHub to find the latest release'; return 1; }
+    want=$(vigil_latest_version "$base" "$_vu_mirror" "${curlopts[@]}") ||
+        { _vigil_pack_die "cannot reach $_vu_from to find the latest release"; return 1; }
     _vigil_pack_os
     _vp_work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-pack.XXXXXX") || { _vigil_pack_die 'cannot make a temporary folder'; return 1; }
     file=vigil-packs-$want-$_vp_os.tar.gz
@@ -467,7 +457,7 @@ vigil_pack_update() {
         return 1
     fi
     _vp_work=''
-    _vigil_pack_fetch "$app" || { [ -z "$_vp_work" ] || rm -rf "$_vp_work"; return 1; }
+    _vigil_pack_fetch "$root" "$app" || { [ -z "$_vp_work" ] || rm -rf "$_vp_work"; return 1; }
     mkdir -p "$root/packs"
     for d in "$_vp_src"/*/; do
         [ -f "$d/pack.config" ] || continue

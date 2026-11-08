@@ -111,6 +111,7 @@ _vigil_val_keytype() {
         vigil:instance) _vv_type=name ;;
         vigil:state_dir) _vv_type=path ;;
         vigil:version) _vv_type=release ;;
+        vigil:release_url) _vv_type=log_url ;;
         scheduler:tick) _vv_type=dur ;;
         scheduler:late_start_window) _vv_type=dur0 ;;
         log:dir) _vv_type=path ;;

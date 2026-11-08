@@ -346,7 +346,7 @@ switch ($Command) {
     }
     'self' {
         if ($Job -ceq 'refresh-check' -and -not $Rest) {
-            Update-VigilUpdateCache -App $app
+            Update-VigilUpdateCache -Root $Root -App $app
             exit 0
         }
         if ($Job -ceq 'update-by' -and $Rest.Count -eq 1) {

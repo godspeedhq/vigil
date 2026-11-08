@@ -230,6 +230,69 @@ try {
     Test-Equal 'no such release: says so' 'True' ([string]$r.Text.Contains('cannot download'))
     Test-Equal 'no such release: nothing changed' '0.0.1-it' (Get-Version)
 
+    # A release_url: the releases from a copy of their own (18.7). The copy
+    # holds the release files as GitHub's, and names the latest in
+    # releases\latest\VERSION. GitHub's stand-in names no latest at all, so
+    # whatever is found comes from the copy, and the mock's log shows nothing
+    # else was asked.
+    $m = Join-Path $www 'mirror'
+    [void](New-Item -ItemType Directory -Force -Path "$m\releases\download", "$m\releases\latest")
+    Copy-Item -LiteralPath $d1, (Join-Path $www 'releases\download\v0.0.2-it') -Destination "$m\releases\download" -Recurse
+    [System.IO.File]::WriteAllText("$m\releases\latest\VERSION", "0.0.2-it`n")
+    Remove-Item -LiteralPath "$work\mock\redirects" -Force
+    $cfgFile = "$root\config\vigil.config"
+    $saved = [System.IO.File]::ReadAllText($cfgFile)
+    $mirrorUrl = "$env:VIGIL_TEST_RELEASE_URL/mirror"
+    [System.IO.File]::WriteAllText($cfgFile, ($saved -replace '(?m)^\[vigil\]\r?$', "[vigil]`nrelease_url = $mirrorUrl"))
+    $requests = "$work\mock\requests.log"
+    $fromCopy = { [string]@([System.IO.File]::ReadAllLines($requests) | Where-Object { $_ -match '"path"' -and $_ -notmatch '"path": "/mirror/' }).Count }
+    Test-Equal 'release_url: about names it' 'True' ([string](Invoke-Vigil about).Text.Contains("Releases    $mirrorUrl"))
+    [System.IO.File]::WriteAllText($requests, '')
+    $r = Invoke-Vigil self update --check
+    Test-Equal 'release_url: --check names the copy''s latest' 'True' ([string]$r.Text.Contains('0.0.2-it is available'))
+    $r = Invoke-Vigil self update
+    Test-Equal 'release_url: update succeeds' '0' ([string]$r.Code)
+    if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    Test-Equal 'release_url: the new version is installed' '0.0.2-it' (Get-Version)
+    Test-Equal 'release_url: nothing was asked of GitHub' '0' (& $fromCopy)
+    [System.IO.File]::WriteAllText("$m\releases\latest\VERSION", "0.0.1-it`n")
+    $r = Invoke-Vigil self update
+    Test-Equal 'release_url: an older latest is not taken' '0' ([string]$r.Code)
+    Test-Equal 'release_url: saying why' 'True' ([string]$r.Text.Contains('newer than the latest release from'))
+    Test-Equal 'release_url: and nothing changed' '0.0.2-it' (Get-Version)
+    # SHA256SUMS changed on the copy, to match a changed archive.
+    $md1 = "$m\releases\download\v0.0.1-it"
+    [System.IO.File]::AppendAllText("$md1\vigil-0.0.1-it.zip", 'x')
+    Write-Sums $md1 @('vigil-0.0.1-it.zip', 'install.ps1')
+    $r = Invoke-Vigil self update --version 0.0.1-it
+    Test-Equal 'release_url: a changed release is refused' '1' ([string]$r.Code)
+    Test-Equal 'release_url: saying why' 'True' ([string]$r.Text.Contains('not signed by the Vigil release key'))
+    Test-Equal 'release_url: and nothing changed' '0.0.2-it' (Get-Version)
+    Remove-Item -LiteralPath "$m\releases\latest\VERSION"
+    $r = Invoke-Vigil self update
+    Test-Equal 'release_url: unreachable, refused' '1' ([string]$r.Code)
+    Test-Equal 'release_url: naming it' 'True' ([string]$r.Text.Contains("cannot reach $mirrorUrl to find the latest release"))
+    [System.IO.File]::WriteAllText("$m\releases\latest\VERSION", "0.0.2-it`n")
+    [System.IO.File]::WriteAllText($requests, '')
+    $r = Invoke-Vigil pack update --check
+    Test-Equal 'release_url: pack update finds the packs there' '0' ([string]$r.Code)
+    if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    Test-Equal 'release_url: pack update asked nothing of GitHub' '0' (& $fromCopy)
+    [System.IO.File]::WriteAllText($requests, '')
+    $savedLocal = $env:LOCALAPPDATA
+    $env:LOCALAPPDATA = "$work\cache-copy"
+    [void](New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA)
+    [void](Invoke-Vigil self refresh-check)
+    $cache = "$work\cache-copy\vigil-update-check"
+    $env:LOCALAPPDATA = $savedLocal
+    $seen = if (Test-Path -LiteralPath $cache) { @([System.IO.File]::ReadAllText($cache).Trim().Split(' '))[1] } else { '' }
+    Test-Equal 'release_url: the notice''s check asks the copy' '0.0.2-it' ([string]$seen)
+    Test-Equal 'release_url: and nothing of GitHub' '0' (& $fromCopy)
+    [System.IO.File]::WriteAllText($cfgFile, $saved)
+    Set-Latest '0.0.2-it'
+    [void](Invoke-Vigil self update --version 0.0.1-it)
+    Test-Equal 'release_url: back as it was' '0.0.1-it' (Get-Version)
+
     # What does not verify changes nothing.
     $d = Join-Path $www 'releases\download\v0.0.2-it'
     Copy-Item "$d\install.ps1" "$work\install.good"

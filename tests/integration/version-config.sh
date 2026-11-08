@@ -297,6 +297,19 @@ vigil self update > "$work/out" 2>&1
 check 'removing the line gives self update back' 0 "$?"
 check 'nothing moved meanwhile' 0.7.0-it "$(version_of)"
 
+# --- the version from a copy of the releases (release_url, 18.7) ---------------------------------
+
+# 0.8.0-it is only on the copy, so only the copy can supply it.
+variant 0.7.0-it 0.8.0-it ':'
+mkdir -p "$www/mirror/releases/download"
+mv "$www/releases/download/v0.8.0-it" "$www/mirror/releases/download/"
+f=$work/fleet/hosts/vc.config
+awk -v u="$VIGIL_TEST_RELEASE_URL/mirror" '{ print } /^\[vigil\]$/ { print "release_url = " u }' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+set_version "$f" 0.8.0-it
+wait_until 90 is_version 0.8.0-it
+check 'a release_url supplies the version named' 0.8.0-it "$(version_of)"
+[ "$(version_of)" = 0.8.0-it ] || explain
+
 check 'no run crashed' 0 "$(sup_log | grep -c 'crashed')"
 check 'the supervisor ran throughout' yes "$(kill -0 "$sup" 2>/dev/null && echo yes || echo no)"
 [ "$fail" -eq 0 ] || explain

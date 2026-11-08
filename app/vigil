@@ -376,7 +376,7 @@ case ${1-} in
         ;;
     self)
         if [ "${2-}" = refresh-check ] && [ "$#" -eq 2 ]; then
-            vigil_update_refresh "$app"
+            vigil_update_refresh "$root"
             exit 0
         fi
         [ "${2-}" = update ] || usage

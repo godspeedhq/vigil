@@ -36,6 +36,9 @@
     Get-VigilConfigVersion -Root <dir>
         The release [vigil] version asks for: the active configuration's
         when it is fetched, else the file's. Empty when unset.
+    Get-VigilReleaseSource -Root <dir>
+        Where releases come from: @{ Base; Mirror; From; Error }, from
+        [vigil] release_url when it is set, else GitHub (18.7).
     Invoke-VigilUpdate -Ctx <worker context> -Root <dir> -App <app dir> -Log <file> -RunId <id>
         The body of the vigil_update worker (18.11): self update
         --from-config in a process of its own, the outcome recorded in
@@ -88,6 +91,8 @@ function Get-VigilAbout {
     '{0,-11} {1}' -f 'Created by', 'Bankole Ogundero and the Vigil contributors'
     '{0,-11} {1}' -f 'Licence', 'Apache-2.0'
     '{0,-11} {1}' -f 'Source', 'https://github.com/godspeedhq/vigil'
+    $releases = Get-VigilConfigSetting -Root $Root -Key 'release_url'
+    if ($releases) { '{0,-11} {1}' -f 'Releases', $releases }
     '{0,-11} {1}' -f 'Docs', 'https://godspeedhq.github.io/vigil/'
     '{0,-11} {1}' -f 'Installed', $Root
     $p = Get-VigilPackaged -App $App
@@ -186,7 +191,7 @@ function Show-VigilUpdateNotice {
     }
     if ([DateTimeOffset]::Now.ToUnixTimeSeconds() - $at -ge 86400) {
         try {
-            $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $App 'vigil.ps1'), 'self', 'refresh-check')
+            $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $App 'vigil.ps1'), '-Root', $Root, 'self', 'refresh-check')
             $psi = New-Object System.Diagnostics.ProcessStartInfo
             $psi.FileName = (Get-Process -Id $PID).Path
             $psi.Arguments = ($argv | ForEach-Object { ConvertTo-VigilQuotedArg -Arg $_ -Always $false }) -join ' '
@@ -198,13 +203,52 @@ function Show-VigilUpdateNotice {
     }
 }
 
-# The latest release's version, or $null: from where GitHub redirects
-# /releases/latest, or from the GitHub API when that page fails (it has
-# answered 504 for half an hour while the downloads worked). The redirect
-# comes first: the API allows an address 60 requests an hour, too few for a
-# fleet behind one. Tests serve the API's answer at <base>/api/releases/latest.
+# Where releases come from (18.7): [vigil] release_url when the configuration
+# sets it, else GitHub, or in tests the local server that stands for GitHub.
+# Redirecting updates gains nothing: whatever is downloaded must be signed by
+# the release key installed here, and a release that is not newer is never
+# taken as the latest. A release_url is https, or plain http to this machine
+# only, as for a log destination: checked here too, since the configuration
+# is read here without being validated.
+function Get-VigilReleaseSource {
+    param([string]$Root)
+    $src = @{ Base = 'https://github.com/godspeedhq/vigil'; Mirror = $false; From = 'GitHub'; Error = '' }
+    # Tests only (22.4.4): releases from a local server, never over the
+    # network. It stands for GitHub, so a release_url still wins.
+    if ($env:VIGIL_TEST_RELEASE_URL) {
+        if ($env:VIGIL_TEST_RELEASE_URL -cnotmatch '^http://127\.0\.0\.1:[0-9]+$') { $src.Error = 'VIGIL_TEST_RELEASE_URL must be http://127.0.0.1:<port>'; return $src }
+        $src.Base = $env:VIGIL_TEST_RELEASE_URL
+    }
+    $url = Get-VigilConfigSetting -Root $Root -Key 'release_url'
+    if (-not $url) { return $src }
+    if (-not ($url.StartsWith('https://', [System.StringComparison]::Ordinal) -or $url -cmatch '^http://(localhost|127\.0\.0\.1|\[::1\])([:/]|$)')) {
+        $src.Error = "'release_url' must start with https://"
+        return $src
+    }
+    $src.Base = $url.TrimEnd('/')
+    $src.Mirror = $true
+    $src.From = $src.Base
+    return $src
+}
+
+# The latest release's version, or $null. From a release_url, the one line
+# of <base>/releases/latest/VERSION. From GitHub, where it redirects
+# /releases/latest, or the GitHub API when that page fails (it has answered
+# 504 for half an hour while the downloads worked). The redirect comes first:
+# the API allows an address 60 requests an hour, too few for a fleet behind
+# one. Tests serve the API's answer at <base>/api/releases/latest.
 function Get-VigilLatestVersion {
-    param([string]$Base, [int]$TimeoutSec)
+    param([string]$Base, [bool]$Mirror, [int]$TimeoutSec)
+    if ($Mirror) {
+        try {
+            $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec $TimeoutSec -Uri "$Base/releases/latest/VERSION"
+            $text = if ($r.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
+            $tag = @($text.Split("`n"))[0].Trim()
+            if ($tag -cmatch '^v?([0-9A-Za-z.-]+)$') { return $Matches[1] }
+        }
+        catch { }
+        return $null
+    }
     try {
         $r = Invoke-WebRequest -UseBasicParsing -Method Head -TimeoutSec $TimeoutSec -Uri "$Base/releases/latest"
         $tag = if ($r.BaseResponse.ResponseUri) { [string]$r.BaseResponse.ResponseUri.AbsoluteUri } else { [string]$r.BaseResponse.RequestMessage.RequestUri.AbsoluteUri }
@@ -223,15 +267,15 @@ function Get-VigilLatestVersion {
 # That refresh, as a detached process. Written whether or not it worked: a
 # host with no way out tries once a day, not on every command.
 function Update-VigilUpdateCache {
-    param([string]$App)
-    $base = 'https://github.com/godspeedhq/vigil'
-    if ($env:VIGIL_TEST_RELEASE_URL) { $base = $env:VIGIL_TEST_RELEASE_URL }
+    param([string]$Root, [string]$App)
+    $src = Get-VigilReleaseSource -Root $Root
+    if ($src.Error) { return }
     $f = Get-VigilUpdateCachePath
     $latest = ''
     try { if ([System.IO.File]::Exists($f)) { $latest = @([System.IO.File]::ReadAllText($f).Trim().Split(' '))[1] } } catch { }
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-        $v = Get-VigilLatestVersion -Base $base -TimeoutSec 10
+        $v = Get-VigilLatestVersion -Base $src.Base -Mirror $src.Mirror -TimeoutSec 10
         if ($v) { $latest = $v }
     }
     catch { }
@@ -335,13 +379,9 @@ function Invoke-VigilSelfUpdate {
     $die = { param($Why) [Console]::Error.WriteLine("vigil: $Why"); return 1 }
     $Script:VigilUpdateKind = 'refused'
     $pinned = [bool]$Want
-    $base = 'https://github.com/godspeedhq/vigil'
-    # Tests only (22.4.4): releases from a local server, never over the
-    # network.
-    if ($env:VIGIL_TEST_RELEASE_URL) {
-        if ($env:VIGIL_TEST_RELEASE_URL -cnotmatch '^http://127\.0\.0\.1:[0-9]+$') { return & $die 'VIGIL_TEST_RELEASE_URL must be http://127.0.0.1:<port>' }
-        $base = $env:VIGIL_TEST_RELEASE_URL
-    }
+    $src = Get-VigilReleaseSource -Root $Root
+    if ($src.Error) { return & $die $src.Error }
+    $base = $src.Base
     $verFile = Join-Path $App 'VERSION'
     if (-not (Test-Path -LiteralPath $verFile)) { return & $die 'this copy comes from the repository, not a release: update it with git' }
     $current = [System.IO.File]::ReadAllText($verFile).Trim()
@@ -355,8 +395,15 @@ function Invoke-VigilSelfUpdate {
     $work = $null
     try {
         if (-not $Want) {
-            $Want = Get-VigilLatestVersion -Base $base -TimeoutSec 60
-            if (-not $Want) { $Script:VigilUpdateKind = 'download'; return & $die 'cannot reach GitHub to find the latest release' }
+            $Want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -TimeoutSec 60
+            if (-not $Want) { $Script:VigilUpdateKind = 'download'; return & $die "cannot reach $($src.From) to find the latest release" }
+            # The latest is never older than what runs here: a source that
+            # names an older release cannot move this back. Going back is
+            # asked for by number (--version, or the configuration's version).
+            if (Test-VigilNewer $current $Want) {
+                Write-Output "Vigil $current is installed, newer than the latest release from $($src.From) ($Want): nothing to do"
+                return
+            }
         }
         if ($Want -ceq $current) {
             Write-Output "Vigil $current is installed: nothing to do"
@@ -449,8 +496,15 @@ function Invoke-VigilSelfUpdate {
 
 function Get-VigilConfigVersion {
     param([string]$Root)
+    return Get-VigilConfigSetting -Root $Root -Key 'version'
+}
+
+# A [vigil] setting from the active configuration when it is fetched, else
+# from the file; empty when unset.
+function Get-VigilConfigSetting {
+    param([string]$Root, [string]$Key)
     # A configuration this account may not read (-UpdateBy's account, 18.7)
-    # means no version: Test-Path's "Access is denied" is caught, not printed.
+    # means no setting: Test-Path's "Access is denied" is caught, not printed.
     $ErrorActionPreference = 'Stop'
     try {
         $parsed = ConvertFrom-VigilConfig -Path (Join-Path $Root 'config\vigil.config')
@@ -460,7 +514,7 @@ function Get-VigilConfigVersion {
             $a = Read-VigilActive -Root $Root -State $d
             if ($a) { $parsed = ConvertFrom-VigilConfig -Path $a.Config }
         }
-        return [string](Get-VigilConfigValue $parsed 'vigil' 'version' '')
+        return [string](Get-VigilConfigValue $parsed 'vigil' $Key '')
     }
     catch { return '' }
 }

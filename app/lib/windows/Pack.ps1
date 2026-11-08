@@ -36,8 +36,6 @@
     Requires Config.ps1, Validate.ps1 and SelfUpdate.ps1.
 #>
 
-$Script:VigilPackReleases = 'https://github.com/godspeedhq/vigil'
-
 function Stop-VigilPack {
     param([string]$Why)
     [Console]::Error.WriteLine("vigil: $Why")
@@ -81,17 +79,14 @@ function Read-VigilPack {
 
 # Finds the latest release and unpacks this platform's packs, verified: the
 # signature against the key installed here, then the file against SHA256SUMS.
+# From GitHub, or the configuration's release_url (18.7).
 # @{ Ok; Work; Src; Want }; the caller removes Work.
 function Get-VigilPackRelease {
-    param([string]$App)
+    param([string]$Root, [string]$App)
     $out = @{ Ok = $false; Work = ''; Src = ''; Want = '' }
-    $base = $Script:VigilPackReleases
-    # Tests only (22.4.4): releases from a local server, never over the
-    # network.
-    if ($env:VIGIL_TEST_RELEASE_URL) {
-        if ($env:VIGIL_TEST_RELEASE_URL -cnotmatch '^http://127\.0\.0\.1:[0-9]+$') { Stop-VigilPack 'VIGIL_TEST_RELEASE_URL must be http://127.0.0.1:<port>'; return $out }
-        $base = $env:VIGIL_TEST_RELEASE_URL
-    }
+    $src = Get-VigilReleaseSource -Root $Root
+    if ($src.Error) { Stop-VigilPack $src.Error; return $out }
+    $base = $src.Base
     $key = Join-Path $App 'release-key.pem'
     if ($env:VIGIL_TEST_RELEASE_URL -and $env:VIGIL_TEST_RELEASE_KEY) { $key = $env:VIGIL_TEST_RELEASE_KEY }
     if (-not (Test-Path -LiteralPath $key)) { Stop-VigilPack 'no release key here: packs cannot be verified; nothing was changed'; return $out }
@@ -99,8 +94,8 @@ function Get-VigilPackRelease {
     $saved = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'
     try {
-        $want = Get-VigilLatestVersion -Base $base -TimeoutSec 60
-        if (-not $want) { Stop-VigilPack 'cannot reach GitHub to find the latest release'; return $out }
+        $want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -TimeoutSec 60
+        if (-not $want) { Stop-VigilPack "cannot reach $($src.From) to find the latest release"; return $out }
         $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-pack.$PID"
         if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
         [void](New-Item -ItemType Directory -Path $work)
@@ -430,7 +425,7 @@ function Set-VigilPackScripts {
 function Update-VigilPack {
     param([string]$Root, [string]$App, [bool]$Check)
     $packs = Join-Path $Root 'packs'
-    $rel = Get-VigilPackRelease -App $App
+    $rel = Get-VigilPackRelease -Root $Root -App $App
     $code = 0
     try {
         if (-not $rel.Ok) { return 1 }
