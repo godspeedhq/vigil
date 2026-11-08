@@ -1,0 +1,6 @@
+INVALID 1
+INVALID 2
+INVALID 3
+METRIC ok 4 gauge k=v
+METRIC crlf 5 gauge k=v
+SUMMARY metric_lines=2 invalid_lines=3 dropped_lines=0

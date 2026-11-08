@@ -1,0 +1,5 @@
+metric cr 1 k=vx
+metric soh 2 k=vw
+metric del 3 k=v
+metric ok 4 k=v
+metric crlf 5 k=v

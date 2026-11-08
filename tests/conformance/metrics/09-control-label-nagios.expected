@@ -1,0 +1,6 @@
+INVALID 1
+METRIC perf 2 gauge label=c
+INVALID 1
+INVALID 1
+METRIC perf 4 gauge label=g
+SUMMARY metric_lines=2 invalid_lines=3 dropped_lines=0
