@@ -54,6 +54,16 @@ function Test-OnPath { param([string]$Dir, [string]$Scope) return "$([bool](@("$
 Write-Host "PowerShell $($PSVersionTable.PSVersion)"
 [void](New-Item -ItemType Directory -Force -Path $work)
 $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe'
+# A release key for this run: the archives are signed with it, and the
+# installer is given its public half with -Key.
+$kw = $work.Replace('\', '/')
+foreach ($line in @("genrsa -out '$kw/release.key' 2048", "genrsa -out '$kw/other.key' 2048",
+        "rsa -in '$kw/release.key' -pubout -out '$kw/release.pem'", "rsa -in '$kw/other.key' -pubout -out '$kw/other.pem'")) {
+    & $bash -c "openssl $line" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Host "openssl $line failed"; exit 1 }
+}
+$env:VIGIL_SIGN_KEY = "$kw/release.key"
+$pem = Join-Path $work 'release.pem'
 foreach ($v in @('0.0.1-it', '0.0.2-it')) {
     & $bash (Join-Path $repo 'tools/release/package.sh') $v (Join-Path $work "r$v") > $null 2>&1
     if ($LASTEXITCODE -ne 0) { Write-Host 'packaging failed'; exit 1 }
@@ -73,12 +83,32 @@ Test-Equal 'a tampered archive is refused' '1' "$(Invoke-Script $installer @('-U
 Test-Equal 'saying why' 'True' "$($script:lastOut -match 'SHA-256 mismatch')"
 Test-Equal 'and nothing is installed' 'False' "$(Test-Path -LiteralPath (Join-Path $badRoot 'app'))"
 
+# --- the signature, with -Key ---------------------------------------------------
+
+# SHA256SUMS changed to match a changed archive: only the signature catches it.
+$forged = Join-Path $work 'forged'
+[void](New-Item -ItemType Directory -Force -Path $forged)
+Copy-Item -LiteralPath (Join-Path $bad 'vigil-0.0.1-it.zip'), (Join-Path $work 'r0.0.1-it\SHA256SUMS.sig') -Destination $forged
+[System.IO.File]::WriteAllText((Join-Path $forged 'SHA256SUMS'), "$((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $forged 'vigil-0.0.1-it.zip')).Hash.ToLowerInvariant())  vigil-0.0.1-it.zip`n")
+Test-Equal 'key: a forged SHA256SUMS is refused' '1' "$(Invoke-Script $installer @('-User', '-Prefix', $badRoot, '-Archive', (Join-Path $forged 'vigil-0.0.1-it.zip'), '-Key', $pem, '-NoService'))"
+Test-Equal 'key: saying why' 'True' "$($script:lastOut -match 'is not signed by the release key')"
+$nosig = Join-Path $work 'nosig'
+[void](New-Item -ItemType Directory -Force -Path $nosig)
+Copy-Item -LiteralPath $a1, (Join-Path $work 'r0.0.1-it\SHA256SUMS') -Destination $nosig
+Test-Equal 'key: without SHA256SUMS.sig, refused' '1' "$(Invoke-Script $installer @('-User', '-Prefix', $badRoot, '-Archive', (Join-Path $nosig 'vigil-0.0.1-it.zip'), '-Key', $pem, '-NoService'))"
+Test-Equal 'key: saying why' 'True' "$($script:lastOut -match 'no SHA256SUMS\.sig beside')"
+Test-Equal 'key: signed by another key, refused' '1' "$(Invoke-Script $installer @('-User', '-Prefix', $badRoot, '-Archive', $a1, '-Key', (Join-Path $work 'other.pem'), '-NoService'))"
+Test-Equal 'key: a key that is not there, refused' '1' "$(Invoke-Script $installer @('-User', '-Prefix', $badRoot, '-Archive', $a1, '-Key', (Join-Path $work 'no.pem'), '-NoService'))"
+Test-Equal 'key: saying why' 'True' "$($script:lastOut -match 'no release key at')"
+Test-Equal 'key: nothing is installed by any of them' 'False' "$(Test-Path -LiteralPath (Join-Path $badRoot 'app'))"
+
 # --- user mode: fresh install, upgrade, uninstall ----------------------------------
 
 $root = Join-Path $work 'root'
 $rc = Invoke-Script $installer @('-User', '-Prefix', $root, '-Archive', $a1, '-Instance', 'it', '-Backend', 'file', '-NoService')
 Test-Equal 'install succeeds' '0' "$rc"
 if ($rc -ne 0) { Write-Host $script:lastOut }
+Test-Equal 'a fresh install without -Key checks no signature' 'False' "$($script:lastOut -match 'verified SHA256SUMS')"
 Test-Equal 'the version is recorded' '0.0.1-it' (Get-Version $root)
 Test-Equal 'app\bin is on the user PATH' 'True' (Test-OnPath (Join-Path $root 'app\bin') 'User')
 Test-Equal 'app is not' 'False' (Test-OnPath (Join-Path $root 'app') 'User')
@@ -99,7 +129,15 @@ $cfgPath = Join-Path $root 'config\vigil.config'
 [System.IO.File]::AppendAllText($cfgPath, "# my change`n")
 [System.IO.File]::WriteAllText((Join-Path $root 'scripts\mine.ps1'), 'Write-Output mine')
 $cfg = [System.IO.File]::ReadAllText($cfgPath)
-Test-Equal 'upgrade succeeds' '0' "$(Invoke-Script $installer @('-User', '-Prefix', $root, '-Archive', $a2, '-NoService'))"
+# The installed key is the real release key, which did not sign these.
+Test-Equal 'upgrade: checked against the installed key' '1' "$(Invoke-Script $installer @('-User', '-Prefix', $root, '-Archive', $a2, '-NoService'))"
+# In two parts: PowerShell wraps an error at the console's width.
+Test-Equal 'upgrade: saying why' 'True' ([string]($script:lastOut -match 'is not signed by the release key' -and $script:lastOut -match 'release-key\.pem'))
+Test-Equal 'upgrade: and refused' '0.0.1-it' (Get-Version $root)
+$rc = Invoke-Script $installer @('-User', '-Prefix', $root, '-Archive', $a2, '-Key', $pem, '-NoService')
+Test-Equal 'upgrade succeeds' '0' "$rc"
+if ($rc -ne 0) { Write-Host $script:lastOut }
+Test-Equal 'upgrade: the signature was checked' 'True' ([string]($script:lastOut -match '(?m)^verified SHA256SUMS [(]signed by '))
 Test-Equal 'says it upgraded' 'True' "$($script:lastOut -match '(?m)^upgraded ')"
 Test-Equal 'app is the new version' '0.0.2-it' (Get-Version $root)
 Test-Equal 'the old PATH entry (app) is gone' 'False' (Test-OnPath (Join-Path $root 'app') 'User')
@@ -127,7 +165,7 @@ else {
     $vigil = Join-Path $root 'app\vigil.ps1'
     [void](Invoke-Script $vigil @('status'))
     Test-Equal 'system: the service is active' 'True' "$($script:lastOut -match '^service: active')"
-    Test-Equal 'system: upgrade succeeds' '0' "$(Invoke-Script $installer @('-System', '-Prefix', $root, '-Archive', $a2))"
+    Test-Equal 'system: upgrade succeeds' '0' "$(Invoke-Script $installer @('-System', '-Prefix', $root, '-Archive', $a2, '-Key', $pem))"
     [void](Invoke-Script $vigil @('status'))
     Test-Equal 'system: the service is active after the upgrade' 'True' "$($script:lastOut -match '^service: active')"
     Test-Equal 'system: app is the new version' '0.0.2-it' (Get-Version $root)

@@ -15,8 +15,8 @@
 #   curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- --system --backend datadog
 #
-# or, the reviewed way: download the release archive and SHA256SUMS,
-# check them, read this file, and run it with --archive.
+# or, the reviewed way: download the release archive, SHA256SUMS and
+# SHA256SUMS.sig, read this file, and run it with --archive and --key.
 #
 # Options:
 #   --user | --system      the install mode (default: system as root, user
@@ -24,7 +24,10 @@
 #   --prefix <dir>         another install root
 #   --version <version>    a release (default: the latest)
 #   --archive <file>       install this vigil-<version>.tar.gz instead of
-#                          downloading it; SHA256SUMS must be beside it
+#                          downloading it; SHA256SUMS must be beside it,
+#                          and SHA256SUMS.sig too when there is a key
+#   --key <file>           the release key to check SHA256SUMS.sig with;
+#                          an upgrade uses the installed one without it
 #   --account <name>       system mode: the service account
 #   --instance <name>      passed to vigil init
 #   --backend <list>       passed to vigil init (file, datadog, otel)
@@ -42,7 +45,7 @@
 #                          so): wait for it to reload, as for a service
 #
 # Steps: check the prerequisites, download the archive and verify its
-# SHA-256 before using it, unpack it into the root (on upgrade only app/ is
+# signature (when there is a key) and SHA-256 before using it, unpack it into the root (on upgrade only app/ is
 # replaced; config/ and scripts/ are never touched), link the vigil
 # command, run vigil init on a fresh install, register the service.
 
@@ -60,6 +63,7 @@ mode=''
 prefix=''
 version=''
 archive=''
+key=''
 account=''
 instance=''
 backend=''
@@ -88,12 +92,13 @@ while [ "$#" -gt 0 ]; do
             do_init=0
             ;;
         --reload) reload_asked=1 ;;
-        --prefix | --version | --archive | --account | --instance | --backend | --update-by)
+        --prefix | --version | --archive | --key | --account | --instance | --backend | --update-by)
             [ "$#" -ge 2 ] || die "$1 needs a value"
             case $1 in
                 --prefix) prefix=$2 ;;
                 --version) version=${2#v} ;;
                 --archive) archive=$2 ;;
+                --key) key=$2 ;;
                 --account) account=$2 ;;
                 --instance) instance=$2 ;;
                 --backend) backend=$2 ;;
@@ -156,6 +161,18 @@ case $root in
     /*) ;;
     *) root=$(pwd)/$root ;;
 esac
+# The key that SHA256SUMS.sig must verify against (17): the one given, else
+# the one of the Vigil being upgraded, as vigil self update uses. A fresh
+# install without --key has none, and relies on GitHub and HTTPS as before.
+# With a key the signature is required: one that is only checked when it is
+# there is no check, as whoever can replace the archive can remove it.
+if [ -n "$key" ]; then
+    [ -f "$key" ] || die "no release key at $key"
+elif [ -n "${VIGIL_TEST_RELEASE_URL-}" ] && [ -n "${VIGIL_TEST_RELEASE_KEY-}" ]; then
+    key=$VIGIL_TEST_RELEASE_KEY
+elif [ -f "$root/app/release-key.pem" ]; then
+    key=$root/app/release-key.pem
+fi
 
 # --- 1. Prerequisites (5.1), before anything changes ---------------------
 
@@ -173,6 +190,7 @@ fi
 # --archive is how a machine with no way out installs, so curl is only needed
 # when downloading.
 [ -n "$archive" ] || command -v curl > /dev/null 2>&1 || missing="$missing curl"
+[ -z "$key" ] || command -v openssl > /dev/null 2>&1 || missing="$missing openssl"
 if [ "$do_service" = 1 ] && [ "$only_upgrade" = 0 ]; then
     case $(uname -s) in
         Linux) command -v systemctl > /dev/null 2>&1 || missing="$missing systemd" ;;
@@ -195,6 +213,10 @@ if [ -n "$archive" ]; then
     file=$(basename "$archive")
     [ -f "$dir/SHA256SUMS" ] || die "no SHA256SUMS beside $archive: the archive cannot be verified"
     cp "$dir/$file" "$work/$file" && cp "$dir/SHA256SUMS" "$work/SHA256SUMS" || die 'cannot copy the archive'
+    if [ -n "$key" ]; then
+        [ -f "$dir/SHA256SUMS.sig" ] || die "no SHA256SUMS.sig beside $archive: the archive cannot be verified against $key; nothing was changed"
+        cp "$dir/SHA256SUMS.sig" "$work/SHA256SUMS.sig" || die 'cannot copy the archive'
+    fi
 else
     if [ -z "$version" ]; then
         # The latest release, from where GitHub redirects /releases/latest,
@@ -226,7 +248,19 @@ else
     curl $curl_proto -fsSL -o "$work/$file" "$repo_url/releases/download/v$version/$file" || die "cannot download $file"
     # shellcheck disable=SC2086
     curl $curl_proto -fsSL -o "$work/SHA256SUMS" "$repo_url/releases/download/v$version/SHA256SUMS" || die 'cannot download SHA256SUMS'
+    if [ -n "$key" ]; then
+        # shellcheck disable=SC2086
+        curl $curl_proto -fsSL -o "$work/SHA256SUMS.sig" "$repo_url/releases/download/v$version/SHA256SUMS.sig" ||
+            die "cannot download SHA256SUMS.sig: Vigil $version cannot be verified against $key; nothing was changed"
+    fi
     set +f
+fi
+# The signature first: SHA256SUMS is only worth checking the archive against
+# once it is known to be the release's own.
+if [ -n "$key" ]; then
+    openssl dgst -sha256 -verify "$key" -signature "$work/SHA256SUMS.sig" "$work/SHA256SUMS" > /dev/null 2>&1 ||
+        die "SHA256SUMS is not signed by the release key $key; nothing was changed"
+    say "verified SHA256SUMS (signed by $key)"
 fi
 # The check that everything rests on. Nothing has been unpacked yet, and a
 # missing entry fails just as a wrong hash does: "no entry" must never read

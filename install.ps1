@@ -22,11 +22,11 @@
 
         & ([scriptblock]::Create((irm https://github.com/godspeedhq/vigil/releases/latest/download/install.ps1))) -System -Backend datadog
 
-    Or the reviewed way: download the release zip and SHA256SUMS, check
-    them, read this file, and run it with -Archive.
+    Or the reviewed way: download the release zip, SHA256SUMS and
+    SHA256SUMS.sig, read this file, and run it with -Archive and -Key.
 
     Steps: check the prerequisites, download the archive and verify its
-    SHA-256 before using it, unpack it into the root (on upgrade only app\
+    signature (when there is a key) and SHA-256 before using it, unpack it into the root (on upgrade only app\
     and vendor\ are replaced; config\ and scripts\ are never touched), clear
     the downloaded-from-the-internet mark, add app\ to the PATH, run vigil
     init on a fresh install, register the service.
@@ -39,7 +39,10 @@
 .PARAMETER Version
     A release (default: the latest).
 .PARAMETER Archive
-    Install this vigil-<version>.zip instead of downloading it; SHA256SUMS must be beside it.
+    Install this vigil-<version>.zip instead of downloading it; SHA256SUMS must be beside it,
+    and SHA256SUMS.sig too when there is a key.
+.PARAMETER Key
+    The release key to check SHA256SUMS.sig with; an upgrade uses the installed one without it.
 .PARAMETER ShellHost
     powershell (Windows PowerShell 5.1, the default) or pwsh (PowerShell 7): what the service runs on.
 .PARAMETER Instance
@@ -68,6 +71,7 @@ param(
     [string]$Prefix,
     [string]$Version,
     [string]$Archive,
+    [string]$Key,
     [ValidateSet('powershell', 'pwsh')][string]$ShellHost = 'powershell',
     [string]$Instance,
     [string]$Backend,
@@ -96,6 +100,52 @@ function Stop-Install {
     throw "install: $Message"
 }
 
+# Whether SHA256SUMS.sig is a signature over SHA256SUMS from the public key in
+# a PEM file, as Test-VigilSignature in SelfUpdate.ps1, which this cannot load:
+# it runs before Vigil is installed. Read by hand because Windows PowerShell
+# 5.1's .NET cannot import PEM. Anything unexpected is "not signed".
+function Test-InstallSignature {
+    param([string]$KeyFile, [string]$Data, [string]$Signature)
+    try {
+        $s = @{ B = [Convert]::FromBase64String(([System.IO.File]::ReadAllText($KeyFile) -replace '-----[^-]+-----', '' -replace '\s', '')); P = 0 }
+        # One DER element at $s.P: its start and length, with $s.P moved past
+        # its header.
+        $read = {
+            $len = [int]$s.B[$s.P + 1]
+            $s.P += 2
+            if ($len -band 0x80) {
+                $n = $len -band 0x7F
+                $len = 0
+                for ($i = 0; $i -lt $n; $i++) { $len = $len * 256 + $s.B[$s.P]; $s.P++ }
+            }
+            if ($s.P + $len -gt $s.B.Length) { throw 'truncated' }
+            return @{ Start = $s.P; Len = $len }
+        }
+        # SubjectPublicKeyInfo holds an algorithm, then a BIT STRING holding
+        # the RSA modulus and exponent; $s.P++ skips its unused-bits byte.
+        [void](& $read)
+        $alg = & $read
+        $s.P = $alg.Start + $alg.Len
+        [void](& $read)
+        $s.P++
+        [void](& $read)
+        $n = & $read
+        $s.P = $n.Start + $n.Len
+        $e = & $read
+        $from = $n.Start
+        $len = $n.Len
+        # DER adds a leading zero when the top bit is set; RSAParameters must not have it.
+        if ($s.B[$from] -eq 0) { $from++; $len-- }
+        $p = New-Object System.Security.Cryptography.RSAParameters
+        $p.Modulus = [byte[]]$s.B[$from..($from + $len - 1)]
+        $p.Exponent = [byte[]]$s.B[$e.Start..($e.Start + $e.Len - 1)]
+        $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
+        $rsa.ImportParameters($p)
+        return $rsa.VerifyData([System.IO.File]::ReadAllBytes($Data), 'SHA256', [System.IO.File]::ReadAllBytes($Signature))
+    }
+    catch { return $false }
+}
+
 # PowerShell 5.1 on older servers may not offer TLS 1.2 by default.
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
@@ -114,6 +164,18 @@ $root = if ($Prefix) { $Prefix } elseif ($mode -ceq 'system') { Join-Path $env:P
 # Made absolute: it ends up in the service definition and on the PATH, which do
 # not run from this folder.
 $root = [System.IO.Path]::GetFullPath($root)
+# The key that SHA256SUMS.sig must verify against (17): the one given, else the
+# one of the Vigil being upgraded, as vigil self update uses. A fresh install
+# without -Key has none, and relies on GitHub and HTTPS as before. With a key
+# the signature is required: one that is only checked when it is there is no
+# check, as whoever can replace the archive can remove it.
+$installedKey = Join-Path $root 'app\release-key.pem'
+if ($Key) {
+    if (-not (Test-Path -LiteralPath $Key -PathType Leaf)) { Stop-Install "no release key at $Key" }
+    $Key = (Resolve-Path -LiteralPath $Key).ProviderPath
+}
+elseif ($env:VIGIL_TEST_RELEASE_URL -and $env:VIGIL_TEST_RELEASE_KEY) { $Key = $env:VIGIL_TEST_RELEASE_KEY }
+elseif (Test-Path -LiteralPath $installedKey -PathType Leaf) { $Key = $installedKey }
 if ($UpdateBy) {
     if ($mode -cne 'system' -or $Upgrade) { Stop-Install '-UpdateBy is for a system install: a user install updates itself' }
     # Checked now, so a mistyped name fails before anything is installed rather
@@ -142,6 +204,10 @@ try {
         if (-not (Test-Path -LiteralPath $sums)) { Stop-Install "no SHA256SUMS beside $Archive`: the archive cannot be verified" }
         Copy-Item -LiteralPath $Archive -Destination (Join-Path $work $file)
         Copy-Item -LiteralPath $sums -Destination (Join-Path $work 'SHA256SUMS')
+        if ($Key) {
+            if (-not (Test-Path -LiteralPath "$sums.sig")) { Stop-Install "no SHA256SUMS.sig beside $Archive`: the archive cannot be verified against $Key; nothing was changed" }
+            Copy-Item -LiteralPath "$sums.sig" -Destination (Join-Path $work 'SHA256SUMS.sig')
+        }
     }
     else {
         if (-not $Version) {
@@ -175,6 +241,18 @@ try {
             Invoke-WebRequest -UseBasicParsing -Uri "$repoUrl/releases/download/v$Version/SHA256SUMS" -OutFile (Join-Path $work 'SHA256SUMS')
         }
         catch { Stop-Install "cannot download Vigil $Version`: $($_.Exception.Message)" }
+        if ($Key) {
+            try { Invoke-WebRequest -UseBasicParsing -Uri "$repoUrl/releases/download/v$Version/SHA256SUMS.sig" -OutFile (Join-Path $work 'SHA256SUMS.sig') }
+            catch { Stop-Install "cannot download SHA256SUMS.sig: Vigil $Version cannot be verified against $Key; nothing was changed" }
+        }
+    }
+    # The signature first: SHA256SUMS is only worth checking the archive
+    # against once it is known to be the release's own.
+    if ($Key) {
+        if (-not (Test-InstallSignature -KeyFile $Key -Data (Join-Path $work 'SHA256SUMS') -Signature (Join-Path $work 'SHA256SUMS.sig'))) {
+            Stop-Install "SHA256SUMS is not signed by the release key $Key; nothing was changed"
+        }
+        Write-Output "verified SHA256SUMS (signed by $Key)"
     }
     # The check that everything rests on. Nothing has been unpacked yet, and a
     # missing entry fails just as a wrong hash does: "no entry" must never read as

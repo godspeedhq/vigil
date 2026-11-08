@@ -42,6 +42,13 @@ check() {
 }
 
 printf 'bash %s on %s\n' "$BASH_VERSION" "$(uname -s)"
+# A release key for this run: the archives are signed with it, and the
+# installer is given its public half with --key.
+openssl genrsa -out "$work/release.key" 2048 2> /dev/null
+openssl genrsa -out "$work/other.key" 2048 2> /dev/null
+openssl rsa -in "$work/release.key" -pubout -out "$work/release.pem" 2> /dev/null
+openssl rsa -in "$work/other.key" -pubout -out "$work/other.pem" 2> /dev/null
+export VIGIL_SIGN_KEY=$work/release.key
 # The first under umask 077, as the release workflow once built 0.2.2 and
 # 0.3.0: their archives held app/ readable by its owner only.
 (umask 077 && bash "$repo/tools/release/package.sh" 0.0.1-it "$work/r1" > /dev/null) || { printf 'packaging failed\n'; exit 1; }
@@ -76,6 +83,27 @@ rm "$work/bad/SHA256SUMS"
 HOME=$work/home sh "$repo/install.sh" --user --prefix "$work/badroot" --archive "$work/bad/vigil-0.0.1-it.tar.gz" --no-service < /dev/null > /dev/null 2>&1
 check 'an archive without SHA256SUMS is refused' 1 "$?"
 
+# --- the signature, with --key ------------------------------------------------
+
+# SHA256SUMS changed to match a changed archive: only the signature catches it.
+mkdir "$work/forged"
+cp "$work/bad/vigil-0.0.1-it.tar.gz" "$work/r1/SHA256SUMS.sig" "$work/forged/"
+(cd "$work/forged" && { sha256sum vigil-0.0.1-it.tar.gz 2> /dev/null || shasum -a 256 vigil-0.0.1-it.tar.gz; } > SHA256SUMS)
+HOME=$work/home sh "$repo/install.sh" --user --prefix "$work/badroot" --archive "$work/forged/vigil-0.0.1-it.tar.gz" --key "$work/release.pem" --no-service < /dev/null > "$work/out" 2>&1
+check 'key: a forged SHA256SUMS is refused' 1 "$?"
+check 'key: saying why' 1 "$(grep -c 'is not signed by the release key' "$work/out")"
+check 'key: and nothing is installed' no "$([ -e "$work/badroot" ] && echo yes || echo no)"
+mkdir "$work/nosig"
+cp "$a1" "$work/r1/SHA256SUMS" "$work/nosig/"
+HOME=$work/home sh "$repo/install.sh" --user --prefix "$work/badroot" --archive "$work/nosig/vigil-0.0.1-it.tar.gz" --key "$work/release.pem" --no-service < /dev/null > "$work/out" 2>&1
+check 'key: without SHA256SUMS.sig, refused' 1 "$?"
+check 'key: saying why' 1 "$(grep -c 'no SHA256SUMS.sig beside' "$work/out")"
+HOME=$work/home sh "$repo/install.sh" --user --prefix "$work/badroot" --archive "$a1" --key "$work/other.pem" --no-service < /dev/null > /dev/null 2>&1
+check 'key: signed by another key, refused' 1 "$?"
+HOME=$work/home sh "$repo/install.sh" --user --prefix "$work/badroot" --archive "$a1" --key "$work/no.pem" --no-service < /dev/null > "$work/out" 2>&1
+check 'key: a key that is not there, refused' 1 "$(grep -c 'no release key at' "$work/out")"
+check 'key: nothing is installed by any of them' no "$([ -e "$work/badroot" ] && echo yes || echo no)"
+
 # --- user mode: fresh install, upgrade, uninstall ----------------------------------
 
 root=$work/root
@@ -85,6 +113,7 @@ sh "$repo/install.sh" --user --prefix "$root" --archive "$a1" --instance it --ba
 rc=$?
 check 'install succeeds' 0 "$rc"
 [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+check 'a fresh install without --key checks no signature' 0 "$(grep -c 'verified SHA256SUMS' "$work/out")"
 check 'the version is recorded' 0.0.1-it "$(cat "$root/app/VERSION" 2> /dev/null)"
 check 'the command is linked' "$root/app/vigil" "$(readlink "$HOME/.local/bin/vigil")"
 check 'init wrote the configuration' 1 "$(grep -c '^instance = it$' "$root/config/vigil.config" 2> /dev/null)"
@@ -94,8 +123,15 @@ check 'the installed configuration passes pre-flight, through the link' 0 "$?"
 printf '# my change\n' >> "$root/config/vigil.config"
 printf 'echo mine\n' > "$root/scripts/mine.sh"
 cfg=$(cksum < "$root/config/vigil.config")
+# The installed key is the real release key, which did not sign these.
 sh "$repo/install.sh" --user --prefix "$root" --archive "$a2" --no-service < /dev/null > "$work/out" 2>&1
-check 'upgrade succeeds' 0 "$?"
+check 'upgrade: checked against the installed key' 1 "$(grep -c "is not signed by the release key $root/app/release-key.pem" "$work/out")"
+check 'upgrade: and refused' 0.0.1-it "$(cat "$root/app/VERSION" 2> /dev/null)"
+sh "$repo/install.sh" --user --prefix "$root" --archive "$a2" --key "$work/release.pem" --no-service < /dev/null > "$work/out" 2>&1
+rc=$?
+check 'upgrade succeeds' 0 "$rc"
+[ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+check 'upgrade: the signature was checked' 1 "$(grep -c '^verified SHA256SUMS (signed by ' "$work/out")"
 check 'says it upgraded' 1 "$(grep -c '^upgraded ' "$work/out")"
 check 'app/ is the new version' 0.0.2-it "$(cat "$root/app/VERSION" 2> /dev/null)"
 check 'the configuration is untouched' "$cfg" "$(cksum < "$root/config/vigil.config")"
@@ -127,7 +163,7 @@ else
     check 'system: and not writable by others' 0 "$(sudo find "$root/app" -perm -0002 | wc -l | tr -d ' ')"
     check 'system: the command is linked' "$root/app/vigil" "$(readlink /usr/local/bin/vigil)"
     check 'system: the service is active' active "$(sudo /usr/local/bin/vigil status 2> /dev/null | sed -n '1s/^service: \([a-z]*\).*/\1/p')"
-    sudo sh "$repo/install.sh" --system --prefix "$root" --archive "$a2" < /dev/null > "$work/out" 2>&1
+    sudo sh "$repo/install.sh" --system --prefix "$root" --archive "$a2" --key "$work/release.pem" < /dev/null > "$work/out" 2>&1
     check 'system: upgrade succeeds' 0 "$?"
     check 'system: the service is active after the upgrade' active "$(sudo /usr/local/bin/vigil status 2> /dev/null | sed -n '1s/^service: \([a-z]*\).*/\1/p')"
     check 'system: app/ is the new version' 0.0.2-it "$(cat "$root/app/VERSION" 2> /dev/null)"
