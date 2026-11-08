@@ -42,10 +42,12 @@ VIGIL_METRIC_RESERVED_TAGS=$'\nhost\nos\ninstance\njob\nlabel\nuom\nexit_code\n'
 
 _vigil_met_re_name='^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$'
 _vigil_met_re_num='^-?[0-9]+(\.[0-9]+)?$'
-# A tag value has no control characters: a carriage return in one splits
-# the spool line in two for a reader that ends lines at CR, as .NET does.
-_vigil_met_re_tag=$'^([A-Za-z0-9_]+)=([^\x01-\x1f\x7f]+)$'
-_vigil_met_re_ctl=$'[\x01-\x1f\x7f]'
+_vigil_met_re_tag='^([A-Za-z0-9_]+)=(.+)$'
+# A tag value or perfdata label has no control characters: a carriage return
+# in one splits the spool line in two for a reader that ends lines at CR, as
+# .NET does. Listed one by one for a case pattern: a range in a bracket
+# expression goes by the locale's collation, and macOS's let CR through.
+_vigil_met_ctl=$'\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037\177'
 _vigil_met_re_perfval='^(-?[0-9]+(\.[0-9]+)?)([A-Za-z%]*)$'
 
 # Canonical form of a number matching _vigil_met_re_num: no leading zeros,
@@ -136,6 +138,7 @@ _vigil_met_line() {
         tok=$1
         shift
         if ! [[ $tok =~ $_vigil_met_re_tag ]]; then _vigil_met_invalid "$n"; return 0; fi
+        case $tok in *["$_vigil_met_ctl"]*) _vigil_met_invalid "$n"; return 0 ;; esac
         key=${BASH_REMATCH[1]}
         case $VIGIL_METRIC_RESERVED_TAGS$seen in
             *$nl"$key"$nl*) _vigil_met_invalid "$n"; return 0 ;;
@@ -161,7 +164,8 @@ _vigil_met_perfitem() {
         fields[${#fields[@]}]=${rest%%;*}
         case $rest in *\;*) rest=${rest#*;} ;; *) break ;; esac
     done
-    if [ -z "$label" ] || [[ $label =~ $_vigil_met_re_ctl ]] || [ "${#fields[@]}" -gt 5 ] || ! [[ ${fields[0]} =~ $_vigil_met_re_perfval ]]; then
+    case $label in *["$_vigil_met_ctl"]*) _vigil_met_invalid "$n"; return 0 ;; esac
+    if [ -z "$label" ] || [ "${#fields[@]}" -gt 5 ] || ! [[ ${fields[0]} =~ $_vigil_met_re_perfval ]]; then
         _vigil_met_invalid "$n"
         return 0
     fi
