@@ -1,0 +1,79 @@
+# 35. Updates from a release source other than GitHub
+
+Asked by the owner on 2026-11-08: a fleet whose machines may not reach
+GitHub, or whose company won't let them, and which keeps Vigil's releases
+somewhere of its own (an internal mirror such as Artifactory, a web server,
+a file share).
+
+## What works today
+
+- **The installer from a local archive.** With the archive and `SHA256SUMS`
+  in one folder: `sh install.sh --upgrade --archive <file>` (`--reload` to
+  restart a running supervisor), or `install.ps1 -Archive <file>`. Only
+  `app/` is replaced; the configuration, scripts and state are kept.
+  Configuration management (Ansible, Puppet, Intune) can copy the files and
+  run that command on each machine.
+- **The `.deb` and `.rpm`**, from an internal repository or mirror, as any
+  other package.
+
+## What doesn't
+
+`vigil self update`, `self update --check`, the update notice,
+`vigil pack update` and `version =` in the configuration all download from
+`https://github.com/godspeedhq/vigil`, which is fixed in the code
+(`VIGIL_RELEASES` in `app/lib/posix/selfupdate.sh`, `VigilPackReleases` in
+`app/lib/windows/Pack.ps1`, and three places in `SelfUpdate.ps1`). The one
+override, `VIGIL_TEST_RELEASE_URL`, is for the tests and refuses anything
+but `http://127.0.0.1:<port>`. So a fleet following `version = 0.5.4` from a
+configuration it fetches from its own git or sftp server still downloads
+the release from GitHub.
+
+## Proposed
+
+1. **A setting**, for example `release_url = https://artifacts.example.com/vigil`
+   under `[vigil]`. Unset, GitHub, as now.
+2. **The same layout as GitHub's**, so a mirror is a copy of the release
+   files: `<release_url>/releases/download/v<version>/<file>`. For the
+   latest release, a mirror can't answer GitHub's redirect, so it also
+   serves a small file naming it (for example
+   `<release_url>/releases/latest/VERSION`, one line). A fleet that sets
+   `version =` never needs it.
+3. **Used by every download**: self update, `--check`, the update notice and
+   `pack update`. `vigil about` shows it as `Source`, as it shows GitHub
+   today.
+4. **Only `https://`.** Certificate checks stay on. A company's own
+   certificate authority goes in the system's trust store, not in Vigil.
+5. **The signature check does not change.** Self update already verifies
+   `SHA256SUMS.sig` against the release key shipped in `app/`, so a mirror
+   can serve only releases we signed, unchanged. That is what makes a
+   mirror safe to allow.
+6. **Maybe a local folder** (`release_url = /mnt/share/vigil` or
+   `\\server\share\vigil`), with the same layout, for a file share. Decide
+   when building it: it is cheap, but it is a second way.
+
+## A gap found on the way: the installer doesn't check the signature
+
+`install.sh` and `install.ps1` check the archive's SHA-256 against
+`SHA256SUMS`, but not `SHA256SUMS.sig`. Downloading from GitHub over HTTPS,
+that trusts GitHub, as the `curl | sh` quick start already does. With
+`--archive` from a share, anyone who can replace both files on the share
+can replace the archive. Self update does check the signature.
+
+- When there is a `SHA256SUMS.sig` beside `SHA256SUMS`, the installer checks
+  it, against the key in the archive being installed for a new install (that
+  only proves the files match each other) and against the installed
+  `app/release-key.pem` on `--upgrade` (that proves the release is ours).
+- A key to check against for a new install, given on the command line
+  (`--key <file>`), for those who keep their own copy.
+
+This can be done on its own, before the setting.
+
+## Done when
+
+- A fleet with `release_url` set installs, updates (by hand, by `version =`,
+  and from the notice) and updates its packs from a mirror, with no request
+  to GitHub, on Linux, macOS and Windows; the tests cover it against the
+  mock server.
+- A mirror serving a changed archive or `SHA256SUMS` is refused.
+- The installer checks `SHA256SUMS.sig` when it is there, and the
+  specification's install and self-update sections say how each is checked.
