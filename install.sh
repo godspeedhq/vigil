@@ -197,13 +197,27 @@ if [ -n "$archive" ]; then
     cp "$dir/$file" "$work/$file" && cp "$dir/SHA256SUMS" "$work/SHA256SUMS" || die 'cannot copy the archive'
 else
     if [ -z "$version" ]; then
-        # The latest release, from where GitHub redirects /releases/latest.
+        # The latest release, from where GitHub redirects /releases/latest,
+        # or from the GitHub API when that page fails (it has answered 504
+        # while the downloads worked). Tests serve the API's answer at
+        # <repo url>/api/releases/latest.
+        case $repo_url in
+            https://github.com/*) api=https://api.github.com/repos/${repo_url#https://github.com/}/releases/latest ;;
+            *) api=$repo_url/api/releases/latest ;;
+        esac
         set -f
         # shellcheck disable=SC2086
-        tag=$(curl $curl_proto -fsSLI -o /dev/null -w '%{url_effective}' "$repo_url/releases/latest") || die 'cannot reach GitHub to find the latest release'
-        set +f
+        tag=$(curl $curl_proto -fsSLI -o /dev/null -w '%{url_effective}' "$repo_url/releases/latest" 2> /dev/null) || tag=
         version=${tag##*/v}
-        case $version in '' | */*) die "cannot tell the latest release from $tag" ;; esac
+        case $version in
+            '' | */*)
+                # shellcheck disable=SC2086
+                version=$(curl $curl_proto -fsSL -H 'Accept: application/vnd.github+json' "$api" 2> /dev/null |
+                    grep -o '"tag_name": *"v[^"/]*"' | sed -n '1s/.*"v\([^"]*\)"$/\1/p')
+                ;;
+        esac
+        set +f
+        [ -n "$version" ] || die 'cannot reach GitHub to find the latest release'
     fi
     file=vigil-$version.tar.gz
     say "downloading Vigil $version"

@@ -134,6 +134,23 @@ check '--check: succeeds' 0 "$?"
 check '--check: names the new version' 1 "$(grep -c '0.0.2-it is available' "$work/out")"
 check '--check: changes nothing' 0.0.1-it "$(version_of)"
 
+# When /releases/latest fails (GitHub has answered 504 for half an hour while
+# the downloads worked), the API names the latest release; when both fail,
+# nothing is changed. The mock serves the API's answer at /api/releases/latest.
+rm -f "$work/mock/redirects"
+mkdir -p "$www/api/releases"
+printf '{"url":"x","tag_name":"v0.0.2-it","name":"0.0.2-it"}\n' > "$www/api/releases/latest"
+vigil self update --check > "$work/out" 2>&1
+check 'the page failing: the API names the new version' 1 "$(grep -c '0.0.2-it is available' "$work/out")"
+sh "$www/releases/download/v0.0.2-it/install.sh" --user --prefix "$work/root-api" --instance it --backend file --no-service < /dev/null > "$work/out" 2>&1
+check 'the page failing: the installer asks the API' 'Vigil 0.0.2-it' "$(bash "$work/root-api/app/vigil" --root "$work/root-api" version 2>&1)"
+rm -rf "$work/root-api" "$www/api"
+vigil self update > "$work/out" 2>&1
+check 'both failing: refused' 1 "$?"
+check 'both failing: saying why' 1 "$(grep -c 'cannot reach GitHub to find the latest release' "$work/out")"
+check 'both failing: changes nothing' 0.0.1-it "$(version_of)"
+latest 0.0.2-it
+
 # A job running across the update finishes, under the code it started with.
 # (Not under Git Bash, where the running vigil would hold app/ in place.)
 slow=0

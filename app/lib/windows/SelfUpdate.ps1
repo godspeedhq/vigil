@@ -198,6 +198,28 @@ function Show-VigilUpdateNotice {
     }
 }
 
+# The latest release's version, or $null: from where GitHub redirects
+# /releases/latest, or from the GitHub API when that page fails (it has
+# answered 504 for half an hour while the downloads worked). The redirect
+# comes first: the API allows an address 60 requests an hour, too few for a
+# fleet behind one. Tests serve the API's answer at <base>/api/releases/latest.
+function Get-VigilLatestVersion {
+    param([string]$Base, [int]$TimeoutSec)
+    try {
+        $r = Invoke-WebRequest -UseBasicParsing -Method Head -TimeoutSec $TimeoutSec -Uri "$Base/releases/latest"
+        $tag = if ($r.BaseResponse.ResponseUri) { [string]$r.BaseResponse.ResponseUri.AbsoluteUri } else { [string]$r.BaseResponse.RequestMessage.RequestUri.AbsoluteUri }
+        if ($tag -cmatch '/v([^/]+)$') { return $Matches[1] }
+    }
+    catch { }
+    $api = if ($Base -clike 'https://github.com/*') { "https://api.github.com/repos/$($Base.Substring(19))/releases/latest" } else { "$Base/api/releases/latest" }
+    try {
+        $tag = [string](Invoke-RestMethod -UseBasicParsing -TimeoutSec $TimeoutSec -Headers @{ Accept = 'application/vnd.github+json' } -Uri $api).tag_name
+        if ($tag -cmatch '^v([^/]+)$') { return $Matches[1] }
+    }
+    catch { }
+    return $null
+}
+
 # That refresh, as a detached process. Written whether or not it worked: a
 # host with no way out tries once a day, not on every command.
 function Update-VigilUpdateCache {
@@ -209,9 +231,8 @@ function Update-VigilUpdateCache {
     try { if ([System.IO.File]::Exists($f)) { $latest = @([System.IO.File]::ReadAllText($f).Trim().Split(' '))[1] } } catch { }
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-        $r = Invoke-WebRequest -UseBasicParsing -Method Head -TimeoutSec 10 -Uri "$base/releases/latest"
-        $tag = if ($r.BaseResponse.ResponseUri) { [string]$r.BaseResponse.ResponseUri.AbsoluteUri } else { [string]$r.BaseResponse.RequestMessage.RequestUri.AbsoluteUri }
-        if ($tag -cmatch '/v([^/]+)$') { $latest = $Matches[1] }
+        $v = Get-VigilLatestVersion -Base $base -TimeoutSec 10
+        if ($v) { $latest = $v }
     }
     catch { }
     try { [System.IO.File]::WriteAllText($f, "$([DateTimeOffset]::Now.ToUnixTimeSeconds()) $latest`n") } catch { }
@@ -334,14 +355,8 @@ function Invoke-VigilSelfUpdate {
     $work = $null
     try {
         if (-not $Want) {
-            # The latest release, from where GitHub redirects /releases/latest.
-            try {
-                $r = Invoke-WebRequest -UseBasicParsing -Method Head -TimeoutSec 60 -Uri "$base/releases/latest"
-                $tag = if ($r.BaseResponse.ResponseUri) { [string]$r.BaseResponse.ResponseUri.AbsoluteUri } else { [string]$r.BaseResponse.RequestMessage.RequestUri.AbsoluteUri }
-            }
-            catch { $Script:VigilUpdateKind = 'download'; return & $die 'cannot reach GitHub to find the latest release' }
-            if ($tag -cnotmatch '/v([^/]+)$') { return & $die "cannot tell the latest release from $tag" }
-            $Want = $Matches[1]
+            $Want = Get-VigilLatestVersion -Base $base -TimeoutSec 60
+            if (-not $Want) { $Script:VigilUpdateKind = 'download'; return & $die 'cannot reach GitHub to find the latest release' }
         }
         if ($Want -ceq $current) {
             Write-Output "Vigil $current is installed: nothing to do"

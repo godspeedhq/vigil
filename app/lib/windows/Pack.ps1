@@ -99,13 +99,8 @@ function Get-VigilPackRelease {
     $saved = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'
     try {
-        try {
-            $r = Invoke-WebRequest -UseBasicParsing -Method Head -TimeoutSec 60 -Uri "$base/releases/latest"
-            $tag = if ($r.BaseResponse.ResponseUri) { [string]$r.BaseResponse.ResponseUri.AbsoluteUri } else { [string]$r.BaseResponse.RequestMessage.RequestUri.AbsoluteUri }
-        }
-        catch { Stop-VigilPack 'cannot reach GitHub to find the latest release'; return $out }
-        if ($tag -cnotmatch '/v([^/]+)$') { Stop-VigilPack "cannot tell the latest release from $tag"; return $out }
-        $want = $Matches[1]
+        $want = Get-VigilLatestVersion -Base $base -TimeoutSec 60
+        if (-not $want) { Stop-VigilPack 'cannot reach GitHub to find the latest release'; return $out }
         $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-pack.$PID"
         if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
         [void](New-Item -ItemType Directory -Path $work)
