@@ -313,6 +313,19 @@ try {
     Test-Equal 'removing the line gives self update back' '0' ([string]$r.Code)
     Test-Equal 'nothing moved meanwhile' '0.7.0-it' (Get-Version)
 
+    # The version from a copy of the releases (release_url, 18.7). 0.8.0-it
+    # is only on the copy, so only the copy can supply it.
+    Publish-Variant '0.7.0-it' '0.8.0-it' { param($App) }
+    [void](New-Item -ItemType Directory -Force -Path "$www\mirror\releases\download")
+    Move-Item -LiteralPath "$www\releases\download\v0.8.0-it" -Destination "$www\mirror\releases\download\"
+    $hostCfg = "$fleet\hosts\vc.config"
+    $text = [System.IO.File]::ReadAllText($hostCfg) -replace '(?m)^\[vigil\]\r?$', "[vigil]`nrelease_url = $env:VIGIL_TEST_RELEASE_URL/mirror"
+    [System.IO.File]::WriteAllText($hostCfg, $text)
+    Set-ConfigVersion $hostCfg '0.8.0-it'
+    Wait-Until 120 { (Get-Version) -ceq '0.8.0-it' }
+    Test-Equal 'a release_url supplies the version named' '0.8.0-it' (Get-Version)
+    if ((Get-Version) -cne '0.8.0-it') { Show-Run }
+
     Test-Equal 'no run crashed' 'False' ([string](Get-SupLog).Contains('crashed'))
     Test-Equal 'the supervisor ran throughout' 'False' ([string]$sup.HasExited)
     if ($script:fail -gt 0) { Show-Run }

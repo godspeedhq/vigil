@@ -280,6 +280,30 @@ version  = 0.3.1
 - Vigil never writes to your configuration: `vigil version` and `vigil status` show what is running, and `vigil status` says when it is not yet the version you asked for.
 - Roll out with canaries: point a few machines at their own `config_file` with the new version, then move one group's file at a time.
 
+### A fleet that doesn't reach GitHub
+
+Keep a copy of the releases on a server of your own (Artifactory, Nexus, a web server), and name it in the configuration:
+
+```ini
+[vigil]
+release_url = https://artifacts.example.com/vigil
+```
+
+Self updates, the update notices, `vigil pack update` and the version in the configuration then download from there and never ask GitHub. The copy has GitHub's layout:
+
+```text
+https://artifacts.example.com/vigil/releases/download/v0.5.4/vigil-0.5.4.tar.gz
+                                                            /vigil-0.5.4.zip
+                                                            /install.sh, install.ps1
+                                                            /vigil-packs-0.5.4-*.tar.gz, .zip
+                                                            /SHA256SUMS, SHA256SUMS.sig
+https://artifacts.example.com/vigil/releases/latest/VERSION   one line: 0.5.4
+```
+
+Copy each release's files unchanged: Vigil checks that they're signed by the release key it already has, so a changed file is refused, wherever it comes from. Nor will a copy whose `VERSION` names an older release move a machine back. Only a version you ask for does that, with `--version` or `version =`. A fleet that sets `version =` doesn't need the `VERSION` file at all.
+
+To install a new machine from the copy, download the files from it and use the [reviewed path](#without-piping-a-script-into-a-shell), with `--archive` and `--key`.
+
 ## Try it from a clone
 
 You can also run Vigil straight from a clone: every command takes `--root` (`-Root` on Windows), the folder holding `config/`, `state/`, `logs/` and so on.

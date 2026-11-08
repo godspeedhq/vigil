@@ -51,6 +51,41 @@ the release from GitHub.
    `\\server\share\vigil`), with the same layout, for a file share. Decide
    when building it: it is cheap, but it is a second way.
 
+## Built (2026-11-08)
+
+Where it differs from the proposal above:
+
+- **`https`, or plain `http` to this machine only**, as for a log
+  destination (`E_URL` otherwise, and with credentials). That lets the tests
+  use the mock server with no test hook. `VIGIL_TEST_RELEASE_URL` still
+  stands for GitHub only; a `release_url` wins over it.
+- **No local folder.** A file share is served by any web server, and one
+  way is simpler than two.
+- **`vigil about` shows it as `Releases`**, beside `Source`, which stays the
+  project's GitHub page: that is where the code is, wherever releases come
+  from.
+- **An unpinned update never goes back.** When the latest release named is
+  older than the one installed, self update says so and changes nothing, so
+  a copy that names an old, signed release cannot move a fleet back. Going
+  back is asked for by number: `--version`, or `version =`. This holds for
+  GitHub too. The comment in `selfupdate.sh` that refused an address in the
+  configuration ("a way to redirect updates") now says why it is safe.
+- **The installers don't read it.** A machine is installed from a copy with
+  the reviewed path: the files downloaded from it, `--archive` and `--key`.
+- **Not a pointer-file key** (`E_POINTER_ONLY`), like `version`: it goes in
+  the fetched configuration, where the fleet's other settings are.
+- **Tests:**
+  - `self-update.sh` and `Self-Update.ps1`, against a copy on the mock, with
+    GitHub's stand-in naming no latest at all, and the mock's log showing
+    nothing else was asked: `about`, `--check`, the update, the notice's
+    check, `pack update --check`, an older latest not taken, a changed
+    `SHA256SUMS` refused, and an unreachable copy named.
+  - `version-config.sh` and `Version-Config.ps1`: a fetched configuration
+    with a `release_url` moves the machine to a release that is only on the
+    copy.
+  - Conformance: `validate/23` to `25` (http to another host, credentials,
+    http to this machine), and `01-valid`.
+
 ## A gap found on the way: the installer doesn't check the signature
 
 `install.sh` and `install.ps1` check the archive's SHA-256 against

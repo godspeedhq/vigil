@@ -1680,7 +1680,7 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | | `E_STORE_CLIENT` | `client = cli` with an `auth` the vendor's CLI could only use by keeping a credential on disk (§6.5.3). |
 | Sources | `E_SOURCE_UNKNOWN` | A job or `config_source` names a source that is not defined. |
 | | `E_SOURCE_PATH` | A `file` or `config_file` inside a source that is absolute, uses `\` or contains a `..` segment. |
-| | `E_URL` | A malformed URL, a source URL using plain `http://` to another host, or a URL containing credentials (never shown). |
+| | `E_URL` | A malformed URL, a source URL or `release_url` using plain `http://` to another host, or a URL containing credentials (never shown). |
 | | `E_SHA256`, `E_SHA256_REQUIRED` | Not 64 hex digits, or missing for a script from an `https` or `sftp` source. |
 | Jobs | `E_SCHEDULE_NONE`, `E_SCHEDULE_BOTH`, `E_SCHEDULE_DAYS_ONLY` | An invalid schedule combination (§7.5). |
 | | `E_CRON` | A `cron` expression that is not standard five-field cron, or that names no real date (§7.10). |
@@ -1814,7 +1814,7 @@ Only the checks that read nothing but the file run here. Pre-flight's others, on
 - **No insecure transports:** `https` only, with certificate verification; `sftp` only with a known host key. Plain HTTP and FTP are not supported.
 - **File permissions:** configuration, state, spool and the install directory must not be writable by untrusted users. Install sets owner-only permissions where the OS allows.
 - **No remote control:** Vigil exposes no network listener.
-- **Release signing:** a tagged release is built and signed by `.github/workflows/release.yml`, as a draft, with a key held only as a GitHub Actions secret and created by `tools/release/new-key.sh`, so it never exists on a developer's disk. Self-update refuses a release that key did not sign (§18.7).
+- **Release signing:** a tagged release is built and signed by `.github/workflows/release.yml`, as a draft, with a key held only as a GitHub Actions secret and created by `tools/release/new-key.sh`, so it never exists on a developer's disk. Self-update refuses a release that key did not sign (§18.7), wherever it comes from, so releases kept on a copy of their own (`release_url`) are as safe as GitHub's.
 - **Script signing:** Windows releases are Authenticode-signed so they run under `AllSigned` execution policy.
 
 ---
@@ -1970,7 +1970,7 @@ Details:
 - Every prompt has a flag equivalent (`sh -s -- --system --backend datadog`; `& ([scriptblock]::Create((irm .../install.ps1))) -System -Backend datadog`), so the installer runs unattended from deployment tooling. When piped, prompts read from `/dev/tty`, because standard input is the script itself.
 - `install.sh` is POSIX `sh`, since it is what `| sh` runs (dash on Debian and Ubuntu); Vigil itself then runs on bash.
 - Windows: the documented one-liner first enables TLS 1.2, which PowerShell 5.1 on older servers may not use by default. After verifying the hash, the installer removes the downloaded-from-the-internet mark from Vigil's files so a RemoteSigned execution policy does not block them; signed releases (§17) avoid the issue under AllSigned. Under `iex` the installer runs in the caller's own session, so it never calls `exit` (a failure throws) and restores the preferences it changes. `-ShellHost powershell | pwsh` chooses the service's host (§18.9).
-- A version can be pinned (`--version 1.2.0`); the default is the latest release. The installers, `vigil self update`, its daily check and `vigil pack update` find it where GitHub redirects `/releases/latest`, and, only when that page fails, from the GitHub API, which allows an address 60 requests an hour: too few for a fleet behind one to use first, enough to fall back on.
+- A version can be pinned (`--version 1.2.0`); the default is the latest release. The installers, `vigil self update`, its daily check and `vigil pack update` find it where GitHub redirects `/releases/latest`, and, only when that page fails, from the GitHub API, which allows an address 60 requests an hour: too few for a fleet behind one to use first, enough to fall back on. From a `release_url` (below), it is the one line of `releases/latest/VERSION`.
 
 Release assets, built by `tools/release/package.sh <version>`: `vigil-<version>.tar.gz` (Linux, macOS), `vigil-<version>.zip` (Windows), each holding one folder `vigil-<version>/` with `app/` (including `app/VERSION`), `vendor/`, both installers, `LICENSE` and `README.md`; `install.sh` and `install.ps1` on their own; and `SHA256SUMS` covering all four.
 
@@ -1989,6 +1989,19 @@ On Windows the same grant is `install.ps1 -System -UpdateBy <account or group>`.
 - It runs as whoever installed Vigil, or an account given `--update-by` (`-UpdateBy`): otherwise `sudo` for a system install on Linux and macOS, an elevated prompt on Windows. It refuses a copy from the repository, and a packaged program, which its package manager updates (§18.6).
 - A release is verified before anything runs: `SHA256SUMS` must carry a signature (`SHA256SUMS.sig`) from the release key, whose public half is `app/release-key.pem` of the version already installed, checked with `openssl`, or .NET on Windows. The installer and the archive must then match `SHA256SUMS`, and the archive verified is the one installed. A release with a bad or missing signature is refused, and nothing changes. So is any update when `app/release-key.pem` is missing: there is then nothing to check with. A first install has no earlier copy to hold the key, so the one-line installer relies on GitHub and HTTPS; the reviewed path passes the key with `--key`. The installer self-update runs checks the signature again, against the same installed key.
 - `vigil self update` runs when an operator or their tooling runs it, and refuses while the configuration names a version (§18.11). Vigil updates itself only to a version its configuration names, never on a schedule of its own.
+
+**Releases from a copy of their own.** `release_url` under `[vigil]` names where self-update, its `--check`, the update notices, `vigil pack update` and the version in the configuration (§18.11) find releases, in place of GitHub: for a fleet that may not reach GitHub, and keeps the releases on a mirror of its own.
+
+```ini
+[vigil]
+release_url = https://artifacts.example.com/vigil
+```
+
+- **The layout is GitHub's,** so a copy is the release files as published: `<release_url>/releases/download/v<version>/<file>`. The latest release is the one line of `<release_url>/releases/latest/VERSION`, which the copy's owner writes; a fleet that names its version in the configuration never reads it.
+- **`https`,** or plain `http` to this machine only, as for a log destination (§15.3), and never with credentials in it (`E_URL`). Certificates are checked; a company's own certificate authority goes in the system's trust store.
+- **Nothing is trusted for coming from there.** A release must be signed by the release key installed here, as from GitHub, so a copy can only serve releases as they were published. And unless a version is asked for (`--version`, or the configuration's `version`), self-update never goes back: when the latest release named is older than the one installed, it says so and changes nothing. A copy that names an old release cannot move a fleet back.
+- **Where.** Like `version`, it means the same in a local configuration and a fetched one, and cannot be in a pointer file. `vigil about` shows it.
+- **The installers** do not read it: a machine is installed from a copy with the reviewed path, the archive and the key (`--archive`, `--key`).
 
 **Update notices.** `vigil status`, `vigil version` and `vigil precheck` say on stderr when a newer release is known, at a terminal only: never in a pipe, a script or CI. They read a per-user cache, and at most once a day start a detached process to refresh it, with a 10-second limit, so a command is never delayed and a host with no way out shows nothing. The supervisor and workers never check. `VIGIL_NO_UPDATE_CHECK=1` turns it off.
 
@@ -2112,6 +2125,7 @@ version  = 0.3.1
 - **Installed but failed** (the new version does not run, or the supervisor did not come up as it): the installer puts the old version back, `result = failed`, logged as an error, and that release is not tried again until the configuration names another. Every other refusal (a bad signature, a copy from the repository, no right to replace `app/`) is recorded the same way.
 - **Downgrades** work like updates, except past a data format change: an older release refuses data of a newer format (§18.7), so the supervisor stays where it is and the update is recorded as failed. Nor can it go back to a release from before this section, whose installer does not know `--reload`.
 - **The supervisor log** says when an update starts (`updating Vigil 0.3.0 to 0.3.1, as the configuration asks`) and how it ended, once. `jobs.log` (`vigil status`) shows a `VERSION` block while this is not the release the configuration names, with the reason when it could not be had. `vigil precheck` notes the version, and whether the account running it can update Vigil: it owns `app/`, or has the `--update-by` rule (the `-UpdateBy` task on Windows).
+- **From a copy of the releases** when `release_url` is set (§18.7): the worker downloads the release from there.
 - **`vigil self update` refuses** while the configuration names a version: `the version is set in the configuration (version = 0.3.1): change it there to update, or remove it to use vigil self update`. Otherwise it would install a release the next tick takes back. `--check` and the update notices only report, and work as before.
 - **System installs** update through the `--update-by` rule (§18.7): the worker runs `sudo -n <root>/app/vigil self update --from-config`, and root reads the version from the configuration itself; on Windows the task does the same. The version is then whatever the configuration says, older releases included: whoever can change the configuration already decides what every machine runs.
 
@@ -2282,7 +2296,7 @@ The `git` and `https` sources are tested against a small local file server over 
 
 Every change is also tested upgrading from the latest published release: the real installer installs it from GitHub, its own `vigil self update` moves it to the build under test, and a supervisor and jobs must carry on through that (`tests/integration/upgrade.sh`, `Upgrade.ps1`).
 
-The installers and `vigil self update` are tested against the file server of §22.4.3: the environment variable `VIGIL_TEST_RELEASE_URL` replaces the GitHub address, and is accepted only as `http://127.0.0.1:<port>`. Pre-flight fails if it is set, like `VIGIL_FAULT`.
+The installers and `vigil self update` are tested against the file server of §22.4.3: the environment variable `VIGIL_TEST_RELEASE_URL` replaces the GitHub address, and is accepted only as `http://127.0.0.1:<port>`. Pre-flight fails if it is set, like `VIGIL_FAULT`. It stands for GitHub only: a `release_url` wins over it, and is tested against the same server, as plain `http` to this machine, which it allows.
 
 ### 22.5 Platform Matrix
 

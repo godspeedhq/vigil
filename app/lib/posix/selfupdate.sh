@@ -32,8 +32,15 @@
 #     (the release could not be fetched: worth trying again) or install (the
 #     installer ran and went back to what was installed).
 #   vigil_config_version <root>
-#     The release [vigil] version asks for, in _vu_want: the active
-#     configuration's when it is fetched, else the file's. Empty when unset.
+#     The release [vigil] version asks for, in _vu_want, and its
+#     release_url, in _vu_source: the active configuration's when it is
+#     fetched, else the file's. Empty when unset.
+#   vigil_release_source
+#     Where releases come from, from _vu_source: _vu_base, _vu_mirror (1 for
+#     a release_url), _vu_from (how messages name it) and _vu_curl (curl's
+#     options). Returns 1 with the reason on stderr.
+#   vigil_latest_version <base> <mirror: 0|1> <curl options...>
+#     Prints the latest release's version.
 #   vigil_update
 #     The body of the vigil_update worker (18.11): moves this install to the
 #     configuration's version and records the outcome in state/update.state.
@@ -43,14 +50,16 @@
 #     Says on stderr when a newer release is known, at a terminal only. Reads
 #     a per-user cache, and refreshes it in the background once a day, so it
 #     never slows a command and a host with no way out never notices.
-#   vigil_update_refresh <app dir>
+#   vigil_update_refresh <root>
 #     That refresh, as a detached process.
 #
 # Linux and macOS only; SelfUpdate.ps1 is the Windows twin.
 
-# Everything Vigil downloads about itself comes from here. There is no setting
-# to change it: an address in the configuration would be a way to redirect
-# updates.
+# Everything Vigil downloads about itself comes from here, unless [vigil]
+# release_url names a copy of the releases of its own (18.7). Redirecting
+# updates there gains nothing: whatever is downloaded must be signed by the
+# release key installed here, and a release that is not newer is never taken
+# as the latest.
 VIGIL_RELEASES=https://github.com/godspeedhq/vigil
 
 # app/PACKAGED is written by a package's build (18.6), never by Vigil: the
@@ -96,6 +105,8 @@ vigil_about() {
     printf '%-11s %s\n' 'Created by' 'Bankole Ogundero and the Vigil contributors'
     printf '%-11s %s\n' Licence Apache-2.0
     printf '%-11s %s\n' Source "$VIGIL_RELEASES"
+    vigil_config_version "$1"
+    [ -z "$_vu_source" ] || printf '%-11s %s\n' Releases "$_vu_source"
     printf '%-11s %s\n' Docs https://godspeedhq.github.io/vigil/
     printf '%-11s %s\n' Installed "$1"
     if vigil_packaged "$2"; then
@@ -171,20 +182,60 @@ vigil_update_notice() {
     case $at in '' | *[!0-9]*) at=0 ;; esac
     if [ $(($(date '+%s') - at)) -ge 86400 ]; then
         # Detached from the terminal, so closing it does not stop the check.
-        ( trap '' HUP; exec "$BASH" "$2/vigil" self refresh-check ) < /dev/null > /dev/null 2>&1 &
+        ( trap '' HUP; exec "$BASH" "$2/vigil" --root "$1" self refresh-check ) < /dev/null > /dev/null 2>&1 &
     fi
     return 0
 }
 
-# The latest release's version, printed: from where GitHub redirects
-# /releases/latest, or from the GitHub API when that page fails (it has
-# answered 504 for half an hour while the downloads worked). The redirect
-# comes first: the API allows an address 60 requests an hour, too few for a
-# fleet behind one. Tests serve the API's answer at <base>/api/releases/latest.
-#   vigil_latest_version <base> <curl options...>
+# Where releases come from (18.7). A release_url is https, or plain http to
+# this machine only, as for a log destination: checked here too, since the
+# configuration is read here without being validated.
+vigil_release_source() {
+    _vu_base=$VIGIL_RELEASES _vu_mirror=0 _vu_from=GitHub
+    _vu_curl=(-q --proto =https --proto-redir =https)
+    # Tests only (22.4.4): releases from a local server, never over the
+    # network. It stands for GitHub, so a release_url still wins.
+    if [ -n "${VIGIL_TEST_RELEASE_URL-}" ]; then
+        case $VIGIL_TEST_RELEASE_URL in
+            http://127.0.0.1:*)
+                _vu_base=$VIGIL_TEST_RELEASE_URL
+                _vu_curl=(-q --proto =http --proto-redir =http --noproxy '*')
+                ;;
+            *)
+                printf 'vigil: VIGIL_TEST_RELEASE_URL must be http://127.0.0.1:<port>\n' >&2
+                return 1
+                ;;
+        esac
+    fi
+    [ -n "${_vu_source-}" ] || return 0
+    _vu_base=${_vu_source%/} _vu_mirror=1 _vu_from=${_vu_source%/}
+    case $_vu_base in
+        https://*) _vu_curl=(-q --proto =https --proto-redir =https) ;;
+        http://localhost | http://localhost[:/]* | http://127.0.0.1 | http://127.0.0.1[:/]* | 'http://[::1]' | 'http://[::1]'[:/]*)
+            _vu_curl=(-q --proto =http --proto-redir =http --noproxy '*')
+            ;;
+        *)
+            printf "vigil: 'release_url' must start with https://\n" >&2
+            return 1
+            ;;
+    esac
+}
+
+# The latest release's version, printed. From a release_url, the one line of
+# <base>/releases/latest/VERSION. From GitHub, where it redirects
+# /releases/latest, or the GitHub API when that page fails (it has answered
+# 504 for half an hour while the downloads worked). The redirect comes first:
+# the API allows an address 60 requests an hour, too few for a fleet behind
+# one. Tests serve the API's answer at <base>/api/releases/latest.
 vigil_latest_version() {
-    local base=$1 api tag
-    shift
+    local base=$1 mirror=$2 api tag
+    shift 2
+    if [ "$mirror" = 1 ]; then
+        tag=$(curl "$@" -fsSL "$base/releases/latest/VERSION" 2> /dev/null | head -n 1 | tr -d '[:space:]')
+        case $tag in '' | *[!0-9A-Za-z.-]*) return 1 ;; esac
+        printf '%s\n' "${tag#v}"
+        return 0
+    fi
     if tag=$(curl "$@" -fsSLI -o /dev/null -w '%{url_effective}' "$base/releases/latest" 2> /dev/null); then
         tag=${tag##*/v}
         case $tag in '' | */*) ;; *) printf '%s\n' "$tag"; return 0 ;; esac
@@ -200,17 +251,13 @@ vigil_latest_version() {
 }
 
 vigil_update_refresh() {
-    local at latest='' tag base=$VIGIL_RELEASES
-    local -a opts
-    opts=(-q --proto =https --proto-redir =https --max-time 10)
-    if [ -n "${VIGIL_TEST_RELEASE_URL-}" ]; then
-        base=$VIGIL_TEST_RELEASE_URL
-        opts=(-q --proto =http --proto-redir =http --noproxy '*' --max-time 10)
-    fi
+    local at latest='' tag
+    vigil_config_version "$1"
+    vigil_release_source 2> /dev/null || return 0
     _vigil_update_cache
     mkdir -p "${_vu_cache%/*}" 2>/dev/null || return 0
     [ -f "$_vu_cache" ] && read -r at latest < "$_vu_cache"
-    if command -v curl > /dev/null 2>&1 && tag=$(vigil_latest_version "$base" "${opts[@]}"); then
+    if command -v curl > /dev/null 2>&1 && tag=$(vigil_latest_version "$_vu_base" "$_vu_mirror" "${_vu_curl[@]}" --max-time 10); then
         latest=$tag
     fi
     # Written whether or not it worked: a host with no way out tries once a
@@ -227,25 +274,14 @@ _vigil_self_die() {
 # is downloaded, and everything downloaded is verified before anything runs.
 # This function never changes the install itself. pinned remembers that a
 # version was asked for, since want is filled in with the latest one below.
+# The caller sets _vu_source, the release_url (vigil_config_version).
 vigil_self_update() {
-    local root=$1 app=$2 check=$3 want=$4 pinned=$4 wait=${5-} base=$VIGIL_RELEASES current tag work sum got file f key rc
+    local root=$1 app=$2 check=$3 want=$4 pinned=$4 wait=${5-} base current tag work sum got file f key rc
     local -a curlopts
     _vu_kind=refused
-    curlopts=(-q --proto =https --proto-redir =https --max-time 60)
-    # Tests only (22.4.4): releases from a local server, never over the
-    # network.
-    if [ -n "${VIGIL_TEST_RELEASE_URL-}" ]; then
-        case $VIGIL_TEST_RELEASE_URL in
-            http://127.0.0.1:*)
-                base=$VIGIL_TEST_RELEASE_URL
-                curlopts=(-q --proto =http --proto-redir =http --noproxy '*' --max-time 60)
-                ;;
-            *)
-                _vigil_self_die 'VIGIL_TEST_RELEASE_URL must be http://127.0.0.1:<port>'
-                return 1
-                ;;
-        esac
-    fi
+    vigil_release_source || return 1
+    base=$_vu_base
+    curlopts=("${_vu_curl[@]}" --max-time 60)
     if [ ! -f "$app/VERSION" ]; then
         _vigil_self_die 'this copy comes from the repository, not a release: update it with git'
         return 1
@@ -260,8 +296,15 @@ vigil_self_update() {
     command -v curl > /dev/null 2>&1 || { _vigil_self_die 'curl not found'; return 1; }
 
     if [ -z "$want" ]; then
-        want=$(vigil_latest_version "$base" "${curlopts[@]}") ||
-            { _vu_kind=download; _vigil_self_die 'cannot reach GitHub to find the latest release'; return 1; }
+        want=$(vigil_latest_version "$base" "$_vu_mirror" "${curlopts[@]}") ||
+            { _vu_kind=download; _vigil_self_die "cannot reach $_vu_from to find the latest release"; return 1; }
+        # The latest is never older than what runs here: a source that names
+        # an older release cannot move this back. Going back is asked for by
+        # number (--version, or the configuration's version).
+        if _vigil_self_newer "$current" "$want"; then
+            printf 'Vigil %s is installed, newer than the latest release from %s (%s): nothing to do\n' "$current" "$_vu_from" "$want"
+            return 0
+        fi
     fi
     if [ "$want" = "$current" ]; then
         printf 'Vigil %s is installed: nothing to do\n' "$current"
@@ -357,7 +400,7 @@ vigil_self_update() {
 }
 
 vigil_config_version() {
-    _vu_want=''
+    _vu_want='' _vu_source=''
     _vw_root=$1
     vigil_config_parse "$1/config/vigil.config" 2> /dev/null || return 0
     if vigil_fetch_mode; then
@@ -366,6 +409,8 @@ vigil_config_version() {
     fi
     _vigil_wk_get vigil version ''
     _vu_want=$_vw_value
+    _vigil_wk_get vigil release_url ''
+    _vu_source=$_vw_value
 }
 
 # How long a release that could not be downloaded waits before it is tried
@@ -382,6 +427,8 @@ vigil_update() {
         return 1
     fi
     [ -f "$app/VERSION" ] && read -r current < "$app/VERSION"
+    _vigil_wk_get vigil release_url ''
+    _vu_source=$_vw_value
     out="$_vw_statedir/update.out.$$"
     vigil_self_update "$_vw_root" "$app" 0 "$want" wait > "$out" 2>&1
     if [ "$?" -eq 0 ]; then

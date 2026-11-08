@@ -194,6 +194,7 @@ function Get-VigilKeyType {
                 'instance' { $t = 'name' }
                 'state_dir' { $t = 'path' }
                 'version' { $t = 'release' }
+                'release_url' { $t = 'log_url' }
             }
         }
         'scheduler' {
