@@ -1430,7 +1430,7 @@ Grammar:
 - A metric line starts with the word `metric` in the first column, followed by a space or tab. Fields are separated by any number of spaces or tabs. A trailing carriage return is ignored, so CRLF output from Windows jobs works.
 - `<name>`: parts of `[A-Za-z0-9_]+` joined by single dots, as for `metric_name` (no leading, trailing or doubled dot).
 - `<value>`: an optional `-`, digits, and an optional `.` followed by digits (`42`, `-3.5`, `0.25`). No exponent, no leading `.`, no hexadecimal. It is posted in canonical form: `012.500` is `12.5` and `-0` is `0`.
-- Tags: `key=value` pairs; keys `[A-Za-z0-9_]+`; values are non-empty and contain no spaces, and may contain `=`. A reserved tag key (§14.6), or a key repeated on one line, makes the line invalid.
+- Tags: `key=value` pairs; keys `[A-Za-z0-9_]+`; values are non-empty and contain no spaces or control characters (a carriage return in one would split the line in the spool for a reader that ends lines at CR, as .NET's does), and may contain `=`. A reserved tag key (§14.6), or a key repeated on one line, makes the line invalid.
 - Other stdout lines are written to the job log only.
 - A line starting with the word `metric` that does not parse is logged and counted in `<m>.invalid_metric_lines`; it never fails the run.
 - At most 1000 metric lines and perfdata items are taken from one run. Later ones are not parsed; they are dropped and counted in the run summary (`dropped_lines`, §12).
@@ -1454,7 +1454,7 @@ DISK OK - free space: / 7800 MB (40%) | /=11700MB;15600;17550;0;19500
 Parsing rules:
 
 - Items are separated by spaces or tabs. An unquoted label runs to the first `=`.
-- The label may be single-quoted to contain spaces or `=`; `''` inside quotes is a literal quote. In the `label` tag, spaces become `_`, since tag values cannot contain spaces.
+- The label may be single-quoted to contain spaces or `=`; `''` inside quotes is a literal quote. In the `label` tag, spaces become `_`, since tag values cannot contain spaces; a label with a control character makes the item invalid.
 - The value is a number as in §14.3, directly followed by its unit of measure, if any (`11700MB`, `0.8ms`, `40%`). A value of `U` (undetermined) is skipped and not counted.
 - Units are normalised: `s`, `ms`, `us` to seconds; `B`, `KB`, `MB`, `GB`, `TB` to bytes (1024 multiples); `%` kept as a percentage; `c` (continuous counter) posted as a count. Units are case-sensitive. Unknown units are kept as-is and recorded in a `uom` tag. Conversion is exact decimal arithmetic, never floating point: `11700MB` is `12268339200` and `250ms` is `0.25`, identically on every platform.
 - `warn`, `crit`, `min` and `max` are converted with the value's unit and posted as `<…>.warn`, `<…>.crit`, `<…>.min`, `<…>.max` when they are plain numbers. Anything else in those fields, including range syntax (`10:20`, `@10:20`, `~:5`), is not posted and does not make the item invalid.

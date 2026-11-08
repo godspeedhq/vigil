@@ -42,7 +42,17 @@ The tests print what they know when these fail.
   `Supervise.ps1` plants both kinds. **Still open: what wrote the line.**
   Run events are written whole, through a temporary file and a rename, and
   none of the writers (worker, sender, fetch, logs, supervisor) can emit an
-  empty event. Whether the first failure, three minutes before the first
+  empty event. **One way found and closed (2026-11-08):** job output is
+  split into lines at LF only, and a tag value (`(.+)`) or a quoted
+  perfdata label could keep a carriage return, which then went into the
+  event line. The supervisor reads spool files with `ReadAllLines`, which
+  also ends a line at a lone CR, so `metric x 1 k=v<CR>y` came back as two
+  lines, the second just `y`, with no name. Tag values and labels with a
+  control character now make the line invalid, on both sides
+  (`tests/conformance/metrics/08-control-chars`, `09-control-label-nagios`).
+  Whether this is what happened in that run is not known: its jobs were
+  `beat` (`metric beats 1`) and the base pack, whose tags are mount and
+  interface names. Whether the first failure, three minutes before the first
   logged tick error, came from the same cause is not known: the printed log
   starts with the failing ticks. A failure there now prints the first
   failed tick, and any spool file with a nameless line, line by line with

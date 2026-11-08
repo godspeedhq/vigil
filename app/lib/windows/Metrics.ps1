@@ -36,7 +36,10 @@ $Script:VigilMetricReservedTags = @('host', 'os', 'instance', 'job', 'label', 'u
 $Script:VigilMetRe = @{
     Name    = '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$'
     Num     = '^-?[0-9]+(\.[0-9]+)?$'
-    Tag     = '^([A-Za-z0-9_]+)=(.+)$'
+    # No control characters in a value: a carriage return in one splits the
+    # spool line in two for ReadAllLines, which ends lines at CR.
+    Tag     = '^([A-Za-z0-9_]+)=([^\x00-\x1f\x7f]+)$'
+    Ctl     = '[\x00-\x1f\x7f]'
     PerfVal = '^(-?[0-9]+(\.[0-9]+)?)([A-Za-z%]*)$'
 }
 
@@ -124,7 +127,7 @@ function ConvertFrom-VigilJobOutput {
         if ($Spec -ceq 'U' -or $Spec.StartsWith('U;', [System.StringComparison]::Ordinal)) { return }
         if (-not (& $take)) { return }
         $fields = $Spec.Split(';')
-        if ($Label.Length -eq 0 -or $fields.Count -gt 5 -or $fields[0] -cnotmatch $re.PerfVal) {
+        if ($Label.Length -eq 0 -or $Label -cmatch $re.Ctl -or $fields.Count -gt 5 -or $fields[0] -cnotmatch $re.PerfVal) {
             & $invalid $Line
             return
         }

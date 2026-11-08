@@ -42,7 +42,10 @@ VIGIL_METRIC_RESERVED_TAGS=$'\nhost\nos\ninstance\njob\nlabel\nuom\nexit_code\n'
 
 _vigil_met_re_name='^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$'
 _vigil_met_re_num='^-?[0-9]+(\.[0-9]+)?$'
-_vigil_met_re_tag='^([A-Za-z0-9_]+)=(.+)$'
+# A tag value has no control characters: a carriage return in one splits
+# the spool line in two for a reader that ends lines at CR, as .NET does.
+_vigil_met_re_tag=$'^([A-Za-z0-9_]+)=([^\x01-\x1f\x7f]+)$'
+_vigil_met_re_ctl=$'[\x01-\x1f\x7f]'
 _vigil_met_re_perfval='^(-?[0-9]+(\.[0-9]+)?)([A-Za-z%]*)$'
 
 # Canonical form of a number matching _vigil_met_re_num: no leading zeros,
@@ -158,7 +161,7 @@ _vigil_met_perfitem() {
         fields[${#fields[@]}]=${rest%%;*}
         case $rest in *\;*) rest=${rest#*;} ;; *) break ;; esac
     done
-    if [ -z "$label" ] || [ "${#fields[@]}" -gt 5 ] || ! [[ ${fields[0]} =~ $_vigil_met_re_perfval ]]; then
+    if [ -z "$label" ] || [[ $label =~ $_vigil_met_re_ctl ]] || [ "${#fields[@]}" -gt 5 ] || ! [[ ${fields[0]} =~ $_vigil_met_re_perfval ]]; then
         _vigil_met_invalid "$n"
         return 0
     fi
