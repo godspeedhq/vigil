@@ -1,4 +1,4 @@
-# 36. Updates from a file path: a local folder or a file share
+# 36. Updates from a file path (`release_path`): a local folder or a file share
 
 Asked by the owner on 2026-11-08: a fleet whose releases sit on a file share
 every machine can reach, with no web server in front of it. Backlog 35 left
@@ -6,13 +6,17 @@ a local folder out ("one way is simpler than two"); this takes it back up.
 
 ## Proposed
 
-1. **`release_url` takes a path too**:
+1. **A new key, `release_path`**, under `[vigil]`, beside `release_url`
+   (the owner's choice, 2026-11-08: a path isn't a URL, and each gets its
+   own checks and messages):
    - Linux and macOS: an absolute path, `/mnt/releases/vigil` (a local
      folder, or an NFS or SMB share mounted there).
    - Windows: a UNC path, `\\server\share\vigil`, or a local
      `C:\...` path.
 
-   Anything else stays as now: `https://`, or `http://` to this machine only.
+   Setting both `release_url` and `release_path` is invalid: Vigil must
+   know which one to use. Neither set: GitHub, as now. Like `release_url`,
+   not a pointer-file key.
 2. **The same layout as a web copy**:
    `<path>/releases/download/v<version>/<file>` and
    `<path>/releases/latest/VERSION`. A folder can be moved behind a web
@@ -58,7 +62,7 @@ item.
 
 ## Done when
 
-- A fleet with `release_url` set to a local folder, an NFS or SMB mount
+- A fleet with `release_path` set to a local folder, an NFS or SMB mount
   (Linux, macOS) or a UNC path (Windows) installs, updates (by hand, by
   `version =`, and from the notice) and updates its packs from it.
 - A changed archive or `SHA256SUMS` on the share is refused, and an older
