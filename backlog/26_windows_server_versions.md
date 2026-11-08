@@ -56,3 +56,8 @@ The specification's support table is then updated to say what was shown, version
   machine. Only one can run at a time there, so the versions are tested one
   after the other, never side by side. Next: the owner makes each reachable
   over SSH as `vigil-test`.
+- 2026-11-08: ready for the VMs. `tests/windows-server/Setup-Vm.ps1` (run once
+  on each VM, elevated) makes it reachable over SSH as `vigil-test`, by key
+  only, from the local subnet; `Probe.ps1` records step 1; the steps are in
+  `tests/windows-server/README.md`, and the results go in
+  `tests/integration/backends/reports/windows-compatibility.md`.
