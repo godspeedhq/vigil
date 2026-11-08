@@ -20,7 +20,8 @@ prefix and a header line ("/files/ Name: value"), every request for a path
 under that prefix must carry that header or gets 401. Every request is
 appended to <dir>/requests.log as one JSON line: method, path and headers.
 A file <dir>/redirects holds "<path> <target>" lines: those paths answer
-302, as GitHub's /releases/latest does.
+302, as GitHub's /releases/latest does. Files under www/api are served as
+JSON, as GitHub's API answers.
 
 Test only: never use it for anything else.
 """
@@ -51,6 +52,12 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
         return True
+
+    def guess_type(self, path):
+        # What GitHub's API answers with, for the files under www/api.
+        if self.path.startswith("/api/"):
+            return "application/json"
+        return super().guess_type(path)
 
     def do_HEAD(self):
         if not self.redirected():

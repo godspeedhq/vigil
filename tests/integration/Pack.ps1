@@ -154,6 +154,13 @@ try {
     [System.IO.File]::WriteAllText($cfg, $t)
     Publish-Packs '1.1.0' @('cpu', 'load')
     Test-Equal 'the check says so' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' (Invoke-Vigil pack update --check).Text
+    # /releases/latest failing: the API names the latest release.
+    Move-Item -LiteralPath "$work\mock\redirects" -Destination "$work\mock\redirects.off" -Force
+    [void](New-Item -ItemType Directory -Force -Path "$work\mock\www\api\releases")
+    [System.IO.File]::WriteAllText("$work\mock\www\api\releases\latest", "{`"tag_name`": `"v1.1.0`"}`n")
+    Test-Equal 'the page failing: the API names it' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' (Invoke-Vigil pack update --check).Text
+    Remove-Item -LiteralPath "$work\mock\www\api" -Recurse -Force
+    Move-Item -LiteralPath "$work\mock\redirects.off" -Destination "$work\mock\redirects" -Force
     Test-Equal 'the check changes nothing' '1.0.0' (Get-PackVersion)
     $was = Get-Text $cfg
     $r = Invoke-Vigil pack update

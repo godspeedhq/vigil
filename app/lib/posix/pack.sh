@@ -150,15 +150,8 @@ _vigil_pack_fetch() {
     key=$app/release-key.pem
     [ -n "${VIGIL_TEST_RELEASE_URL-}" ] && [ -n "${VIGIL_TEST_RELEASE_KEY-}" ] && key=$VIGIL_TEST_RELEASE_KEY
     [ -f "$key" ] || { _vigil_pack_die 'no release key here: packs cannot be verified; nothing was changed'; return 1; }
-    tag=$(curl "${curlopts[@]}" -fsSLI -o /dev/null -w '%{url_effective}' "$base/releases/latest") ||
+    want=$(vigil_latest_version "$base" "${curlopts[@]}") ||
         { _vigil_pack_die 'cannot reach GitHub to find the latest release'; return 1; }
-    want=${tag##*/v}
-    case $want in
-        '' | */*)
-            _vigil_pack_die "cannot tell the latest release from $tag"
-            return 1
-            ;;
-    esac
     _vigil_pack_os
     _vp_work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-pack.XXXXXX") || { _vigil_pack_die 'cannot make a temporary folder'; return 1; }
     file=vigil-packs-$want-$_vp_os.tar.gz

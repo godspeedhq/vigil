@@ -163,6 +163,27 @@ try {
     Test-Equal '--check: names the new version' 'True' ([string]$r.Text.Contains('0.0.2-it is available'))
     Test-Equal '--check: changes nothing' '0.0.1-it' (Get-Version)
 
+    # When /releases/latest fails (GitHub has answered 504 for half an hour
+    # while the downloads worked), the API names the latest release; when
+    # both fail, nothing is changed. The mock serves the API's answer at
+    # /api/releases/latest.
+    Remove-Item -LiteralPath "$work\mock\redirects" -Force
+    [void](New-Item -ItemType Directory -Force -Path "$www\api\releases")
+    [System.IO.File]::WriteAllText("$www\api\releases\latest", "{`"url`":`"x`",`"tag_name`":`"v0.0.2-it`",`"name`":`"0.0.2-it`"}`n")
+    $r = Invoke-Vigil self update --check
+    Test-Equal 'the page failing: the API names the new version' 'True' ([string]$r.Text.Contains('0.0.2-it is available'))
+    $apiRoot = Join-Path $work 'root-api'
+    $savedPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $out = '' | & $shell -NoProfile -ExecutionPolicy Bypass -File "$www\releases\download\v0.0.2-it\install.ps1" -User -Prefix $apiRoot -Instance it -Backend file -NoService 2>&1
+    [Environment]::SetEnvironmentVariable('Path', $savedPath, 'User')
+    Test-Equal 'the page failing: the installer asks the API' '0.0.2-it' ([string](Get-Content -LiteralPath "$apiRoot\app\VERSION" -ErrorAction SilentlyContinue))
+    Remove-Item -LiteralPath $apiRoot, "$www\api" -Recurse -Force -ErrorAction SilentlyContinue
+    $r = Invoke-Vigil self update
+    Test-Equal 'both failing: refused' '1' ([string]$r.Code)
+    Test-Equal 'both failing: saying why' 'True' ([string]$r.Text.Contains('cannot reach GitHub to find the latest release'))
+    Test-Equal 'both failing: changes nothing' '0.0.1-it' (Get-Version)
+    Set-Latest '0.0.2-it'
+
     # A job running across the update finishes, under the code it started with.
     Set-Content -LiteralPath "$root\scripts\slow.cmd" -Value @('@echo off', 'ping -n 11 127.0.0.1 > nul', 'echo finished slowly')
     [System.IO.File]::AppendAllText("$root\config\vigil.config", "`n[job.slow]`nfile = scripts\slow.cmd`nrun_every = 3650d`n")

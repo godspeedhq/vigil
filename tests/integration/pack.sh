@@ -129,6 +129,13 @@ sed -i.bak '/job.base_cpu/,/job.base_disk/s/^run_every = 1h$/run_every = 5m/' "$
 publish 1.1.0 cpu load
 check 'the check says so' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' "$(vigil pack update --check)"
 check 'the check changes nothing' 1.0.0 "$(sed -n 's/^version = //p' "$root/packs/base/pack.config")"
+# /releases/latest failing: the API names the latest release.
+mv "$work/mock/redirects" "$work/mock/redirects.off"
+mkdir -p "$work/mock/www/api/releases"
+printf '{"tag_name": "v1.1.0"}\n' > "$work/mock/www/api/releases/latest"
+check 'the page failing: the API names it' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' "$(vigil pack update --check 2>&1)"
+rm -rf "$work/mock/www/api"
+mv "$work/mock/redirects.off" "$work/mock/redirects"
 was=$(cksum < "$cfg")
 out=$(vigil pack update 2>&1)
 check 'updates' 0 "$?"

@@ -147,14 +147,25 @@ try {
         if (-not $Version) {
             # The latest release, from where GitHub redirects /releases/latest
             # (the API allows only 60 requests an hour per address, too few
-            # for a fleet behind one).
+            # for a fleet behind one), or from the API when that page fails
+            # (it has answered 504 while the downloads worked). Tests serve
+            # the API's answer at <repo url>/api/releases/latest.
+            $why = ''
             try {
                 $r = Invoke-WebRequest -UseBasicParsing -Method Head -Uri "$repoUrl/releases/latest"
                 $tag = if ($r.BaseResponse.ResponseUri) { [string]$r.BaseResponse.ResponseUri.AbsoluteUri } else { [string]$r.BaseResponse.RequestMessage.RequestUri.AbsoluteUri }
+                if ($tag -cmatch '/v([^/]+)$') { $Version = $Matches[1] }
             }
-            catch { Stop-Install "cannot reach GitHub to find the latest release: $($_.Exception.Message)" }
-            if ($tag -cnotmatch '/v([^/]+)$') { Stop-Install "cannot tell the latest release from $tag" }
-            $Version = $Matches[1]
+            catch { $why = $_.Exception.Message }
+            if (-not $Version) {
+                $api = if ($repoUrl -clike 'https://github.com/*') { "https://api.github.com/repos/$($repoUrl.Substring(19))/releases/latest" } else { "$repoUrl/api/releases/latest" }
+                try {
+                    $tag = [string](Invoke-RestMethod -UseBasicParsing -Headers @{ Accept = 'application/vnd.github+json' } -Uri $api).tag_name
+                    if ($tag -cmatch '^v([^/]+)$') { $Version = $Matches[1] }
+                }
+                catch { if (-not $why) { $why = $_.Exception.Message } }
+            }
+            if (-not $Version) { Stop-Install "cannot reach GitHub to find the latest release$(if ($why) { ": $why" })" }
         }
         $Version = $Version.TrimStart('v')
         $file = "vigil-$Version.zip"

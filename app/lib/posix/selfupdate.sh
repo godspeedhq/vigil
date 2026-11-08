@@ -176,8 +176,29 @@ vigil_update_notice() {
     return 0
 }
 
-# Asks only where /releases/latest redirects to. The GitHub API would be
-# limited to 60 requests an hour per address, too few for a fleet behind one.
+# The latest release's version, printed: from where GitHub redirects
+# /releases/latest, or from the GitHub API when that page fails (it has
+# answered 504 for half an hour while the downloads worked). The redirect
+# comes first: the API allows an address 60 requests an hour, too few for a
+# fleet behind one. Tests serve the API's answer at <base>/api/releases/latest.
+#   vigil_latest_version <base> <curl options...>
+vigil_latest_version() {
+    local base=$1 api tag
+    shift
+    if tag=$(curl "$@" -fsSLI -o /dev/null -w '%{url_effective}' "$base/releases/latest" 2> /dev/null); then
+        tag=${tag##*/v}
+        case $tag in '' | */*) ;; *) printf '%s\n' "$tag"; return 0 ;; esac
+    fi
+    case $base in
+        https://github.com/*) api=https://api.github.com/repos/${base#https://github.com/}/releases/latest ;;
+        *) api=$base/api/releases/latest ;;
+    esac
+    tag=$(curl "$@" -fsSL -H 'Accept: application/vnd.github+json' "$api" 2> /dev/null |
+        grep -o '"tag_name": *"v[^"/]*"' | sed -n '1s/.*"v\([^"]*\)"$/\1/p')
+    [ -n "$tag" ] || return 1
+    printf '%s\n' "$tag"
+}
+
 vigil_update_refresh() {
     local at latest='' tag base=$VIGIL_RELEASES
     local -a opts
@@ -189,8 +210,8 @@ vigil_update_refresh() {
     _vigil_update_cache
     mkdir -p "${_vu_cache%/*}" 2>/dev/null || return 0
     [ -f "$_vu_cache" ] && read -r at latest < "$_vu_cache"
-    if command -v curl > /dev/null 2>&1 && tag=$(curl "${opts[@]}" -fsSLI -o /dev/null -w '%{url_effective}' "$base/releases/latest" 2>/dev/null); then
-        case ${tag##*/v} in '' | */*) ;; *) latest=${tag##*/v} ;; esac
+    if command -v curl > /dev/null 2>&1 && tag=$(vigil_latest_version "$base" "${opts[@]}"); then
+        latest=$tag
     fi
     # Written whether or not it worked: a host with no way out tries once a
     # day, not on every command.
@@ -239,16 +260,8 @@ vigil_self_update() {
     command -v curl > /dev/null 2>&1 || { _vigil_self_die 'curl not found'; return 1; }
 
     if [ -z "$want" ]; then
-        # The latest release, from where GitHub redirects /releases/latest.
-        tag=$(curl "${curlopts[@]}" -fsSLI -o /dev/null -w '%{url_effective}' "$base/releases/latest") ||
+        want=$(vigil_latest_version "$base" "${curlopts[@]}") ||
             { _vu_kind=download; _vigil_self_die 'cannot reach GitHub to find the latest release'; return 1; }
-        want=${tag##*/v}
-        case $want in
-            '' | */*)
-                _vigil_self_die "cannot tell the latest release from $tag"
-                return 1
-                ;;
-        esac
     fi
     if [ "$want" = "$current" ]; then
         printf 'Vigil %s is installed: nothing to do\n' "$current"
