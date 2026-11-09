@@ -1,0 +1,1 @@
+ERROR    line 3: 'release_path' must be an absolute path (/..., \\server\share\... or C:\...): releases/vigil (E_RELEASE_PATH)

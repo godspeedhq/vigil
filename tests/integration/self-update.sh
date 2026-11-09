@@ -249,6 +249,65 @@ latest 0.0.2-it
 vigil self update --version 0.0.1-it > /dev/null 2>&1
 check 'release_url: back as it was' 0.0.1-it "$(version_of)"
 
+# --- a release_path: the releases from a folder, a share mounted here (18.7) ------------
+
+# The same layout as a copy served over http, read with cp: the mock's log
+# shows nothing was asked of it at all.
+s=$work/share
+mkdir -p "$s/releases/download" "$s/releases/latest"
+cp -R "$www/releases/download/v0.0.1-it" "$www/releases/download/v0.0.2-it" "$s/releases/download/"
+printf '0.0.2-it\n' > "$s/releases/latest/VERSION"
+rm -f "$work/mock/redirects"
+awk -v p="$s" '{ print } /^\[vigil\]$/ { print "release_path = " p }' "$work/config.saved" > "$root/config/vigil.config"
+asked() { grep -c '"path"' "$work/mock/requests.log"; }
+check 'release_path: about names it' 1 "$(vigil about 2>/dev/null | grep -cF "Releases    $s")"
+: > "$work/mock/requests.log"
+vigil self update --check > "$work/out" 2>&1
+check 'release_path: --check names the folder''s latest' 1 "$(grep -c '0.0.2-it is available' "$work/out")"
+vigil self update > "$work/out" 2>&1
+rc=$?
+check 'release_path: update succeeds' 0 "$rc"
+[ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+check 'release_path: the new version is installed' 0.0.2-it "$(version_of)"
+check 'release_path: nothing was downloaded' 0 "$(asked)"
+printf '0.0.1-it\n' > "$s/releases/latest/VERSION"
+vigil self update > "$work/out" 2>&1
+check 'release_path: an older latest is not taken' 0 "$?"
+check 'release_path: saying why' 1 "$(grep -cF "newer than the latest release from $s" "$work/out")"
+check 'release_path: and nothing changed' 0.0.2-it "$(version_of)"
+# SHA256SUMS changed on the share, to match a changed archive.
+(cd "$s/releases/download/v0.0.1-it" && printf 'x' >> vigil-0.0.1-it.tar.gz && { sha256sum vigil-0.0.1-it.tar.gz install.sh 2>/dev/null || shasum -a 256 vigil-0.0.1-it.tar.gz install.sh; } | sed 's/ \*/  /' > SHA256SUMS)
+vigil self update --version 0.0.1-it > "$work/out" 2>&1
+check 'release_path: a changed release is refused' 1 "$?"
+check 'release_path: saying why' 1 "$(grep -c 'not signed by the Vigil release key' "$work/out")"
+check 'release_path: and nothing changed' 0.0.2-it "$(version_of)"
+mv "$s" "$s.away"
+vigil self update > "$work/out" 2>&1
+check 'release_path: missing, refused' 1 "$?"
+check 'release_path: naming it and the account' 1 "$(grep -cF "cannot read the latest release from $s (as $(id -un))" "$work/out")"
+mv "$s.away" "$s"
+printf '0.0.2-it\n' > "$s/releases/latest/VERSION"
+: > "$work/mock/requests.log"
+vigil pack update --check > "$work/out" 2>&1
+rc=$?
+check 'release_path: pack update finds the packs there' 0 "$rc"
+[ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+XDG_CACHE_HOME=$work/cache-path vigil self refresh-check
+check 'release_path: the notice''s check reads the folder' 0.0.2-it "$(cut -d ' ' -f 2 "$work/cache-path/vigil/update-check" 2> /dev/null)"
+check 'release_path: and nothing was downloaded' 0 "$(asked)"
+awk -v p="$s" '{ print } /^\[vigil\]$/ { print "release_path = " p; print "release_url = https://artifacts.example.com/vigil" }' "$work/config.saved" > "$root/config/vigil.config"
+vigil self update > "$work/out" 2>&1
+check 'release_path and release_url: refused' 1 "$?"
+check 'release_path and release_url: saying why' 1 "$(grep -c "sets both 'release_url' and 'release_path'" "$work/out")"
+awk '{ print } /^\[vigil\]$/ { print "release_path = releases" }' "$work/config.saved" > "$root/config/vigil.config"
+vigil self update > "$work/out" 2>&1
+check 'release_path relative: refused' 1 "$?"
+check 'release_path relative: saying why' 1 "$(grep -c "'release_path' must be an absolute path" "$work/out")"
+cp "$work/config.saved" "$root/config/vigil.config"
+latest 0.0.2-it
+vigil self update --version 0.0.1-it > /dev/null 2>&1
+check 'release_path: back as it was' 0.0.1-it "$(version_of)"
+
 # --- what does not verify changes nothing ---------------------------------------------------
 
 d=$www/releases/download/v0.0.2-it

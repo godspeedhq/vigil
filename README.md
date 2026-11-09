@@ -304,6 +304,18 @@ Copy each release's files unchanged: Vigil checks that they're signed by the rel
 
 To install a new machine from the copy, download the files from it and use the [reviewed path](#without-piping-a-script-into-a-shell), with `--archive` and `--key`.
 
+The server needs to let Vigil read the files without logging in: Vigil doesn't send credentials to `release_url`. On Artifactory, that means anonymous read access to the repository.
+
+**Or a folder.** If every machine can reach a file share, skip the web server and name the folder instead, with the same layout inside:
+
+```ini
+[vigil]
+release_path = /mnt/releases/vigil          # Linux, macOS: a folder, or a share mounted there
+release_path = \\fileserver\releases\vigil  # Windows: a UNC path
+```
+
+Set one of `release_url` and `release_path`, not both. The files are checked the same way, so a share many people can write to still can't slip in a changed release. Vigil reads the folder as the account it runs as. A Windows service running as LocalSystem reaches a share as the computer's account (`DOMAIN\HOST$`) and has no mapped drive letters, so use a UNC path that account may read. On Linux and macOS, mount the share at boot.
+
 ## Try it from a clone
 
 You can also run Vigil straight from a clone: every command takes `--root` (`-Root` on Windows), the folder holding `config/`, `state/`, `logs/` and so on.

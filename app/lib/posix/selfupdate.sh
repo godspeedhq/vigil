@@ -32,15 +32,18 @@
 #     (the release could not be fetched: worth trying again) or install (the
 #     installer ran and went back to what was installed).
 #   vigil_config_version <root>
-#     The release [vigil] version asks for, in _vu_want, and its
-#     release_url, in _vu_source: the active configuration's when it is
-#     fetched, else the file's. Empty when unset.
+#     The release [vigil] version asks for, in _vu_want, its release_url, in
+#     _vu_source, and its release_path, in _vu_path: the active
+#     configuration's when it is fetched, else the file's. Empty when unset.
 #   vigil_release_source
-#     Where releases come from, from _vu_source: _vu_base, _vu_mirror (1 for
-#     a release_url), _vu_from (how messages name it) and _vu_curl (curl's
-#     options). Returns 1 with the reason on stderr.
-#   vigil_latest_version <base> <mirror: 0|1> <curl options...>
+#     Where releases come from, from _vu_source and _vu_path: _vu_base,
+#     _vu_mirror (0 GitHub, 1 a release_url, 2 a release_path), _vu_from (how
+#     messages name it) and _vu_curl (curl's options). Returns 1 with the
+#     reason on stderr.
+#   vigil_latest_version <base> <mirror: 0|1|2> <curl options...>
 #     Prints the latest release's version.
+#   vigil_release_get <base> <mirror> <path in the release tree> <out file> <curl options...>
+#     Downloads, or for a release_path copies, one file of the releases.
 #   vigil_update
 #     The body of the vigil_update worker (18.11): moves this install to the
 #     configuration's version and records the outcome in state/update.state.
@@ -56,7 +59,7 @@
 # Linux and macOS only; SelfUpdate.ps1 is the Windows twin.
 
 # Everything Vigil downloads about itself comes from here, unless [vigil]
-# release_url names a copy of the releases of its own (18.7). Redirecting
+# release_url or release_path names a copy of the releases of its own (18.7). Redirecting
 # updates there gains nothing: whatever is downloaded must be signed by the
 # release key installed here, and a release that is not newer is never taken
 # as the latest.
@@ -106,7 +109,7 @@ vigil_about() {
     printf '%-11s %s\n' Licence Apache-2.0
     printf '%-11s %s\n' Source "$VIGIL_RELEASES"
     vigil_config_version "$1"
-    [ -z "$_vu_source" ] || printf '%-11s %s\n' Releases "$_vu_source"
+    [ -z "$_vu_source$_vu_path" ] || printf '%-11s %s\n' Releases "$_vu_source$_vu_path"
     printf '%-11s %s\n' Docs https://godspeedhq.github.io/vigil/
     printf '%-11s %s\n' Installed "$1"
     if vigil_packaged "$2"; then
@@ -207,6 +210,23 @@ vigil_release_source() {
                 ;;
         esac
     fi
+    if [ -n "${_vu_source-}" ] && [ -n "${_vu_path-}" ]; then
+        printf "vigil: [vigil] sets both 'release_url' and 'release_path': use one\n" >&2
+        return 1
+    fi
+    # A folder: copied from, not downloaded. Absolute, so it does not depend
+    # on where Vigil was started.
+    if [ -n "${_vu_path-}" ]; then
+        case $_vu_path in
+            /*) ;;
+            *)
+                printf "vigil: 'release_path' must be an absolute path here: %s\n" "$_vu_path" >&2
+                return 1
+                ;;
+        esac
+        _vu_base=${_vu_path%/} _vu_mirror=2 _vu_from=${_vu_path%/}
+        return 0
+    fi
     [ -n "${_vu_source-}" ] || return 0
     _vu_base=${_vu_source%/} _vu_mirror=1 _vu_from=${_vu_source%/}
     case $_vu_base in
@@ -221,8 +241,8 @@ vigil_release_source() {
     esac
 }
 
-# The latest release's version, printed. From a release_url, the one line of
-# <base>/releases/latest/VERSION. From GitHub, where it redirects
+# The latest release's version, printed. From a release_url or a
+# release_path, the one line of <base>/releases/latest/VERSION. From GitHub, where it redirects
 # /releases/latest, or the GitHub API when that page fails (it has answered
 # 504 for half an hour while the downloads worked). The redirect comes first:
 # the API allows an address 60 requests an hour, too few for a fleet behind
@@ -230,8 +250,12 @@ vigil_release_source() {
 vigil_latest_version() {
     local base=$1 mirror=$2 api tag
     shift 2
-    if [ "$mirror" = 1 ]; then
-        tag=$(curl "$@" -fsSL "$base/releases/latest/VERSION" 2> /dev/null | head -n 1 | tr -d '[:space:]')
+    if [ "$mirror" != 0 ]; then
+        if [ "$mirror" = 2 ]; then
+            tag=$(head -n 1 "$base/releases/latest/VERSION" 2> /dev/null | tr -d '[:space:]')
+        else
+            tag=$(curl "$@" -fsSL "$base/releases/latest/VERSION" 2> /dev/null | head -n 1 | tr -d '[:space:]')
+        fi
         case $tag in '' | *[!0-9A-Za-z.-]*) return 1 ;; esac
         printf '%s\n' "${tag#v}"
         return 0
@@ -250,6 +274,28 @@ vigil_latest_version() {
     printf '%s\n' "$tag"
 }
 
+# One file of the releases, <rel> under <base>, into <out>: copied from a
+# release_path, downloaded otherwise. Returns 1 when it is not there.
+vigil_release_get() {
+    local base=$1 mirror=$2 rel=$3 out=$4
+    shift 4
+    if [ "$mirror" = 2 ]; then
+        [ -f "$base/$rel" ] && cp "$base/$rel" "$out" 2> /dev/null
+        return
+    fi
+    curl "$@" -fsSL -o "$out" "$base/$rel"
+}
+
+# How a release_path that could not be read is named: with the account,
+# since a share the service's account cannot read is the usual reason.
+_vigil_release_unreadable() {
+    if [ "$_vu_mirror" = 2 ]; then
+        printf 'cannot read the latest release from %s (as %s): is it there, and readable by this account?' "$_vu_from" "$(id -un 2> /dev/null || echo this account)"
+    else
+        printf 'cannot reach %s to find the latest release' "$_vu_from"
+    fi
+}
+
 vigil_update_refresh() {
     local at latest='' tag
     vigil_config_version "$1"
@@ -257,7 +303,7 @@ vigil_update_refresh() {
     _vigil_update_cache
     mkdir -p "${_vu_cache%/*}" 2>/dev/null || return 0
     [ -f "$_vu_cache" ] && read -r at latest < "$_vu_cache"
-    if command -v curl > /dev/null 2>&1 && tag=$(vigil_latest_version "$_vu_base" "$_vu_mirror" "${_vu_curl[@]}" --max-time 10); then
+    if { [ "$_vu_mirror" = 2 ] || command -v curl > /dev/null 2>&1; } && tag=$(vigil_latest_version "$_vu_base" "$_vu_mirror" "${_vu_curl[@]}" --max-time 10); then
         latest=$tag
     fi
     # Written whether or not it worked: a host with no way out tries once a
@@ -274,7 +320,8 @@ _vigil_self_die() {
 # is downloaded, and everything downloaded is verified before anything runs.
 # This function never changes the install itself. pinned remembers that a
 # version was asked for, since want is filled in with the latest one below.
-# The caller sets _vu_source, the release_url (vigil_config_version).
+# The caller sets _vu_source and _vu_path, the release_url and release_path
+# (vigil_config_version).
 vigil_self_update() {
     local root=$1 app=$2 check=$3 want=$4 pinned=$4 wait=${5-} base current tag work sum got file f key rc
     local -a curlopts
@@ -293,11 +340,11 @@ vigil_self_update() {
         _vigil_self_die "Vigil was installed by $_vp_manager: update it with $_vp_upgrade"
         return 1
     fi
-    command -v curl > /dev/null 2>&1 || { _vigil_self_die 'curl not found'; return 1; }
+    [ "$_vu_mirror" = 2 ] || command -v curl > /dev/null 2>&1 || { _vigil_self_die 'curl not found'; return 1; }
 
     if [ -z "$want" ]; then
         want=$(vigil_latest_version "$base" "$_vu_mirror" "${curlopts[@]}") ||
-            { _vu_kind=download; _vigil_self_die "cannot reach $_vu_from to find the latest release"; return 1; }
+            { _vu_kind=download; _vigil_self_die "$(_vigil_release_unreadable)"; return 1; }
         # The latest is never older than what runs here: a source that names
         # an older release cannot move this back. Going back is asked for by
         # number (--version, or the configuration's version).
@@ -343,7 +390,7 @@ vigil_self_update() {
     work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-update.XXXXXX") || { _vigil_self_die 'cannot make a temporary folder'; return 1; }
     file=vigil-$want.tar.gz
     for f in install.sh "$file" SHA256SUMS; do
-        if ! curl "${curlopts[@]}" -fsSL -o "$work/$f" "$base/releases/download/v$want/$f"; then
+        if ! vigil_release_get "$base" "$_vu_mirror" "releases/download/v$want/$f" "$work/$f" "${curlopts[@]}"; then
             rm -rf "$work"
             _vu_kind=download
             _vigil_self_die "cannot download Vigil $want: is there such a release?"
@@ -368,7 +415,7 @@ vigil_self_update() {
         _vigil_self_die 'openssl not found: the release cannot be verified; nothing was changed'
         return 1
     fi
-    if ! curl "${curlopts[@]}" -fsSL -o "$work/SHA256SUMS.sig" "$base/releases/download/v$want/SHA256SUMS.sig" ||
+    if ! vigil_release_get "$base" "$_vu_mirror" "releases/download/v$want/SHA256SUMS.sig" "$work/SHA256SUMS.sig" "${curlopts[@]}" ||
         ! openssl dgst -sha256 -verify "$key" -signature "$work/SHA256SUMS.sig" "$work/SHA256SUMS" > /dev/null 2>&1; then
         rm -rf "$work"
         _vigil_self_die "Vigil $want is not signed by the Vigil release key; nothing was changed"
@@ -400,7 +447,7 @@ vigil_self_update() {
 }
 
 vigil_config_version() {
-    _vu_want='' _vu_source=''
+    _vu_want='' _vu_source='' _vu_path=''
     _vw_root=$1
     vigil_config_parse "$1/config/vigil.config" 2> /dev/null || return 0
     if vigil_fetch_mode; then
@@ -411,6 +458,8 @@ vigil_config_version() {
     _vu_want=$_vw_value
     _vigil_wk_get vigil release_url ''
     _vu_source=$_vw_value
+    _vigil_wk_get vigil release_path ''
+    _vu_path=$_vw_value
 }
 
 # How long a release that could not be downloaded waits before it is tried
@@ -429,6 +478,8 @@ vigil_update() {
     [ -f "$app/VERSION" ] && read -r current < "$app/VERSION"
     _vigil_wk_get vigil release_url ''
     _vu_source=$_vw_value
+    _vigil_wk_get vigil release_path ''
+    _vu_path=$_vw_value
     out="$_vw_statedir/update.out.$$"
     vigil_self_update "$_vw_root" "$app" 0 "$want" wait > "$out" 2>&1
     if [ "$?" -eq 0 ]; then

@@ -293,6 +293,83 @@ try {
     [void](Invoke-Vigil self update --version 0.0.1-it)
     Test-Equal 'release_url: back as it was' '0.0.1-it' (Get-Version)
 
+    # A release_path: the releases from a folder or a share (18.7). The same
+    # layout, copied rather than downloaded: the mock's log shows nothing was
+    # asked of it at all.
+    $s = Join-Path $work 'share'
+    [void](New-Item -ItemType Directory -Force -Path "$s\releases\download", "$s\releases\latest")
+    Copy-Item -LiteralPath $d1, (Join-Path $www 'releases\download\v0.0.2-it') -Destination "$s\releases\download" -Recurse
+    [System.IO.File]::WriteAllText("$s\releases\latest\VERSION", "0.0.2-it`n")
+    Remove-Item -LiteralPath "$work\mock\redirects" -Force
+    $withPath = { param($p) [System.IO.File]::WriteAllText($cfgFile, ($saved -replace '(?m)^\[vigil\]\r?$', "[vigil]`n$p")) }
+    & $withPath "release_path = $s"
+    $asked = { [string]@([System.IO.File]::ReadAllLines($requests) | Where-Object { $_ -match '"path"' }).Count }
+    Test-Equal 'release_path: about names it' 'True' ([string](Invoke-Vigil about).Text.Contains("Releases    $s"))
+    [System.IO.File]::WriteAllText($requests, '')
+    $r = Invoke-Vigil self update --check
+    Test-Equal 'release_path: --check names the folder''s latest' 'True' ([string]$r.Text.Contains('0.0.2-it is available'))
+    $r = Invoke-Vigil self update
+    Test-Equal 'release_path: update succeeds' '0' ([string]$r.Code)
+    if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    Test-Equal 'release_path: the new version is installed' '0.0.2-it' (Get-Version)
+    Test-Equal 'release_path: nothing was downloaded' '0' (& $asked)
+    [System.IO.File]::WriteAllText("$s\releases\latest\VERSION", "0.0.1-it`n")
+    $r = Invoke-Vigil self update
+    Test-Equal 'release_path: an older latest is not taken' '0' ([string]$r.Code)
+    Test-Equal 'release_path: saying why' 'True' ([string]$r.Text.Contains("newer than the latest release from $s"))
+    Test-Equal 'release_path: and nothing changed' '0.0.2-it' (Get-Version)
+    # SHA256SUMS changed on the share, to match a changed archive.
+    $sd1 = "$s\releases\download\v0.0.1-it"
+    [System.IO.File]::AppendAllText("$sd1\vigil-0.0.1-it.zip", 'x')
+    Write-Sums $sd1 @('vigil-0.0.1-it.zip', 'install.ps1')
+    $r = Invoke-Vigil self update --version 0.0.1-it
+    Test-Equal 'release_path: a changed release is refused' '1' ([string]$r.Code)
+    Test-Equal 'release_path: saying why' 'True' ([string]$r.Text.Contains('not signed by the Vigil release key'))
+    Test-Equal 'release_path: and nothing changed' '0.0.2-it' (Get-Version)
+    Rename-Item -LiteralPath $s -NewName 'share.away'
+    $r = Invoke-Vigil self update
+    Test-Equal 'release_path: missing, refused' '1' ([string]$r.Code)
+    Test-Equal 'release_path: naming it and the account' 'True' ([string]$r.Text.Contains("cannot read the latest release from $s (as $([Environment]::UserDomainName)\$([Environment]::UserName))"))
+    Rename-Item -LiteralPath "$work\share.away" -NewName 'share'
+    [System.IO.File]::WriteAllText("$s\releases\latest\VERSION", "0.0.2-it`n")
+    [System.IO.File]::WriteAllText($requests, '')
+    $r = Invoke-Vigil pack update --check
+    Test-Equal 'release_path: pack update finds the packs there' '0' ([string]$r.Code)
+    if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    $env:LOCALAPPDATA = "$work\cache-path"
+    [void](New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA)
+    [void](Invoke-Vigil self refresh-check)
+    $cache = "$work\cache-path\vigil-update-check"
+    $env:LOCALAPPDATA = $savedLocal
+    $seen = if (Test-Path -LiteralPath $cache) { @([System.IO.File]::ReadAllText($cache).Trim().Split(' '))[1] } else { '' }
+    Test-Equal 'release_path: the notice''s check reads the folder' '0.0.2-it' ([string]$seen)
+    Test-Equal 'release_path: and nothing was downloaded' '0' (& $asked)
+    # The same folder by UNC path, through the drive's administrative share:
+    # only where this account may open it (an administrator, as on CI).
+    $unc = "\\localhost\$($s.Substring(0, 1))`$$($s.Substring(2))"
+    if (Test-Path -LiteralPath "$unc\releases\latest\VERSION") {
+        & $withPath "release_path = $unc"
+        $r = Invoke-Vigil self update --check
+        Test-Equal 'release_path by UNC: --check reads the share' 'True' ([string]$r.Text.Contains('0.0.2-it is installed: nothing to do'))
+        Copy-Item -Path "$d1\*" -Destination $sd1 -Force
+        $r = Invoke-Vigil self update --version 0.0.1-it
+        Test-Equal 'release_path by UNC: an update from the share' '0' ([string]$r.Code)
+        if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    }
+    else { Write-Host "  SKIP  release_path by UNC: $unc cannot be opened by this account" }
+    & $withPath "release_path = $s`nrelease_url = https://artifacts.example.com/vigil"
+    $r = Invoke-Vigil self update
+    Test-Equal 'release_path and release_url: refused' '1' ([string]$r.Code)
+    Test-Equal 'release_path and release_url: saying why' 'True' ([string]$r.Text.Contains("sets both 'release_url' and 'release_path'"))
+    & $withPath 'release_path = releases'
+    $r = Invoke-Vigil self update
+    Test-Equal 'release_path relative: refused' '1' ([string]$r.Code)
+    Test-Equal 'release_path relative: saying why' 'True' ([string]$r.Text.Contains("'release_path' must be an absolute path"))
+    [System.IO.File]::WriteAllText($cfgFile, $saved)
+    Set-Latest '0.0.2-it'
+    [void](Invoke-Vigil self update --version 0.0.1-it)
+    Test-Equal 'release_path: back as it was' '0.0.1-it' (Get-Version)
+
     # What does not verify changes nothing.
     $d = Join-Path $www 'releases\download\v0.0.2-it'
     Copy-Item "$d\install.ps1" "$work\install.good"

@@ -94,8 +94,8 @@ function Get-VigilPackRelease {
     $saved = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'
     try {
-        $want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -TimeoutSec 60
-        if (-not $want) { Stop-VigilPack "cannot reach $($src.From) to find the latest release"; return $out }
+        $want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -Path $src.Path -TimeoutSec 60
+        if (-not $want) { Stop-VigilPack (Get-VigilReleaseUnreadable $src); return $out }
         $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-pack.$PID"
         if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
         [void](New-Item -ItemType Directory -Path $work)
@@ -103,7 +103,7 @@ function Get-VigilPackRelease {
         $file = "vigil-packs-$want-windows.zip"
         try {
             foreach ($f in @($file, 'SHA256SUMS', 'SHA256SUMS.sig')) {
-                Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/releases/download/v$want/$f" -OutFile (Join-Path $work $f)
+                Get-VigilReleaseFile -Src $src -Rel "releases/download/v$want/$f" -OutFile (Join-Path $work $f)
             }
         }
         catch { Stop-VigilPack "cannot download the packs of release $want"; return $out }

@@ -1,0 +1,1 @@
+ERROR    line 2: [vigil] sets both 'release_url' and 'release_path': use one (E_RELEASE_BOTH)
