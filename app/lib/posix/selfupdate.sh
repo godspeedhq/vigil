@@ -33,13 +33,15 @@
 #     installer ran and went back to what was installed).
 #   vigil_config_version <root>
 #     The release [vigil] version asks for, in _vu_want, its release_url, in
-#     _vu_source, and its release_path, in _vu_path: the active
+#     _vu_source, its release_path, in _vu_path, and its release_header_name
+#     and release_header_value, in _vu_hname and _vu_hvalue: the active
 #     configuration's when it is fetched, else the file's. Empty when unset.
 #   vigil_release_source
 #     Where releases come from, from _vu_source and _vu_path: _vu_base,
 #     _vu_mirror (0 GitHub, 1 a release_url, 2 a release_path), _vu_from (how
-#     messages name it) and _vu_curl (curl's options). Returns 1 with the
-#     reason on stderr.
+#     messages name it), _vu_curl (curl's options) and _vu_hline (the
+#     release_url's header, its secret resolved). Returns 1 with the reason
+#     on stderr.
 #   vigil_latest_version <base> <mirror: 0|1|2> <curl options...>
 #     Prints the latest release's version.
 #   vigil_release_get <base> <mirror> <path in the release tree> <out file> <curl options...>
@@ -214,6 +216,25 @@ vigil_release_source() {
         printf "vigil: [vigil] sets both 'release_url' and 'release_path': use one\n" >&2
         return 1
     fi
+    # A login for a release_url: a header, as for a source (6.9), whose value
+    # is a secret reference resolved below. Only ever sent to a release_url.
+    _vu_hline=''
+    if [ -n "${_vu_hname-}${_vu_hvalue-}" ]; then
+        if [ -z "${_vu_hname-}" ] || [ -z "${_vu_hvalue-}" ]; then
+            printf "vigil: [vigil] needs both 'release_header_name' and 'release_header_value'\n" >&2
+            return 1
+        fi
+        if [ -z "${_vu_source-}" ]; then
+            printf "vigil: [vigil] sets 'release_header_name' without 'release_url': the header is sent only to a release_url\n" >&2
+            return 1
+        fi
+        case $_vu_hname in
+            *[!A-Za-z0-9-]*)
+                printf "vigil: 'release_header_name' must be a header name (letters, digits and -): %s\n" "$_vu_hname" >&2
+                return 1
+                ;;
+        esac
+    fi
     # A folder: copied from, not downloaded. Absolute, so it does not depend
     # on where Vigil was started.
     if [ -n "${_vu_path-}" ]; then
@@ -239,6 +260,27 @@ vigil_release_source() {
             return 1
             ;;
     esac
+    [ -n "${_vu_hname-}" ] || return 0
+    # Resolved once, held in memory for this command only. A secret that
+    # cannot be had now may be there later: worth trying again (18.11).
+    if ! vigil_secret_resolve "$_vw_root" "$_vu_hvalue"; then
+        _vu_kind=download
+        printf 'vigil: release_header_value %s unavailable: %s\n' "$_vu_hvalue" "$VIGIL_SECRET_WHY" >&2
+        return 1
+    fi
+    case $VIGIL_SECRET_VALUE in
+        *[[:cntrl:]]*)
+            VIGIL_SECRET_VALUE=''
+            printf 'vigil: release_header_value %s holds a control character\n' "$_vu_hvalue" >&2
+            return 1
+            ;;
+    esac
+    _vu_hline="$_vu_hname: $VIGIL_SECRET_VALUE"
+    VIGIL_SECRET_VALUE=''
+    # No redirect is followed while there is a header: curl would send it to
+    # whatever host a redirect names.
+    _vu_curl[${#_vu_curl[@]}]=--max-redirs
+    _vu_curl[${#_vu_curl[@]}]=0
 }
 
 # The latest release's version, printed. From a release_url or a
@@ -254,7 +296,7 @@ vigil_latest_version() {
         if [ "$mirror" = 2 ]; then
             tag=$(head -n 1 "$base/releases/latest/VERSION" 2> /dev/null | tr -d '[:space:]')
         else
-            tag=$(curl "$@" -fsSL "$base/releases/latest/VERSION" 2> /dev/null | head -n 1 | tr -d '[:space:]')
+            tag=$(_vigil_release_curl "$@" -fsSL "$base/releases/latest/VERSION" 2> /dev/null | head -n 1 | tr -d '[:space:]')
         fi
         case $tag in '' | *[!0-9A-Za-z.-]*) return 1 ;; esac
         printf '%s\n' "${tag#v}"
@@ -283,14 +325,53 @@ vigil_release_get() {
         [ -f "$base/$rel" ] && cp "$base/$rel" "$out" 2> /dev/null
         return
     fi
-    curl "$@" -fsSL -o "$out" "$base/$rel"
+    _vigil_release_curl "$@" -fsSL -o "$out" "$base/$rel"
 }
 
-# How a release_path that could not be read is named: with the account,
-# since a share the service's account cannot read is the usual reason.
+# curl, with the release_url's header when there is one. The header goes on
+# stdin (curl -K -), so it is never on a command line.
+_vigil_release_curl() {
+    if [ -n "${_vu_hline-}" ]; then
+        _vigil_curl_opt header "$_vu_hline" | curl "$@" -K -
+    else
+        curl "$@"
+    fi
+}
+
+# Why a release_url refused <path in the release tree>, when the answer was
+# about the login or a redirect; nothing otherwise. Asked again, only after
+# a failure, since curl -f does not say why.
+_vigil_release_refused() {
+    local status
+    [ "$_vu_mirror" = 1 ] || return 0
+    status=$(_vigil_release_curl "${_vu_curl[@]}" --max-time 10 -sS -o /dev/null -w '%{http_code}' "$_vu_base/$1" 2> /dev/null)
+    case $status in
+        401 | 403)
+            if [ -n "${_vu_hline-}" ]; then
+                printf '%s refused the login (HTTP %s): check release_header_value' "$_vu_from" "$status"
+            else
+                printf '%s asks for a login (HTTP %s): set release_header_name and release_header_value' "$_vu_from" "$status"
+            fi
+            ;;
+        3??)
+            [ -z "${_vu_hline-}" ] ||
+                printf '%s redirected the request (HTTP %s): Vigil follows no redirect while release_header_name is set' "$_vu_from" "$status"
+            ;;
+    esac
+}
+
+# How a source whose latest release could not be found is named. For a
+# release_path, with the account, since a share the service's account cannot
+# read is the usual reason.
 _vigil_release_unreadable() {
+    local why
     if [ "$_vu_mirror" = 2 ]; then
         printf 'cannot read the latest release from %s (as %s): is it there, and readable by this account?' "$_vu_from" "$(id -un 2> /dev/null || echo this account)"
+        return
+    fi
+    why=$(_vigil_release_refused releases/latest/VERSION)
+    if [ -n "$why" ]; then
+        printf 'cannot read the latest release: %s' "$why"
     else
         printf 'cannot reach %s to find the latest release' "$_vu_from"
     fi
@@ -299,11 +380,12 @@ _vigil_release_unreadable() {
 vigil_update_refresh() {
     local at latest='' tag
     vigil_config_version "$1"
-    vigil_release_source 2> /dev/null || return 0
     _vigil_update_cache
     mkdir -p "${_vu_cache%/*}" 2>/dev/null || return 0
     [ -f "$_vu_cache" ] && read -r at latest < "$_vu_cache"
-    if { [ "$_vu_mirror" = 2 ] || command -v curl > /dev/null 2>&1; } && tag=$(vigil_latest_version "$_vu_base" "$_vu_mirror" "${_vu_curl[@]}" --max-time 10); then
+    # A source that cannot be used (a secret this account cannot read, say)
+    # counts as no answer.
+    if vigil_release_source 2> /dev/null && { [ "$_vu_mirror" = 2 ] || command -v curl > /dev/null 2>&1; } && tag=$(vigil_latest_version "$_vu_base" "$_vu_mirror" "${_vu_curl[@]}" --max-time 10); then
         latest=$tag
     fi
     # Written whether or not it worked: a host with no way out tries once a
@@ -323,7 +405,7 @@ _vigil_self_die() {
 # The caller sets _vu_source and _vu_path, the release_url and release_path
 # (vigil_config_version).
 vigil_self_update() {
-    local root=$1 app=$2 check=$3 want=$4 pinned=$4 wait=${5-} base current tag work sum got file f key rc
+    local root=$1 app=$2 check=$3 want=$4 pinned=$4 wait=${5-} base current tag work sum got file f key rc why
     local -a curlopts
     _vu_kind=refused
     vigil_release_source || return 1
@@ -393,7 +475,8 @@ vigil_self_update() {
         if ! vigil_release_get "$base" "$_vu_mirror" "releases/download/v$want/$f" "$work/$f" "${curlopts[@]}"; then
             rm -rf "$work"
             _vu_kind=download
-            _vigil_self_die "cannot download Vigil $want: is there such a release?"
+            why=$(_vigil_release_refused "releases/download/v$want/$f")
+            if [ -n "$why" ]; then _vigil_self_die "cannot download Vigil $want: $why"; else _vigil_self_die "cannot download Vigil $want: is there such a release?"; fi
             return 1
         fi
     done
@@ -447,7 +530,7 @@ vigil_self_update() {
 }
 
 vigil_config_version() {
-    _vu_want='' _vu_source='' _vu_path=''
+    _vu_want='' _vu_source='' _vu_path='' _vu_hname='' _vu_hvalue=''
     _vw_root=$1
     vigil_config_parse "$1/config/vigil.config" 2> /dev/null || return 0
     if vigil_fetch_mode; then
@@ -460,6 +543,10 @@ vigil_config_version() {
     _vu_source=$_vw_value
     _vigil_wk_get vigil release_path ''
     _vu_path=$_vw_value
+    _vigil_wk_get vigil release_header_name ''
+    _vu_hname=$_vw_value
+    _vigil_wk_get vigil release_header_value ''
+    _vu_hvalue=$_vw_value
 }
 
 # How long a release that could not be downloaded waits before it is tried
@@ -480,6 +567,10 @@ vigil_update() {
     _vu_source=$_vw_value
     _vigil_wk_get vigil release_path ''
     _vu_path=$_vw_value
+    _vigil_wk_get vigil release_header_name ''
+    _vu_hname=$_vw_value
+    _vigil_wk_get vigil release_header_value ''
+    _vu_hvalue=$_vw_value
     out="$_vw_statedir/update.out.$$"
     vigil_self_update "$_vw_root" "$app" 0 "$want" wait > "$out" 2>&1
     if [ "$?" -eq 0 ]; then

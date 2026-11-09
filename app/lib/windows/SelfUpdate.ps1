@@ -37,9 +37,11 @@
         The release [vigil] version asks for: the active configuration's
         when it is fetched, else the file's. Empty when unset.
     Get-VigilReleaseSource -Root <dir>
-        Where releases come from: @{ Base; Mirror; Path; From; Error }, from
-        [vigil] release_url or release_path when one is set, else GitHub
-        (18.7). Path is true for a release_path: a folder, copied from.
+        Where releases come from: @{ Base; Mirror; Path; From; Error; Retry;
+        Header }, from [vigil] release_url or release_path when one is set,
+        else GitHub (18.7). Path is true for a release_path: a folder, copied
+        from. Header is the release_url's, its secret resolved; Retry, that
+        the Error may pass (a secret that could not be had).
     Get-VigilLatestVersion -Base <url or folder> -Mirror <bool> -Path <bool> -TimeoutSec <n>
         The latest release's version, or $null.
     Get-VigilReleaseFile -Src <release source> -Rel <path in the release tree> -OutFile <file>
@@ -219,16 +221,27 @@ function Show-VigilUpdateNotice {
 # is read here without being validated.
 function Get-VigilReleaseSource {
     param([string]$Root)
-    $src = @{ Base = 'https://github.com/godspeedhq/vigil'; Mirror = $false; Path = $false; From = 'GitHub'; Error = '' }
+    $src = @{ Base = 'https://github.com/godspeedhq/vigil'; Mirror = $false; Path = $false; From = 'GitHub'; Error = ''; Retry = $false; Header = $null }
     # Tests only (22.4.4): releases from a local server, never over the
     # network. It stands for GitHub, so a release_url still wins.
     if ($env:VIGIL_TEST_RELEASE_URL) {
         if ($env:VIGIL_TEST_RELEASE_URL -cnotmatch '^http://127\.0\.0\.1:[0-9]+$') { $src.Error = 'VIGIL_TEST_RELEASE_URL must be http://127.0.0.1:<port>'; return $src }
         $src.Base = $env:VIGIL_TEST_RELEASE_URL
     }
-    $url = Get-VigilConfigSetting -Root $Root -Key 'release_url'
-    $folder = Get-VigilConfigSetting -Root $Root -Key 'release_path'
+    $parsed = Get-VigilConfigParsed -Root $Root
+    $setting = { param($Key) if ($null -eq $parsed) { return '' }; return [string](Get-VigilConfigValue $parsed 'vigil' $Key '') }
+    $url = & $setting 'release_url'
+    $folder = & $setting 'release_path'
+    $hname = & $setting 'release_header_name'
+    $hvalue = & $setting 'release_header_value'
     if ($url -and $folder) { $src.Error = "[vigil] sets both 'release_url' and 'release_path': use one"; return $src }
+    # A login for a release_url: a header, as for a source (6.9), whose value
+    # is a secret reference resolved below. Only ever sent to a release_url.
+    if ($hname -or $hvalue) {
+        if (-not ($hname -and $hvalue)) { $src.Error = "[vigil] needs both 'release_header_name' and 'release_header_value'"; return $src }
+        if (-not $url) { $src.Error = "[vigil] sets 'release_header_name' without 'release_url': the header is sent only to a release_url"; return $src }
+        if ($hname -cnotmatch '^[A-Za-z0-9-]+$') { $src.Error = "'release_header_name' must be a header name (letters, digits and -): $hname"; return $src }
+    }
     # A folder: copied from, not downloaded. A UNC path or one on a drive:
     # a service has no mapped drive letters, and a path from the root of the
     # current drive would depend on where Vigil was started.
@@ -249,7 +262,87 @@ function Get-VigilReleaseSource {
     $src.Base = $url.TrimEnd('/')
     $src.Mirror = $true
     $src.From = $src.Base
+    if (-not $hname) { return $src }
+    # Resolved once, held in memory for this command only. A secret that
+    # cannot be had now may be there later: worth trying again (18.11).
+    $sec = Resolve-VigilSecret -Root $Root -Parsed $parsed -Reference $hvalue
+    if (-not $sec.Ok) { $src.Error = "release_header_value $hvalue unavailable: $($sec.Why)"; $src.Retry = $true; return $src }
+    if ([string]$sec.Value -cmatch '[\x00-\x1f\x7f]') { $src.Error = "release_header_value $hvalue holds a control character"; return $src }
+    $src.Header = @{ $hname = [string]$sec.Value }
     return $src
+}
+
+# One request to a release_url, with its header when there is one, into
+# $OutFile, or returning the content. No redirect is followed while there is a
+# header: it would be sent on to whatever host a redirect names. A refusal
+# leaves its status in $Script:VigilReleaseStatus; throws on any failure.
+$Script:VigilReleaseStatus = 0
+function Invoke-VigilReleaseGet {
+    param([string]$Uri, [hashtable]$Header, [int]$TimeoutSec, [string]$OutFile = '')
+    $Script:VigilReleaseStatus = 0
+    # With a header, as a source's (Fetch.ps1): the redirect is answered, not
+    # followed, and its status is known on every PowerShell.
+    if ($Header) {
+        $req = [System.Net.HttpWebRequest]::Create($Uri)
+        $req.Method = 'GET'
+        $req.Timeout = $TimeoutSec * 1000
+        $req.ReadWriteTimeout = $TimeoutSec * 1000
+        $req.AllowAutoRedirect = $false
+        if ($Uri -cmatch '^http://(localhost|127\.0\.0\.1|\[::1\])([:/]|$)') { $req.Proxy = $null }
+        foreach ($k in $Header.Keys) { $req.Headers.Add($k, $Header[$k]) }
+        $resp = $null
+        try { $resp = $req.GetResponse() }
+        catch {
+            $e = $_.Exception
+            while ($e -and -not ($e -is [System.Net.WebException])) { $e = $e.InnerException }
+            if ($e -and $e.Response) { $resp = $e.Response } else { throw }
+        }
+        try {
+            $code = [int]$resp.StatusCode
+            if ($code -ne 200) { $Script:VigilReleaseStatus = $code; throw "HTTP $code" }
+            $in = $resp.GetResponseStream()
+            $ms = New-Object System.IO.MemoryStream
+            $in.CopyTo($ms)
+            if ($OutFile) { [System.IO.File]::WriteAllBytes($OutFile, $ms.ToArray()); return }
+            return [System.Text.Encoding]::UTF8.GetString($ms.ToArray())
+        }
+        finally { $resp.Close() }
+    }
+    $a = @{ UseBasicParsing = $true; TimeoutSec = $TimeoutSec; Uri = $Uri; ErrorAction = 'Stop' }
+    if ($OutFile) { $a.OutFile = $OutFile; $a.PassThru = $true }
+    try { $r = Invoke-WebRequest @a }
+    catch {
+        $e = $_.Exception
+        while ($e -and -not $e.Response) { $e = $e.InnerException }
+        if ($e -and $e.Response) { $Script:VigilReleaseStatus = [int]$e.Response.StatusCode }
+        throw
+    }
+    $code = [int]$r.StatusCode
+    if ($code -ne 200) {
+        $Script:VigilReleaseStatus = $code
+        if ($OutFile) { Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue }
+        throw "HTTP $code"
+    }
+    if (-not $OutFile) {
+        if ($r.Content -is [byte[]]) { return [System.Text.Encoding]::UTF8.GetString($r.Content) }
+        return [string]$r.Content
+    }
+}
+
+# Why a release_url refused the last request, when the answer was about the
+# login or a redirect; '' otherwise.
+function Get-VigilReleaseRefused {
+    param($Src)
+    if (-not $Src.Mirror -or $Src.Path) { return '' }
+    $code = $Script:VigilReleaseStatus
+    if ($code -eq 401 -or $code -eq 403) {
+        if ($Src.Header) { return "$($Src.From) refused the login (HTTP $code): check release_header_value" }
+        return "$($Src.From) asks for a login (HTTP $code): set release_header_name and release_header_value"
+    }
+    if ($Src.Header -and $code -ge 300 -and $code -lt 400) {
+        return "$($Src.From) redirected the request (HTTP $code): Vigil follows no redirect while release_header_name is set"
+    }
+    return ''
 }
 
 # The latest release's version, or $null. From a release_url or a
@@ -260,15 +353,14 @@ function Get-VigilReleaseSource {
 # few for a fleet behind one. Tests serve the API's answer at
 # <base>/api/releases/latest.
 function Get-VigilLatestVersion {
-    param([string]$Base, [bool]$Mirror, [int]$TimeoutSec, [bool]$Path = $false)
+    param([string]$Base, [bool]$Mirror, [int]$TimeoutSec, [bool]$Path = $false, [hashtable]$Header = $null)
     if ($Mirror) {
         try {
             if ($Path) {
                 $text = [System.IO.File]::ReadAllText([System.IO.Path]::Combine($Base, 'releases\latest\VERSION'))
             }
             else {
-                $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec $TimeoutSec -Uri "$Base/releases/latest/VERSION"
-                $text = if ($r.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
+                $text = Invoke-VigilReleaseGet -Uri "$Base/releases/latest/VERSION" -Header $Header -TimeoutSec $TimeoutSec
             }
             $tag = @($text.Split("`n"))[0].Trim()
             if ($tag -cmatch '^v?([0-9A-Za-z.-]+)$') { return $Matches[1] }
@@ -300,7 +392,7 @@ function Get-VigilReleaseFile {
         Copy-Item -LiteralPath ([System.IO.Path]::Combine($Src.Base, $Rel.Replace('/', '\'))) -Destination $OutFile -ErrorAction Stop
         return
     }
-    Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$($Src.Base)/$Rel" -OutFile $OutFile
+    Invoke-VigilReleaseGet -Uri "$($Src.Base)/$Rel" -Header $Src.Header -TimeoutSec 60 -OutFile $OutFile
 }
 
 # How a source whose latest release could not be found is named: for a
@@ -309,6 +401,8 @@ function Get-VigilReleaseFile {
 function Get-VigilReleaseUnreadable {
     param($Src)
     if ($Src.Path) { return "cannot read the latest release from $($Src.From) (as $([Environment]::UserDomainName)\$([Environment]::UserName)): is it there, and readable by this account?" }
+    $why = Get-VigilReleaseRefused $Src
+    if ($why) { return "cannot read the latest release: $why" }
     return "cannot reach $($Src.From) to find the latest release"
 }
 
@@ -317,13 +411,15 @@ function Get-VigilReleaseUnreadable {
 function Update-VigilUpdateCache {
     param([string]$Root, [string]$App)
     $src = Get-VigilReleaseSource -Root $Root
-    if ($src.Error) { return }
     $f = Get-VigilUpdateCachePath
     $latest = ''
     try { if ([System.IO.File]::Exists($f)) { $latest = @([System.IO.File]::ReadAllText($f).Trim().Split(' '))[1] } } catch { }
+    # A source that cannot be used (a secret this account cannot read, say)
+    # counts as no answer.
     try {
+        if ($src.Error) { throw $src.Error }
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-        $v = Get-VigilLatestVersion -Base $src.Base -Mirror $src.Mirror -Path $src.Path -TimeoutSec 10
+        $v = Get-VigilLatestVersion -Base $src.Base -Mirror $src.Mirror -Path $src.Path -TimeoutSec 10 -Header $src.Header
         if ($v) { $latest = $v }
     }
     catch { }
@@ -428,7 +524,10 @@ function Invoke-VigilSelfUpdate {
     $Script:VigilUpdateKind = 'refused'
     $pinned = [bool]$Want
     $src = Get-VigilReleaseSource -Root $Root
-    if ($src.Error) { return & $die $src.Error }
+    if ($src.Error) {
+        if ($src.Retry) { $Script:VigilUpdateKind = 'download' }
+        return & $die $src.Error
+    }
     $base = $src.Base
     $verFile = Join-Path $App 'VERSION'
     if (-not (Test-Path -LiteralPath $verFile)) { return & $die 'this copy comes from the repository, not a release: update it with git' }
@@ -443,7 +542,7 @@ function Invoke-VigilSelfUpdate {
     $work = $null
     try {
         if (-not $Want) {
-            $Want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -Path $src.Path -TimeoutSec 60
+            $Want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -Path $src.Path -TimeoutSec 60 -Header $src.Header
             if (-not $Want) { $Script:VigilUpdateKind = 'download'; return & $die (Get-VigilReleaseUnreadable $src) }
             # The latest is never older than what runs here: a source that
             # names an older release cannot move this back. Going back is
@@ -493,7 +592,12 @@ function Invoke-VigilSelfUpdate {
                 Get-VigilReleaseFile -Src $src -Rel "releases/download/v$Want/$f" -OutFile (Join-Path $work $f)
             }
         }
-        catch { $Script:VigilUpdateKind = 'download'; return & $die "cannot download Vigil ${Want}: is there such a release?" }
+        catch {
+            $Script:VigilUpdateKind = 'download'
+            $why = Get-VigilReleaseRefused $src
+            if ($why) { return & $die "cannot download Vigil ${Want}: $why" }
+            return & $die "cannot download Vigil ${Want}: is there such a release?"
+        }
         # The signature (17): whatever else was replaced on the server, the
         # key that checks it is the one already installed here. The archive
         # is handed to the installer, so what is verified is what is installed.
@@ -551,8 +655,17 @@ function Get-VigilConfigVersion {
 # from the file; empty when unset.
 function Get-VigilConfigSetting {
     param([string]$Root, [string]$Key)
-    # A configuration this account may not read (-UpdateBy's account, 18.7)
-    # means no setting: Test-Path's "Access is denied" is caught, not printed.
+    $parsed = Get-VigilConfigParsed -Root $Root
+    if ($null -eq $parsed) { return '' }
+    try { return [string](Get-VigilConfigValue $parsed 'vigil' $Key '') }
+    catch { return '' }
+}
+
+# The active configuration when it is fetched, else the file, parsed; $null
+# when there is none or this account may not read it (-UpdateBy's account,
+# 18.7): Test-Path's "Access is denied" is caught, not printed.
+function Get-VigilConfigParsed {
+    param([string]$Root)
     $ErrorActionPreference = 'Stop'
     try {
         $parsed = ConvertFrom-VigilConfig -Path (Join-Path $Root 'config\vigil.config')
@@ -562,9 +675,9 @@ function Get-VigilConfigSetting {
             $a = Read-VigilActive -Root $Root -State $d
             if ($a) { $parsed = ConvertFrom-VigilConfig -Path $a.Config }
         }
-        return [string](Get-VigilConfigValue $parsed 'vigil' $Key '')
+        return $parsed
     }
-    catch { return '' }
+    catch { return $null }
 }
 
 # How long a release that could not be downloaded waits before it is tried

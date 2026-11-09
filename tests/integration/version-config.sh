@@ -310,6 +310,20 @@ wait_until 90 is_version 0.8.0-it
 check 'a release_url supplies the version named' 0.8.0-it "$(version_of)"
 [ "$(version_of)" = 0.8.0-it ] || explain
 
+# --- ... and one that needs a login (release_header_name, 18.7) -----------------------------------
+
+# The copy now answers 401 without the header, whose value is in Vigil's
+# secret store; 0.10.0-it is only there.
+variant 0.7.0-it 0.10.0-it ':'
+mv "$www/releases/download/v0.10.0-it" "$www/mirror/releases/download/"
+printf '/mirror/ X-Vigil-It: Bearer vc-token-1\n' > "$work/mock/require"
+printf 'Bearer vc-token-1' | vigil secret set RELEASES_AUTH --stdin > /dev/null
+awk '{ print } /^\[vigil\]$/ { print "release_header_name = X-Vigil-It"; print "release_header_value = secret:RELEASES_AUTH" }' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+set_version "$f" 0.10.0-it
+wait_until 90 is_version 0.10.0-it
+check 'a release_url with a login supplies the version named' 0.10.0-it "$(version_of)"
+[ "$(version_of)" = 0.10.0-it ] || explain
+
 check 'no run crashed' 0 "$(sup_log | grep -c 'crashed')"
 check 'the supervisor ran throughout' yes "$(kill -0 "$sup" 2>/dev/null && echo yes || echo no)"
 [ "$fail" -eq 0 ] || explain

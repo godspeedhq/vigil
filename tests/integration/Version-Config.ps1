@@ -326,6 +326,20 @@ try {
     Test-Equal 'a release_url supplies the version named' '0.8.0-it' (Get-Version)
     if ((Get-Version) -cne '0.8.0-it') { Show-Run }
 
+    # ... and one that needs a login (release_header_name, 18.7): the copy
+    # now answers 401 without the header, whose value is in Vigil's secret
+    # store; 0.10.0-it is only there.
+    Publish-Variant '0.7.0-it' '0.10.0-it' { param($App) }
+    Move-Item -LiteralPath "$www\releases\download\v0.10.0-it" -Destination "$www\mirror\releases\download\"
+    [System.IO.File]::WriteAllText("$work\mock\require", "/mirror/ X-Vigil-It: Bearer vc-token-1`n")
+    'Bearer vc-token-1' | & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'app\vigil.ps1') -Root $root secret set RELEASES_AUTH --stdin 2>&1 | Out-Null
+    $text = [System.IO.File]::ReadAllText($hostCfg) -replace '(?m)^\[vigil\]\r?$', "[vigil]`nrelease_header_name = X-Vigil-It`nrelease_header_value = secret:RELEASES_AUTH"
+    [System.IO.File]::WriteAllText($hostCfg, $text)
+    Set-ConfigVersion $hostCfg '0.10.0-it'
+    Wait-Until 120 { (Get-Version) -ceq '0.10.0-it' }
+    Test-Equal 'a release_url with a login supplies the version named' '0.10.0-it' (Get-Version)
+    if ((Get-Version) -cne '0.10.0-it') { Show-Run }
+
     Test-Equal 'no run crashed' 'False' ([string](Get-SupLog).Contains('crashed'))
     Test-Equal 'the supervisor ran throughout' 'False' ([string]$sup.HasExited)
     if ($script:fail -gt 0) { Show-Run }

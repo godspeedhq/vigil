@@ -102,6 +102,38 @@ company's rule about its own server, and a common one.
 - Optional: the same Artifactory OSS 7.77.17 container as 0.6.0's notes,
   with anonymous read off and an access token, from Fedora.
 
+## Built (2026-11-09)
+
+As proposed, with these choices:
+
+- **Redirects (point 4): not followed at all** while a header is set, with
+  the status and the copy named. Following one without the header is left
+  for when someone needs Artifactory's direct cloud storage download.
+- **One error code, `E_RELEASE_HEADER`,** for the pair half set, the pair
+  without `release_url` (including with `release_path`), and a name that is
+  not letters, digits and `-`. A raw value is `E_SECRET_RAW`, as for every
+  credential.
+- **The secret is resolved once per command,** when the release source is
+  worked out, and held in memory for it. One that cannot be had counts as a
+  download that failed, so the `vigil_update` worker tries again (18.11).
+- **Why a request was refused** is asked again only after a failure (POSIX:
+  one more request for the status, since `curl -f` does not say). A `401` or
+  `403` without a header now also says the copy asks for a login.
+- **The notice's daily check** now writes its date even when the source
+  cannot be used (a secret the user's account cannot read), so it is tried
+  once a day, not on every command. That was already so for a copy that
+  could not be reached.
+- **Windows:** with a header, the request is an `HttpWebRequest` with
+  redirects off, as for a source (`Fetch.ps1`): Windows PowerShell 5.1's
+  `Invoke-WebRequest -MaximumRedirection 0` throws without the status.
+- **Tests:** `self-update.sh` (27 checks, including a curl on `PATH` that
+  records its command lines, none holding the value) and `Self-Update.ps1`;
+  `version-config.sh` and `Version-Config.ps1` (a fetched configuration
+  moves a machine to a release only on a copy that needs a login);
+  conformance `validate/31` to `35`. The mock already had what was needed:
+  `<dir>/require` and a log of the headers.
+- **Not tried:** a real Artifactory with anonymous read off.
+
 ## Done when
 
 - A fleet whose release server needs a token or a password updates from it

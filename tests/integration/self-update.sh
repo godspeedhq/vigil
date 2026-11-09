@@ -308,6 +308,85 @@ latest 0.0.2-it
 vigil self update --version 0.0.1-it > /dev/null 2>&1
 check 'release_path: back as it was' 0.0.1-it "$(version_of)"
 
+# --- a release_url that needs a login (18.7) ------------------------------------------------
+
+# The copy above, now answering 401 to any request without the header. The
+# header's value is in Vigil's secret store; a curl ahead of the real one on
+# PATH records its command lines, which must never hold the value.
+printf '0.0.2-it\n' > "$m/releases/latest/VERSION"
+printf '/mirror/ X-Vigil-It: Bearer it-token-1\n' > "$work/mock/require"
+rm -f "$work/mock/redirects"
+printf 'Bearer it-token-1' | vigil secret set RELEASES_AUTH --stdin > /dev/null
+check 'login: the secret is stored' 0 "$?"
+mkdir -p "$work/bin"
+real_curl=$(command -v curl)
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s/curl-args"\nexec "%s" "$@"\n' "$work" "$real_curl" > "$work/bin/curl"
+chmod +x "$work/bin/curl"
+login() {
+    awk -v u="$VIGIL_TEST_RELEASE_URL/mirror" -v n="$1" -v v="$2" '{ print } /^\[vigil\]$/ { print "release_url = " u; if (n != "") print "release_header_name = " n; if (v != "") print "release_header_value = " v }' "$work/config.saved" > "$root/config/vigil.config"
+}
+login '' ''
+vigil self update --check > "$work/out" 2>&1
+check 'login: none given, refused' 1 "$?"
+check 'login: saying the copy asks for one' 1 "$(grep -cF "$VIGIL_TEST_RELEASE_URL/mirror asks for a login (HTTP 401): set release_header_name and release_header_value" "$work/out")"
+login X-Vigil-It secret:RELEASES_AUTH
+: > "$work/mock/requests.log"
+: > "$work/curl-args"
+PATH=$work/bin:$PATH vigil self update --check > "$work/out" 2>&1
+check 'login: --check names the copy''s latest' 1 "$(grep -c '0.0.2-it is available' "$work/out")"
+check 'login: the header was sent' yes "$([ "$(grep -c '"X-Vigil-It": "Bearer it-token-1"' "$work/mock/requests.log")" -gt 0 ] && echo yes || echo no)"
+PATH=$work/bin:$PATH vigil self update > "$work/out" 2>&1
+rc=$?
+check 'login: update succeeds' 0 "$rc"
+[ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+check 'login: the new version is installed' 0.0.2-it "$(version_of)"
+check 'login: nothing was asked of GitHub' 0 "$(from_copy)"
+check 'login: curl was used' yes "$([ -s "$work/curl-args" ] && echo yes || echo no)"
+check 'login: the value was on no command line' 0 "$(grep -c 'it-token-1' "$work/curl-args")"
+check 'login: nor in the output' 0 "$(grep -c 'it-token-1' "$work/out")"
+: > "$work/mock/requests.log"
+vigil pack update --check > "$work/out" 2>&1
+rc=$?
+check 'login: pack update finds the packs there' 0 "$rc"
+[ "$rc" -eq 0 ] || sed 's/^/        /' "$work/out"
+check 'login: pack update asked nothing of GitHub' 0 "$(from_copy)"
+XDG_CACHE_HOME=$work/cache-login vigil self refresh-check
+check 'login: the notice''s check uses it' 0.0.2-it "$(cut -d ' ' -f 2 "$work/cache-login/vigil/update-check" 2> /dev/null)"
+printf 'Bearer it-wrong-1' | vigil secret set RELEASES_AUTH --stdin > /dev/null
+vigil self update --check > "$work/out" 2>&1
+check 'login: a wrong one, refused' 1 "$?"
+check 'login: saying the login was refused' 1 "$(grep -cF "$VIGIL_TEST_RELEASE_URL/mirror refused the login (HTTP 401): check release_header_value" "$work/out")"
+check 'login: not saying what was sent' 0 "$(grep -c 'it-wrong-1' "$work/out")"
+printf 'Bearer it-token-1' | vigil secret set RELEASES_AUTH --stdin > /dev/null
+login X-Vigil-It env:VIGIL_IT_NOT_SET
+vigil self update --check > "$work/out" 2>&1
+check 'login: a secret not there, refused' 1 "$?"
+check 'login: naming it' 1 "$(grep -c 'release_header_value env:VIGIL_IT_NOT_SET unavailable: not set in the environment' "$work/out")"
+# A redirect elsewhere is not followed, so the header goes nowhere else.
+login X-Vigil-It secret:RELEASES_AUTH
+mkdir -p "$www/elsewhere"
+printf '0.0.2-it\n' > "$www/elsewhere/VERSION"
+printf '/mirror/releases/latest/VERSION /elsewhere/VERSION\n' > "$work/mock/redirects"
+: > "$work/mock/requests.log"
+vigil self update --check > "$work/out" 2>&1
+check 'login: a redirect, refused' 1 "$?"
+check 'login: saying why' 1 "$(grep -c 'redirected the request (HTTP 302): Vigil follows no redirect while release_header_name is set' "$work/out")"
+check 'login: the redirect was not followed' 0 "$(grep -c '/elsewhere/' "$work/mock/requests.log")"
+rm -f "$work/mock/redirects"
+awk '{ print } /^\[vigil\]$/ { print "release_header_name = X-Vigil-It"; print "release_header_value = secret:RELEASES_AUTH" }' "$work/config.saved" > "$root/config/vigil.config"
+vigil self update --check > "$work/out" 2>&1
+check 'login without release_url: refused' 1 "$?"
+check 'login without release_url: saying why' 1 "$(grep -c "sets 'release_header_name' without 'release_url'" "$work/out")"
+login X-Vigil-It ''
+vigil self update --check > "$work/out" 2>&1
+check 'login: half of it, refused' 1 "$?"
+check 'login: half of it, saying why' 1 "$(grep -c "needs both 'release_header_name' and 'release_header_value'" "$work/out")"
+rm -f "$work/mock/require"
+cp "$work/config.saved" "$root/config/vigil.config"
+latest 0.0.2-it
+vigil self update --version 0.0.1-it > /dev/null 2>&1
+check 'login: back as it was' 0.0.1-it "$(version_of)"
+
 # --- what does not verify changes nothing ---------------------------------------------------
 
 d=$www/releases/download/v0.0.2-it
