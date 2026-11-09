@@ -370,6 +370,85 @@ try {
     [void](Invoke-Vigil self update --version 0.0.1-it)
     Test-Equal 'release_path: back as it was' '0.0.1-it' (Get-Version)
 
+    # A release_url that needs a login (18.7): the copy above, now answering
+    # 401 to any request without the header. The header's value is in
+    # Vigil's secret store.
+    [System.IO.File]::WriteAllText("$m\releases\latest\VERSION", "0.0.2-it`n")
+    Copy-Item -Path "$d1\*" -Destination $md1 -Force
+    [System.IO.File]::WriteAllText("$work\mock\require", "/mirror/ X-Vigil-It: Bearer it-token-1`n")
+    Remove-Item -LiteralPath "$work\mock\redirects" -Force -ErrorAction SilentlyContinue
+    $setSecret = { param($v) $v | & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'app\vigil.ps1') -Root $root secret set RELEASES_AUTH --stdin 2>&1 | Out-Null; return $LASTEXITCODE }
+    Test-Equal 'login: the secret is stored' '0' ([string](& $setSecret 'Bearer it-token-1'))
+    $login = { param($n, $v)
+        $l = "[vigil]`nrelease_url = $mirrorUrl"
+        if ($n) { $l += "`nrelease_header_name = $n" }
+        if ($v) { $l += "`nrelease_header_value = $v" }
+        [System.IO.File]::WriteAllText($cfgFile, ($saved -replace '(?m)^\[vigil\]\r?$', $l))
+    }
+    & $login '' ''
+    $r = Invoke-Vigil self update --check
+    Test-Equal 'login: none given, refused' '1' ([string]$r.Code)
+    Test-Equal 'login: saying the copy asks for one' 'True' ([string]$r.Text.Contains("$mirrorUrl asks for a login (HTTP 401): set release_header_name and release_header_value"))
+    & $login 'X-Vigil-It' 'secret:RELEASES_AUTH'
+    [System.IO.File]::WriteAllText($requests, '')
+    $r = Invoke-Vigil self update --check
+    Test-Equal 'login: --check names the copy''s latest' 'True' ([string]$r.Text.Contains('0.0.2-it is available'))
+    if (-not $r.Text.Contains('0.0.2-it is available')) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    Test-Equal 'login: the header was sent' 'True' ([string]([System.IO.File]::ReadAllText($requests).Contains('"X-Vigil-It": "Bearer it-token-1"')))
+    $r = Invoke-Vigil self update
+    Test-Equal 'login: update succeeds' '0' ([string]$r.Code)
+    if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    Test-Equal 'login: the new version is installed' '0.0.2-it' (Get-Version)
+    Test-Equal 'login: nothing was asked of GitHub' '0' (& $fromCopy)
+    Test-Equal 'login: the value is not in the output' 'False' ([string]$r.Text.Contains('it-token-1'))
+    [System.IO.File]::WriteAllText($requests, '')
+    $r = Invoke-Vigil pack update --check
+    Test-Equal 'login: pack update finds the packs there' '0' ([string]$r.Code)
+    if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    Test-Equal 'login: pack update asked nothing of GitHub' '0' (& $fromCopy)
+    $env:LOCALAPPDATA = "$work\cache-login"
+    [void](New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA)
+    [void](Invoke-Vigil self refresh-check)
+    $cache = "$work\cache-login\vigil-update-check"
+    $env:LOCALAPPDATA = $savedLocal
+    $seen = if (Test-Path -LiteralPath $cache) { @([System.IO.File]::ReadAllText($cache).Trim().Split(' '))[1] } else { '' }
+    Test-Equal 'login: the notice''s check uses it' '0.0.2-it' ([string]$seen)
+    [void](& $setSecret 'Bearer it-wrong-1')
+    $r = Invoke-Vigil self update --check
+    Test-Equal 'login: a wrong one, refused' '1' ([string]$r.Code)
+    Test-Equal 'login: saying the login was refused' 'True' ([string]$r.Text.Contains("$mirrorUrl refused the login (HTTP 401): check release_header_value"))
+    Test-Equal 'login: not saying what was sent' 'False' ([string]$r.Text.Contains('it-wrong-1'))
+    [void](& $setSecret 'Bearer it-token-1')
+    & $login 'X-Vigil-It' 'env:VIGIL_IT_NOT_SET'
+    $r = Invoke-Vigil self update --check
+    Test-Equal 'login: a secret not there, refused' '1' ([string]$r.Code)
+    Test-Equal 'login: naming it' 'True' ([string]$r.Text.Contains('release_header_value env:VIGIL_IT_NOT_SET unavailable: not set in the environment'))
+    # A redirect elsewhere is not followed, so the header goes nowhere else.
+    & $login 'X-Vigil-It' 'secret:RELEASES_AUTH'
+    [void](New-Item -ItemType Directory -Force -Path "$www\elsewhere")
+    [System.IO.File]::WriteAllText("$www\elsewhere\VERSION", "0.0.2-it`n")
+    [System.IO.File]::WriteAllText("$work\mock\redirects", "/mirror/releases/latest/VERSION /elsewhere/VERSION`n")
+    [System.IO.File]::WriteAllText($requests, '')
+    $r = Invoke-Vigil self update --check
+    Test-Equal 'login: a redirect, refused' '1' ([string]$r.Code)
+    Test-Equal 'login: saying why' 'True' ([string]$r.Text.Contains('redirected the request (HTTP 302): Vigil follows no redirect while release_header_name is set'))
+    if (-not $r.Text.Contains('redirected the request')) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
+    Test-Equal 'login: the redirect was not followed' 'False' ([string]([System.IO.File]::ReadAllText($requests).Contains('/elsewhere/')))
+    Remove-Item -LiteralPath "$work\mock\redirects" -Force
+    [System.IO.File]::WriteAllText($cfgFile, ($saved -replace '(?m)^\[vigil\]\r?$', "[vigil]`nrelease_header_name = X-Vigil-It`nrelease_header_value = secret:RELEASES_AUTH"))
+    $r = Invoke-Vigil self update --check
+    Test-Equal 'login without release_url: refused' '1' ([string]$r.Code)
+    Test-Equal 'login without release_url: saying why' 'True' ([string]$r.Text.Contains("sets 'release_header_name' without 'release_url'"))
+    & $login 'X-Vigil-It' ''
+    $r = Invoke-Vigil self update --check
+    Test-Equal 'login: half of it, refused' '1' ([string]$r.Code)
+    Test-Equal 'login: half of it, saying why' 'True' ([string]$r.Text.Contains("needs both 'release_header_name' and 'release_header_value'"))
+    Remove-Item -LiteralPath "$work\mock\require" -Force
+    [System.IO.File]::WriteAllText($cfgFile, $saved)
+    Set-Latest '0.0.2-it'
+    [void](Invoke-Vigil self update --version 0.0.1-it)
+    Test-Equal 'login: back as it was' '0.0.1-it' (Get-Version)
+
     # What does not verify changes nothing.
     $d = Join-Path $www 'releases\download\v0.0.2-it'
     Copy-Item "$d\install.ps1" "$work\install.good"

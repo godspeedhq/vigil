@@ -1,0 +1,1 @@
+ERROR    line 6: 'release_header_value' must be an env:, secret: or store: reference; the value is not shown (E_SECRET_RAW)

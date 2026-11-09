@@ -304,7 +304,20 @@ Copy each release's files unchanged: Vigil checks that they're signed by the rel
 
 To install a new machine from the copy, download the files from it and use the [reviewed path](#without-piping-a-script-into-a-shell), with `--archive` and `--key`.
 
-The server needs to let Vigil read the files without logging in: Vigil doesn't send credentials to `release_url`. On Artifactory, that means anonymous read access to the repository.
+If the server needs a login, as most company servers do, give Vigil a header to send with each request, its value kept in Vigil's secret store:
+
+```ini
+[vigil]
+release_url          = https://artifacts.example.com/artifactory/vigil
+release_header_name  = Authorization
+release_header_value = secret:VIGIL_RELEASES_AUTH
+```
+
+```sh
+printf 'Bearer %s' "$TOKEN" | sudo vigil secret set VIGIL_RELEASES_AUTH --stdin
+```
+
+The secret is the header's whole value: `Bearer <token>` for an Artifactory or GitLab token, `Basic <base64 of user:password>` for Nexus or basic auth. Vigil sends it only to `release_url`, never puts it on a command line, and doesn't follow a redirect while it's set, so the header can't be passed on to another server. Without a header, the server has to allow anonymous read.
 
 **Or a folder.** If every machine can reach a file share, skip the web server and name the folder instead, with the same layout inside:
 

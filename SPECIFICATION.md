@@ -1683,6 +1683,7 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | | `E_URL` | A malformed URL, a source URL or `release_url` using plain `http://` to another host, or a URL containing credentials (never shown). |
 | Releases | `E_RELEASE_PATH` | A `release_path` that is not an absolute path (§18.7). |
 | | `E_RELEASE_BOTH` | `[vigil]` sets both `release_url` and `release_path` (§18.7). |
+| | `E_RELEASE_HEADER` | `release_header_name` without `release_header_value` or the reverse, either without `release_url`, or a name that is not letters, digits and `-` (§18.7). |
 | | `E_SHA256`, `E_SHA256_REQUIRED` | Not 64 hex digits, or missing for a script from an `https` or `sftp` source. |
 | Jobs | `E_SCHEDULE_NONE`, `E_SCHEDULE_BOTH`, `E_SCHEDULE_DAYS_ONLY` | An invalid schedule combination (§7.5). |
 | | `E_CRON` | A `cron` expression that is not standard five-field cron, or that names no real date (§7.10). |
@@ -2004,6 +2005,20 @@ release_url = https://artifacts.example.com/vigil
 - **Nothing is trusted for coming from there.** A release must be signed by the release key installed here, as from GitHub, so a copy can only serve releases as they were published. And unless a version is asked for (`--version`, or the configuration's `version`), self-update never goes back: when the latest release named is older than the one installed, it says so and changes nothing. A copy that names an old release cannot move a fleet back.
 - **Where.** Like `version`, it means the same in a local configuration and a fetched one, and cannot be in a pointer file. `vigil about` shows it.
 - **The installers** do not read it: a machine is installed from a copy with the reviewed path, the archive and the key (`--archive`, `--key`).
+
+**A copy that needs a login.** Most company servers (Artifactory, Nexus, GitLab) refuse anonymous reads. `release_header_name` and `release_header_value` give a header to send with every request to the `release_url`, the same pair as an `https` source's (§6.9):
+
+```ini
+[vigil]
+release_url          = https://artifacts.example.com/artifactory/vigil
+release_header_name  = Authorization
+release_header_value = secret:VIGIL_RELEASES_AUTH
+```
+
+- **The secret holds the whole value:** `Bearer <token>` for an Artifactory or GitLab token, `Basic <base64 of user:password>` for Nexus or a web server with basic auth, or the bare key for a header such as `X-JFrog-Art-Api`. `release_header_value` is a credential (§6.5): an `env:`, `secret:` or `store:` reference, never the value itself (`E_SECRET_RAW`). `secret:` suits it best: an update runs in the service (the version in the configuration) and from a shell (`sudo vigil self update`), and an `env:` value is in only one of them. A notice's daily check run by an account that cannot read the secret finds nothing, and says nothing.
+- **Sent only to the `release_url`,** never on a command line (curl reads it on stdin, `curl -K -`), and never in a message. While it is set, a redirect is not followed: curl would send the header on to whatever host it names. Artifactory serves from its own address unless it is set up to redirect to cloud storage.
+- **Both or neither, and only with `release_url`** (`E_RELEASE_HEADER`). GitHub needs no login, and a `release_path` is read as the account that runs Vigil. The name is letters, digits and `-`.
+- **A refusal says why:** `cannot read the latest release: https://artifacts.example.com/vigil refused the login (HTTP 401): check release_header_value`; without a header, that the copy `asks for a login`; a redirect, that it was not followed; and a secret that cannot be had is named, as for a job (`release_header_value secret:VIGIL_RELEASES_AUTH unavailable: …`). The latter is tried again, as a download that failed (§18.11).
 
 **Releases from a folder.** `release_path` under `[vigil]` is the same, for a copy kept in a folder rather than behind a web server: a local folder, or a file share every machine can reach.
 

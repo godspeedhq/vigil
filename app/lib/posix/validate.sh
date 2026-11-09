@@ -113,6 +113,8 @@ _vigil_val_keytype() {
         vigil:version) _vv_type=release ;;
         vigil:release_url) _vv_type=log_url ;;
         vigil:release_path) _vv_type=release_path ;;
+        vigil:release_header_name) _vv_type=header_name ;;
+        vigil:release_header_value) _vv_type=credential ;;
         scheduler:tick) _vv_type=dur ;;
         scheduler:late_start_window) _vv_type=dur0 ;;
         log:dir) _vv_type=path ;;
@@ -621,6 +623,15 @@ _vigil_val_check() {
                     ;;
             esac
             ;;
+        # The name of the header a release_url is asked with (18.7).
+        header_name)
+            case $value in
+                *[!A-Za-z0-9-]*)
+                    _vv_code=E_RELEASE_HEADER
+                    _vv_msg="'$key' must be a header name (letters, digits and -): $value"
+                    ;;
+            esac
+            ;;
         # Kept inside the source: no absolute path, drive letter, backslash or ..
         # segment, so a fetched configuration can never point at a file outside the
         # tree it came with.
@@ -703,7 +714,7 @@ vigil_config_validate() {
     local count=${#VIGIL_CFG_KEY[@]}
     local s si e name sline kind sub key value line seen req auth pointer=''
     local has_file has_every has_at has_days has_cron cron_line cron_value has_command has_type has_sha256
-    local has_config_file has_release_url has_release_path i n
+    local has_config_file has_release_url has_release_path has_release_hname has_release_hvalue i n
     local tag_keys env_names
 
     # Names that references may point at, and each source's type (empty
@@ -827,7 +838,7 @@ vigil_config_validate() {
         tag_keys=$nl
         env_names=$nl
         has_file=0 has_every=0 has_at=0 has_days=0 has_cron=0 cron_line='' cron_value='' has_command=0 has_type=0 has_sha256=0
-        has_config_file=0 has_release_url=0 has_release_path=0
+        has_config_file=0 has_release_url=0 has_release_path=0 has_release_hname=0 has_release_hvalue=0
 
         while [ "$e" -lt "$count" ] && [ "${VIGIL_CFG_SECTION[$e]}" = "$name" ]; do
             key=${VIGIL_CFG_KEY[$e]}
@@ -847,6 +858,8 @@ vigil_config_validate() {
                 config_file) has_config_file=1 ;;
                 release_url) has_release_url=1 ;;
                 release_path) has_release_path=1 ;;
+                release_header_name) has_release_hname=1 ;;
+                release_header_value) has_release_hvalue=1 ;;
             esac
 
             case $kind in
@@ -1108,6 +1121,12 @@ vigil_config_validate() {
                 # One place for releases (18.7): which one to use is not guessed.
                 if [ "$has_release_url" -eq 1 ] && [ "$has_release_path" -eq 1 ]; then
                     _vigil_val_report "$sline" E_RELEASE_BOTH "[$name] sets both 'release_url' and 'release_path': use one"
+                fi
+                # A login for a release_url (18.7): the pair, and only for one.
+                if [ -z "$pointer" ] && [ $((has_release_hname + has_release_hvalue)) -eq 1 ]; then
+                    _vigil_val_report "$sline" E_RELEASE_HEADER "[$name] needs both 'release_header_name' and 'release_header_value'"
+                elif [ -z "$pointer" ] && [ "$has_release_hname" -eq 1 ] && [ "$has_release_url" -eq 0 ]; then
+                    _vigil_val_report "$sline" E_RELEASE_HEADER "[$name] sets 'release_header_name' without 'release_url': the header is sent only to a release_url"
                 fi
                 ;;
             runner)

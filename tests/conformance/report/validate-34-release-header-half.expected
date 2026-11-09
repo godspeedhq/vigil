@@ -1,0 +1,1 @@
+ERROR    line 3: [vigil] needs both 'release_header_name' and 'release_header_value' (E_RELEASE_HEADER)

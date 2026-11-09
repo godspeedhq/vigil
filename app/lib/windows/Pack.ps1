@@ -94,7 +94,7 @@ function Get-VigilPackRelease {
     $saved = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'
     try {
-        $want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -Path $src.Path -TimeoutSec 60
+        $want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -Path $src.Path -TimeoutSec 60 -Header $src.Header
         if (-not $want) { Stop-VigilPack (Get-VigilReleaseUnreadable $src); return $out }
         $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-pack.$PID"
         if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
@@ -106,7 +106,12 @@ function Get-VigilPackRelease {
                 Get-VigilReleaseFile -Src $src -Rel "releases/download/v$want/$f" -OutFile (Join-Path $work $f)
             }
         }
-        catch { Stop-VigilPack "cannot download the packs of release $want"; return $out }
+        catch {
+            $why = Get-VigilReleaseRefused $src
+            if ($why) { $why = ": $why" }
+            Stop-VigilPack "cannot download the packs of release $want$why"
+            return $out
+        }
         $sums = Join-Path $work 'SHA256SUMS'
         if (-not (Test-VigilSignature -KeyFile $key -Data ([System.IO.File]::ReadAllBytes($sums)) -Signature ([System.IO.File]::ReadAllBytes((Join-Path $work 'SHA256SUMS.sig'))))) {
             Stop-VigilPack "release $want is not signed by the Vigil release key; nothing was changed"

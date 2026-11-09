@@ -129,7 +129,7 @@ _vigil_pack_read() {
 # SHA256SUMS. From GitHub, or the configuration's release_url. The caller
 # removes _vp_work.
 _vigil_pack_fetch() {
-    local root=$1 app=$2 base tag want file f key sum got
+    local root=$1 app=$2 base tag want file f key sum got why
     local -a curlopts
     vigil_config_version "$root"
     vigil_release_source || return 1
@@ -147,7 +147,8 @@ _vigil_pack_fetch() {
     file=vigil-packs-$want-$_vp_os.tar.gz
     for f in "$file" SHA256SUMS SHA256SUMS.sig; do
         if ! vigil_release_get "$base" "$_vu_mirror" "releases/download/v$want/$f" "$_vp_work/$f" "${curlopts[@]}" 2> /dev/null; then
-            _vigil_pack_die "cannot download the packs of release $want"
+            why=$(_vigil_release_refused "releases/download/v$want/$f")
+            _vigil_pack_die "cannot download the packs of release $want${why:+: $why}"
             return 1
         fi
     done

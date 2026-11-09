@@ -196,6 +196,8 @@ function Get-VigilKeyType {
                 'version' { $t = 'release' }
                 'release_url' { $t = 'log_url' }
                 'release_path' { $t = 'release_path' }
+                'release_header_name' { $t = 'header_name' }
+                'release_header_value' { $t = 'credential' }
             }
         }
         'scheduler' {
@@ -552,6 +554,13 @@ function Test-VigilValue {
                 $r.Message = "'$Key' must be an absolute path (/..., \\server\share\... or C:\...): $Value"
             }
         }
+        # The name of the header a release_url is asked with (18.7).
+        'header_name' {
+            if ($Value -cnotmatch '^[A-Za-z0-9-]+$') {
+                $r.Code = 'E_RELEASE_HEADER'
+                $r.Message = "'$Key' must be a header name (letters, digits and -): $Value"
+            }
+        }
         # Kept inside the source: no absolute path, drive letter, backslash or ..
         # segment, so a fetched configuration can never point at a file outside the
         # tree it came with.
@@ -803,7 +812,7 @@ function Test-VigilConfig {
         $seen = New-VigilNameSet @()
         $tagKeys = New-VigilNameSet @()
         $envNames = New-VigilNameSet @()
-        $has = @{ file = $false; run_every = $false; run_at = $false; run_on_days = $false; cron = $false; command = $false; type = $false; sha256 = $false; config_file = $false; release_url = $false; release_path = $false }
+        $has = @{ file = $false; run_every = $false; run_at = $false; run_on_days = $false; cron = $false; command = $false; type = $false; sha256 = $false; config_file = $false; release_url = $false; release_path = $false; release_header_name = $false; release_header_value = $false }
         $cronLine = ''; $cronValue = ''
 
         while ($e -lt $count -and $entries[$e].Section -ceq $name) {
@@ -1028,6 +1037,13 @@ function Test-VigilConfig {
                 # One place for releases (18.7): which one to use is not guessed.
                 if ($has.release_url -and $has.release_path) {
                     & $report $sline 'E_RELEASE_BOTH' "[$name] sets both 'release_url' and 'release_path': use one"
+                }
+                # A login for a release_url (18.7): the pair, and only for one.
+                if ($pointer.Length -eq 0 -and $has.release_header_name -ne $has.release_header_value) {
+                    & $report $sline 'E_RELEASE_HEADER' "[$name] needs both 'release_header_name' and 'release_header_value'"
+                }
+                elseif ($pointer.Length -eq 0 -and $has.release_header_name -and -not $has.release_url) {
+                    & $report $sline 'E_RELEASE_HEADER' "[$name] sets 'release_header_name' without 'release_url': the header is sent only to a release_url"
                 }
             }
             'runner' {
