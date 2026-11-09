@@ -135,18 +135,18 @@ _vigil_pack_fetch() {
     vigil_release_source || return 1
     base=$_vu_base
     curlopts=("${_vu_curl[@]}" --max-time 60)
-    command -v curl > /dev/null 2>&1 || { _vigil_pack_die 'curl not found'; return 1; }
+    [ "$_vu_mirror" = 2 ] || command -v curl > /dev/null 2>&1 || { _vigil_pack_die 'curl not found'; return 1; }
     command -v openssl > /dev/null 2>&1 || { _vigil_pack_die 'openssl not found: packs cannot be verified; nothing was changed'; return 1; }
     key=$app/release-key.pem
     [ -n "${VIGIL_TEST_RELEASE_URL-}" ] && [ -n "${VIGIL_TEST_RELEASE_KEY-}" ] && key=$VIGIL_TEST_RELEASE_KEY
     [ -f "$key" ] || { _vigil_pack_die 'no release key here: packs cannot be verified; nothing was changed'; return 1; }
     want=$(vigil_latest_version "$base" "$_vu_mirror" "${curlopts[@]}") ||
-        { _vigil_pack_die "cannot reach $_vu_from to find the latest release"; return 1; }
+        { _vigil_pack_die "$(_vigil_release_unreadable)"; return 1; }
     _vigil_pack_os
     _vp_work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-pack.XXXXXX") || { _vigil_pack_die 'cannot make a temporary folder'; return 1; }
     file=vigil-packs-$want-$_vp_os.tar.gz
     for f in "$file" SHA256SUMS SHA256SUMS.sig; do
-        if ! curl "${curlopts[@]}" -fsSL -o "$_vp_work/$f" "$base/releases/download/v$want/$f" 2> /dev/null; then
+        if ! vigil_release_get "$base" "$_vu_mirror" "releases/download/v$want/$f" "$_vp_work/$f" "${curlopts[@]}" 2> /dev/null; then
             _vigil_pack_die "cannot download the packs of release $want"
             return 1
         fi

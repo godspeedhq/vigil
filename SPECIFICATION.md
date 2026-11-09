@@ -1681,6 +1681,8 @@ Error codes, shared by both implementations and the conformance suite (`tests/co
 | Sources | `E_SOURCE_UNKNOWN` | A job or `config_source` names a source that is not defined. |
 | | `E_SOURCE_PATH` | A `file` or `config_file` inside a source that is absolute, uses `\` or contains a `..` segment. |
 | | `E_URL` | A malformed URL, a source URL or `release_url` using plain `http://` to another host, or a URL containing credentials (never shown). |
+| Releases | `E_RELEASE_PATH` | A `release_path` that is not an absolute path (§18.7). |
+| | `E_RELEASE_BOTH` | `[vigil]` sets both `release_url` and `release_path` (§18.7). |
 | | `E_SHA256`, `E_SHA256_REQUIRED` | Not 64 hex digits, or missing for a script from an `https` or `sftp` source. |
 | Jobs | `E_SCHEDULE_NONE`, `E_SCHEDULE_BOTH`, `E_SCHEDULE_DAYS_ONLY` | An invalid schedule combination (§7.5). |
 | | `E_CRON` | A `cron` expression that is not standard five-field cron, or that names no real date (§7.10). |
@@ -1970,7 +1972,7 @@ Details:
 - Every prompt has a flag equivalent (`sh -s -- --system --backend datadog`; `& ([scriptblock]::Create((irm .../install.ps1))) -System -Backend datadog`), so the installer runs unattended from deployment tooling. When piped, prompts read from `/dev/tty`, because standard input is the script itself.
 - `install.sh` is POSIX `sh`, since it is what `| sh` runs (dash on Debian and Ubuntu); Vigil itself then runs on bash.
 - Windows: the documented one-liner first enables TLS 1.2, which PowerShell 5.1 on older servers may not use by default. After verifying the hash, the installer removes the downloaded-from-the-internet mark from Vigil's files so a RemoteSigned execution policy does not block them; signed releases (§17) avoid the issue under AllSigned. Under `iex` the installer runs in the caller's own session, so it never calls `exit` (a failure throws) and restores the preferences it changes. `-ShellHost powershell | pwsh` chooses the service's host (§18.9).
-- A version can be pinned (`--version 1.2.0`); the default is the latest release. The installers, `vigil self update`, its daily check and `vigil pack update` find it where GitHub redirects `/releases/latest`, and, only when that page fails, from the GitHub API, which allows an address 60 requests an hour: too few for a fleet behind one to use first, enough to fall back on. From a `release_url` (below), it is the one line of `releases/latest/VERSION`.
+- A version can be pinned (`--version 1.2.0`); the default is the latest release. The installers, `vigil self update`, its daily check and `vigil pack update` find it where GitHub redirects `/releases/latest`, and, only when that page fails, from the GitHub API, which allows an address 60 requests an hour: too few for a fleet behind one to use first, enough to fall back on. From a `release_url` or `release_path` (below), it is the one line of `releases/latest/VERSION`.
 
 Release assets, built by `tools/release/package.sh <version>`: `vigil-<version>.tar.gz` (Linux, macOS), `vigil-<version>.zip` (Windows), each holding one folder `vigil-<version>/` with `app/` (including `app/VERSION`), `vendor/`, both installers, `LICENSE` and `README.md`; `install.sh` and `install.ps1` on their own; and `SHA256SUMS` covering all four.
 
@@ -2002,6 +2004,19 @@ release_url = https://artifacts.example.com/vigil
 - **Nothing is trusted for coming from there.** A release must be signed by the release key installed here, as from GitHub, so a copy can only serve releases as they were published. And unless a version is asked for (`--version`, or the configuration's `version`), self-update never goes back: when the latest release named is older than the one installed, it says so and changes nothing. A copy that names an old release cannot move a fleet back.
 - **Where.** Like `version`, it means the same in a local configuration and a fetched one, and cannot be in a pointer file. `vigil about` shows it.
 - **The installers** do not read it: a machine is installed from a copy with the reviewed path, the archive and the key (`--archive`, `--key`).
+
+**Releases from a folder.** `release_path` under `[vigil]` is the same, for a copy kept in a folder rather than behind a web server: a local folder, or a file share every machine can reach.
+
+```ini
+[vigil]
+release_path = /mnt/releases/vigil          # Linux, macOS: a folder, or an NFS or SMB share mounted there
+release_path = \\fileserver\releases\vigil  # Windows: a UNC path, or a folder such as D:\releases\vigil
+```
+
+- **The same layout as a `release_url`,** `<release_path>/releases/download/v<version>/<file>` and `<release_path>/releases/latest/VERSION`, so a folder can move behind a web server, or back, unchanged. The files are copied instead of downloaded, then checked exactly as a download is: signed by the installed release key, and matching `SHA256SUMS`. A share many people can write to still cannot pass a changed release, and self-update still never goes back unasked.
+- **An absolute path** in the form of any platform (`/…`, `\\server\share\…` or `C:\…`), since one configuration may be fetched by machines of all three (`E_RELEASE_PATH` otherwise). When the release is read, a machine takes only its own form: an absolute path on Linux and macOS, a UNC path or a path on a drive on Windows.
+- **`release_url` or `release_path`, not both** (`E_RELEASE_BOTH`): which one to use is not guessed. Like `release_url`, it cannot be in a pointer file, and `vigil about` shows it.
+- **Read as the account that runs Vigil.** When the latest release cannot be read, the error names the folder and that account (`cannot read the latest release from /mnt/releases/vigil (as vigil): is it there, and readable by this account?`). A Windows service running as LocalSystem reaches a share as the computer's account (`DOMAIN\HOST$`), and has no mapped drive letters: use a UNC path the share lets that account read. On Linux and macOS the share must be mounted at boot. A share that does not answer can hold a read up: the update notice's check runs detached (below), so it never holds up a command.
 
 **Update notices.** `vigil status`, `vigil version` and `vigil precheck` say on stderr when a newer release is known, at a terminal only: never in a pipe, a script or CI. They read a per-user cache, and at most once a day start a detached process to refresh it, with a 10-second limit, so a command is never delayed and a host with no way out shows nothing. The supervisor and workers never check. `VIGIL_NO_UPDATE_CHECK=1` turns it off.
 
@@ -2125,7 +2140,7 @@ version  = 0.3.1
 - **Installed but failed** (the new version does not run, or the supervisor did not come up as it): the installer puts the old version back, `result = failed`, logged as an error, and that release is not tried again until the configuration names another. Every other refusal (a bad signature, a copy from the repository, no right to replace `app/`) is recorded the same way.
 - **Downgrades** work like updates, except past a data format change: an older release refuses data of a newer format (§18.7), so the supervisor stays where it is and the update is recorded as failed. Nor can it go back to a release from before this section, whose installer does not know `--reload`.
 - **The supervisor log** says when an update starts (`updating Vigil 0.3.0 to 0.3.1, as the configuration asks`) and how it ended, once. `jobs.log` (`vigil status`) shows a `VERSION` block while this is not the release the configuration names, with the reason when it could not be had. `vigil precheck` notes the version, and whether the account running it can update Vigil: it owns `app/`, or has the `--update-by` rule (the `-UpdateBy` task on Windows).
-- **From a copy of the releases** when `release_url` is set (§18.7): the worker downloads the release from there.
+- **From a copy of the releases** when `release_url` or `release_path` is set (§18.7): the worker downloads, or copies, the release from there.
 - **`vigil self update` refuses** while the configuration names a version: `the version is set in the configuration (version = 0.3.1): change it there to update, or remove it to use vigil self update`. Otherwise it would install a release the next tick takes back. `--check` and the update notices only report, and work as before.
 - **System installs** update through the `--update-by` rule (§18.7): the worker runs `sudo -n <root>/app/vigil self update --from-config`, and root reads the version from the configuration itself; on Windows the task does the same. The version is then whatever the configuration says, older releases included: whoever can change the configuration already decides what every machine runs.
 

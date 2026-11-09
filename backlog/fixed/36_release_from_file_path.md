@@ -45,6 +45,38 @@ a local folder out ("one way is simpler than two"); this takes it back up.
 - **`file://` URLs**: accept them as another spelling of a path, or not?
   One spelling is simpler.
 
+## Built (2026-11-09)
+
+Where it differs from the proposal, and how the open points were settled:
+
+- **Mapped drive letters: documented, not refused.** Whether `X:` is a
+  network drive depends on the account and the session, so a check would
+  answer for the wrong one. The README and the specification say to use a
+  UNC path for a service.
+- **A share that hangs:** no timeout of Vigil's own (macOS has no
+  `timeout`). The notice's check already runs detached, so a hung share
+  holds up only an update someone asked for, as a hung server would.
+- **`file://` URLs: not accepted.** One spelling.
+- **One error for the folder**, rather than missing / not a folder / not
+  readable: `cannot read the latest release from <path> (as <account>): is
+  it there, and readable by this account?`. The account is what usually
+  tells which of the three it is.
+- **Validation accepts every platform's absolute form** (`/…`,
+  `\\server\share\…`, `C:\…`) on every platform, with the same answer from
+  both validators, since one fetched configuration may serve all three. A
+  machine takes only its own form when it reads the folder.
+- **Codes:** `E_RELEASE_PATH` (not absolute) and `E_RELEASE_BOTH` (both
+  set).
+- **Tests:**
+  - `self-update.sh` and `Self-Update.ps1`: a folder, with the mock's log
+    showing nothing was downloaded: `about`, `--check`, the update, an older
+    latest not taken, a changed `SHA256SUMS` refused, a missing folder
+    named with the account, `pack update --check`, the notice's check, both
+    keys refused, a relative path refused. On Windows also by UNC path,
+    through the drive's administrative share, where the account may open
+    it (CI's administrator).
+  - Conformance: `validate/26` to `30`.
+
 ## Not included
 
 - **SFTP.** It needs a key and a known-hosts entry on every machine, the

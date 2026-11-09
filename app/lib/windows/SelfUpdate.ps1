@@ -37,8 +37,14 @@
         The release [vigil] version asks for: the active configuration's
         when it is fetched, else the file's. Empty when unset.
     Get-VigilReleaseSource -Root <dir>
-        Where releases come from: @{ Base; Mirror; From; Error }, from
-        [vigil] release_url when it is set, else GitHub (18.7).
+        Where releases come from: @{ Base; Mirror; Path; From; Error }, from
+        [vigil] release_url or release_path when one is set, else GitHub
+        (18.7). Path is true for a release_path: a folder, copied from.
+    Get-VigilLatestVersion -Base <url or folder> -Mirror <bool> -Path <bool> -TimeoutSec <n>
+        The latest release's version, or $null.
+    Get-VigilReleaseFile -Src <release source> -Rel <path in the release tree> -OutFile <file>
+        Downloads, or for a release_path copies, one file of the releases.
+        Throws when it is not there.
     Invoke-VigilUpdate -Ctx <worker context> -Root <dir> -App <app dir> -Log <file> -RunId <id>
         The body of the vigil_update worker (18.11): self update
         --from-config in a process of its own, the outcome recorded in
@@ -91,7 +97,7 @@ function Get-VigilAbout {
     '{0,-11} {1}' -f 'Created by', 'Bankole Ogundero and the Vigil contributors'
     '{0,-11} {1}' -f 'Licence', 'Apache-2.0'
     '{0,-11} {1}' -f 'Source', 'https://github.com/godspeedhq/vigil'
-    $releases = Get-VigilConfigSetting -Root $Root -Key 'release_url'
+    $releases = (Get-VigilConfigSetting -Root $Root -Key 'release_url') + (Get-VigilConfigSetting -Root $Root -Key 'release_path')
     if ($releases) { '{0,-11} {1}' -f 'Releases', $releases }
     '{0,-11} {1}' -f 'Docs', 'https://godspeedhq.github.io/vigil/'
     '{0,-11} {1}' -f 'Installed', $Root
@@ -203,8 +209,9 @@ function Show-VigilUpdateNotice {
     }
 }
 
-# Where releases come from (18.7): [vigil] release_url when the configuration
-# sets it, else GitHub, or in tests the local server that stands for GitHub.
+# Where releases come from (18.7): [vigil] release_url or release_path when
+# the configuration sets one, else GitHub, or in tests the local server that
+# stands for GitHub.
 # Redirecting updates gains nothing: whatever is downloaded must be signed by
 # the release key installed here, and a release that is not newer is never
 # taken as the latest. A release_url is https, or plain http to this machine
@@ -212,7 +219,7 @@ function Show-VigilUpdateNotice {
 # is read here without being validated.
 function Get-VigilReleaseSource {
     param([string]$Root)
-    $src = @{ Base = 'https://github.com/godspeedhq/vigil'; Mirror = $false; From = 'GitHub'; Error = '' }
+    $src = @{ Base = 'https://github.com/godspeedhq/vigil'; Mirror = $false; Path = $false; From = 'GitHub'; Error = '' }
     # Tests only (22.4.4): releases from a local server, never over the
     # network. It stands for GitHub, so a release_url still wins.
     if ($env:VIGIL_TEST_RELEASE_URL) {
@@ -220,6 +227,20 @@ function Get-VigilReleaseSource {
         $src.Base = $env:VIGIL_TEST_RELEASE_URL
     }
     $url = Get-VigilConfigSetting -Root $Root -Key 'release_url'
+    $folder = Get-VigilConfigSetting -Root $Root -Key 'release_path'
+    if ($url -and $folder) { $src.Error = "[vigil] sets both 'release_url' and 'release_path': use one"; return $src }
+    # A folder: copied from, not downloaded. A UNC path or one on a drive:
+    # a service has no mapped drive letters, and a path from the root of the
+    # current drive would depend on where Vigil was started.
+    if ($folder) {
+        if ($folder -cnotmatch '^(\\\\[^\\]|[A-Za-z]:[\\/])') { $src.Error = "'release_path' must be an absolute path here (\\server\share\... or C:\...): $folder"; return $src }
+        $src.Base = $folder.TrimEnd('\', '/')
+        if ($src.Base -cmatch '^[A-Za-z]:$') { $src.Base += '\' }
+        $src.Mirror = $true
+        $src.Path = $true
+        $src.From = $src.Base
+        return $src
+    }
     if (-not $url) { return $src }
     if (-not ($url.StartsWith('https://', [System.StringComparison]::Ordinal) -or $url -cmatch '^http://(localhost|127\.0\.0\.1|\[::1\])([:/]|$)')) {
         $src.Error = "'release_url' must start with https://"
@@ -231,18 +252,24 @@ function Get-VigilReleaseSource {
     return $src
 }
 
-# The latest release's version, or $null. From a release_url, the one line
-# of <base>/releases/latest/VERSION. From GitHub, where it redirects
-# /releases/latest, or the GitHub API when that page fails (it has answered
-# 504 for half an hour while the downloads worked). The redirect comes first:
-# the API allows an address 60 requests an hour, too few for a fleet behind
-# one. Tests serve the API's answer at <base>/api/releases/latest.
+# The latest release's version, or $null. From a release_url or a
+# release_path, the one line of <base>/releases/latest/VERSION. From GitHub,
+# where it redirects /releases/latest, or the GitHub API when that page fails
+# (it has answered 504 for half an hour while the downloads worked). The
+# redirect comes first: the API allows an address 60 requests an hour, too
+# few for a fleet behind one. Tests serve the API's answer at
+# <base>/api/releases/latest.
 function Get-VigilLatestVersion {
-    param([string]$Base, [bool]$Mirror, [int]$TimeoutSec)
+    param([string]$Base, [bool]$Mirror, [int]$TimeoutSec, [bool]$Path = $false)
     if ($Mirror) {
         try {
-            $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec $TimeoutSec -Uri "$Base/releases/latest/VERSION"
-            $text = if ($r.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
+            if ($Path) {
+                $text = [System.IO.File]::ReadAllText([System.IO.Path]::Combine($Base, 'releases\latest\VERSION'))
+            }
+            else {
+                $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec $TimeoutSec -Uri "$Base/releases/latest/VERSION"
+                $text = if ($r.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
+            }
             $tag = @($text.Split("`n"))[0].Trim()
             if ($tag -cmatch '^v?([0-9A-Za-z.-]+)$') { return $Matches[1] }
         }
@@ -264,6 +291,27 @@ function Get-VigilLatestVersion {
     return $null
 }
 
+# One file of the releases, $Rel under the source's base, into $OutFile:
+# copied from a release_path, downloaded otherwise. Throws when it is not
+# there.
+function Get-VigilReleaseFile {
+    param($Src, [string]$Rel, [string]$OutFile)
+    if ($Src.Path) {
+        Copy-Item -LiteralPath ([System.IO.Path]::Combine($Src.Base, $Rel.Replace('/', '\'))) -Destination $OutFile -ErrorAction Stop
+        return
+    }
+    Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$($Src.Base)/$Rel" -OutFile $OutFile
+}
+
+# How a source whose latest release could not be found is named: for a
+# release_path, with the account, since a share the service's account
+# cannot read is the usual reason.
+function Get-VigilReleaseUnreadable {
+    param($Src)
+    if ($Src.Path) { return "cannot read the latest release from $($Src.From) (as $([Environment]::UserDomainName)\$([Environment]::UserName)): is it there, and readable by this account?" }
+    return "cannot reach $($Src.From) to find the latest release"
+}
+
 # That refresh, as a detached process. Written whether or not it worked: a
 # host with no way out tries once a day, not on every command.
 function Update-VigilUpdateCache {
@@ -275,7 +323,7 @@ function Update-VigilUpdateCache {
     try { if ([System.IO.File]::Exists($f)) { $latest = @([System.IO.File]::ReadAllText($f).Trim().Split(' '))[1] } } catch { }
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-        $v = Get-VigilLatestVersion -Base $src.Base -Mirror $src.Mirror -TimeoutSec 10
+        $v = Get-VigilLatestVersion -Base $src.Base -Mirror $src.Mirror -Path $src.Path -TimeoutSec 10
         if ($v) { $latest = $v }
     }
     catch { }
@@ -395,8 +443,8 @@ function Invoke-VigilSelfUpdate {
     $work = $null
     try {
         if (-not $Want) {
-            $Want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -TimeoutSec 60
-            if (-not $Want) { $Script:VigilUpdateKind = 'download'; return & $die "cannot reach $($src.From) to find the latest release" }
+            $Want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -Path $src.Path -TimeoutSec 60
+            if (-not $Want) { $Script:VigilUpdateKind = 'download'; return & $die (Get-VigilReleaseUnreadable $src) }
             # The latest is never older than what runs here: a source that
             # names an older release cannot move this back. Going back is
             # asked for by number (--version, or the configuration's version).
@@ -442,7 +490,7 @@ function Invoke-VigilSelfUpdate {
         $file = "vigil-$Want.zip"
         try {
             foreach ($f in @('install.ps1', $file, 'SHA256SUMS')) {
-                Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/releases/download/v$Want/$f" -OutFile (Join-Path $work $f)
+                Get-VigilReleaseFile -Src $src -Rel "releases/download/v$Want/$f" -OutFile (Join-Path $work $f)
             }
         }
         catch { $Script:VigilUpdateKind = 'download'; return & $die "cannot download Vigil ${Want}: is there such a release?" }
@@ -460,7 +508,7 @@ function Invoke-VigilSelfUpdate {
         $sig = Join-Path $work 'SHA256SUMS.sig'
         $signed = $false
         try {
-            Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/releases/download/v$Want/SHA256SUMS.sig" -OutFile $sig
+            Get-VigilReleaseFile -Src $src -Rel "releases/download/v$Want/SHA256SUMS.sig" -OutFile $sig
             $signed = Test-VigilSignature -KeyFile $key -Data ([System.IO.File]::ReadAllBytes($sums)) -Signature ([System.IO.File]::ReadAllBytes($sig))
         }
         catch { $signed = $false }

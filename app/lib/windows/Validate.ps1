@@ -195,6 +195,7 @@ function Get-VigilKeyType {
                 'state_dir' { $t = 'path' }
                 'version' { $t = 'release' }
                 'release_url' { $t = 'log_url' }
+                'release_path' { $t = 'release_path' }
             }
         }
         'scheduler' {
@@ -542,6 +543,15 @@ function Test-VigilValue {
             }
             $r.Code = $u.Code; $r.Message = $u.Message
         }
+        # A folder of releases (18.7): absolute, in the form of any platform,
+        # since one configuration may be fetched by all three. Whether it is
+        # there is found out when it is read.
+        'release_path' {
+            if (-not ($Value.StartsWith('/') -or $Value -cmatch '^\\\\.' -or $Value -cmatch '^[A-Za-z]:[\\/]')) {
+                $r.Code = 'E_RELEASE_PATH'
+                $r.Message = "'$Key' must be an absolute path (/..., \\server\share\... or C:\...): $Value"
+            }
+        }
         # Kept inside the source: no absolute path, drive letter, backslash or ..
         # segment, so a fetched configuration can never point at a file outside the
         # tree it came with.
@@ -793,7 +803,7 @@ function Test-VigilConfig {
         $seen = New-VigilNameSet @()
         $tagKeys = New-VigilNameSet @()
         $envNames = New-VigilNameSet @()
-        $has = @{ file = $false; run_every = $false; run_at = $false; run_on_days = $false; cron = $false; command = $false; type = $false; sha256 = $false; config_file = $false }
+        $has = @{ file = $false; run_every = $false; run_at = $false; run_on_days = $false; cron = $false; command = $false; type = $false; sha256 = $false; config_file = $false; release_url = $false; release_path = $false }
         $cronLine = ''; $cronValue = ''
 
         while ($e -lt $count -and $entries[$e].Section -ceq $name) {
@@ -1014,6 +1024,10 @@ function Test-VigilConfig {
                 }
                 elseif ($pointer.Length -eq 0 -and $has.config_file) {
                     & $report $sline 'E_KEY_REQUIRED' "[$name] needs 'config_source' with 'config_file'"
+                }
+                # One place for releases (18.7): which one to use is not guessed.
+                if ($has.release_url -and $has.release_path) {
+                    & $report $sline 'E_RELEASE_BOTH' "[$name] sets both 'release_url' and 'release_path': use one"
                 }
             }
             'runner' {
