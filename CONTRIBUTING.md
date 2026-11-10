@@ -11,6 +11,31 @@ You sign nothing and hold no keys. A contribution is a pull request: it is revie
 3. A maintainer reviews it, against the checklist below, and merges it.
 4. A release is built and signed only from a commit on `main` (the release workflow refuses any other), so nothing unreviewed is ever signed.
 
+## Your first pack
+
+A pack never touches Vigil itself: everything you write is under `packs/<name>/`, plus a section in `packs/README.md`. You need a clone of this repository and bash (on Windows, Git Bash).
+
+1. **Start it:**
+
+   ```
+   tools/new-pack.sh redis            # a job called status
+   tools/new-pack.sh redis memory     # or name the first job
+   ```
+
+   This makes `packs/redis/pack.config` and the job's script for Linux, macOS and Windows, each with its header ready and a `TODO` wherever only you know the answer. A job that cannot run on a platform simply has no script there: delete it.
+2. **Write the scripts,** to the rules below. More jobs are more `[job.<name>]` sections in `pack.config`, each with its scripts. [`packs/base`](packs/base) and [`packs/nginx`](packs/nginx) are good examples.
+3. **Add a section** `### redis` to [`packs/README.md`](packs/README.md): what it needs, how to turn it on, and its jobs.
+4. **Check it:**
+
+   ```
+   tools/check-pack.sh redis          # the rules: names, keys, headers, every script parses
+   tools/check-pack.sh --run redis    # and runs each job here, through a throwaway Vigil (Linux, macOS)
+   .\tools\Check-Pack.ps1 redis       # runs the Windows scripts the same way, in PowerShell
+   ```
+
+   Each failure says what to fix. `--run` turns the pack on with `vigil pack enable`, runs each job, and checks that every metric it prints is a number listed in `pack.config`. A job whose secret a throwaway Vigil does not have is skipped, and says which.
+5. **Open a pull request.** CI runs the same checks on Linux, macOS and Windows, then everything else.
+
 ## What a pack script must be
 
 A pack is a folder in `packs/` with a `pack.config` and a folder of scripts for each platform, `linux/`, `macos/` and `windows/` ([SPECIFICATION.md](SPECIFICATION.md), section 18.10). A job runs `<job>.sh` on Linux and macOS and `<job>.ps1` on Windows.
@@ -47,8 +72,8 @@ CI checks that every script carries the licence and disclaimer.
 
 ### Tests
 
-- A new pack gets an integration test of its own, in both shells, like `tests/integration/base-pack.sh` and `Base-Pack.ps1`: the pack enabled with `vigil pack enable`, each job run, and each listed metric reaching a backend.
-- A pack for a service, such as a database or a web server, is tested against the real service in CI.
+- Every pack is checked and run in CI by `tools/check-pack.sh --run` (Linux and macOS) and `tools/Check-Pack.ps1` (Windows PowerShell 5.1 and 7), so a pack needs no test of its own to start with.
+- A pack for a service, such as a database or a web server, is also tested against the real service in CI, as `tests/integration/service-packs.sh` and `Service-Packs.ps1` test postgres and nginx: the readings checked against what the service says. A maintainer can help write it.
 
 ## Review checklist
 
