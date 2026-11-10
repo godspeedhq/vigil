@@ -60,7 +60,14 @@ function ConvertFrom-VigilConfig {
         $result.Errors.Add([pscustomobject]@{ Line = $Line; Code = $Code; Message = $Message })
     }
 
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    # A configuration in a folder this account may not look into makes
+    # Test-Path fail with "Access is denied" instead of answering.
+    try { $isFile = Test-Path -LiteralPath $Path -PathType Leaf -ErrorAction Stop }
+    catch {
+        & $addError 0 'E_FILE_UNREADABLE' "config file not readable: $Path"
+        return $result
+    }
+    if (-not $isFile) {
         & $addError 0 'E_FILE_NOT_FOUND' "config file not found: $Path"
         return $result
     }

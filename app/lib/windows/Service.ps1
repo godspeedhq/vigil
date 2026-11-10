@@ -370,12 +370,32 @@ function Get-VigilServiceStatus {
             Write-Output 'metrics: no backend, so they go nowhere until you add one'
         }
     }
-    Write-Output ''
     $ctx = Get-VigilWorkerContext -Root $Root -Job 'vigil_sender'
     $logs = if ($ctx.Error) { Join-Path $Root 'logs' } else { $ctx.Logs }
     $jl = Join-Path $logs 'supervisor\jobs.log'
+    # A system install's root is closed to all but SYSTEM and Administrators,
+    # and .NET calls what it cannot see missing: never say "no jobs.log yet"
+    # for that (backlog 40).
+    $denied = Get-VigilUnreadable @($Root, $logs, (Join-Path $logs 'supervisor'), $jl)
+    if ($denied) { throw "cannot read $denied from this account: run vigil status from an elevated prompt for a system install" }
+    Write-Output ''
     if ([System.IO.File]::Exists($jl)) { foreach ($l in [System.IO.File]::ReadAllLines($jl)) { Write-Output $l } }
     else { Write-Output 'no jobs.log yet: the supervisor writes it every tick' }
+}
+
+# The first of these folders and files this account may not look into or
+# read, or ''. Each folder is listed, from the top down, so that one inside a
+# closed folder is not taken for missing.
+function Get-VigilUnreadable {
+    param([string[]]$Paths)
+    foreach ($p in $Paths) {
+        try {
+            if ([System.IO.Directory]::Exists($p)) { [void][System.IO.Directory]::GetFileSystemEntries($p) }
+            elseif ([System.IO.File]::Exists($p)) { [System.IO.File]::OpenRead($p).Dispose() }
+        }
+        catch { return $p }
+    }
+    return ''
 }
 
 # A value from a state file, or ''.

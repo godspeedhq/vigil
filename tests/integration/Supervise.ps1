@@ -231,6 +231,34 @@ $now = [DateTimeOffset]::Now.ToUnixTimeSeconds()
 Test-Equal 'young launch kept' "slow.$rid.launch" ((Get-ChildItem -LiteralPath $locks -Filter 'slow.*' | ForEach-Object Name) -join ' ')
 Test-Equal 'job with a young launch is running' 'True' "$((Get-Section 'RUNNING') -match '  slow')"
 
+# vigil status from an account that cannot read the install (backlog 40).
+function Invoke-Vigil {
+    $out = @(& $shell -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root @args 2>&1 | ForEach-Object { [string]$_ })
+    return @{ Code = $LASTEXITCODE; Text = ($out -join "`n") }
+}
+$me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$r = Invoke-Vigil status
+Test-Equal 'status shows jobs.log' '0|True' "$($r.Code)|$($r.Text -cmatch '(?m)^Vigil .* at ')"
+$sup = Join-Path $root 'logs\supervisor'
+[void](& icacls.exe $sup /deny "${me}:(OI)(CI)(R)" 2>&1)
+try {
+    $r = Invoke-Vigil status
+    Test-Equal 'status with logs it cannot read: refused' '1' ([string]$r.Code)
+    Test-Equal 'saying why, not that there is no jobs.log yet' "vigil: cannot read $sup from this account: run vigil status from an elevated prompt for a system install" $r.Text.Split("`n")[-1]
+    Test-Equal 'and no PowerShell error' 'False' ([string]($r.Text -match 'Test-Path|no jobs.log yet'))
+}
+finally { [void](& icacls.exe $sup /remove:d $me 2>&1) }
+$cfgDir = Join-Path $root 'config'
+[void](& icacls.exe $cfgDir /deny "${me}:(OI)(CI)(R)" 2>&1)
+try {
+    $r = Invoke-Vigil precheck
+    Test-Equal 'a configuration it cannot read: E_FILE_UNREADABLE' 'True' ([string]($r.Text -cmatch 'config file not readable'))
+    Test-Equal 'not a PowerShell error' 'False' ([string]($r.Text -match 'Test-Path'))
+    $r = Invoke-Vigil status
+    Test-Equal 'status still shows jobs.log, quietly' '0|True|False' "$($r.Code)|$($r.Text -cmatch '(?m)^Vigil .* at ')|$($r.Text -match 'Test-Path')"
+}
+finally { [void](& icacls.exe $cfgDir /remove:d $me 2>&1) }
+
 # A failing tick is survived, but must never happen here.
 $supLog = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\supervisor') -Filter '*-*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
 Test-Equal 'no tick failed' '' (([regex]::Matches($supLog, '(?m)^.* ERROR supervisor tick failed.*$') | Select-Object -First 1).Value)
