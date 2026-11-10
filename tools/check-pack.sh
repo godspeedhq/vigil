@@ -221,7 +221,8 @@ check_pack() {
             pack:version) version=$value ;;
             pack:vigil) vigil=$value ;;
             pack:description) about=$value ;;
-            pack:*) fail "pack.config line ${VIGIL_CFG_LINE[$i]}: [pack] has no key $key (version, vigil, description)" ;;
+            pack:needs) [ -n "$value" ] || fail "pack.config line ${VIGIL_CFG_LINE[$i]}: needs is empty" ;;
+            pack:*) fail "pack.config line ${VIGIL_CFG_LINE[$i]}: [pack] has no key $key (version, vigil, description, needs)" ;;
             job.*:file) fail "pack.config line ${VIGIL_CFG_LINE[$i]}: no file key: a job runs <job>.sh or <job>.ps1" ;;
         esac
         i=$((i + 1))

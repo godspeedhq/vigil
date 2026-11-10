@@ -140,7 +140,7 @@ try {
     Test-Equal 'precheck is happy' '0' (Invoke-Precheck)
     Test-Equal 'a job runs' '0' ([string](Invoke-Vigil run base_cpu).Code)
     Test-Equal 'listed, on' 'on' (Get-JobState 'base_cpu')
-    Test-Equal 'enabling twice changes nothing' 'base is already on' (Invoke-Vigil pack enable base).Text
+    Test-Equal 'enabling twice changes nothing, and a pack that needs nothing says no more' 'base is already on' (Invoke-Vigil pack enable base).Text
     Test-Equal 'an unknown name is refused' 'vigil: no pack or job called nosuch: vigil pack list' (Invoke-Vigil pack enable nosuch).Text
     Test-Equal 'an unknown job is refused' 'vigil: no job called base_nosuch: vigil pack list' (Invoke-Vigil pack enable base_nosuch).Text
     Test-Equal 'a bad name is refused' 'vigil: not a pack or job name: ../x' (Invoke-Vigil pack enable '../x').Text
@@ -221,6 +221,30 @@ try {
     [System.IO.File]::WriteAllText($cfg, "[vigil]`nconfig_source = remote`nconfig_file = vigil.config`n`n[source.remote]`ntype = local`npath = C:\Windows`n")
     Test-Equal 'is not edited' '1' ([string](Invoke-Vigil pack disable base).Code)
     [System.IO.File]::WriteAllText($cfg, $keep)
+
+    Write-Host 'What a pack needs'
+    $svc = "$root\packs\svc"
+    [void](New-Item -ItemType Directory -Force -Path $svc)
+    $m = "[pack]`nversion = 1.0.0`nvigil = 0.0.1`ndescription = A service`nneeds = a role: CREATE ROLE it`nneeds = its page on`n`n"
+    foreach ($j in 'a', 'b') {
+        $m += "[job.$j]`nmetric_name = svc.$j`nmetrics = up`nrun_every = 1h`nmax_runtime = 30s`nenv = SVC_HOST=localhost`nenv = SVC_PORT=1`nsecret = SVC_PASSWORD=secret:SVC_PW`n`n"
+        [System.IO.File]::WriteAllText("$svc\$j.ps1", "Write-Output 'metric up 1'`n")
+    }
+    [System.IO.File]::WriteAllText("$svc\pack.config", $m)
+    $r = Invoke-Vigil pack enable svc
+    Test-Equal 'turns on, and says what it needs' 'on: svc_a|on: svc_b|needs secret:SVC_PW: not set: vigil secret set SVC_PW, as the account Vigil runs as|needs a role: CREATE ROLE it|needs its page on|settings in vigil.config: SVC_HOST=localhost SVC_PORT=1' ($r.Text.Split("`n") -join '|')
+    [void]('x' | & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'app\vigil.ps1') -Root $root secret set SVC_PW --stdin 2>&1)
+    Test-Equal 'a secret set' 'needs secret:SVC_PW: set' (@((Invoke-Vigil pack enable svc_a).Text.Split("`n") | Where-Object { $_.StartsWith('needs secret') }) -join '|')
+    [System.IO.File]::WriteAllText($cfg, (Get-Text $cfg).Replace('secret = SVC_PASSWORD=secret:SVC_PW', 'secret = SVC_PASSWORD=env:SVC_ENV_PW'))
+    Test-Equal 'a reference changed to env:' 'needs env:SVC_ENV_PW: from the environment Vigil runs in' (@((Invoke-Vigil pack enable svc).Text.Split("`n") | Where-Object { $_.StartsWith('needs env') }) -join '|')
+    [System.IO.File]::WriteAllText($cfg, (Get-Text $cfg).Replace('secret = SVC_PASSWORD=env:SVC_ENV_PW', 'secret = SVC_PASSWORD=store:vault/svc#pw'))
+    Test-Equal 'or to store:, not asked' 'needs store:vault/svc#pw: from a secret store: vigil precheck checks it' (@((Invoke-Vigil pack enable svc).Text.Split("`n") | Where-Object { $_.StartsWith('needs store') }) -join '|')
+    $lines = @((Invoke-Vigil pack list).Text.Split("`n") | ForEach-Object { $_.Trim() -replace ' +', ' ' })
+    $at = [array]::IndexOf($lines, ($lines | Where-Object { $_.StartsWith('svc ') } | Select-Object -First 1))
+    Test-Equal 'listed under the pack' 'svc_b on|needs store:vault/svc#pw: from a secret store: vigil precheck checks it|needs a role: CREATE ROLE it|needs its page on|settings in vigil.config: SVC_HOST=localhost SVC_PORT=1' (($lines[($at + 2)..($lines.Count - 1)] | Where-Object { $_ }) -join '|')
+    [void](Invoke-Vigil pack disable svc)
+    Test-Equal 'and off again' '0' (Get-Count 'svc')
+    Remove-Item -Recurse -Force -LiteralPath $svc
 
     Write-Host 'Turning off'
     Test-Equal 'a whole pack' 'off: base' (Invoke-Vigil pack disable base).Text

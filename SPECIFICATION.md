@@ -2084,7 +2084,7 @@ run_every   = 1m
 max_runtime = 30s
 ```
 
-`vigil` is the oldest Vigil it runs on. A job runs `<job>.sh` on Linux and macOS and `<job>.ps1` on Windows, and is left out on a platform with no script. `metrics` lists what it reports. Every other key is copied to the job.
+`vigil` is the oldest Vigil it runs on, and each `pack.config` says so in a comment above it. `needs`, optional and repeated, is one line of plain text for each thing the jobs need that Vigil cannot see from them, such as a database role or a status page to turn on. A job runs `<job>.sh` on Linux and macOS and `<job>.ps1` on Windows, and is left out on a platform with no script. `metrics` lists what it reports. Every other key is copied to the job.
 
 **In a release,** the `.tar.gz` holds the Linux and macOS scripts and the `.zip` the Windows ones, and the installer copies only its own platform's into `packs/<name>/`, flat, so a machine never holds another platform's scripts. A package carries the packs beside `app/` instead, and `vigil init` copies them into the root the same way, each pack not already there (§18.6). Each release also has `vigil-packs-<version>-linux.tar.gz`, `-macos.tar.gz` and `-windows.zip`, covered by its `SHA256SUMS` and signature.
 
@@ -2095,6 +2095,18 @@ max_runtime = 30s
 - A new script stays off until `vigil pack enable` puts its job in the configuration. `vigil pack update` names it.
 - A script the pack dropped stays, while a job in the configuration runs it, and is reported, so an update can never break a working configuration.
 - Only `vigil init`, `vigil pack enable` and `vigil pack disable` change the configuration, and only when asked. The result is validated, judged by the pack's own jobs, and goes back when it fails. A configuration from a source (§6.8) is not edited.
+- **A pack is never turned on blind.** `vigil pack enable` says, after its `on:` lines and again when the pack is already on, what the pack's jobs in the configuration need, and `vigil pack list` says it under each pack:
+
+  ```
+  $ vigil pack enable postgres
+  on: postgres_status
+  on: postgres_size
+  needs secret:POSTGRES_MONITOR_PASSWORD: not set: vigil secret set POSTGRES_MONITOR_PASSWORD, as the account Vigil runs as
+  needs a read-only role, as a database administrator: CREATE ROLE vigil_monitor LOGIN PASSWORD '...' IN ROLE pg_monitor
+  settings in vigil.config: PGHOST=localhost PGPORT=5432 PGUSER=vigil_monitor PGDATABASE=postgres
+  ```
+
+  Each secret is read from the jobs' `secret` lines as they are in the configuration, so a reference changed to `env:` or `store:` is the one shown. A `secret:` is `set` or `not set` by whether its file is in the store, which is never read; when this account cannot look in the store, it says so rather than `not set`. An `env:` comes from the environment Vigil runs in. A `store:` is not asked, which could take seconds: `vigil precheck` checks it. Then the pack's `needs`, and the jobs' `env` lines, which are never secrets. The pack stays on, and the command succeeds: a secret is often set after, as the service account.
 
 A pack's jobs are a marked block in `vigil.config`, and the operator may edit them:
 

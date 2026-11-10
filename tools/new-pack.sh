@@ -69,8 +69,14 @@ $notice
 
 [pack]
 version     = 0.1.0
+# vigil: the oldest Vigil this pack runs on. vigil pack update refuses the
+# pack on an older one.
 vigil       = $vigil
 description = TODO: $name, in a few words
+# needs: what the jobs need that Vigil cannot see from them, one line each,
+# shown by vigil pack enable and vigil pack list (a role, a page to turn on).
+# Their secrets and env settings are shown without it. Delete it if none.
+needs       = TODO: what $name must have before the jobs can run
 
 [job.$job]
 metric_name = $name

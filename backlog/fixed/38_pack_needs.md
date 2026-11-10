@@ -86,3 +86,26 @@ say so either.
   Windows, what a pack's jobs need and whether each secret is there.
 - Specification §18.10, `packs/README.md` and CONTRIBUTING describe
   `needs` and the comment on `vigil`.
+
+## Built (2026-11-10)
+
+As proposed, with these choices:
+
+- **Flat lines, in the order they matter:** each secret (`needs <ref>:
+  <state>`), then the pack's `needs`, then `settings in vigil.config:` with
+  the `env` values. A secret named by several jobs is shown once. A pack
+  that needs nothing prints only its `on:` lines, as before.
+- **"Set" means the file is in the store,** never read. On Linux and macOS a
+  store folder this account cannot open says `cannot be told from this
+  account: vigil precheck, as the account Vigil runs as`; on Windows the
+  same when the folder cannot be listed.
+- **Settings show their values,** in `pack list` too: `env` is never a
+  secret (§6.3), so there was nothing to hide.
+- **The `vigil =` comment** is in each `pack.config`, and in what
+  `tools/new-pack.sh` writes, with a `needs` placeholder; `check-pack.sh`
+  accepts `needs` and refuses an empty one.
+- **Pack versions:** base 1.1.1, nginx and postgres 1.1.0.
+- **Tests:** `pack.sh` and `Pack.ps1`, "What a pack needs": the lines after
+  `enable`, `set` once the secret is, the reference changed to `env:` and
+  to `store:`, the lines under `pack list`, and off again; the existing
+  "enabling twice" check covers a pack that needs nothing.
