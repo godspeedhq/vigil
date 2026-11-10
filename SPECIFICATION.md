@@ -2091,7 +2091,7 @@ max_runtime = 30s
 **Vigil runs only what the configuration names.** That decides what each command may touch:
 
 - `vigil self update` replaces `app/` and `vendor/`, never `packs/`.
-- `vigil pack update` downloads this platform's file from the latest release, verifies it as `vigil self update` verifies a release (§18.7), with the signature required, and replaces `packs/`. It never changes the configuration. A job already on runs the new script at its next run; a run in progress finishes on the old one. It says which scripts changed.
+- `vigil pack update` downloads this platform's file from the latest release, verifies it as `vigil self update` verifies a release (§18.7), with the signature required, and replaces `packs/`. It never changes the configuration. A job already on runs the new script at its next run; a run in progress finishes on the old one. It says which scripts changed. When this account cannot read the installed packs (a system install from an ordinary account), it and `--check` refuse, saying so, before downloading anything, rather than report every pack as missing.
 - A new script stays off until `vigil pack enable` puts its job in the configuration. `vigil pack update` names it.
 - A script the pack dropped stays, while a job in the configuration runs it, and is reported, so an update can never break a working configuration.
 - Only `vigil init`, `vigil pack enable` and `vigil pack disable` change the configuration, and only when asked. The result is validated, judged by the pack's own jobs, and goes back when it fails. A configuration from a source (§6.8) is not edited.
