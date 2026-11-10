@@ -29,6 +29,11 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Split-Path -Parent (Split-Path -Parent $here)
 $shell = (Get-Process -Id $PID).Path
 $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil update.$PID"
+# This test's own update-notice cache, as self-update.sh has with its HOME:
+# the mock's versions must not reach this account's real cache, where later
+# tests and the account itself would see them.
+$env:LOCALAPPDATA = Join-Path $work 'localappdata'
+[void](New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA)
 $script:pass = 0
 $script:fail = 0
 

@@ -27,6 +27,9 @@
 #>
 
 $ErrorActionPreference = 'Continue'
+# No update notices: their check would write this account's own cache with
+# the mock's versions, which later tests and the account itself would see.
+$env:VIGIL_NO_UPDATE_CHECK = '1'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Split-Path -Parent (Split-Path -Parent $here)
 $shell = (Get-Process -Id $PID).Path
@@ -198,7 +201,16 @@ try {
     Set-Content -LiteralPath "$root\scripts\beat.cmd" -Value @('@echo off', 'echo metric beats 1')
     [System.IO.File]::WriteAllText($cfg, "[vigil]`ninstance = vc`n`n[scheduler]`ntick = 1s`n`n[backend.file]`npath = metrics\vigil.prom`n`n[job.beat]`nfile      = scripts\beat.cmd`nrun_every = 2s`n")
     $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$root\app\vigil.ps1`"", '-Root', "`"$root`"", 'supervise')
-    $sup = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList $argv
+    # The supervisor's TEMP is a file, so nothing can be made in it: the
+    # update works only if it keeps its temporary files under the root, as a
+    # SYSTEM service must (C:\Windows\Temp is open to every account; backlog 41).
+    $notTemp = Join-Path $work 'temp-is-a-file'
+    [System.IO.File]::WriteAllText($notTemp, '')
+    $savedTemp = @($env:TEMP, $env:TMP)
+    $env:TEMP = $notTemp
+    $env:TMP = $notTemp
+    try { $sup = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList $argv }
+    finally { $env:TEMP = $savedTemp[0]; $env:TMP = $savedTemp[1] }
     Wait-Until 60 { (Get-Runs 'beat') -ge 1 }
     Test-Equal 'without version, nothing moves' '0.1.0-it' (Get-Version)
     Test-Equal 'without version, self update is not refused' '0' ([string](Invoke-Vigil self update --check).Code)
@@ -206,9 +218,10 @@ try {
     # An update.
     Set-ConfigVersion $cfg '0.2.0-it'
     Wait-Until 120 { (Get-Version) -ceq '0.2.0-it' }
-    Test-Equal 'it updates to the version named' '0.2.0-it' (Get-Version)
+    Test-Equal 'it updates to the version named, with no use of TEMP' '0.2.0-it' (Get-Version)
     Wait-Until 60 { (Get-Update 'version') -ceq '0.2.0-it' -and (Get-Update 'result') -ceq 'succeeded' }
     Test-Equal 'and records it' 'succeeded' (Get-Update 'result')
+    Test-Equal 'its temporary folder under the root is gone after' 'False' ([string](Test-Path -LiteralPath "$root\update\supervisor"))
     Test-Equal 'as the same supervisor process' 'False' ([string]$sup.HasExited)
     Test-Equal 'which runs the new version' '0.2.0-it' (Invoke-Vigil version --supervisor).Text
     Wait-Until 30 { (Get-SupLog).Contains('Vigil is now 0.2.0-it') }

@@ -174,6 +174,18 @@ else {
     Test-Equal 'system: the root is gone' 'False' "$(Test-Path -LiteralPath $root)"
     Test-Equal 'system: the service is gone' 'False' "$([bool](Get-Service -Name Vigil -ErrorAction SilentlyContinue))"
     Test-Equal 'system: the PATH entry is gone' 'False' (Test-OnPath (Join-Path $root 'app\bin') 'Machine')
+
+    # Without a service, the root is locked all the same (backlog 41).
+    $root = Join-Path $work 'sysroot-noservice'
+    $rc = Invoke-Script $installer @('-System', '-Prefix', $root, '-Archive', $a1, '-Instance', 'it-ns', '-NoService')
+    Test-Equal 'system, no service: install succeeds' '0' "$rc"
+    if ($rc -ne 0) { Write-Host $script:lastOut }
+    $acl = Get-Acl -LiteralPath $root
+    $who = @($acl.Access | ForEach-Object { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value } | Sort-Object -Unique) -join ' '
+    Test-Equal 'system, no service: the root is SYSTEM and Administrators only' 'True|S-1-5-18 S-1-5-32-544' "$($acl.AreAccessRulesProtected)|$who"
+    [void](Invoke-Script (Join-Path $root 'app\vigil.ps1') @('uninstall', '--yes'))
+    for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $root); $i++) { Start-Sleep -Milliseconds 500 }
+    Test-Equal 'system, no service: the PATH entry is gone' 'False' (Test-OnPath (Join-Path $root 'app\bin') 'Machine')
 }
 
 Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue

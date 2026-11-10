@@ -582,8 +582,10 @@ function Invoke-VigilSelfUpdate {
             return & $die "$Root is not writable: run this from an elevated prompt for a system install"
         }
 
-        $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-update.$PID"
-        [void](New-Item -ItemType Directory -Force -Path $work)
+        # A new folder of its own, never one that is already there (as for
+        # install.ps1's).
+        $work = Join-Path ([System.IO.Path]::GetTempPath()) ('vigil-update.' + [guid]::NewGuid().ToString('N'))
+        [void](New-Item -ItemType Directory -Path $work)
         $script = Join-Path $work 'install.ps1'
         $sums = Join-Path $work 'SHA256SUMS'
         $file = "vigil-$Want.zip"
@@ -702,10 +704,20 @@ function Invoke-VigilUpdate {
     $psi.CreateNoWindow = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
+    # Its temporary files under the root, as for the update task: as SYSTEM
+    # the machine's temporary folder is C:\Windows\Temp, where any account can
+    # create files, and what is verified must stay as it is until it runs.
+    $tmp = Join-Path $Root 'update\supervisor'
+    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+    [void](New-Item -ItemType Directory -Force -Path (Join-Path $Root 'update'))
+    [void](New-Item -ItemType Directory -Path $tmp)
+    $psi.EnvironmentVariables['TEMP'] = $tmp
+    $psi.EnvironmentVariables['TMP'] = $tmp
     $p = [System.Diagnostics.Process]::Start($psi)
     $outTask = $p.StandardOutput.ReadToEndAsync()
     $errTask = $p.StandardError.ReadToEndAsync()
     $p.WaitForExit()
+    Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
     $text = $outTask.Result + $errTask.Result
     $code = $p.ExitCode
     $result = if ($code -eq 0) { 'succeeded' } elseif ($code -eq 2) { 'unavailable' } else { 'failed' }

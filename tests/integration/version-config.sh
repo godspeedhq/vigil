@@ -25,6 +25,9 @@
 # Exit code: 0 all passed, 1 any failed.
 
 set -u
+# No update notices: their check would write this account's own cache with
+# the mock's versions, which later tests and the account itself would see.
+export VIGIL_NO_UPDATE_CHECK=1
 
 case $(uname -s) in
     Linux | Darwin) ;;
