@@ -18,7 +18,7 @@ that misleads. Everything else is recorded here with the reason.
 | --- | --- | --- | --- | --- | --- |
 | 1.1 | Code-signing certificates | DEFERRED | — | No | 12, 33 (on hold) |
 | 2.1 | Release credentials | SATISFIED | Low | No | — |
-| 2.2 | Permissions | **DEFECT** (Windows update temp folder), PARTIALLY SATISFIED | High | Yes | [41](../41_windows_update_temp_folder.md) |
+| 2.2 | Permissions | **DEFECT** (Windows update temp folder), PARTIALLY SATISFIED | High | Yes | [41](../fixed/41_windows_update_temp_folder.md) |
 | 2.3 | Script-source trust | SATISFIED | Low | No | — |
 | 2.4 | Update-source precedence | PARTIALLY SATISFIED | Low | No | [45](../45_unreadable_is_not_missing.md) |
 | 3.1 | Corrupt state | **DEFECT** | Medium | No, but fix before v1 | [44](../44_corrupt_numbers_stop_the_supervisor.md), [43](../43_windows_orphaned_runs.md) |

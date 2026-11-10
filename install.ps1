@@ -194,8 +194,11 @@ if (-not $NoService -and $ShellHost -ceq 'pwsh' -and -not (Get-Command -Name 'pw
 # --- 2. The archive, verified ---------------------------------------------------
 
 # Removed by the finally at the end, on every way out.
-$work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-install.$PID"
-[void](New-Item -ItemType Directory -Force -Path $work)
+# A new folder of its own, never one that is already there: as SYSTEM the
+# temporary folder is C:\Windows\Temp, where any account can create a
+# folder first and change what is verified before it is copied.
+$work = Join-Path ([System.IO.Path]::GetTempPath()) ('vigil-install.' + [guid]::NewGuid().ToString('N'))
+[void](New-Item -ItemType Directory -Path $work)
 try {
     if ($Archive) {
         if (-not (Test-Path -LiteralPath $Archive -PathType Leaf)) { Stop-Install "no archive at $Archive" }
@@ -287,6 +290,20 @@ try {
     $present = Test-Path -LiteralPath $vigil
     if ($Upgrade -and -not $present) { Stop-Install "no Vigil in $root to upgrade" }
     [void](New-Item -ItemType Directory -Force -Path $root)
+    # A system root is closed to all but SYSTEM and Administrators from the
+    # start, with or without a service: what SYSTEM runs from it must not be
+    # anyone else's to change (backlog 41). A root already locked keeps what
+    # was added to it since, such as an -UpdateBy account's access.
+    if ($mode -ceq 'system' -and -not (Get-Acl -LiteralPath $root).AreAccessRulesProtected) {
+        # The same as the program's Set-VigilRootAcl, which is not in place yet.
+        $acl = New-Object System.Security.AccessControl.DirectorySecurity
+        $acl.SetAccessRuleProtection($true, $false)
+        foreach ($sid in @('S-1-5-18', 'S-1-5-32-544')) {
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+                        (New-Object Security.Principal.SecurityIdentifier($sid)), 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+        }
+        Set-Acl -LiteralPath $root -AclObject $acl
+    }
     # Copied before anything is stopped: a full disk changes nothing.
     # vendor\ holds NSSM, which only Windows needs, so it is replaced with app\.
     $parts = @('app', 'vendor')

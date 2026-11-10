@@ -1,7 +1,7 @@
 # 41. Windows: what SYSTEM verifies and runs stays where only it can write
 
 Found in the engineering-challenges review of 2026-11-10 (challenge 2.2,
-[the review](reviews/2026-11-10_engineering_challenges.md)).
+[the review](../reviews/2026-11-10_engineering_challenges.md)).
 
 ## The problem
 
@@ -57,3 +57,33 @@ stays theirs after a later lock.
 - `install.ps1 -System -NoService` leaves the root SYSTEM and Administrators
   only.
 - SPECIFICATION.md §18.7 / §18.11 say so for both paths.
+
+## Built (2026-11-10)
+
+As proposed.
+
+- **The supervisor's update** (`Invoke-VigilUpdate`) gives its child
+  `TEMP`/`TMP` = `update\supervisor` under the root, made fresh each time and
+  removed after, so `self update --from-config` and the installer it runs keep
+  everything they verify where only SYSTEM and Administrators can write.
+- **Every temporary folder** on Windows (`self update`, `install.ps1`,
+  `pack update`) is now `vigil-<what>.<GUID>`, created without `-Force`, so
+  one that already exists is never used. Linux and macOS already had
+  `mktemp -d`.
+- **`install.ps1 -System`** locks the root as soon as it creates it, with or
+  without a service, unless it is locked already (an `-UpdateBy` account's
+  access to a locked root is kept).
+- **SPECIFICATION.md** §18.9 and §18.11 say so.
+- **Tests:**
+  - `Version-Config.ps1` starts the supervisor with `TEMP` pointing at a
+    file, so nothing can be made there. The update still works, and its
+    folder under the root is gone afterwards. On the code before this fix
+    the same test fails: the update cannot make its folder, is recorded
+    `unavailable`, and 0.1.0 stays.
+  - `Install.ps1`, elevated (CI): `-System -NoService` leaves the root
+    SYSTEM and Administrators only.
+- **Found on the way:** `Version-Config.ps1` and `Self-Update.ps1` wrote the
+  mock's test versions into the real account's update-notice cache, where a
+  later suite saw "Vigil 0.2.0-it is available" and failed two checks.
+  `Version-Config` (both shells) now turns notices off; `Self-Update.ps1`
+  keeps its cache in its work folder, as `self-update.sh` already did.

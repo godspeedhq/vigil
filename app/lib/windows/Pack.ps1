@@ -97,8 +97,8 @@ function Get-VigilPackRelease {
     try {
         $want = Get-VigilLatestVersion -Base $base -Mirror $src.Mirror -Path $src.Path -TimeoutSec 60 -Header $src.Header
         if (-not $want) { Stop-VigilPack (Get-VigilReleaseUnreadable $src); return $out }
-        $work = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-pack.$PID"
-        if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
+        # A new folder of its own, never one that is already there.
+        $work = Join-Path ([System.IO.Path]::GetTempPath()) ('vigil-pack.' + [guid]::NewGuid().ToString('N'))
         [void](New-Item -ItemType Directory -Path $work)
         $out.Work = $work
         $file = "vigil-packs-$want-windows.zip"
