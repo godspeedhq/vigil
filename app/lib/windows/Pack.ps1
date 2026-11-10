@@ -44,21 +44,22 @@ function Stop-VigilPack {
 function Get-VigilPackStart { param([string]$Name) "# pack ${Name}: vigil pack disable takes these out" }
 function Get-VigilPackEnd { param([string]$Name) "# end of pack $Name" }
 
-# Reads a pack's manifest: @{ Version; Vigil; About; Jobs; Sections }, the jobs
-# with a script here, in order, each with its section's lines; $null when it
-# cannot be read.
+# Reads a pack's manifest: @{ Version; Vigil; About; Needs; Jobs; Sections },
+# Needs its needs lines, and the jobs with a script here, in order, each with
+# its section's lines; $null when it cannot be read.
 function Read-VigilPack {
     param([string]$Dir, [string]$Name)
     $f = Join-Path $Dir 'pack.config'
     if (-not [System.IO.File]::Exists($f)) { return $null }
     $p = ConvertFrom-VigilConfig -Path $f
     if ($p.Errors.Count -gt 0) { return $null }
-    $r = @{ Version = ''; Vigil = ''; About = ''; Jobs = (New-Object 'System.Collections.Generic.List[string]'); Sections = @{} }
+    $r = @{ Version = ''; Vigil = ''; About = ''; Needs = @(); Jobs = (New-Object 'System.Collections.Generic.List[string]'); Sections = @{} }
     foreach ($s in $p.Sections) {
         if ($s.Name -ceq 'pack') {
             $r.Version = Get-VigilConfigValue $p 'pack' 'version' ''
             $r.Vigil = Get-VigilConfigValue $p 'pack' 'vigil' ''
             $r.About = Get-VigilConfigValue $p 'pack' 'description' ''
+            $r.Needs = @($p.Entries | Where-Object { $_.Section -ceq 'pack' -and $_.Key -ceq 'needs' } | ForEach-Object { $_.Value })
         }
         elseif ($s.Name.StartsWith('job.', [System.StringComparison]::Ordinal)) {
             $job = $s.Name.Substring(4)
@@ -260,6 +261,48 @@ function Test-VigilPackOn {
     return [bool]($Parsed.Sections | Where-Object { $_.Name -ceq "job.$Job" })
 }
 
+# Whether secret reference $Ref can be had, as far as can be told here without
+# reading it. A store is not asked: that is precheck's to do.
+function Get-VigilPackSecretState {
+    param([string]$Root, [string]$Ref)
+    if ($Ref.StartsWith('secret:', [System.StringComparison]::Ordinal)) {
+        $n = $Ref.Substring(7)
+        $d = Join-Path $Root 'config\secrets'
+        if (-not [System.IO.Directory]::Exists($d)) { return "not set: vigil secret set $n, as the account Vigil runs as" }
+        # The folder is the owner's only: another account cannot look in it.
+        try { $names = @([System.IO.Directory]::GetFiles($d) | ForEach-Object { [System.IO.Path]::GetFileName($_) }) }
+        catch { return 'cannot be told from this account: vigil precheck, as the account Vigil runs as' }
+        if ($names -ccontains $n) { return 'set' }
+        return "not set: vigil secret set $n, as the account Vigil runs as"
+    }
+    if ($Ref.StartsWith('env:', [System.StringComparison]::Ordinal)) { return 'from the environment Vigil runs in' }
+    return 'from a secret store: vigil precheck checks it'
+}
+
+# What pack $Name's jobs in configuration $Parsed need, one line each after
+# $Lead: each secret they name and whether it is there, the pack's own needs,
+# and their settings (env, never a secret). So a pack is never turned on blind.
+function Get-VigilPackNeeds {
+    param([string]$Root, [string]$Name, $Pack, $Parsed, [string]$Lead)
+    $seen = @{}
+    $envs = New-Object 'System.Collections.Generic.List[string]'
+    if ($Parsed) {
+        foreach ($e in $Parsed.Entries) {
+            if (-not $e.Section.StartsWith("job.${Name}_", [System.StringComparison]::Ordinal)) { continue }
+            if (-not $Pack.Jobs.Contains($e.Section.Substring("job.${Name}_".Length))) { continue }
+            if ($e.Key -ceq 'secret') {
+                $ref = $e.Value.Substring($e.Value.IndexOf('=') + 1)
+                if ($seen.ContainsKey($ref)) { continue }
+                $seen[$ref] = $true
+                Write-Output "${Lead}needs ${ref}: $(Get-VigilPackSecretState -Root $Root -Ref $ref)"
+            }
+            elseif ($e.Key -ceq 'env' -and -not $envs.Contains($e.Value)) { $envs.Add($e.Value) }
+        }
+    }
+    foreach ($n in $Pack.Needs) { Write-Output "${Lead}needs $n" }
+    if ($envs.Count -gt 0) { Write-Output "${Lead}settings in vigil.config: $($envs -join ' ')" }
+}
+
 function Get-VigilPackList {
     param([string]$Root)
     $packs = Join-Path $Root 'packs'
@@ -276,6 +319,7 @@ function Get-VigilPackList {
                 $state = if ($p -and (Test-VigilPackOn $p "${name}_$j")) { 'on' } else { 'off' }
                 Write-Output ('  {0,-24} {1}' -f "${name}_$j", $state)
             }
+            Get-VigilPackNeeds -Root $Root -Name $name -Pack $m -Parsed $p -Lead '  '
             $n++
         }
     }
@@ -297,10 +341,11 @@ function Enable-VigilPack {
     $cfg = Join-Path $Root 'config\vigil.config'
     $p = ConvertFrom-VigilConfig -Path $cfg
     $add = @($list | Where-Object { -not (Test-VigilPackOn $p "$($w.Pack)_$_") })
-    if ($add.Count -eq 0) { Write-Output "$What is already on"; return 0 }
+    if ($add.Count -eq 0) { Write-Output "$What is already on"; Get-VigilPackNeeds -Root $Root -Name $w.Pack -Pack $m -Parsed $p -Lead ''; return 0 }
     $text = Get-VigilPackRewrite -Text ([System.IO.File]::ReadAllText($cfg)) -Name $w.Pack -Pack $m -Add $add
     if (-not (Set-VigilPackConfig -Root $Root -Name $w.Pack -Text $text)) { return 1 }
     foreach ($j in $add) { Write-Output "on: $($w.Pack)_$j" }
+    Get-VigilPackNeeds -Root $Root -Name $w.Pack -Pack $m -Parsed (ConvertFrom-VigilConfig -Path $cfg) -Lead ''
     return 0
 }
 

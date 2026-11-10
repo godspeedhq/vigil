@@ -83,11 +83,12 @@ _vigil_pack_get() {
 }
 
 # Reads manifest $1/pack.config of pack $2: _vp_version, _vp_vigil and _vp_about,
-# and in _vp_jobs the jobs with a script here, in order, each with its section
-# in _vp_section_<job>. Returns 1 when it cannot be read.
+# _vp_needs (its needs lines, one per line), and in _vp_jobs the jobs with a
+# script here, in order, each with its section in _vp_section_<job>. Returns 1
+# when it cannot be read.
 _vigil_pack_read() {
     local dir=$1 name=$2 j=0 sec job text i end
-    _vp_version='' _vp_vigil='' _vp_about='' _vp_jobs=''
+    _vp_version='' _vp_vigil='' _vp_about='' _vp_jobs='' _vp_needs=''
     [ -f "$dir/pack.config" ] || return 1
     vigil_config_parse "$dir/pack.config" || return 1
     while [ "$j" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
@@ -100,6 +101,12 @@ _vigil_pack_read() {
                 _vp_vigil=$_vp_value
                 _vigil_pack_get "$j" description
                 _vp_about=$_vp_value
+                i=${VIGIL_CFG_SEC_FIRST[$j]}
+                end=$((i + VIGIL_CFG_SEC_COUNT[j]))
+                while [ "$i" -lt "$end" ]; do
+                    [ "${VIGIL_CFG_KEY[$i]}" = needs ] && _vp_needs="$_vp_needs${VIGIL_CFG_VALUE[$i]}"$'\n'
+                    i=$((i + 1))
+                done
                 ;;
             job.*)
                 job=${sec#job.}
@@ -308,6 +315,62 @@ _vigil_pack_apply() {
     rm -f "$new" "$before"
 }
 
+# Whether secret reference $2 can be had, as far as can be told here without
+# reading it, in _vp_state. A store is not asked: that is precheck's to do.
+_vigil_pack_secret() {
+    local d=$1/config/secrets n
+    case $2 in
+        secret:*)
+            n=${2#secret:}
+            if [ -d "$d" ] && { [ ! -r "$d" ] || [ ! -x "$d" ]; }; then
+                _vp_state='cannot be told from this account: vigil precheck, as the account Vigil runs as'
+            elif [ -e "$d/$n" ]; then
+                _vp_state=set
+            else
+                _vp_state="not set: vigil secret set $n, as the account Vigil runs as"
+            fi
+            ;;
+        env:*) _vp_state='from the environment Vigil runs in' ;;
+        *) _vp_state='from a secret store: vigil precheck checks it' ;;
+    esac
+}
+
+# What pack $2's jobs in the parsed configuration need, one line each after
+# lead $3: each secret they name and whether it is there, the pack's own
+# needs (_vp_needs, from _vigil_pack_read), and their settings (env, never a
+# secret). So a pack is never turned on blind.
+_vigil_pack_needs() {
+    local root=$1 name=$2 lead=$3 i job value seen=' ' envs='' line
+    i=0
+    while [ "$i" -lt "${#VIGIL_CFG_KEY[@]}" ]; do
+        job=${VIGIL_CFG_SECTION[$i]#job."$name"_}
+        if [ "$job" != "${VIGIL_CFG_SECTION[$i]}" ] && case " $_vp_jobs " in *" $job "*) true ;; *) false ;; esac; then
+            value=${VIGIL_CFG_VALUE[$i]}
+            case ${VIGIL_CFG_KEY[$i]} in
+                secret)
+                    value=${value#*=}
+                    case $seen in *" $value "*) ;; *)
+                        seen="$seen$value "
+                        _vigil_pack_secret "$root" "$value"
+                        printf '%sneeds %s: %s\n' "$lead" "$value" "$_vp_state"
+                        ;;
+                    esac
+                    ;;
+                env)
+                    case "$envs " in *" $value "*) ;; *) envs="$envs $value" ;; esac
+                    ;;
+            esac
+        fi
+        i=$((i + 1))
+    done
+    while IFS= read -r line; do
+        [ -n "$line" ] && printf '%sneeds %s\n' "$lead" "$line"
+    done << EOF
+$_vp_needs
+EOF
+    [ -z "$envs" ] || printf '%ssettings in vigil.config:%s\n' "$lead" "$envs"
+}
+
 vigil_pack_list() {
     local root=$1 d name j n=0 state
     for d in "$root"/packs/*/; do
@@ -322,6 +385,7 @@ vigil_pack_list() {
             _vigil_pack_on "${name}_$j" && state=on
             printf '  %-24s %s\n' "${name}_$j" "$state"
         done
+        _vigil_pack_needs "$root" "$name" '  '
         n=$((n + 1))
     done
     [ "$n" -gt 0 ] || printf 'no packs here\n'
@@ -346,12 +410,15 @@ vigil_pack_enable() {
     done
     if [ -z "$add" ]; then
         printf '%s is already on\n' "$what"
+        _vigil_pack_needs "$root" "$_vp_pack" ''
         return 0
     fi
     new=$root/config/.vigil.config.pack.$$
     _vigil_pack_rewrite "$root/config/vigil.config" "$_vp_pack" "$add" '' > "$new"
     _vigil_pack_apply "$root" "$_vp_pack" "$new" || return 1
     for j in $add; do printf 'on: %s_%s\n' "$_vp_pack" "$j"; done
+    vigil_config_parse "$root/config/vigil.config"
+    _vigil_pack_needs "$root" "$_vp_pack" ''
 }
 
 vigil_pack_disable() {

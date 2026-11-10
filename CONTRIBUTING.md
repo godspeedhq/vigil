@@ -23,7 +23,7 @@ A pack never touches Vigil itself: everything you write is under `packs/<name>/`
    ```
 
    This makes `packs/redis/pack.config` and the job's script for Linux, macOS and Windows, each with its header ready and a `TODO` wherever only you know the answer. A job that cannot run on a platform simply has no script there: delete it.
-2. **Write the scripts,** to the rules below. More jobs are more `[job.<name>]` sections in `pack.config`, each with its scripts. [`packs/base`](packs/base) and [`packs/nginx`](packs/nginx) are good examples.
+2. **Write the scripts,** to the rules below. More jobs are more `[job.<name>]` sections in `pack.config`, each with its scripts. Give `needs` a line for each thing the jobs need that Vigil cannot see, such as a database role: `vigil pack enable` shows it, with the secrets and `env` settings it reads from the jobs themselves. [`packs/base`](packs/base) and [`packs/nginx`](packs/nginx) are good examples.
 3. **Add a section** `### redis` to [`packs/README.md`](packs/README.md): what it needs, how to turn it on, and its jobs.
 4. **Check it:**
 

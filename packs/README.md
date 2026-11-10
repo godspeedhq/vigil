@@ -54,7 +54,7 @@ A PostgreSQL server on this machine, through PostgreSQL's own client tools (`psq
    ```
 
 2. Give Vigil its password: `vigil secret set POSTGRES_MONITOR_PASSWORD`. The job reads it with a `secret:` reference when it runs; it is never in the configuration.
-3. `vigil pack enable postgres`. The jobs connect to `localhost:5432`, database `postgres`; for anything else, edit their `env` lines in `vigil.config`.
+3. `vigil pack enable postgres`. It says what is still missing, such as the secret, and the settings the jobs use: they connect to `localhost:5432`, database `postgres`; for anything else, edit their `env` lines in `vigil.config`. `vigil pack list` says the same later.
 
 | Job | Reports | Linux | macOS | Windows |
 | --- | --- | --- | --- | --- |
@@ -71,7 +71,7 @@ An nginx server on this machine, from its `stub_status` page, which you turn on 
 location = /nginx_status { stub_status; allow 127.0.0.1; deny all; }
 ```
 
-Then `vigil pack enable nginx`. The job reads `http://127.0.0.1/nginx_status`; for another address, edit its `env` line.
+Then `vigil pack enable nginx`, which reminds you of the page. The job reads `http://127.0.0.1/nginx_status`; for another address, edit its `env` line.
 
 | Job | Reports | Linux | macOS | Windows |
 | --- | --- | --- | --- | --- |

@@ -117,7 +117,7 @@ check 'precheck is happy' 0 "$(precheck)"
 vigil run base_cpu > /dev/null 2>&1
 check 'a job runs' 0 "$?"
 check 'listed, on' 'on' "$(vigil pack list | awk '$1 == "base_cpu" { print $2 }')"
-check 'enabling twice changes nothing' 'base is already on' "$(vigil pack enable base 2>&1)"
+check 'enabling twice changes nothing, and a pack that needs nothing says no more' 'base is already on' "$(vigil pack enable base 2>&1)"
 check 'an unknown name is refused' 'vigil: no pack or job called nosuch: vigil pack list' "$(vigil pack enable nosuch 2>&1)"
 check 'an unknown job is refused' 'vigil: no job called base_nosuch: vigil pack list' "$(vigil pack enable base_nosuch 2>&1)"
 check 'a bad name is refused' 'vigil: not a pack or job name: ../x' "$(vigil pack enable '../x' 2>&1)"
@@ -197,6 +197,27 @@ printf '[vigil]\nconfig_source = remote\nconfig_file = vigil.config\n\n[source.r
 vigil pack disable base > /dev/null 2>&1
 check 'is not edited' 1 "$?"
 cp "$work/cfg.keep" "$cfg"
+
+printf 'What a pack needs\n'
+mkdir -p "$root/packs/svc"
+printf '[pack]\nversion = 1.0.0\nvigil = 0.0.1\ndescription = A service\nneeds = a role: CREATE ROLE it\nneeds = its page on\n\n' > "$root/packs/svc/pack.config"
+for j in a b; do
+    printf '[job.%s]\nmetric_name = svc.%s\nmetrics = up\nrun_every = 1h\nmax_runtime = 30s\nenv = SVC_HOST=localhost\nenv = SVC_PORT=1\nsecret = SVC_PASSWORD=secret:SVC_PW\n\n' "$j" "$j" >> "$root/packs/svc/pack.config"
+    printf 'echo "metric up 1"\n' > "$root/packs/svc/$j.sh"
+done
+out=$(vigil pack enable svc 2>&1)
+check 'turns on, and says what it needs' 'on: svc_a|on: svc_b|needs secret:SVC_PW: not set: vigil secret set SVC_PW, as the account Vigil runs as|needs a role: CREATE ROLE it|needs its page on|settings in vigil.config: SVC_HOST=localhost SVC_PORT=1' "$(printf '%s' "$out" | tr '\n' '|')"
+printf 'x' | vigil secret set SVC_PW --stdin > /dev/null 2>&1
+check 'a secret set' 'needs secret:SVC_PW: set' "$(vigil pack enable svc_a 2>&1 | grep '^needs secret')"
+sed -i.bak 's/^secret = SVC_PASSWORD=secret:SVC_PW$/secret = SVC_PASSWORD=env:SVC_ENV_PW/' "$cfg" && rm -f "$cfg.bak"
+check 'a reference changed to env:' 'needs env:SVC_ENV_PW: from the environment Vigil runs in' "$(vigil pack enable svc 2>&1 | grep '^needs env')"
+sed -i.bak 's/^secret = SVC_PASSWORD=env:SVC_ENV_PW$/secret = SVC_PASSWORD=store:vault\/svc#pw/' "$cfg" && rm -f "$cfg.bak"
+check 'or to store:, not asked' 'needs store:vault/svc#pw: from a secret store: vigil precheck checks it' "$(vigil pack enable svc 2>&1 | grep '^needs store')"
+out=$(vigil pack list 2>&1)
+check 'listed under the pack' 'svc_b on|needs store:vault/svc#pw: from a secret store: vigil precheck checks it|needs a role: CREATE ROLE it|needs its page on|settings in vigil.config: SVC_HOST=localhost SVC_PORT=1' "$(printf '%s' "$out" | sed -n '/^svc /,$p' | sed '1,2d; s/^ *//; s/  */ /' | tr '\n' '|' | sed 's/|$//')"
+vigil pack disable svc > /dev/null 2>&1
+check 'and off again' 0 "$(grep -c 'svc' "$cfg")"
+rm -rf "$root/packs/svc"
 
 printf 'Turning off\n'
 check 'a whole pack' 'off: base' "$(vigil pack disable base 2>&1)"
