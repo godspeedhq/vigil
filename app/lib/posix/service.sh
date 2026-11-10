@@ -518,6 +518,13 @@ vigil_service_status() {
         esac
     fi
     if _vw_root=$root _vw_job=vigil_sender _vigil_wk_config 2> /dev/null; then logdir=$_vw_logdir; fi
+    # Never "no jobs.log yet" for a log folder this account cannot see into
+    # (backlog 40).
+    local denied
+    if denied=$(_vigil_svc_unreadable "$root" "$logdir" "$logdir/supervisor" "$logdir/supervisor/jobs.log"); then
+        _vigil_svc_err "cannot read $denied from this account: run vigil status as the account that installed Vigil (sudo for a system install)"
+        return 1
+    fi
     if [ -f "$logdir/supervisor/jobs.log" ]; then
         printf '\n'
         cat "$logdir/supervisor/jobs.log"
@@ -525,6 +532,22 @@ vigil_service_status() {
         printf '\nno jobs.log yet: the supervisor writes it every tick\n'
     fi
     return 0
+}
+
+# Prints the first of these folders and files this account cannot look into
+# or read, and succeeds; fails when it can read them all. Checked from the
+# top down: a folder that cannot be entered hides what is inside it.
+_vigil_svc_unreadable() {
+    local p
+    for p in "$@"; do
+        if [ -d "$p" ]; then
+            if [ ! -r "$p" ] || [ ! -x "$p" ]; then printf '%s\n' "$p"; return 0; fi
+        elif [ -e "$p" ] && [ ! -r "$p" ]; then
+            printf '%s\n' "$p"
+            return 0
+        fi
+    done
+    return 1
 }
 
 # A value from a state file.

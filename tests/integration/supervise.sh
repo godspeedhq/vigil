@@ -199,6 +199,24 @@ check "young launch kept" "slow.$rid.launch" "$(ls "$root/state/locks" | grep "^
 check "job with a young launch is running" yes "$(sed -n '/^RUNNING/,/^$/p' "$root/logs/supervisor/jobs.log" | grep '  slow' > /dev/null && echo yes || echo no)"
 rm -f "$root/state/locks/slow.$rid.launch"
 
+# vigil status from an account that cannot read the logs (backlog 40).
+out=$(vigil status 2>&1)
+rc=$?
+check "status shows jobs.log" "0 yes" "$rc $(printf '%s\n' "$out" | grep '^Vigil .* at ' > /dev/null && echo yes || echo no)"
+if [ "$(id -u)" = 0 ]; then
+    printf '  SKIP  status with logs it cannot read: root reads everything\n'
+else
+    chmod 000 "$root/logs/supervisor"
+    out=$(vigil status 2>&1)
+    rc=$?
+    chmod 755 "$root/logs/supervisor"
+    check "status with logs it cannot read: refused" 1 "$rc"
+    check "saying why, not that there is no jobs.log yet" \
+        "vigil: cannot read $root/logs/supervisor from this account: run vigil status as the account that installed Vigil (sudo for a system install)" \
+        "$(printf '%s\n' "$out" | tail -n 1)"
+    check "and nothing else about jobs.log" no "$(printf '%s\n' "$out" | grep 'no jobs.log yet' > /dev/null && echo yes || echo no)"
+fi
+
 if [ "$fail" -gt 0 ]; then
     printf '\nsupervisor log:\n'
     cat "$root/logs/supervisor/"*.log | tail -40

@@ -308,7 +308,8 @@ switch ($Command) {
     }
     'status' {
         if ($Job -or $Rest) { Exit-Usage }
-        Get-VigilServiceStatus -Root $Root
+        try { Get-VigilServiceStatus -Root $Root }
+        catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
         Show-VigilUpdateNotice -Root $Root -App $app
         exit 0
     }

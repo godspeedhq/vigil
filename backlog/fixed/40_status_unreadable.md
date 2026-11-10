@@ -57,3 +57,34 @@ cannot read would give the same untrue line there.
 - Integration tests on both shells cover a log folder the account cannot
   read.
 - Specification §16 (the `status` row) says so.
+
+## Built (2026-11-10)
+
+As proposed, with one change: the message names the first folder or file
+this account cannot read, from the root down, rather than always the root.
+On both Windows test machines that is `logs`:
+
+```
+service: unknown (NSSM, system mode)
+vigil: cannot read C:\ProgramData\Vigil\logs from this account: run vigil status from an elevated prompt for a system install
+```
+
+(This branch's `app`, run as `vigil-test` against the 0.6.4 system install
+on the Windows 11 test machine and on the Server 2016 VM; exit code 1.
+`service: unknown` is because SSH sessions there may not ask the Service
+Control Manager; from a local prompt it shows the state.)
+
+- **The parser:** `Test-Path` on the configuration runs with
+  `-ErrorAction Stop`, and "Access is denied" becomes `E_FILE_UNREADABLE`.
+  That quiets every command that reads the configuration from such an
+  account, not only `status`.
+- **`status`:** checks the root, the log folder, `logs/supervisor` and
+  `jobs.log` (Windows: lists each folder, since .NET calls what is inside a
+  closed folder missing), and stops with the message on stderr, exit 1.
+- **Tests:** `Supervise.ps1` denies read on `logs\supervisor`, then on
+  `config` (precheck says `config file not readable`, status still shows
+  `jobs.log`, no PowerShell error); `supervise.sh` makes `logs/supervisor`
+  `chmod 000` (skipped as root). The six new Windows checks fail on 0.6.4
+  and pass here. `supervise.sh` 30/30 on Fedora 44 (bash 5.3) and macOS 12
+  (bash 3.2 and 5.2); `Supervise.ps1` 34/34, `Precheck.ps1` 34/34,
+  `Config-Edit.ps1` 40/40 and `Service.ps1` 33/33 in Windows PowerShell 5.1.
