@@ -518,8 +518,29 @@ _vigil_pack_replace() {
     done
 }
 
+# Whether the installed packs can be read from this account: else what is
+# here cannot be told, and every pack would look missing.
+_vigil_pack_readable() {
+    local root=$1 d
+    if [ -e "$root/packs" ]; then
+        [ -r "$root/packs" ] && [ -x "$root/packs" ] || return 1
+        for d in "$root"/packs/*/; do
+            [ -d "$d" ] || continue
+            [ -r "$d" ] && [ -x "$d" ] || return 1
+            [ ! -e "$d/pack.config" ] || [ -r "$d/pack.config" ] || return 1
+        done
+    else
+        # No packs/, or a root this account cannot look into.
+        [ -r "$root" ] && [ -x "$root" ] || return 1
+    fi
+}
+
 vigil_pack_update() {
     local root=$1 app=$2 check=$3 d name was rc=0
+    if ! _vigil_pack_readable "$root"; then
+        _vigil_pack_die "cannot read $root/packs from this account: run this as the account that installed Vigil (sudo for a system install)"
+        return 1
+    fi
     if [ "$check" = 0 ] && ! { [ -w "$root/packs" ] || { [ ! -e "$root/packs" ] && [ -w "$root" ]; }; }; then
         _vigil_pack_die "$root/packs is not writable: run this as the account that installed Vigil (sudo for a system install)"
         return 1

@@ -472,9 +472,34 @@ function Set-VigilPackScripts {
     return 0
 }
 
+# Whether the installed packs can be read from this account: else what is
+# here cannot be told, and every pack would look missing. A system install's
+# root is closed to all but SYSTEM and Administrators, and .NET then says a
+# folder in it does not exist rather than that it cannot be read.
+function Test-VigilPackReadable {
+    param([string]$Root)
+    $packs = Join-Path $Root 'packs'
+    try {
+        if ([System.IO.Directory]::Exists($packs)) {
+            foreach ($d in [System.IO.Directory]::GetDirectories($packs)) {
+                [void][System.IO.Directory]::GetFiles($d)
+                $f = Join-Path $d 'pack.config'
+                if ([System.IO.File]::Exists($f)) { [void][System.IO.File]::ReadAllBytes($f) }
+            }
+        }
+        else { [void][System.IO.Directory]::GetFileSystemEntries($Root) }
+        return $true
+    }
+    catch { return $false }
+}
+
 function Update-VigilPack {
     param([string]$Root, [string]$App, [bool]$Check)
     $packs = Join-Path $Root 'packs'
+    if (-not (Test-VigilPackReadable -Root $Root)) {
+        Stop-VigilPack "cannot read $packs from this account: run this from an elevated prompt for a system install"
+        return 1
+    }
     $rel = Get-VigilPackRelease -Root $Root -App $App
     $code = 0
     try {

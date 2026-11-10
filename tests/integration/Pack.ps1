@@ -252,6 +252,20 @@ try {
     Test-Equal 'the scripts stay' 'True' ([string](Test-Path -LiteralPath "$root\packs\base\cpu.ps1"))
     Test-Equal 'your own job stays' '1' (Get-Count '^\[job\.mine\]')
     Test-Equal 'precheck is happy after' '0' (Invoke-Precheck)
+
+    Write-Host 'Packs this account cannot read'
+    $base = "$root\packs\base"
+    $had = Get-PackVersion
+    $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    [void](& icacls.exe $base /deny "${me}:(OI)(CI)(R)" 2>&1)
+    try {
+        $r = Invoke-Vigil pack update --check
+        Test-Equal 'the check is refused' '1' ([string]$r.Code)
+        Test-Equal 'saying why, not that the pack is missing' "vigil: cannot read $root\packs from this account: run this from an elevated prompt for a system install" $r.Text
+        Test-Equal 'and so is the update' '1' ([string](Invoke-Vigil pack update).Code)
+    }
+    finally { [void](& icacls.exe $base /remove:d $me 2>&1) }
+    Test-Equal 'nothing was changed' $had (Get-PackVersion)
 }
 finally {
     if ($mock) { try { Stop-Process -Id $mock.Id -Force -ErrorAction Stop } catch { } }

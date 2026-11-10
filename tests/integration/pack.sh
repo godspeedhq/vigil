@@ -226,5 +226,20 @@ check 'the scripts stay' yes "$(yes_no test -f "$root/packs/base/cpu.sh")"
 check 'your own job stays' 1 "$(grep -c '^\[job\.mine\]' "$cfg")"
 check 'precheck is happy after' 0 "$(precheck)"
 
+printf 'Packs this account cannot read\n'
+if [ "$(id -u)" = 0 ]; then
+    printf '  SKIP  root reads everything\n'
+else
+    had=$(sed -n 's/^version = //p' "$root/packs/base/pack.config")
+    chmod 000 "$root/packs/base"
+    out=$(vigil pack update --check 2>&1)
+    check 'the check is refused' 1 "$?"
+    check 'saying why, not that the pack is missing' "vigil: cannot read $root/packs from this account: run this as the account that installed Vigil (sudo for a system install)" "$out"
+    out=$(vigil pack update 2>&1)
+    check 'and so is the update' 1 "$?"
+    chmod 755 "$root/packs/base"
+    check 'nothing was changed' "$had" "$(sed -n 's/^version = //p' "$root/packs/base/pack.config")"
+fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
