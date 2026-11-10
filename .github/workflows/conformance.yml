@@ -27,6 +27,10 @@ jobs:
         run: /bin/bash tools/check-headers.sh
       - name: bash version
         run: /bin/bash --version | head -1
+      # Early, so a pull request with only a pack in it hears quickly what to
+      # fix. pwsh, on both runners, parses the Windows scripts.
+      - name: every pack, checked and run (/bin/bash)
+        run: /bin/bash tools/check-pack.sh --run
       - name: conformance (/bin/bash)
         run: /bin/bash tests/run-conformance.sh
       - name: integration (/bin/bash)
@@ -315,6 +319,9 @@ jobs:
       - name: the base pack
         if: matrix.part == 'core'
         run: ./tests/integration/Base-Pack.ps1
+      - name: every pack's Windows scripts, run
+        if: matrix.part == 'core'
+        run: ./tools/Check-Pack.ps1
       # The runner image has PostgreSQL installed, its service stopped, with
       # the superuser's password in PGPASSWORD; the pack's role is made here.
       - name: the postgres pack

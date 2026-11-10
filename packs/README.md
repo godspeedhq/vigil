@@ -86,7 +86,9 @@ Then `vigil pack enable nginx`. The job reads `http://127.0.0.1/nginx_status`; f
 | `postgres.deadlocks_count` (as a rate) | 0 | Any | Rising |
 | `nginx.dropped_count` (as a rate) | 0 | Any | Rising: nginx is turning connections away |
 
-## Writing a script
+## Writing a pack
+
+`tools/new-pack.sh <name>` starts one, and `tools/check-pack.sh --run <name>` says what is left to fix. [CONTRIBUTING.md](../CONTRIBUTING.md#your-first-pack) has the steps. In short:
 
 - Use only what ships with the operating system: bash 3.2 and PowerShell 5.1.
 - Print metrics as `metric <name> <value> [key=value ...]`, and use plain ASCII.
