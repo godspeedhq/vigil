@@ -21,8 +21,8 @@ that misleads. Everything else is recorded here with the reason.
 | 2.2 | Permissions | **DEFECT** (Windows update temp folder), PARTIALLY SATISFIED | High | Yes | [41](../fixed/41_windows_update_temp_folder.md) |
 | 2.3 | Script-source trust | SATISFIED | Low | No | — |
 | 2.4 | Update-source precedence | PARTIALLY SATISFIED | Low | No | [45](../45_unreadable_is_not_missing.md) |
-| 3.1 | Corrupt state | **DEFECT** | Medium | No, but fix before v1 | [44](../44_corrupt_numbers_stop_the_supervisor.md), [43](../43_windows_orphaned_runs.md) |
-| 3.2 | Worker lifecycle | **DEFECT** (Windows orphan runs twice) | High | Yes | [43](../43_windows_orphaned_runs.md) |
+| 3.1 | Corrupt state | **DEFECT** | Medium | No, but fix before v1 | [44](../44_corrupt_numbers_stop_the_supervisor.md), [43](../fixed/43_windows_orphaned_runs.md) |
+| 3.2 | Worker lifecycle | **DEFECT** (Windows orphan runs twice) | High | Yes | [43](../fixed/43_windows_orphaned_runs.md) |
 | 3.3 | Concurrent supervisors | SATISFIED | Low | No | — |
 | 3.4 | Bounded failure | PARTIALLY SATISFIED | Low | No | — (below) |
 | 3.5 | Timing (Max-Runtime) | UNVERIFIED | Medium | No | [19](../19_intermittent_test_failures.md) (note added) |

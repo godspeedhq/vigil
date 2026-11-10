@@ -141,6 +141,8 @@ _vigil_sup_timeout() {
 _vigil_sup_proc() {
     local d a out
     _su_proc=no
+    # No run id, no evidence: an empty one would match anything.
+    [ -n "$1" ] || return 0
     case $_su_platform in
         linux)
             for d in /proc/[0-9]*; do
@@ -159,8 +161,10 @@ _vigil_sup_proc() {
                 _su_proc=error
                 return 0
             fi
+            # As a whole argument: "--run-id ...-1" must not match
+            # "--run-id ...-10". ps puts one process on each line.
             case $out in
-                *"--run-id $1"*) _su_proc=yes ;;
+                *"--run-id $1 "* | *"--run-id $1"$'\n'* | *"--run-id $1") _su_proc=yes ;;
             esac
             ;;
         *) _su_proc=error ;;
@@ -171,7 +175,7 @@ _vigil_sup_proc() {
 # _ss_status, _ss_run_id, _ss_boot and _ss_started.
 _vigil_sup_read_state() {
     local line key value header=0
-    _ss=missing _ss_status='' _ss_run_id='' _ss_boot='' _ss_started='' _ss_deadline='' _ss_job_pid=''
+    _ss=missing _ss_status='' _ss_run_id='' _ss_boot='' _ss_started='' _ss_deadline='' _ss_job_pid='' _ss_worker_pid=''
     [ -e "$1" ] || return 0
     _ss=unreadable
     [ -r "$1" ] || return 0
@@ -195,6 +199,7 @@ _vigil_sup_read_state() {
             started_epoch) _ss_started=$value ;;
             deadline_epoch) _ss_deadline=$value ;;
             job_pid) _ss_job_pid=$value ;;
+            worker_pid) _ss_worker_pid=$value ;;
         esac
     done < "$1"
     [ "$header" -eq 1 ] || return 0
@@ -387,6 +392,20 @@ _vigil_sup_account() {
     case $VIGIL_RECOVERY in
         alive | launching)
             _su_active=running
+            # Orphaned (11.3): the token is held, so the run lives, but its
+            # worker is gone: its job, which inherited fd 9, still runs. No
+            # replacement while it does. A worker's process id taken by another
+            # process since only hides this report.
+            if [ "$VIGIL_RECOVERY" = alive ] && [ "$tstate" = held ] && [ "$_ss" = running ]; then
+                case $_ss_worker_pid in
+                    '' | *[!0-9]*) ;;
+                    *)
+                        if ! kill -0 "$_ss_worker_pid" 2>/dev/null; then
+                            _su_orphaned="$_su_orphaned$job: run $rid, its worker (pid $_ss_worker_pid) is gone; its job (pid $_ss_job_pid) still runs, so it is not started again until it ends"$'\n'
+                        fi
+                        ;;
+                esac
+            fi
             ;;
         abandon)
             # Abandon by renaming the launch record: only one of this and the
@@ -782,6 +801,7 @@ _vigil_sup_tick() {
     _su_uncertain=''
     _su_replacing=''
     _su_crashed=''
+    _su_orphaned=''
     _su_status_running=''
     _su_status_waiting=''
     _su_status_disabled=''
@@ -1067,6 +1087,10 @@ _vigil_sup_status() {
         if [ -n "$_su_crashed" ]; then
             printf '\nCRASHED\n'
             for j in $_su_crashed; do printf '  %s\n' "$j"; done
+        fi
+        if [ -n "$_su_orphaned" ]; then
+            printf '\nORPHANED\n'
+            printf '%s' "$_su_orphaned" | sed 's/^/  /'
         fi
         if [ -n "$_su_status_invalid" ]; then
             printf '\nINVALID\n'

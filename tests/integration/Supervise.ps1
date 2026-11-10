@@ -271,6 +271,56 @@ if ($script:fail -gt 0) {
     Write-Host "`nsender log:"
     Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\vigil_sender') -Filter '*.log' -ErrorAction SilentlyContinue | ForEach-Object { Get-Content -LiteralPath $_.FullName -Tail 20 }
 }
+# Orphaned (11.3, §22 item 14): kill a run's worker while its job keeps
+# running. The job holds the run, so no second run starts beside it, and
+# jobs.log says ORPHANED; once the job ends, the run is concluded.
+$mainRoot = $root
+$root = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-orphan.$PID"
+[void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'config'), (Join-Path $root 'scripts'))
+# One tick, waiting for that process alone: "& ... *> $null" would also wait
+# for the long job, which ends up holding the output pipe.
+function Invoke-OnceAlone {
+    $p = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'supervise', '--once')
+    $p.WaitForExit()
+}
+Set-Content -LiteralPath (Join-Path $root 'scripts\long.cmd') -Value @('@echo off', 'ping -n 31 127.0.0.1 >nul', 'echo metric done 1')
+Set-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value @"
+[vigil]
+instance = orphan
+
+[job.long]
+file      = scripts\long.cmd
+run_every = 1s
+"@
+$st = Join-Path $root 'state\jobs\long.state'
+# The first tick may only schedule the job: tick until its run has started.
+for ($i = 0; $i -lt 30 -and -not (Get-StateValue $st 'job_pid'); $i++) { Invoke-OnceAlone; Start-Sleep -Seconds 1 }
+$rid = Get-StateValue $st 'run_id'
+$wpid = Get-StateValue $st 'worker_pid'
+$jpid = Get-StateValue $st 'job_pid'
+Test-Equal 'orphan: the run started' 'True' ([string]([bool]$wpid -and [bool]$jpid))
+Stop-Process -Id ([int]$wpid) -Force -ErrorAction SilentlyContinue
+for ($i = 0; $i -lt 20 -and (Get-Process -Id ([int]$wpid) -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 250 }
+Invoke-OnceAlone
+Invoke-OnceAlone
+$jobsLog = [System.IO.File]::ReadAllText((Join-Path $root 'logs\supervisor\jobs.log'))
+Test-Equal 'orphan: its job still runs' 'True' ([string][bool](Get-Process -Id ([int]$jpid) -ErrorAction SilentlyContinue))
+Test-Equal 'orphan: no second run is started' '' ((@(Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter 'long.*.launch' | ForEach-Object Name)) -join ' ')
+Test-Equal 'orphan: still the same run' $rid (Get-StateValue $st 'run_id')
+Test-Equal 'orphan: jobs.log says ORPHANED' 'True' ([string]($jobsLog -cmatch "(?m)^ORPHANED\r?\n  long: run $rid, its worker \(pid $wpid\) is gone"))
+for ($i = 0; $i -lt 90 -and (Get-Process -Id ([int]$jpid) -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+Invoke-OnceAlone
+# Read from the supervisor's log: that tick may already have started the next
+# run, whose worker rewrites the state file.
+$supLog = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\supervisor') -Filter '*-*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+Test-Equal 'orphan: once the job ends, the run is concluded' 'True' ([string]$supLog.Contains("job long: run $rid crashed"))
+Test-Equal 'orphan: and its token is gone' '' ((@(Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter "long.$rid.*" | ForEach-Object Name)) -join ' ')
+# Let the next run end before cleaning up.
+for ($i = 0; $i -lt 40 -and (Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter 'long.*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
+$root = $mainRoot
+
 # Workers started by the last ticks may still be finishing.
 Start-Sleep -Seconds 6
 Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
