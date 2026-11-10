@@ -21,6 +21,13 @@ The tests print what they know when these fail.
   "uncertain", which only says the worker was still waiting for its job's
   output. The marker now names the run and the time, and a failure prints
   the job log, so the next one shows which run lived on and when.
+  2026-11-10 review: `taskkill /T /F` was seen to end the children first
+  ("PID 6532 (child of 17520) terminated", then 17520), the leaves-first
+  order this backlog fixed on the non-WMI path; and the failure pattern (only
+  "did not survive" failed, "no locks or markers left" passed) fits the job's
+  `cmd.exe` running its next line during the kill. Suggested: the root-down
+  order on the WMI path too. Still not reproduced (60 tries, with and without
+  load).
 - `tests/integration/version-config.sh`, macOS: `a release that will not
   install is logged as an error` (expected 1 ERROR line, got 0), on #101 on
   2026-11-05. The same run before it failed on a GitHub 504 downloading
