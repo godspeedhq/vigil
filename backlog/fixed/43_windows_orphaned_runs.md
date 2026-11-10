@@ -93,3 +93,9 @@ As proposed.
   tick took as long as the job (80 s with a 60 s job, on 0.6.5 as well). The
   orphan test starts its ticks with `Start-Process` and waits for that
   process alone. How the job comes to hold that pipe is not yet explained.
+- **What it changes for operators:** as on Linux and macOS, a process the job
+  starts holds the run too, so a run is over only when the job and everything
+  it left running have ended. `Service.ps1`'s cleanup stopped the job's
+  `cmd.exe` but not its `ping`, which then held the run and kept the next
+  lifecycle waiting; it now ends the job's whole tree (CI's install jobs
+  caught it; 33/33 locally after).
