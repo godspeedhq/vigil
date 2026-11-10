@@ -182,7 +182,10 @@ function Test-Lifecycle {
     Test-Equal "${tag}: the job outlives remove" 'True' (Test-Alive $job)
     Test-Equal "${tag}: removing again changes nothing" '0' "$(Invoke-Vigil $Root @('service', 'remove'))"
 
-    # Test cleanup: these are the test's own processes.
+    # Test cleanup: these are the test's own processes. The job's whole tree:
+    # its ping holds the run token too (backlog 43), and would keep the run
+    # alive, and the next lifecycle waiting, for its five minutes.
+    [void](& taskkill.exe /T /F /PID $job 2>&1)
     foreach ($p in @($job, $worker)) { Stop-Process -Id ([int]$p) -Force -ErrorAction SilentlyContinue }
 }
 

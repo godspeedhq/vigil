@@ -217,6 +217,47 @@ else
     check "and nothing else about jobs.log" no "$(printf '%s\n' "$out" | grep 'no jobs.log yet' > /dev/null && echo yes || echo no)"
 fi
 
+# Orphaned (11.3, §22 item 14): kill a run's worker while its job keeps
+# running. The job holds the run (fd 9), so no second run starts beside it,
+# and jobs.log says ORPHANED; once the job ends, the run is concluded.
+main_root=$root
+root=$(mktemp -d "${TMPDIR:-/tmp}/vigil-orphan.XXXXXX")
+mkdir -p "$root/config" "$root/scripts"
+printf 'sleep 15\necho metric done 1\n' > "$root/scripts/long.sh"
+printf '[vigil]\ninstance = orphan\n\n[runner.sh]\ncommand = /bin/sh\n\n[runners]\n.sh = sh\n\n[job.long]\nfile      = scripts/long.sh\nrun_every = 1s\n' > "$root/config/vigil.config"
+st=$root/state/jobs/long.state
+# The first tick may only schedule the job: tick until its run has started.
+i=0
+while [ -z "$(state_value "$st" job_pid 2>/dev/null)" ] && [ "$i" -lt 30 ]; do
+    vigil supervise --once > /dev/null 2>&1
+    sleep 1
+    i=$((i + 1))
+done
+rid=$(state_value "$st" run_id)
+wpid=$(state_value "$st" worker_pid)
+jpid=$(state_value "$st" job_pid)
+check "orphan: the run started" yes "$([ -n "$wpid" ] && [ -n "$jpid" ] && echo yes || echo no)"
+kill -9 "$wpid" 2>/dev/null
+i=0
+while kill -0 "$wpid" 2>/dev/null && [ "$i" -lt 20 ]; do sleep 0.25; i=$((i + 1)); done
+vigil supervise --once > /dev/null 2>&1
+vigil supervise --once > /dev/null 2>&1
+check "orphan: its job still runs" yes "$(kill -0 "$jpid" 2>/dev/null && echo yes || echo no)"
+check "orphan: still the same run" "$rid" "$(state_value "$st" run_id)"
+check "orphan: jobs.log says ORPHANED" yes "$(sed -n '/^ORPHANED$/,/^$/p' "$root/logs/supervisor/jobs.log" | grep -F "  long: run $rid, its worker (pid $wpid) is gone" > /dev/null && echo yes || echo no)"
+i=0
+while kill -0 "$jpid" 2>/dev/null && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
+vigil supervise --once > /dev/null 2>&1
+# From the supervisor's log: that tick may already have started the next
+# run, whose worker rewrites the state file.
+check "orphan: once the job ends, the run is concluded" yes "$(cat "$root/logs/supervisor/"*.log | grep -F "job long: run $rid crashed" > /dev/null && echo yes || echo no)"
+check "orphan: and its token is gone" '' "$(ls "$root/state/locks" | grep -F "long.$rid.")"
+# Let the next run end before cleaning up.
+i=0
+while ls "$root/state/locks" 2>/dev/null | grep '^long\.' > /dev/null && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+rm -rf "$root"
+root=$main_root
+
 if [ "$fail" -gt 0 ]; then
     printf '\nsupervisor log:\n'
     cat "$root/logs/supervisor/"*.log | tail -40

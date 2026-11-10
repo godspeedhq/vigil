@@ -220,7 +220,12 @@ public static class VigilNative {
         foreach (int[] p in Processes()) {
             if (p[0] == skip || p[0] == 0) continue;
             string c = CommandLine(p[0]);
-            if (c != null && c.IndexOf(needle, StringComparison.Ordinal) >= 0) return true;
+            if (c == null) continue;
+            // As a whole argument: "--run-id ...-1" must not match "--run-id ...-10".
+            for (int i = c.IndexOf(needle, StringComparison.Ordinal); i >= 0; i = c.IndexOf(needle, i + 1, StringComparison.Ordinal)) {
+                int e = i + needle.Length;
+                if (e == c.Length || char.IsWhiteSpace(c[e]) || c[e] == '"') return true;
+            }
         }
         return false;
     }
@@ -543,7 +548,10 @@ function Invoke-VigilWorker {
         }
         # CreateNew fails if a token already exists, and share mode None makes the
         # supervisor's probe see it held for as long as this worker lives.
-        try { $tokenStream = [System.IO.File]::Open($token, 'CreateNew', 'ReadWrite', 'None') }
+        # Inheritable: the job process gets the handle too, as on Linux and
+        # macOS it gets fd 9, so a job whose worker is gone still holds its
+        # run, and is never started a second time beside it (11.3, orphaned).
+        try { $tokenStream = New-Object System.IO.FileStream -ArgumentList $token, ([System.IO.FileMode]::CreateNew), ([System.IO.FileAccess]::ReadWrite), ([System.IO.FileShare]'None, Inheritable') }
         finally { $launchStream.Dispose() }
         [System.IO.File]::Delete($launch)
     }
@@ -595,7 +603,9 @@ function Invoke-VigilWorker {
         $why = if ($r.Reason) { " ($($r.Reason))" } else { '' }
         [System.IO.File]::AppendAllText($log, "$($now.Iso) $RunId run end $status$why in ${duration}s`r`n")
         $tokenStream.Dispose()
-        [System.IO.File]::Delete($token)
+        # A process the job left running may still hold it: then the supervisor
+        # removes it once that process lets go.
+        try { [System.IO.File]::Delete($token) } catch { }
         return @{ Code = $(if ($r.Ok) { 0 } else { 2 }); Outcome = $status; Reason = $r.Reason; Duration = $duration }
     }
 
@@ -780,7 +790,9 @@ function Invoke-VigilWorker {
 
     # Release the token: close it, then delete it (4.3, step 9).
     $tokenStream.Dispose()
-    [System.IO.File]::Delete($token)
+    # A process the job left running may still hold it: then the supervisor
+    # removes it once that process lets go.
+    try { [System.IO.File]::Delete($token) } catch { }
 
     $rc = switch ($outcome) { 'succeeded' { 0 } 'warning' { 1 } 'unknown' { 3 } default { 2 } }
     return @{ Code = $rc; Outcome = $outcome; Reason = $reason; Duration = $duration }

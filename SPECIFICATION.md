@@ -153,7 +153,7 @@ The worker then:
 
 1. Holds its run token open for its whole life (§11.2).
 2. Writes its own state file: `status=running` with its identity, the boot id and its deadline (§11.1).
-3. Starts the job through its runner (§6.4). The job inherits `VIGIL_RUN_ID` and, on Linux/macOS, the open run token.
+3. Starts the job through its runner (§6.4). The job inherits `VIGIL_RUN_ID` and the open run token (fd 9 on Linux/macOS, an inherited handle on Windows), so a job whose worker is gone still holds its run (orphaned, §11.3).
 4. Records the identity of the job process it started.
 5. Captures the job's stdout and stderr to the job log, parsing metric lines (§14.3) and, for Nagios jobs, performance data (§14.4).
 6. Classifies the outcome from the exit code (§10).
@@ -1075,7 +1075,7 @@ Each held job appears under `UNCERTAIN` in `jobs.log` with its reason (for examp
 Vigil terminates a process only for `max_runtime` or `vigil uninstall`, and only when it has proven the process belongs to the run:
 
 - **Worker:** its command line carries the run id, and its start time matches where available.
-- **Job process:** on Linux/macOS it holds the run token or carries `VIGIL_RUN_ID`; on Windows its PID, name and start time match the state file and, while the worker lives, its parent is the worker.
+- **Job process:** on Linux/macOS it holds the run token or carries `VIGIL_RUN_ID`; on Windows (where it holds the token too) its PID, name and start time match the state file and, while the worker lives, its parent is the worker.
 
 If ownership cannot be proven, Vigil does not terminate. The run is treated as uncertain (§11.4), with the reason `past max_runtime, but its job process cannot be proven to be the run's`, under the job's `on_uncertain` policy: held and reported every tick, never killed.
 

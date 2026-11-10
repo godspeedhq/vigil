@@ -59,12 +59,16 @@ function Test-VigilFileHeld {
 # Whether a process carries a run id on its command line: yes, no or error.
 function Test-VigilRunProcess {
     param([string]$RunId)
+    # No run id, no evidence: "--run-id " alone would match every worker.
+    if (-not $RunId) { return 'no' }
     if (-not $Script:VigilWmiRefused) {
         try {
             # Run ids hold only digits, letters and hyphens, so none of them is a LIKE
-            # wildcard.
+            # wildcard. LIKE finds the candidates; the run id must then be a whole
+            # argument, or run ...-1 would be held alive by a live ...-10.
+            $whole = '--run-id ' + [regex]::Escape($RunId) + '(\s|"|$)'
             $p = @(Get-CimInstance -ClassName Win32_Process -Filter "CommandLine LIKE '%--run-id $RunId%'" -ErrorAction Stop |
-                Where-Object { $_.ProcessId -ne $PID })
+                Where-Object { $_.ProcessId -ne $PID -and [string]$_.CommandLine -cmatch $whole })
             if ($p.Count -gt 0) { return 'yes' }
             return 'no'
         }
@@ -506,7 +510,18 @@ function Invoke-VigilSupervisor {
         }
 
         switch ($c) {
-            { $_ -ceq 'alive' -or $_ -ceq 'launching' } { $active = 'running' }
+            { $_ -ceq 'alive' -or $_ -ceq 'launching' } {
+                $active = 'running'
+                # Orphaned (11.3): the token is held, so the run lives, but its
+                # worker is gone: its job, which inherited the token, still runs.
+                # No replacement while it does; when it ends, the run is
+                # concluded like any whose worker vanished. A worker's process
+                # id taken by another process since only hides this report.
+                if ($c -ceq 'alive' -and $tstate -ceq 'held' -and $st.Kind -ceq 'running' -and $st.WorkerPid -cmatch '^[0-9]+$' -and
+                    -not (Get-Process -Id ([int]$st.WorkerPid) -ErrorAction SilentlyContinue)) {
+                    $sv.Orphaned.Add("${Job}: run $rid, its worker (pid $($st.WorkerPid)) is gone; its job (pid $($st.JobPid)) still runs, so it is not started again until it ends")
+                }
+            }
             'abandon' {
                 # Abandon by deleting the launch record: Windows refuses while
                 # a worker holds it, so only one of the two can win (11.2).
@@ -677,6 +692,7 @@ function Invoke-VigilSupervisor {
         $sv.Uncertain = New-Object 'System.Collections.Generic.List[string]'
         $sv.Replacing = New-Object 'System.Collections.Generic.HashSet[string]'
         $sv.Crashed = New-Object 'System.Collections.Generic.List[string]'
+        $sv.Orphaned = New-Object 'System.Collections.Generic.List[string]'
         $status = @{ Running = @(); Waiting = @(); Disabled = @(); Invalid = @(); Last = @(); Missing = @() }
 
         [void](& $loadConfig)
@@ -891,7 +907,7 @@ function Invoke-VigilSupervisor {
                 elseif ($ur.Result -ceq 'unavailable') { [void]$sb.Append("  could not be downloaded: $($ur.Reason); trying again`r`n") }
             }
         }
-        foreach ($s in @(@('FILE MISSING', $status.Missing), @('UNCERTAIN', $sv.Uncertain), @('CRASHED', $sv.Crashed), @('INVALID', $status.Invalid),
+        foreach ($s in @(@('FILE MISSING', $status.Missing), @('UNCERTAIN', $sv.Uncertain), @('CRASHED', $sv.Crashed), @('ORPHANED', $sv.Orphaned), @('INVALID', $status.Invalid),
                 @('RUNNING', $status.Running), @('WAITING', $status.Waiting),
                 @('DISABLED', $status.Disabled), @('LAST RUN', $status.Last))) {
             if (@($s[1]).Count -eq 0) { continue }
