@@ -237,14 +237,17 @@ Vigil is honest about what it needs:
 
 PowerShell 7 is supported on Windows but never required.
 
-Windows support floor:
+Windows support floor. "Intended" is what Vigil is written for; "Tested" is what a run has shown, as recorded in [`windows-compatibility.md`](tests/integration/backends/reports/windows-compatibility.md). A version not tested is expected to work, not known to:
 
-| Windows | Status |
-| --- | --- |
-| Server 2016, 2019, 2022, 2025; Windows 10 and 11 | Supported. PowerShell 5.1 built in. |
-| Server 2012 / 2012 R2 | Supported once WMF 5.1 (Microsoft's PowerShell 5.1 package) is installed. |
-| Server 2008 R2 SP1 / Windows 7 SP1 | Best effort with WMF 5.1. Out of vendor support; documented, not tested. |
-| XP / Server 2003 | Not supported: PowerShell 2.0 at most and no TLS 1.2, so HTTPS backends are unreachable. |
+| Windows | Intended | Tested |
+| --- | --- | --- |
+| Windows 11 | Supported. PowerShell 5.1 built in. | Yes: every suite, real backends, the service. |
+| Server 2025 | Supported. PowerShell 5.1 built in. | GitHub's `windows-latest` runner: the suites in CI. Not on a VM. |
+| Server 2016 | Supported. PowerShell 5.1 built in. | Partly, with caveats: install and service from the README's command, and conformance, pass; of the integration suites run as an ordinary account over SSH, 9 pass, 6 fail (timing on a slow VM, and Windows refusing DPAPI over SSH: backlog 48), 9 not run. |
+| Windows 10; Server 2019, 2022 | Supported. PowerShell 5.1 built in. | Not tested. |
+| Server 2012 / 2012 R2 | Intended once WMF 5.1 (Microsoft's PowerShell 5.1 package) is installed. | Not tested. |
+| Server 2008 R2 SP1 / Windows 7 SP1 | Best effort with WMF 5.1. Out of vendor support. | Not tested. |
+| XP / Server 2003 | Not supported: PowerShell 2.0 at most and no TLS 1.2, so HTTPS backends are unreachable. | Not applicable. |
 
 Some backends carry an extra prerequisite, documented with the backend (for example openssl for Google Cloud when not running on GCP, §15.4).
 
@@ -969,12 +972,12 @@ Boot id sources: `/proc/sys/kernel/random/boot_id` on Linux, `sysctl kern.bootti
 | --- | --- | --- | --- | --- |
 | Linux | `/proc/<pid>/fd` links to the token: names the exact holder, worker or inherited child | `/proc/<pid>/cmdline` | `/proc/<pid>/environ` (own processes) | `/proc/<pid>/stat` |
 | macOS | `lsof -t <token>` lists every holder, worker or inherited child | `ps -o args= -p <pid>` | not relied on | `ps -o lstart= -p <pid>` |
-| Windows | An exclusive open fails while the worker holds it; the job's processes do not inherit it | Process `CommandLine` | not relied on | `Get-Process` `StartTime` |
+| Windows | An exclusive open fails while the worker or the job holds it: the job inherits the open handle, and so does whatever it starts | Process `CommandLine` | not relied on | `Get-Process` `StartTime` |
 
 The resulting guarantees are deliberately not conflated:
 
 - **Linux and macOS:** the token identifies the worker and every job process that inherited it, so "worker dead, psql still running" is visible without knowing psql's PID. A job process that deliberately closes inherited files (a self-daemonising program) escapes this and is tracked only by its recorded identity.
-- **Windows:** the token proves the worker is alive but does not name it, and something else (antivirus, backup software) briefly opening the file reads as "held" — a conservative error. The job's processes are tracked by their recorded identity plus the worker's command line.
+- **Windows:** a held token proves the run is alive, the worker or a job process that inherited it, but does not name which, and something else (antivirus, backup software) briefly opening the file reads as "held": a conservative error. Which of them is alive is told by the recorded worker pid and the job's recorded identity (§11.3, Orphaned).
 
 **Claim and abandonment are a single race with one winner.** The worker's claim and the supervisor's abandonment act on the same launch record, and the filesystem lets only one succeed:
 
@@ -1525,27 +1528,29 @@ Any number of backends may be enabled. By default every job's metrics go to ever
 
 Every request has a timeout. Retries are bounded with backoff. Delivery is from the spool (§4.5). HTTPS only, with certificate verification never disabled; plain http only to a collector on the same host (§15.3).
 
-### 15.3 Supported Types
+### 15.3 Types: Built and Planned
 
-| Type | Protocol | Auth |
-| --- | --- | --- |
-| `file` | Prometheus text format on local disk (below) | none |
-| `datadog` | Series API | API key |
-| `otel` | OTLP/HTTP JSON | optional bearer |
-| `prometheus` | Pushgateway | optional basic |
-| `victoriametrics` | Prometheus text import | optional basic / bearer |
-| `influxdb` | Line protocol (v1 and v2) | token |
-| `splunk` | HTTP Event Collector | HEC token |
-| `graphite` | Carbon plaintext (TCP) | none |
-| `statsd` | StatsD / DogStatsD (UDP) | none |
-| `elasticsearch` | Document API | basic or API key |
-| `opensearch` | Document API | basic or API key |
-| `azuremonitor` | Custom metrics REST | service principal or managed identity |
-| `cloudwatch` | PutMetricData, SigV4 | access keys or instance profile |
-| `gcp` | Cloud Monitoring `timeSeries.create` | metadata server or service-account key |
-| `newrelic` | Metric API | license key |
-| `dynatrace` | Metrics ingest line protocol | API token |
-| `webhook` | Generic JSON POST | optional header |
+Built, and described below: `file`, `datadog`, `otel` and `splunk`. The rest are planned: their rows say what they would speak. A configuration may name one, but nothing is sent to it: its events are counted as dropped with `reason=not_implemented` (below).
+
+| Type | Protocol | Auth | Status |
+| --- | --- | --- | --- |
+| `file` | Prometheus text format on local disk (below) | none | Built |
+| `datadog` | Series API | API key | Built |
+| `otel` | OTLP/HTTP JSON | optional bearer | Built |
+| `splunk` | HTTP Event Collector | HEC token | Built |
+| `prometheus` | Pushgateway | optional basic | Planned |
+| `victoriametrics` | Prometheus text import | optional basic / bearer | Planned |
+| `influxdb` | Line protocol (v1 and v2) | token | Planned |
+| `graphite` | Carbon plaintext (TCP) | none | Planned |
+| `statsd` | StatsD / DogStatsD (UDP) | none | Planned |
+| `elasticsearch` | Document API | basic or API key | Planned |
+| `opensearch` | Document API | basic or API key | Planned |
+| `azuremonitor` | Custom metrics REST | service principal or managed identity | Planned |
+| `cloudwatch` | PutMetricData, SigV4 | access keys or instance profile | Planned |
+| `gcp` | Cloud Monitoring `timeSeries.create` | metadata server or service-account key | Planned |
+| `newrelic` | Metric API | license key | Planned |
+| `dynatrace` | Metrics ingest line protocol | API token | Planned |
+| `webhook` | Generic JSON POST | optional header | Planned |
 
 **File backend.** Writes one Prometheus text file, `path` (default `metrics/vigil.prom` under the install root), for node_exporter's or windows_exporter's textfile collector. The file holds the current value of every series, so it stays small however long Vigil runs:
 
@@ -2180,6 +2185,8 @@ version  = 0.3.1
 
 **Fleets.** Machines that share one fetched file share its `instance`, which then names the group; the automatic `host` tag tells them apart (§14.6). A canary is a machine pointed at its own `config_file` with the new `version`; a rollout moves one group's file at a time. Rollback catches a release that does not run, not one that runs and misbehaves, so a rollout starts with canaries. Each machine checks its source `check_every` after its own last check, so a fleet's checks and downloads are spread out, and the size of each wave bounds the rest.
 
+**New keys come after the version.** A release may add keys, and a machine still on an older one does not know them. A new key outside the `[job.*]` sections makes the whole configuration invalid there (`E_KEY_UNKNOWN`, §16.3): the machine keeps its last valid configuration, which names its old `version`, so it never updates. A new key in a job makes only that job invalid, and the job does not run until the machine has the release that knows it. So move `version =` first, wait until the fleet reports the new release (`vigil status`, the supervisor log), and only then use its new keys. Release notes name the keys each release adds.
+
 ---
 
 ## 19. Onboarding
@@ -2347,19 +2354,21 @@ The installers and `vigil self update` are tested against the file server of §2
 
 ### 22.5 Platform Matrix
 
-A pass on one platform is never evidence for another. The v1 matrix:
+A pass on one platform is never evidence for another. The v1 matrix, with where each is tested today and what is still planned:
 
-| Platform | Where it is tested |
-| --- | --- |
-| Windows 11, PowerShell 5.1 and 7 | Development machine; Windows Sandbox for clean-install tests |
-| Windows Server 2016 / 2019 / 2022 / 2025 | Free 180-day evaluation VMs in Hyper-V; GitHub Actions Windows runners |
-| Windows Server 2012 R2 + WMF 5.1 | Evaluation VM where obtainable |
-| Ubuntu (Debian family) | WSL2 with systemd enabled; GitHub Actions Ubuntu runners |
-| Fedora (Red Hat family, SELinux enforcing) | Dedicated Fedora machine |
-| macOS, bash 3.2, launchd | MacBook; GitHub Actions macOS runners |
-| Cygwin-hosted jobs | Windows development machine |
+| Platform | Tested today | Planned |
+| --- | --- | --- |
+| Windows 11, PowerShell 5.1 and 7 | A real machine: every suite, real backends, the service | |
+| Windows Server 2025 | GitHub Actions `windows-latest`: the suites, PowerShell 5.1 and 7 | An evaluation VM |
+| Windows Server 2016 | A Hyper-V VM: install, service, conformance; integration suites with failures (backlog 48) | The failures of backlog 48, the suites that need Python or an administrator, real backends |
+| Windows Server 2019 / 2022 | Not yet | Evaluation VMs in Hyper-V |
+| Windows Server 2012 / 2012 R2 / 2008 R2 + WMF 5.1 | Not yet | Evaluation VMs where obtainable |
+| Ubuntu (Debian family) | GitHub Actions `ubuntu-latest`: the suites, the service packs, the Linux packages | |
+| Fedora (Red Hat family, SELinux enforcing) | A real machine: the service, real backends (Docker) | |
+| macOS, bash 3.2, launchd | A real Intel Mac, macOS 12: the service, real backends, stores and sources through tunnels to Fedora. GitHub Actions `macos-latest` (Apple Silicon): the bash suites, Homebrew and MacPorts | The service packs (PostgreSQL, nginx), which have run only on Linux and Windows |
+| Cygwin-hosted jobs | The Windows machine | |
 
-Backends are simulated: most tests assert on spool contents; sender tests run against a test-only local HTTP receiver (.NET `HttpListener` on Windows, a small test script on Linux/macOS) that records requests and can simulate failures. Optional Docker-based tests run real VictoriaMetrics and an OpenTelemetry Collector. Test tooling is never shipped.
+The suites simulate backends: most tests assert on spool contents; sender tests run against a test-only local HTTP receiver (.NET `HttpListener` on Windows, a small test script on Linux/macOS) that records requests and can simulate failures. Real backends, secret stores and sources run in Docker on the Fedora machine (`tests/integration/backends`), and their results, with what each was (a real product, an emulator or a mock), are in that folder's `reports/`. Test tooling is never shipped.
 
 ### 22.6 Evidence
 

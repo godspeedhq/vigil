@@ -49,3 +49,38 @@ Documentation only: no behaviour changes.
 
 Every support or test claim in SPECIFICATION.md and README.md can be traced
 to a report, a CI job or a release note's capture, or says it is untested.
+
+## Built (2026-11-11)
+
+- **Windows versions.** §5.1's table has an "Intended" and a "Tested"
+  column, each tested entry traced to `windows-compatibility.md`; untested
+  versions say "Not tested", "expected to work". §22.5 says what is tested
+  today and what is planned, platform by platform. The README's Windows
+  sentence and status line say the same.
+- **Server 2016 recorded:** run on 2026-11-11, as an ordinary account over
+  SSH, and written into `windows-compatibility.md` as "Works with caveats".
+  Install and service: passed. Conformance: 145 passed. Integration: 9
+  suites pass, 6 fail, 9 not run (no Python or Git Bash on the VM). The
+  failures that are Vigil's are backlog 48.
+- **macOS.** The review was partly wrong here, and the docs now say so. The
+  real backends (LGTM), the secret stores and the sources did run on the
+  Intel Mac (reports of 2026-11-03). The service packs are what never ran
+  there: CI runs them on Ubuntu and Windows only. The README's CI sentence
+  now says which runners run what.
+- **Built versus planned.** §15.3 is "Types: Built and Planned", with a
+  status column. A planned type is accepted in a configuration, and its
+  events are dropped as `not_implemented`: it is not refused, as I first
+  wrote, and the text says what the code does. README status: v0.6.x, not
+  v0.2.x.
+- **How each is tested.** The README's "What works today" has a "Tested
+  against" column: the suites (mocks), or a real product, and where. For
+  example: Datadog against a mock only; Azure, AWS and GCP stores against
+  emulators only; `release_path` never against a real SMB or NFS server;
+  Artifactory over plain http on one machine.
+- **Fleets.** §18.11 "New keys come after the version". Tried first: an
+  unknown `[vigil]` key rejects the whole configuration, and an unknown job
+  key only that job (`vigil precheck`, as quoted there).
+- **Backlogs 36 and 37:** 36 says what `release_path` was not tried
+  against; 37 records the real Artifactory run of 0.6.2.
+- **Found on the way:** §11.2 still said a Windows job does not inherit the
+  run token, which backlog 43 changed. Corrected.
