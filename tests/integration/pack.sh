@@ -109,8 +109,16 @@ make_pack "$root/packs/base" 1.0.0 cpu disk
 
 printf 'Turning on\n'
 check 'listed, off' 'off' "$(vigil pack list | awk '$1 == "base_cpu" { print $2 }')"
+# The file is held open across the change: replaced, it still reads as it was;
+# written over, it would read as the new one (46).
+chmod 640 "$cfg"
+old=$(cat "$cfg")
+exec 3< "$cfg"
 out=$(vigil pack enable base 2>&1)
 check 'enables' 0 "$?"
+check 'replaced, not written over: the old file is as it was' "$old" "$(cat <&3)"
+exec 3<&-
+check 'its mode stays' '-rw-r-----' "$(ls -l "$cfg" | cut -c1-10)"
 check 'says what' 'on: base_cpu|on: base_disk' "$(printf '%s' "$out" | tr '\n' '|')"
 check 'the jobs are in the configuration' 2 "$(grep -c '^\[job\.base_' "$cfg")"
 check 'precheck is happy' 0 "$(precheck)"
@@ -121,6 +129,19 @@ check 'enabling twice changes nothing, and a pack that needs nothing says no mor
 check 'an unknown name is refused' 'vigil: no pack or job called nosuch: vigil pack list' "$(vigil pack enable nosuch 2>&1)"
 check 'an unknown job is refused' 'vigil: no job called base_nosuch: vigil pack list' "$(vigil pack enable base_nosuch 2>&1)"
 check 'a bad name is refused' 'vigil: not a pack or job name: ../x' "$(vigil pack enable '../x' 2>&1)"
+
+# A pack whose pack.config is here but whose scripts are not, as nginx on
+# Windows: nothing to turn on, not "already on" (46).
+case $os in macos) osname=macOS ;; *) osname=Linux ;; esac
+mkdir -p "$root/packs/elsewhere"
+printf '[pack]\nversion = 1.0.0\nvigil = 0.0.1\ndescription = Elsewhere only\n\n[job.x]\nmetric_name = it.x\nmetrics = up\nrun_every = 1h\n' > "$root/packs/elsewhere/pack.config"
+sum=$(cksum < "$cfg")
+out=$(vigil pack enable elsewhere 2>&1)
+check 'a pack with no scripts here is refused' 1 "$?"
+check 'saying so, not "already on"' "vigil: pack elsewhere has no scripts for $osname" "$out"
+check 'and the configuration is unchanged' "$sum" "$(cksum < "$cfg")"
+check 'listed as not available here' "  not available here: no scripts for $osname" "$(vigil pack list | sed -n '/^elsewhere /{n;p;}')"
+rm -rf "$root/packs/elsewhere"
 
 printf 'Updating\n'
 publish 1.0.0 cpu disk

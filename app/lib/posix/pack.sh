@@ -42,8 +42,8 @@ _vigil_pack_end() { printf '# end of pack %s\n' "$1"; }
 
 _vigil_pack_os() {
     case $(uname -s) in
-        Darwin) _vp_os=macos ;;
-        *) _vp_os=linux ;;
+        Darwin) _vp_os=macos _vp_osname=macOS ;;
+        *) _vp_os=linux _vp_osname=Linux ;;
     esac
 }
 
@@ -196,7 +196,7 @@ _vigil_pack_writable() {
 # jobs, so a problem that was already there stops nothing. The reason is in
 # _vp_why.
 _vigil_pack_valid() {
-    local cfg=$1/config/vigil.config name=$2 i=0
+    local cfg=${3:-$1/config/vigil.config} name=$2 i=0
     _vp_why=''
     if ! vigil_config_parse "$cfg"; then
         _vp_why=${VIGIL_CFG_ERRORS[0]#*	}
@@ -300,19 +300,23 @@ _vigil_pack_name() {
     return 1
 }
 
-# Writes the configuration in $3, goes back when the result is not valid.
+# Replaces the configuration with $3, once $3 is valid. Replaced, never
+# written over: a crash or a full disk leaves the old file or the new one,
+# never part of one, which could still be valid with fewer jobs (46). The copy
+# is made from the old file, so its owner and mode stay.
 _vigil_pack_apply() {
-    local root=$1 name=$2 new=$3 cfg=$1/config/vigil.config before=$3.before
-    cp "$cfg" "$before" || return 1
-    # Into the same file: its owner and mode stay.
-    cat "$new" > "$cfg"
-    if ! _vigil_pack_valid "$root" "$name"; then
-        cat "$before" > "$cfg"
-        rm -f "$new" "$before"
+    local root=$1 name=$2 new=$3 cfg=$1/config/vigil.config tmp=$3.tmp
+    if ! _vigil_pack_valid "$root" "$name" "$new"; then
+        rm -f "$new"
         _vigil_pack_die "the configuration would not be valid: $_vp_why; nothing was changed"
         return 1
     fi
-    rm -f "$new" "$before"
+    if ! { cp -p "$cfg" "$tmp" && cat "$new" > "$tmp" && mv -f "$tmp" "$cfg"; }; then
+        rm -f "$new" "$tmp"
+        _vigil_pack_die "cannot save $cfg; nothing was changed"
+        return 1
+    fi
+    rm -f "$new"
 }
 
 # Whether secret reference $2 can be had, as far as can be told here without
@@ -379,6 +383,13 @@ vigil_pack_list() {
         name=${name##*/}
         _vigil_pack_read "$d" "$name" || continue
         printf '%s %s: %s\n' "$name" "$_vp_version" "$_vp_about"
+        # Its pack.config ships everywhere, its scripts only where they run (46).
+        if [ -z "$_vp_jobs" ]; then
+            _vigil_pack_os
+            printf '  not available here: no scripts for %s\n' "$_vp_osname"
+            n=$((n + 1))
+            continue
+        fi
         vigil_config_parse "$root/config/vigil.config" 2> /dev/null
         for j in $_vp_jobs; do
             state=off
@@ -398,6 +409,13 @@ vigil_pack_enable() {
     _vigil_pack_writable "$root" || return 1
     _vigil_pack_read "$root/packs/$_vp_pack" "$_vp_pack" || { _vigil_pack_die "cannot read pack $_vp_pack"; return 1; }
     list=$_vp_jobs
+    # Its pack.config ships everywhere, its scripts only where they run: nothing
+    # here is nothing to turn on, not "already on" (46).
+    if [ -z "$list" ]; then
+        _vigil_pack_os
+        _vigil_pack_die "pack $_vp_pack has no scripts for $_vp_osname"
+        return 1
+    fi
     if [ -n "$_vp_job" ]; then
         case " $list " in
             *" $_vp_job "*) list=$_vp_job ;;

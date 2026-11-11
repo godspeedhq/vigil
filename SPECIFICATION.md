@@ -2095,8 +2095,9 @@ max_runtime = 30s
 - `vigil self update` replaces `app/` and `vendor/`, never `packs/`.
 - `vigil pack update` downloads this platform's file from the latest release, verifies it as `vigil self update` verifies a release (§18.7), with the signature required, and replaces `packs/`. It never changes the configuration. A job already on runs the new script at its next run; a run in progress finishes on the old one. It says which scripts changed. When this account cannot read the installed packs (a system install from an ordinary account), it and `--check` refuse, saying so, before downloading anything, rather than report every pack as missing.
 - A new script stays off until `vigil pack enable` puts its job in the configuration. `vigil pack update` names it.
+- A pack with no scripts for this platform (every `pack.config` ships everywhere; nginx has no Windows script) has nothing to turn on: `vigil pack enable` refuses (`pack nginx has no scripts for Windows`, exit 1), and `vigil pack list` shows it as `not available here`.
 - A script the pack dropped stays, while a job in the configuration runs it, and is reported, so an update can never break a working configuration.
-- Only `vigil init`, `vigil pack enable` and `vigil pack disable` change the configuration, and only when asked. The result is validated, judged by the pack's own jobs, and goes back when it fails. A configuration from a source (§6.8) is not edited.
+- Only `vigil init`, `vigil pack enable` and `vigil pack disable` change the configuration, and only when asked. The new configuration is validated first, judged by the pack's own jobs, and refused when it fails; then it replaces the old file whole (a file beside it, renamed over it, keeping its owner, mode or ACL), so a crash or a full disk leaves the old configuration or the new one, never part of one. A configuration from a source (§6.8) is not edited.
 - **A pack is never turned on blind.** `vigil pack enable` says, after its `on:` lines and again when the pack is already on, what the pack's jobs in the configuration need, and `vigil pack list` says it under each pack:
 
   ```

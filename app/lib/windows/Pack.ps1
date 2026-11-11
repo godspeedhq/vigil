@@ -159,8 +159,9 @@ function Test-VigilPackWritable {
 # Why the configuration now in place is not good for a pack, judged by its own
 # jobs, so a problem that was already there stops nothing; '' when it is good.
 function Get-VigilPackProblem {
-    param([string]$Root, [string]$Name)
-    $p = ConvertFrom-VigilConfig -Path (Join-Path $Root 'config\vigil.config')
+    param([string]$Root, [string]$Name, [string]$Path = '')
+    if (-not $Path) { $Path = Join-Path $Root 'config\vigil.config' }
+    $p = ConvertFrom-VigilConfig -Path $Path
     if ($p.Errors.Count -gt 0) { return [string]$p.Errors[0].Message }
     foreach ($r in @(Test-VigilConfig -Parsed $p)) {
         if ($r.Kind -ceq 'ERROR' -or ($r.Kind -ceq 'INVALID' -and $r.Job.StartsWith("${Name}_", [System.StringComparison]::Ordinal))) { return "$($r.Message) ($($r.Code))" }
@@ -240,16 +241,26 @@ function Get-VigilPackName {
     return $null
 }
 
-# Writes the configuration, goes back when the result is not valid.
+# Replaces the configuration with $Text, once $Text is valid. Replaced, never
+# written over: a crash or a full disk leaves the old file or the new one,
+# never part of one, which could still be valid with fewer jobs (46).
+# File.Replace keeps the old file's ACL.
 function Set-VigilPackConfig {
     param([string]$Root, [string]$Name, [string]$Text)
     $cfg = Join-Path $Root 'config\vigil.config'
-    $before = [System.IO.File]::ReadAllText($cfg)
-    [System.IO.File]::WriteAllText($cfg, $Text)
-    $why = Get-VigilPackProblem -Root $Root -Name $Name
+    $check = Join-Path $Root "config\.vigil.config.pack.$PID"
+    try {
+        [System.IO.File]::WriteAllText($check, $Text)
+        $why = Get-VigilPackProblem -Root $Root -Name $Name -Path $check
+    }
+    finally { try { [System.IO.File]::Delete($check) } catch { } }
     if ($why) {
-        [System.IO.File]::WriteAllText($cfg, $before)
         Stop-VigilPack "the configuration would not be valid: $why; nothing was changed"
+        return $false
+    }
+    try { Write-VigilFileAtomic -Path $cfg -Text $Text }
+    catch {
+        Stop-VigilPack "cannot save ${cfg}: $($_.Exception.Message); nothing was changed"
         return $false
     }
     return $true
@@ -315,6 +326,12 @@ function Get-VigilPackList {
             $m = Read-VigilPack -Dir $d -Name $name
             if (-not $m) { continue }
             Write-Output "$name $($m.Version): $($m.About)"
+            # Its pack.config ships everywhere, its scripts only where they run (46).
+            if ($m.Jobs.Count -eq 0) {
+                Write-Output '  not available here: no scripts for Windows'
+                $n++
+                continue
+            }
             foreach ($j in $m.Jobs) {
                 $state = if ($p -and (Test-VigilPackOn $p "${name}_$j")) { 'on' } else { 'off' }
                 Write-Output ('  {0,-24} {1}' -f "${name}_$j", $state)
@@ -334,6 +351,9 @@ function Enable-VigilPack {
     $m = Read-VigilPack -Dir (Join-Path $Root "packs\$($w.Pack)") -Name $w.Pack
     if (-not $m) { Stop-VigilPack "cannot read pack $($w.Pack)"; return 1 }
     $list = @($m.Jobs)
+    # Its pack.config ships everywhere, its scripts only where they run: nothing
+    # here is nothing to turn on, not "already on" (46).
+    if ($list.Count -eq 0) { Stop-VigilPack "pack $($w.Pack) has no scripts for Windows"; return 1 }
     if ($w.Job) {
         if (-not $m.Jobs.Contains($w.Job)) { Stop-VigilPack "no job called ${What}: vigil pack list"; return 1 }
         $list = @($w.Job)
