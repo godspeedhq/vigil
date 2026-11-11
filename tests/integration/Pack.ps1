@@ -133,8 +133,16 @@ try {
 
     Write-Host 'Turning on'
     Test-Equal 'listed, off' 'off' (Get-JobState 'base_cpu')
+    # The file is held open across the change: replaced, it still reads as it
+    # was; written over, it would read as the new one (46).
+    $old = [System.IO.File]::ReadAllText($cfg)
+    $held = New-Object System.IO.FileStream -ArgumentList $cfg, ([System.IO.FileMode]::Open), ([System.IO.FileAccess]::Read), ([System.IO.FileShare]'ReadWrite, Delete')
     $r = Invoke-Vigil pack enable base
+    $reader = New-Object System.IO.StreamReader -ArgumentList $held
+    $was = $reader.ReadToEnd()
+    $reader.Dispose()
     Test-Equal 'enables' '0' ([string]$r.Code)
+    Test-Equal 'replaced, not written over: the old file is as it was' $old $was
     Test-Equal 'says what' "on: base_cpu`non: base_disk" $r.Text
     Test-Equal 'the jobs are in the configuration' '2' (Get-Count '^\[job\.base_')
     Test-Equal 'precheck is happy' '0' (Invoke-Precheck)
@@ -144,6 +152,20 @@ try {
     Test-Equal 'an unknown name is refused' 'vigil: no pack or job called nosuch: vigil pack list' (Invoke-Vigil pack enable nosuch).Text
     Test-Equal 'an unknown job is refused' 'vigil: no job called base_nosuch: vigil pack list' (Invoke-Vigil pack enable base_nosuch).Text
     Test-Equal 'a bad name is refused' 'vigil: not a pack or job name: ../x' (Invoke-Vigil pack enable '../x').Text
+
+    # A pack whose pack.config is here but whose scripts are not, as nginx on
+    # Windows: nothing to turn on, not "already on" (46).
+    [void](New-Item -ItemType Directory -Force -Path "$root\packs\elsewhere")
+    [System.IO.File]::WriteAllText("$root\packs\elsewhere\pack.config", "[pack]`nversion = 1.0.0`nvigil = 0.0.1`ndescription = Elsewhere only`n`n[job.x]`nmetric_name = it.x`nmetrics = up`nrun_every = 1h`n")
+    $sum = (Get-FileHash -LiteralPath $cfg -Algorithm SHA256).Hash
+    $r = Invoke-Vigil pack enable elsewhere
+    Test-Equal 'a pack with no scripts here is refused' '1' ([string]$r.Code)
+    Test-Equal 'saying so, not "already on"' 'vigil: pack elsewhere has no scripts for Windows' $r.Text
+    Test-Equal 'and the configuration is unchanged' $sum (Get-FileHash -LiteralPath $cfg -Algorithm SHA256).Hash
+    $list = @((Invoke-Vigil pack list).Text.Split("`n"))
+    $at = [array]::IndexOf($list, 'elsewhere 1.0.0: Elsewhere only')
+    Test-Equal 'listed as not available here' '  not available here: no scripts for Windows' $(if ($at -ge 0) { $list[$at + 1] } else { '' })
+    Remove-Item -Recurse -Force -LiteralPath "$root\packs\elsewhere"
 
     Write-Host 'Updating'
     Publish-Packs '1.0.0' @('cpu', 'disk')

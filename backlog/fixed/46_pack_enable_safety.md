@@ -41,3 +41,34 @@ Nothing was turned on. The same logic is in `pack.sh`.
 - Pack tests (both shells) check the message and exit code for a pack with
   no scripts for the platform, and that `vigil.config` is replaced, not
   rewritten (no partial file is ever visible).
+
+## Built (2026-11-11)
+
+As proposed:
+
+- **Checked, then replaced.** `pack enable` and `pack disable` write the new
+  configuration to a file beside it, validate that file (judged by the
+  pack's own jobs, as before), and only then replace `vigil.config` with it.
+  Before, the new text was written over `vigil.config` and the old text
+  written back when it failed.
+  - POSIX: `cp -p` of the old file (owner and mode stay), the new text into
+    it, `mv -f` over `vigil.config`.
+  - Windows: `Write-VigilFileAtomic`, whose `File.Replace` keeps the old
+    file's ACL and retries while another process holds it.
+  - A failure to save says `cannot save <file>; nothing was changed`.
+- **A pack with no scripts here:**
+  - `pack enable nginx` on Windows: `vigil: pack nginx has no scripts for
+    Windows`, exit 1, and the configuration untouched;
+  - `pack list` shows the pack with `not available here: no scripts for
+    Windows` instead of an empty list of jobs;
+  - the same on Linux and macOS, with their names.
+- **Specification:** §18.10, both rules.
+- **Tests:** `pack.sh` and `Pack.ps1`.
+  - The configuration is held open across `pack enable`. Replaced, the open
+    file still reads as it was; written over, it would read as the new
+    one. On POSIX, also that its mode (640) stays.
+  - A pack `elsewhere` with a `pack.config` and no script: refused, saying
+    so, the configuration unchanged, and listed as not available here.
+  - Fedora 66/66, the Mac 66/66 (bash 3.2), Windows 11 PowerShell 5.1
+    65/65. On main (0.6.5) the 4 new checks fail on each: the held file
+    reads as the new one, and `elsewhere is already on`, exit 0.
