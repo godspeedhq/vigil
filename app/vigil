@@ -169,7 +169,7 @@ case ${1-} in
                 _vsec_v='' value=''
                 printf '%s set; runs started from now on use it\n' "$name"
                 ;;
-            list:2) vigil_secret_list "$root" ;;
+            list:2) vigil_secret_list "$root" || exit 1 ;;
             delete:3) vigil_secret_delete "$root" "$3" || exit 1 ;;
             *) usage ;;
         esac

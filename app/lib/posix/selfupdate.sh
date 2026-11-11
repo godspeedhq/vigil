@@ -212,6 +212,10 @@ vigil_release_source() {
                 ;;
         esac
     fi
+    if [ -n "${_vu_denied-}" ]; then
+        printf 'vigil: cannot read %s from this account, which says where releases come from: run this as the account that installed Vigil (sudo for a system install)\n' "$_vu_denied" >&2
+        return 1
+    fi
     if [ -n "${_vu_source-}" ] && [ -n "${_vu_path-}" ]; then
         printf "vigil: [vigil] sets both 'release_url' and 'release_path': use one\n" >&2
         return 1
@@ -408,6 +412,12 @@ vigil_self_update() {
     local root=$1 app=$2 check=$3 want=$4 pinned=$4 wait=${5-} base current tag work sum got file f key rc why
     local -a curlopts
     _vu_kind=refused
+    # Root reads the configuration itself through the --update-by rule (18.7),
+    # and with it where releases come from.
+    if [ -n "${_vu_denied-}" ] && [ "$check" = 0 ] && [ -z "$pinned" ] && [ ! -O "$app" ] &&
+        command -v sudo > /dev/null 2>&1 && sudo -n -l "$app/vigil" self update > /dev/null 2>&1; then
+        exec sudo -n "$app/vigil" self update
+    fi
     vigil_release_source || return 1
     base=$_vu_base
     curlopts=("${_vu_curl[@]}" --max-time 60)
@@ -476,7 +486,14 @@ vigil_self_update() {
             rm -rf "$work"
             _vu_kind=download
             why=$(_vigil_release_refused "releases/download/v$want/$f")
-            if [ -n "$why" ]; then _vigil_self_die "cannot download Vigil $want: $why"; else _vigil_self_die "cannot download Vigil $want: is there such a release?"; fi
+            if [ -n "$why" ]; then
+                _vigil_self_die "cannot download Vigil $want: $why"
+            elif [ "$_vu_mirror" = 2 ]; then
+                # A folder names itself and the account, as for the latest (45).
+                _vigil_self_die "cannot read Vigil $want from $_vu_from (as $(id -un 2> /dev/null || echo this account)): is it there, and readable by this account?"
+            else
+                _vigil_self_die "cannot download Vigil $want: is there such a release?"
+            fi
             return 1
         fi
     done
@@ -530,9 +547,14 @@ vigil_self_update() {
 }
 
 vigil_config_version() {
-    _vu_want='' _vu_source='' _vu_path='' _vu_hname='' _vu_hvalue=''
+    _vu_want='' _vu_source='' _vu_path='' _vu_hname='' _vu_hvalue='' _vu_denied=''
     _vw_root=$1
-    vigil_config_parse "$1/config/vigil.config" 2> /dev/null || return 0
+    if ! vigil_config_parse "$1/config/vigil.config" 2> /dev/null; then
+        # One this account may not read may name a copy of the releases: GitHub
+        # is not the answer then (45).
+        _vu_denied=$(vigil_denied "$1/config/vigil.config")
+        return 0
+    fi
     if vigil_fetch_mode; then
         _vigil_wk_dir vigil state_dir state
         vigil_active_read "$_vw_dir" && vigil_config_parse "$VIGIL_ACT_CONFIG" 2> /dev/null || return 0

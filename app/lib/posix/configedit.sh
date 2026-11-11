@@ -28,8 +28,12 @@ _vigil_ce_err() {
 }
 
 vigil_config_edit() {
-    local root=$1 cfg dir work copy orig editor rc answer
+    local root=$1 cfg dir work copy orig editor rc answer denied
     cfg=$root/config/vigil.config
+    if denied=$(vigil_denied "$cfg"); then
+        _vigil_ce_err "$(vigil_denied_message "$denied")"
+        return 1
+    fi
     if [ ! -f "$cfg" ]; then
         _vigil_ce_err "no configuration at $cfg: vigil init writes one"
         return 1

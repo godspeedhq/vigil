@@ -45,6 +45,39 @@
 
 $Script:VigilConfigMaxBytes = 1048576
 
+# What stops this account telling whether $Path is there: $Path itself (a
+# file it may not read, a folder it may not list), or the nearest folder
+# above it that exists and that it may not list; '' when $Path can be read or
+# is plainly absent. A system install's root is closed to all but SYSTEM and
+# Administrators, and .NET then says what is inside does not exist (45).
+function Get-VigilDenied {
+    param([string]$Path)
+    # Only a refusal counts: a file busy in another process is not this
+    # account's problem, and its reader reports it.
+    try {
+        if ([System.IO.Directory]::Exists($Path)) { [void][System.IO.Directory]::GetFileSystemEntries($Path); return '' }
+        if ([System.IO.File]::Exists($Path)) { [System.IO.File]::OpenRead($Path).Dispose(); return '' }
+    }
+    catch [System.UnauthorizedAccessException] { return $Path }
+    catch { return '' }
+    $p = [System.IO.Path]::GetDirectoryName($Path)
+    while ($p) {
+        if ([System.IO.Directory]::Exists($p)) {
+            try { [void][System.IO.Directory]::GetFileSystemEntries($p); return '' }
+            catch [System.UnauthorizedAccessException] { return $p }
+            catch { return '' }
+        }
+        $p = [System.IO.Path]::GetDirectoryName($p)
+    }
+    return ''
+}
+
+# The message for what Get-VigilDenied found.
+function Get-VigilDeniedMessage {
+    param([string]$Denied)
+    return "cannot read $Denied from this account: run this from an elevated prompt for a system install"
+}
+
 function ConvertFrom-VigilConfig {
     param([Parameter(Mandatory = $true)][string]$Path)
 

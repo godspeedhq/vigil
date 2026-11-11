@@ -146,6 +146,8 @@ function Get-VigilPackRelease {
 function Test-VigilPackWritable {
     param([string]$Root)
     $cfg = Join-Path $Root 'config\vigil.config'
+    $denied = Get-VigilDenied $cfg
+    if ($denied) { Stop-VigilPack (Get-VigilDeniedMessage $denied); return $false }
     if (-not [System.IO.File]::Exists($cfg)) { Stop-VigilPack 'no configuration here: run vigil init first'; return $false }
     $p = ConvertFrom-VigilConfig -Path $cfg
     if ($p.Errors.Count -gt 0) { Stop-VigilPack "$cfg has errors: fix them first (vigil precheck)"; return $false }
@@ -319,6 +321,11 @@ function Get-VigilPackList {
     $packs = Join-Path $Root 'packs'
     $n = 0
     $cfg = Join-Path $Root 'config\vigil.config'
+    # Whether a job is on cannot be told without the configuration, nor which
+    # packs are here without the folder: say so, rather than "off".
+    $denied = Get-VigilDenied $packs
+    if (-not $denied) { $denied = Get-VigilDenied $cfg }
+    if ($denied) { Stop-VigilPack (Get-VigilDeniedMessage $denied); return 1 }
     $p = if ([System.IO.File]::Exists($cfg)) { ConvertFrom-VigilConfig -Path $cfg } else { $null }
     if ([System.IO.Directory]::Exists($packs)) {
         foreach ($d in ([System.IO.Directory]::GetDirectories($packs) | Sort-Object)) {

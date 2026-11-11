@@ -25,6 +25,8 @@ function Invoke-VigilConfigEdit {
     param([string]$Root)
     $err = { param($m) [Console]::Error.WriteLine("vigil: $m") }
     $cfg = Join-Path $Root 'config\vigil.config'
+    $denied = Get-VigilDenied $cfg
+    if ($denied) { & $err (Get-VigilDeniedMessage $denied); return 1 }
     if (-not [System.IO.File]::Exists($cfg)) { & $err "no configuration at ${cfg}: vigil init writes one"; return 1 }
     # A pointer file only says where the configuration is (6.8): edit it there.
     # One that is broken is still opened here, to be fixed.

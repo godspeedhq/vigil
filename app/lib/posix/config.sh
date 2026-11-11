@@ -60,6 +60,40 @@ _vigil_cfg_trim() {
 
 # vigil_config_parse <path>
 # Returns 0 when the file parsed without errors, 1 otherwise.
+# Prints what stops this account telling whether $1 is there, and succeeds:
+# $1 itself (a file it may not read, a folder it may not list or enter), or
+# the nearest folder above it that exists and that it may not enter. Fails
+# when $1 can be read or is plainly absent. A system install's root is closed
+# to other accounts, and inside it everything looks missing (45).
+vigil_denied() {
+    local p=$1
+    if [ -e "$p" ]; then
+        if [ -d "$p" ]; then
+            [ -r "$p" ] && [ -x "$p" ] && return 1
+        else
+            [ -r "$p" ] && return 1
+        fi
+        printf '%s
+' "$p"
+        return 0
+    fi
+    while :; do
+        case $p in */?*) p=${p%/*} ;; *) return 1 ;; esac
+        [ -n "$p" ] || return 1
+        if [ -e "$p" ]; then
+            [ -x "$p" ] && return 1
+            printf '%s
+' "$p"
+            return 0
+        fi
+    done
+}
+
+# The message for what vigil_denied found.
+vigil_denied_message() {
+    printf 'cannot read %s from this account: run this as the account that installed Vigil (sudo for a system install)' "$1"
+}
+
 vigil_config_parse() {
     local path=$1
     # Clear the previous parse's section variables (none on the first parse).
@@ -80,6 +114,10 @@ vigil_config_parse() {
     VIGIL_CFG_GENERATION=$((${VIGIL_CFG_GENERATION:-0} + 1))
     VIGIL_CFG_ERRORS=()
 
+    if [ ! -f "$path" ] && vigil_denied "$path" > /dev/null; then
+        _vigil_cfg_error 0 E_FILE_UNREADABLE "config file not readable: $path"
+        return 1
+    fi
     if [ ! -f "$path" ]; then
         _vigil_cfg_error 0 E_FILE_NOT_FOUND "config file not found: $path"
         return 1
