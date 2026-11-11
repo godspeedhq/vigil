@@ -76,6 +76,12 @@ Where it differs from the proposal, and how the open points were settled:
     through the drive's administrative share, where the account may open
     it (CI's administrator).
   - Conformance: `validate/26` to `30`.
+- **Not tried:** a real SMB or NFS server. The folder tests use a local
+  folder on all three platforms and, on Windows, `\\localhost`'s
+  administrative share; no share on another machine, no mounted NFS or SMB
+  share on Linux or macOS, and no LocalSystem service reading a share as the
+  computer account. (Noted 2026-11-11, from the engineering-challenges
+  review.)
 
 ## Not included
 
@@ -90,7 +96,7 @@ company Artifactory servers require a login, and `release_url` can't send
 one (credentials in the URL are refused, by design). The free edition only
 lets an anonymous read be granted through its web UI. A read token kept in
 Vigil's secret store would close this; not decided, and not part of this
-item.
+item. (Decided and built as backlog 37, in 0.6.2.)
 
 ## Done when
 

@@ -132,7 +132,14 @@ As proposed, with these choices:
   moves a machine to a release only on a copy that needs a login);
   conformance `validate/31` to `35`. The mock already had what was needed:
   `<dir>/require` and a log of the headers.
-- **Not tried:** a real Artifactory with anonymous read off.
+- **Tried later, for the 0.6.2 release notes (published 2026-11-10):**
+  Artifactory OSS 7.77.17 in Docker on the Fedora machine, anonymous access
+  off as it ships,
+  a token scoped to its `readers` group: no header gave `401` with the
+  message, a wrong token `401` with its own message, the real one updated
+  the machine, and Artifactory's request log showed every file fetched with
+  the token. Over plain http to `127.0.0.1`, from Fedora only: not over
+  HTTPS, not from macOS or Windows, and not Nexus or GitLab.
 
 ## Done when
 

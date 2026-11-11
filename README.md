@@ -17,7 +17,7 @@ Vigil runs your scripts on a schedule, watches every run from start to finish, a
 
 Vigil runs the work, records the work, and forwards the evidence. Storage, dashboards and alerting stay with the tools built for them.
 
-> **Status: early release (v0.2.x).** Scheduling, supervision, recovery, service registration, the installers, the `file`, Datadog and OTLP metrics backends, and fetching configuration and scripts from git, https, sftp and local sources, and forwarding Vigil's own logs over OTLP work end to end on all three platforms. Other backends are specified but not built yet. See [What works today](#what-works-today).
+> **Status: pre-1.0 (v0.6.x).** Scheduling, supervision, recovery, service registration, the installers, self-update, the `file`, Datadog, OTLP and Splunk metrics backends, fetching configuration and scripts from git, https, sftp and local sources, secret stores, and forwarding Vigil's own logs work end to end on Linux, macOS and Windows 11. Windows Server 2016 is partly tested, other Windows Server versions not yet, and other metrics backends are planned, not built. See [What works today](#what-works-today) for what each is tested against.
 
 ---
 
@@ -76,35 +76,40 @@ Vigil's guiding rules:
 
 ## What works today
 
-| Area | Status |
-| --- | --- |
-| Configuration parsing and validation, with errors by line and code | Done |
-| Scheduling: `run_every`, `run_at`, `run_on_days`, `cron`, missed runs, `late_start_window` | Done |
-| Every due run starts at its time, with no concurrency ceiling; overlap `skip` / `queue_one` | Done |
-| Workers: runners, arguments, environment, stdout/stderr capture, job logs | Done |
-| Outcomes: `standard`, `nagios`, explicit exit-code lists | Done |
-| Metrics from job output: `metric` lines and Nagios performance data | Done |
-| Supervisor: tick loop, hot reload, single-instance lock, `jobs.log` | Done |
-| Recovery from crashes, restarts, reboots and damaged state | Done |
-| `max_runtime` with ownership-checked process-tree termination | Done |
-| Uncertain runs: recovery records, `on_uncertain`, `vigil resolve` | Done |
-| Spool with write-ahead fan-out, size cap, per-backend backoff | Done |
-| Backend: `file` (Prometheus text format, for node_exporter / windows_exporter) | Done |
-| Backends: `datadog` (Series API v2), `otel` (OTLP/HTTP JSON) and `splunk` (HTTP Event Collector) | Done |
-| Backends: the rest | Specified, not built |
-| `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done |
-| `vigil config`: edit the configuration like `crontab -e`, saved only when valid | Done |
-| Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done |
-| `vigil init` (a starting configuration) and `vigil uninstall` | Done |
-| One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums | Done |
-| `vigil self update`: verified, rolls back if the new version does not run, keeps your configuration, scripts and running jobs | Done |
-| `[vigil] version`: the configuration names the release, and a fleet follows it up or down | Done |
-| Fetching configuration and scripts from git, https, sftp and local directories or shares: digests, atomic activation, last good configuration | Done |
-| Forwarding Vigil's own logs over OTLP, Splunk HEC or Datadog's logs intake, with checkpoints, backoff and reported gaps | Done |
-| Log retention: `retain_days`, `log_retain_days` | Done |
-| Per-file log size cap: `max_file_mb` | Done |
-| Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done |
-| Secret stores: HashiCorp Vault, Azure Key Vault, AWS Secrets Manager, GCP Secret Manager, over HTTPS with curl (and openssl) or .NET | Done |
+"Done" means built and tested. The last column says against what: **the suites** are the conformance and integration tests, run in CI for every pull request on Linux, macOS and Windows (PowerShell 5.1 and 7), against local mocks where a network service is involved. **Real** means a run against the genuine product, recorded in [the test reports](tests/integration/backends/reports/).
+
+| Area | Status | Tested against |
+| --- | --- | --- |
+| Configuration parsing and validation, with errors by line and code | Done | The suites |
+| Scheduling: `run_every`, `run_at`, `run_on_days`, `cron`, missed runs, `late_start_window` | Done | The suites |
+| Every due run starts at its time, with no concurrency ceiling; overlap `skip` / `queue_one` | Done | The suites |
+| Workers: runners, arguments, environment, stdout/stderr capture, job logs | Done | The suites |
+| Outcomes: `standard`, `nagios`, explicit exit-code lists | Done | The suites |
+| Metrics from job output: `metric` lines and Nagios performance data | Done | The suites |
+| Supervisor: tick loop, hot reload, single-instance lock, `jobs.log` | Done | The suites |
+| Recovery from crashes, restarts, reboots and damaged state | Done | The suites (crashes and restarts simulated) |
+| `max_runtime` with ownership-checked process-tree termination | Done | The suites |
+| Uncertain runs: recovery records, `on_uncertain`, `vigil resolve` | Done | The suites |
+| Spool with write-ahead fan-out, size cap, per-backend backoff | Done | The suites |
+| Backend: `file` (Prometheus text format, for node_exporter / windows_exporter) | Done | The suites |
+| Backend: `otel` (OTLP/HTTP JSON) | Done | The suites; real: Grafana LGTM, Prometheus, Mimir, the OpenTelemetry Collector, Alloy, Uptrace and others, on Linux; LGTM on macOS and Windows too |
+| Backend: `splunk` (HTTP Event Collector) | Done | The suites; real: Splunk Enterprise 10.6, on Linux |
+| Backend: `datadog` (Series API v2) | Done | The suites, against a mock only: never run against Datadog itself |
+| Backends: the rest | Planned, not built | |
+| `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done | The suites |
+| `vigil config`: edit the configuration like `crontab -e`, saved only when valid | Done | The suites |
+| Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done | The suites; real machines: Fedora 44, Intel macOS 12, Windows 11, Windows Server 2016 |
+| `vigil init` (a starting configuration) and `vigil uninstall` | Done | The suites |
+| One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums | Done | The suites; releases installed on the real machines above |
+| `vigil self update`: verified, rolls back if the new version does not run, keeps your configuration, scripts and running jobs | Done | The suites; releases updated on the real machines above |
+| `[vigil] version`: the configuration names the release, and a fleet follows it up or down | Done | The suites, one machine at a time; never a fleet |
+| A copy of the releases: `release_url`, with or without a login, and `release_path` | Done | The suites; real: Artifactory OSS 7.77 over plain http on one Fedora machine. `release_path`: a local folder, and on Windows `\localhost`; never a real SMB or NFS server |
+| Fetching configuration and scripts from git, https, sftp and local directories or shares: digests, atomic activation, last good configuration | Done | The suites; real: Gitea, nginx and OpenSSH, from Linux, macOS and Windows |
+| Forwarding Vigil's own logs over OTLP, Splunk HEC or Datadog's logs intake, with checkpoints, backoff and reported gaps | Done | The suites; real: OTLP (Loki, LGTM and others) and Splunk. Datadog's logs intake against a mock only |
+| Log retention: `retain_days`, `log_retain_days` | Done | The suites |
+| Per-file log size cap: `max_file_mb` | Done | The suites |
+| Secrets for jobs: `env:`, `secret:` (Vigil's store, `vigil secret`), `store:` with a `helper` | Done | The suites |
+| Secret stores: HashiCorp Vault, Azure Key Vault, AWS Secrets Manager, GCP Secret Manager, over HTTPS with curl (and openssl) or .NET | Done | Real: HashiCorp Vault and OpenBao, from Linux, macOS and Windows. Azure, AWS and GCP against emulators only, which accept any credential: their sign-in has never met the real cloud |
 
 ---
 
@@ -156,7 +161,7 @@ curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.
 
 ### Windows
 
-Windows PowerShell 5.1 is enough. It's built into Windows 10 and 11 and Windows Server 2016 and later; Server 2012 R2 needs WMF 5.1 first. PowerShell 7 works too, but is never required.
+Windows PowerShell 5.1 is enough. It's built into Windows 10 and 11 and Windows Server 2016 and later; Server 2012 and 2012 R2 need WMF 5.1 first. Tested so far: Windows 11, GitHub's Server 2025 runner, and Server 2016 in part. Other versions are expected to work but not yet tested ([the record](tests/integration/backends/reports/windows-compatibility.md)). PowerShell 7 works too, but is never required.
 
 ```powershell
 # System mode, from an elevated prompt: C:\ProgramData\Vigil, the "Vigil" service
@@ -1221,7 +1226,7 @@ powershell -File tests\Run-Conformance.ps1 # Windows PowerShell 5.1
 - log forwarding against a mock OTLP receiver: what stays local, checkpoints, every failure a destination can give, and every kind of gap;
 - service registration in system and user mode, with a running job that must outlive `vigil stop` and `vigil service remove`.
 
-CI runs everything on macOS (with the system bash 3.2), Linux, Windows PowerShell 5.1 and PowerShell 7 for every pull request. The [Test evidence](https://godspeedhq.github.io/vigil/evidence/) page shows the console output of the newest passing run on `main`, for each platform.
+CI runs both layers for every pull request on Ubuntu, on macOS with the system bash 3.2 (GitHub's Apple Silicon runner), and on Windows (GitHub's Server 2025 runner) with Windows PowerShell 5.1 and PowerShell 7. The service packs run against real PostgreSQL and nginx on Ubuntu and real PostgreSQL on Windows, not on macOS. Real metrics backends, secret stores and sources run outside CI, in Docker on a Fedora test machine, with Vigil on Linux, an Intel Mac (macOS 12) and Windows 11: [their reports](tests/integration/backends/reports/). The [Test evidence](https://godspeedhq.github.io/vigil/evidence/) page shows the console output of the newest passing run on `main`, for each platform.
 
 ---
 
