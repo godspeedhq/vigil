@@ -430,7 +430,7 @@ app/vigil --root ~/vigil-demo status                      # the service's state,
 
 The default is system mode when run as root or from an elevated prompt, user mode otherwise. On Windows the host is your choice, never guessed: Windows PowerShell 5.1 (`--host powershell`, the default, built into every supported Windows) or PowerShell 7 (`--host pwsh`). The supervisor starts its jobs' workers with the same host. On Linux and macOS the root may hold only letters, digits and `. _ - + @ /`, so the unit file and plist need no quoting.
 
-To give the service environment variables, use `systemctl edit vigil` (Linux), the plist's `EnvironmentVariables` (macOS) or the machine environment (Windows). Secrets in Vigil's own store must be set as the account the service runs as (`sudo -u vigil app/vigil secret set NAME`); on Windows, a LocalSystem service cannot read a store set from your account, so give it `env:` or `store:` references.
+To give the service environment variables, use `systemctl edit vigil` (Linux), the plist's `EnvironmentVariables` (macOS) or the machine environment (Windows). Secrets in Vigil's own store must be set as the account the service runs as (`sudo -u vigil app/vigil secret set NAME`); on Windows, a LocalSystem service cannot read a store set from your account, so give it `env:` or `store:` references. Windows also refuses its encryption (DPAPI) to a logon without a password, such as SSH with a key: set and check secrets from the console or remote desktop, and Vigil says so if you try over SSH.
 
 Annotated example configurations covering every feature are in [`tests/mocks/`](tests/mocks/): `simple/` (everything local), `mixed/` (some scripts fetched) and `advanced/` (configuration fetched from a source).
 

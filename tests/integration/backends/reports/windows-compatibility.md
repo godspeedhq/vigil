@@ -50,4 +50,8 @@ A Hyper-V VM on the Windows 11 machine, 2 vCPUs, as installed (no updates), reac
 | Backends, Fetch, Logs, Pack, Self-Update, Stores, Upgrade, Version-Config | not run: they need Python, not on the VM |
 | Install | not run: needs Git Bash |
 
-What is Vigil's to follow up is in [backlog 48](../../../../backlog/48_windows_over_ssh_and_server_2016.md): a clear message when DPAPI is refused, and the 50-second tick.
+What followed, in [backlog 48](../../../../backlog/fixed/48_windows_over_ssh_and_server_2016.md):
+
+- **DPAPI over SSH:** Windows refuses it to a logon without a password, on Windows 11 too. Vigil now says so (`Windows refuses its data protection to this logon, ...`), checked over SSH on both. The Secrets and Precheck failures above are that.
+- **`base_services` over SSH:** the service manager refuses a standard user's network logon, and the script says so. Not a defect; the service, as LocalSystem, is not refused.
+- **The long ticks are the machine:** on this VM, `powershell -NoProfile -Command exit` took 1.3 to 26 seconds (15 tries), and single supervisor ticks 7 to 57 seconds (30 tries); on Windows 11, 0.3 seconds. Idle, Max-Runtime passed 3 of 4 times. Why PowerShell starts so slowly here (no updates, Windows Defender, memory) needs an administrator on the VM to find out. §10.3 now says that `max_runtime` is enforced only as quickly as ticks run.

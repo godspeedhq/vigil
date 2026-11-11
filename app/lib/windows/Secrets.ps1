@@ -42,6 +42,27 @@ function Get-VigilSecretDeniedMessage {
     return "cannot read $Denied from this account: secrets are set and read as the account Vigil runs as"
 }
 
+# Windows refuses its data protection (DPAPI), which the store uses, to a
+# logon that has no password: an SSH key, a scheduled task without a stored
+# password. Whether this logon is one, found by asking DPAPI for something
+# small: refused with "Access is denied" (0x80070005). A secret this logon
+# cannot read says only "key not valid", as one of another account does, so
+# the error alone cannot tell them apart (48). VIGIL_TEST_DPAPI_REFUSED
+# stands for such a logon in the tests (22.4.5).
+$Script:VigilDpapiRefusedMessage = "Windows refuses its data protection to this logon, which has no password (an SSH key, or a task without a stored password): set and check secrets from a console or remote desktop session as this account, or use env: or store:"
+function Test-VigilDpapiRefused {
+    if ($env:VIGIL_TEST_DPAPI_REFUSED) { return $true }
+    try {
+        [void](ConvertFrom-SecureString -SecureString (ConvertTo-SecureString 'x' -AsPlainText -Force) -ErrorAction Stop)
+        return $false
+    }
+    catch {
+        $e = $_.Exception
+        while ($e.InnerException) { $e = $e.InnerException }
+        return ($e -is [System.Security.Cryptography.CryptographicException]) -and $e.HResult -eq [int]0x80070005
+    }
+}
+
 # Strips one trailing newline (LF or CRLF).
 function Remove-VigilTrailingNewline {
     param([string]$Value)
@@ -74,9 +95,20 @@ function Set-VigilSecret {
     $acl.SetAccessRuleProtection($true, $false)
     $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
                 [Security.Principal.WindowsIdentity]::GetCurrent().User, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
-    Set-Acl -LiteralPath $dir -AclObject $acl
+    # Only the access entries are written. Set-Acl would try the audit ones
+    # too, which needs a privilege an ordinary token lacks: once the folder
+    # existed, every later set printed that error (48). Windows PowerShell's
+    # .NET has the method on DirectoryInfo; PowerShell 7's, as an extension.
+    $info = New-Object System.IO.DirectoryInfo $dir
+    if ($info.PSObject.Methods['SetAccessControl']) { $info.SetAccessControl($acl) }
+    else { [System.IO.FileSystemAclExtensions]::SetAccessControl($info, $acl) }
     # DPAPI, tied to this account on this machine.
-    $text = ConvertFrom-SecureString -SecureString $Value
+    if ($env:VIGIL_TEST_DPAPI_REFUSED) { throw $Script:VigilDpapiRefusedMessage }
+    try { $text = ConvertFrom-SecureString -SecureString $Value -ErrorAction Stop }
+    catch {
+        if (Test-VigilDpapiRefused) { throw $Script:VigilDpapiRefusedMessage }
+        throw
+    }
     $tmp = Join-Path $dir ".$Name.tmp.$PID"
     [System.IO.File]::WriteAllText($tmp, $text)
     $path = Join-Path $dir $Name
@@ -118,13 +150,15 @@ function Read-VigilStoredSecret {
         return @{ Ok = $false; Why = "not found in Vigil's secret store (vigil secret set $Name)" }
     }
     try {
-        $secure = ConvertTo-SecureString -String ([System.IO.File]::ReadAllText($path).Trim())
+        if ($env:VIGIL_TEST_DPAPI_REFUSED) { throw 'refused' }
+        $secure = ConvertTo-SecureString -String ([System.IO.File]::ReadAllText($path).Trim()) -ErrorAction Stop
         $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
         try { $value = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
         finally { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
         return @{ Ok = $true; Value = $value }
     }
     catch {
+        if (Test-VigilDpapiRefused) { return @{ Ok = $false; Why = $Script:VigilDpapiRefusedMessage } }
         # Set by another account, or copied from another machine.
         return @{ Ok = $false; Why = 'cannot be decrypted by this account on this machine; set it again with vigil secret set as the service account' }
     }

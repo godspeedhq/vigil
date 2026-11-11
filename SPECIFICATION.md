@@ -443,7 +443,7 @@ A store on the host, managed with the `vigil secret` command and read afresh by 
 
 - **Names:** `[A-Za-z_][A-Za-z0-9_]*`, like environment variables.
 - **Linux and macOS:** one file per secret, `config/secrets/<NAME>`. The folder is `0700` and each file `0600`, owned by the service account. Vigil refuses to read a secret, and says why without the value, when the folder or file is accessible to anyone else or owned by another account.
-- **Windows:** one file per secret, `config\secrets\<NAME>`, holding the value encrypted with DPAPI for the service account (`ConvertFrom-SecureString`, no extra software). The folder's ACL is owner-only, with inheritance removed. Only that account on that machine can decrypt it; a secret it cannot decrypt is refused with a reason saying so.
+- **Windows:** one file per secret, `config\secrets\<NAME>`, holding the value encrypted with DPAPI for the service account (`ConvertFrom-SecureString`, no extra software). The folder's ACL is owner-only, with inheritance removed. Only that account on that machine can decrypt it; a secret it cannot decrypt is refused with a reason saying so. Windows refuses DPAPI to a logon without a password (an SSH session with a key, a scheduled task without a stored password), even as the right account: there `vigil secret set` fails, and a secret cannot be read, with the reason `Windows refuses its data protection to this logon, which has no password (an SSH key, or a task without a stored password): set and check secrets from a console or remote desktop session as this account, or use env: or store:`. A service, which runs as LocalSystem or an account with its password, is not affected.
 - `vigil secret set` writes a temporary file and renames it over the old one, so a run reads either the old value or the new one, never part of one. A single trailing newline is not part of the value.
 - Run `vigil secret` as the service account, so the files belong to, and on Windows are encrypted for, the account that reads them.
 - **Filesystems without Unix permissions:** Git Bash and Cygwin on Windows cannot enforce them, so the check is skipped there; they are for development only, and Windows runs the PowerShell implementation. Under WSL, a Linux filesystem (ext4) enforces them, but Windows drives under `/mnt/c` show every file as accessible to all by default, so Vigil refuses secrets kept there: install Vigil inside the Linux filesystem.
@@ -917,7 +917,7 @@ A job that cannot start (missing runner, missing file, permission denied) is `fa
 
 `max_runtime` is optional. A job without it runs until it finishes, however long that takes; its climbing `.running` metric is the signal that something is wrong.
 
-When `max_runtime` is set, the worker records the deadline (`deadline_epoch`) and the supervisor checks it every tick. On expiry, once the job process is proven to be the run's (§11.5), the supervisor writes a timeout marker, `state/locks/<job id>.<run id>.timeout`, then stops the job's process tree (§11.6). The worker sees the marker when its job ends and records `timed_out` (reason `stopped after max_runtime <duration>`) and `<m>.timeouts` instead of a failure; if the worker has gone too, the supervisor records it. Enforcement is therefore accurate to one tick.
+When `max_runtime` is set, the worker records the deadline (`deadline_epoch`) and the supervisor checks it every tick. On expiry, once the job process is proven to be the run's (§11.5), the supervisor writes a timeout marker, `state/locks/<job id>.<run id>.timeout`, then stops the job's process tree (§11.6). The worker sees the marker when its job ends and records `timed_out` (reason `stopped after max_runtime <duration>`) and `<m>.timeouts` instead of a failure; if the worker has gone too, the supervisor records it. Enforcement is therefore accurate to one tick, and a tick is only as quick as the machine: on Windows a tick starts PowerShell processes (each run's worker, the sender), so where starting PowerShell is slow, ticks run long and `max_runtime` is enforced that much later. On an unpatched Server 2016 VM, starting PowerShell took 1 to 26 seconds and ticks up to a minute (backlog 48); on Windows 11, 0.3 seconds.
 
 The supervisor kills only processes whose identity matches the state file (§11). It never kills by PID alone.
 
@@ -1712,7 +1712,7 @@ Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rul
 - Every job file exists and is runnable through its resolved runner, its runner `command` exists, and its `working_dir` exists: the checks a worker makes before a run (§4.3).
 - Every `secret` of every job resolves, and every `require_env` variable is set (or provided by a `secret`). Backend and secret store credentials (`env:`, `secret:` references) resolve, and each cloud secret store says whether it uses its vendor's CLI or Vigil's own HTTPS (§6.5.3). Values are fetched and thrown away; only references are printed.
 - State, log and spool directories are writable: each, or the nearest folder above it that exists, since precheck creates nothing.
-- `VIGIL_FAULT` and `VIGIL_TEST_IMDS` are not set (§22.4.1, §22.4.2).
+- `VIGIL_FAULT`, `VIGIL_TEST_IMDS` and, on Windows, `VIGIL_TEST_DPAPI_REFUSED` are not set (§22.4.1, §22.4.2, §22.4.5).
 - The minute of the next 24 hours at which the most jobs start, and how many, when it is more than one: a `note`, never a failure (§8). Each job's starts are worked out from its schedule as the supervisor would, at the current UTC offset.
 
 `vigil precheck <job>` checks only that job, and also prints its effective settings and their sources (§6.6).
@@ -2351,6 +2351,10 @@ The `git` and `https` sources are tested against a small local file server over 
 Every change is also tested upgrading from the latest published release: the real installer installs it from GitHub, its own `vigil self update` moves it to the build under test, and a supervisor and jobs must carry on through that (`tests/integration/upgrade.sh`, `Upgrade.ps1`).
 
 The installers and `vigil self update` are tested against the file server of §22.4.3: the environment variable `VIGIL_TEST_RELEASE_URL` replaces the GitHub address, and is accepted only as `http://127.0.0.1:<port>`. Pre-flight fails if it is set, like `VIGIL_FAULT`. It stands for GitHub only: a `release_url` wins over it, and is tested against the same server, as plain `http` to this machine, which it allows.
+
+### 22.4.5 Test DPAPI Refusal
+
+Windows refuses its data protection (DPAPI), which Vigil's secret store uses, to a logon without a password: an SSH key, a scheduled task without a stored password. CI cannot make such a logon, so `VIGIL_TEST_DPAPI_REFUSED`, set to anything, makes Vigil behave as in one: `vigil secret set` and reading a `secret:` fail with the message of §6.5.2. It can only make things fail. Pre-flight fails if it is set, like `VIGIL_FAULT`. The real logon is checked by hand over SSH (backlog 48).
 
 ### 22.5 Platform Matrix
 
