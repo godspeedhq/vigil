@@ -170,7 +170,11 @@ switch ($Command) {
             Write-Output "$name set; runs started from now on use it"
             exit 0
         }
-        if ($Job -ceq 'list' -and $argv.Count -eq 0) { Get-VigilSecretList -Root $Root; exit 0 }
+        if ($Job -ceq 'list' -and $argv.Count -eq 0) {
+            try { Get-VigilSecretList -Root $Root }
+            catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
+            exit 0
+        }
         if ($Job -ceq 'delete' -and $argv.Count -eq 1) {
             try { Remove-VigilSecret -Root $Root -Name $argv[0] }
             catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
@@ -336,7 +340,7 @@ switch ($Command) {
     'pack' {
         $argv = @($Rest | Where-Object { $_ })
         $code = 0
-        if ($Job -ceq 'list' -and $argv.Count -eq 0) { Get-VigilPackList -Root $Root }
+        if ($Job -ceq 'list' -and $argv.Count -eq 0) { Get-VigilPackList -Root $Root | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
         elseif ($Job -ceq 'enable' -and $argv.Count -eq 1) { Enable-VigilPack -Root $Root -What $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
         elseif ($Job -ceq 'disable' -and $argv.Count -eq 1) { Disable-VigilPack -Root $Root -What $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
         elseif ($Job -ceq 'update' -and ($argv.Count -eq 0 -or ($argv.Count -eq 1 -and $argv[0] -ceq '--check'))) {

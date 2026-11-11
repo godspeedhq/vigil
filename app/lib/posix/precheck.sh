@@ -144,7 +144,7 @@ _vigil_pc_program() {
 
 # Everything one run of job $1 needs, as the worker checks it (4.3).
 _vigil_pc_job() {
-    local id=$1 i ref name before=$_pc_failed provided=' '
+    local id=$1 i ref name before=$_pc_failed provided=' ' denied
     vigil_job_command "$id" posix "$_vw_root"
     if [ -n "$VIGIL_CMD_ERROR" ]; then
         _vigil_pc_fail "job.$id: $VIGIL_CMD_MESSAGE"
@@ -155,7 +155,11 @@ _vigil_pc_job() {
     _vigil_wk_get "job.$id" file ''
     _vigil_cmd_path "$_vw_value" posix "$_vw_root"
     [ -n "${VIGIL_CMD_FILE-}" ] && _vc_path=$VIGIL_CMD_FILE
-    [ -f "$_vc_path" ] || _vigil_pc_fail "job.$id: file not found: $_vc_path"
+    if denied=$(vigil_denied "$_vc_path"); then
+        _vigil_pc_fail "job.$id: cannot read $denied from this account"
+    else
+        [ -f "$_vc_path" ] || _vigil_pc_fail "job.$id: file not found: $_vc_path"
+    fi
     vigil_config_effective "$id"
     i=0
     while [ "$i" -lt "${#VIGIL_EFF_KEY[@]}" ]; do

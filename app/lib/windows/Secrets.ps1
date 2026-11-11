@@ -35,6 +35,13 @@ function Get-VigilSecretDir {
     return Join-Path $Root 'config\secrets'
 }
 
+# A store this account may not read is not empty, nor a secret in it
+# missing: each store is its own account's (45).
+function Get-VigilSecretDeniedMessage {
+    param([string]$Denied)
+    return "cannot read $Denied from this account: secrets are set and read as the account Vigil runs as"
+}
+
 # Strips one trailing newline (LF or CRLF).
 function Remove-VigilTrailingNewline {
     param([string]$Value)
@@ -80,6 +87,8 @@ function Set-VigilSecret {
 function Remove-VigilSecret {
     param([string]$Root, [string]$Name)
     $path = Join-Path (Get-VigilSecretDir $Root) $Name
+    $denied = Get-VigilDenied $path
+    if ($denied) { throw (Get-VigilSecretDeniedMessage $denied) }
     if (-not [System.IO.File]::Exists($path)) { throw "no secret $Name" }
     [System.IO.File]::Delete($path)
 }
@@ -87,6 +96,8 @@ function Remove-VigilSecret {
 function Get-VigilSecretList {
     param([string]$Root)
     $dir = Get-VigilSecretDir $Root
+    $denied = Get-VigilDenied $dir
+    if ($denied) { throw (Get-VigilSecretDeniedMessage $denied) }
     if (-not [System.IO.Directory]::Exists($dir)) { return }
     $files = [System.IO.Directory]::GetFiles($dir)
     [Array]::Sort($files, [System.StringComparer]::Ordinal)
@@ -101,6 +112,8 @@ function Get-VigilSecretList {
 function Read-VigilStoredSecret {
     param([string]$Root, [string]$Name)
     $path = Join-Path (Get-VigilSecretDir $Root) $Name
+    $denied = Get-VigilDenied $path
+    if ($denied) { return @{ Ok = $false; Why = (Get-VigilSecretDeniedMessage $denied) } }
     if (-not [System.IO.File]::Exists($path)) {
         return @{ Ok = $false; Why = "not found in Vigil's secret store (vigil secret set $Name)" }
     }

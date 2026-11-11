@@ -179,6 +179,8 @@ _vigil_pack_fetch() {
 # What may stop an edit of the configuration.
 _vigil_pack_writable() {
     local root=$1 cfg=$1/config/vigil.config
+    local denied
+    if denied=$(vigil_denied "$cfg"); then _vigil_pack_die "$(vigil_denied_message "$denied")"; return 1; fi
     [ -f "$cfg" ] || { _vigil_pack_die 'no configuration here: run vigil init first'; return 1; }
     vigil_config_parse "$cfg" || { _vigil_pack_die "$cfg has errors: fix them first (vigil precheck)"; return 1; }
     _vigil_wk_get vigil config_source ''
@@ -376,7 +378,13 @@ EOF
 }
 
 vigil_pack_list() {
-    local root=$1 d name j n=0 state
+    local root=$1 d name j n=0 state denied
+    # Whether a job is on cannot be told without the configuration, nor which
+    # packs are here without the folder: say so, rather than "off".
+    if denied=$(vigil_denied "$root/packs") || denied=$(vigil_denied "$root/config/vigil.config"); then
+        _vigil_pack_die "$(vigil_denied_message "$denied")"
+        return 1
+    fi
     for d in "$root"/packs/*/; do
         [ -f "$d/pack.config" ] || continue
         name=${d%/}

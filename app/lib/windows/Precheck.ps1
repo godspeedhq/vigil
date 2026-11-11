@@ -155,8 +155,10 @@ function Invoke-VigilPrecheck {
         elseif (-not (Get-Command $cmd.Program -CommandType Application -ErrorAction SilentlyContinue)) { & $fail "job.${Id}: not found: $($cmd.Program)" }
         $file = Resolve-VigilPath -Path (Get-VigilIndexValue -Index $Index -Section "job.$Id" -Key 'file').Value -Platform 'windows' -Root $Root
         if ($Cached) { $file = $Cached }
-        if (-not [System.IO.File]::Exists($file)) { & $fail "job.${Id}: file not found: $file" }
-        $eff = Get-VigilEffectiveJob -Index $Index -Id $Id
+        $denied = Get-VigilDenied $file
+        if ($denied) { & $fail "job.${Id}: cannot read $denied from this account" }
+        elseif (-not [System.IO.File]::Exists($file)) { & $fail "job.${Id}: file not found: $file" }
+        $eff =Get-VigilEffectiveJob -Index $Index -Id $Id
         $provided = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
         foreach ($row in $eff) {
             if ($row.Key -cne 'secret') { continue }

@@ -221,13 +221,17 @@ function Show-VigilUpdateNotice {
 # is read here without being validated.
 function Get-VigilReleaseSource {
     param([string]$Root)
-    $src = @{ Base = 'https://github.com/godspeedhq/vigil'; Mirror = $false; Path = $false; From = 'GitHub'; Error = ''; Retry = $false; Header = $null }
+    $src = @{ Base = 'https://github.com/godspeedhq/vigil'; Mirror = $false; Path = $false; From = 'GitHub'; Error = ''; Retry = $false; Header = $null; Denied = '' }
     # Tests only (22.4.4): releases from a local server, never over the
     # network. It stands for GitHub, so a release_url still wins.
     if ($env:VIGIL_TEST_RELEASE_URL) {
         if ($env:VIGIL_TEST_RELEASE_URL -cnotmatch '^http://127\.0\.0\.1:[0-9]+$') { $src.Error = 'VIGIL_TEST_RELEASE_URL must be http://127.0.0.1:<port>'; return $src }
         $src.Base = $env:VIGIL_TEST_RELEASE_URL
     }
+    # A configuration this account may not read may name a copy of the releases:
+    # GitHub is not the answer then (45).
+    $src.Denied = Get-VigilDenied (Join-Path $Root 'config\vigil.config')
+    if ($src.Denied) { $src.Error = "cannot read $($src.Denied) from this account, which says where releases come from: run this from an elevated prompt for a system install"; return $src }
     $parsed = Get-VigilConfigParsed -Root $Root
     $setting = { param($Key) if ($null -eq $parsed) { return '' }; return [string](Get-VigilConfigValue $parsed 'vigil' $Key '') }
     $url = & $setting 'release_url'
@@ -525,6 +529,17 @@ function Invoke-VigilSelfUpdate {
     $pinned = [bool]$Want
     $src = Get-VigilReleaseSource -Root $Root
     if ($src.Error) {
+        # The task of install -UpdateBy (18.7) reads the configuration as SYSTEM,
+        # and with it where releases come from.
+        if ($src.Denied -and -not $Check -and -not $pinned) {
+            $task = Get-VigilUpdateTask -Root $Root
+            if ($task) {
+                $code = Invoke-VigilUpdateByTask -Root $Root -Task $task
+                if ($code -eq 2) { $Script:VigilUpdateKind = 'download' }
+                elseif ($code -eq 3) { $Script:VigilUpdateKind = 'install' }
+                return $code
+            }
+        }
         if ($src.Retry) { $Script:VigilUpdateKind = 'download' }
         return & $die $src.Error
     }
@@ -598,6 +613,8 @@ function Invoke-VigilSelfUpdate {
             $Script:VigilUpdateKind = 'download'
             $why = Get-VigilReleaseRefused $src
             if ($why) { return & $die "cannot download Vigil ${Want}: $why" }
+            # A folder names itself and the account, as for the latest (45).
+            if ($src.Path) { return & $die "cannot read Vigil $Want from $($src.From) (as $([Environment]::UserDomainName)\$([Environment]::UserName)): is it there, and readable by this account?" }
             return & $die "cannot download Vigil ${Want}: is there such a release?"
         }
         # The signature (17): whatever else was replaced on the server, the

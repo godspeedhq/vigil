@@ -25,8 +25,13 @@ _vigil_init_err() {
 }
 
 vigil_init() {
-    local root=$1 instance=$2 backends=$3 cfg b py env_names='' ref
+    local root=$1 instance=$2 backends=$3 cfg b py env_names='' ref denied
     cfg=$root/config/vigil.config
+    # One this account cannot see may still be there: never written over (45).
+    if denied=$(vigil_denied "$cfg"); then
+        _vigil_init_err "$(vigil_denied_message "$denied")"
+        return 1
+    fi
     if [ -e "$cfg" ]; then
         _vigil_init_err "$cfg exists; init never overwrites a configuration"
         return 1

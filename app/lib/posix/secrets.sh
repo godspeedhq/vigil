@@ -68,8 +68,18 @@ _vigil_secret_safe() {
     return 1
 }
 
+# A store this account may not read is not empty, nor a secret in it
+# missing: each store is its own account's (45).
+_vigil_secret_denied() {
+    printf 'cannot read %s from this account: secrets are set and read as the account Vigil runs as' "$1"
+}
+
 _vigil_secret_read() {
-    local dir="$1/config/secrets" f="$1/config/secrets/$2"
+    local dir="$1/config/secrets" f="$1/config/secrets/$2" denied
+    if denied=$(vigil_denied "$f"); then
+        VIGIL_SECRET_WHY=$(_vigil_secret_denied "$denied")
+        return 1
+    fi
     if [ ! -f "$f" ]; then
         VIGIL_SECRET_WHY="not found in Vigil's secret store (vigil secret set $2)"
         return 1
@@ -194,13 +204,17 @@ vigil_secret_set() {
 }
 
 vigil_secret_delete() {
-    local f="$1/config/secrets/$2"
+    local f="$1/config/secrets/$2" denied
+    if denied=$(vigil_denied "$f"); then printf 'vigil: %s
+' "$(_vigil_secret_denied "$denied")" >&2; return 1; fi
     [ -f "$f" ] || { printf 'vigil: no secret %s\n' "$2" >&2; return 1; }
     rm -f "$f"
 }
 
 vigil_secret_list() {
-    local f name when
+    local f name when denied
+    if denied=$(vigil_denied "$1/config/secrets"); then printf 'vigil: %s
+' "$(_vigil_secret_denied "$denied")" >&2; return 1; fi
     for f in "$1/config/secrets/"*; do
         [ -f "$f" ] || continue
         name=${f##*/}

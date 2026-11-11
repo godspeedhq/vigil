@@ -21,6 +21,9 @@
 function Invoke-VigilInit {
     param([string]$Root, [string]$Instance, [string[]]$Backends, [hashtable]$Refs = @{})
     $cfg = Join-Path $Root 'config\vigil.config'
+    # One this account cannot see may still be there: never written over (45).
+    $denied = Get-VigilDenied $cfg
+    if ($denied) { throw (Get-VigilDeniedMessage $denied) }
     if ([System.IO.File]::Exists($cfg)) { throw "$cfg exists; init never overwrites a configuration" }
     if ($Instance -cnotmatch '^[A-Za-z0-9_.-]+$') { throw "the instance name may contain only letters, digits and . _ -: '$Instance'" }
     foreach ($b in $Backends) {
