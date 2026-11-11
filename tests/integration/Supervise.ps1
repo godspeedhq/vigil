@@ -319,6 +319,38 @@ Test-Equal 'orphan: and its token is gone' '' ((@(Get-ChildItem -LiteralPath (Jo
 # Let the next run end before cleaning up.
 for ($i = 0; $i -lt 40 -and (Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter 'long.*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
 Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
+
+# Damaged numbers (11.3, backlog 44): a launch record whose epoch is not a
+# number, a state file whose numbers are not, and an empty state file, next
+# to a healthy job. Each is read as damage, never cast: the tick carries on,
+# the healthy job runs, the launch is abandoned, and both state files are
+# quarantined and reported as state_corrupt.
+$root = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-damaged.$PID"
+foreach ($d in 'config', 'scripts', 'state\locks', 'state\jobs') { [void](New-Item -ItemType Directory -Force -Path (Join-Path $root $d)) }
+Set-Content -LiteralPath (Join-Path $root 'scripts\quick.cmd') -Value @('@echo off', 'echo metric done 1')
+$cfg = "[vigil]`ninstance = damaged`n`n[backend.file]`npath = metrics\vigil.prom`n`n"
+foreach ($j in 'ok', 'launch', 'nums', 'empty') { $cfg += "[job.$j]`nfile      = scripts\quick.cmd`nrun_every = 1s`n`n" }
+[System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'), $cfg)
+[System.IO.File]::WriteAllText((Join-Path $root 'state\locks\launch.20260101T000000Z-1-1.launch'), "[launch]`njob           = launch`nrun_id        = 20260101T000000Z-1-1`nlaunch_epoch  = 17x`n")
+[System.IO.File]::WriteAllText((Join-Path $root 'state\jobs\nums.state'), "[state]`nschema_version = 1`nstatus = running`nrun_id = 20260101T000000Z-1-2`nstarted_epoch = abc`ndeadline_epoch = 1`njob_pid = 08`nworker_pid = 99999999999`n")
+[System.IO.File]::WriteAllText((Join-Path $root 'state\jobs\empty.state'), '')
+# The first tick only schedules a new job (7.6): tick until ok has run.
+$okState = Join-Path $root 'state\jobs\ok.state'
+for ($i = 0; $i -lt 30 -and (Get-StateValue $okState 'status') -cne 'succeeded'; $i++) { Invoke-Tick; Start-Sleep -Seconds 1 }
+$supLog = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\supervisor') -Filter '*-*.log' -ErrorAction SilentlyContinue | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+Test-Equal 'damaged: no tick failed' 'False' ([string]$supLog.Contains('tick failed'))
+Test-Equal 'damaged: the healthy job ran' 'succeeded' (Get-StateValue $okState 'status')
+Test-Equal 'damaged: the launch with a bad epoch was abandoned' '' ((@(Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter 'launch.20260101T000000Z-1-1.*' | ForEach-Object Name)) -join ' ')
+$quarantine = Join-Path $root 'state\quarantine'
+Test-Equal 'damaged: bad numbers quarantined' 'True' ([string][bool](Get-ChildItem -LiteralPath $quarantine -Filter 'nums.*' -ErrorAction SilentlyContinue))
+Test-Equal 'damaged: an empty state file quarantined' 'True' ([string][bool](Get-ChildItem -LiteralPath $quarantine -Filter 'empty.*' -ErrorAction SilentlyContinue))
+Invoke-Tick
+Test-Equal 'damaged: state_corrupt reported for bad numbers' '1' (Get-Prom 'nums_state_corrupt_total')
+Test-Equal 'damaged: state_corrupt reported for an empty file' '1' (Get-Prom 'empty_state_corrupt_total')
+Test-Equal 'damaged: the abandoned launch reported' '1' (Get-Prom 'launch_abandoned_launches_total')
+if ($script:fail -gt 0) { Write-Host $supLog.Substring([Math]::Max(0, $supLog.Length - 2000)) }
+for ($i = 0; $i -lt 40 -and (Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Exclude '*.abandoned' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
 $root = $mainRoot
 
 # Workers started by the last ticks may still be finishing.

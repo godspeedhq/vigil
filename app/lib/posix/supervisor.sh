@@ -123,6 +123,13 @@ _vigil_sup_timeout() {
     while IFS= read -r line || [ -n "$line" ]; do
         case $line in 'term_epoch = '*) term=${line#*= } ;; esac
     done < "$marker"
+    # A marker that cannot be read starts the grace again, rather than never
+    # sending KILL.
+    if ! _vigil_sup_isnum "$term"; then
+        printf 'term_epoch = %s
+' "$_su_epoch" > "$marker"
+        return 0
+    fi
     vigil_config_effective "$job"
     i=0
     while [ "$i" -lt "${#VIGIL_EFF_KEY[@]}" ]; do
@@ -130,7 +137,7 @@ _vigil_sup_timeout() {
         i=$((i + 1))
     done
     _vigil_wk_secs "$grace"
-    if [ -n "$term" ] && [ $((_su_epoch - term)) -ge "$_vw_secs" ]; then
+    if [ $((_su_epoch - term)) -ge "$_vw_secs" ]; then
         kill -KILL -- "-$_ss_job_pid" 2>/dev/null || kill -KILL "$_ss_job_pid" 2>/dev/null
         _vigil_sup_log WARN "job $job: run $rid still running $grace after TERM; sent KILL"
     fi
@@ -171,6 +178,15 @@ _vigil_sup_proc() {
     esac
 }
 
+# Whether $1 is a whole number as Vigil writes one: digits, no leading zero,
+# at most 18 of them ($2, 9 for a pid), so it fits 64 bits (a pid, 32). Anything
+# else read from a file is damage, and must never reach arithmetic, where bash
+# stops under set -u (44). The same rule as Test-VigilNumber.
+_vigil_sup_isnum() {
+    case $1 in '' | *[!0-9]* | 0?*) return 1 ;; esac
+    [ ${#1} -le ${2:-18} ]
+}
+
 # Reads state file $1. Sets _ss (missing, unreadable, running or final),
 # _ss_status, _ss_run_id, _ss_boot and _ss_started.
 _vigil_sup_read_state() {
@@ -203,6 +219,15 @@ _vigil_sup_read_state() {
         esac
     done < "$1"
     [ "$header" -eq 1 ] || return 0
+    # A number that is not one makes the record unreadable, like any other damage
+    # (11.3); none of its numbers is used.
+    if { [ -n "$_ss_started" ] && ! _vigil_sup_isnum "$_ss_started"; } ||
+        { [ -n "$_ss_deadline" ] && ! _vigil_sup_isnum "$_ss_deadline"; } ||
+        { [ -n "$_ss_job_pid" ] && ! _vigil_sup_isnum "$_ss_job_pid" 9; } ||
+        { [ -n "$_ss_worker_pid" ] && ! _vigil_sup_isnum "$_ss_worker_pid" 9; }; then
+        _ss_started='' _ss_deadline='' _ss_job_pid='' _ss_worker_pid=''
+        return 0
+    fi
     case $_ss_status in
         running) _ss=running ;;
         succeeded | warning | failed | unknown | timed_out | crashed) _ss=final ;;
@@ -301,6 +326,9 @@ _vigil_sup_account() {
                     'boot_id '*) lboot=${f##* } ;;
                 esac
             done < "$launch"
+            # An age that cannot be read is treated as past the grace: the run id
+            # is looked for, and the launch is held while anything carries it.
+            _vigil_sup_isnum "$epoch" || epoch=''
             # A launch from before a reboot can never be claimed: its worker went with the
             # machine.
             if [ -n "$lboot" ] && [ "$lboot" != "$_su_boot" ]; then
@@ -694,6 +722,7 @@ _vigil_sup_fetch_due() {
             'local = '*) local=${line#*= } ;;
         esac
     done < "$_su_statedir/fetch.next"
+    _vigil_sup_isnum "$next" || next=''
     [ "$local" != "$_su_local" ] && return 0
     [ -z "$next" ] || [ "$_su_epoch" -ge "$next" ]
 }
@@ -710,6 +739,8 @@ _vigil_sup_logs_due() {
                 'total = '*) total=${line#*= } ;;
             esac
         done < "$_su_statedir/logs/forwarder.state"
+        _vigil_sup_isnum "$checked" || checked=0
+        _vigil_sup_isnum "$next" || next=0
     fi
     _vigil_wk_get log_forward check_every 30s
     _vigil_wk_secs "$_vw_value"
@@ -916,7 +947,7 @@ _vigil_sup_tick() {
         for i in "$_su_statedir"/sources/*.state; do
             [ -f "$i" ] || continue
             ok=$(sed -n 's/^ok_epoch *= *//p' "$i")
-            [ -n "$ok" ] || continue
+            _vigil_sup_isnum "$ok" || continue
             name=${i##*/}
             _su_events[${#_su_events[@]}]="$_su_epoch vigil.source.check_age $((_su_epoch - ok)) gauge $_su_tags source=${name%.state}"
         done

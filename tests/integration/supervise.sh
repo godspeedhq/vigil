@@ -256,6 +256,44 @@ check "orphan: and its token is gone" '' "$(ls "$root/state/locks" | grep -F "lo
 i=0
 while ls "$root/state/locks" 2>/dev/null | grep '^long\.' > /dev/null && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
 rm -rf "$root"
+
+# Damaged numbers (11.3, backlog 44): a launch record whose epoch is not a
+# number, a state file whose numbers are not, and an empty state file, next
+# to a healthy job. Each is read as damage, never used in arithmetic: the
+# supervisor carries on, the healthy job runs, the launch is abandoned, and
+# both state files are quarantined and reported as state_corrupt.
+root=$(mktemp -d "${TMPDIR:-/tmp}/vigil-damaged.XXXXXX")
+mkdir -p "$root/config" "$root/scripts" "$root/state/locks" "$root/state/jobs"
+printf 'echo metric done 1\n' > "$root/scripts/quick.sh"
+printf '[vigil]\ninstance = damaged\n\n[backend.file]\npath = metrics/vigil.prom\n\n[runner.sh]\ncommand = /bin/sh\n\n[runners]\n.sh = sh\n\n' > "$root/config/vigil.config"
+for j in ok launch nums empty; do
+    printf '[job.%s]\nfile      = scripts/quick.sh\nrun_every = 1s\n\n' "$j" >> "$root/config/vigil.config"
+done
+printf '[launch]\njob           = launch\nrun_id        = 20260101T000000Z-1-1\nlaunch_epoch  = 17x\n' > "$root/state/locks/launch.20260101T000000Z-1-1.launch"
+printf '[state]\nschema_version = 1\nstatus = running\nrun_id = 20260101T000000Z-1-2\nstarted_epoch = abc\ndeadline_epoch = 1\njob_pid = 08\nworker_pid = 99999999999\n' > "$root/state/jobs/nums.state"
+: > "$root/state/jobs/empty.state"
+out=$(vigil supervise --once 2>&1)
+check "damaged: the tick carries on" 0 "$?"
+check "damaged: and says nothing on stderr" '' "$(printf '%s' "$out" | grep -v '^$')"
+# The first tick only schedules a new job (7.6): tick until ok has run.
+i=0
+while [ "$(state_value "$root/state/jobs/ok.state" status 2>/dev/null)" != succeeded ] && [ "$i" -lt 30 ]; do
+    tick
+    sleep 1
+    i=$((i + 1))
+done
+check "damaged: the healthy job ran" succeeded "$(state_value "$root/state/jobs/ok.state" status)"
+check "damaged: the launch with a bad epoch was abandoned" '' "$(ls "$root/state/locks" | grep -F 'launch.20260101T000000Z-1-1.')"
+check "damaged: bad numbers quarantined" yes "$(ls "$root/state/quarantine" 2>/dev/null | grep '^nums\.' > /dev/null && echo yes || echo no)"
+check "damaged: an empty state file quarantined" yes "$(ls "$root/state/quarantine" 2>/dev/null | grep '^empty\.' > /dev/null && echo yes || echo no)"
+tick
+check "damaged: state_corrupt reported for bad numbers" 1 "$(prom nums_state_corrupt_total)"
+check "damaged: state_corrupt reported for an empty file" 1 "$(prom empty_state_corrupt_total)"
+check "damaged: the abandoned launch reported" 1 "$(prom launch_abandoned_launches_total)"
+if [ "$fail" -gt 0 ]; then cat "$root/logs/supervisor/"*.log | tail -20; fi
+i=0
+while ls "$root/state/locks" 2>/dev/null | grep -v '\.abandoned$' | grep . > /dev/null && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+rm -rf "$root"
 root=$main_root
 
 if [ "$fail" -gt 0 ]; then

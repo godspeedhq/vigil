@@ -1030,6 +1030,8 @@ When the state file is unreadable or missing, the run id is recovered from the l
 
 **Quarantine.** An unreadable state file is moved to `state/quarantine/<job id>.<epoch>.state` only once the run is concluded Finished or Crashed, never while it might be alive. Quarantine follows the log retention limit. Corruption is always recorded: `<m>.state_corrupt` and a `jobs.log` entry.
 
+**Damaged numbers.** A state file is unreadable when it is empty, has no `[state]` header, has another schema, or holds a number that is not one: every number Vigil writes is digits with no leading zero, at most 18 (9 for a pid). None of an unreadable file's numbers is used. Other numbers Vigil reads back are checked the same way, and one that is damaged is never used in arithmetic: a launch record's `launch_epoch` makes the launch past its grace (so the run id is looked for, and the job held while anything carries it); a timeout marker's starts the grace before KILL again (Linux and macOS; Windows reads no number from it); `fetch.next` makes a fetch due; the log forwarder's makes it due; a source's `ok_epoch` is not reported. One damaged file never stops the tick or another job.
+
 **Stale tokens.** A run token that exists but is not held was left behind by a claimed worker that was killed. It is deleted once the run is concluded. An `.abandoned` file is deleted at once; a launch record that is not held is never "stale" — it is handled as a launching run above.
 
 ### 11.4 Uncertain Runs
