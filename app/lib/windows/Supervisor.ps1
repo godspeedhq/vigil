@@ -84,6 +84,16 @@ function Test-VigilRunProcess {
     catch { return 'error' }
 }
 
+# Whether $Value is a whole number as Vigil writes one: digits, no leading
+# zero, at most $Digits of them (18, or 9 for a pid), so it fits [long] (a pid,
+# [int]). Anything else read from a file is damage, and must never reach a
+# cast, which throws and fails the tick (44). The same rule as
+# _vigil_sup_isnum.
+function Test-VigilNumber {
+    param([string]$Value, [int]$Digits = 18)
+    return $Value -cmatch ('^(0|[1-9][0-9]{0,' + ($Digits - 1) + '})$')
+}
+
 # Reads a state file: @{ Kind (missing, unreadable, running, final);
 # Status; RunId; Boot; Started }.
 function Read-VigilRunState {
@@ -110,6 +120,14 @@ function Read-VigilRunState {
             'job_start' { $r.JobStart = $v }
             'worker_pid' { $r.WorkerPid = $v }
         }
+    }
+    # A number that is not one makes the record unreadable, like any other
+    # damage (11.3); none of its numbers is used.
+    if (($r.Started -and -not (Test-VigilNumber $r.Started)) -or ($r.Deadline -and -not (Test-VigilNumber $r.Deadline)) -or
+        ($r.JobStart -and -not (Test-VigilNumber $r.JobStart)) -or ($r.JobPid -and -not (Test-VigilNumber $r.JobPid 9)) -or
+        ($r.WorkerPid -and -not (Test-VigilNumber $r.WorkerPid 9))) {
+        $r.Started = ''; $r.Deadline = ''; $r.JobStart = ''; $r.JobPid = ''; $r.WorkerPid = ''
+        return $r
     }
     if ($r.Status -ceq 'running') { $r.Kind = 'running' }
     elseif (@('succeeded', 'warning', 'failed', 'unknown', 'timed_out', 'crashed') -ccontains $r.Status) { $r.Kind = 'final' }
@@ -333,7 +351,7 @@ function Invoke-VigilSupervisor {
             elseif ($l -cmatch '^local = (.*)$') { $local = $Matches[1] }
         }
         if ($local -cne $sv.Sum) { return $true }
-        return (-not $next) -or $sv.Epoch -ge [long]$next
+        return (-not (Test-VigilNumber $next)) -or $sv.Epoch -ge [long]$next
     }
 
     # Whether the forwarder should run: at each check_every, once any
@@ -343,8 +361,8 @@ function Invoke-VigilSupervisor {
         $p = Join-Path $sv.State 'logs\forwarder.state'
         if ([System.IO.File]::Exists($p)) {
             foreach ($l in [System.IO.File]::ReadAllLines($p)) {
-                if ($l -cmatch '^checked_epoch = ([0-9]+)$') { $checked = [long]$Matches[1] }
-                elseif ($l -cmatch '^next_try = ([0-9]+)$') { $next = [long]$Matches[1] }
+                if ($l -cmatch '^checked_epoch = (0|[1-9][0-9]{0,17})$') { $checked = [long]$Matches[1] }
+                elseif ($l -cmatch '^next_try = (0|[1-9][0-9]{0,17})$') { $next = [long]$Matches[1] }
                 elseif ($l -cmatch '^total = ([0-9]+)$') { $total = $Matches[1] }
             }
         }
@@ -423,6 +441,9 @@ function Invoke-VigilSupervisor {
                 if ($l -cmatch '^launch_epoch *= *(\S*)') { $epoch = $Matches[1] }
                 elseif ($l -cmatch '^boot_id *= *(\S*)') { $lboot = $Matches[1] }
             }
+            # An age that cannot be read is treated as past the grace: the run id is
+            # looked for, and the launch is held while anything carries it.
+            if (-not (Test-VigilNumber $epoch)) { $epoch = '' }
             if ($unread) { $lstate = 'held' }
             elseif ($lboot -and $lboot -cne $sv.Boot) { $lstate = 'prevboot' }
             elseif ($epoch -and ($sv.Epoch - [long]$epoch) -lt $Script:VigilLaunchGrace) {
@@ -817,7 +838,7 @@ function Invoke-VigilSupervisor {
         $srcDir = Join-Path $sv.State 'sources'
         if ($sv.Mode -ceq 'fetch' -and [System.IO.Directory]::Exists($srcDir)) {
             foreach ($p in [System.IO.Directory]::GetFiles($srcDir, '*.state')) {
-                $okAt = @([System.IO.File]::ReadAllLines($p) | Where-Object { $_ -cmatch '^ok_epoch += \d+$' } | ForEach-Object { $_ -creplace '^ok_epoch += ', '' })[0]
+                $okAt = @([System.IO.File]::ReadAllLines($p) | Where-Object { $_ -cmatch '^ok_epoch += (0|[1-9][0-9]{0,17})$' } | ForEach-Object { $_ -creplace '^ok_epoch += ', '' })[0]
                 if ($okAt) { $sv.Events.Add("$($sv.Epoch) vigil.source.check_age $($sv.Epoch - [long]$okAt) gauge $($sv.Tags) source=$([System.IO.Path]::GetFileNameWithoutExtension($p))") }
             }
         }

@@ -575,6 +575,9 @@ _vigil_svc_runs() {
         st=$statedir/jobs/$job.state
         wpid=$(_vigil_svc_state_value "$st" worker_pid)
         jpid=$(_vigil_svc_state_value "$st" job_pid)
+        # A number that is not one is damage: nothing of it is used (44).
+        _vigil_sup_isnum "$wpid" 9 || wpid=''
+        _vigil_sup_isnum "$jpid" 9 || jpid=''
         if [ -n "$jpid" ] && [ "$(_vigil_svc_state_value "$st" run_id)" = "$rid" ]; then
             _vigil_sup_holds "$jpid" "$t"
             if [ "$_su_held" = yes ]; then _vs_pids="$_vs_pids $jpid"; else _vs_unproven="$_vs_unproven $jpid"; fi

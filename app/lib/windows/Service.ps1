@@ -428,6 +428,9 @@ function Get-VigilServiceRuns {
         if ((Read-VigilServiceStateValue $st 'run_id') -cne $rid) { continue }
         $wpid = Read-VigilServiceStateValue $st 'worker_pid'
         $jpid = Read-VigilServiceStateValue $st 'job_pid'
+        # A number that is not one is damage: nothing of it is used (44).
+        if ($wpid -and -not (Test-VigilNumber $wpid 9)) { $wpid = '' }
+        if ($jpid -and -not (Test-VigilNumber $jpid 9)) { $jpid = '' }
         # A process that cannot be read is left out, as one that has gone.
         $w = if ($wpid) { try { Get-VigilProcessInfo ([int]$wpid) } catch { $null } }
         $wOk = $w -and ([string]$w.CommandLine).Contains("$rootArg worker $job --run-id $rid")
@@ -437,6 +440,7 @@ function Get-VigilServiceRuns {
             if ($p) {
                 $name = Read-VigilServiceStateValue $st 'job_name'
                 $start = Read-VigilServiceStateValue $st 'job_start'
+                if (-not (Test-VigilNumber $start)) { $start = '' }
                 $ok = $wOk -and $name -and $p.Name -ieq $name -and $p.Parent -eq [int]$wpid -and
                     ((-not $start) -or [Math]::Abs((ConvertTo-VigilEpoch $p.Created) - [long]$start) -le 1)
                 if ($ok) { $r.Proven.Add([int]$jpid) } else { $r.Unproven.Add([int]$jpid) }
