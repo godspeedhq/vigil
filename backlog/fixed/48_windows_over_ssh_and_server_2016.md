@@ -74,3 +74,52 @@ Vigil's; installing them on the VM is the owner's call.
   password say why, on both Windows versions, and the docs say so.
 - The 2016 tick stall is explained, and either fixed (Max-Runtime and
   Supervise pass on the VM) or documented as a floor with its reason.
+
+## Built (2026-11-11)
+
+**1. DPAPI refused: says why.** `Secrets.ps1` asks DPAPI for something small
+when protecting or reading fails (`Test-VigilDpapiRefused`). If that is
+refused too (`CryptographicException`, `0x80070005`), the logon is the
+cause, and `secret set`, a run and `precheck` say:
+`Windows refuses its data protection to this logon, which has no password (an SSH key, or a task without a stored password): set and check secrets from a console or remote desktop session as this account, or use env: or store:`.
+Otherwise the old reason stands. The error alone could not tell them
+apart: over SSH, a secret of another account fails with `0x8009000B`, "key
+not valid", as one of this account would.
+- Checked for real over SSH, with no test switch, on Windows 11 and Server
+  2016: `secret set` and `precheck` give the message.
+- CI cannot make such a logon, so `VIGIL_TEST_DPAPI_REFUSED` stands in for
+  it (§22.4.5), and pre-flight fails while it is set. `Secrets.ps1` checks
+  the message, nothing stored, and the reason when reading: 26/26 on
+  PowerShell 5.1 and 7.
+- Documented in §6.5.2 and the README.
+
+**Found on the way: `Set-Acl` on the store.** Once `config\secrets` existed,
+every `vigil secret set` printed `Set-Acl : The process does not possess the
+'SeSecurityPrivilege' privilege` before succeeding (the folder was already
+owner-only). `Set-Acl` writes the audit entries too; only the access entries
+are written now (`DirectoryInfo.SetAccessControl`, or
+`FileSystemAclExtensions` on PowerShell 7). `Secrets.ps1` checks that a
+second set says only `<NAME> set; ...`.
+
+**2. The 2016 tick: the machine, documented.** Measured on the VM (2 vCPUs,
+14393.693, no updates):
+- Idle, Max-Runtime passed 3 of 4 times, so the failure is intermittent,
+  not a 2016 defect in Vigil's tick.
+- `powershell -NoProfile -Command exit` took 1254 to 25852 ms over 15
+  tries; Windows 11 over SSH, 304 to 724 ms.
+- Single `supervise --once` ticks took 7 to 57 s over 30 tries.
+- A Windows tick starts PowerShell processes (each run's worker, the
+  sender), so it runs as slowly as PowerShell starts. Supervise (orphan)
+  and Service (install) failed on the idle VM for the same reason.
+
+Not Vigil's to fix. §10.3 now says that `max_runtime` is enforced only as
+quickly as ticks run, with these figures. Why PowerShell starts so slowly
+there was not found:
+- the native images of PowerShell's assemblies exist on the VM, so it is
+  not that alone;
+- Defender, the missing updates and memory are left, and each needs an
+  administrator on the VM.
+
+**3. `base_services` over SSH: by design.** The service manager refuses a
+standard user's network logon; the script says so, and the service, as
+LocalSystem, is not refused.

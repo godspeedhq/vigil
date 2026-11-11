@@ -168,7 +168,9 @@ try {
     Test-Equal 'env: read fresh from the registry' '1' (Get-Metric show region_ok)
 
     # 3. Rotate all three: the very next run uses the new values.
-    [void](Invoke-Vigil @('secret', 'set', 'PGPASSWORD', '--stdin') 'second, longer pg value')
+    $r = Invoke-Vigil @('secret', 'set', 'PGPASSWORD', '--stdin') 'second, longer pg value'
+    # Once the store exists, setting again says only that (48: Set-Acl printed an error).
+    Test-Equal 'a second set says nothing else' 'PGPASSWORD set; runs started from now on use it' $r.Output.Trim()
     Set-Expect pg 'second, longer pg value'
     [System.IO.File]::WriteAllText((Join-Path $root 'helper-value'), "api-2 $PID")
     Set-Expect api "api-2 $PID"
@@ -199,6 +201,25 @@ try {
     [void](Invoke-Vigil @('run', 'show'))
     Test-Equal 'undecryptable secret: refused' 'secret secret:PGPASSWORD unavailable: cannot be decrypted by this account on this machine; set it again with vigil secret set as the service account' (Get-Reason show)
     [System.IO.File]::WriteAllText($path, $good)
+
+    # 5b. A logon without a password (an SSH key), where Windows refuses DPAPI:
+    # stood in for by VIGIL_TEST_DPAPI_REFUSED (22.4.5). Both setting and
+    # reading say why, rather than "Access is denied" or "set it again" (48).
+    $dpapiWhy = 'Windows refuses its data protection to this logon, which has no password (an SSH key, or a task without a stored password): set and check secrets from a console or remote desktop session as this account, or use env: or store:'
+    $env:VIGIL_TEST_DPAPI_REFUSED = '1'
+    try {
+        # Its stderr read raw: Windows PowerShell 5.1 would wrap it in its own
+        # error formatting.
+        $in = Join-Path $root 'dpapi.in'; $err = Join-Path $root 'dpapi.err'
+        [System.IO.File]::WriteAllText($in, 'x')
+        $p = Start-Process -FilePath $shell -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'secret', 'set', 'OTHER', '--stdin') -RedirectStandardInput $in -RedirectStandardError $err -RedirectStandardOutput (Join-Path $root 'dpapi.out') -NoNewWindow -Wait -PassThru
+        Test-Equal 'no DPAPI: set refused' '1' "$($p.ExitCode)"
+        Test-Equal 'no DPAPI: set says why' "vigil: $dpapiWhy" ([System.IO.File]::ReadAllText($err).Trim())
+        Test-Equal 'no DPAPI: nothing stored' 'False' "$([System.IO.File]::Exists((Join-Path $root 'config\secrets\OTHER')))"
+        [void](Invoke-Vigil @('run', 'show'))
+        Test-Equal 'no DPAPI: reading says why' "secret secret:PGPASSWORD unavailable: $dpapiWhy" (Get-Reason show)
+    }
+    finally { Remove-Item Env:\VIGIL_TEST_DPAPI_REFUSED }
 
     # 6. delete removes it.
     [void](Invoke-Vigil @('secret', 'delete', 'PGPASSWORD'))
