@@ -18,7 +18,7 @@
     install's are closed to an ordinary account, then checks that each
     command says it cannot read them, names the folder and fails, rather than
     calling it absent: vigil config, pack enable and list, init, secret list
-    and delete, precheck, self update --check, and a release_path that cannot
+    delete and set, precheck, self update --check, and a release_path that cannot
     be read. A deny entry holds for administrators too. The twin of
     unreadable.sh.
 
@@ -112,11 +112,15 @@ try {
     $out = Invoke-Vigil @('secret', 'delete', 'FOO')
     Test-Equal 'secret delete: refused, not "no secret"' '1' $script:code
     Test-Equal 'secret delete: says it cannot read the folder' "vigil: cannot read $secrets $secretHow" $out
+    $out = Invoke-Vigil @('secret', 'set', 'BAR', '--stdin')
+    Test-Equal 'secret set: refused, not raw errors' '1' $script:code
+    Test-Equal 'secret set: says it cannot read the folder' "vigil: cannot read $secrets $secretHow" $out
     $out = Invoke-Vigil @('precheck')
     Test-Equal 'precheck: a secret it cannot read is not "not found"' 'True' ([string]$out.Contains("secret:FOO unavailable: cannot read $secrets $secretHow"))
 }
 finally { Open-Folder $secrets }
 Test-Equal 'secret delete: the secret is still there' 'True' ([string][System.IO.File]::Exists((Join-Path $secrets 'FOO')))
+Test-Equal 'secret set: nothing written' '' ((@(Get-ChildItem -LiteralPath $secrets -Force | Where-Object { $_.Name -cne 'FOO' } | ForEach-Object Name)) -join ' ')
 $scripts = Join-Path $root 'scripts'
 try {
     Close-Folder $scripts

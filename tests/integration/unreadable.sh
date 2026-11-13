@@ -13,7 +13,7 @@
 # (backlog 45). Closes folders of an install the way a system install's are
 # closed to an ordinary account, then checks that each command says it cannot
 # read them, names the folder and fails, rather than calling it absent: vigil
-# config, pack enable and list, init, secret list and delete, precheck, self
+# config, pack enable and list, init, secret list, delete and set, precheck, self
 # update --check, and a release_path that cannot be read. The twin of
 # Unreadable.ps1. Root reads everything, so as root it only says so.
 #
@@ -97,6 +97,9 @@ check 'secret list: says it cannot read the folder' "vigil: cannot read $root/co
 out=$(vigil secret delete FOO 2>&1)
 check 'secret delete: refused, not "no secret"' 1 "$?"
 check 'secret delete: says it cannot read the folder' "vigil: cannot read $root/config from this account: secrets are set and read as the account Vigil runs as" "$out"
+out=$(printf 'w\n' | vigil secret set BAR --stdin 2>&1)
+check 'secret set: refused, not raw errors' 1 "$?"
+check 'secret set: says it cannot read the folder' "vigil: cannot read $root/config from this account: secrets are set and read as the account Vigil runs as" "$out"
 out=$(vigil self update --check 2>&1)
 check 'self update --check: refused, not GitHub' 1 "$?"
 check 'self update --check: says the source cannot be read' "vigil: cannot read $root/config from this account, which says where releases come from: run this as the account that installed Vigil (sudo for a system install)" "$out"
@@ -105,6 +108,7 @@ check 'precheck: refused' 1 "$?"
 check 'precheck: the configuration cannot be read' yes "$(printf '%s\n' "$out" | grep -F "config file not readable: $root/config/vigil.config" > /dev/null && echo yes || echo no)"
 chmod 755 "$root/config"
 check 'secret delete: the secret is still there' yes "$([ -f "$root/config/secrets/FOO" ] && echo yes || echo no)"
+check 'secret set: nothing written' FOO "$(ls -A "$root/config/secrets")"
 check 'init: nothing left behind' '' "$(ls "$root/config" | grep '\.tmp\.')"
 check 'and the configuration is untouched' yes "$(grep -F 'secret    = X=secret:FOO' "$root/config/vigil.config" > /dev/null && echo yes || echo no)"
 

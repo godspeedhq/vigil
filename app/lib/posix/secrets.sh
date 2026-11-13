@@ -193,8 +193,11 @@ vigil_secret_resolve() {
 }
 
 vigil_secret_set() {
-    local dir="$1/config/secrets" name=$2 tmp
+    local dir="$1/config/secrets" name=$2 tmp denied
     [[ $name =~ $VIGIL_SECRET_RE_NAME ]] || { printf 'vigil: not a valid secret name: %s\n' "$name" >&2; return 1; }
+    # Before anything is written: a store this account may not read looks
+    # absent, and creating it fails with raw errors (49).
+    if denied=$(vigil_denied "$dir"); then printf 'vigil: %s\n' "$(_vigil_secret_denied "$denied")" >&2; return 1; fi
     (
         umask 077
         mkdir -p "$dir" && chmod 700 "$dir" || exit 1
