@@ -11,7 +11,7 @@ What each Windows version showed when Vigil ran on it ([backlog 26](../../../../
 | Windows 11 Pro 23H2 | PowerShell 5.1 and 7, .NET 4.8.1 | Passed | Passed | Passed | Passed (LGTM) | Passed (backlog/fixed/23) | **Supported** |
 | GitHub `windows-latest` (Server 2025) | PowerShell 5.1 and 7 | Passed (CI) | Passed (CI) | Passed (CI) | Not tested | Not tested | **Supported** |
 | Server 2025, Desktop Experience | Not tested | Not tested | Not tested | Not tested | Not tested | Not tested | Not tested |
-| Server 2022 Datacenter Evaluation (21H2, 20348.587): a physical machine | PowerShell 5.1, .NET 4.8; TLS 1.2 on by default | Passed: the README's command, system mode, the service runs (0.7.0) | Passed (145) | Partly: 10 suites pass, 4 fail only where Windows refuses an SSH logon, 9 not run ([below](#server-2022-physical-2026-11-13)) | Not tested | Partly: as an ordinary account over SSH | **Works with caveats** (backlog 48) |
+| Server 2022 Datacenter Evaluation (21H2, 20348.587): a physical machine | PowerShell 5.1, .NET 4.8; TLS 1.2 on by default | Passed: the README's command, system mode, the service runs (0.7.0) | Passed (145) | Partly: over SSH 10 suites pass, 4 fail only where Windows refuses an SSH logon; at the console those 3 that it refuses (Secrets, Precheck, Base-Pack) pass; 9 not run ([below](#server-2022-physical-2026-11-13)) | Not tested | Partly: as an ordinary account over SSH | **Works with caveats** (backlog 48) |
 | Server 2019 Datacenter Evaluation (1809, 17763.3650): a physical machine | PowerShell 5.1, .NET 4.7.2; TLS 1.2 on by default | Passed: the README's command, system mode, the service runs (0.7.0) | Passed (145) | Partly: 10 suites pass, 4 fail only where Windows refuses an SSH logon, 9 not run ([below](#server-2019-physical-2026-11-13)); slow until .NET's compile queue ran | Not tested | Partly: as an ordinary account over SSH | **Works with caveats** (backlog 48) |
 | Server 2016 Datacenter Evaluation (1607, 14393.693), Desktop Experience: a physical machine | PowerShell 5.1, .NET 4.6.2; TLS 1.2 off by default (Vigil turns it on) | Passed: the README's command, system mode, the service runs (0.7.0) | Passed (145) | Partly: 10 suites pass, 4 fail only where Windows refuses an SSH logon, 9 not run ([below](#server-2016-physical-2026-11-12)) | Not tested | Partly: as an ordinary account over SSH | **Works with caveats** (backlogs 48, 49) |
 | Server 2016, the same build: a Hyper-V VM | as above | Passed (0.6.5) | Passed (145) | Partly: 9 suites pass, 6 fail, 9 not run ([below](#server-2016-2026-11-11)) | Not tested | Partly: as an ordinary account over SSH | **Works with caveats** (backlog 48) |
@@ -53,6 +53,16 @@ Installed on the same physical machine as the Server 2019 and 2016 runs below (4
 | Unreadable | 26 of 28: its set-up `secret set`, as above |
 | Backends, Fetch, Logs, Pack, Self-Update, Stores, Upgrade, Version-Config | not run: they need Python, not installed |
 | Install | not run: needs Git Bash |
+
+**At the console.** The suites SSH refuses were then run where Windows allows DPAPI and the service manager: signed in at the machine (session `Console`), as the built-in Administrator (elevated), from the same commit, with [`Run-Console.ps1`](../../../windows-server/Run-Console.ps1) (the checkout unpacked to a temporary folder; each suite in its own temporary root, the installed service untouched):
+
+| Suite | Result |
+| --- | --- |
+| Secrets | 26 passed: set, the encrypted store owner-only, delivery by `secret:`, `store:` and `env:`, rotation, the refusals, delete, and no value in any log, state or spool file |
+| Precheck | 34 passed |
+| Base-Pack | 12 passed, `base_services` among them |
+
+Unreadable was not rerun there: it checks what an ordinary account sees of the system install, which an administrator does not.
 
 ### Server 2019, physical, 2026-11-13
 

@@ -245,7 +245,7 @@ Windows support floor: Server 2016, the first Windows Server with PowerShell 5.1
 | Server 2025 | Supported. PowerShell 5.1 built in. | GitHub's `windows-latest` runner: the suites in CI. Not on a VM. |
 | Server 2016 | Supported. PowerShell 5.1 built in. The floor. | Yes, with caveats, on a physical machine and a VM: install and service from the README's command, and conformance, pass. Run as an ordinary account over SSH, the integration suites that need nothing installed pass, except where Windows refuses DPAPI or the service manager to an SSH logon (backlog 48); the suites that need Python or Git Bash were not run. |
 | Server 2019 | Supported. PowerShell 5.1 built in. | Yes, with caveats, on a physical machine: as Server 2016 above. Every integration suite run over SSH passes except where Windows refuses DPAPI or the service manager to an SSH logon. Slow until .NET's compile queue ran after the install. |
-| Server 2022 | Supported. PowerShell 5.1 built in. | Yes, with caveats, on a physical machine: as Server 2019. |
+| Server 2022 | Supported. PowerShell 5.1 built in. | Yes, with caveats, on a physical machine: as Server 2019; and at the console, where Windows allows DPAPI and the service manager, Secrets, Precheck and Base-Pack pass too. |
 | Windows 10 | Supported. PowerShell 5.1 built in. | Not tested. |
 | Server 2012 / 2012 R2 | Not supported: below the floor. PowerShell 4.0 built in, and past every support date. | Not applicable. |
 | Server 2008 R2 / Windows 7 | Not supported: below the floor. PowerShell 2.0 built in; out of vendor support. Tried on 2026-11-12 and given up (backlog 49). | Not applicable. |

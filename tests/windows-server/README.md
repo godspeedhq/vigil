@@ -39,6 +39,7 @@ Over SSH, the shell is `cmd`: chain commands with `&`, not `;`. Copy scripts ove
 1. **Prerequisites:** `Probe.ps1`, which changes nothing and needs no administrator. Its table goes in the report as it is.
 2. **Install:** `install.ps1 -User`, then `-System` (with `-Administrator`): start, stop, restart, status, uninstall.
 3. **The suites:** `tests\Run-Conformance.ps1`, then `tests\integration\*.ps1`, from a copy of the repository on the VM.
+   Over SSH, Windows refuses DPAPI and the service manager, so Secrets, Precheck and Base-Pack's `base_services` cannot pass there. Run those at the console or over Remote Desktop with `Run-Console.ps1`: put `git archive --format=zip -o vigil-main.zip HEAD` next to it, run it from PowerShell, and read `console-results\`. It installs nothing and leaves the installed service alone.
 4. **The real backends:** `run-vigil.ps1 lgtm` and the store tests, through tunnels to the Docker host.
 5. **WMI refused:** the native process route, as over SSH.
 
