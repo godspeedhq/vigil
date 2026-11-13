@@ -223,7 +223,11 @@ fi
 main_root=$root
 root=$(mktemp -d "${TMPDIR:-/tmp}/vigil-orphan.XXXXXX")
 mkdir -p "$root/config" "$root/scripts"
-printf 'sleep 15\necho metric done 1\n' > "$root/scripts/long.sh"
+# The job runs until the test has checked it, not for a time a slow machine
+# may outlast before the checks (49): it ends when long.stop appears, or after
+# five minutes, so it never outlives a failed run.
+stop=$root/scripts/long.stop
+printf 'i=0\nwhile [ ! -f "%s" ] && [ "$i" -lt 300 ]; do sleep 1; i=$((i + 1)); done\necho metric done 1\n' "$stop" > "$root/scripts/long.sh"
 printf '[vigil]\ninstance = orphan\n\n[runner.sh]\ncommand = /bin/sh\n\n[runners]\n.sh = sh\n\n[job.long]\nfile      = scripts/long.sh\nrun_every = 1s\n' > "$root/config/vigil.config"
 st=$root/state/jobs/long.state
 # The first tick may only schedule the job: tick until its run has started.
@@ -245,8 +249,9 @@ vigil supervise --once > /dev/null 2>&1
 check "orphan: its job still runs" yes "$(kill -0 "$jpid" 2>/dev/null && echo yes || echo no)"
 check "orphan: still the same run" "$rid" "$(state_value "$st" run_id)"
 check "orphan: jobs.log says ORPHANED" yes "$(sed -n '/^ORPHANED$/,/^$/p' "$root/logs/supervisor/jobs.log" | grep -F "  long: run $rid, its worker (pid $wpid) is gone" > /dev/null && echo yes || echo no)"
+: > "$stop"
 i=0
-while kill -0 "$jpid" 2>/dev/null && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
+while kill -0 "$jpid" 2>/dev/null && [ "$i" -lt 20 ]; do sleep 0.5; i=$((i + 1)); done
 vigil supervise --once > /dev/null 2>&1
 # From the supervisor's log: that tick may already have started the next
 # run, whose worker rewrites the state file.

@@ -87,6 +87,10 @@ function Set-VigilSecret {
     param([string]$Root, [string]$Name, [System.Security.SecureString]$Value)
     if ($Name -cnotmatch $Script:VigilSecretName) { throw "not a valid secret name: $Name" }
     $dir = Get-VigilSecretDir $Root
+    # Before anything is written: a store this account may not read looks
+    # absent, and creating it fails with raw errors (49).
+    $denied = Get-VigilDenied $dir
+    if ($denied) { throw (Get-VigilSecretDeniedMessage $denied) }
     if (-not [System.IO.Directory]::Exists($dir)) { [void](New-Item -ItemType Directory -Force -Path $dir) }
     # Owner-only, set in full every time: no inherited access and no other
     # entries (an elevated token adds Administrators and SYSTEM by default),

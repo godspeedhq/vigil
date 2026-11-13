@@ -284,7 +284,11 @@ function Invoke-OnceAlone {
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'supervise', '--once')
     $p.WaitForExit()
 }
-Set-Content -LiteralPath (Join-Path $root 'scripts\long.cmd') -Value @('@echo off', 'ping -n 31 127.0.0.1 >nul', 'echo metric done 1')
+# The job runs until the test has checked it, not for a time a slow machine
+# may outlast before the checks (49): it ends when long.stop appears, or after
+# five minutes, so it never outlives a failed run.
+$stop = Join-Path $root 'scripts\long.stop'
+Set-Content -LiteralPath (Join-Path $root 'scripts\long.cmd') -Value @('@echo off', 'set n=0', ':w', "if exist ""$stop"" goto e", 'set /a n+=1', 'if %n% geq 300 goto e', 'ping -n 2 127.0.0.1 >nul', 'goto w', ':e', 'echo metric done 1')
 Set-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value @"
 [vigil]
 instance = orphan
@@ -309,7 +313,8 @@ Test-Equal 'orphan: its job still runs' 'True' ([string][bool](Get-Process -Id (
 Test-Equal 'orphan: no second run is started' '' ((@(Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter 'long.*.launch' | ForEach-Object Name)) -join ' ')
 Test-Equal 'orphan: still the same run' $rid (Get-StateValue $st 'run_id')
 Test-Equal 'orphan: jobs.log says ORPHANED' 'True' ([string]($jobsLog -cmatch "(?m)^ORPHANED\r?\n  long: run $rid, its worker \(pid $wpid\) is gone"))
-for ($i = 0; $i -lt 90 -and (Get-Process -Id ([int]$jpid) -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+[System.IO.File]::WriteAllText($stop, '')
+for ($i = 0; $i -lt 40 -and (Get-Process -Id ([int]$jpid) -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
 Invoke-OnceAlone
 # Read from the supervisor's log: that tick may already have started the next
 # run, whose worker rewrites the state file.
