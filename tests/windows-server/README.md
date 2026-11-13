@@ -13,7 +13,14 @@ How each Windows Server version in [backlog 26](../../backlog/26_windows_server_
    ```
 
    `-Administrator` lets the system-mode tests run (installing the service needs it). Leave it out to test user mode only. The account's password is random and never shown: the key is the only way in. `-Remove` undoes it.
-4. Take a checkpoint named `clean`, to go back to before each run.
+4. On a fresh install, run .NET's queue of assemblies to compile, from an elevated PowerShell. Until it has run, every PowerShell start compiles them again: on Server 2019, `powershell -NoProfile` took 3.3 seconds to start, and up to 30 under load, before it, and 0.3 after. It is Windows' own maintenance, and installs nothing:
+
+   ```powershell
+   & "$env:windir\Microsoft.NET\Framework64\v4.0.30319\ngen.exe" executeQueuedItems
+   & "$env:windir\Microsoft.NET\Framework\v4.0.30319\ngen.exe" executeQueuedItems
+   ```
+
+5. Take a checkpoint named `clean`, to go back to before each run.
 
 ## 2. Reaching it
 

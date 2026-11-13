@@ -22,7 +22,8 @@ Hyper-V VMs on the Windows 11 Pro test machine:
 | Server 2016 | in Hyper-V | supported; OpenSSH not built in (install Win32-OpenSSH, or reach it over PowerShell remoting) |
 | Server 2012 R2, 2012 | dropped (2026-11-12) | not supported: below the Server 2016 floor |
 | Server 2008 R2 | tried and dropped (2026-11-12) | not supported: below the Server 2016 floor |
-| Server 2019, 2022 | suggested | the most common in production today |
+| Server 2019 | tested on a physical machine (2026-11-13) | works with caveats: the SSH-logon limits of backlog 48 |
+| Server 2022 | next, on the same physical machine | the most common in production today |
 
 Both Desktop Experience and Server Core where the version has both: Core lacks some of what Desktop has, and Vigil must not depend on it.
 
@@ -67,3 +68,8 @@ The specification's support table is then updated to say what was shown, version
   on a physical machine and dropped (PowerShell 2.0, no service pack); 2012
   and 2012 R2 dropped too. Server 2016 run on that physical machine instead.
   Left: Server 2025 on real hardware; 2019 and 2022.
+- 2026-11-13: Server 2019 run on the same physical machine. Every suite run
+  over SSH passes except where Windows refuses an SSH logon (backlog 48).
+  The first run was slow until .NET's compile queue ran (`ngen
+  executeQueuedItems`); `tests/windows-server/README.md` now has that step.
+  Left: Server 2025 on real hardware; 2022.
