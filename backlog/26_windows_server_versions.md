@@ -23,7 +23,7 @@ Hyper-V VMs on the Windows 11 Pro test machine:
 | Server 2012 R2, 2012 | dropped (2026-11-12) | not supported: below the Server 2016 floor |
 | Server 2008 R2 | tried and dropped (2026-11-12) | not supported: below the Server 2016 floor |
 | Server 2019 | tested on a physical machine (2026-11-13) | works with caveats: the SSH-logon limits of backlog 48 |
-| Server 2022 | next, on the same physical machine | the most common in production today |
+| Server 2022 | tested on a physical machine (2026-11-13) | works with caveats: the SSH-logon limits of backlog 48 |
 
 Both Desktop Experience and Server Core where the version has both: Core lacks some of what Desktop has, and Vigil must not depend on it.
 
@@ -73,3 +73,6 @@ The specification's support table is then updated to say what was shown, version
   The first run was slow until .NET's compile queue ran (`ngen
   executeQueuedItems`); `tests/windows-server/README.md` now has that step.
   Left: Server 2025 on real hardware; 2022.
+- 2026-11-13: Server 2022 run on the same physical machine, with .NET's
+  compile queue run first: the same results as 2019. Left: Server 2025 on
+  real hardware, next on the same machine.
