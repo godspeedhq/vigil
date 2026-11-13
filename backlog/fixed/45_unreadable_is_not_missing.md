@@ -94,7 +94,11 @@ where each decision is made:
     25/25.
   - On main (0.6.5) the same tests fail: bash 14 checks, Windows 15. Among
     them `self update --check` printed "0.6.5 is available", from GitHub,
-    and `secret delete` deleted the secret.
+    and `secret delete` said `no secret FOO`. (Corrected 2026-11-11: an
+    earlier version of this note said 0.6.5 deleted the secret. That came
+    from the test's first way of closing the folder, `icacls /deny` for
+    this account, which also took the account's own rights away, so the
+    secret only looked gone. 0.6.5 deleted nothing.)
   - Unchanged on Fedora and the Mac: config-edit 42, pack 60, secrets 19,
     precheck 34, init-uninstall 38, self-update 131, version-config 50.
   - The route straight to the task or sudo rule runs only elevated: CI's
