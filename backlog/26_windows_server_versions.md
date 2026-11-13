@@ -20,9 +20,8 @@ Hyper-V VMs on the Windows 11 Pro test machine:
 | --- | --- | --- |
 | Server 2025 | in Hyper-V | supported; OpenSSH built in |
 | Server 2016 | in Hyper-V | supported; OpenSSH not built in (install Win32-OpenSSH, or reach it over PowerShell remoting) |
-| Server 2012 R2 | to fetch | WMF 5.1 to install |
-| Server 2012 | to fetch | WMF 5.1 to install |
-| Server 2008 R2 SP1 | to fetch | WMF 5.1 to install (it needs .NET Framework 4.5 or later first); out of support since January 2020 |
+| Server 2012 R2, 2012 | dropped (2026-11-12) | not supported: below the Server 2016 floor |
+| Server 2008 R2 | tried and dropped (2026-11-12) | not supported: below the Server 2016 floor |
 | Server 2019, 2022 | suggested | the most common in production today |
 
 Both Desktop Experience and Server Core where the version has both: Core lacks some of what Desktop has, and Vigil must not depend on it.
@@ -61,3 +60,10 @@ The specification's support table is then updated to say what was shown, version
   only, from the local subnet; `Probe.ps1` records step 1; the steps are in
   `tests/windows-server/README.md`, and the results go in
   `tests/integration/backends/reports/windows-compatibility.md`.
+- 2026-11-10 to 11: Server 2016 VM run (backlog 48). 2026-11-11: the Server
+  2025 VM set up and Vigil 0.7.0 installed, but too slow in Hyper-V to test;
+  it moves to a physical machine.
+- 2026-11-12: Server 2016 is the floor (backlog 49). Server 2008 R2 was tried
+  on a physical machine and dropped (PowerShell 2.0, no service pack); 2012
+  and 2012 R2 dropped too. Server 2016 run on that physical machine instead.
+  Left: Server 2025 on real hardware; 2019 and 2022.
