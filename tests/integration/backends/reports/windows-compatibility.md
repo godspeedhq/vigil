@@ -11,16 +11,48 @@ What each Windows version showed when Vigil ran on it ([backlog 26](../../../../
 | Windows 11 Pro 23H2 | PowerShell 5.1 and 7, .NET 4.8.1 | Passed | Passed | Passed | Passed (LGTM) | Passed (backlog/fixed/23) | **Supported** |
 | GitHub `windows-latest` (Server 2025) | PowerShell 5.1 and 7 | Passed (CI) | Passed (CI) | Passed (CI) | Not tested | Not tested | **Supported** |
 | Server 2025, Desktop Experience | Not tested | Not tested | Not tested | Not tested | Not tested | Not tested | Not tested |
+| Server 2022 Datacenter Evaluation (21H2, 20348.587): a physical machine | PowerShell 5.1, .NET 4.8; TLS 1.2 on by default | Passed: the README's command, system mode, the service runs (0.7.0) | Passed (145) | Partly: 10 suites pass, 4 fail only where Windows refuses an SSH logon, 9 not run ([below](#server-2022-physical-2026-11-13)) | Not tested | Partly: as an ordinary account over SSH | **Works with caveats** (backlog 48) |
 | Server 2019 Datacenter Evaluation (1809, 17763.3650): a physical machine | PowerShell 5.1, .NET 4.7.2; TLS 1.2 on by default | Passed: the README's command, system mode, the service runs (0.7.0) | Passed (145) | Partly: 10 suites pass, 4 fail only where Windows refuses an SSH logon, 9 not run ([below](#server-2019-physical-2026-11-13)); slow until .NET's compile queue ran | Not tested | Partly: as an ordinary account over SSH | **Works with caveats** (backlog 48) |
 | Server 2016 Datacenter Evaluation (1607, 14393.693), Desktop Experience: a physical machine | PowerShell 5.1, .NET 4.6.2; TLS 1.2 off by default (Vigil turns it on) | Passed: the README's command, system mode, the service runs (0.7.0) | Passed (145) | Partly: 10 suites pass, 4 fail only where Windows refuses an SSH logon, 9 not run ([below](#server-2016-physical-2026-11-12)) | Not tested | Partly: as an ordinary account over SSH | **Works with caveats** (backlogs 48, 49) |
 | Server 2016, the same build: a Hyper-V VM | as above | Passed (0.6.5) | Passed (145) | Partly: 9 suites pass, 6 fail, 9 not run ([below](#server-2016-2026-11-11)) | Not tested | Partly: as an ordinary account over SSH | **Works with caveats** (backlog 48) |
-| Server 2022 | Not tested | Not tested | Not tested | Not tested | Not tested | Not tested | Not tested |
 | Server 2012 R2, 2012 | PowerShell 4.0 built in | Not tested | Not tested | Not tested | Not tested | Not tested | **Not supported:** below the Server 2016 floor |
 | Server 2008 R2 | PowerShell 2.0 built in; the machine tried had no service pack | Not tried: the prerequisites were given up ([below](#server-2008-r2-2026-11-12)) | Not tested | Not tested | Not tested | Not tested | **Not supported:** below the Server 2016 floor |
 
 ## Runs
 
 Each version's run, newest first: `Probe.ps1`'s table, then each step's result and anything that failed, with its output.
+
+### Server 2022, physical, 2026-11-13
+
+Installed on the same physical machine as the Server 2019 and 2016 runs below (4 CPUs, 7.8 GB), as installed (no updates applied by hand), with nothing beyond Windows and the OpenSSH server (Win32-OpenSSH 10.0, from its zip). Reached directly over SSH as `vigil-test`, an ordinary account. Before anything else, .NET's compile queue was run ([`tests/windows-server`](../../../windows-server/README.md), step 4): `powershell -NoProfile` started in about 2.5 seconds before it and 0.26 after. Vigil 0.7.0 installed with the README's command (`-System -UpdateBy vigil-test`) from an elevated prompt; the service runs. The suites ran from `main` at `dfab7d8`, one after another, as `vigil-test` over SSH.
+
+| Item | Value |
+| --- | --- |
+| Windows | Windows Server 2022 Datacenter Evaluation, Server |
+| Build | 20348.587 (21H2) |
+| Windows PowerShell | 5.1.20348.558 |
+| PowerShell 7 (pwsh) | no |
+| .NET Framework | 4.8 (release 528449) |
+| TLS protocols offered by default | SystemDefault |
+| TLS 1.2 known to .NET | yes |
+| SchUseStrongCrypto, 64-bit and 32-bit .NET | not set |
+| HTTPS to github.com, TLS 1.2 on | yes (200) |
+| OpenSSH client (ssh) | yes |
+| curl.exe, tar.exe | yes |
+| git | no |
+| WMI (CIM) from this session | no: Access denied |
+| This session elevated | no |
+
+| Suite | Result |
+| --- | --- |
+| Run-Conformance | 145 passed |
+| Config-Edit, Format, Init-Uninstall, Max-Runtime, Packaged, Run-Job, Service, Service-Packs, Supervise, Uncertain | all passed (40, 30, 38, 10, 22, 52, 17, 2, 49, 28) |
+| Base-Pack | 11 of 12: `base_services`, the service manager refused over SSH (backlog 48) |
+| Precheck | 27 of 34: the jobs that use the stored secret its set-up could not store, DPAPI refused over SSH (backlog 48) |
+| Secrets | stopped at its first `secret set`, with 0.7.0's message: `Windows refuses its data protection to this logon, ...` (backlog 48) |
+| Unreadable | 26 of 28: its set-up `secret set`, as above |
+| Backends, Fetch, Logs, Pack, Self-Update, Stores, Upgrade, Version-Config | not run: they need Python, not installed |
+| Install | not run: needs Git Bash |
 
 ### Server 2019, physical, 2026-11-13
 
