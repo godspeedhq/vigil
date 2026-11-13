@@ -29,7 +29,9 @@
       Server 2019 and later. Server 2016 has none: install Win32-OpenSSH
       (github.com/PowerShell/Win32-OpenSSH, the MSI) first, then run this.
     - Puts the key where sshd reads it for vigil-test, readable by nobody
-      else, and opens port 22 to the local subnet only.
+      else, adds vigil-test to OpenSSH Users where that group exists (Server
+      2025 lets in no one else), and opens port 22 to the local subnet only,
+      on every network profile.
     - Prints the VM's addresses.
 
     Run again with the same key, it changes nothing. -Remove undoes it all
@@ -96,6 +98,15 @@ $admins = Get-LocalGroup -SID 'S-1-5-32-544'
 $isAdmin = [bool](Get-LocalGroupMember -Group $admins -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*\$user" })
 if ($Administrator -and -not $isAdmin) { Add-LocalGroupMember -Group $admins -Member $user; Say "$user is now an administrator" }
 if (-not $Administrator -and $isAdmin) { Remove-LocalGroupMember -Group $admins -Member $user; Say "$user is no longer an administrator" }
+# Server 2025's built-in OpenSSH lets in only administrators and the members
+# of "OpenSSH Users" (AllowGroups in its sshd_config): without this, the key
+# is refused (49). Earlier versions have no such group.
+if (Get-LocalGroup -Name 'OpenSSH Users' -ErrorAction SilentlyContinue) {
+    if (-not (Get-LocalGroupMember -Group 'OpenSSH Users' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*\$user" })) {
+        Add-LocalGroupMember -Group 'OpenSSH Users' -Member $user
+    }
+    Say "$user is in the OpenSSH Users group"
+}
 
 # The key, in a file of its own that only SYSTEM, Administrators and
 # vigil-test can read: sshd refuses a key file others could change.
@@ -120,9 +131,11 @@ if (-not $text.Contains($match)) {
 }
 Say "the key is in $keys"
 
-# Port 22, from the local subnet only.
+# Port 22, from the local subnet only, on every network profile: Hyper-V's
+# Default Switch network is Public, where Windows' own sshd rule (Private
+# only, on Server 2025) does not apply (49).
 if (-not (Get-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue)) {
-    [void](New-NetFirewallRule -DisplayName $rule -Direction Inbound -Protocol TCP -LocalPort 22 -RemoteAddress LocalSubnet -Action Allow)
+    [void](New-NetFirewallRule -DisplayName $rule -Direction Inbound -Protocol TCP -LocalPort 22 -RemoteAddress LocalSubnet -Profile Any -Action Allow)
 }
 Say 'port 22 is open to the local subnet only'
 

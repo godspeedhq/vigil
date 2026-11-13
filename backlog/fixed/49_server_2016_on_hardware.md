@@ -82,3 +82,37 @@ run. Both twins.
 - The orphan section no longer depends on timing, on both shells.
 - The 2016 hardware run is recorded; the docs state 2016 as the floor;
   `Setup-Vm.ps1` has both fixes.
+
+## Built (2026-11-13)
+
+As proposed, in two pull requests.
+
+- **`secret set`** (#152): `Set-VigilSecret` and `vigil_secret_set` check
+  the store with `Get-VigilDenied` / `vigil_denied` before writing
+  anything, as `delete` and `list` do. On the Server 2016 machine, against
+  its system install, as `vigil-test`:
+
+  ```
+  vigil: cannot read C:\ProgramData\Vigil\config from this account: secrets are set and read as the account Vigil runs as
+  ```
+
+  exit 1. Tests in `Unreadable.ps1` and `unreadable.sh`: Windows 11
+  (PowerShell 5.1), Fedora and the Mac 28/28; the 2016 machine 26/28 (its
+  set-up `secret set`, DPAPI over SSH; the new checks pass). Against 0.7.0's
+  code they fail: bash gave `mkdir`'s raw error; Windows gave a raw error
+  and, as the folder's owner, rewrote the store's ACL, removing the test's
+  deny entry.
+- **The orphan section** (#152): the job runs until the test writes
+  `long.stop`, capped at five minutes, in both twins. Supervise: Windows 11
+  49/49, the 2016 machine 49/49 (46 before), Fedora and the Mac 45/45.
+- **Records and the floor:** the 2016 hardware run and the 2008 R2 attempt
+  are in `windows-compatibility.md`; README, SPECIFICATION.md §5.1 and §22.5,
+  and backlog 26 state Server 2016 as the floor, with 2012, 2012 R2 and
+  2008 R2 not supported.
+- **`Setup-Vm.ps1`:** adds `vigil-test` to `OpenSSH Users` where that group
+  exists, and names `-Profile Any` on its port 22 rule. Its rule was already
+  on every profile (that is `New-NetFirewallRule`'s default); the Server
+  2025 VM's problem was Windows' own `sshd` rule, which is Private only.
+  Not run on a machine yet: the 2019 machine was set up with the staging
+  script. The test-VM README now reaches a VM with `ProxyCommand` (`-J`
+  does not pass `-i`).
