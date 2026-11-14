@@ -103,3 +103,43 @@ open the folder, before DPAPI is reached.
 service would (SYSTEM on Windows; root reading another account's store on
 Linux), and the test machines show it: Fedora's service, and the Server 2025
 machine's service with a secret set at the console.
+
+## Built (2026-11-14)
+
+As decided, in #158.
+
+- **Windows** (`app/lib/windows/Secrets.ps1`): `Test-VigilSystemRoot` knows a
+  system install by its root's ACL (protected; SYSTEM and Administrators
+  only). There `Set-VigilSecret` encrypts with `ProtectedData` and
+  `LocalMachine` (the file starts `machine:`) and gives `config\secrets` to
+  SYSTEM and Administrators; `Read-VigilStoredSecret` reads either format.
+  A user install is unchanged.
+- **Linux and macOS** (`app/lib/posix/secrets.sh`): `_vigil_secret_safe`
+  lets root read another account's store; `vigil_secret_set` as root
+  refuses a `config/` another account owns:
+
+  ```
+  vigil: the configuration belongs to svc, the account Vigil runs as: set secrets as that account (sudo -u svc vigil secret set OTHER)
+  ```
+
+- **Messages and docs:** `pack enable`'s and the store's reasons add "(an
+  elevated prompt for a system install)" on Windows; README.md (the release
+  secret now `sudo -u vigil`), packs/README.md, SPECIFICATION.md §6.5.2.
+
+**Shown:**
+
+- **CI** (#158): `Secrets.ps1`, elevated, PowerShell 5.1 and 7: `system:
+  secret set`, `encrypted for the machine`, `the store is SYSTEM's and
+  Administrators' only`, `the run was SYSTEM's`, `SYSTEM read the secret
+  exactly`, each passed. `secrets.sh` with sudo, Ubuntu and macOS: root
+  reads the service account's secret; root's `secret set` refused, says
+  how, stores nothing. Against `main`, those four bash checks fail.
+- **A Fedora 44 container** laid out as a system install: the release
+  secret, set as root, refused to the worker; set as `vigil`, refused to
+  root (before); `secrets.sh` 23/23 as a sudo user (after).
+- **Server 2025 on hardware, at the console** (`Run-Console.ps1`, as the
+  built-in Administrator, elevated): Secrets 32/32, the system section
+  among them, a job run as SYSTEM through a scheduled task receiving the
+  secret exactly; Precheck 34/34, Base-Pack 12/12.
+- Windows 11, not elevated, PowerShell 5.1 and 7: Secrets 26/26 (system
+  section skipped), Pack 65/65, Unreadable 28/28.
