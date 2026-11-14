@@ -31,7 +31,7 @@ account must be the service's, and the documented ways do not get there:
   secret set VIGIL_RELEASES_AUTH`) gives a root-owned one, which the worker
   refuses; set as `vigil`, root refuses it. And one `config/secrets` folder
   cannot be owned by both, so release and job secrets cannot share it either.
-  Found by reading; not yet run.
+  Found by reading; reproduced 2026-11-14 (below).
 
 Linux and macOS job secrets, set with `sudo -u vigil vigil secret set`, are
 fine: one account sets and reads them.
@@ -61,3 +61,45 @@ works. Candidates, to weigh before building:
   shown by a test that runs as the service's account, and on the test
   machines.
 - README.md, packs/README.md and the `pack enable` messages agree with it.
+
+## Decided (2026-11-14)
+
+**Reproduced on Linux,** in a `fedora:44` container laid out as a system
+install (`config/` owned by `vigil`), with `release_header_value =
+secret:VIGIL_RELEASES_AUTH`, running `vigil self update --check`:
+
+- Set as root, as README.md says: the worker, as `vigil`, gets `cannot read
+  /opt/vigil/config/secrets from this account`; root reads it.
+- Set as `vigil`: the worker reads it; root gets `refused: its file is owned
+  by another account`.
+
+Setting it as root also leaves `config/secrets` owned by root, closing it to
+the service's job secrets as well.
+
+**Windows also found:** `secret set` on a system install closes
+`config\secrets` to all but the account that ran it, so SYSTEM cannot even
+open the folder, before DPAPI is reached.
+
+**The change, one documented way each:**
+
+- **Windows.** On a system install (the root closed to SYSTEM and
+  Administrators by `service install --system`), `vigil secret set` from an
+  elevated prompt encrypts with DPAPI's machine scope
+  (`ProtectedData`, `LocalMachine`) and gives `config\secrets` to SYSTEM and
+  Administrators only, as the root is. The service and administrators can
+  read it, nobody else can open it: the folder's permissions protect it, as
+  a 0600 file does on Linux. Each file says which scope encrypted it, so
+  secrets already set stay readable; a user install is unchanged.
+- **Linux and macOS.** Root may read a store whose files belong to another
+  account: root can read any file anyway, so refusing it protects nothing.
+  The one documented way is to set secrets as the service account (`sudo -u
+  vigil vigil secret set NAME`), release secrets included; the worker and
+  the root updater then both read it.
+- **Messages and docs:** `pack enable`, precheck, README.md and
+  packs/README.md say that way for each platform, and stop pointing a
+  Windows system install at something that cannot work.
+
+**Tests:** the Windows twin and the bash twin each read a secret as the
+service would (SYSTEM on Windows; root reading another account's store on
+Linux), and the test machines show it: Fedora's service, and the Server 2025
+machine's service with a secret set at the console.
