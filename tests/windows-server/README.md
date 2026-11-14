@@ -1,6 +1,6 @@
 # Windows Server test VMs
 
-How each Windows Server version in [backlog 26](../../backlog/26_windows_server_versions.md) is made reachable and tested. The results go in [`windows-compatibility.md`](../integration/backends/reports/windows-compatibility.md).
+How each Windows Server version in [backlog 26](../../backlog/fixed/26_windows_server_versions.md) is made reachable and tested. The results go in [`windows-compatibility.md`](../integration/backends/reports/windows-compatibility.md).
 
 ## 1. The VM (its owner, once per VM)
 

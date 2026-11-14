@@ -242,7 +242,7 @@ Windows support floor: Server 2016, the first Windows Server with PowerShell 5.1
 | Windows | Intended | Tested |
 | --- | --- | --- |
 | Windows 11 | Supported. PowerShell 5.1 built in. | Yes: every suite, real backends, the service. |
-| Server 2025 | Supported. PowerShell 5.1 built in. | GitHub's `windows-latest` runner: the suites in CI. Not on a VM. |
+| Server 2025 | Supported. PowerShell 5.1 built in. | GitHub's `windows-latest` runner: the suites in CI. And on a physical machine, as Server 2022 below, with the console run too. |
 | Server 2016 | Supported. PowerShell 5.1 built in. The floor. | Yes, with caveats, on a physical machine and a VM: install and service from the README's command, and conformance, pass. Run as an ordinary account over SSH, the integration suites that need nothing installed pass, except where Windows refuses DPAPI or the service manager to an SSH logon (backlog 48); the suites that need Python or Git Bash were not run. |
 | Server 2019 | Supported. PowerShell 5.1 built in. | Yes, with caveats, on a physical machine: as Server 2016 above. Every integration suite run over SSH passes except where Windows refuses DPAPI or the service manager to an SSH logon. Slow until .NET's compile queue ran after the install. |
 | Server 2022 | Supported. PowerShell 5.1 built in. | Yes, with caveats, on a physical machine: as Server 2019; and at the console, where Windows allows DPAPI and the service manager, Secrets, Precheck and Base-Pack pass too. |
@@ -2365,7 +2365,7 @@ A pass on one platform is never evidence for another. The v1 matrix, with where 
 | Platform | Tested today | Planned |
 | --- | --- | --- |
 | Windows 11, PowerShell 5.1 and 7 | A real machine: every suite, real backends, the service | |
-| Windows Server 2025 | GitHub Actions `windows-latest`: the suites, PowerShell 5.1 and 7 | An evaluation VM |
+| Windows Server 2025 | GitHub Actions `windows-latest`: the suites, PowerShell 5.1 and 7. A physical machine: as 2019 and 2022 below | The suites that need Python or Git Bash; real backends |
 | Windows Server 2016 | A physical machine and a Hyper-V VM: install, service, conformance; the integration suites that need nothing installed, over SSH, failing only where Windows refuses an SSH logon (backlogs 48, 49) | The suites that need Python, Git Bash or an administrator; real backends |
 | Windows Server 2019, 2022 | A physical machine: install, service, conformance; the integration suites that need nothing installed, over SSH, failing only where Windows refuses an SSH logon (backlog 48) | The suites that need Python, Git Bash or an administrator; real backends |
 | Windows Server 2012 / 2012 R2 / 2008 R2 | Not supported: below the Server 2016 floor (§5.1) | None |
