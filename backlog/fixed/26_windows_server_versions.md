@@ -85,3 +85,34 @@ The specification's support table is then updated to say what was shown, version
   Core; the suites that need Python or Git Bash; real backends, stores and
   sources (step 4); WMI refusal on each (step 5), beyond running as an
   ordinary account over SSH.
+
+## Built (2026-11-14)
+
+Closed with every supported Server version run on real hardware: Server
+2016 (2026-11-12), 2019 and 2022 (2026-11-13) and 2025 (2026-11-14), on one
+physical machine (4 CPUs, 7.8 GB), each a fresh evaluation install with
+nothing added beyond the OpenSSH server. Each result, with its `Probe.ps1`
+table, is in `tests/integration/backends/reports/windows-compatibility.md`,
+and SPECIFICATION.md §5.1 and §22.5 and the README say what was shown.
+
+- **The floor:** Server 2016, the first with PowerShell 5.1 built in.
+  2012, 2012 R2 and 2008 R2 are not supported (backlog 49): 2008 R2 was tried
+  and given up; the 2012s were not tried.
+- **Each version, over SSH as an ordinary account:** the README's install
+  (system mode, the service runs), conformance (145) and the integration
+  suites that need nothing installed pass, except where Windows refuses DPAPI
+  or the service manager to an SSH logon (backlog 48).
+- **At the console** (`tests/windows-server/Run-Console.ps1`, 2022 and
+  2025): Secrets, Precheck and Base-Pack, the suites SSH refuses, pass.
+- **Found and fixed on the way:** `secret set` against a store it cannot
+  read (backlog 49); the orphan test's dependence on the clock (backlog 49);
+  the messages for DPAPI and the service manager over SSH (backlog 48).
+- **Slow PowerShell on a fresh install:** .NET's compile queue, not Windows
+  or Vigil. `tests/windows-server/README.md` runs it before testing.
+
+Not done, by decision (2026-11-14): Server Core; the suites that need
+Python or Git Bash; real backends, stores and sources from a Server (step 4);
+the WMI step (5) beyond running as an ordinary account over SSH. Those are
+test tools, not anything Vigil needs: a Server as installed runs and updates
+Vigil with what Windows provides, and the same code is covered on Windows 11
+and GitHub's Server 2025 runner. Reopen if a real user reports a difference.

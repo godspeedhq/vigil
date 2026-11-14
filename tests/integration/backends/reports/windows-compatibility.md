@@ -1,6 +1,6 @@
 # Windows compatibility
 
-What each Windows version showed when Vigil ran on it ([backlog 26](../../../../backlog/26_windows_server_versions.md); how: [`tests/windows-server`](../../../windows-server/README.md)). A result changes only with a run: the version, the date and what failed, if anything. A test that didn't run is never marked Passed.
+What each Windows version showed when Vigil ran on it ([backlog 26](../../../../backlog/fixed/26_windows_server_versions.md); how: [`tests/windows-server`](../../../windows-server/README.md)). A result changes only with a run: the version, the date and what failed, if anything. A test that didn't run is never marked Passed.
 
 **Results:** Supported (everything passed), Works with caveats (named), Not supported (why), or Not tested.
 
