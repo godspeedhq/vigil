@@ -165,6 +165,22 @@ if [ "$unixperms" -eq 1 ]; then
     chmod 600 "$root/config/secrets/PGPASSWORD"
 fi
 
+# 5b. A system install's store belongs to the service account; root reads it,
+# as the --update-by updater does, and does not set into it (42). Here this
+# account stands for the service account.
+asroot=0
+if [ "$unixperms" -eq 1 ] && [ "$(id -u)" != 0 ] && sudo -n true 2> /dev/null; then
+    asroot=1
+    sudo -n env IT_REGION_KEY=eu-west "$BASH" "$vigil_cmd" --root "$root" run show > /dev/null 2>&1
+    check "root reads the service account's secret" 1 "$(metric show pg_ok)"
+    out=$(printf 'x\n' | sudo -n "$BASH" "$vigil_cmd" --root "$root" secret set OTHER --stdin 2>&1)
+    check "root set into the service account's store: refused" 1 "$?"
+    check "root set: says how" "vigil: the configuration belongs to $(id -un), the account Vigil runs as: set secrets as that account (sudo -u $(id -un) vigil secret set OTHER)" "$out"
+    check "root set: nothing stored" no "$([ -e "$root/config/secrets/OTHER" ] && echo yes || echo no)"
+else
+    printf 'SKIP root and the service account: needs sudo without a password\n'
+fi
+
 # 6. delete removes it.
 vigil secret delete PGPASSWORD > /dev/null
 check "delete" "" "$(vigil secret list | grep '^PGPASSWORD ')"
@@ -174,6 +190,7 @@ leaks=$(grep -r -l -e 'first pg value' -e 'second, longer pg value' -e "api-1 $$
     "$root/logs" "$root/state" "$root/spool" 2>/dev/null)
 check "no value in any log, state or spool file" "" "$leaks"
 
-rm -rf "$root"
+# Root's run left files of root's.
+if [ "$asroot" -eq 1 ]; then sudo -n rm -rf "$root"; else rm -rf "$root"; fi
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

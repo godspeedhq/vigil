@@ -73,7 +73,7 @@ Test-Equal 'set up: the secret is stored' 'True' ([string][System.IO.File]::Exis
 
 $configDir = Join-Path $root 'config'
 $how = 'from this account: run this from an elevated prompt for a system install'
-$secretHow = 'from this account: secrets are set and read as the account Vigil runs as'
+$secretHow = 'from this account: secrets are set and read as the account Vigil runs as (an elevated prompt for a system install)'
 try {
     # Every command below runs with config\ closed to this account.
     Close-Folder $configDir

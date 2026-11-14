@@ -20,10 +20,14 @@
         returns @{ Ok; Value; Why }. Why never contains the value.
     Set-VigilSecret / Remove-VigilSecret / Get-VigilSecretList -Root <dir>
 
-    The store is config\secrets\<NAME>, one file per secret, holding the
-    value encrypted with DPAPI for the account Vigil runs as
-    (ConvertFrom-SecureString), with an owner-only ACL: only that account on
-    this machine can decrypt it. env: references are read from the registry
+    The store is config\secrets\<NAME>, one file per secret. On a user
+    install it holds the value encrypted with DPAPI for the account Vigil
+    runs as (ConvertFrom-SecureString), with an owner-only ACL: only that
+    account on this machine can decrypt it. On a system install, whose
+    service runs as LocalSystem, which nobody signs in as, it is set from an
+    elevated prompt, encrypted with DPAPI for the machine ("machine:" and
+    base64), and the folder is SYSTEM's and Administrators' only, as the
+    root is (42). env: references are read from the registry
     (user scope, then machine scope) when they are resolved, so a changed
     variable needs no restart; the inherited environment is the fallback.
 #>
@@ -39,7 +43,26 @@ function Get-VigilSecretDir {
 # missing: each store is its own account's (45).
 function Get-VigilSecretDeniedMessage {
     param([string]$Denied)
-    return "cannot read $Denied from this account: secrets are set and read as the account Vigil runs as"
+    return "cannot read $Denied from this account: secrets are set and read as the account Vigil runs as (an elevated prompt for a system install)"
+}
+
+# A system install's root, as service install --system leaves it (17): no
+# inherited access, and full control for SYSTEM and Administrators only. Its
+# secrets are the machine's (42).
+$Script:VigilSystemSids = @('S-1-5-18', 'S-1-5-32-544')
+function Test-VigilSystemRoot {
+    param([string]$Root)
+    try { $acl = Get-Acl -LiteralPath $Root -ErrorAction Stop } catch { return $false }
+    if (-not $acl.AreAccessRulesProtected) { return $false }
+    $sids = @($acl.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier]) |
+            ForEach-Object { $_.IdentityReference.Value } | Sort-Object -Unique)
+    return (($sids -join ',') -ceq ($Script:VigilSystemSids -join ','))
+}
+
+# DPAPI for the machine: any process here may decrypt it, so the folder's
+# ACL is what protects it, as a 0600 file's mode does on Linux.
+function Initialize-VigilProtectedData {
+    if (-not ('System.Security.Cryptography.ProtectedData' -as [type])) { Add-Type -AssemblyName System.Security }
 }
 
 # Windows refuses its data protection (DPAPI), which the store uses, to a
@@ -91,14 +114,20 @@ function Set-VigilSecret {
     # absent, and creating it fails with raw errors (49).
     $denied = Get-VigilDenied $dir
     if ($denied) { throw (Get-VigilSecretDeniedMessage $denied) }
+    $system = Test-VigilSystemRoot $Root
     if (-not [System.IO.Directory]::Exists($dir)) { [void](New-Item -ItemType Directory -Force -Path $dir) }
-    # Owner-only, set in full every time: no inherited access and no other
-    # entries (an elevated token adds Administrators and SYSTEM by default),
-    # only full control for this account, inherited by the files.
+    # Set in full every time: no inherited access and no other entries (an
+    # elevated token adds Administrators and SYSTEM by default), only full
+    # control, inherited by the files, for this account, or on a system
+    # install for SYSTEM and Administrators.
     $acl = New-Object System.Security.AccessControl.DirectorySecurity
     $acl.SetAccessRuleProtection($true, $false)
-    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
-                [Security.Principal.WindowsIdentity]::GetCurrent().User, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+    $who = if ($system) { @($Script:VigilSystemSids | ForEach-Object { New-Object Security.Principal.SecurityIdentifier($_) }) }
+    else { @([Security.Principal.WindowsIdentity]::GetCurrent().User) }
+    foreach ($sid in $who) {
+        $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    $sid, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+    }
     # Only the access entries are written. Set-Acl would try the audit ones
     # too, which needs a privilege an ordinary token lacks: once the folder
     # existed, every later set printed that error (48). Windows PowerShell's
@@ -106,12 +135,23 @@ function Set-VigilSecret {
     $info = New-Object System.IO.DirectoryInfo $dir
     if ($info.PSObject.Methods['SetAccessControl']) { $info.SetAccessControl($acl) }
     else { [System.IO.FileSystemAclExtensions]::SetAccessControl($info, $acl) }
-    # DPAPI, tied to this account on this machine.
-    if ($env:VIGIL_TEST_DPAPI_REFUSED) { throw $Script:VigilDpapiRefusedMessage }
-    try { $text = ConvertFrom-SecureString -SecureString $Value -ErrorAction Stop }
-    catch {
-        if (Test-VigilDpapiRefused) { throw $Script:VigilDpapiRefusedMessage }
-        throw
+    if ($system) {
+        # DPAPI for this machine, so the service can read it (42).
+        Initialize-VigilProtectedData
+        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Value)
+        try { $bytes = [System.Text.Encoding]::UTF8.GetBytes([System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)) }
+        finally { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+        try { $text = 'machine:' + [Convert]::ToBase64String([System.Security.Cryptography.ProtectedData]::Protect($bytes, $null, 'LocalMachine')) }
+        finally { [Array]::Clear($bytes, 0, $bytes.Length) }
+    }
+    else {
+        # DPAPI, tied to this account on this machine.
+        if ($env:VIGIL_TEST_DPAPI_REFUSED) { throw $Script:VigilDpapiRefusedMessage }
+        try { $text = ConvertFrom-SecureString -SecureString $Value -ErrorAction Stop }
+        catch {
+            if (Test-VigilDpapiRefused) { throw $Script:VigilDpapiRefusedMessage }
+            throw
+        }
     }
     $tmp = Join-Path $dir ".$Name.tmp.$PID"
     [System.IO.File]::WriteAllText($tmp, $text)
@@ -153,9 +193,20 @@ function Read-VigilStoredSecret {
     if (-not [System.IO.File]::Exists($path)) {
         return @{ Ok = $false; Why = "not found in Vigil's secret store (vigil secret set $Name)" }
     }
+    $text = [System.IO.File]::ReadAllText($path).Trim()
+    if ($text.StartsWith('machine:', [System.StringComparison]::Ordinal)) {
+        # A system install's: DPAPI for the machine (42).
+        try {
+            Initialize-VigilProtectedData
+            $bytes = [System.Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String($text.Substring(8)), $null, 'LocalMachine')
+            try { return @{ Ok = $true; Value = [System.Text.Encoding]::UTF8.GetString($bytes) } }
+            finally { [Array]::Clear($bytes, 0, $bytes.Length) }
+        }
+        catch { return @{ Ok = $false; Why = 'cannot be decrypted on this machine; set it again with vigil secret set from an elevated prompt' } }
+    }
     try {
         if ($env:VIGIL_TEST_DPAPI_REFUSED) { throw 'refused' }
-        $secure = ConvertTo-SecureString -String ([System.IO.File]::ReadAllText($path).Trim()) -ErrorAction Stop
+        $secure = ConvertTo-SecureString -String $text -ErrorAction Stop
         $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
         try { $value = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
         finally { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
@@ -163,8 +214,9 @@ function Read-VigilStoredSecret {
     }
     catch {
         if (Test-VigilDpapiRefused) { return @{ Ok = $false; Why = $Script:VigilDpapiRefusedMessage } }
-        # Set by another account, or copied from another machine.
-        return @{ Ok = $false; Why = 'cannot be decrypted by this account on this machine; set it again with vigil secret set as the service account' }
+        # Set by another account, or copied from another machine; on a system
+        # install, set before 42, for the account that set it.
+        return @{ Ok = $false; Why = 'cannot be decrypted by this account on this machine; set it again with vigil secret set as the service account (an elevated prompt for a system install)' }
     }
 }
 

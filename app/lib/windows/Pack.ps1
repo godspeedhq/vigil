@@ -281,12 +281,12 @@ function Get-VigilPackSecretState {
     if ($Ref.StartsWith('secret:', [System.StringComparison]::Ordinal)) {
         $n = $Ref.Substring(7)
         $d = Join-Path $Root 'config\secrets'
-        if (-not [System.IO.Directory]::Exists($d)) { return "not set: vigil secret set $n, as the account Vigil runs as" }
+        if (-not [System.IO.Directory]::Exists($d)) { return "not set: vigil secret set $n, as the account Vigil runs as (an elevated prompt for a system install)" }
         # The folder is the owner's only: another account cannot look in it.
         try { $names = @([System.IO.Directory]::GetFiles($d) | ForEach-Object { [System.IO.Path]::GetFileName($_) }) }
-        catch { return 'cannot be told from this account: vigil precheck, as the account Vigil runs as' }
+        catch { return 'cannot be told from this account: vigil precheck, as the account Vigil runs as (an elevated prompt for a system install)' }
         if ($names -ccontains $n) { return 'set' }
-        return "not set: vigil secret set $n, as the account Vigil runs as"
+        return "not set: vigil secret set $n, as the account Vigil runs as (an elevated prompt for a system install)"
     }
     if ($Ref.StartsWith('env:', [System.StringComparison]::Ordinal)) { return 'from the environment Vigil runs in' }
     return 'from a secret store: vigil precheck checks it'
