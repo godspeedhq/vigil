@@ -161,7 +161,7 @@ curl -fsSL https://github.com/godspeedhq/vigil/releases/latest/download/install.
 
 ### Windows
 
-Windows PowerShell 5.1 is enough. It's built into Windows 10 and 11 and Windows Server 2016 and later. Server 2016 is the floor: Server 2012, 2012 R2 and 2008 R2 are not supported. Tested so far: Windows 11, GitHub's Server 2025 runner, and Server 2016 (a physical machine and a VM; over SSH, with the caveats in the record). Other versions are expected to work but not yet tested ([the record](tests/integration/backends/reports/windows-compatibility.md)). PowerShell 7 works too, but is never required.
+Windows PowerShell 5.1 is enough. It's built into Windows 10 and 11 and Windows Server 2016 and later. Server 2016 is the floor: Server 2012, 2012 R2 and 2008 R2 are not supported. Tested so far: Windows 11, GitHub's Server 2025 runner, and Server 2016, 2019, 2022 and 2025 on a physical machine (with the caveats in the record). Windows 10 is expected to work but not yet tested ([the record](tests/integration/backends/reports/windows-compatibility.md)). PowerShell 7 works too, but is never required.
 
 ```powershell
 # System mode, from an elevated prompt: C:\ProgramData\Vigil, the "Vigil" service

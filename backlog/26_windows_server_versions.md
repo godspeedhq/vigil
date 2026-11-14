@@ -18,7 +18,7 @@ Hyper-V VMs on the Windows 11 Pro test machine:
 
 | Version | Status | Note |
 | --- | --- | --- |
-| Server 2025 | in Hyper-V | supported; OpenSSH built in |
+| Server 2025 | tested on a physical machine (2026-11-14); too slow in Hyper-V | works with caveats: the SSH-logon limits of backlog 48 |
 | Server 2016 | in Hyper-V | supported; OpenSSH not built in (install Win32-OpenSSH, or reach it over PowerShell remoting) |
 | Server 2012 R2, 2012 | dropped (2026-11-12) | not supported: below the Server 2016 floor |
 | Server 2008 R2 | tried and dropped (2026-11-12) | not supported: below the Server 2016 floor |
@@ -76,3 +76,12 @@ The specification's support table is then updated to say what was shown, version
 - 2026-11-13: Server 2022 run on the same physical machine, with .NET's
   compile queue run first: the same results as 2019. Left: Server 2025 on
   real hardware, next on the same machine.
+- 2026-11-13: at the 2022 machine's console, where Windows allows DPAPI and
+  the service manager, Secrets, Precheck and Base-Pack pass
+  (`tests/windows-server/Run-Console.ps1`).
+- 2026-11-14: Server 2025 run on the same physical machine, over SSH and at
+  the console: the same results as 2022. Every supported Server version
+  (2016, 2019, 2022, 2025) is now tested on real hardware. Not done: Server
+  Core; the suites that need Python or Git Bash; real backends, stores and
+  sources (step 4); WMI refusal on each (step 5), beyond running as an
+  ordinary account over SSH.
