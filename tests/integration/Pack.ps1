@@ -254,7 +254,7 @@ try {
     }
     [System.IO.File]::WriteAllText("$svc\pack.config", $m)
     $r = Invoke-Vigil pack enable svc
-    Test-Equal 'turns on, and says what it needs' 'on: svc_a|on: svc_b|needs secret:SVC_PW: not set: vigil secret set SVC_PW, as the account Vigil runs as|needs a role: CREATE ROLE it|needs its page on|settings in vigil.config: SVC_HOST=localhost SVC_PORT=1' ($r.Text.Split("`n") -join '|')
+    Test-Equal 'turns on, and says what it needs' 'on: svc_a|on: svc_b|needs secret:SVC_PW: not set: vigil secret set SVC_PW, as the account Vigil runs as (an elevated prompt for a system install)|needs a role: CREATE ROLE it|needs its page on|settings in vigil.config: SVC_HOST=localhost SVC_PORT=1' ($r.Text.Split("`n") -join '|')
     [void]('x' | & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'app\vigil.ps1') -Root $root secret set SVC_PW --stdin 2>&1)
     Test-Equal 'a secret set' 'needs secret:SVC_PW: set' (@((Invoke-Vigil pack enable svc_a).Text.Split("`n") | Where-Object { $_.StartsWith('needs secret') }) -join '|')
     [System.IO.File]::WriteAllText($cfg, (Get-Text $cfg).Replace('secret = SVC_PASSWORD=secret:SVC_PW', 'secret = SVC_PASSWORD=env:SVC_ENV_PW'))

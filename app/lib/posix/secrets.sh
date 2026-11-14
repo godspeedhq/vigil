@@ -53,7 +53,10 @@ _vigil_secret_safe() {
     set +f
     perms=$1
     uid=$3
-    if [ "$uid" != "$(id -u)" ]; then
+    # Root may read the service account's store: root can read any file, so
+    # refusing it protects nothing, and with --update-by root reads the
+    # release secret the worker read as the service account (42).
+    if [ "$uid" != "$(id -u)" ] && [ "$(id -u)" != 0 ]; then
         _vsec_why="its file is owned by another account; run vigil secret as the service account"
         return 1
     fi
@@ -193,11 +196,24 @@ vigil_secret_resolve() {
 }
 
 vigil_secret_set() {
-    local dir="$1/config/secrets" name=$2 tmp denied
+    local dir="$1/config/secrets" name=$2 tmp denied listing
     [[ $name =~ $VIGIL_SECRET_RE_NAME ]] || { printf 'vigil: not a valid secret name: %s\n' "$name" >&2; return 1; }
     # Before anything is written: a store this account may not read looks
     # absent, and creating it fails with raw errors (49).
     if denied=$(vigil_denied "$dir"); then printf 'vigil: %s\n' "$(_vigil_secret_denied "$denied")" >&2; return 1; fi
+    # Root setting a secret in a system install's configuration, which the
+    # service account owns: a root-owned file the service could not read,
+    # and a root-owned folder closed to its other secrets (42). The service
+    # account sets them; root can read them.
+    if [ "$(id -u)" = 0 ] && [ -d "$1/config" ] && [ ! -O "$1/config" ]; then
+        listing=$(ls -ld -- "$1/config")
+        set -f
+        # shellcheck disable=SC2086
+        set -- $listing
+        set +f
+        printf 'vigil: the configuration belongs to %s, the account Vigil runs as: set secrets as that account (sudo -u %s vigil secret set %s)\n' "$3" "$3" "$name" >&2
+        return 1
+    fi
     (
         umask 077
         mkdir -p "$dir" && chmod 700 "$dir" || exit 1

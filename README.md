@@ -319,8 +319,10 @@ release_header_value = secret:VIGIL_RELEASES_AUTH
 ```
 
 ```sh
-printf 'Bearer %s' "$TOKEN" | sudo vigil secret set VIGIL_RELEASES_AUTH --stdin
+printf 'Bearer %s' "$TOKEN" | sudo -u vigil vigil secret set VIGIL_RELEASES_AUTH --stdin
 ```
+
+Set it as the account the service runs as (`vigil` here; on macOS, root, so plain `sudo`; on Windows, from an elevated prompt), like any other secret: the service checks for updates as that account, and with `--update-by` root reads the same secret to install.
 
 The secret is the header's whole value: `Bearer <token>` for an Artifactory or GitLab token, `Basic <base64 of user:password>` for Nexus or basic auth. Vigil sends it only to `release_url`, never puts it on a command line, and doesn't follow a redirect while it's set, so the header can't be passed on to another server. Without a header, the server has to allow anonymous read.
 
@@ -430,7 +432,7 @@ app/vigil --root ~/vigil-demo status                      # the service's state,
 
 The default is system mode when run as root or from an elevated prompt, user mode otherwise. On Windows the host is your choice, never guessed: Windows PowerShell 5.1 (`--host powershell`, the default, built into every supported Windows) or PowerShell 7 (`--host pwsh`). The supervisor starts its jobs' workers with the same host. On Linux and macOS the root may hold only letters, digits and `. _ - + @ /`, so the unit file and plist need no quoting.
 
-To give the service environment variables, use `systemctl edit vigil` (Linux), the plist's `EnvironmentVariables` (macOS) or the machine environment (Windows). Secrets in Vigil's own store must be set as the account the service runs as (`sudo -u vigil app/vigil secret set NAME`); on Windows, a LocalSystem service cannot read a store set from your account, so give it `env:` or `store:` references. Windows also refuses its encryption (DPAPI) to a logon without a password, such as SSH with a key: set and check secrets from the console or remote desktop, and Vigil says so if you try over SSH.
+To give the service environment variables, use `systemctl edit vigil` (Linux), the plist's `EnvironmentVariables` (macOS) or the machine environment (Windows). Secrets in Vigil's own store are set as the account the service runs as: `sudo -u vigil app/vigil secret set NAME` on Linux (root can read them too, for `--update-by`, but `sudo vigil secret set` is refused and says so), `sudo` on macOS, where the service runs as root. On Windows, set them from an elevated prompt: a system install's secrets are encrypted for the machine (DPAPI), in a folder only SYSTEM and Administrators can open, so the LocalSystem service reads them. Windows refuses DPAPI to a logon without a password, such as SSH with a key: set and check secrets from the console or remote desktop.
 
 Annotated example configurations covering every feature are in [`tests/mocks/`](tests/mocks/): `simple/` (everything local), `mixed/` (some scripts fetched) and `advanced/` (configuration fetched from a source).
 
@@ -1089,7 +1091,7 @@ secret    = PGPASSWORD=store:vault/db/backup
 
 `vigil precheck` fetches every store secret a job uses, and shows only the references, so a wrong token or an unreachable vault shows up before the first run does.
 
-On Windows, keep in mind that the store is encrypted for the account that ran `vigil secret set`: run it as the service account. Under WSL, install Vigil inside the Linux filesystem, not under `/mnt/c`, where every file looks readable by everyone and Vigil refuses to use secrets kept there.
+On Windows, a user install's store is encrypted for the account that ran `vigil secret set`; a system install's, set from an elevated prompt, for the machine, which the service can read. Under WSL, install Vigil inside the Linux filesystem, not under `/mnt/c`, where every file looks readable by everyone and Vigil refuses to use secrets kept there.
 
 **Changes apply without a restart.** The file is checked every tick. A valid change becomes active at once; an invalid one is rejected with every error listed, and the last valid configuration keeps running. A single invalid job is skipped and reported, while the others keep running.
 

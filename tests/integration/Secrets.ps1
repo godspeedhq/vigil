@@ -199,7 +199,7 @@ try {
     $good = [System.IO.File]::ReadAllText($path)
     [System.IO.File]::WriteAllText($path, '01000000d08c9ddf0115d1118c7a00c04fc297eb0100000000')
     [void](Invoke-Vigil @('run', 'show'))
-    Test-Equal 'undecryptable secret: refused' 'secret secret:PGPASSWORD unavailable: cannot be decrypted by this account on this machine; set it again with vigil secret set as the service account' (Get-Reason show)
+    Test-Equal 'undecryptable secret: refused' 'secret secret:PGPASSWORD unavailable: cannot be decrypted by this account on this machine; set it again with vigil secret set as the service account (an elevated prompt for a system install)' (Get-Reason show)
     [System.IO.File]::WriteAllText($path, $good)
 
     # 5b. A logon without a password (an SSH key), where Windows refuses DPAPI:
@@ -224,6 +224,78 @@ try {
     # 6. delete removes it.
     [void](Invoke-Vigil @('secret', 'delete', 'PGPASSWORD'))
     Test-Equal 'delete' 'False' "$((Invoke-Vigil @('secret', 'list')).Output -cmatch '(?m)^PGPASSWORD ')"
+
+    # 7. A system install (42): its root SYSTEM's and Administrators' only, as
+    # service install --system leaves it. A secret set from an elevated prompt
+    # is the machine's, and the service, as SYSTEM, reads it: a run started
+    # by a scheduled task as SYSTEM, as the service would start it.
+    $admin = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole(
+        [Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $admin) { Write-Host 'SKIP system install: needs an elevated prompt' }
+    else {
+        $sys = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-sec-sys.$PID"
+        $sysValue = "system value $PID"
+        [void](New-Item -ItemType Directory -Force -Path (Join-Path $sys 'config'), (Join-Path $sys 'scripts'))
+        Set-Content -LiteralPath (Join-Path $sys 'scripts\pg.ps1') -Value @(
+            '$e = [IO.File]::ReadAllText((Join-Path $env:IT_ROOT "expect"))',
+            'Write-Output "metric pg_ok $(if ($env:PGPASSWORD -ceq $e) { 1 } else { 0 })"',
+            'Write-Output "metric as_system $(if ([Security.Principal.WindowsIdentity]::GetCurrent().User.Value -ceq ''S-1-5-18'') { 1 } else { 0 })"')
+        [System.IO.File]::WriteAllText((Join-Path $sys 'expect'), $sysValue)
+        Set-Content -LiteralPath (Join-Path $sys 'config\vigil.config') -Value @"
+[runner.ps]
+command = $shell
+arg     = -NoProfile
+arg     = -ExecutionPolicy
+arg     = Bypass
+arg     = -File
+
+[runners]
+.ps1 = ps
+
+[job.pg]
+file      = scripts\pg.ps1
+run_every = 1h
+env       = IT_ROOT=$sys
+secret    = PGPASSWORD=secret:PGPASSWORD
+"@
+        $acl = New-Object System.Security.AccessControl.DirectorySecurity
+        $acl.SetAccessRuleProtection($true, $false)
+        foreach ($sid in @('S-1-5-18', 'S-1-5-32-544')) {
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+                        (New-Object Security.Principal.SecurityIdentifier($sid)), 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+        }
+        Set-Acl -LiteralPath $sys -AclObject $acl
+        $task = "VigilSecretsTest$PID"
+        try {
+            $out = $sysValue | & $shell -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $sys secret set PGPASSWORD --stdin 2>&1
+            Test-Equal 'system: secret set' '0' "$LASTEXITCODE"
+            Test-Equal 'system: encrypted for the machine' 'True' "$([System.IO.File]::ReadAllText((Join-Path $sys 'config\secrets\PGPASSWORD')).StartsWith('machine:'))"
+            $sacl = Get-Acl -LiteralPath (Join-Path $sys 'config\secrets')
+            $who = @($sacl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]) | ForEach-Object { $_.IdentityReference.Value } | Sort-Object -Unique) -join ','
+            Test-Equal 'system: the store is SYSTEM''s and Administrators'' only' 'True,S-1-5-18,S-1-5-32-544' "$($sacl.AreAccessRulesProtected),$who"
+
+            # The run, as SYSTEM.
+            $action = New-ScheduledTaskAction -Execute $shell -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$vigil`" -Root `"$sys`" run pg"
+            $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
+            [void](Register-ScheduledTask -TaskName $task -Action $action -Principal $principal -Force)
+            Start-ScheduledTask -TaskName $task
+            $deadline = (Get-Date).AddSeconds(120)
+            do { Start-Sleep -Milliseconds 500 } while ((Get-ScheduledTask -TaskName $task).State -ne 'Ready' -and (Get-Date) -lt $deadline)
+            Start-Sleep -Milliseconds 500
+            $events = Get-ChildItem -LiteralPath (Join-Path $sys 'spool\incoming') -Filter '*-pg-*.events' -ErrorAction SilentlyContinue | Sort-Object Name | Select-Object -Last 1
+            $got = @{}
+            if ($events) { foreach ($l in [System.IO.File]::ReadAllLines($events.FullName)) { if ($l -cmatch '^[0-9]+ pg\.(pg_ok|as_system) ([^ ]+) ') { $got[$Matches[1]] = $Matches[2] } } }
+            Test-Equal 'system: the run was SYSTEM''s' '1' "$($got['as_system'])"
+            Test-Equal 'system: SYSTEM read the secret exactly' '1' "$($got['pg_ok'])"
+            if ($got['pg_ok'] -ne '1') { Write-Host "        reason: $(Get-StateValue (Join-Path $sys 'state\jobs\pg.state') 'reason')" }
+            $leak = @(Get-ChildItem -LiteralPath $sys -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'expect' -and [System.IO.File]::ReadAllText($_.FullName).Contains($sysValue) })
+            Test-Equal 'system: no value in any file but the test''s own' '' (($leak | ForEach-Object { $_.FullName }) -join ' ')
+        }
+        finally {
+            Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $sys -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 
     # No value ever reached a log, state or spool file.
     $leaks = @(foreach ($d in @('logs', 'state', 'spool')) {
