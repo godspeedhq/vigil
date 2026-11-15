@@ -16,7 +16,7 @@ they *do*. What the probe had to find out by hand:
 
 - **What Vigil itself uses.** Five base-pack jobs on two 4-thread machines:
 
-  | | Windows 11 | Server 2025 |
+  | (0.7.0) | Windows 11 | Server 2025 |
   | --- | --- | --- |
   | Vigil's process tree | 1.73 cores | 1.66 cores |
   | a base-pack run | 12.2 CPU s | 11.8 CPU s |
@@ -40,13 +40,22 @@ they *do*. What the probe had to find out by hand:
 (`ok`, `note`, `WARN` lines). It changes nothing and fixes nothing: each line
 says what it found and, where it applies, what the operator can do.
 
-- **What Vigil costs.** Each run records the CPU it used (the worker and
-  everything it started, from the OS at the end of the run) in its state file,
-  as `cpu_seconds`. `doctor` lists each job's last run (CPU, wall time, how
-  often it runs) and works out how many cores Vigil keeps busy, with
-  `vigil_sender` and Vigil's other workers included. A `WARN` above a
-  fraction of the machine (say a quarter of one core). The same field could
-  later become a metric; not in this backlog.
+- **What Vigil costs.** Each run records the CPU it used in its state file,
+  as `cpu_seconds`, from the OS at the end of the run:
+  - **Linux and macOS:** the worker and every process the run started
+    (the OS adds up children that have been waited for).
+  - **Windows:** the worker and its job process. A job's own children are
+    not counted: that would take a Windows Job Object, more machinery than
+    Vigil wants (decided 2026-11-15). The specification says so; the base
+    pack's scripts start none.
+
+  `doctor` lists each job's last run (CPU, wall time, how often it runs)
+  and works out how many cores Vigil keeps busy, with `vigil_sender` and
+  Vigil's other workers included: a `note` above a quarter of one core, a
+  `WARN` above half of one (decided 2026-11-15: after backlog 52, the three
+  Windows test machines measured 0.46 to 0.76 cores, and a check that
+  always warns is soon ignored). The same field could later become a
+  metric; not in this backlog.
 - **How fast the shell starts.** The median of three bare starts of each
   runner's shell (`bash`, `powershell.exe`, `pwsh`), CPU and wall. `WARN`
   above 1 s.

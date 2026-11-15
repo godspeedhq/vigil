@@ -141,7 +141,7 @@ run took 18 to 19 s of wall time on both machines, mostly Vigil's own work
   orphan and reboot tests pass unchanged.
 - Linux and macOS cost no more than before.
 
-## Built so far (2026-11-15): about 70% less, not yet 2 s
+## Built (2026-11-15): about 70% less per run
 
 **What a run's cost turned out to be.** Running a worker's stages twice in
 one process, the second pass cost a twentieth of the first (validating:
@@ -305,3 +305,13 @@ or a long-lived process for Vigil's own runs, each its own decision.
 gone; the whole test suite passes on Windows, Linux and macOS; the
 5-minute probe on the three Windows machines is repeated and recorded
 here.
+
+## Closed (2026-11-15)
+
+Released in 0.8.0. The user took the result as it stands: Vigil uses 54%
+to 81% less CPU on the three Windows machines measured, though a run is
+still above the 2 CPU s in Done when (a base-pack run 3.4 to 5.4 CPU s).
+The smaller worker above is not built; it stays recorded here in case the
+cost needs another cut, as do pacing the sender (§4.5) and a long-lived
+process for Vigil's own runs, each its own decision. `vigil doctor`
+(backlog 51) reports what each job costs on a given machine.
