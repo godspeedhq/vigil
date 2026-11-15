@@ -188,26 +188,23 @@ _vigil_wk_log() {
 
 # Loads and validates the configuration and resolves the directories.
 # Returns 1, with a message in _vw_error, when the job cannot be run.
+# A run uses the configuration its launch record names (4.3): the last
+# valid local one (state/config.valid, 16.3), or with sources the active one
+# and its cached scripts (16.5), whatever is saved or activated meanwhile.
+# A launch without one (vigil run, or an older supervisor) gets the
+# local file, or with sources the active one. The fetcher always works from
+# the local file.
 _vigil_wk_config() {
-    local i line cfg='' src
+    local i line cfg='' src parsed=1 fetch=0
     _vw_error=''
     _vw_config=''
     _vw_script=''
-    if ! vigil_config_parse "$_vw_root/config/vigil.config"; then
-        _vw_error='the configuration has errors; run vigil precheck'
-        return 1
-    fi
-    if ! vigil_config_validate; then
-        _vw_error='the configuration has errors; run vigil precheck'
-        return 1
-    fi
+    vigil_config_parse "$_vw_root/config/vigil.config" || parsed=0
     # The state directory is always this file's (6.8).
     _vigil_wk_dir vigil state_dir state
     _vw_statedir=$_vw_dir
-    # With sources, runs use the active configuration and its cached
-    # scripts (16.5): the ones the run was launched with, else those active
-    # now. The fetcher itself works from this file.
-    if [ "$_vw_job" != vigil_fetch ] && vigil_fetch_mode; then
+    if [ "$_vw_job" != vigil_fetch ]; then
+        vigil_fetch_mode && fetch=1
         if [ -n "${_vw_run-}" ] && [ -f "$_vw_statedir/locks/$_vw_job.$_vw_run.launch" ]; then
             while IFS= read -r line || [ -n "$line" ]; do
                 case $line in
@@ -216,6 +213,18 @@ _vigil_wk_config() {
                 esac
             done < "$_vw_statedir/locks/$_vw_job.$_vw_run.launch"
         fi
+    fi
+    # The last valid local configuration, while a newer edit is rejected.
+    if [ "$fetch" = 0 ] && [ -n "$cfg" ]; then
+        if ! vigil_config_parse "$cfg" || ! vigil_config_validate; then
+            _vw_error="the configuration $cfg cannot be read"
+            return 1
+        fi
+    elif [ -z "$cfg" ] && { [ "$parsed" = 0 ] || ! vigil_config_validate; }; then
+        _vw_error='the configuration has errors; run vigil precheck'
+        return 1
+    fi
+    if [ "$fetch" = 1 ]; then
         if [ -z "$cfg" ]; then
             if ! vigil_active_read "$_vw_statedir"; then
                 _vw_error='no configuration is active yet: the supervisor fetches it from its sources'

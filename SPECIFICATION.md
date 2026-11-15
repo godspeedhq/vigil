@@ -139,7 +139,7 @@ One worker process per job run.
 **Launch.** Evidence of a run must exist before its process does, so a supervisor that crashes mid-launch can never mistake a started worker for a job that never ran. The supervisor:
 
 1. Generates a unique run id.
-2. Writes a launch record, `state/locks/<job id>.<run id>.launch` (`[launch]` section: job, run id, boot id, scheduled and launch times), atomically.
+2. Writes a launch record, `state/locks/<job id>.<run id>.launch` (`[launch]` section: job, run id, boot id, scheduled and launch times, and the configuration the run uses, below), atomically.
 3. Only then starts the worker, passing the run id on its command line (`--run-id`) and in the environment (`VIGIL_RUN_ID`).
 
 **Claim.** The worker takes ownership of the run by claiming the launch record, an operation that can succeed for exactly one party (§11.2):
@@ -148,6 +148,10 @@ One worker process per job run.
 - **Windows:** open the launch record exclusively, create and exclusively hold `<job id>.<run id>.token`, then close and delete the launch record — hand over hand, so one of the two is held at every moment.
 
 If the claim fails because the launch record is gone, the supervisor has abandoned the launch (§11.3): the worker exits at once **without running the job**.
+
+**The configuration a run uses** is the one the supervisor is running, named in the launch record as `config`: the last valid local configuration (`state/config.valid`, §16.3), or with sources the active one (§16.5), whatever is saved or activated while the run starts. A rejected edit therefore never stops runs. A launch naming no configuration (`vigil run`, or an older supervisor) gets the local file, or with sources the active one, validated by the worker.
+
+On Windows, where every run is a fresh PowerShell process and validating costs it more than a second, the record also carries `config_sha256`, the digest of that file as the supervisor validated it: a worker whose file still has that digest does not validate it again. The Windows worker also takes the boot id from the launch record rather than working it out again. Linux and macOS validate the file and read the boot id themselves, which costs little there.
 
 The worker then:
 
@@ -1656,7 +1660,7 @@ Copy the script before editing the config. `vigil config` checks the change befo
 ### 16.3 Validation
 
 - At startup, an invalid configuration stops Vigil with the full list of errors.
-- On reload, an invalid configuration is rejected as a whole; the last known valid configuration stays active and `vigil.supervisor.config_reload_failed` is posted (VIGIL-010).
+- On reload, an invalid configuration is rejected as a whole; the last known valid configuration stays active and `vigil.supervisor.config_reload_failed` is posted (VIGIL-010). Runs keep using it: each launch names it (§4.3).
 - A single invalid job does not invalidate the file: that job is skipped, shown as `INVALID` and reported via `invalid_config` until fixed. Other jobs keep running.
 - A job whose file disappears is shown as `FILE MISSING` and reported via `file_missing`; it resumes automatically when the file returns.
 - Validation is a pure function of the parsed files: it never reads the filesystem, the network or the environment (pre-flight and fetching do, §16.4, §16.5). Each problem is reported once, with its line; a problem in a `[job.*]` section makes only that job invalid, and any other problem rejects the configuration. Messages never contain a credential value.

@@ -356,6 +356,48 @@ Test-Equal 'damaged: the abandoned launch reported' '1' (Get-Prom 'launch_abando
 if ($script:fail -gt 0) { Write-Host $supLog.Substring([Math]::Max(0, $supLog.Length - 2000)) }
 for ($i = 0; $i -lt 40 -and (Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Exclude '*.abandoned' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
 Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
+
+# A rejected edit (16.3): the last valid configuration stays active, and so
+# the runs it launches use it, not the file that was rejected.
+$root = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-rejected.$PID"
+foreach ($d in 'config', 'scripts') { [void](New-Item -ItemType Directory -Force -Path (Join-Path $root $d)) }
+Set-Content -LiteralPath (Join-Path $root 'scripts\quick.cmd') -Value @('@echo off', 'echo metric done 1')
+$good = "[vigil]`ninstance = rejected`n`n[scheduler]`ntick = 1s`n`n[job.kept]`nfile      = scripts\quick.cmd`nrun_every = 1s`n"
+[System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'), $good)
+$keptState = Join-Path $root 'state\jobs\kept.state'
+$rejOut = Join-Path $root 'supervise.out'
+$rejErr = Join-Path $root 'supervise.err'
+$rejSup = Start-Process -FilePath $shell -PassThru -NoNewWindow -RedirectStandardOutput $rejOut -RedirectStandardError $rejErr -ArgumentList @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'supervise')
+for ($i = 0; $i -lt 60 -and (Get-StateValue $keptState 'status') -cne 'succeeded'; $i++) { Start-Sleep -Seconds 1 }
+$before = Get-StateValue $keptState 'run_id'
+Test-Equal 'rejected edit: the job ran before it' 'True' ([string][bool]$before)
+# An unknown section rejects the whole file.
+[System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'), "$good`n[weird]`n")
+$supDir = Join-Path $root 'logs\supervisor'
+$rejLog = ''
+for ($i = 0; $i -lt 30 -and -not $rejLog.Contains('configuration rejected'); $i++) {
+    Start-Sleep -Seconds 1
+    $rejLog = (Get-ChildItem -LiteralPath $supDir -Filter '*-*.log' -ErrorAction SilentlyContinue | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+}
+Test-Equal 'rejected edit: the supervisor rejects it' 'True' ([string]$rejLog.Contains('configuration rejected'))
+# A run launched after the rejection must still run, with the last valid
+# configuration.
+$rejected = Get-StateValue $keptState 'run_id'
+for ($i = 0; $i -lt 60; $i++) {
+    $now = Get-StateValue $keptState 'run_id'
+    if ($now -cne $rejected -and $now -cne $before -and (Get-StateValue $keptState 'status') -ceq 'succeeded') { break }
+    Start-Sleep -Seconds 1
+}
+Test-Equal 'rejected edit: later runs still run' 'True' ([string]((Get-StateValue $keptState 'run_id') -cne $rejected -and (Get-StateValue $keptState 'status') -ceq 'succeeded'))
+if (-not $rejSup.HasExited) { Stop-Process -Id $rejSup.Id -Force }
+$rejSup.WaitForExit()
+if ($script:fail -gt 0) {
+    $rejLog = (Get-ChildItem -LiteralPath $supDir -Filter '*-*.log' -ErrorAction SilentlyContinue | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+    Write-Host $rejLog.Substring([Math]::Max(0, $rejLog.Length - 1500))
+}
+for ($i = 0; $i -lt 40 -and (Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter 'kept.*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
 $root = $mainRoot
 
 # Workers started by the last ticks may still be finishing.

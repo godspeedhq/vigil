@@ -299,6 +299,44 @@ if [ "$fail" -gt 0 ]; then cat "$root/logs/supervisor/"*.log | tail -20; fi
 i=0
 while ls "$root/state/locks" 2>/dev/null | grep -v '\.abandoned$' | grep . > /dev/null && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
 rm -rf "$root"
+
+# A rejected edit (16.3): the last valid configuration stays active, and so
+# the runs it launches use it, not the file that was rejected.
+root=$(mktemp -d "${TMPDIR:-/tmp}/vigil-rejected.XXXXXX")
+root=$(cd "$root" && pwd)
+mkdir -p "$root/config" "$root/scripts"
+printf 'echo "metric done 1"\n' > "$root/scripts/quick.sh"
+good='[vigil]\ninstance = rejected\n\n[scheduler]\ntick = 1s\n\n[runner.sh]\ncommand = /bin/sh\n\n[runners]\n.sh = sh\n\n[job.kept]\nfile      = scripts/quick.sh\nrun_every = 1s\n'
+printf "$good" > "$root/config/vigil.config"
+kept=$root/state/jobs/kept.state
+"$BASH" "$vigil_cmd" --root "$root" supervise > "$root/supervise.out" 2>&1 &
+rej_sup=$!
+i=0
+while [ "$(state_value "$kept" status 2>/dev/null)" != succeeded ] && [ "$i" -lt 60 ]; do sleep 1; i=$((i + 1)); done
+before=$(state_value "$kept" run_id 2>/dev/null)
+check "rejected edit: the job ran before it" yes "$([ -n "$before" ] && echo yes || echo no)"
+# An unknown section rejects the whole file.
+printf "$good\n[weird]\n" > "$root/config/vigil.config"
+i=0
+while ! cat "$root/logs/supervisor/"*-*.log 2>/dev/null | grep -q 'configuration rejected' && [ "$i" -lt 30 ]; do sleep 1; i=$((i + 1)); done
+check "rejected edit: the supervisor rejects it" yes "$(cat "$root/logs/supervisor/"*-*.log 2>/dev/null | grep -q 'configuration rejected' && echo yes || echo no)"
+# A run launched after the rejection must still run, with the last valid
+# configuration.
+rejected=$(state_value "$kept" run_id 2>/dev/null)
+i=0
+while [ "$i" -lt 60 ]; do
+    now=$(state_value "$kept" run_id 2>/dev/null)
+    [ "$now" != "$rejected" ] && [ "$now" != "$before" ] && [ "$(state_value "$kept" status 2>/dev/null)" = succeeded ] && break
+    sleep 1
+    i=$((i + 1))
+done
+check "rejected edit: later runs still run" yes "$([ "$(state_value "$kept" run_id 2>/dev/null)" != "$rejected" ] && [ "$(state_value "$kept" status 2>/dev/null)" = succeeded ] && echo yes || echo no)"
+kill -TERM "$rej_sup"
+wait "$rej_sup"
+if [ "$fail" -gt 0 ]; then cat "$root/logs/supervisor/"*-*.log 2>/dev/null | tail -20; fi
+i=0
+while ls "$root/state/locks" 2>/dev/null | grep '^kept\.' > /dev/null && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+rm -rf "$root"
 root=$main_root
 
 if [ "$fail" -gt 0 ]; then
