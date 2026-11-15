@@ -778,11 +778,13 @@ _vigil_sup_start() {
         printf 'run_id        = %s\n' "$rid"
         printf 'boot_id       = %s\n' "$_su_boot"
         printf 'launch_epoch  = %s\n' "$_su_epoch"
-        # The configuration and script the run uses (16.5), whatever is
-        # activated while it runs.
+        # The configuration and script the run uses (16.3, 16.5), whatever
+        # is saved or activated while it runs.
         if [ "$_su_mode" = fetch ] && [ "$job" != vigil_fetch ]; then
             printf 'config        = %s\n' "$VIGIL_ACT_CONFIG"
             if [ -n "${2-}" ]; then printf 'script        = %s\n' "$2"; fi
+        elif [ "$_su_mode" = local ] && [ -f "$_su_valid" ]; then
+            printf 'config        = %s\n' "$_su_valid"
         fi
     } > "$_su_statedir/locks/$job.$rid.launch.tmp.$$" &&
         mv -f "$_su_statedir/locks/$job.$rid.launch.tmp.$$" "$_su_statedir/locks/$job.$rid.launch" || return 1

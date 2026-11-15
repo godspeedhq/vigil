@@ -271,6 +271,9 @@ jobs:
       - name: command-line round trip (CommandLineToArgvW)
         if: matrix.part == 'core' && matrix.shell == 'powershell'
         run: ./tests/Test-CommandLineRoundTrip.ps1
+      - name: worker libraries (each kind loads what it can use)
+        if: matrix.part == 'core' && matrix.shell == 'powershell'
+        run: ./tests/Test-WorkerLibraries.ps1
       - name: integration
         if: matrix.part == 'core'
         run: ./tests/integration/Run-Job.ps1

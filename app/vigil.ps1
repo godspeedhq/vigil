@@ -80,13 +80,28 @@ param(
 
 $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-foreach ($lib in @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate', 'Pack', 'ConfigEdit')) {
+$libs = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate', 'Pack', 'ConfigEdit')
+# A worker started by the supervisor loads only the libraries its kind of run
+# can use: each one costs a fresh process time to read and scan, and every
+# run is a fresh process. '*' is any job; the rest are Vigil's own workers.
+# tests\Test-WorkerLibraries.ps1 checks these lists against the code.
+$workerLibs = @{
+    '*'          = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Secrets', 'Stores', 'Worker', 'Fetch')
+    vigil_sender = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch')
+    vigil_fetch  = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Secrets', 'Stores', 'Worker', 'Fetch', 'Precheck')
+    vigil_logs   = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Secrets', 'Stores', 'Worker', 'Backends', 'Fetch', 'Logs')
+    vigil_update = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Secrets', 'Stores', 'Worker', 'Fetch', 'SelfUpdate')
+}
+$worker = $Command -ceq 'worker' -and $Root
+if ($worker) { $libs = if ($workerLibs.ContainsKey($Job)) { $workerLibs[$Job] } else { $workerLibs['*'] } }
+foreach ($lib in $libs) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }
 
 # The root (18.6): -Root, else VIGIL_ROOT, else a package's, else the folder
-# above app\. Only a package's may not exist yet: vigil init makes it.
-$packaged = Get-VigilPackaged -App $app
+# above app\. Only a package's may not exist yet: vigil init makes it. A
+# worker is always given its root.
+$packaged = if ($worker) { $null } else { Get-VigilPackaged -App $app }
 if (-not $Root -and -not $env:VIGIL_ROOT -and $packaged -and $packaged.Root) {
     $Root = [System.IO.Path]::GetFullPath($packaged.Root)
 }

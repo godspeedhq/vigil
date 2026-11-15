@@ -140,3 +140,61 @@ run took 18 to 19 s of wall time on both machines, mostly Vigil's own work
 - The whole test suite passes on Linux, macOS and Windows; the §11 crash,
   orphan and reboot tests pass unchanged.
 - Linux and macOS cost no more than before.
+
+## Built so far (2026-11-15): about 70% less, not yet 2 s
+
+**What a run's cost turned out to be.** Running a worker's stages twice in
+one process, the second pass cost a twentieth of the first (validating:
+0.78 CPU s, then 0.03). Of one run's 7.7 CPU s on a laptop, the thread
+running the script used 1.6 s, and the rest went to background threads:
+PowerShell compiling the code it runs, for a process that then exits. Not
+the garbage collector (the same with concurrent GC off), and the same on
+PowerShell 7. So the cost follows how much code a run executes, and
+skipping work saves more than that work's own time.
+
+**What changed:**
+- **A run uses the configuration its launch names** (§4.3, updated): the
+  last valid local one (`state\config.valid`) or the active one. On
+  Windows the launch also carries `config_sha256`, the digest the
+  supervisor validated, and a worker whose file still has it does not
+  validate it again; otherwise it validates it. The supervisor keeps
+  `config.valid` only when it is still what it validated (it used to read
+  the file a second time to copy it).
+- **The worker takes the boot id from its launch** instead of building
+  the kernel call with Reflection.Emit again (0.9 CPU s on its own).
+- **A worker loads only its kind's libraries**: 12 to 15 of the 25, per
+  `$workerLibs` in `vigil.ps1`. `tests/Test-WorkerLibraries.ps1` (in CI)
+  reads the code and fails if a kind can reach a function or script
+  variable from a library its list leaves out.
+- **A bug fixed on the way, on all three platforms:** while an edit was
+  rejected, the supervisor kept the last valid configuration (§16.3), but
+  every run it launched read the rejected file and refused. A new test in
+  `Supervise.ps1` and `supervise.sh` failed on main (Windows and Fedora)
+  and passes now. Linux and macOS read the named configuration too and
+  still validate it (cheap there).
+
+**Worker CPU per run** (the worker process alone, median of 5, started as
+the supervisor starts it, base pack, PowerShell 5.1):
+
+| | laptop, main | laptop, now | Windows 11 box, main | Windows 11 box, now |
+| --- | --- | --- | --- | --- |
+| `base_memory` | 4.95 s | 1.38 s | 11.66 s | **3.53 s** |
+| `vigil_sender` | 5.47 s | 1.19 s | 8.72 s | **2.58 s** |
+
+Wall time per worker on the laptop went from 10 s to 6.3 s; most of what
+is left there is waiting while each script file is scanned on load.
+
+**What is left, on the Windows 11 box** (fresh processes stopped at each
+point): PowerShell itself 0.38 s; loading the libraries and reading the
+configuration 1.14 s; then 0.1 to 0.4 s in each later step. Loading the
+libraries alone is now about 0.25 s over a bare start, so trimming more
+of them saves little. Reaching 2 s means running less PowerShell per run
+(a smaller worker, the supervisor resolving more into the launch), or a
+warm process for Vigil's own workers: each a decision for the user, not
+taken here.
+
+**Not measured yet:** the 5-minute probe on the service, which needs this
+build installed as the service on the test machines. The job scripts
+(`cpu.ps1`, `memory.ps1`) still build their Windows calls with
+Reflection.Emit, which the boot id showed costs a fresh process most of a
+second; they are part of a run's tree and not changed here.

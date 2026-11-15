@@ -211,7 +211,7 @@ function Invoke-VigilSupervisor {
     $sv = @{
         Root = $Root; Prev = '-'; Pending = New-Object 'System.Collections.Generic.List[string]'
         Queued = New-Object 'System.Collections.Generic.HashSet[string]'; Seq = 0; Sum = ''
-        ReloadFailed = 0; Valid = ''; Parsed = $null; Records = $null; Index = $null; Report = @()
+        ReloadFailed = 0; Valid = ''; ValidSha = ''; ActiveSha = ''; Parsed = $null; Records = $null; Index = $null; Report = @()
         HostName = $env:COMPUTERNAME.ToLowerInvariant(); Boot = Get-VigilBootId
     }
     $shell = (Get-Process -Id $PID).Path
@@ -291,7 +291,21 @@ function Invoke-VigilSupervisor {
                 # A purely local configuration has a revision too (16.5).
                 $sv.Revision = (Get-VigilTextSha "config $sum`n").Substring(0, 12)
                 & $apply $parsed $records
-                Write-VigilFileAtomic -Path (Join-Path $sv.State 'config.valid') -Text ([System.IO.File]::ReadAllText($path))
+                # Kept only when it is still what was validated, so a run
+                # trusting it (4.3) never gets a file saved in between: then
+                # the next tick loads that one, and runs launched meanwhile
+                # validate the local file themselves.
+                $sv.ValidSha = ''
+                $valid = Join-Path $sv.State 'config.valid'
+                $bytes = [System.IO.File]::ReadAllBytes($path)
+                $h = [System.Security.Cryptography.SHA256]::Create()
+                try { $now = ([System.BitConverter]::ToString($h.ComputeHash($bytes)) -replace '-', '').ToLowerInvariant() }
+                finally { $h.Dispose() }
+                if ($now -ceq $sum) {
+                    Write-VigilFileAtomic -Path $valid -Text ([System.Text.Encoding]::UTF8.GetString($bytes))
+                    try { $sv.ValidSha = Get-VigilFileSha $valid } catch { }
+                }
+                else { $sv.Sum = '' }
                 & $log 'INFO' 'configuration loaded'
                 return $true
             }
@@ -308,9 +322,11 @@ function Invoke-VigilSupervisor {
             $r = Test-VigilConfig -Parsed $p
             $ok = $p.Errors.Count -eq 0 -and @($r | Where-Object { $_.Kind -ceq 'ERROR' }).Count -eq 0
         }
+        $sv.ActiveSha = ''
         if ($ok) {
             $sv.Active = $active
             $sv.Waiting = $false
+            try { $sv.ActiveSha = Get-VigilFileSha $active.Config } catch { }
             & $apply $p $r
             if ($active.Revision -cne $sv.Revision) {
                 $sv.Revision = $active.Revision
@@ -616,11 +632,16 @@ function Invoke-VigilSupervisor {
         $locks = Join-Path $sv.State 'locks'
         [void](New-Item -ItemType Directory -Force -Path $locks)
         $text = "[launch]`njob           = $Job`nrun_id        = $rid`nboot_id       = $($sv.Boot)`nlaunch_epoch  = $($sv.Epoch)`n"
-        # The configuration and script the run uses (16.5), whatever is
-        # activated while it runs.
+        # The configuration and script the run uses (16.3, 16.5), whatever is
+        # saved or activated while it runs, and the digest it was validated
+        # with, so the worker need not validate it again (4.3).
         if ($sv.Mode -ceq 'fetch' -and $Job -cne 'vigil_fetch') {
             $text += "config        = $($sv.Active.Config)`n"
+            if ($sv.ActiveSha) { $text += "config_sha256 = $($sv.ActiveSha)`n" }
             if ($Script) { $text += "script        = $Script`n" }
+        }
+        elseif ($sv.Mode -ceq 'local' -and $sv.ValidSha) {
+            $text += "config        = $(Join-Path $sv.State 'config.valid')`nconfig_sha256 = $($sv.ValidSha)`n"
         }
         Write-VigilFileAtomic -Path (Join-Path $locks "$Job.$rid.launch") -Text $text
         $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $App 'vigil.ps1'),

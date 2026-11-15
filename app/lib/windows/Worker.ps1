@@ -452,18 +452,20 @@ function Write-VigilJobLines {
     finally { $reader.Dispose() }
 }
 
-# Loads and validates the configuration and resolves the directories.
-# Returns @{ Error } or the context the worker needs. With sources, a run
-# uses the active configuration and its cached scripts (16.5): the ones it
-# was launched with (-RunId), else those active now. The fetcher itself
-# works from the local file.
+# Loads the configuration and resolves the directories. Returns @{ Error }
+# or the context the worker needs.
+# A run uses the configuration its launch record names (4.3): the last
+# valid local one (state\config.valid, 16.3), or with sources the active one
+# and its cached scripts (16.5), whatever is saved or activated meanwhile.
+# The supervisor validated it before launching, so when its digest is still
+# the one the launch records, it is not validated again: validating costs a
+# fresh PowerShell process more than a second, and every run is one. A
+# launch without one (vigil run, or an older supervisor) gets the
+# local file, or with sources the active one, validated here. The fetcher
+# always works from the local file.
 function Get-VigilWorkerContext {
     param([string]$Root, [string]$Job, [string]$RunId)
-    $parsed = ConvertFrom-VigilConfig -Path (Join-Path $Root 'config\vigil.config')
-    $records = Test-VigilConfig -Parsed $parsed
-    if ($parsed.Errors.Count -gt 0 -or @($records | Where-Object { $_.Kind -ceq 'ERROR' }).Count -gt 0) {
-        return @{ Error = 'the configuration has errors; run vigil precheck' }
-    }
+    $local = ConvertFrom-VigilConfig -Path (Join-Path $Root 'config\vigil.config')
     $dir = {
         param($Section, $Key, $Default)
         $v = Get-VigilConfigValue $parsed $Section $Key $Default
@@ -471,29 +473,55 @@ function Get-VigilWorkerContext {
         return Join-Path $Root $v
     }
     # The state directory is always the local file's (6.8).
+    $parsed = $local
     $state = & $dir 'vigil' 'state_dir' 'state'
     $config = ''
+    $configSha = ''
     $script = ''
-    if ($Job -cne 'vigil_fetch' -and (Test-VigilFetchMode -Parsed $parsed)) {
-        $launch = Join-Path $state "locks\$Job.$RunId.launch"
-        if ($RunId -and [System.IO.File]::Exists($launch)) {
-            foreach ($l in [System.IO.File]::ReadAllLines($launch)) {
-                if ($l -cmatch '^config +=( (.*))?$') { $config = $Matches[2] }
-                elseif ($l -cmatch '^script +=( (.*))?$') { $script = $Matches[2] }
-            }
+    $boot = ''
+    $launch = Join-Path $state "locks\$Job.$RunId.launch"
+    if ($RunId -and [System.IO.File]::Exists($launch)) {
+        foreach ($l in [System.IO.File]::ReadAllLines($launch)) {
+            if ($l -cmatch '^config +=( (.*))?$') { $config = $Matches[2] }
+            elseif ($l -cmatch '^config_sha256 +=( (.*))?$') { $configSha = $Matches[2] }
+            elseif ($l -cmatch '^script +=( (.*))?$') { $script = $Matches[2] }
+            elseif ($l -cmatch '^boot_id +=( (.*))?$') { $boot = $Matches[2] }
         }
-        $active = Read-VigilActive -Root $Root -State $state
-        if (-not $config) {
+    }
+    if ($Job -ceq 'vigil_fetch') { $config = '' }
+    $fetch = $Job -cne 'vigil_fetch' -and (Test-VigilFetchMode -Parsed $local)
+    $records = @()
+    $active = $null
+    if (-not $config) {
+        $records = Test-VigilConfig -Parsed $local
+        if ($local.Errors.Count -gt 0 -or @($records | Where-Object { $_.Kind -ceq 'ERROR' }).Count -gt 0) {
+            return @{ Error = 'the configuration has errors; run vigil precheck' }
+        }
+        if ($fetch) {
+            $active = Read-VigilActive -Root $Root -State $state
             if (-not $active) { return @{ Error = 'no configuration is active yet: the supervisor fetches it from its sources' } }
             $config = $active.Config
         }
+    }
+    if ($config) {
+        $sha = ''
+        if ($configSha) { try { $sha = Get-VigilFileSha $config } catch { } }
         $parsed = ConvertFrom-VigilConfig -Path $config
-        $records = Test-VigilConfig -Parsed $parsed
+        # Not what the supervisor validated (a newer valid configuration
+        # was kept since the launch): validated here.
+        if (-not $configSha -or $sha -cne $configSha) { $records = Test-VigilConfig -Parsed $parsed }
         if ($parsed.Errors.Count -gt 0 -or @($records | Where-Object { $_.Kind -ceq 'ERROR' }).Count -gt 0) {
-            return @{ Error = "the active configuration $config cannot be read" }
+            if ($fetch) { return @{ Error = "the active configuration $config cannot be read" } }
+            return @{ Error = "the configuration $config cannot be read" }
         }
+    }
+    # Only the fetcher's runs and the active configuration's need to be
+    # named in a vigil run launch (New-VigilLaunch); a local one is the file.
+    if (-not $fetch) { $config = '' }
+    if ($fetch) {
         $src = Get-VigilConfigValue $parsed "job.$Job" 'source' ''
         if ($src -and -not $script) {
+            if (-not $active) { $active = Read-VigilActive -Root $Root -State $state }
             if ($active) { $script = Get-VigilActiveScript -Root $Root -Active $active -Source $src -File (Get-VigilConfigValue $parsed "job.$Job" 'file' '') }
             if (-not $script) { return @{ Error = "the script of job '$Job' from source.$src is not fetched yet" } }
         }
@@ -512,6 +540,7 @@ function Get-VigilWorkerContext {
         Spool  = & $dir 'spool' 'dir' 'spool'
         Config = $config
         Script = $script
+        Boot   = $boot
     }
 }
 
@@ -578,13 +607,16 @@ function Invoke-VigilWorker {
     $hostName = $env:COMPUTERNAME.ToLowerInvariant()
     $now = Get-VigilNow
     $started = $now.Epoch
-    $self = Get-Process -Id $PID
+    $self = [System.Diagnostics.Process]::GetCurrentProcess()
+    # The supervisor wrote the boot id into the launch; working it out again
+    # costs a fresh process most of a second.
+    $bootId = if ($ctx.Boot) { $ctx.Boot } else { Get-VigilBootId }
 
     # Vigil's own workers run a function, not a job command (4.5).
     if (@('vigil_sender', 'vigil_fetch', 'vigil_logs', 'vigil_update') -ccontains $Job) {
         $state = [ordered]@{
             schema_version = 1; job = $Job; run_id = $RunId; status = 'running'; reason = ''
-            boot_id = Get-VigilBootId; started_epoch = $started; started_at = $now.Iso
+            boot_id = $bootId; started_epoch = $started; started_at = $now.Iso
             worker_pid = $PID; worker_name = "$($self.ProcessName).exe"; worker_start = ConvertTo-VigilEpoch $self.StartTime
         }
         Write-VigilStateFile -Path $statePath -Fields $state
@@ -664,7 +696,7 @@ function Invoke-VigilWorker {
         instance       = Get-VigilConfigValue $ctx.Parsed 'vigil' 'instance' 'vigil'
         status         = 'running'
         reason         = ''
-        boot_id        = Get-VigilBootId
+        boot_id        = $bootId
         started_epoch  = $started
         started_at     = $now.Iso
         deadline_epoch = $(if ($maxRuntime) { $started + (ConvertTo-VigilSeconds $maxRuntime) } else { '' })
