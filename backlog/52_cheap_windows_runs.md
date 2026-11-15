@@ -79,6 +79,55 @@ stays its own process, with its own token, state and log (§11).
   if anything a worker checks moves.
 - **Then profile what's left**, stage by stage, and cut the largest.
 
+## `max_runtime` is unaffected
+
+The supervisor enforces it, not the worker: the worker writes
+`deadline_epoch` (its start plus `max_runtime`) into the run's state, and the
+supervisor ends the run's process tree on each tick past it. The clock
+starts once the worker has loaded, read the configuration and claimed the
+run, so today's startup isn't counted against the limit, and a cheaper start
+makes no run reach it sooner. A worker slow to start isn't abandoned either:
+a started worker carries its run id however slow it is to claim (§11.2).
+
+It helps a little: the base pack's `max_runtime` is 30 s, and a base-pack
+run took 18 to 19 s of wall time on both machines, mostly Vigil's own work
+(the script sleeps 1 s). Under load that margin is thin.
+
+## Drawbacks, and how each is contained
+
+1. **Loading only some libraries can break a rare path.** A path calling a
+   function from a library it didn't load fails only when that path runs: a
+   job with a `secret:` reference needs the secret-store code, `vigil_fetch`
+   needs Fetch, `vigil_update` needs SelfUpdate. The common case could pass
+   while a rare one fails in production.
+   **Contained by** loading by worker kind (a job run, the sender, fetch,
+   logs, update), not by guessing per function; a test that checks
+   statically that every function each kind calls is defined in what it
+   loads; and the integration tests, which already run those paths.
+2. **Validating once trusts the supervisor's check.** Today the worker
+   re-checks the configuration and refuses a file that became broken or
+   changed. In local mode someone could edit `vigil.config` between the
+   launch and the claim (a second or two); the worker would then read a
+   file the supervisor never validated.
+   **Contained by** the launch naming the exact validated configuration, as
+   fetch mode already does with the active one: the supervisor keeps a copy
+   of the last valid local configuration in `state\`. That closes the window
+   rather than narrowing it, and is more consistent than today, where a run
+   can pick up an edit the supervisor hasn't accepted yet. A small change to
+   `SPECIFICATION.md`.
+3. **Two paths.** `vigil run` by hand has no supervisor, so it still
+   validates fully.
+   **Contained by** keeping that path the existing code, and testing both.
+4. **Windows and POSIX internals drift apart a little.** Bash needs none of
+   this: a run there is already cheap.
+   **Contained by** keeping the behaviour the same on every platform (the
+   conformance and integration suites check it); only Windows' internals
+   differ.
+5. **The change touches §11's core**, the claim, token and state code, the
+   most safety-critical part of Vigil.
+   **Contained by** the crash, orphan and reboot tests passing unchanged
+   (Done when, below).
+
 ## Done when
 
 - On both Windows test machines, with the base pack, the same 5-minute
