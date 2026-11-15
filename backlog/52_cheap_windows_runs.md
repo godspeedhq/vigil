@@ -193,8 +193,42 @@ of them saves little. Reaching 2 s means running less PowerShell per run
 warm process for Vigil's own workers: each a decision for the user, not
 taken here.
 
-**Not measured yet:** the 5-minute probe on the service, which needs this
-build installed as the service on the test machines. The job scripts
-(`cpu.ps1`, `memory.ps1`) still build their Windows calls with
-Reflection.Emit, which the boot id showed costs a fresh process most of a
-second; they are part of a run's tree and not changed here.
+The job scripts (`cpu.ps1`, `memory.ps1`) still build their Windows calls
+with Reflection.Emit; they are part of a run's tree and not changed here.
+On the laptop each base script costs 0.3 to 0.45 CPU s on its own, so the
+worker is still most of a run.
+
+## Measured on the service (2026-11-15)
+
+This build was put in place of 0.7.0 as the system service on three test
+machines (`app\` and the base pack swapped; configuration, state and the
+service untouched), and the service's whole process tree was watched for
+5 minutes before and after. CPU is per run: the worker and everything
+under it.
+
+| | Windows 11, i7-8565U (8 threads) | Windows 11, i5-3320M (4 threads) | Server 2025, i5 M 540 (4 threads) |
+| --- | --- | --- | --- |
+| Vigil's tree, 0.7.0 | 2.40 cores | 1.83 cores | 1.66 cores |
+| Vigil's tree, this build | **0.46 cores** | **0.64 cores** | **0.76 cores** |
+| `vigil_sender`, per run | 14.2 → **1.62 s** | 10.2 → **2.85 s** | 9.21 → **3.15 s** |
+| a base-pack run | about 16.5 → **3.4 to 3.6 s** | 10.9 to 11.1 → **4.2 to 4.5 s** | 11.7 to 11.9 → **5.2 to 5.4 s** |
+| `csc.exe` starts | 55 → 0 | 55 → 0 | 56 → 0 |
+| Defender (MsMpEng) | 5% → 0.8% | 3.0% → 1.9% | 4.2% → 2.6% |
+| Processes started | 265 → 158 | 273 → 164 | 254 → 156 |
+| Machine busy | 72.3% → 12.6% | 77.2% → 59.1% (1) | 54.4% → 30.4% |
+
+(1) Docker's VM on that machine rose from 23% to 36% between the two
+probes; Vigil's share fell from 45.8% to 16%.
+
+Vigil now uses 54% to 81% less CPU on these machines. A base-pack run is
+still 3.4 to 5.4 CPU s, against 2 s: this backlog stays open.
+
+**Where a job run's worker still spends** (the laptop, fresh workers
+stopped at each step, base_memory, 1.31 CPU s in all): PowerShell
+itself 0.19 s; loading the libraries and reading the configuration
+0.56 s; the effective settings, secrets and command 0.2 s; the state
+file 0.19 s; parsing the output and writing the events 0.17 s. The
+smaller worker (the supervisor resolving the job into the launch, so a
+worker does not read the configuration) would remove most of the second
+and third parts: about a third of the worker, not all of the way to 2 s
+on the slowest machine.
