@@ -58,10 +58,14 @@ stays its own process, with its own token, state and log (§11).
 
 ## Proposed
 
-- **Pace the sender.** *Decision needed (it changes §4.5 on every
-  platform):* for example, start a sender at most every 60 s, or sooner
-  when a job's events are waiting; or start one only for a job's events,
-  with the supervisor's riding along. Until decided, this item waits.
+- **Make every run cheaper first, the sender's included; pace the sender
+  later only if needed** (decided 2026-11-15). The sender still starts on
+  any tick where the spool isn't empty, as §4.5 says. Pacing it (for
+  example at most one every 60 s, or sooner when a job's events are
+  waiting) is a separate change to §4.5 that can be added on top, if the
+  measurements after this backlog show it's still needed. At one sender
+  a tick, a 2-CPU-second sender alone is about a sixth of a core on these
+  machines.
 - **The worker loads only what it needs.** `vigil.ps1` loads the libraries
   per command: the worker path needs the config, worker, outcome, events,
   metrics and recovery code, not `init` or `self update`.
@@ -77,11 +81,13 @@ stays its own process, with its own token, state and log (§11).
 
 ## Done when
 
-- On both Windows test machines, with the base pack, the same 5-minute probe measures Vigil's process tree at
-  **under 0.25 cores**, and an ordinary base-pack run at **2 CPU s or
-  less** on PowerShell 5.1. The before and after numbers go in this file.
-- `vigil_sender`'s pace follows whatever is decided, on all three
-  platforms, with the spec and tests updated.
+- On both Windows test machines, with the base pack, the same 5-minute
+  probe measures an ordinary base-pack run and a `vigil_sender` run at
+  **2 CPU s or less** each on PowerShell 5.1, and Vigil's whole process
+  tree at well under half a core (it was 1.7). The before and after
+  numbers go in this file.
+- Those numbers say whether pacing the sender is still worth a change to
+  §4.5; if so, it is offered as its own backlog, not done here.
 - The whole test suite passes on Linux, macOS and Windows; the §11 crash,
   orphan and reboot tests pass unchanged.
 - Linux and macOS cost no more than before.
