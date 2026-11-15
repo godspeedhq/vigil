@@ -232,3 +232,76 @@ smaller worker (the supervisor resolving the job into the launch, so a
 worker does not read the configuration) would remove most of the second
 and third parts: about a third of the worker, not all of the way to 2 s
 on the slowest machine.
+
+## Next: the smaller worker (proposed 2026-11-15)
+
+**Where a job run's worker spends now** (the laptop, base_memory, fresh
+workers stopped after each step, 1.36 CPU s in all):
+
+| step | CPU s |
+| --- | --- |
+| PowerShell itself | 0.25 |
+| loading its 12 libraries | 0.23 |
+| parsing the local file (for the state directory), then the named one | 0.17 |
+| reading the launch, the job checks | 0.08 |
+| claiming the run, the first state file | 0.16 |
+| the job's effective settings | 0.09 |
+| resolving its command (a `Get-Command` lookup on PATH included) | 0.17 |
+| output, events, the final state and job log, exit | 0.22 |
+
+**The change.** On Windows, the supervisor already holds the parsed and
+validated configuration, the index and each job's effective settings.
+When it launches a job run it writes what the run needs into the launch
+record, under `[run]`, so the worker no longer reads the configuration:
+
+- `program` (a full path: a bare runner name is looked up on PATH by the
+  supervisor), `arguments` (the command line as it will be passed),
+  `cwd`, `file` (checked to exist at the start, as now);
+- `exit_codes`, `max_runtime`;
+- `env` (one line per `NAME=value`, as in the configuration),
+  `require_env` (names), `secret` (one line per `NAME=reference`: the
+  reference, never a value; resolved by the worker at run time, as now);
+- `instance`, `metric_name`, `tags` (the tags the run's events carry),
+  `log_max_file_mb`, and the log and spool directories.
+
+The worker still reads the local file for the state directory (the
+launch is in it). With a `[run]` section it skips the named configuration,
+the effective settings and the command; a job with a `secret` line parses
+the named configuration then, for the secret stores' settings. Without
+one (`vigil run` by hand, or a launch from the previous version during an
+update), it does what it does today. Linux and macOS are unchanged and
+ignore the section.
+
+**Expected gain:** about 0.5 to 0.6 CPU s of the laptop's 1.36, about 40%
+of the worker; on the slowest machine (Server 2025), a base-pack run from
+5.3 CPU s to about 3.5. Not 2 s: after this, what is left is mostly
+PowerShell's own start, the libraries and the files a run must write. If
+that is still too much, the remaining options are pacing the sender (§4.5)
+or a long-lived process for Vigil's own runs, each its own decision.
+
+**Drawbacks, and how each is contained:**
+
+1. **What a run does is decided at launch, not at claim.** A job edited
+   between the two (about a second) runs as launched. That is already so
+   for the configuration (the launch names it, §4.3); this extends it to
+   the resolved settings.
+2. **Two ways for a worker to get its settings.** The launch's `[run]`
+   section, or the configuration when there is none.
+   **Contained by** both paths sharing the code that turns settings into
+   a run (only where the values come from differs), the supervisor's path
+   being covered by every integration test, and `vigil run` by hand still
+   taking the other.
+3. **The launch record grows** (from 6 lines to about 15 to 25), and holds
+   the job's `env` values. They are already in the configuration, in the
+   same protected directory tree; secrets stay references.
+4. **PATH lookup moves to the supervisor.** A program installed after the
+   supervisor started is found as before: the lookup is made at each
+   launch, from the PATH Windows holds for the service (the same as
+   today's worker sees, since it inherits it).
+5. **The specification changes** (§4.3: what a Windows launch record may
+   carry). The behaviour of a run does not: the same tests pass unchanged.
+
+**Done when:** the worker profile above shows the configuration steps
+gone; the whole test suite passes on Windows, Linux and macOS; the
+5-minute probe on the three Windows machines is repeated and recorded
+here.
