@@ -105,6 +105,16 @@ function Get-VigilNow {
     return @{ Epoch = $epoch; Iso = $now.ToString('yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture) }
 }
 
+# The CPU a run used, in seconds with two decimals (12.2, cpu_seconds): this
+# worker's, and its job process's when it started one, as the kernel counts
+# them. A job's own children are not counted on Windows: that would take a
+# Job Object.
+function Get-VigilRunCpu {
+    param([double]$Job = 0)
+    $s = [System.Diagnostics.Process]::GetCurrentProcess().TotalProcessorTime.TotalSeconds + $Job
+    return $s.ToString('0.00', [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
 function ConvertTo-VigilEpoch {
     param([DateTime]$Time)
     $epoch0 = New-Object DateTime 1970, 1, 1, 0, 0, 0, ([DateTimeKind]::Utc)
@@ -639,6 +649,7 @@ function Invoke-VigilWorker {
         $state.ended_epoch = $now.Epoch
         $state.ended_at = $now.Iso
         $state.duration_seconds = $duration
+        $state.cpu_seconds = Get-VigilRunCpu
         Write-VigilStateFile -Path $statePath -Fields $state
         $why = if ($r.Reason) { " ($($r.Reason))" } else { '' }
         [System.IO.File]::AppendAllText($log, "$($now.Iso) $RunId run end $status$why in ${duration}s`r`n")
@@ -710,6 +721,7 @@ function Invoke-VigilWorker {
     [System.IO.File]::AppendAllText($log, $logLines.ToString())
 
     $code = '-'
+    $jobCpu = 0
     $outcome = 'failed'
     $reason = ''
     $rawOut = Join-Path $jobLogs "$RunId.out.raw"
@@ -779,6 +791,7 @@ function Invoke-VigilWorker {
             try { $state.job_start = ConvertTo-VigilEpoch $p.StartTime } catch { $state.job_start = '' }
             Write-VigilStateFile -Path $statePath -Fields $state
             $p.WaitForExit()
+            try { $jobCpu = $p.TotalProcessorTime.TotalSeconds } catch { }
             try { $outTask.Wait(); $errTask.Wait() }
             finally { $outFile.Dispose(); $errFile.Dispose() }
             $code = "$($p.ExitCode)"
@@ -810,6 +823,7 @@ function Invoke-VigilWorker {
     $state.ended_epoch = $now.Epoch
     $state.ended_at = $now.Iso
     $state.duration_seconds = $duration
+    $state.cpu_seconds = Get-VigilRunCpu -Job $jobCpu
     $state.exit_code = if ($code -ceq '-') { '' } else { $code }
     $state.metric_lines = $output.Lines
     $state.invalid_lines = $output.Invalid

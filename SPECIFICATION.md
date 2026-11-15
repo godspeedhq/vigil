@@ -1187,6 +1187,7 @@ ended_epoch      = 1793304870
 started_at       = 2026-10-29T20:00:03Z
 ended_at         = 2026-10-29T20:14:30Z
 duration_seconds = 867
+cpu_seconds      = 14.20
 exit_code        = 0
 worker_pid       = 4821
 worker_name      = powershell.exe
@@ -1209,6 +1210,7 @@ Field rules:
 - **`boot_id`** identifies the system boot the run started in. On Linux it is the kernel boot id; on macOS and Windows it is derived from the boot time.
 - **`deadline_epoch`** is `started_epoch + max_runtime`, empty when the job has no `max_runtime`.
 - **Run summary:** `metric_lines`, `invalid_lines` and `dropped_lines` count the metric lines and Nagios perfdata items accepted, rejected and dropped over the cap (§14.3); `spool_file` names the spool file holding the run's events, so a missing metric can be traced from state to spool.
+- **`cpu_seconds`** is the CPU the run used, user and system, in seconds with two decimals, as the kernel counts it when the run ends: on Linux and macOS the worker and every process it waited for (its job, and what the job waited for); on Windows the worker and its job process, not the job's own children (counting those would take a Job Object). Every run writes it, Vigil's own included. A run of `vigil run` counts the whole command, since the worker is the command itself. `vigil doctor` reads it (§16.7).
 - **Values are single-line.** Line breaks in a reason or error are replaced by spaces, and values are truncated to 500 characters. Full detail belongs in the job log, not the state file.
 - **Unknown keys are ignored**, so a newer Vigil can add fields. A higher `schema_version` than the running Vigil understands is reported as unsupported state (§12.3).
 - **Never secrets.** State files never contain credentials or environment values.
@@ -1718,8 +1720,9 @@ Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rul
 - Every job file exists and is runnable through its resolved runner, its runner `command` exists, and its `working_dir` exists: the checks a worker makes before a run (§4.3).
 - Every `secret` of every job resolves, and every `require_env` variable is set (or provided by a `secret`). Backend and secret store credentials (`env:`, `secret:` references) resolve, and each cloud secret store says whether it uses its vendor's CLI or Vigil's own HTTPS (§6.5.3). Values are fetched and thrown away; only references are printed.
 - State, log and spool directories are writable: each, or the nearest folder above it that exists, since precheck creates nothing.
-- `VIGIL_FAULT`, `VIGIL_TEST_IMDS` and, on Windows, `VIGIL_TEST_DPAPI_REFUSED` are not set (§22.4.1, §22.4.2, §22.4.5).
+- `VIGIL_FAULT`, `VIGIL_TEST_IMDS` and, on Windows, `VIGIL_TEST_DPAPI_REFUSED` and `VIGIL_TEST_NGEN_MISSING` are not set (§22.4.1, §22.4.2, §22.4.5, §22.4.6).
 - The minute of the next 24 hours at which the most jobs start, and how many, when it is more than one: a `note`, never a failure (§8). Each job's starts are worked out from its schedule as the supervisor would, at the current UTC offset.
+- On Windows, whether Windows PowerShell starts with .NET's native images: a `note` when it does not, never a failure (§16.7).
 
 `vigil precheck <job>` checks only that job, and also prints its effective settings and their sources (§6.6).
 
@@ -1818,6 +1821,39 @@ It refuses, changing nothing:
 
 Only the checks that read nothing but the file run here. Pre-flight's others, on programs, folders and backends, stay in `vigil precheck` (§16.4), so a typo check never waits on the network.
 
+### 16.7 How Well Vigil Runs (doctor)
+
+`vigil doctor` says what Vigil costs on this machine, and whether the machine slows it down. `precheck` (§16.4) checks that runs *can* work; `doctor` checks how well they *do*. It reads only: it changes nothing, fixes nothing and never recommends weakening a protection. Each line says what it found and, where it applies, what the operator can do.
+
+- **What Vigil costs.** Each job's last run, from its state file (`cpu_seconds` and `duration_seconds`, §12.2), and how many runs its log records as started in the last hour (§13.1), Vigil's own workers included. From these, how many cores Vigil keeps busy: the sum of runs × CPU per run over the hour. `ok` up to a quarter of one core, a `note` above that, a `WARN` above half of one. A job whose last run predates `cpu_seconds` shows no CPU and is counted as none, with a `note`.
+- **How fast a shell starts.** The median of three bare starts of the shell Vigil runs on (`bash`; `powershell.exe` or `pwsh`), and of each shell a job's runner names (`bash`, `sh`, `dash`, `zsh`, `ksh`; `powershell`, `pwsh`, `cmd`): CPU and wall time. Every run starts one. A `WARN` above 1 s. A bash older than 5.0 has no clock finer than a second, so there only CPU is shown and the `WARN` applies to it.
+- **Windows only:**
+  - **.NET's native images (NGEN).** Whether Windows PowerShell starts with them (`System.Management.Automation.ni.dll` loaded). Without them every start compiles .NET itself: a `WARN`, with the command to run from an elevated prompt (`ngen.exe executeQueuedItems`, in both Framework folders). `precheck` gives the same finding as a `note`, never a failure.
+  - **Defender.** Whether real-time protection is on, and whether an exclusion covers Vigil's root: a `note` only. Exclusions are shown only to administrators, and over SSH its status may not be readable; then it says so.
+  - **PowerShell's logging policies.** Script block logging, module logging and transcription, for Windows PowerShell and PowerShell 7: a `note` naming each one set, since each makes every script a run executes cost more.
+
+```text
+What Vigil costs (each job's last run, and its runs in the last hour)
+  job                        runs    CPU/run   wall/run
+  vigil_sender                 30     1.62 s        1 s
+  base_services                12     3.58 s        4 s
+  base_cpu                     12     3.41 s        4 s
+  ok    Vigil keeps 0.06 of a core busy
+
+Starting a shell (median of 3)
+  ok    powershell.exe: 0.30 CPU s, 0.34 s
+
+Windows
+  ok    .NET native images: Windows PowerShell loads them
+  note  Defender: real-time protection is on and scans each script a run loads; no exclusion covers C:\ProgramData\Vigil
+  ok    PowerShell logging policies: none set
+
+doctor: no warnings
+```
+
+- Exit code 0, or 1 when any line is `WARN`.
+- **What this account cannot read is never missing** (§18.5): a configuration, state or log folder it may not read is a `WARN` naming it, and the checks that need none of them still run. Run it as the service account, or from an elevated prompt for a system install, to see what the service costs.
+
 ---
 
 ## 17. Security
@@ -1882,6 +1918,7 @@ Each service manager is configured so stopping the service stops only the superv
 | --- | --- |
 | `init` | Onboarding (§19). |
 | `precheck [<job>]` | Pre-flight checks (§16.4); with a job, also its effective settings (§6.6). |
+| `doctor` | How well Vigil runs here (§16.7): what its runs cost, how fast a shell starts, and on Windows .NET's native images, Defender and PowerShell's logging policies. Changes nothing; exits 1 on any `WARN`. |
 | `config` | Edit the configuration in `$VISUAL` / `$EDITOR`, saved only when valid (§16.6). |
 | `service install [--user \| --system] [--account <name>] [--host powershell \| pwsh] [--no-start]` / `service remove` | Register or unregister the service without touching files (for example to switch mode). See §18.9. |
 | `start` / `stop` / `restart` | Service control. Stop leaves workers running. |
@@ -1892,7 +1929,7 @@ Each service manager is configured so stopping the service stops only the superv
 | `secret set <NAME>` / `secret list` / `secret delete <NAME>` | Manage Vigil's secret store (§6.5.2). `set` prompts without echo, or reads `--stdin`; `list` shows names and change times, never values. |
 | `uninstall` | Remove Vigil completely (§18.8). |
 
-**What this account cannot read is never missing.** A system install is closed to other accounts, and inside it everything looks absent to them. So before a command concludes that the configuration, a secret, a script, the packs or the secret store is not there, it checks whether this account may look: if not, it names the first file or folder it cannot read, says how to run it instead, and exits 1. `config`, `init`, `pack enable`, `pack list`, `secret list`, `secret delete`, `status`, `pack update` and `precheck` (a script, a secret) all do. `self update` and its notice do too: a configuration this account cannot read may name a copy of the releases (§18.7), so GitHub is not asked instead. `--check` refuses, the notice skips its check, and a plain `self update` goes straight to the `--update-by` rule or the `-UpdateBy` task, which reads the configuration as root or SYSTEM.
+**What this account cannot read is never missing.** A system install is closed to other accounts, and inside it everything looks absent to them. So before a command concludes that the configuration, a secret, a script, the packs or the secret store is not there, it checks whether this account may look: if not, it names the first file or folder it cannot read, says how to run it instead, and exits 1. `config`, `init`, `pack enable`, `pack list`, `secret list`, `secret delete`, `status`, `pack update`, `doctor` and `precheck` (a script, a secret) all do. `self update` and its notice do too: a configuration this account cannot read may name a copy of the releases (§18.7), so GitHub is not asked instead. `--check` refuses, the notice skips its check, and a plain `self update` goes straight to the `--update-by` rule or the `-UpdateBy` task, which reads the configuration as root or SYSTEM.
 
 ### 18.6 Install Locations
 
@@ -2361,6 +2398,10 @@ The installers and `vigil self update` are tested against the file server of §2
 ### 22.4.5 Test DPAPI Refusal
 
 Windows refuses its data protection (DPAPI), which Vigil's secret store uses, to a logon without a password: an SSH key, a scheduled task without a stored password. CI cannot make such a logon, so `VIGIL_TEST_DPAPI_REFUSED`, set to anything, makes Vigil behave as in one: `vigil secret set` and reading a `secret:` fail with the message of §6.5.2. It can only make things fail. Pre-flight fails if it is set, like `VIGIL_FAULT`. The real logon is checked by hand over SSH (backlog 48).
+
+### 22.4.6 Test Missing Native Images
+
+CI's Windows runners have .NET's native images, and removing them from a machine is not safe to do in a test. So `VIGIL_TEST_NGEN_MISSING`, set to anything, makes Vigil find them missing: `vigil doctor` warns and `vigil precheck` gives its note (§16.7). It can only make things fail. Pre-flight fails if it is set, like `VIGIL_FAULT`. A real machine without them was seen on Server 2019 (2026-11-13).
 
 ### 22.5 Platform Matrix
 

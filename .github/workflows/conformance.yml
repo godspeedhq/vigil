@@ -45,6 +45,8 @@ jobs:
         run: /bin/bash tests/integration/secrets.sh
       - name: precheck (/bin/bash)
         run: /bin/bash tests/integration/precheck.sh
+      - name: doctor (/bin/bash)
+        run: /bin/bash tests/integration/doctor.sh
       - name: what cannot be read is not missing (/bin/bash)
         run: /bin/bash tests/integration/unreadable.sh
       - name: vigil config (/bin/bash)
@@ -306,6 +308,9 @@ jobs:
       - name: precheck
         if: matrix.part == 'core'
         run: ./tests/integration/Precheck.ps1
+      - name: doctor
+        if: matrix.part == 'core'
+        run: ./tests/integration/Doctor.ps1
       - name: what cannot be read is not missing
         if: matrix.part == 'core'
         run: ./tests/integration/Unreadable.ps1
