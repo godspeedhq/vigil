@@ -36,16 +36,21 @@
 
 $ErrorActionPreference = 'Stop'
 
-Add-Type -Namespace VigilPack -Name Cpu -MemberDefinition @'
-[DllImport("kernel32.dll", SetLastError = true)]
-public static extern bool GetSystemTimes(out long idle, out long kernel, out long user);
-'@
+# GetSystemTimes, built in memory with Reflection.Emit rather than Add-Type,
+# which would start the C# compiler on every run. Each one-element array
+# holds one of its three FILETIME results.
+$asm = [System.Reflection.Emit.AssemblyBuilder]::DefineDynamicAssembly((New-Object System.Reflection.AssemblyName 'VigilPackCpu'), 'Run')
+$type = $asm.DefineDynamicModule('VigilPackCpu').DefineType('VigilPackCpu', 'Public, Class, Abstract, Sealed')
+$call = $type.DefinePInvokeMethod('GetSystemTimes', 'kernel32.dll', 'Public, Static, PinvokeImpl', 'Standard',
+    [bool], [type[]]@([long[]], [long[]], [long[]]), 'Winapi', 'Unicode')
+$call.SetImplementationFlags('PreserveSig')
+$kernel32 = $type.CreateType()
 
 # Totals across all cores since boot; kernel time includes idle time.
 function Read-Times {
-    $idle = 0L; $kernel = 0L; $user = 0L
-    if (-not [VigilPack.Cpu]::GetSystemTimes([ref]$idle, [ref]$kernel, [ref]$user)) { throw 'GetSystemTimes failed' }
-    return @($idle, ($kernel + $user))
+    $idle = New-Object long[] 1; $kernel = New-Object long[] 1; $user = New-Object long[] 1
+    if (-not $kernel32::GetSystemTimes($idle, $kernel, $user)) { throw 'GetSystemTimes failed' }
+    return @($idle[0], ($kernel[0] + $user[0]))
 }
 
 $first = Read-Times

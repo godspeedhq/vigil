@@ -111,13 +111,13 @@ function ConvertTo-VigilEpoch {
     return [long][Math]::Floor(($Time.ToUniversalTime() - $epoch0).TotalSeconds)
 }
 
-# Windows' own answers about processes and the boot, without WMI. WMI
-# refuses a network logon that is not an administrator's: an SSH session,
-# or a scheduled task run without a stored password. Each WMI read below
-# falls back to these, which ask the kernel directly; the boot time comes
-# from the kernel first. Compiled once per process, when first needed. WMI
-# takes seconds to refuse, every time, so once it has, this process does
-# not ask it again.
+# Windows' own answers about processes, without WMI. WMI refuses a network
+# logon that is not an administrator's: an SSH session, or a scheduled task
+# run without a stored password. Each WMI read below falls back to these,
+# which ask the kernel directly. Compiled once per process, when first
+# needed: only where WMI refused, so an ordinary run never starts the C#
+# compiler. WMI takes seconds to refuse, every time, so once it has, this
+# process does not ask it again.
 # Tests set VIGIL_TEST_NO_WMI=1 to take the kernel's route, as such a
 # logon does.
 $Script:VigilWmiRefused = $env:VIGIL_TEST_NO_WMI -ceq '1'
@@ -140,18 +140,8 @@ public static class VigilNative {
     [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool QueryFullProcessImageNameW(IntPtr h, int flags, StringBuilder name, ref int size);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
-    [DllImport("ntdll.dll")] static extern int NtQuerySystemInformation(int cls, byte[] buf, int len, out int ret);
     [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr h, int cls, IntPtr buf, int len, out int ret);
     const uint QueryLimited = 0x1000;
-
-    // The boot time as a FILETIME: the kernel's own, which is what WMI's
-    // LastBootUpTime reports.
-    public static long BootFileTime() {
-        byte[] b = new byte[48]; int r;
-        int s = NtQuerySystemInformation(3, b, b.Length, out r);
-        if (s != 0) throw new InvalidOperationException("NtQuerySystemInformation: 0x" + s.ToString("x8"));
-        return BitConverter.ToInt64(b, 0);
-    }
 
     // Every process: its id and its parent's id, or an exception.
     public static int[][] Processes() {
@@ -347,12 +337,30 @@ function Stop-VigilProcessTree {
 # Windows has no kernel boot id; it is derived from the boot time (11.1).
 # The kernel is asked first: every worker needs the id, and WMI would make
 # each one wait seconds where it refuses. WMI reports the same time, so the
-# id is the same either way; it is asked when the kernel cannot be (Add-Type
-# is not allowed everywhere).
+# id is the same either way; it is asked when the kernel cannot be (dynamic
+# code is not allowed everywhere).
+# The kernel call is built in memory with Reflection.Emit, not compiled with
+# Add-Type: Add-Type starts the C# compiler, and every worker asks, so every
+# run of every job compiled (backlog 50).
+$Script:VigilBootCall = $null
 function Get-VigilBootId {
     try {
-        Initialize-VigilNative
-        return "boot-$(ConvertTo-VigilEpoch ([DateTime]::FromFileTimeUtc([VigilNative]::BootFileTime())))"
+        if (-not $Script:VigilBootCall) {
+            $name = New-Object System.Reflection.AssemblyName 'VigilBoot'
+            $asm = [System.Reflection.Emit.AssemblyBuilder]::DefineDynamicAssembly($name, [System.Reflection.Emit.AssemblyBuilderAccess]::Run)
+            $type = $asm.DefineDynamicModule('VigilBoot').DefineType('VigilBoot', 'Public, Class, Abstract, Sealed')
+            # NtQuerySystemInformation(SystemTimeOfDayInformation): its first
+            # 8 bytes are the boot time as a FILETIME, what WMI's
+            # LastBootUpTime reports.
+            $call = $type.DefinePInvokeMethod('NtQuerySystemInformation', 'ntdll.dll', 'Public, Static, PinvokeImpl', 'Standard',
+                [int], [type[]]@([int], [byte[]], [int], [int[]]), 'Winapi', 'Unicode')
+            $call.SetImplementationFlags('PreserveSig')
+            $Script:VigilBootCall = $type.CreateType()
+        }
+        $b = New-Object byte[] 48
+        $s = $Script:VigilBootCall::NtQuerySystemInformation(3, $b, $b.Length, (New-Object int[] 1))
+        if ($s -ne 0) { throw "NtQuerySystemInformation: 0x$($s.ToString('x8'))" }
+        return "boot-$(ConvertTo-VigilEpoch ([DateTime]::FromFileTimeUtc([BitConverter]::ToInt64($b, 0))))"
     }
     catch { }
     if (-not $Script:VigilWmiRefused) {
