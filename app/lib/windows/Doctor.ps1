@@ -185,7 +185,7 @@ function Invoke-VigilDoctor {
     }
     foreach ($s in $shells) {
         $m = @(1..3 | ForEach-Object { Measure-VigilShellStart $s } | Where-Object { $_ })
-        $label = [System.IO.Path]::GetFileName($s)
+        $label = [System.IO.Path]::GetFileName($s).ToLowerInvariant()
         if ($m.Count -eq 0) { & $note "${label}: could not be started"; continue }
         $cpu = @($m | ForEach-Object { $_.Cpu } | Sort-Object)[[int][math]::Floor(($m.Count - 1) / 2)]
         $wall = @($m | ForEach-Object { $_.Wall } | Sort-Object)[[int][math]::Floor(($m.Count - 1) / 2)]
