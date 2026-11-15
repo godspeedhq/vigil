@@ -38,25 +38,24 @@
 
 $ErrorActionPreference = 'Stop'
 
-Add-Type -Namespace VigilPack -Name Memory -MemberDefinition @'
-[StructLayout(LayoutKind.Sequential)]
-public struct Status {
-    public uint Length; public uint Load;
-    public ulong TotalPhys; public ulong AvailPhys;
-    public ulong TotalPageFile; public ulong AvailPageFile;
-    public ulong TotalVirtual; public ulong AvailVirtual; public ulong AvailExtendedVirtual;
-}
-[DllImport("kernel32.dll", SetLastError = true)]
-public static extern bool GlobalMemoryStatusEx(ref Status status);
-'@
+# GlobalMemoryStatusEx, built in memory with Reflection.Emit rather than
+# Add-Type, which would start the C# compiler on every run. Its
+# MEMORYSTATUSEX is 64 bytes: dwLength (set to 64), dwMemoryLoad, then
+# ullTotalPhys at 8 and ullAvailPhys at 16.
+$asm = [System.Reflection.Emit.AssemblyBuilder]::DefineDynamicAssembly((New-Object System.Reflection.AssemblyName 'VigilPackMemory'), 'Run')
+$type = $asm.DefineDynamicModule('VigilPackMemory').DefineType('VigilPackMemory', 'Public, Class, Abstract, Sealed')
+$call = $type.DefinePInvokeMethod('GlobalMemoryStatusEx', 'kernel32.dll', 'Public, Static, PinvokeImpl', 'Standard',
+    [bool], [type[]]@(, [byte[]]), 'Winapi', 'Unicode')
+$call.SetImplementationFlags('PreserveSig')
+$kernel32 = $type.CreateType()
 
-$status = New-Object VigilPack.Memory+Status
-$status.Length = [System.Runtime.InteropServices.Marshal]::SizeOf($status)
-if (-not [VigilPack.Memory]::GlobalMemoryStatusEx([ref]$status)) { throw 'GlobalMemoryStatusEx failed' }
+$status = New-Object byte[] 64
+[BitConverter]::GetBytes([uint32]64).CopyTo($status, 0)
+if (-not $kernel32::GlobalMemoryStatusEx($status)) { throw 'GlobalMemoryStatusEx failed' }
 
 # Available memory is what can be had without swapping: the rest is in use.
-$total = [long]$status.TotalPhys
-$used = $total - [long]$status.AvailPhys
+$total = [long][BitConverter]::ToUInt64($status, 8)
+$used = $total - [long][BitConverter]::ToUInt64($status, 16)
 $percent = [int][Math]::Floor(100 * $used / $total)
 
 Write-Output "metric used_pct $percent"
