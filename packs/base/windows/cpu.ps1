@@ -11,15 +11,22 @@
     differ between languages of Windows.
 
     Metrics:
-        used_pct  percent of CPU time in use, across all cores
+        used_pct    percent of CPU time in use, across all cores
+        user_pct    of which running programs
+        system_pct  of which the kernel (and its interrupts)
+        iowait_pct and steal_pct are not reported: Windows does not count
+        them
 
     Example output:
       metric used_pct 37
+      metric user_pct 26
+      metric system_pct 11
 
     Reading the results (starting points: tune them to the machine):
       Healthy  below 70: normal work, and short spikes to 100 are fine.
       Watch    70 to 90 for 15 minutes or more: little room left for a peak.
-      Act      above 90 for 5 minutes or more: find what is using the CPU.
+      Act      above 90 for 5 minutes or more: find what is using the CPU
+               (system.processes).
 
     Requires: Windows PowerShell 5.1 or PowerShell 7
     Exit code: 0 on success, 1 if the data cannot be read
@@ -50,14 +57,18 @@ $kernel32 = $type.CreateType()
 function Read-Times {
     $idle = New-Object long[] 1; $kernel = New-Object long[] 1; $user = New-Object long[] 1
     if (-not $kernel32::GetSystemTimes($idle, $kernel, $user)) { throw 'GetSystemTimes failed' }
-    return @($idle[0], ($kernel[0] + $user[0]))
+    return @($idle[0], $kernel[0], $user[0])
 }
 
 $first = Read-Times
 Start-Sleep -Seconds 1
 $second = Read-Times
-$total = $second[1] - $first[1]
-$busy = $total - ($second[0] - $first[0])
-$percent = if ($total -gt 0) { [int][Math]::Round(100 * $busy / $total) } else { 0 }
+$idle = $second[0] - $first[0]
+$kernel = $second[1] - $first[1] - $idle
+$user = $second[2] - $first[2]
+$total = $idle + $kernel + $user
+function Get-Percent([long]$Part) { if ($total -gt 0) { [int][Math]::Round(100 * $Part / $total) } else { 0 } }
 
-Write-Output "metric used_pct $percent"
+Write-Output "metric used_pct $(Get-Percent ($kernel + $user))"
+Write-Output "metric user_pct $(Get-Percent $user)"
+Write-Output "metric system_pct $(Get-Percent $kernel)"

@@ -789,7 +789,7 @@ Today `file`, `datadog`, `otel` and `splunk` deliver. Events for an enabled back
 
 A pack is a signed set of scripts and jobs, so you get useful metrics straight away. They live in this repository under `packs/`, with scripts for Linux, macOS and Windows, and a machine only ever holds its own platform's.
 
-`vigil init` turns on the base pack: CPU, memory, disk, network, load and services. To run only your own scripts, use `vigil init empty`: no jobs, no backend, and `scripts/` ready for your own.
+`vigil init` turns on the base pack: CPU, memory, disk and disk I/O, network, load, services, the busiest programs, and the host itself (uptime, OS, CPU model). [packs/README.md](packs/README.md) lists every metric. To run only your own scripts, use `vigil init empty`: no jobs, no backend, and `scripts/` ready for your own.
 
 ```sh
 vigil pack list                # each pack here, and whether its jobs are on

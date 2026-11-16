@@ -116,7 +116,7 @@ public static class BasePackTree {
     }).AddArgument($stop).AddArgument($PID)
     $watching = $watcher.BeginInvoke()
 
-    foreach ($j in @('cpu', 'memory', 'disk', 'network', 'services')) {
+    foreach ($j in @('cpu', 'memory', 'disk', 'diskio', 'network', 'services', 'processes', 'host')) {
         $r = Invoke-Vigil run "base_$j"
         Test-Equal "base_$j runs" '0' ([string]$r.Code)
         if ($r.Code -ne 0) { $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" } }
@@ -134,6 +134,10 @@ public static class BasePackTree {
     Test-Equal 'memory reaches the backend' 'True' (Test-Reports 'system_memory_used_pct')
     Test-Equal 'disk reaches the backend' 'True' (Test-Reports 'system_disk_used_pct')
     Test-Equal 'network reaches the backend' 'True' (Test-Reports 'system_network_rx_bytes')
+    Test-Equal 'disk I/O reaches the backend' 'True' (Test-Reports 'system_diskio_read_bytes')
+    Test-Equal 'processes reach the backend' 'True' (Test-Reports 'system_processes_memory_bytes')
+    Test-Equal 'the host reaches the backend' 'True' (Test-Reports 'system_host_uptime_seconds')
+    Test-Equal 'the CPU split reaches the backend' 'True' (Test-Reports 'system_cpu_user_pct')
 }
 finally {
     Start-Sleep -Seconds 2
