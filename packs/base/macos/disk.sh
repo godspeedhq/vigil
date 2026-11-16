@@ -7,20 +7,24 @@
 # space in its name, which a metric tag cannot hold.
 #
 # Metrics:
-#   used_pct     percent of usable space in use (tag: mount)
-#   used_bytes   space in use, in bytes (tag: mount)
-#   total_bytes  size of the volume, in bytes (tag: mount)
+#   used_pct         percent of usable space in use (tag: mount)
+#   used_bytes       space in use, in bytes (tag: mount)
+#   total_bytes      size of the volume, in bytes (tag: mount)
+#   inodes_used_pct  percent of file entries in use (tag: mount); APFS makes
+#                    more as it needs them, so there it stays near 0
 #
 # Example output:
 #   metric used_pct 71 mount=/
 #   metric used_bytes 305175781376 mount=/
 #   metric total_bytes 429496729600 mount=/
+#   metric inodes_used_pct 0 mount=/
 #
 # Reading the results (starting points: tune them to the machine):
 #   Healthy  below 80.
 #   Watch    80 to 90, or used_bytes growing fast: work out when it fills up.
 #   Act      above 90: free some space. At 100, writes fail, and databases
-#            and logs usually go with them.
+#            and logs usually go with them. The same goes for
+#            inodes_used_pct, on volumes that are not APFS.
 #
 # Requires: bash, df, awk
 # Exit code: 0 on success, 1 if df fails
@@ -36,16 +40,19 @@
 
 set -u
 
-# -P: portable columns. -k: sizes in kibibytes. -l: local volumes only.
-report=$(df -P -k -l 2> /dev/null) || exit 1
+# -P: portable columns. -k: sizes in kibibytes. -i: inodes too, in three
+# more columns. -l: local volumes only.
+report=$(df -P -k -i -l 2> /dev/null) || exit 1
 
 printf '%s\n' "$report" | awk '
     # Real devices only, not devfs or map entries, and not the volumes macOS
     # keeps for itself. /System/Volumes/Data, which holds your files, stays.
-    NR > 1 && NF == 6 && $1 ~ /^\/dev\// && $2 > 0 &&
-    $6 !~ /^\/System\/Volumes\/(VM|Preboot|Update|xarts|iSCPreboot|Hardware)/ {
-        printf "metric used_pct %d mount=%s\n", 100 * $3 / ($3 + $4), $6
-        printf "metric used_bytes %.0f mount=%s\n", $3 * 1024, $6
-        printf "metric total_bytes %.0f mount=%s\n", $2 * 1024, $6
+    NR > 1 && NF == 9 && $1 ~ /^\/dev\// && $2 > 0 &&
+    $9 !~ /^\/System\/Volumes\/(VM|Preboot|Update|xarts|iSCPreboot|Hardware)/ {
+        printf "metric used_pct %d mount=%s\n", 100 * $3 / ($3 + $4), $9
+        printf "metric used_bytes %.0f mount=%s\n", $3 * 1024, $9
+        printf "metric total_bytes %.0f mount=%s\n", $2 * 1024, $9
+        # iused and ifree.
+        if ($6 + $7 > 0) printf "metric inodes_used_pct %d mount=%s\n", 100 * $6 / ($6 + $7), $9
     }
 '

@@ -52,7 +52,7 @@ check 'init turns on the base pack' 0 "$?"
 sed 's/^/        /' "$work/out" | grep 'on: '
 check 'precheck is happy' 0 "$(vigil precheck > /dev/null 2>&1; echo $?)"
 
-for j in cpu memory disk network load services; do
+for j in cpu memory disk diskio network load services processes host; do
     vigil run "base_$j" > "$work/out" 2>&1
     rc=$?
     check "base_$j runs" 0 "$rc"
@@ -71,6 +71,10 @@ check 'memory reaches the backend' yes "$(reports system_memory_used_pct)"
 check 'disk reaches the backend' yes "$(reports system_disk_used_pct)"
 check 'network reaches the backend' yes "$(reports system_network_rx_bytes)"
 check 'load reaches the backend' yes "$(reports system_load_load1)"
+check 'disk I/O reaches the backend' yes "$(reports system_diskio_read_bytes)"
+check 'processes reach the backend' yes "$(reports system_processes_memory_bytes)"
+check 'the host reaches the backend' yes "$(reports system_host_uptime_seconds)"
+check 'the CPU split reaches the backend' yes "$(reports system_cpu_user_pct)"
 check 'nothing failed' 0 "$(grep -c 'run end failed' "$root"/logs/jobs/base_*/*.log | awk -F: '{ n += $2 } END { print n + 0 }')"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"

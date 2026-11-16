@@ -13,6 +13,8 @@
         used_pct     percent of the drive in use (tag: mount)
         used_bytes   space in use, in bytes (tag: mount)
         total_bytes  size of the drive, in bytes (tag: mount)
+        inodes_used_pct is not reported: NTFS has no fixed number of file
+        entries to run out of
 
     Example output:
       metric used_pct 71 mount=C:
