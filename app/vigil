@@ -21,6 +21,9 @@
 #       Pre-flight checks (16.4), changing nothing: the configuration's
 #       problems, then everything runs need. With a job, also its effective
 #       settings (6.6). Exits 0 when nothing failed, 1 otherwise.
+#   vigil [--root <dir>] doctor
+#       How well Vigil runs here (16.7), changing nothing: what its runs
+#       cost and how fast a shell starts. Exits 1 on any WARN.
 #   vigil [--root <dir>] config
 #       Edits the configuration as crontab -e does (16.6): a copy opens in
 #       $VISUAL, $EDITOR or vi, and is saved only when it has no ERROR or
@@ -86,7 +89,7 @@ case $self in
 esac
 root=$(dirname "$app")
 
-for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker backends sender fetch logs format supervisor precheck service init selfupdate pack configedit; do
+for lib in config validate effective command schedule outcome metrics events recovery prom secrets stores worker backends sender fetch logs format supervisor precheck service init selfupdate pack configedit doctor; do
     # shellcheck source=/dev/null
     . "$app/lib/posix/$lib.sh"
 done
@@ -100,7 +103,7 @@ elif vigil_packaged "$app" && [ -n "$_vp_root" ]; then
 fi
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list | enable <what> | disable <what> | update [--check]\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list | enable <what> | disable <what> | update [--check]\n' >&2
     exit 64
 }
 
@@ -141,6 +144,11 @@ case ${1-} in
         rc=$?
         vigil_update_notice "$root" "$app"
         exit "$rc"
+        ;;
+    doctor)
+        [ "$#" -eq 1 ] || usage
+        vigil_doctor "$root"
+        exit $?
         ;;
     config)
         [ "$#" -eq 1 ] || usage

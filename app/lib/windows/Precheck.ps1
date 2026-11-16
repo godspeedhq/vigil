@@ -32,7 +32,7 @@
         thrown away: only their references are printed.
 
     Requires Config.ps1, Validate.ps1, Effective.ps1, Command.ps1,
-    Secrets.ps1, Stores.ps1 and Worker.ps1.
+    Secrets.ps1, Stores.ps1, Worker.ps1 and Doctor.ps1.
 #>
 
 function Format-VigilConfigRecord {
@@ -267,6 +267,11 @@ function Invoke-VigilPrecheck {
     if (-not ($parsed.Sections | Where-Object { $_.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) })) {
         $out.Add('  note  no metrics backend: metrics go nowhere until you add one')
     }
+    # Information, never a failure: a Windows PowerShell without .NET's
+    # native images compiles .NET at every start, and every run starts one
+    # (doctor, 16.7, says the same as a WARN).
+    $ni = Test-VigilNativeImages
+    if (-not $ni.Ok) { $out.Add("  note  $($ni.Text)") }
 
     $ctx = @{
         'state directory' = @('vigil', 'state_dir', 'state')
@@ -311,6 +316,7 @@ function Invoke-VigilPrecheck {
     if ($env:VIGIL_TEST_DPAPI_REFUSED) { & $fail 'VIGIL_TEST_DPAPI_REFUSED is set: the DPAPI refusal stand-in is for tests only (22.4.5)' }
     if ($env:VIGIL_TEST_SSH_CONFIG) { & $fail 'VIGIL_TEST_SSH_CONFIG is set: the ssh configuration override is for tests only (22.4.3)' }
     if ($env:VIGIL_TEST_RELEASE_URL) { & $fail 'VIGIL_TEST_RELEASE_URL is set: the release server override is for tests only (22.4.4)' }
+    if ($env:VIGIL_TEST_NGEN_MISSING) { & $fail 'VIGIL_TEST_NGEN_MISSING is set: the missing native images stand-in is for tests only (22.4.6)' }
 
     $out.Add('')
     if ($n.Failed -gt 0) { $out.Add("precheck failed: $($n.Failed) problem(s)") }

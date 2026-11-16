@@ -78,6 +78,30 @@ _vigil_wk_secs() {
     esac
 }
 
+# The CPU this process and the children it has waited for have used, in
+# seconds with two decimals, in _vw_cpu (12.2, cpu_seconds): bash's own
+# times, which reads the kernel's figures (getrusage) on Linux and macOS.
+# Each field is like 1m2.345s, with a comma for a decimal point in some
+# locales. Read through a file: in a $(...) subshell, times would report
+# the subshell's own. $1 is a file the worker may write and delete.
+_vigil_wk_cpu() {
+    local t='' ms=0 m s f
+    times > "$1" 2>/dev/null && t=$(cat "$1")
+    rm -f "$1"
+    for f in $t; do
+        f=${f%s}
+        m=${f%%m*}
+        s=${f#*m}
+        s=${s/,/.}
+        case $s in *.*) ;; *) s="$s.000" ;; esac
+        f=${s#*.}000
+        s=${s%%.*}
+        ms=$((ms + 10#$m * 60000 + 10#$s * 1000 + 10#${f:0:3}))
+    done
+    ms=$((ms + 5))
+    _vw_cpu="$((ms / 1000)).$(printf '%02d' $(((ms % 1000) / 10)))"
+}
+
 # The current time as "<epoch> <ISO 8601 UTC>", read once so both agree.
 _vigil_wk_now() {
     set -- $(date -u '+%s %Y-%m-%dT%H:%M:%SZ')
@@ -328,11 +352,13 @@ _vigil_wk_internal() {
     _vigil_wk_set ended_epoch "$_vw_epoch"
     _vigil_wk_set ended_at "$_vw_iso"
     _vigil_wk_set duration_seconds $((_vw_epoch - started))
+    _vigil_wk_cpu "$_vw_statedir/locks/$_vw_job.$rid.cpu"
+    _vigil_wk_set cpu_seconds "$_vw_cpu"
     _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
     if [ -n "$_vw_reason" ]; then
-        _vigil_wk_log "$rid run end $status ($_vw_reason) in $((_vw_epoch - started))s"
+        _vigil_wk_log "$rid run end $status ($_vw_reason) in $((_vw_epoch - started))s, cpu ${_vw_cpu}s"
     else
-        _vigil_wk_log "$rid run end $status in $((_vw_epoch - started))s"
+        _vigil_wk_log "$rid run end $status in $((_vw_epoch - started))s, cpu ${_vw_cpu}s"
     fi
     exec 9<&-
     rm -f "$token"
@@ -586,6 +612,8 @@ vigil_worker() {
     _vigil_wk_set ended_epoch "$_vw_epoch"
     _vigil_wk_set ended_at "$_vw_iso"
     _vigil_wk_set duration_seconds "$duration"
+    _vigil_wk_cpu "$_vw_statedir/locks/$_vw_job.$rid.cpu"
+    _vigil_wk_set cpu_seconds "$_vw_cpu"
     _vigil_wk_set exit_code "${code#-}"
     _vigil_wk_set metric_lines "$VIGIL_MET_LINES"
     _vigil_wk_set invalid_lines "$VIGIL_MET_INVALID"
@@ -593,9 +621,9 @@ vigil_worker() {
     _vigil_wk_set spool_file "$stem"
     _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
     if [ -n "$reason" ]; then
-        _vigil_wk_log "$rid run end $outcome ($reason) in ${duration}s"
+        _vigil_wk_log "$rid run end $outcome ($reason) in ${duration}s, cpu ${_vw_cpu}s"
     else
-        _vigil_wk_log "$rid run end $outcome in ${duration}s"
+        _vigil_wk_log "$rid run end $outcome in ${duration}s, cpu ${_vw_cpu}s"
     fi
     rm -f "$out" "$err" "$_vw_statedir/locks/$_vw_job.$rid.timeout"
 

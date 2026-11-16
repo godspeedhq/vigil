@@ -97,6 +97,7 @@ Vigil's guiding rules:
 | Backend: `datadog` (Series API v2) | Done | The suites, against a mock only: never run against Datadog itself |
 | Backends: the rest | Planned, not built | |
 | `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done | The suites |
+| `vigil doctor`: what Vigil's runs cost here, how fast a shell starts, and on Windows .NET's native images, Defender and PowerShell's logging policies | Done | The suites; real machines: Fedora 44, Intel macOS 12, Windows 11 |
 | `vigil config`: edit the configuration like `crontab -e`, saved only when valid | Done | The suites |
 | Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done | The suites; real machines: Fedora 44, Intel macOS 12, Windows 11, Windows Server 2016 |
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done | The suites |
@@ -179,6 +180,7 @@ In user mode nothing restarts Vigil if it stops, so use system mode on a server.
 ```sh
 vigil status     # the service, and the jobs it runs
 vigil precheck   # checks the configuration and everything it needs
+vigil doctor     # what Vigil costs here, and whether the machine slows it down
 vigil about      # the version, and where Vigil is installed
 ```
 

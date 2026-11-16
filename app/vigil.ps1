@@ -23,6 +23,10 @@
         Pre-flight checks (16.4), changing nothing: the configuration's
         problems, then everything runs need. With a job, also its effective
         settings (6.6). Exits 0 when nothing failed, 1 otherwise.
+    vigil [-Root <dir>] doctor
+        How well Vigil runs here (16.7), changing nothing: what its runs cost,
+        how fast a shell starts and, on Windows, .NET's native images,
+        Defender and PowerShell's logging policies. Exits 1 on any WARN.
     vigil [-Root <dir>] config
         Edits the configuration as crontab -e does (16.6): a copy opens in
         %VISUAL%, %EDITOR% or Notepad, and is saved only when it has no
@@ -80,7 +84,7 @@ param(
 
 $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-$libs = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate', 'Pack', 'ConfigEdit')
+$libs = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate', 'Pack', 'ConfigEdit', 'Doctor')
 # A worker started by the supervisor loads only the libraries its kind of run
 # can use: each one costs a fresh process time to read and scan, and every
 # run is a fresh process. '*' is any job; the rest are Vigil's own workers.
@@ -111,7 +115,7 @@ else {
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list | enable <what> | disable <what> | update [--check]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list | enable <what> | disable <what> | update [--check]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -156,6 +160,12 @@ switch ($Command) {
     'precheck' {
         if ($Rest) { Exit-Usage }
         $r = Invoke-VigilPrecheck -Root $Root -Job $Job
+        foreach ($l in $r.Lines) { Write-Output $l }
+        exit $r.Code
+    }
+    'doctor' {
+        if ($Job -or $Rest) { Exit-Usage }
+        $r = Invoke-VigilDoctor -Root $Root
         foreach ($l in $r.Lines) { Write-Output $l }
         exit $r.Code
     }
