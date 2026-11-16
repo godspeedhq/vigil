@@ -93,3 +93,83 @@ The Windows-only checks are left out there.
   If no machine can be put in that state safely, the check's logic is tested
   with a fault hook, and that's stated.
 - The integration tests cover `doctor` on Linux, macOS and Windows.
+
+## Built (2026-11-16)
+
+**What it prints** (§16.7): what Vigil's runs cost in the last hour, per
+job and in cores busy (`ok`, a `note` above a quarter of a core, `WARN`
+above half); how fast each shell a run starts takes to start; and on
+Windows, .NET's native images, Defender and PowerShell's logging policies.
+`precheck` gives the native-images finding as a `note`.
+
+**Every run records its CPU**, Vigil's own included: `cpu_seconds` in its
+state file (§12.2) and at the end of its `run end` line (§13.1):
+
+```text
+2026-11-16T11:59:17Z 20261116T115908Z-23544-657 run end succeeded in 5s, cpu 7.95s
+```
+
+**Each run's figure is added up, never the last run's multiplied.** The
+first build multiplied each job's last run by its runs in the hour. On the
+HP that came to 0.56 cores where the kernel measured 0.673: the base jobs
+matched (0.438 against 0.437), but `vigil_sender`'s last run cost 1.25 CPU
+s where its hour averaged 2.38. Runs of one job vary that much, so `doctor`
+now adds up the hour's `run end` lines.
+
+**Measured against the kernel, on the HP** (Windows 11, 8 threads, base
+pack), as vigil-test with no elevation: a foreground supervisor on a
+scratch root, its process tree measured for an hour from the kernel
+(`GetProcessTimes` at each process's exit), then `vigil doctor` on the same
+root:
+
+| job | runs, kernel | runs, doctor | CPU, kernel | CPU, doctor |
+| --- | --- | --- | --- | --- |
+| `vigil_sender` | 355 | 355 | 842.28 s | 802.94 s |
+| `base_network` | 60 | 60 | 373.81 s | 360.71 s |
+| `base_cpu` | 60 | 60 | 373.66 s | 360.07 s |
+| `base_memory` | 60 | 60 | 372.50 s | 359.45 s |
+| `base_services` | 60 | 60 | 348.27 s | 334.90 s |
+| `base_disk` | 12 | 12 | 77.14 s | 74.38 s |
+| **cores** | **0.663** | **0.64** | | |
+
+`doctor` reads about 4% low: what a worker spends after it measures itself
+(writing the log line and exiting), and its console host. Matching run ids
+in a 5-minute run, each run's `cpu_seconds` was within 0.1 s of the
+kernel's. The supervisor's own CPU (0.031 cores) is not a run's and is not
+counted; §16.7 says so.
+
+**And as the real service, from an elevated prompt** (the HP's system
+service, LocalSystem, on this branch): `Probe-Vigil.ps1` watched the
+service's process tree for an hour, then `vigil doctor` ran at once:
+
+| job | runs, kernel | runs, doctor | CPU, kernel | CPU, doctor |
+| --- | --- | --- | --- | --- |
+| `vigil_sender` | 356 | 357 | 721.94 s | 685.46 s |
+| `base_services` | 60 | 60 | 328.41 s | 312.26 s |
+| `base_network` | 59 | 60 | 318.47 s | 310.51 s |
+| `base_memory` | 60 | 60 | 315.55 s | 302.51 s |
+| `base_cpu` | 60 | 60 | 311.83 s | 300.59 s |
+| `base_disk` | 12 | 12 | 63.89 s | 61.39 s |
+| **cores** | **0.572** | **0.55** | | |
+
+The same 4% (the windows start 13 s apart, hence a run more or less), and
+the same verdict: a `WARN`, above half a core. Elevated, `doctor` also read
+Defender: `real-time protection is on and scans each script a run loads;
+no exclusion covers C:\ProgramData\Vigil`. The kernel's figure for the
+whole tree, the service's supervisor included, was 0.60 cores.
+
+**Without elevation** against the real 0.8.0 services (Lenovo, Server 2025,
+HP, over SSH): `doctor` named the configuration it could not read
+(`WARN`), and still measured the shell start and native images; Defender
+said it could not be read from that session.
+
+**Native images:** CI's runners and every test machine have them, so the
+missing case is tested with the stand-in `VIGIL_TEST_NGEN_MISSING`
+(§22.4.6): `doctor` gives a `WARN` with the `ngen.exe` command, `precheck`
+a `note` (and fails while the stand-in is set).
+
+**Tests:** `tests/integration/doctor.sh` (Fedora bash 5.3 and macOS bash
+3.2: 24 passed each) and `Doctor.ps1` (Windows PowerShell 5.1 and 7: 31
+passed each), both in CI. The new check on the `run end` line found that
+the Windows test's job had never run (its configuration had no `.ps1`
+runner), though the old checks passed.
