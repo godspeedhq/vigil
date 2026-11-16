@@ -292,15 +292,46 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $root)
     # A system root is closed to all but SYSTEM and Administrators from the
     # start, with or without a service: what SYSTEM runs from it must not be
-    # anyone else's to change (backlog 41). A root already locked keeps what
-    # was added to it since, such as an -UpdateBy account's access.
-    if ($mode -ceq 'system' -and -not (Get-Acl -LiteralPath $root).AreAccessRulesProtected) {
-        # The same as the program's Set-VigilRootAcl, which is not in place yet.
+    # anyone else's to change (backlog 41). Every time, not only when it is
+    # not locked yet: a standard user may create C:\ProgramData\Vigil before
+    # Vigil is installed, lock it to themselves, and own it (backlog 54).
+    # So its owner must be one Vigil can trust, or nothing is installed; and
+    # its ACL is replaced, keeping only read-only entries on the root itself
+    # (an -UpdateBy account's). The same as the program's Set-VigilRootAcl
+    # and Test-VigilTrustedOwner, which are not in place yet.
+    if ($mode -ceq 'system') {
+        try { $current = Get-Acl -LiteralPath $root -ErrorAction Stop }
+        catch [System.UnauthorizedAccessException] { Stop-Install "cannot read the permissions of ${root}: it was not made by an administrator. Remove it, unless you know who made it and what is in it" }
+        catch { Stop-Install "cannot read the permissions of ${root}: $($_.Exception.Message)" }
+        $owner = $current.GetOwner([System.Security.Principal.SecurityIdentifier])
+        $trusted = @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464',
+            [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value) -contains $owner.Value
+        if (-not $trusted) {
+            try {
+                $name = (New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544').Translate([System.Security.Principal.NTAccount]).Value.Split('\')[-1]
+                foreach ($m in @(([ADSI]"WinNT://./$name,group").psbase.Invoke('Members'))) {
+                    $bytes = [byte[]]$m.GetType().InvokeMember('objectSid', 'GetProperty', $null, $m, $null)
+                    if ((New-Object System.Security.Principal.SecurityIdentifier($bytes, 0)).Value -ceq $owner.Value) { $trusted = $true }
+                }
+            }
+            catch { }
+        }
+        if (-not $trusted) {
+            $who = $owner.Value
+            try { $who = $owner.Translate([System.Security.Principal.NTAccount]).Value } catch { }
+            Stop-Install "$root is owned by $who, not by SYSTEM or an administrator: whoever owns it can change what Vigil runs as SYSTEM. Remove it, unless you know who made it and what is in it; then make Administrators its owner (icacls `"$root`" /setowner *S-1-5-32-544 /T /C, elevated) and run this again"
+        }
+        $admins = @('S-1-5-18', 'S-1-5-32-544')
         $acl = New-Object System.Security.AccessControl.DirectorySecurity
         $acl.SetAccessRuleProtection($true, $false)
-        foreach ($sid in @('S-1-5-18', 'S-1-5-32-544')) {
+        foreach ($sid in $admins) {
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
                         (New-Object Security.Principal.SecurityIdentifier($sid)), 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+        }
+        $readOnly = [int][System.Security.AccessControl.FileSystemRights]'ReadAndExecute, Synchronize'
+        foreach ($r in $current.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier])) {
+            if ($r.AccessControlType -ne 'Allow' -or $admins -contains $r.IdentityReference.Value) { continue }
+            if (([int]$r.FileSystemRights -band -bnot $readOnly) -eq 0) { $acl.AddAccessRule($r) }
         }
         Set-Acl -LiteralPath $root -AclObject $acl
     }

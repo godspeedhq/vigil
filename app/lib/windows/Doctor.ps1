@@ -24,7 +24,8 @@
         Returns @{ Ok; Text }. Used by doctor and by precheck.
     Get-VigilRunsSince -Dir <job log dir> -Since <ISO 8601 UTC>
         The runs a job log records as ended since then: @{ Runs; Measured;
-        Cpu; Wall }, Cpu summed over the Measured runs that recorded it.
+        Cpu; Wall; Unreadable }, Cpu summed over the Measured runs that
+        recorded it, Unreadable the log files that could not be read.
 
     Requires Config.ps1, Effective.ps1, Command.ps1 and Fetch.ps1.
 #>
@@ -53,14 +54,19 @@ function Test-VigilNativeImages {
 
 function Get-VigilRunsSince {
     param([string]$Dir, [string]$Since)
-    $r = @{ Runs = 0; Measured = 0; Cpu = 0.0; Wall = 0 }
+    $r = @{ Runs = 0; Measured = 0; Cpu = 0.0; Wall = 0; Unreadable = @() }
     if (-not [System.IO.Directory]::Exists($Dir)) { return $r }
     $inv = [System.Globalization.CultureInfo]::InvariantCulture
     $cutoff = [DateTime]::UtcNow.AddHours(-2)
     foreach ($f in [System.IO.Directory]::GetFiles($Dir, '*.log')) {
         if ([System.IO.File]::GetLastWriteTimeUtc($f) -lt $cutoff) { continue }
+        # Shared for writing and deleting, as the log forwarder reads: a
+        # reader allowing only reading would make a worker appending its
+        # lines at that moment fail to write them (backlog 54).
+        $reader = $null
         try {
-            foreach ($l in [System.IO.File]::ReadAllLines($f)) {
+            $reader = New-Object System.IO.StreamReader -ArgumentList (New-Object System.IO.FileStream -ArgumentList $f, 'Open', 'Read', ([System.IO.FileShare]'ReadWrite, Delete'))
+            while ($null -ne ($l = $reader.ReadLine())) {
                 # "<ISO> <run id> run end <outcome> ... in <n>s, cpu <s>s"
                 # (13.1): the ISO times compare as text.
                 if ($l -notmatch '^(\S+) \S+ run end .* in ([0-9]+)s(, cpu ([0-9]+\.[0-9]+)s)?$' -or [string]::CompareOrdinal($Matches[1], $Since) -lt 0) { continue }
@@ -69,9 +75,33 @@ function Get-VigilRunsSince {
                 if ($Matches[4]) { $r.Measured++; $r.Cpu += [double]::Parse($Matches[4], $inv) }
             }
         }
-        catch { }
+        catch { $r.Unreadable += $f }
+        finally { if ($reader) { $reader.Dispose() } }
     }
     return $r
+}
+
+# When the supervisor last started, from its log of today or yesterday
+# ("<ISO> INFO supervisor supervisor started, pid <n>", 13.1): the ISO
+# time, or '' when no log says.
+function Get-VigilSupervisorStart {
+    param([string]$Dir)
+    $last = ''
+    if (-not [System.IO.Directory]::Exists($Dir)) { return $last }
+    $cutoff = [DateTime]::UtcNow.AddDays(-2)
+    foreach ($f in [System.IO.Directory]::GetFiles($Dir, '*.log')) {
+        if ([System.IO.File]::GetLastWriteTimeUtc($f) -lt $cutoff) { continue }
+        $reader = $null
+        try {
+            $reader = New-Object System.IO.StreamReader -ArgumentList (New-Object System.IO.FileStream -ArgumentList $f, 'Open', 'Read', ([System.IO.FileShare]'ReadWrite, Delete'))
+            while ($null -ne ($l = $reader.ReadLine())) {
+                if ($l -cmatch '^(\S+) INFO supervisor supervisor started, pid ' -and [string]::CompareOrdinal($Matches[1], $last) -gt 0) { $last = $Matches[1] }
+            }
+        }
+        catch { }
+        finally { if ($reader) { $reader.Dispose() } }
+    }
+    return $last
 }
 
 # One bare start of a shell: @{ Cpu; Wall } in seconds, or $null.
@@ -137,8 +167,10 @@ function Invoke-VigilDoctor {
         $since = [DateTime]::UtcNow.AddHours(-1).ToString('yyyy-MM-ddTHH:mm:ssZ', $inv)
         $rows = New-Object 'System.Collections.Generic.List[object]'
         $dirs = if ([System.IO.Directory]::Exists($jobLogs)) { [System.IO.Directory]::GetDirectories($jobLogs) } else { @() }
+        $unreadable = @()
         foreach ($d in $dirs) {
             $r = Get-VigilRunsSince -Dir $d -Since $since
+            $unreadable += $r.Unreadable
             if ($r.Runs -eq 0) { continue }
             $rows.Add([pscustomobject]@{ Job = [System.IO.Path]::GetFileName($d); Runs = $r.Runs; Measured = $r.Measured; Cpu = $r.Cpu; Wall = $r.Wall })
         }
@@ -159,6 +191,14 @@ function Invoke-VigilDoctor {
             elseif ($cores -gt 0.25) { & $note "$busy, above a quarter of one" }
             else { & $ok $busy }
             if ($unknown) { & $note "$unknown run(s) show no CPU: they ended before Vigil recorded it" }
+        }
+        # A log it could not read is not a job with no runs (18.5).
+        foreach ($f in $unreadable) { & $warn "cannot read ${f}: its runs are not counted above" }
+        # Less than an hour of runs is still shown over an hour: said.
+        $started = Get-VigilSupervisorStart -Dir (Join-Path $logDir 'supervisor')
+        if ($started -and [string]::CompareOrdinal($started, $since) -gt 0) {
+            $minutes = [int][Math]::Floor(([DateTime]::UtcNow - [DateTime]::ParseExact($started, 'yyyy-MM-ddTHH:mm:ssZ', $inv, [System.Globalization.DateTimeStyles]'AssumeUniversal, AdjustToUniversal')).TotalMinutes)
+            & $note "the supervisor started $minutes minute(s) ago: the figures above are those minutes of runs, over a full hour"
         }
     }
 
@@ -208,9 +248,13 @@ function Invoke-VigilDoctor {
     elseif (-not $status.RealTimeProtectionEnabled) { & $ok 'Defender: real-time protection is off' }
     else {
         $ex = $null
-        try { $ex = @((Get-MpPreference -ErrorAction Stop).ExclusionPath | Where-Object { $_ }) } catch { }
+        $exWhy = ''
+        try { $ex = @((Get-MpPreference -ErrorAction Stop).ExclusionPath | Where-Object { $_ }) }
+        catch { $exWhy = $_.Exception.Message.Trim() }
         $rootSlash = $Root.TrimEnd('\') + '\'
-        if ($null -eq $ex -or @($ex | Where-Object { $_ -like 'N/A*' }).Count) { $cover = 'its exclusions are shown only to administrators' }
+        # Unknown is said as unknown, with why (18.5), never as none.
+        if ($exWhy) { $cover = "its exclusions cannot be read from this session ($exWhy)" }
+        elseif (@($ex | Where-Object { $_ -like 'N/A*' }).Count) { $cover = 'its exclusions are shown only to administrators' }
         elseif (@($ex | Where-Object { $rootSlash.StartsWith($_.TrimEnd('\') + '\', [System.StringComparison]::OrdinalIgnoreCase) }).Count) { $cover = "an exclusion covers $Root" }
         else { $cover = "no exclusion covers $Root" }
         & $note "Defender: real-time protection is on and scans each script a run loads; $cover"
@@ -218,15 +262,19 @@ function Invoke-VigilDoctor {
 
     # PowerShell logging policies: each logs every script a run executes.
     $set = @()
+    $unread = @()
     foreach ($ed in @(@('Windows\PowerShell', 'Windows PowerShell'), @('PowerShellCore', 'PowerShell 7'))) {
         foreach ($p in @(@('ScriptBlockLogging', 'EnableScriptBlockLogging', 'script block logging'), @('ModuleLogging', 'EnableModuleLogging', 'module logging'), @('Transcription', 'EnableTranscripting', 'transcription'))) {
             $v = $null
-            try { $v = [Microsoft.Win32.Registry]::GetValue("HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\$($ed[0])\$($p[0])", $p[1], $null) } catch { }
+            try { $v = [Microsoft.Win32.Registry]::GetValue("HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\$($ed[0])\$($p[0])", $p[1], $null) }
+            catch { $unread += "$($p[2]) ($($ed[1]))" }
             if ("$v" -ceq '1') { $set += "$($p[2]) ($($ed[1]))" }
         }
     }
     if ($set.Count) { & $note "PowerShell logging policies set: $($set -join ', '); each makes every script a run executes cost more" }
-    else { & $ok 'PowerShell logging policies: none set' }
+    # A policy it could not read is not one that is not set (18.5).
+    if ($unread.Count) { & $note "PowerShell logging policies: cannot read $($unread -join ', ') from this session" }
+    elseif (-not $set.Count) { & $ok 'PowerShell logging policies: none set' }
 
     $out.Add('')
     if ($n.Warn) { $out.Add("doctor: $($n.Warn) warning(s)") } else { $out.Add('doctor: no warnings') }

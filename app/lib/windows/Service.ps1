@@ -121,16 +121,56 @@ function Get-VigilSupervisorProcess {
     return $p
 }
 
+# Whether a SID may own a system root: SYSTEM, Administrators,
+# TrustedInstaller, the account running this, or a member of the local
+# Administrators group. An owner can always rewrite an ACL, so anyone else
+# owning the root could change what the service runs as SYSTEM (backlog 54).
+function Test-VigilTrustedOwner {
+    param([System.Security.Principal.SecurityIdentifier]$Sid)
+    $trusted = @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464',
+        [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
+    if ($trusted -contains $Sid.Value) { return $true }
+    try {
+        $name = (New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544').Translate([System.Security.Principal.NTAccount]).Value.Split('\')[-1]
+        $group = [ADSI]"WinNT://./$name,group"
+        foreach ($m in @($group.psbase.Invoke('Members'))) {
+            $bytes = [byte[]]$m.GetType().InvokeMember('objectSid', 'GetProperty', $null, $m, $null)
+            if ((New-Object System.Security.Principal.SecurityIdentifier($bytes, 0)).Value -ceq $Sid.Value) { return $true }
+        }
+    }
+    catch { }
+    return $false
+}
+
 # Only SYSTEM and Administrators may change the root (17); the service runs
-# as LocalSystem. Entries set on purpose below the root, such as the secret
-# store's owner-only ACL, are kept.
+# as LocalSystem. Its owner must be one Vigil can trust, or nothing is
+# changed. Read-only entries on the root itself (the -UpdateBy account's)
+# are kept, and nothing that could write; entries set on purpose below the
+# root, such as the secret store's owner-only ACL, are kept.
 function Set-VigilRootAcl {
     param([string]$Root)
+    # A root whose ACL even an administrator may not read was not made by
+    # Vigil: the same answer as a stranger's.
+    try { $current = Get-Acl -LiteralPath $Root -ErrorAction Stop }
+    catch [System.UnauthorizedAccessException] { throw "cannot read the permissions of ${Root}: it was not made by an administrator. Remove it, unless you know who made it and what is in it" }
+    catch { throw "cannot read the permissions of ${Root}: $($_.Exception.Message)" }
+    $owner = $current.GetOwner([System.Security.Principal.SecurityIdentifier])
+    if (-not (Test-VigilTrustedOwner $owner)) {
+        $who = $owner.Value
+        try { $who = $owner.Translate([System.Security.Principal.NTAccount]).Value } catch { }
+        throw "$Root is owned by $who, not by SYSTEM or an administrator: whoever owns it can change what Vigil runs as SYSTEM. Remove it, unless you know who made it and what is in it; then make Administrators its owner (icacls `"$Root`" /setowner *S-1-5-32-544 /T /C, elevated) and run this again"
+    }
+    $admins = @('S-1-5-18', 'S-1-5-32-544')
     $acl = New-Object System.Security.AccessControl.DirectorySecurity
     $acl.SetAccessRuleProtection($true, $false)
-    foreach ($sid in @('S-1-5-18', 'S-1-5-32-544')) {
+    foreach ($sid in $admins) {
         $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
                     (New-Object Security.Principal.SecurityIdentifier($sid)), 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+    }
+    $readOnly = [int][System.Security.AccessControl.FileSystemRights]'ReadAndExecute, Synchronize'
+    foreach ($r in $current.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier])) {
+        if ($r.AccessControlType -ne 'Allow' -or $admins -contains $r.IdentityReference.Value) { continue }
+        if (([int]$r.FileSystemRights -band -bnot $readOnly) -eq 0) { $acl.AddAccessRule($r) }
     }
     Set-Acl -LiteralPath $Root -AclObject $acl
 }

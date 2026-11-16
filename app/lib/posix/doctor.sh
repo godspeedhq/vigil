@@ -20,19 +20,27 @@
 #   vigil_doctor_runs_since <job log dir> <ISO 8601 UTC>
 #     The runs a job log records as ended since then: _dr_runs, of them
 #     _dr_measured with their CPU, summed in _dr_sum, and their time in
-#     _dr_time (seconds).
+#     _dr_time (seconds); _dr_unreadable, the log files that could not be
+#     read, one per line.
 #
 # Requires config.sh, worker.sh, command.sh and fetch.sh.
 
 VIGIL_DOCTOR_SHELLS=' bash sh dash zsh ksh '
 
 vigil_doctor_runs_since() {
-    local f
-    _dr_runs=0 _dr_measured=0 _dr_sum=0 _dr_time=0
+    local f g
+    _dr_runs=0 _dr_measured=0 _dr_sum=0 _dr_time=0 _dr_unreadable=''
     [ -d "$1" ] || return 0
     # Only the logs written in the last two hours can hold the last hour.
     f=$(find "$1" -name '*.log' -mmin -120 2>/dev/null)
     [ -n "$f" ] || return 0
+    # A log it cannot read is not a job with no runs (18.5): named.
+    while IFS= read -r g; do
+        [ -r "$g" ] || _dr_unreadable="$_dr_unreadable$g
+"
+    done <<EOF
+$f
+EOF
     # "<ISO> <run id> run end <outcome> ... in <n>s, cpu <s>s" (13.1): the
     # ISO times compare as text.
     set -- $(printf '%s\n' "$f" | while IFS= read -r f; do cat "$f" 2>/dev/null; done | LC_ALL=C awk -v c="$2" '
@@ -95,7 +103,7 @@ _vigil_dr_shell() {
 
 vigil_doctor() {
     local root=$1 statedir logdir joblogs denied configdenied f job since cutoff
-    local warn=0 rows='' report tmp shells s i name prog
+    local warn=0 rows='' unreadable='' report tmp shells s i name prog
     local LC_ALL=C
     _vw_root=$root
     _vw_job=-
@@ -130,6 +138,7 @@ vigil_doctor() {
             job=${f%/}
             job=${job##*/}
             vigil_doctor_runs_since "$joblogs/$job" "$since"
+            unreadable="$unreadable$_dr_unreadable"
             [ "$_dr_runs" -gt 0 ] || continue
             rows="$rows$job $_dr_runs $_dr_measured $_dr_sum $_dr_time
 "
@@ -157,6 +166,24 @@ vigil_doctor() {
                 }')
             printf '%s\n' "$report"
             case $report in *'  WARN  '*) warn=$((warn + 1)) ;; esac
+        fi
+        while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            printf '  WARN  cannot read %s: its runs are not counted above\n' "$f"
+            warn=$((warn + 1))
+        done <<EOF
+$unreadable
+EOF
+        # Less than an hour of runs is still shown over an hour: said. The
+        # supervisor's last start, from its log of today or yesterday (13.1).
+        f=$(find "$logdir/supervisor" -name '*.log' -mtime -2 2>/dev/null)
+        if [ -n "$f" ]; then
+            f=$(printf '%s\n' "$f" | while IFS= read -r s; do cat "$s" 2>/dev/null; done |
+                awk '$2 == "INFO" && $3 == "supervisor" && $4 == "supervisor" && $5 == "started," && $1 > last { last = $1 } END { print last }')
+            if [ -n "$f" ] && [[ $f > $since ]]; then
+                s=$(date -u -d "$f" '+%s' 2>/dev/null || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$f" '+%s' 2>/dev/null)
+                [ -n "$s" ] && printf '  note  the supervisor started %d minute(s) ago: the figures above are those minutes of runs, over a full hour\n' $(((_vw_epoch - s) / 60))
+            fi
         fi
     fi
 
