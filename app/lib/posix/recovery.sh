@@ -61,6 +61,14 @@ vigil_recovery_conclude() {
         case $state in final | missing) VIGIL_RECOVERY=idle; return 0 ;; esac
     fi
 
+    # A held token is a process alive now, in this boot, whatever the boot
+    # id says: on macOS and Windows the boot id is the boot time, which
+    # moves when the clock is set (backlog 54).
+    if [ "$token" = held ]; then
+        VIGIL_RECOVERY=alive
+        return 0
+    fi
+
     # Nothing from an earlier boot can still be alive.
     if [ "$boot" = changed ]; then
         if [ "$state" = final ] || [ "$spool" = yes ]; then

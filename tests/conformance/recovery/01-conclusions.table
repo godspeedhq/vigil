@@ -29,8 +29,11 @@ none        none   no       same     running     no     crashed
 none        none   no       same     running     yes    finished
 none        none   yes      same     running     no     alive
 
-# A run from an earlier boot is over, whatever its token says.
-none        held   -        changed  running     no     crashed
+# A run from an earlier boot is over, unless its token is held: a held
+# token is a live process in this boot, and a boot id from the boot time
+# moves when the clock is set (backlog 54).
+none        held   -        changed  running     no     alive
+none        held   -        changed  unreadable  no     alive
 none        free   -        changed  running     yes    finished
 none        free   -        changed  final       no     finished
 
