@@ -198,9 +198,11 @@ else {
     Test-Equal 'planted root: owned by Users for the test' 'S-1-5-32-545' (Get-Acl -LiteralPath $root).GetOwner([Security.Principal.SecurityIdentifier]).Value
     $rc = Invoke-Script $installer @('-System', '-Prefix', $root, '-Archive', $a1, '-Instance', 'it-planted', '-NoService')
     Test-Equal 'planted root: refused' '1' "$rc"
-    # An error is wrapped at the console's width, even mid-word: matched
-    # with every space and line break taken out.
-    $said = ($script:lastOut -replace '\s', '') -match 'isownedby[^,]+,notbySYSTEMoranadministrator:whoeverownsitcanchangewhatVigilrunsasSYSTEM'
+    # An error is wrapped at the console's width, even mid-word, and
+    # PowerShell 7 colours it and starts each wrapped line with "|": matched
+    # with the colours, the bars, every space and line break taken out.
+    $flat = $script:lastOut -replace "$([char]27)\[[0-9;]*m", '' -replace '[\s|]', ''
+    $said = $flat -match 'isownedby[^,]+,notbySYSTEMoranadministrator:whoeverownsitcanchangewhatVigilrunsasSYSTEM'
     Test-Equal 'planted root: says who owns it' 'True' "$said"
     if (-not $said) { Write-Host $script:lastOut }
     Test-Equal 'planted root: nothing installed' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'app'))"
