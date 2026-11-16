@@ -23,7 +23,8 @@
         Whether Windows PowerShell starts with .NET's native images (NGEN).
         Returns @{ Ok; Text }. Used by doctor and by precheck.
     Get-VigilRunsSince -Dir <job log dir> -Since <ISO 8601 UTC>
-        How many runs a job log records as started since then.
+        The runs a job log records as ended since then: @{ Runs; Measured;
+        Cpu; Wall }, Cpu summed over the Measured runs that recorded it.
 
     Requires Config.ps1, Effective.ps1, Command.ps1 and Fetch.ps1.
 #>
@@ -52,20 +53,25 @@ function Test-VigilNativeImages {
 
 function Get-VigilRunsSince {
     param([string]$Dir, [string]$Since)
-    $n = 0
-    if (-not [System.IO.Directory]::Exists($Dir)) { return 0 }
+    $r = @{ Runs = 0; Measured = 0; Cpu = 0.0; Wall = 0 }
+    if (-not [System.IO.Directory]::Exists($Dir)) { return $r }
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
     $cutoff = [DateTime]::UtcNow.AddHours(-2)
     foreach ($f in [System.IO.Directory]::GetFiles($Dir, '*.log')) {
         if ([System.IO.File]::GetLastWriteTimeUtc($f) -lt $cutoff) { continue }
         try {
             foreach ($l in [System.IO.File]::ReadAllLines($f)) {
-                # "<ISO> <run id> run start": the ISO times compare as text.
-                if ($l -cmatch '^(\S+) \S+ run start$' -and [string]::CompareOrdinal($Matches[1], $Since) -ge 0) { $n++ }
+                # "<ISO> <run id> run end <outcome> ... in <n>s, cpu <s>s"
+                # (13.1): the ISO times compare as text.
+                if ($l -notmatch '^(\S+) \S+ run end .* in ([0-9]+)s(, cpu ([0-9]+\.[0-9]+)s)?$' -or [string]::CompareOrdinal($Matches[1], $Since) -lt 0) { continue }
+                $r.Runs++
+                $r.Wall += [int]$Matches[2]
+                if ($Matches[4]) { $r.Measured++; $r.Cpu += [double]::Parse($Matches[4], $inv) }
             }
         }
         catch { }
     }
-    return $n
+    return $r
 }
 
 # One bare start of a shell: @{ Cpu; Wall } in seconds, or $null.
@@ -121,44 +127,38 @@ function Invoke-VigilDoctor {
         if ($active -and [System.IO.File]::Exists($active.Config)) { $jobsParsed = ConvertFrom-VigilConfig -Path $active.Config }
     }
 
-    # What Vigil costs: each job's last run (cpu_seconds, 12.2) times its
-    # runs in the last hour, from its log.
-    $out.Add("What Vigil costs (each job's last run, and its runs in the last hour)")
-    $jobsDir = Join-Path $stateDir 'jobs'
+    # What Vigil's runs cost: what each run used (cpu_seconds, 12.2), from
+    # the run end lines of the last hour (13.1).
+    $out.Add("What Vigil's runs cost in the last hour")
     $jobLogs = Join-Path $logDir 'jobs'
-    $denied = if ($configDenied) { $configDenied } else { Get-VigilDenied $jobsDir }
-    if (-not $denied) { $denied = Get-VigilDenied $jobLogs }
+    $denied = if ($configDenied) { $configDenied } else { Get-VigilDenied $jobLogs }
     if ($denied) { & $warn (Get-VigilDeniedMessage $denied) }
     else {
         $since = [DateTime]::UtcNow.AddHours(-1).ToString('yyyy-MM-ddTHH:mm:ssZ', $inv)
         $rows = New-Object 'System.Collections.Generic.List[object]'
-        $files = if ([System.IO.Directory]::Exists($jobsDir)) { [System.IO.Directory]::GetFiles($jobsDir, '*.state') } else { @() }
-        foreach ($f in $files) {
-            $job = [System.IO.Path]::GetFileNameWithoutExtension($f)
-            $st = ConvertFrom-VigilConfig -Path $f
-            $cpu = Get-VigilConfigValue $st 'state' 'cpu_seconds' ''
-            $wall = Get-VigilConfigValue $st 'state' 'duration_seconds' ''
-            $runs = Get-VigilRunsSince -Dir (Join-Path $jobLogs $job) -Since $since
-            $c = 0.0
-            $known = [double]::TryParse($cpu, [System.Globalization.NumberStyles]::Float, $inv, [ref]$c)
-            $rows.Add([pscustomobject]@{ Job = $job; Runs = $runs; Cpu = $(if ($known) { $c } else { $null }); Wall = $wall; Cost = $(if ($known) { $runs * $c } else { 0 }) })
+        $dirs = if ([System.IO.Directory]::Exists($jobLogs)) { [System.IO.Directory]::GetDirectories($jobLogs) } else { @() }
+        foreach ($d in $dirs) {
+            $r = Get-VigilRunsSince -Dir $d -Since $since
+            if ($r.Runs -eq 0) { continue }
+            $rows.Add([pscustomobject]@{ Job = [System.IO.Path]::GetFileName($d); Runs = $r.Runs; Measured = $r.Measured; Cpu = $r.Cpu; Wall = $r.Wall })
         }
-        if ($rows.Count -eq 0) { & $note 'no runs recorded yet' }
+        if ($rows.Count -eq 0) { & $note 'no runs in the last hour' }
         else {
-            $out.Add(('  {0,-24} {1,6} {2,10} {3,10}' -f 'job', 'runs', 'CPU/run', 'wall/run'))
+            $out.Add(('  {0,-24} {1,6} {2,10} {3,10} {4,10}' -f 'job', 'runs', 'CPU', 'CPU/run', 'time/run'))
             $cores = 0.0
             $unknown = 0
-            foreach ($r in ($rows | Sort-Object -Property @{ Expression = 'Cost'; Descending = $true }, Job)) {
-                $cpuText = if ($null -eq $r.Cpu) { $unknown++; '-' } else { $r.Cpu.ToString('0.00', $inv) + ' s' }
-                $wallText = if ($r.Wall) { "$($r.Wall) s" } else { '-' }
-                $out.Add(('  {0,-24} {1,6} {2,10} {3,10}' -f $r.Job, $r.Runs, $cpuText, $wallText))
-                $cores += $r.Cost / 3600
+            foreach ($r in ($rows | Sort-Object -Property @{ Expression = 'Cpu'; Descending = $true }, Job)) {
+                $cpuText = if ($r.Measured) { $r.Cpu.ToString('0.00', $inv) + ' s' } else { '-' }
+                $perRun = if ($r.Measured) { ($r.Cpu / $r.Measured).ToString('0.00', $inv) + ' s' } else { '-' }
+                $out.Add(('  {0,-24} {1,6} {2,10} {3,10} {4,10}' -f $r.Job, $r.Runs, $cpuText, $perRun, (($r.Wall / $r.Runs).ToString('0.0', $inv) + ' s')))
+                $cores += $r.Cpu / 3600
+                $unknown += $r.Runs - $r.Measured
             }
-            $busy = "Vigil keeps $($cores.ToString('0.00', $inv)) of a core busy"
+            $busy = "Vigil's runs keep $($cores.ToString('0.00', $inv)) of a core busy"
             if ($cores -gt 0.5) { & $warn "$busy, above half of one: the jobs above cost the most" }
             elseif ($cores -gt 0.25) { & $note "$busy, above a quarter of one" }
             else { & $ok $busy }
-            if ($unknown) { & $note "$unknown job(s) show no CPU: their last run was before Vigil recorded it" }
+            if ($unknown) { & $note "$unknown run(s) show no CPU: they ended before Vigil recorded it" }
         }
     }
 

@@ -1210,7 +1210,7 @@ Field rules:
 - **`boot_id`** identifies the system boot the run started in. On Linux it is the kernel boot id; on macOS and Windows it is derived from the boot time.
 - **`deadline_epoch`** is `started_epoch + max_runtime`, empty when the job has no `max_runtime`.
 - **Run summary:** `metric_lines`, `invalid_lines` and `dropped_lines` count the metric lines and Nagios perfdata items accepted, rejected and dropped over the cap (§14.3); `spool_file` names the spool file holding the run's events, so a missing metric can be traced from state to spool.
-- **`cpu_seconds`** is the CPU the run used, user and system, in seconds with two decimals, as the kernel counts it when the run ends: on Linux and macOS the worker and every process it waited for (its job, and what the job waited for); on Windows the worker and its job process, not the job's own children (counting those would take a Job Object). Every run writes it, Vigil's own included. A run of `vigil run` counts the whole command, since the worker is the command itself. `vigil doctor` reads it (§16.7).
+- **`cpu_seconds`** is the CPU the run used, user and system, in seconds with two decimals, as the kernel counts it when the run ends: on Linux and macOS the worker and every process it waited for (its job, and what the job waited for); on Windows the worker and its job process, not the job's own children (counting those would take a Job Object). Every run writes it, Vigil's own included. A run of `vigil run` counts the whole command, since the worker is the command itself. The `run end` line of the job log carries it too (§13.1), and `vigil doctor` adds those up (§16.7).
 - **Values are single-line.** Line breaks in a reason or error are replaced by spaces, and values are truncated to 500 characters. Full detail belongs in the job log, not the state file.
 - **Unknown keys are ignored**, so a newer Vigil can add fields. A higher `schema_version` than the running Vigil understands is reported as unsupported state (§12.3).
 - **Never secrets.** State files never contain credentials or environment values.
@@ -1242,10 +1242,10 @@ The supervisor holds `state/supervisor.lock` open for its whole life, the same w
   2026-10-30T15:07:34Z 20261030T150733Z-16052 run start
   2026-10-30T15:07:35Z 20261030T150733Z-16052 out metric rows 5 table=orders
   2026-10-30T15:07:35Z 20261030T150733Z-16052 err to stderr
-  2026-10-30T15:07:35Z 20261030T150733Z-16052 run end succeeded in 1s
+  2026-10-30T15:07:35Z 20261030T150733Z-16052 run end succeeded in 1s, cpu 0.84s
   ```
 
-  `run` lines are Vigil's own (`start`, then `end <outcome> [(<reason>)] in <n>s`); `out` and `err` lines are the job's stdout and stderr, one line each, unchanged except that a trailing carriage return is removed.
+  `run` lines are Vigil's own (`start`, then `end <outcome> [(<reason>)] in <n>s, cpu <cpu_seconds>s`, the CPU being the run's `cpu_seconds`, §12.2, and the last thing on the line, so a reason never hides it); `out` and `err` lines are the job's stdout and stderr, one line each, unchanged except that a trailing carriage return is removed.
 - **stdout mirroring:** optional, so service managers (NSSM, journald, launchd) capture the supervisor's output.
 
 Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014). A job may keep its own log for a different number of days with `log_retain_days` (§6.6); the size cap is global. The cap defaults to 50 MB, and is checked when a run starts and at each tick, so a file can pass it by one run's output. A file that reaches the cap is never truncated or renamed: writing continues in a new file with the next sequence number, `yyyy-MM-dd.1.log`, `yyyy-MM-dd.2.log` and so on. Log files are therefore append-only and their names are never reused; retention deletes whole files only. The supervisor applies it when it starts and once a day: a file goes when the date in its name is more than `retain_days` before today. The log of a job the configuration no longer names follows `[log] retain_days`.
@@ -1825,7 +1825,7 @@ Only the checks that read nothing but the file run here. Pre-flight's others, on
 
 `vigil doctor` says what Vigil costs on this machine, and whether the machine slows it down. `precheck` (§16.4) checks that runs *can* work; `doctor` checks how well they *do*. It reads only: it changes nothing, fixes nothing and never recommends weakening a protection. Each line says what it found and, where it applies, what the operator can do.
 
-- **What Vigil costs.** Each job's last run, from its state file (`cpu_seconds` and `duration_seconds`, §12.2), and how many runs its log records as started in the last hour (§13.1), Vigil's own workers included. From these, how many cores Vigil keeps busy: the sum of runs × CPU per run over the hour. `ok` up to a quarter of one core, a `note` above that, a `WARN` above half of one. A job whose last run predates `cpu_seconds` shows no CPU and is counted as none, with a `note`.
+- **What Vigil's runs cost.** Every run that ended in the last hour, from its job log's `run end` line (§13.1), Vigil's own workers included: per job, the runs, the CPU they used in all and per run (`cpu_seconds`, §12.2), and the time per run (`in <n>s`: from the worker's start of the run to its end, so not the shell's own start). From these, how many cores Vigil's runs keep busy: the hour's CPU over 3600 s. Each run's own figure is added up, never the last run's multiplied, since runs of the same job can cost twice as much as each other. `ok` up to a quarter of one core, a `note` above that, a `WARN` above half of one. A run whose line has no CPU (it ended before Vigil recorded it) is counted with none, with a `note`. The supervisor's own CPU is not a run's and is not counted.
 - **How fast a shell starts.** The median of three bare starts of the shell Vigil runs on (`bash`; `powershell.exe` or `pwsh`), and of each shell a job's runner names (`bash`, `sh`, `dash`, `zsh`, `ksh`; `powershell`, `pwsh`, `cmd`): CPU and wall time. Every run starts one. A `WARN` above 1 s. A bash older than 5.0 has no clock finer than a second, so there only CPU is shown and the `WARN` applies to it.
 - **Windows only:**
   - **.NET's native images (NGEN).** Whether Windows PowerShell starts with them (`System.Management.Automation.ni.dll` loaded). Without them every start compiles .NET itself: a `WARN`, with the command to run from an elevated prompt (`ngen.exe executeQueuedItems`, in both Framework folders). `precheck` gives the same finding as a `note`, never a failure.
@@ -1833,12 +1833,12 @@ Only the checks that read nothing but the file run here. Pre-flight's others, on
   - **PowerShell's logging policies.** Script block logging, module logging and transcription, for Windows PowerShell and PowerShell 7: a `note` naming each one set, since each makes every script a run executes cost more.
 
 ```text
-What Vigil costs (each job's last run, and its runs in the last hour)
-  job                        runs    CPU/run   wall/run
-  vigil_sender                 30     1.62 s        1 s
-  base_services                12     3.58 s        4 s
-  base_cpu                     12     3.41 s        4 s
-  ok    Vigil keeps 0.06 of a core busy
+What Vigil's runs cost in the last hour
+  job                        runs        CPU    CPU/run   time/run
+  vigil_sender                360   432.00 s     1.20 s      0.8 s
+  base_cpu                     60   150.60 s     2.51 s      2.4 s
+  base_services                60   142.20 s     2.37 s      2.1 s
+  ok    Vigil's runs keep 0.20 of a core busy
 
 Starting a shell (median of 3)
   ok    powershell.exe: 0.30 CPU s, 0.34 s
@@ -1852,7 +1852,7 @@ doctor: no warnings
 ```
 
 - Exit code 0, or 1 when any line is `WARN`.
-- **What this account cannot read is never missing** (§18.5): a configuration, state or log folder it may not read is a `WARN` naming it, and the checks that need none of them still run. Run it as the service account, or from an elevated prompt for a system install, to see what the service costs.
+- **What this account cannot read is never missing** (§18.5): a configuration or a log folder it may not read is a `WARN` naming it, and the checks that need none of them still run. Run it as the service account, or from an elevated prompt for a system install, to see what the service costs.
 
 ---
 

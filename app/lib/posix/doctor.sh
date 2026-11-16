@@ -18,7 +18,9 @@
 #   vigil_doctor <root>
 #     Prints the report. Returns 1 when any line is WARN, else 0.
 #   vigil_doctor_runs_since <job log dir> <ISO 8601 UTC>
-#     How many runs a job log records as started since then, in _dr_runs.
+#     The runs a job log records as ended since then: _dr_runs, of them
+#     _dr_measured with their CPU, summed in _dr_sum, and their time in
+#     _dr_time (seconds).
 #
 # Requires config.sh, worker.sh, command.sh and fetch.sh.
 
@@ -26,27 +28,21 @@ VIGIL_DOCTOR_SHELLS=' bash sh dash zsh ksh '
 
 vigil_doctor_runs_since() {
     local f
-    _dr_runs=0
+    _dr_runs=0 _dr_measured=0 _dr_sum=0 _dr_time=0
     [ -d "$1" ] || return 0
     # Only the logs written in the last two hours can hold the last hour.
-    for f in $(find "$1" -name '*.log' -mmin -120 2>/dev/null); do
-        # "<ISO> <run id> run start": the ISO times compare as text.
-        _dr_runs=$((_dr_runs + $(awk -v c="$2" 'NF == 4 && $3 == "run" && $4 == "start" && $1 >= c { n++ } END { print n + 0 }' "$f" 2>/dev/null || echo 0)))
-    done
-}
-
-# A value of a state file, in _dr_value: the same key = value format as the
-# configuration (12.2).
-_vigil_dr_state() {
-    local line key
-    _dr_value=''
-    while IFS= read -r line || [ -n "$line" ]; do
-        key=${line%%=*}
-        key=${key%"${key##*[! ]}"}
-        [ "$key" = "$2" ] || continue
-        case $line in *'= '*) _dr_value=${line#*= } ;; *) _dr_value='' ;; esac
-        return 0
-    done < "$1"
+    f=$(find "$1" -name '*.log' -mmin -120 2>/dev/null)
+    [ -n "$f" ] || return 0
+    # "<ISO> <run id> run end <outcome> ... in <n>s, cpu <s>s" (13.1): the
+    # ISO times compare as text.
+    set -- $(printf '%s\n' "$f" | while IFS= read -r f; do cat "$f" 2>/dev/null; done | LC_ALL=C awk -v c="$2" '
+        $3 == "run" && $4 == "end" && $1 >= c {
+            runs++
+            if ($(NF - 1) == "cpu" && $NF ~ /^[0-9]+\.[0-9]+s$/) { measured++; cpu += $NF; time += $(NF - 2) }
+            else time += $NF
+        }
+        END { printf "%d %d %.2f %d\n", runs, measured, cpu, time }')
+    _dr_runs=$1 _dr_measured=$2 _dr_sum=$3 _dr_time=$4
 }
 
 # The CPU this shell's waited-for children have used, in milliseconds, in
@@ -98,7 +94,7 @@ _vigil_dr_shell() {
 }
 
 vigil_doctor() {
-    local root=$1 statedir logdir jobsdir joblogs denied configdenied f job since cutoff
+    local root=$1 statedir logdir joblogs denied configdenied f job since cutoff
     local warn=0 rows='' report tmp shells s i name prog
     local LC_ALL=C
     _vw_root=$root
@@ -117,48 +113,47 @@ vigil_doctor() {
     _vigil_wk_dir vigil state_dir state; statedir=$_vw_dir
     _vigil_wk_dir log dir logs; logdir=$_vw_dir
 
-    printf "What Vigil costs (each job's last run, and its runs in the last hour)\n"
-    jobsdir="$statedir/jobs"
+    # What each run used (cpu_seconds, 12.2), from the run end lines of the
+    # last hour (13.1).
+    printf "What Vigil's runs cost in the last hour\n"
     joblogs="$logdir/jobs"
     denied=$configdenied
-    if [ -n "$denied" ] || denied=$(vigil_denied "$jobsdir") || denied=$(vigil_denied "$joblogs"); then
+    if [ -n "$denied" ] || denied=$(vigil_denied "$joblogs"); then
         printf '  WARN  %s\n' "$(vigil_denied_message "$denied")"
         warn=$((warn + 1))
     else
         _vigil_wk_now
         cutoff=$((_vw_epoch - 3600))
         since=$(date -u -d "@$cutoff" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -r "$cutoff" '+%Y-%m-%dT%H:%M:%SZ')
-        for f in "$jobsdir"/*.state; do
-            [ -f "$f" ] || continue
-            job=${f##*/}
-            job=${job%.state}
-            _vigil_dr_state "$f" cpu_seconds; s=$_dr_value
-            _vigil_dr_state "$f" duration_seconds
+        for f in "$joblogs"/*/; do
+            [ -d "$f" ] || continue
+            job=${f%/}
+            job=${job##*/}
             vigil_doctor_runs_since "$joblogs/$job" "$since"
-            rows="$rows$job ${_dr_runs} ${s:--} ${_dr_value:--}
+            [ "$_dr_runs" -gt 0 ] || continue
+            rows="$rows$job $_dr_runs $_dr_measured $_dr_sum $_dr_time
 "
         done
         if [ -z "$rows" ]; then
-            printf '  note  no runs recorded yet\n'
+            printf '  note  no runs in the last hour\n'
         else
-            # Sorted by what each job costs in the hour, most first. awk
+            # Sorted by what each job cost in the hour, most first. awk
             # does the arithmetic: bash has no fractions.
-            report=$(printf '%s' "$rows" | awk '
-                { cost = ($3 == "-") ? 0 : $2 * $3; print cost, $0 }' | sort -k1,1nr -k2,2 | awk '
-                BEGIN { printf "  %-24s %6s %10s %10s\n", "job", "runs", "CPU/run", "wall/run" }
+            report=$(printf '%s' "$rows" | sort -k4,4nr -k1,1 | awk '
+                BEGIN { printf "  %-24s %6s %10s %10s %10s\n", "job", "runs", "CPU", "CPU/run", "time/run" }
                 {
-                    cpu = ($4 == "-") ? "-" : sprintf("%.2f s", $4)
-                    wall = ($5 == "-") ? "-" : $5 " s"
-                    printf "  %-24s %6d %10s %10s\n", $2, $3, cpu, wall
-                    cores += $1 / 3600
-                    if ($4 == "-") unknown++
+                    cpu = $3 ? sprintf("%.2f s", $4) : "-"
+                    per = $3 ? sprintf("%.2f s", $4 / $3) : "-"
+                    printf "  %-24s %6d %10s %10s %10s\n", $1, $2, cpu, per, sprintf("%.1f s", $5 / $2)
+                    cores += $4 / 3600
+                    unknown += $2 - $3
                 }
                 END {
-                    busy = sprintf("Vigil keeps %.2f of a core busy", cores)
+                    busy = sprintf("Vigil'\''s runs keep %.2f of a core busy", cores)
                     if (cores > 0.5) printf "  WARN  %s, above half of one: the jobs above cost the most\n", busy
                     else if (cores > 0.25) printf "  note  %s, above a quarter of one\n", busy
                     else printf "  ok    %s\n", busy
-                    if (unknown) printf "  note  %d job(s) show no CPU: their last run was before Vigil recorded it\n", unknown
+                    if (unknown) printf "  note  %d run(s) show no CPU: they ended before Vigil recorded it\n", unknown
                 }')
             printf '%s\n' "$report"
             case $report in *'  WARN  '*) warn=$((warn + 1)) ;; esac

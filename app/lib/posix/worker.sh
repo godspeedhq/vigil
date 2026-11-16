@@ -356,9 +356,9 @@ _vigil_wk_internal() {
     _vigil_wk_set cpu_seconds "$_vw_cpu"
     _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
     if [ -n "$_vw_reason" ]; then
-        _vigil_wk_log "$rid run end $status ($_vw_reason) in $((_vw_epoch - started))s"
+        _vigil_wk_log "$rid run end $status ($_vw_reason) in $((_vw_epoch - started))s, cpu ${_vw_cpu}s"
     else
-        _vigil_wk_log "$rid run end $status in $((_vw_epoch - started))s"
+        _vigil_wk_log "$rid run end $status in $((_vw_epoch - started))s, cpu ${_vw_cpu}s"
     fi
     exec 9<&-
     rm -f "$token"
@@ -621,9 +621,9 @@ vigil_worker() {
     _vigil_wk_set spool_file "$stem"
     _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
     if [ -n "$reason" ]; then
-        _vigil_wk_log "$rid run end $outcome ($reason) in ${duration}s"
+        _vigil_wk_log "$rid run end $outcome ($reason) in ${duration}s, cpu ${_vw_cpu}s"
     else
-        _vigil_wk_log "$rid run end $outcome in ${duration}s"
+        _vigil_wk_log "$rid run end $outcome in ${duration}s, cpu ${_vw_cpu}s"
     fi
     rm -f "$out" "$err" "$_vw_statedir/locks/$_vw_job.$rid.timeout"
 

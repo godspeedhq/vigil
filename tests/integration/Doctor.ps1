@@ -15,8 +15,8 @@
     and "vigil doctor" (16.7) on Windows.
 .DESCRIPTION
     Builds a throwaway install root, runs a job that does work, and checks
-    its state and what doctor reports: its cost, the cores Vigil keeps busy
-    (ok, and WARN from a made-up history), the shell start, a state folder
+    its state and what doctor reports: its cost, the cores its runs keep busy
+    (ok, and WARN from a made-up history), the shell start, a log folder
     no one may read, a root with no runs, and the Windows checks. .NET's
     native images are present on CI's runners, so their absence is tested
     with the stand-in of 22.4.6, in doctor (WARN) and in precheck (a note).
@@ -71,6 +71,17 @@ Set-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value @'
 [vigil]
 instance = doctor
 
+[runner.ps]
+command = powershell.exe
+arg     = -NoProfile
+arg     = -NonInteractive
+arg     = -ExecutionPolicy
+arg     = Bypass
+arg     = -File
+
+[runners]
+.ps1 = ps
+
 [job.burn]
 file      = scripts/burn.ps1
 run_every = 5m
@@ -84,7 +95,7 @@ $inv = [System.Globalization.CultureInfo]::InvariantCulture
 Write-Host '== no runs yet'
 $r = Invoke-Vigil @('doctor')
 Test-Equal 'no runs: exit code' '0' "$($r.Code)"
-Test-Line 'no runs: said so' $r.Output '^  note  no runs recorded yet$'
+Test-Line 'no runs: said so' $r.Output '^  note  no runs in the last hour$'
 Test-Line 'no runs: the shell start' $r.Output '^  ok    (powershell|pwsh)\.exe: [0-9]+\.[0-9]{2} CPU s, [0-9]+\.[0-9]{2} s$'
 
 Write-Host '== cpu_seconds'
@@ -94,33 +105,36 @@ Write-Host '== cpu_seconds'
 $cpu = Get-StateValue (Join-Path $root 'state\jobs\burn.state') 'cpu_seconds'
 Test-Equal 'burn: cpu_seconds is a number' 'yes' $(if ($cpu -cmatch '^[0-9]+\.[0-9]{2}$') { 'yes' } else { "$cpu" })
 Test-Equal 'burn: cpu_seconds is not zero' 'yes' $(if ([double]::Parse($cpu, $inv) -gt 0) { 'yes' } else { 'no' })
+$last = @([System.IO.File]::ReadAllLines(@(Get-ChildItem (Join-Path $root 'logs\jobs\burn\*.log'))[0].FullName))[-1]
+Test-Line 'burn: its run end line has it' $last " run end succeeded in [0-9]+s, cpu $([regex]::Escape($cpu))s$"
 Test-Equal 'idle: cpu_seconds recorded' 'yes' $(if ((Get-StateValue (Join-Path $root 'state\jobs\idle.state') 'cpu_seconds') -cmatch '^[0-9]+\.[0-9]{2}$') { 'yes' } else { 'no' })
 
 Write-Host '== doctor'
 $r = Invoke-Vigil @('doctor')
 foreach ($l in ($r.Output.TrimEnd() -split "`r?`n")) { Write-Host "    | $l" }
 Test-Equal 'doctor: exit code' '0' "$($r.Code)"
-Test-Line 'doctor: burn ran twice in the hour' $r.Output "^  burn +2 +$([regex]::Escape($cpu)) s +[0-9]+ s$"
+Test-Line 'doctor: burn ran twice in the hour' $r.Output '^  burn +2 +[0-9]+\.[0-9]{2} s +[0-9]+\.[0-9]{2} s +[0-9]+\.[0-9] s$'
 Test-Line 'doctor: idle ran once' $r.Output '^  idle +1 '
-Test-Line 'doctor: the cores' $r.Output '^  (ok    |note  )Vigil keeps [0-9]\.[0-9]{2} of a core busy'
+Test-Line 'doctor: the cores' $r.Output "^  (ok    |note  )Vigil's runs keep [0-9]\.[0-9]{2} of a core busy"
 Test-Line 'doctor: native images, ok' $r.Output "^  ok    \.NET native images: "
 Test-Line 'doctor: Defender, said' $r.Output '^  (ok    |note  )Defender: '
 Test-Line 'doctor: logging policies, said' $r.Output '^  (ok    |note  )PowerShell logging polic'
 
 Write-Host '== above half a core'
-$jobs = Join-Path $root 'state\jobs'
-Set-Content -LiteralPath (Join-Path $jobs 'heavy.state') -Value "[state]`njob = heavy`ncpu_seconds = 40.50`nduration_seconds = 41"
 $hl = Join-Path $root 'logs\jobs\heavy'
 [void](New-Item -ItemType Directory -Force -Path $hl)
 $now = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ', $inv)
-$lines = @(1..60 | ForEach-Object { "$now r$_ run start" }) + '2020-01-01T00:00:00Z r-old run start'
+# One before Vigil recorded the CPU (counted, without it), and one outside
+# the last hour (not counted).
+$lines = @(1..60 | ForEach-Object { "$now r$_ run end succeeded in 41s, cpu 40.50s" }) + "$now r-before run end failed (exit code 2) in 41s" + '2020-01-01T00:00:00Z r-old run end succeeded in 41s, cpu 40.50s'
 [System.IO.File]::WriteAllLines((Join-Path $hl 'today.log'), [string[]]$lines)
 $r = Invoke-Vigil @('doctor')
 Test-Equal 'heavy: exit code' '1' "$($r.Code)"
-Test-Line 'heavy: first, 60 runs in the hour' $r.Output '^  heavy +60 +40\.50 s +41 s$'
-Test-Line 'heavy: WARN' $r.Output '^  WARN  Vigil keeps 0\.[6-9][0-9] of a core busy, above half of one'
+Test-Line 'heavy: first, 61 runs in the hour' $r.Output '^  heavy +61 +2430\.00 s +40\.50 s +41\.0 s$'
+Test-Line 'heavy: WARN' $r.Output "^  WARN  Vigil's runs keep 0\.6[78] of a core busy, above half of one"
+Test-Line 'heavy: the run without CPU' $r.Output '^  note  1 run\(s\) show no CPU'
 Test-Line 'heavy: the summary' $r.Output '^doctor: 1 warning\(s\)$'
-Remove-Item -Force (Join-Path $jobs 'heavy.state'); Remove-Item -Recurse -Force $hl
+Remove-Item -Recurse -Force $hl
 
 Write-Host '== without native images (the stand-in, 22.4.6)'
 $env:VIGIL_TEST_NGEN_MISSING = '1'
@@ -136,7 +150,8 @@ finally { Remove-Item Env:VIGIL_TEST_NGEN_MISSING }
 $r = Invoke-Vigil @('precheck')
 Test-Equal 'ngen: no precheck note with native images' '0' "$(@($r.Output -split "`r?`n" | Where-Object { $_ -cmatch 'native images' }).Count)"
 
-Write-Host '== a state folder no one may read'
+Write-Host '== a log folder no one may read'
+$jobs = Join-Path $root 'logs\jobs'
 [void](& icacls.exe $jobs /deny '*S-1-1-0:(OI)(CI)(RD,RA,REA)' 2>&1)
 try { $r = Invoke-Vigil @('doctor') }
 finally { [void](& icacls.exe $jobs /remove:d '*S-1-1-0' 2>&1) }

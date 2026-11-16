@@ -652,7 +652,7 @@ function Invoke-VigilWorker {
         $state.cpu_seconds = Get-VigilRunCpu
         Write-VigilStateFile -Path $statePath -Fields $state
         $why = if ($r.Reason) { " ($($r.Reason))" } else { '' }
-        [System.IO.File]::AppendAllText($log, "$($now.Iso) $RunId run end $status$why in ${duration}s`r`n")
+        [System.IO.File]::AppendAllText($log, "$($now.Iso) $RunId run end $status$why in ${duration}s, cpu $($state.cpu_seconds)s`r`n")
         $tokenStream.Dispose()
         # A process the job left running may still hold it: then the supervisor
         # removes it once that process lets go.
@@ -835,8 +835,9 @@ function Invoke-VigilWorker {
     try {
         Write-VigilJobLines -Path $out -Encoding (New-Object System.Text.UTF8Encoding $false) -Prefix "$($now.Iso) $RunId out" -Writer $writer
         Write-VigilJobLines -Path $rawErr -Encoding $errEncoding -Prefix "$($now.Iso) $RunId err" -Writer $writer
-        if ($reason) { $writer.Write("$($now.Iso) $RunId run end $outcome ($reason) in ${duration}s`r`n") }
-        else { $writer.Write("$($now.Iso) $RunId run end $outcome in ${duration}s`r`n") }
+        $cpu = ", cpu $($state.cpu_seconds)s"
+        if ($reason) { $writer.Write("$($now.Iso) $RunId run end $outcome ($reason) in ${duration}s$cpu`r`n") }
+        else { $writer.Write("$($now.Iso) $RunId run end $outcome in ${duration}s$cpu`r`n") }
     }
     finally { $writer.Dispose() }
     foreach ($f in @($out, $rawOut, $rawErr)) { if ([System.IO.File]::Exists($f)) { [System.IO.File]::Delete($f) } }
