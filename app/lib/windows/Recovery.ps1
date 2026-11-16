@@ -43,6 +43,11 @@ function Get-VigilRecoveryConclusion {
     # leaves nothing to account for.
     if ($Token -ceq 'none' -and ($State -ceq 'final' -or $State -ceq 'missing')) { return 'idle' }
 
+    # A held token is a process alive now, in this boot, whatever the boot
+    # id says: on macOS and Windows the boot id is the boot time, which
+    # moves when the clock is set (backlog 54).
+    if ($Token -ceq 'held') { return 'alive' }
+
     # Nothing from an earlier boot can still be alive.
     if ($Boot -ceq 'changed') {
         if ($State -ceq 'final' -or $Spool -ceq 'yes') { return 'finished' }

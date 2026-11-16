@@ -962,7 +962,7 @@ Each run leaves several independent pieces of evidence. Losing one does not lose
 | Evidence | Where | What it proves |
 | --- | --- | --- |
 | **State file** | `state/jobs/<job id>.state` | What the worker last recorded: run id, PIDs, names, start times, boot id, deadline. Useful, but only as trustworthy as the file. |
-| **Boot id** | In the state file; compared with the running system's | A run recorded during a previous boot is certainly over — every process in it died with the reboot. |
+| **Boot id** | In the state file; compared with the running system's | A run recorded during a previous boot is over — every process in it died with the reboot — unless its token is held: a held token is a process alive now, so it wins over the boot id. |
 | **Launch record** | `state/locks/<job id>.<run id>.launch`, written by the supervisor before the worker starts | A run was launched. Until it is claimed, the run is *launching*: it may be starting, so the job is held (§11.3). |
 | **Run token** | `state/locks/<job id>.<run id>.token`, created by the worker's claim and held open by it | Held open means alive. The OS releases it however the process dies, so a token that exists but is not held proves its worker has gone. |
 | **Run id on the command line** | The worker's `--run-id` argument | A process whose command line carries this run id is this run's worker. A reused PID belongs to a process with a different command line, so it can never match. |
@@ -970,7 +970,7 @@ Each run leaves several independent pieces of evidence. Losing one does not lose
 | **Process identity** | PID + process name + start time | Supporting evidence; never sufficient alone (VIGIL-007). |
 | **Spool file** | `spool/…-<job id>-<run id>.events`, written before the final state | The run finished, and how — even if its final state was never written. |
 
-Boot id sources: `/proc/sys/kernel/random/boot_id` on Linux, `sysctl kern.boottime` on macOS, the last boot time on Windows.
+Boot id sources: `/proc/sys/kernel/random/boot_id` on Linux, `sysctl kern.boottime` on macOS, the last boot time on Windows. The last two are the boot time in seconds, which both kernels give as now minus the uptime: setting the clock moves it, and on macOS it drifts by milliseconds as the clock is corrected, so it can cross a second without a reboot. That is why a held token is checked first (backlog 54: a live run concluded crashed, and its job started again beside it).
 
 ### 11.2 How Evidence Is Read
 
@@ -1002,8 +1002,8 @@ Each tick, for each job, the supervisor gathers the evidence and reaches exactly
 | --- | --- | --- |
 | **Alive** | Run token held, or a process carrying the run id is running | Treat as running. Post `.running`. Never start another run (overlap policy applies). Enforce `max_runtime` only when ownership is proven (§11.5). |
 | **Orphaned** | Worker gone, but a job process of the run is still alive | As Alive: no replacement while it runs. Reported as `ORPHANED`. |
-| **Finished** | Boot id changed; or no token held, no process carrying the run id, and a terminal state or spool file shows the outcome | Record the outcome (reconciled from the spool if the state is unreadable), then schedule normally. |
-| **Crashed** | Boot id changed, or no token held and no process carrying the run id, and no outcome anywhere | Record `crashed`, post `.crashes`, schedule at the next scheduled time (§7.7). Never treated as success (VIGIL-006). |
+| **Finished** | No token held, and the boot id changed; or no token held, no process carrying the run id, and a terminal state or spool file shows the outcome | Record the outcome (reconciled from the spool if the state is unreadable), then schedule normally. |
+| **Crashed** | No token held, and the boot id changed or no process carrying the run id, and no outcome anywhere | Record `crashed`, post `.crashes`, schedule at the next scheduled time (§7.7). Never treated as success (VIGIL-006). |
 | **Uncertain** | The evidence conflicts or cannot be read (permission denied, a probe failed, identity partly matches) | Do not kill. Do not replace (unless `on_uncertain = replace`, §11.4). Report every tick until resolved. |
 
 Applying the table to damaged or absent state:

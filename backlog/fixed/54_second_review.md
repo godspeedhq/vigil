@@ -81,3 +81,49 @@ its uptime away.
   console.
 - Item 3 is reproduced or not, on Windows and macOS, and fixed if it is.
 - Item 5 is in the specification and the README.
+
+## Built (2026-11-16)
+
+**1. The system root's owner** (#171). `install.ps1` and `Set-VigilRootAcl`
+refuse a root whose owner is not SYSTEM, Administrators, TrustedInstaller,
+the installing account or a member of Administrators, and put nothing in it.
+They replace its ACL every time, keeping only read-only entries on the root
+itself (an `-UpdateBy` account's). `Install.ps1`'s elevated section, which
+CI's Windows runners run, plants a root owned by Users and locked to it
+(refused, nothing installed), and one locked with a write entry for
+Authenticated Users (installed, the write entry gone, a read-only one kept).
+
+**2. Doctor's reads** (#171). Job logs are read shared for writing, as the
+log forwarder reads them. `Doctor.ps1` runs 20 jobs while doctor's reader
+loops on their log: on main's doctor, 20 of 21 `run end` lines; now all 21.
+A log doctor cannot read is named with a `WARN`, on both platforms.
+
+**3. Boot ids.** Reproduced on the Mac (macOS 12.7.6), in a scratch Vigil as
+vigil-test, without touching the clock: the live run's recorded boot id was
+set 300 s ahead, as a clock step makes it:
+
+```text
+19:36:00Z INFO supervisor job long: run 20261116T193600Z-32434-291 started
+19:36:35Z WARN supervisor job long: run 20261116T193600Z-32434-291 crashed: worker vanished without an outcome
+19:37:00Z INFO supervisor job long: run 20261116T193700Z-32434-304 started
+== sleep 240 processes (live runs):
+   91591 sleep 240
+   94124 sleep 240
+```
+
+Run 291 held its token and its job ran on; it was concluded crashed, its
+token deleted, and run 304 started beside it: two runs of one job at once.
+And a step is not needed: `kern.boottime` read `{ sec = 1790391290, usec =
+821970 }`, then `usec = 881703` an hour later, with no reboot, as the clock
+was corrected. A boot id of whole seconds can cross a second the same way.
+
+The fix is the order of the evidence: a held token is a process alive now,
+so it is checked before the boot id (`recovery.sh`, `Recovery.ps1`). The
+conformance table's row that said otherwise (`held … changed … crashed`)
+now says `alive`, with an unreadable-state twin; main's code fails it. The
+boot id still decides everything a held token does not.
+
+**4 and 5** (#171): doctor says when the supervisor started less than an
+hour ago, and when a policy or exclusion list is unreadable; the Windows
+worker hashes the bytes it parses; SPECIFICATION.md 4.3, 10.3, 11.1, 11.3,
+12.2, 16.7 and 18, and the README.
