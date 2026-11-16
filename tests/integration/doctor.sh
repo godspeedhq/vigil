@@ -125,6 +125,18 @@ has 'heavy: the run without CPU' "$out" '^  note  1 run\(s\) show no CPU'
 has 'heavy: the summary' "$out" '^doctor: 1 warning\(s\)$'
 rm -rf "$root/logs/jobs/heavy"
 
+echo '== a supervisor started less than an hour ago (backlog 54)'
+mkdir -p "$root/logs/supervisor"
+ago=$(($(date +%s) - 600))
+t=$(date -u -d "@$ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -r "$ago" '+%Y-%m-%dT%H:%M:%SZ')
+printf '2020-01-01T00:00:00Z INFO supervisor supervisor started, pid 1\n%s INFO supervisor supervisor started, pid 2\n' "$t" > "$root/logs/supervisor/today.log"
+out=$(vigil doctor 2>&1)
+has 'recent start: said' "$out" '^  note  the supervisor started 1[01] minute\(s\) ago: the figures above are those minutes of runs, over a full hour$'
+printf '2020-01-01T00:00:00Z INFO supervisor supervisor started, pid 1\n' > "$root/logs/supervisor/today.log"
+out=$(vigil doctor 2>&1)
+check 'an old start: nothing said' 0 "$(printf '%s\n' "$out" | grep -c 'the supervisor started')"
+rm -rf "$root/logs/supervisor"
+
 if [ "$(id -u)" != 0 ]; then
     echo '== a log folder this account cannot read'
     chmod 000 "$root/logs/jobs"
@@ -141,6 +153,15 @@ if [ "$(id -u)" != 0 ]; then
     check 'config unreadable: exit code' 1 "$code"
     has 'config unreadable: says which' "$out" "^  WARN  cannot read $root/config/vigil.config from this account"
     has 'config unreadable: the shell start still' "$out" '^  ok    /.*bash: '
+
+    echo '== a job log this account cannot read'
+    log=$(ls "$root"/logs/jobs/burn/*.log | head -n 1)
+    chmod 000 "$log"
+    out=$(vigil doctor 2>&1); code=$?
+    chmod 644 "$log"
+    check 'log unreadable: exit code' 1 "$code"
+    has 'log unreadable: names it' "$out" "^  WARN  cannot read $log: its runs are not counted above\$"
+    has 'log unreadable: the other jobs still' "$out" '^  idle +1 '
 fi
 
 rm -rf "$root"

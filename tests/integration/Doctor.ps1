@@ -136,6 +136,18 @@ Test-Line 'heavy: the run without CPU' $r.Output '^  note  1 run\(s\) show no CP
 Test-Line 'heavy: the summary' $r.Output '^doctor: 1 warning\(s\)$'
 Remove-Item -Recurse -Force $hl
 
+Write-Host '== a supervisor started less than an hour ago (backlog 54)'
+$sl = Join-Path $root 'logs\supervisor'
+[void](New-Item -ItemType Directory -Force -Path $sl)
+$t = [DateTime]::UtcNow.AddSeconds(-600).ToString('yyyy-MM-ddTHH:mm:ssZ', $inv)
+[System.IO.File]::WriteAllLines((Join-Path $sl 'today.log'), [string[]]@('2020-01-01T00:00:00Z INFO supervisor supervisor started, pid 1', "$t INFO supervisor supervisor started, pid 2"))
+$r = Invoke-Vigil @('doctor')
+Test-Line 'recent start: said' $r.Output '^  note  the supervisor started 1[01] minute\(s\) ago: the figures above are those minutes of runs, over a full hour$'
+[System.IO.File]::WriteAllLines((Join-Path $sl 'today.log'), [string[]]@('2020-01-01T00:00:00Z INFO supervisor supervisor started, pid 1'))
+$r = Invoke-Vigil @('doctor')
+Test-Equal 'an old start: nothing said' '0' "$(@($r.Output -split "`r?`n" | Where-Object { $_ -cmatch 'the supervisor started' }).Count)"
+Remove-Item -Recurse -Force $sl
+
 Write-Host '== without native images (the stand-in, 22.4.6)'
 $env:VIGIL_TEST_NGEN_MISSING = '1'
 try {
@@ -149,6 +161,40 @@ try {
 finally { Remove-Item Env:VIGIL_TEST_NGEN_MISSING }
 $r = Invoke-Vigil @('precheck')
 Test-Equal 'ngen: no precheck note with native images' '0' "$(@($r.Output -split "`r?`n" | Where-Object { $_ -cmatch 'native images' }).Count)"
+
+Write-Host '== doctor reading while runs write (backlog 54)'
+# Doctor's reader in a loop, in this process, while runs append to the same
+# log: a reader that allowed only reading made some runs lose their lines.
+$idleDir = Join-Path $root 'logs\jobs\idle'
+$idleLog = @(Get-ChildItem (Join-Path $idleDir '*.log'))[0].FullName
+$ends = { @([System.IO.File]::ReadAllLines($idleLog) | Where-Object { $_ -cmatch ' run end ' }).Count }
+$before = & $ends
+$stopFile = Join-Path $root 'stop-reading'
+$readerPs = [powershell]::Create().AddScript({
+    param($Lib, $Dir, $Stop)
+    . $Lib
+    $n = 0
+    while (-not [System.IO.File]::Exists($Stop)) { $r = Get-VigilRunsSince -Dir $Dir -Since '2000-01-01T00:00:00Z'; $n++ }
+    $n
+}).AddArgument((Join-Path $repo 'app\lib\windows\Doctor.ps1')).AddArgument($idleDir).AddArgument($stopFile)
+$reading = $readerPs.BeginInvoke()
+$runs = 20
+for ($i = 0; $i -lt $runs; $i++) { [void](Invoke-Vigil @('run', 'idle')) }
+[System.IO.File]::WriteAllText($stopFile, '')
+$reads = @($readerPs.EndInvoke($reading))[0]
+$readerPs.Dispose()
+Remove-Item -LiteralPath $stopFile
+Test-Equal 'concurrent: the reader read' 'yes' $(if ($reads -gt $runs) { 'yes' } else { "$reads reads" })
+Test-Equal 'concurrent: every run wrote its run end line' "$($before + $runs)" "$(& $ends)"
+
+Write-Host '== a job log no one may read'
+$burnLog = @(Get-ChildItem (Join-Path $root 'logs\jobs\burn\*.log'))[0].FullName
+[void](& icacls.exe $burnLog /deny '*S-1-1-0:(R)' 2>&1)
+try { $r = Invoke-Vigil @('doctor') }
+finally { [void](& icacls.exe $burnLog /remove:d '*S-1-1-0' 2>&1) }
+Test-Equal 'log unreadable: exit code' '1' "$($r.Code)"
+Test-Line 'log unreadable: names it' $r.Output "^  WARN  cannot read $([regex]::Escape($burnLog)): its runs are not counted above$"
+Test-Line 'log unreadable: the other jobs still' $r.Output '^  idle +[0-9]+ '
 
 Write-Host '== a log folder no one may read'
 $jobs = Join-Path $root 'logs\jobs'

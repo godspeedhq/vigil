@@ -79,7 +79,9 @@ function Get-VigilDeniedMessage {
 }
 
 function ConvertFrom-VigilConfig {
-    param([Parameter(Mandatory = $true)][string]$Path)
+    # -Digest: the result's Sha256 is the digest of the very bytes parsed,
+    # so a caller comparing it never trusts a file replaced in between.
+    param([Parameter(Mandatory = $true)][string]$Path, [switch]$Digest)
 
     $result = [pscustomobject]@{
         Entries  = New-Object 'System.Collections.Generic.List[object]'
@@ -111,6 +113,12 @@ function ConvertFrom-VigilConfig {
     catch {
         & $addError 0 'E_FILE_UNREADABLE' "config file not readable: $Path"
         return $result
+    }
+    if ($Digest) {
+        $h = [System.Security.Cryptography.SHA256]::Create()
+        try { $sum = ([System.BitConverter]::ToString($h.ComputeHash($bytes)) -replace '-', '').ToLowerInvariant() }
+        finally { $h.Dispose() }
+        $result | Add-Member -NotePropertyName Sha256 -NotePropertyValue $sum
     }
 
     if ($bytes.Length -gt $Script:VigilConfigMaxBytes) {

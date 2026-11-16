@@ -186,6 +186,39 @@ else {
     [void](Invoke-Script (Join-Path $root 'app\vigil.ps1') @('uninstall', '--yes'))
     for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $root); $i++) { Start-Sleep -Milliseconds 500 }
     Test-Equal 'system, no service: the PATH entry is gone' 'False' (Test-OnPath (Join-Path $root 'app\bin') 'Machine')
+
+    # A root made before Vigil by someone else (backlog 54): C:\ProgramData
+    # lets any user create a folder. One owned by an untrusted account (here
+    # the Users group, as a standard user would be), locked to it, is refused,
+    # and nothing is put in it.
+    $root = Join-Path $work 'sysroot-planted'
+    [void](New-Item -ItemType Directory -Path $root)
+    [void](& icacls.exe $root /inheritance:r /grant:r '*S-1-5-32-545:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' 2>&1)
+    [void](& icacls.exe $root /setowner '*S-1-5-32-545' 2>&1)
+    Test-Equal 'planted root: owned by Users for the test' 'S-1-5-32-545' (Get-Acl -LiteralPath $root).GetOwner([Security.Principal.SecurityIdentifier]).Value
+    $rc = Invoke-Script $installer @('-System', '-Prefix', $root, '-Archive', $a1, '-Instance', 'it-planted', '-NoService')
+    Test-Equal 'planted root: refused' '1' "$rc"
+    # An error is wrapped at the console's width, even mid-word, and
+    # PowerShell 7 colours it and starts each wrapped line with "|": matched
+    # with the colours, the bars, every space and line break taken out.
+    $flat = $script:lastOut -replace "$([char]27)\[[0-9;]*m", '' -replace '[\s|]', ''
+    $said = $flat -match 'isownedby[^,]+,notbySYSTEMoranadministrator:whoeverownsitcanchangewhatVigilrunsasSYSTEM'
+    Test-Equal 'planted root: says who owns it' 'True' "$said"
+    if (-not $said) { Write-Host $script:lastOut }
+    Test-Equal 'planted root: nothing installed' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'app'))"
+    [void](& icacls.exe $root /setowner '*S-1-5-32-544' 2>&1)
+
+    # Owned by Administrators but locked with a write entry for others: the
+    # ACL is replaced, keeping only read-only entries.
+    [void](& icacls.exe $root /grant:r '*S-1-5-32-545:(RX)' 2>&1)
+    [void](& icacls.exe $root /grant '*S-1-5-11:(OI)(CI)(M)' 2>&1)
+    $rc = Invoke-Script $installer @('-System', '-Prefix', $root, '-Archive', $a1, '-Instance', 'it-planted', '-NoService')
+    Test-Equal 'locked root: install succeeds' '0' "$rc"
+    if ($rc -ne 0) { Write-Host $script:lastOut }
+    $rules = @((Get-Acl -LiteralPath $root).GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier]) | ForEach-Object { "$($_.IdentityReference.Value)=$($_.FileSystemRights)" } | Sort-Object) -join ' '
+    Test-Equal 'locked root: only SYSTEM and Administrators may write' 'S-1-5-18=FullControl S-1-5-32-544=FullControl S-1-5-32-545=ReadAndExecute, Synchronize' $rules
+    [void](Invoke-Script (Join-Path $root 'app\vigil.ps1') @('uninstall', '--yes'))
+    for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $root); $i++) { Start-Sleep -Milliseconds 500 }
 }
 
 Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue

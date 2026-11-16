@@ -186,6 +186,8 @@ vigil about      # the version, and where Vigil is installed
 
 Then turn on what you need: `vigil pack list` shows the [packs](#packs), and [Writing jobs](#writing-jobs) adds your own scripts.
 
+Run `vigil precheck` after every edit to the configuration. A running Vigil rejects a bad edit and keeps the last good configuration, but one that starts (after a reboot, say) with a bad file stops and says why, until the file is fixed.
+
 ### Installer options
 
 | `install.sh` | `install.ps1` | |

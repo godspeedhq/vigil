@@ -514,12 +514,12 @@ function Get-VigilWorkerContext {
         }
     }
     if ($config) {
-        $sha = ''
-        if ($configSha) { try { $sha = Get-VigilFileSha $config } catch { } }
-        $parsed = ConvertFrom-VigilConfig -Path $config
+        # The digest is of the bytes parsed, read once: a file replaced
+        # between a hash and a parse could not pass for the one validated.
+        $parsed = ConvertFrom-VigilConfig -Path $config -Digest
         # Not what the supervisor validated (a newer valid configuration
         # was kept since the launch): validated here.
-        if (-not $configSha -or $sha -cne $configSha) { $records = Test-VigilConfig -Parsed $parsed }
+        if (-not $configSha -or $parsed.Sha256 -cne $configSha) { $records = Test-VigilConfig -Parsed $parsed }
         if ($parsed.Errors.Count -gt 0 -or @($records | Where-Object { $_.Kind -ceq 'ERROR' }).Count -gt 0) {
             if ($fetch) { return @{ Error = "the active configuration $config cannot be read" } }
             return @{ Error = "the configuration $config cannot be read" }
