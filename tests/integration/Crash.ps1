@@ -152,6 +152,16 @@ Test-Equal '21: the worker claimed and ran the job' '1' "$(Get-MarkCount $rid)"
 Wait-Ticking 30 { -not (Get-Locks 'mark') }
 Test-Equal '21: run once, never beside itself' '1|' "$(Get-MarkCount $rid)|$(Get-Overlap)"
 Test-Equal '21: and recorded' 'succeeded' (Get-StateValue "$root\state\jobs\mark.state" 'status')
+if ((Get-MarkCount $rid) -ne 1) {
+    # What became of the worker the crashed supervisor started.
+    Write-Host "`n21: run $rid, exit code $code; marks: $((Get-Marks) -join ' ')"
+    Write-Host "locks now: $(Get-Locks 'mark')"
+    $sl = (Get-ChildItem -LiteralPath "$root\logs\supervisor" -Filter '2*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+    ($sl -split "`n" | Where-Object { $_.Contains($rid) }) | ForEach-Object { Write-Host "  supervisor: $($_.Trim())" }
+    Get-ChildItem -LiteralPath "$root\logs\jobs\mark" -Filter '*.log' -ErrorAction SilentlyContinue | ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) } |
+        Where-Object { $_.Contains($rid) } | ForEach-Object { Write-Host "  job log: $_" }
+    Write-Host "  mark.state: $((Get-Content -LiteralPath "$root\state\jobs\mark.state" -ErrorAction SilentlyContinue) -join ' | ')"
+}
 $boot = Get-StateValue "$root\state\jobs\mark.state" 'boot_id'
 
 # 22. worker.before_claim held past the grace: a process carries the run id,
