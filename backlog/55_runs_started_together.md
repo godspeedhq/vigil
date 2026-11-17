@@ -63,6 +63,12 @@ together, so it helps less than A.
 then measure again, together and alone. Add C if the five-minute ticks
 still stand out. A only if you decide to change VIGIL-002.
 
+## Decided (2026-11-17)
+
+**B and C.** Build the smaller worker, and spread the base pack's
+five-minute jobs across the five minutes. VIGIL-002 stays as it is: no
+run is delayed.
+
 ## Done when
 
 - The decision is recorded here.
