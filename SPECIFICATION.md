@@ -153,8 +153,6 @@ If the claim fails because the launch record is gone, the supervisor has abandon
 
 On Windows, where every run is a fresh PowerShell process and validating costs it more than a second, the record also carries `config_sha256`, the digest of that file as the supervisor validated it: a worker whose file still has that digest does not validate it again. The Windows worker also takes the boot id from the launch record rather than working it out again. Linux and macOS validate the file and read the boot id themselves, which costs little there.
 
-A Windows launch record also carries the run itself, resolved by the supervisor from that configuration, in a `[run]` section: the program (a bare name already found on `PATH`), its command line, working directory and file, `exit_codes`, `max_runtime`, `env` and `require_env` lines, the instance, metric name and tags, and the log and spool directories. A worker with one does not read the configuration at all, so the run is exactly as launched, even when a newer valid configuration is saved before it starts. There is none, and the worker reads the configuration as above, for Vigil's own workers, a job with a `secret` (the stores' settings are in the configuration), a command that cannot be built or found, and a launch whose configuration has no `config_sha256`. So a secret is never in a launch record.
-
 The worker then:
 
 1. Holds its run token open for its whole life (§11.2).
