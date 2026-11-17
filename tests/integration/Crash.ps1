@@ -143,11 +143,18 @@ Test-Equal '20: past its grace, abandoned' '' (Get-Locks 'mark')
 Test-Equal '20: and never run' '0' "$(Get-MarkCount $rid)"
 
 # 21. launch.after_spawn: the worker started, then the supervisor crashed.
+# One crash only, and the run found by its mark, not its lock: a fast worker
+# can be done before a lock is looked for.
 Invoke-Settle
-Invoke-FaultTick @{ VIGIL_FAULT = 'launch.after_spawn' }
+$before = @(Get-Marks)
+$code = Invoke-Once @{ VIGIL_FAULT = 'launch.after_spawn' }
 Set-Config '3650d'
 Test-Equal '21: the supervisor crashed after the spawn' '99' "$code"
-for ($i = 0; $i -lt 60 -and (Get-MarkCount $rid) -eq 0; $i++) { Start-Sleep -Milliseconds 500 }
+$rid = ''
+for ($i = 0; $i -lt 60 -and -not $rid; $i++) {
+    Start-Sleep -Milliseconds 500
+    $rid = @(Get-Marks | Where-Object { $before -cnotcontains $_ })[0]
+}
 Test-Equal '21: the worker claimed and ran the job' '1' "$(Get-MarkCount $rid)"
 Wait-Ticking 30 { -not (Get-Locks 'mark') }
 Test-Equal '21: run once, never beside itself' '1|' "$(Get-MarkCount $rid)|$(Get-Overlap)"

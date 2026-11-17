@@ -147,13 +147,22 @@ check "20: past its grace, abandoned" "" "$(locks mark)"
 check "20: and never run" no "$(marks | grep -qx "$rid" && echo yes || echo no)"
 
 # 21. launch.after_spawn: the worker started, then the supervisor crashed.
+# One crash only, and the run found by its mark, not its lock: a fast worker
+# can be done before a lock is looked for.
 settle
-fault_tick VIGIL_FAULT=launch.after_spawn
+before=$(marks)
+VIGIL_FAULT=launch.after_spawn vigil supervise --once > /dev/null 2>&1
+code=$?
 config 3650d
 check "21: the supervisor crashed after the spawn" 99 "$code"
-i=0
-while ! marks | grep -qx "$rid" && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
-check "21: the worker claimed and ran the job" yes "$(marks | grep -qx "$rid" && echo yes || echo no)"
+i=0 rid=''
+while [ -z "$rid" ] && [ "$i" -lt 40 ]; do
+    sleep 0.5
+    rid=$(marks | grep -vxF -e "$before" -e '' | head -n 1)
+    [ -n "$before" ] || rid=$(marks | head -n 1)
+    i=$((i + 1))
+done
+check "21: the worker claimed and ran the job" yes "$([ -n "$rid" ] && echo yes || echo no)"
 tick_until 20 no_mark_lock > /dev/null
 check "21: run once, never beside itself" "1|" "$(marks | grep -cx "$rid")|$(cat "$root/overlap" 2>/dev/null)"
 check "21: and recorded" succeeded "$(state_value "$root/state/jobs/mark.state" status)"
