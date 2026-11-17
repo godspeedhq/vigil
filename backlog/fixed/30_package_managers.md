@@ -322,3 +322,16 @@ Where it differs from the proposal above:
   and Windows, and the tests cover it.
 - Each step in the table is ticked: released, and installed, upgraded and
   removed on a clean machine.
+
+## Closed (2026-11-17)
+
+Every format in scope is built, released and installed on a clean machine:
+the `.deb` and `.rpm` (0.5.0), Homebrew and Scoop (0.5.1), and the MacPorts
+port (tested on the Intel Mac, and in CI on every change). The one thing
+left is outside this repository: MacPorts accepting the port.
+[macports/macports-ports#36486](https://github.com/macports/macports-ports/pull/36486)
+was opened from the owner's account on 2026-11-08, updated to 0.7.0, and on
+this date has no review, comments or checks yet. When a reviewer answers,
+the owner updates it to the current release with `tools/release/portfile.sh`
+(a new commit, never a force-push). Step 3's box stays unticked until it is
+merged; the MSI and winget stay with backlog 33.
