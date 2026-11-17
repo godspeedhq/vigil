@@ -124,3 +124,14 @@ with.
   on the laptop) and on the Windows test machines over SSH, and the
   numbers go in this file.
 - The whole test suite passes on Linux, macOS and Windows.
+
+## Reverted (2026-11-17): the smaller worker
+
+The `[run]` section (B) is taken out again, on the owner's decision. It
+saved 12 to 17% of a run's CPU, far less than the 40% estimated, and it
+gave a Windows worker a second way to get its settings: every job setting
+would have had to be added in two places, and a difference between them
+would be a quiet bug. Vigil stays simple. The base pack's spread schedule
+(C) stays: it is a pack change only. Released in 0.10.1, so 0.10.2 or later
+goes back to one path; a launch record with a `[run]` section from 0.10.1
+is read as any other, its section ignored.

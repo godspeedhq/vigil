@@ -399,9 +399,8 @@ function Get-VigilConfigValue {
 # next in sequence once it has reached [log] max_file_mb (13.1). Log files
 # are never truncated or renamed.
 function Get-VigilLogFile {
-    param($Parsed, [string]$Dir, [string]$Day, [string]$MaxMb)
-    if (-not $MaxMb) { $MaxMb = Get-VigilConfigValue $Parsed 'log' 'max_file_mb' '50' }
-    $max = [long]$MaxMb * 1048576
+    param($Parsed, [string]$Dir, [string]$Day)
+    $max = [long](Get-VigilConfigValue $Parsed 'log' 'max_file_mb' '50') * 1048576
     $n = 0
     $f = Join-Path $Dir "$Day.log"
     while ([System.IO.File]::Exists((Join-Path $Dir "$Day.$($n + 1).log"))) {
@@ -493,42 +492,13 @@ function Get-VigilWorkerContext {
     $configSha = ''
     $script = ''
     $boot = ''
-    $run = $null
     $launch = Join-Path $state "locks\$Job.$RunId.launch"
     if ($RunId -and [System.IO.File]::Exists($launch)) {
-        $section = 'launch'
         foreach ($l in [System.IO.File]::ReadAllLines($launch)) {
-            if ($l -cmatch '^\[(\w+)\]$') {
-                $section = $Matches[1]
-                if ($section -ceq 'run') { $run = @{ env = @(); require_env = @(); tag = @() } }
-                continue
-            }
-            if ($section -ceq 'run') {
-                if ($l -cmatch '^(\w+) += ?(.*)$') {
-                    if ($run.ContainsKey($Matches[1]) -and $run[$Matches[1]] -is [array]) { $run[$Matches[1]] += $Matches[2] }
-                    else { $run[$Matches[1]] = $Matches[2] }
-                }
-                continue
-            }
             if ($l -cmatch '^config +=( (.*))?$') { $config = $Matches[2] }
             elseif ($l -cmatch '^config_sha256 +=( (.*))?$') { $configSha = $Matches[2] }
             elseif ($l -cmatch '^script +=( (.*))?$') { $script = $Matches[2] }
             elseif ($l -cmatch '^boot_id +=( (.*))?$') { $boot = $Matches[2] }
-        }
-    }
-    # The supervisor resolved the run (Format-VigilRunSection): the
-    # configuration it validated is not read again.
-    if ($run -and $run.program -and @('vigil_sender', 'vigil_fetch', 'vigil_logs', 'vigil_update') -cnotcontains $Job) {
-        return @{
-            Error  = ''
-            Parsed = $local
-            State  = $state
-            Logs   = $run.log_dir
-            Spool  = $run.spool_dir
-            Config = ''
-            Script = $script
-            Boot   = $boot
-            Run    = $run
         }
     }
     if ($Job -ceq 'vigil_fetch') { $config = '' }
@@ -585,53 +555,6 @@ function Get-VigilWorkerContext {
         Script = $script
         Boot   = $boot
     }
-}
-
-# What a job's run needs, resolved by the supervisor from the configuration
-# it validated, as the launch's [run] section (4.3): the worker then does not
-# read the configuration. Empty, and the worker reads it as before, for
-# Vigil's own workers, a job with a secret (the stores' settings are in the
-# configuration), and a command that cannot be built or found.
-function Format-VigilRunSection {
-    param($Parsed, $Index, [string]$Job, [string]$Root, [string]$Script, [string]$Logs, [string]$Spool)
-    if (@('vigil_sender', 'vigil_fetch', 'vigil_logs', 'vigil_update') -ccontains $Job) { return '' }
-    # A list, returned whole.
-    $eff = Get-VigilEffectiveJob -Index $Index -Id $Job
-    foreach ($row in $eff) { if ($row.Key -ceq 'secret') { return '' } }
-    $cmd = Get-VigilJobCommand -Index $Index -Id $Job -Platform 'windows' -Root $Root -Cached $Script
-    if ($cmd.Error) { return '' }
-    $program = $cmd.Program
-    # A bare name is looked up on PATH now, as the worker would.
-    if (-not $program.Contains('\')) {
-        $found = @(Get-Command $program -CommandType Application -ErrorAction SilentlyContinue)
-        if ($found.Count -eq 0) { return '' }
-        $program = $found[0].Source
-    }
-    $file = if ($Script) { $Script } else { Resolve-VigilPath -Path (Get-VigilIndexValue -Index $Index -Section "job.$Job" -Key 'file').Value -Platform 'windows' -Root $Root }
-    $sb = New-Object System.Text.StringBuilder
-    $add = { param($k, $v) [void]$sb.Append($k.PadRight(16)).Append('= ').Append($v).Append("`n") }
-    [void]$sb.Append("[run]`n")
-    & $add 'program' $program
-    & $add 'arguments' $cmd.Line
-    & $add 'cwd' $cmd.Cwd
-    & $add 'file' $file
-    & $add 'instance' (Get-VigilConfigValue $Parsed 'vigil' 'instance' 'vigil')
-    & $add 'log_dir' $Logs
-    & $add 'spool_dir' $Spool
-    & $add 'log_max_file_mb' (Get-VigilConfigValue $Parsed 'log' 'max_file_mb' '50')
-    $metric = $Job
-    foreach ($row in $eff) {
-        switch -CaseSensitive ($row.Key) {
-            'exit_codes' { & $add 'exit_codes' $row.Value }
-            'max_runtime' { & $add 'max_runtime' $row.Value }
-            'require_env' { & $add 'require_env' $row.Value }
-            'env' { & $add 'env' $row.Value }
-            'tag' { & $add 'tag' $row.Value }
-            'metric_name' { $metric = $row.Value }
-        }
-    }
-    & $add 'metric_name' $metric
-    return $sb.ToString()
 }
 
 function New-VigilLaunch {
@@ -694,8 +617,7 @@ function Invoke-VigilWorker {
     $jobLogs = Join-Path $ctx.Logs "jobs\$Job"
     $incoming = Join-Path $ctx.Spool 'incoming'
     foreach ($d in @($jobs, $jobLogs, $incoming)) { [void](New-Item -ItemType Directory -Force -Path $d) }
-    $log = Get-VigilLogFile -Parsed $ctx.Parsed -Dir $jobLogs -Day (Get-Date).ToString('yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture) `
-        -MaxMb $(if ($ctx.Run) { $ctx.Run.log_max_file_mb } else { '' })
+    $log = Get-VigilLogFile -Parsed $ctx.Parsed -Dir $jobLogs -Day (Get-Date).ToString('yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
     $statePath = Join-Path $jobs "$Job.state"
     $hostName = $env:COMPUTERNAME.ToLowerInvariant()
     $now = Get-VigilNow
@@ -756,29 +678,21 @@ function Invoke-VigilWorker {
         return @{ Code = $(if ($r.Ok) { 0 } else { 2 }); Outcome = $status; Reason = $r.Reason; Duration = $duration }
     }
 
+    $index = New-VigilConfigIndex -Parsed $ctx.Parsed
+    $eff = Get-VigilEffectiveJob -Index $index -Id $Job
     $exitCodes = 'standard'
     $maxRuntime = ''
     $missing = @()
     $envPairs = @()
     $required = @()
     $secretRows = @()
-    $run = $ctx.Run
-    if ($run) {
-        if ($run.exit_codes) { $exitCodes = $run.exit_codes }
-        if ($run.max_runtime) { $maxRuntime = $run.max_runtime }
-        $required = $run.require_env
-        $envPairs = $run.env
-    }
-    else {
-        $index = New-VigilConfigIndex -Parsed $ctx.Parsed
-        foreach ($row in (Get-VigilEffectiveJob -Index $index -Id $Job)) {
-            switch -CaseSensitive ($row.Key) {
-                'exit_codes' { $exitCodes = $row.Value }
-                'max_runtime' { $maxRuntime = $row.Value }
-                'require_env' { $required += $row.Value }
-                'secret' { $secretRows += $row.Value }
-                'env' { $envPairs += $row.Value }
-            }
+    foreach ($row in $eff) {
+        switch -CaseSensitive ($row.Key) {
+            'exit_codes' { $exitCodes = $row.Value }
+            'max_runtime' { $maxRuntime = $row.Value }
+            'require_env' { $required += $row.Value }
+            'secret' { $secretRows += $row.Value }
+            'env' { $envPairs += $row.Value }
         }
     }
 
@@ -808,7 +722,7 @@ function Invoke-VigilWorker {
         schema_version = 1
         job            = $Job
         run_id         = $RunId
-        instance       = $(if ($run) { $run.instance } else { Get-VigilConfigValue $ctx.Parsed 'vigil' 'instance' 'vigil' })
+        instance       = Get-VigilConfigValue $ctx.Parsed 'vigil' 'instance' 'vigil'
         status         = 'running'
         reason         = ''
         boot_id        = $bootId
@@ -833,16 +747,10 @@ function Invoke-VigilWorker {
     $outEncoding = $null
     $errEncoding = $null
     # A script from a source runs from its cached copy (16.5).
-    if ($run) {
-        $cmd = [pscustomobject]@{ Error = ''; Message = ''; Program = $run.program; Line = $run.arguments; Cwd = $run.cwd }
-        $filePath = $run.file
-    }
-    else {
-        $cmd = Get-VigilJobCommand -Index $index -Id $Job -Platform 'windows' -Root $Root -Cached $ctx.Script
-        $file = (Get-VigilIndexValue -Index $index -Section "job.$Job" -Key 'file').Value
-        $filePath = Resolve-VigilPath -Path $file -Platform 'windows' -Root $Root
-        if ($ctx.Script) { $filePath = $ctx.Script }
-    }
+    $cmd = Get-VigilJobCommand -Index $index -Id $Job -Platform 'windows' -Root $Root -Cached $ctx.Script
+    $file = (Get-VigilIndexValue -Index $index -Section "job.$Job" -Key 'file').Value
+    $filePath = Resolve-VigilPath -Path $file -Platform 'windows' -Root $Root
+    if ($ctx.Script) { $filePath = $ctx.Script }
     if ($cmd.Error) { $reason = $cmd.Message }
     elseif ($secretError) { $reason = $secretError }
     elseif ($missing.Count -gt 0) { $reason = "missing environment variable $($missing -join ' ')" }
@@ -921,14 +829,8 @@ function Invoke-VigilWorker {
     Copy-VigilJobText -Raw $rawOut -Encoding $outEncoding -To $out
 
     $output = ConvertFrom-VigilJobOutput -Mode $mode -Cap $Script:VigilMetricLinesMax -Path $out
-    if ($run) {
-        $events = Get-VigilRunEventLines -Instance $run.instance -Metric $run.metric_name -Tags $run.tag -Id $Job -Epoch "$($now.Epoch)" `
-            -Outcome $outcome -ExitCode $code -Duration "$duration" -HostName $hostName -Os 'windows' -Output $output
-    }
-    else {
-        $events = Get-VigilRunEvents -Parsed $ctx.Parsed -Id $Job -Epoch "$($now.Epoch)" -Outcome $outcome -ExitCode $code `
-            -Duration "$duration" -HostName $hostName -Os 'windows' -Output $output
-    }
+    $events = Get-VigilRunEvents -Parsed $ctx.Parsed -Id $Job -Epoch "$($now.Epoch)" -Outcome $outcome -ExitCode $code `
+        -Duration "$duration" -HostName $hostName -Os 'windows' -Output $output
 
     # Events before the final state (4.3, step 7).
     $stem = "$($now.Epoch)-$Job-$RunId.events"
