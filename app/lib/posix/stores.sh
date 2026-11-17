@@ -309,8 +309,9 @@ _vigil_curl_opt() {
 # One request with curl, with the headers in _vh_headers ("Name: value"
 # each) and, for POST, the body in _vh_body. Sets _vh_status and _vh_resp and
 # returns 0, or returns 1 with _vh_fail set: nocurl, cafile, resolve,
-# connect, timeout, untrusted, tls or other. Only https, except metadata (1): the
-# instance metadata endpoint, plain http and never through a proxy.
+# connect, timeout, untrusted, tls or other. Only https, except with argument 5
+# set: plain http, never through a proxy, for the instance metadata endpoint or
+# a collector on this host (backends.sh).
 _vigil_http_send() {
     local out rc h ca
     local -a opts

@@ -45,15 +45,17 @@
 #       The service's state, then jobs.log.
 #   vigil [--root <dir>] init [empty] [--instance <name>] [--backend file,datadog,otel] [--no-pack]
 #       Writes a starting configuration (19): runners for the shells found
-#       here, the backends, and the base pack's jobs; empty for neither. Asks
-#       for what is not given when run at a terminal. Never overwrites a
+#       here, the backends, and the base pack's jobs; empty for runners only,
+#       with no backend and no pack. Asks for what is not given when run at a
+#       terminal. Never overwrites a
 #       configuration, never asks for a secret value.
 #   vigil [--root <dir>] uninstall [--yes] [--keep-config]
 #       Removes Vigil (18.8): the service, the running workers proven to be
-#       Vigil's, the root (or all but config/ and scripts/) and the command
+#       Vigil's, the root (or all but config/, scripts/ and packs/) and the command
 #       link. Lists what it will remove and asks first, unless --yes.
-#   vigil [--root <dir>] version
-#       The installed version.
+#   vigil [--root <dir>] version [--supervisor]
+#       The installed version; with --supervisor, the version the running
+#       supervisor is on (exit 1 when none is running).
 #   vigil [--root <dir>] about
 #       What Vigil is, who made it and where it runs.
 #   vigil [--root <dir>] self update [--check] [--version <version>]

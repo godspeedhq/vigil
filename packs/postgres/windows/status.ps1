@@ -41,7 +41,7 @@
 
     Requires: Windows PowerShell 5.1 or PowerShell 7, psql and pg_isready
       (PostgreSQL's client tools), and a role with pg_monitor
-    Exit code: 0 on success, server up or down; 1 if psql is missing or the
+    Exit code: 0 on success, server up or down; 1 if psql or pg_isready is missing or the
       server refuses the login or the queries
 .NOTES
     Copyright (c) Bankole Ogundero and the Vigil contributors
@@ -83,7 +83,9 @@ if ($LASTEXITCODE -ne 0) {
     exit 0
 }
 
-# One query, one "name value" row per metric; never this connection's own row.
+# One query, one "name value" row per metric. The longest query and
+# transaction leave out this connection's own row; the connection count
+# includes it.
 $query = @'
 SELECT 'connections', count(*) FROM pg_stat_activity WHERE backend_type = 'client backend'
 UNION ALL SELECT 'max_connections', setting::bigint FROM pg_settings WHERE name = 'max_connections'

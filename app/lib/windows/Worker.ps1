@@ -31,7 +31,7 @@
     held open exclusively for the worker's whole life (11.2).
 
     Requires Config.ps1, Validate.ps1, Effective.ps1, Command.ps1,
-    Outcome.ps1, Metrics.ps1, Events.ps1 and Secrets.ps1.
+    Outcome.ps1, Metrics.ps1, Events.ps1, Secrets.ps1 and Fetch.ps1.
 #>
 
 # Single-line, at most 500 characters (12.2).
@@ -125,7 +125,8 @@ function ConvertTo-VigilEpoch {
 # logon that is not an administrator's: an SSH session, or a scheduled task
 # run without a stored password. Each WMI read below falls back to these,
 # which ask the kernel directly. Compiled once per process, when first
-# needed: only where WMI refused, so an ordinary run never starts the C#
+# needed: where WMI refused, and whenever a process tree is ended
+# (Stop-VigilProcessTree), so an ordinary run never starts the C#
 # compiler. WMI takes seconds to refuse, every time, so once it has, this
 # process does not ask it again.
 # Tests set VIGIL_TEST_NO_WMI=1 to take the kernel's route, as such a
@@ -307,18 +308,14 @@ function Get-VigilProcessInfo {
     return @{ ProcessId = $Id; Name = $name; Created = $g.StartTime; Parent = [VigilNative]::Parent($Id); CommandLine = [VigilNative]::CommandLine($Id) }
 }
 
-# Ends process $Id and every process it started, as taskkill /T /F does.
-# taskkill asks WMI for the tree, so it is refused where WMI is (an SSH
-# session, a task without a stored password: it then cannot end even a
-# process this account may end). The tree is then found from the kernel and
-# ended with Process.Kill, children first. A process counts as a child only
-# if it started after its parent, so a reused pid can never draw an
-# unrelated process in.
 # Ends a process and everything under it, from the root down, with the
-# tree read from the kernel first (backlog 19). taskkill /T ends the
-# children first, so a cmd.exe parent could run its script's next line in
-# between: it is used only when the kernel cannot be asked (dynamic code not
-# allowed), or the root is already gone.
+# tree read from the kernel first (backlog 19). A process counts as a child
+# only if it started after its parent, so a reused pid can never draw an
+# unrelated process in. taskkill /T ends the children first, so a cmd.exe
+# parent could run its script's next line in between; it is also refused
+# where WMI is (an SSH session, a task without a stored password). It is
+# used only when the kernel cannot be asked (dynamic code not allowed), or
+# the root is already gone.
 function Stop-VigilProcessTree {
     param([int]$Id)
     try {

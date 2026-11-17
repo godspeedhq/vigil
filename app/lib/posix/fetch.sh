@@ -29,10 +29,10 @@
 #     configuration file is missing. Sets VIGIL_ACT_CONFIG (the
 #     configuration file), VIGIL_ACT_REVISION, VIGIL_ACT_ORIGIN and, for
 #     each script, VIGIL_ACT_SRC[i], VIGIL_ACT_FILE[i], VIGIL_ACT_ENTRY[i]
-#     and VIGIL_ACT_SHA[i]. Needs _vw_root.
+#     and VIGIL_ACT_SHA[i].
 #   vigil_active_script <source> <file>
 #     The cached copy of a script named by the record read last, in
-#     _va_path. Returns 1 when the record does not name it.
+#     _va_path. Returns 1 when the record does not name it. Needs _vw_root.
 #
 # Each configuration activated is kept as state/configs/<sha256>.config, so
 # deleting the cache never loses the last valid one. The cache is

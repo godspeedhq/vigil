@@ -188,7 +188,8 @@ _vigil_sup_isnum() {
 }
 
 # Reads state file $1. Sets _ss (missing, unreadable, running or final),
-# _ss_status, _ss_run_id, _ss_boot and _ss_started.
+# _ss_status, _ss_run_id, _ss_boot, _ss_started, _ss_deadline, _ss_job_pid
+# and _ss_worker_pid.
 _vigil_sup_read_state() {
     local line key value header=0
     _ss=missing _ss_status='' _ss_run_id='' _ss_boot='' _ss_started='' _ss_deadline='' _ss_job_pid='' _ss_worker_pid=''
@@ -263,8 +264,8 @@ _vigil_sup_spool() {
 }
 
 # Records a concluded run whose worker can no longer write (12.3, VIGIL-005):
-# finished (from its spool file) or crashed. Quarantines an unreadable state
-# file first.
+# finished (from its spool file), timed_out (its .timeout marker is there) or
+# crashed. Quarantines an unreadable state file first.
 _vigil_sup_record() {
     local job=$1 rid=$2 conclusion=$3 why=${4-} path="$_su_statedir/jobs/$1.state"
     if [ "$_ss" = unreadable ]; then
@@ -303,8 +304,9 @@ _vigil_sup_record() {
     _vigil_wk_write_state "$path"
 }
 
-# Accounts for job $1's latest run (11.3). Sets _su_active to running when
-# a run is alive, launching or uncertain, else -.
+# Accounts for job $1's latest run (11.3). Sets _su_active to running when a
+# run is alive or launching, an abandon could not be made, or an uncertain run
+# is held (on_uncertain wait or manual); else - (none, or replace).
 _vigil_sup_account() {
     local job=$1 f rid='' launch='' token='' lstate=none tstate=none boot=same epoch lboot proc=-
     _su_active=-
@@ -1205,8 +1207,9 @@ vigil_supervise() {
         printf 'vigil: another supervisor owns %s\n' "$_su_statedir" >&2
         return 1
     fi
-    # Temporary files a killed supervisor left mid-write (12.3). Only the
-    # supervisor writes these, and it now holds the lock, so none is live.
+    # Temporary files a killed supervisor left mid-write (12.3). The supervisor
+    # writes these, and it now holds the lock. A launch record's may also be
+    # vigil run's, which takes no lock, so one in flight could go with them.
     rm -f "$_su_statedir"/schedule/*.tmp.* "$_su_statedir"/config.valid.tmp.* \
         "$_su_statedir"/locks/*.launch.tmp.* \
         "$_su_logdir"/supervisor/jobs.log.tmp.* "$_su_spooldir"/incoming/*-vigil_supervisor.events.tmp.*

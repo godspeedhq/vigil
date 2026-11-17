@@ -17,7 +17,7 @@ Vigil runs your scripts on a schedule, watches every run from start to finish, a
 
 Vigil runs the work, records the work, and forwards the evidence. Storage, dashboards and alerting stay with the tools built for them.
 
-> **Status: pre-1.0 (v0.6.x).** Scheduling, supervision, recovery, service registration, the installers, self-update, the `file`, Datadog, OTLP and Splunk metrics backends, fetching configuration and scripts from git, https, sftp and local sources, secret stores, and forwarding Vigil's own logs work end to end on Linux, macOS and Windows 11. Windows Server 2016 is partly tested, other Windows Server versions not yet, and other metrics backends are planned, not built. See [What works today](#what-works-today) for what each is tested against.
+> **Status: pre-1.0 (v0.10.x).** Scheduling, supervision, recovery, service registration, the installers, self-update, the `file`, Datadog, OTLP and Splunk metrics backends, fetching configuration and scripts from git, https, sftp and local sources, secret stores, and forwarding Vigil's own logs work end to end on Linux, macOS and Windows 11. Windows Server 2016 to 2025 are tested, with caveats ([Windows](#windows)), and other metrics backends are planned, not built. See [What works today](#what-works-today) for what each is tested against.
 
 ---
 
@@ -251,7 +251,7 @@ vigil service install --user         # starts it at every logon
 
 Homebrew keeps everything else in `$(brew --prefix)/var/vigil`, and Scoop in `~\scoop\persist\vigil`; both write a starting configuration there when there is none, and keep it when Vigil is removed. Update with `brew upgrade vigil` or `scoop update vigil`: a running supervisor picks up the new version by itself. One difference: under `brew services`, stopping the service ends running jobs too, where every other install lets them finish.
 
-[Packages](packaging/README.md) shows each one installing, updating and refusing what it leaves to the package manager, with console output from real machines. MacPorts is written and tested, and waits to go into the MacPorts ports tree ([backlog 30](backlog/30_package_managers.md)); an MSI and winget wait for code signing ([backlog 33](backlog/33_signed_packages.md)).
+[Packages](packaging/README.md) shows each one installing, updating and refusing what it leaves to the package manager, with console output from real machines. MacPorts is written and tested, and waits to go into the MacPorts ports tree ([backlog 30](backlog/fixed/30_package_managers.md)); an MSI and winget wait for code signing ([backlog 33](backlog/33_signed_packages.md)).
 
 ### Remove
 
@@ -344,7 +344,7 @@ Set one of `release_url` and `release_path`, not both. The files are checked the
 
 You can also run Vigil straight from a clone: every command takes `--root` (`-Root` on Windows), the folder holding `config/`, `state/`, `logs/` and so on.
 
-The fastest start is `vigil init`, which writes a commented configuration with runners for the shells it finds, your backends and a sample disk job: `app/vigil --root ~/vigil-demo init` (add `--backend file,datadog` and `--instance <name>` to skip the questions). The steps below build the same thing by hand.
+The fastest start is `vigil init`, which writes a commented configuration with runners for the shells it finds, your backends and the base pack's jobs: `app/vigil --root ~/vigil-demo init` (add `--backend file,datadog` and `--instance <name>` to skip the questions). The steps below build the same thing by hand.
 
 **1. Make a root and a job.**
 
@@ -610,7 +610,7 @@ How each piece is read:
 | Run id on a command line | `/proc/<pid>/cmdline` | `ps -o args=` | `Win32_Process.CommandLine`, or the kernel where WMI refuses |
 | Boot id | `/proc/sys/kernel/random/boot_id` | `sysctl kern.boottime` | the kernel's last boot time |
 
-WMI refuses a network logon that is not an administrator's, such as an SSH session or a scheduled task without a stored password. There Vigil asks the kernel directly for the same facts: a process's name, start time, parent and command line. Only `vigil start` in user mode still needs WMI, to launch the supervisor detached.
+WMI refuses a network logon that is not an administrator's, such as an SSH session or a scheduled task without a stored password. There Vigil asks the kernel directly for the same facts: a process's name, start time, parent and command line. `vigil start` in user mode launches the supervisor detached through WMI, and where WMI refuses, from the kernel too.
 
 ### Recovery: what the supervisor concludes
 
@@ -1117,10 +1117,10 @@ The full reference is in [`SPECIFICATION.md`](SPECIFICATION.md) (§6), and [`tes
 | `vigil service remove` | Unregisters it. Running jobs carry on. |
 | `vigil start` / `stop` / `restart` | Service control. Stopping never stops running jobs. |
 | `vigil status` | The service's state, then `jobs.log`. |
-| `vigil init [--instance <name>] [--backend file,datadog,otel] [--no-sample]` | Writes a starting configuration: runners for the shells found here, the backends with `env:` placeholders, a sample job. Asks for what is not given at a terminal. Never overwrites a configuration, never asks for a secret value. |
+| `vigil init [empty] [--instance <name>] [--backend file,datadog,otel] [--no-pack]` | Writes a starting configuration: runners for the shells found here, the backends with `env:` placeholders, and the base pack's jobs (`--no-pack`: no jobs; `empty`: runners only). Asks for what is not given at a terminal. Never overwrites a configuration, never asks for a secret value. |
 | `vigil uninstall [--yes] [--keep-config]` | Removes Vigil: the service, the running workers proven to be Vigil's (never anything else), the root (or all but `config/` and `scripts/`) and the command link or `PATH` entry. Lists what it will remove and asks first. |
 
-On Linux and macOS the command is `app/vigil`; on Windows it is `app\vigil.ps1`. All take `--root <dir>` (`-Root <dir>` on Windows), defaulting to the folder that contains `app/`.
+On Linux and macOS the command is `app/vigil`; on Windows it is `app\vigil.ps1`. All take `--root <dir>` (`-Root <dir>` on Windows). Without it the root is `VIGIL_ROOT`, else the root a package names (`/opt/vigil` for the `.deb` and `.rpm`), else the folder that contains `app/`.
 
 ---
 

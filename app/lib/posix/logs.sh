@@ -58,7 +58,7 @@ vigil_logs_enabled() {
     [ "$_vw_value" != false ]
 }
 
-# Every forwarded log file: _vl_list, one "<size> <file>" per line, oldest
+# Every forwarded log file: _vl_list, one "<file><TAB><size>" per line, oldest
 # first (by file name, so a day's files sort together). The status file and
 # the forwarder's own log are never forwarded (13.4.2).
 _vigil_logs_list() {

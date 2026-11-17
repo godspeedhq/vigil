@@ -20,8 +20,8 @@
     starts it. The twin of selfupdate.sh.
 
     Get-VigilPackaged -App <app dir>
-        @{ Manager; Upgrade; Root } when a package manager installed this
-        program (app\PACKAGED), else $null.
+        @{ Manager; Upgrade; Root; Service } when a package manager installed
+        this program (app\PACKAGED), else $null.
     Get-VigilVersion -App <app dir>
         "Vigil <version>", or says this is a copy from the repository.
     Get-VigilAbout -Root <dir> -App <app dir>
@@ -38,7 +38,7 @@
         when it is fetched, else the file's. Empty when unset.
     Get-VigilReleaseSource -Root <dir>
         Where releases come from: @{ Base; Mirror; Path; From; Error; Retry;
-        Header }, from [vigil] release_url or release_path when one is set,
+        Header; Denied }, from [vigil] release_url or release_path when one is set,
         else GitHub (18.7). Path is true for a release_path: a folder, copied
         from. Header is the release_url's, its secret resolved; Retry, that
         the Error may pass (a secret that could not be had).
@@ -57,7 +57,8 @@
 
 # app\PACKAGED is written by a package's build (18.6), never by Vigil: the
 # package manager owns this program, so self update leaves it to that, and the
-# root is elsewhere. Lines of key = value: manager, upgrade and root.
+# root is elsewhere. Lines of key = value: manager, upgrade, root and
+# service (how the package starts the service, when it does).
 function Get-VigilPackaged {
     param([string]$App)
     $f = Join-Path $App 'PACKAGED'

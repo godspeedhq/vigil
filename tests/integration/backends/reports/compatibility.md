@@ -41,7 +41,7 @@ How each backend works with Vigil, and what a real test showed. **Grafana LGTM h
 
 ### Secret stores
 
-The secret stores have their own report: [`secrets-compatibility.md`](secrets-compatibility.md). OpenBao and HashiCorp Vault pass on Linux, macOS and Windows; the cloud emulators are not tested yet.
+The secret stores have their own report: [`secrets-compatibility.md`](secrets-compatibility.md). OpenBao and HashiCorp Vault pass on Linux, macOS and Windows; the cloud emulators pass as emulators, and the real clouds are not tested.
 
 **Reading the matrix:**
 - **Not supported** means no route for that signal exists today. For example, Prometheus and Mimir store metrics, not logs; Loki and VictoriaLogs store logs, not metrics.

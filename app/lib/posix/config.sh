@@ -58,8 +58,6 @@ _vigil_cfg_trim() {
     _vigil_cfg_trimmed=$s
 }
 
-# vigil_config_parse <path>
-# Returns 0 when the file parsed without errors, 1 otherwise.
 # Prints what stops this account telling whether $1 is there, and succeeds:
 # $1 itself (a file it may not read, a folder it may not list or enter), or
 # the nearest folder above it that exists and that it may not enter. Fails
@@ -94,6 +92,8 @@ vigil_denied_message() {
     printf 'cannot read %s from this account: run this as the account that installed Vigil (sudo for a system install)' "$1"
 }
 
+# vigil_config_parse <path>
+# Returns 0 when the file parsed without errors, 1 otherwise.
 vigil_config_parse() {
     local path=$1
     # Clear the previous parse's section variables (none on the first parse).

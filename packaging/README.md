@@ -20,7 +20,7 @@ In every case:
 
 ## 🍥🎩 `.deb` and `.rpm`
 
-Both are on each release, beside the archives, and listed in the signed `SHA256SUMS`. They are tested in CI on Debian 13, Ubuntu 24.04, Fedora 43 and 44, and Rocky Linux 9: install, run, upgrade, remove and reinstall, under systemd. The definition is in [`packaging/linux`](https://github.com/godspeedhq/vigil/tree/main/packaging/linux).
+Both are on each release, beside the archives, and listed in the signed `SHA256SUMS`. They are tested in CI on Debian 13, Ubuntu 24.04, Fedora 43 and Rocky Linux 9 (install, run, upgrade, remove and reinstall), and under systemd on the CI runner; the `.rpm` on Fedora 44 by hand, on a test machine. The definition is in [`packaging/linux`](https://github.com/godspeedhq/vigil/tree/main/packaging/linux).
 
 The package creates the `vigil` account, writes a starting configuration, and installs the `vigil` systemd service as `/usr/lib/systemd/system/vigil.service`, which runs as that account.
 
@@ -534,4 +534,4 @@ Both check for a new Vigil release every hour. Before writing anything, each ver
 
 ## 🗺️ Next
 
-MacPorts, once the port is in the ports tree, is the last package manager planned: [backlog 30](https://github.com/godspeedhq/vigil/blob/main/backlog/30_package_managers.md). An MSI and winget wait for code signing: [backlog 33](https://github.com/godspeedhq/vigil/blob/main/backlog/33_signed_packages.md).
+MacPorts, once the port is in the ports tree, is the last package manager planned: [backlog 30](https://github.com/godspeedhq/vigil/blob/main/backlog/fixed/30_package_managers.md). An MSI and winget wait for code signing: [backlog 33](https://github.com/godspeedhq/vigil/blob/main/backlog/33_signed_packages.md).

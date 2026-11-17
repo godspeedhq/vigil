@@ -46,7 +46,7 @@ Vigil is responsible for:
 - Discovering and validating configuration.
 - Scheduling scripts.
 - Executing scripts.
-- Enforcing runtime and concurrency limits.
+- Enforcing runtime limits, and at most one active run per job.
 - Supervising worker processes.
 - Handling execution failures.
 - Preserving and reconciling worker state.
@@ -227,7 +227,7 @@ The supervisor and configuration reconciliation mechanisms must remain operation
 
 Vigil's primary value is not merely running scripts. Its value is running them reliably. The system must provide:
 
-- Bounded concurrency.
+- At most one active run per job; no limit across jobs (the configuration is the limit).
 - Runtime deadlines.
 - Worker failure detection.
 - Conservative orphan recovery.

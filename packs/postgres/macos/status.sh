@@ -37,7 +37,7 @@
 #
 # Requires: bash, psql and pg_isready (PostgreSQL's client tools), and a
 #   role with pg_monitor
-# Exit code: 0 on success, server up or down; 1 if psql is missing or the
+# Exit code: 0 on success, server up or down; 1 if psql or pg_isready is missing or the
 #   server refuses the login or the queries
 #
 # Copyright (c) Bankole Ogundero and the Vigil contributors
@@ -61,8 +61,9 @@ if ! pg_isready -q -t 5; then
     exit 0
 fi
 
-# One query, one "name value" row per metric; never a superuser's view, and
-# never this connection's own row.
+# One query, one "name value" row per metric; never a superuser's view. The
+# longest query and transaction leave out this connection's own row; the
+# connection count includes it.
 out=$(psql -X -q -A -t -F ' ' -v ON_ERROR_STOP=1 -c "
 SELECT 'connections', count(*) FROM pg_stat_activity WHERE backend_type = 'client backend'
 UNION ALL SELECT 'max_connections', setting::bigint FROM pg_settings WHERE name = 'max_connections'

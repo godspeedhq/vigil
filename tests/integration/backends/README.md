@@ -2,7 +2,7 @@
 
 Vigil's telemetry is tested everywhere else against mocks. Here it's tested against the real products: the backends run in Docker, Vigil runs on the host exactly as it would in production, and each test asks the backend, through its own query interface, whether the data arrived. This is backlog task 18.
 
-> **Status: first runs done.** Grafana LGTM, OpenBao and HashiCorp Vault have been run, with Vigil on Linux, macOS and Windows; every other target is still **Not tested**. See [`reports/compatibility.md`](reports/compatibility.md) and [`reports/secrets-compatibility.md`](reports/secrets-compatibility.md).
+> **Status:** most targets have been run, with Vigil on Linux, macOS and Windows. Still **Not tested**: SigNoz, Graylog, and the real Datadog and Splunk Observability Cloud services; the secret stores' real clouds (their emulators pass). See [`reports/compatibility.md`](reports/compatibility.md) and [`reports/secrets-compatibility.md`](reports/secrets-compatibility.md).
 
 ## Quick start
 
@@ -45,7 +45,7 @@ scripts/reset.sh lgtm          # removes it
 | | official deployment | `signoz` | metrics, logs | OTLP, direct | 8080, 4317, 4318 |
 | | official deployment | `uptrace` | metrics, logs | OTLP, direct: its DSN as the `api_key`, and an `uptrace-dsn` header for logs | 14318, on 127.0.0.1 by `compose.override.yaml` |
 | | official deployment | `graylog` | to be worked out | see below | the upstream file's |
-| 9 Secrets | `compose.secrets.yaml` | `openbao`, `vault` | — | Vigil's `hashicorp_vault` secret store reads from them (below) | 8200, 8210 (https) |
+| 9 Secrets | `compose.secrets.yaml` | `openbao`, `vault`, `aws`, `azure`, `gcp`, `azure-alt`, `gcp-alt` | — | Vigil's secret stores read from them (see the secret stores table below) | 8200, 8210, 4566, 4577, 4588, 4598, 8443 (https) |
 
 **Notes:**
 - **LGTM and the standalone components** do the same job, so start one or the other, not both. Their ports don't collide, so running both does no harm beyond the memory.

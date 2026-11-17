@@ -24,7 +24,7 @@ Each version's run, newest first: `Probe.ps1`'s table, then each step's result a
 
 ### Server 2025, physical, 2026-11-14
 
-Installed on the same physical machine as the Server 2022, 2019 and 2016 runs below (4 CPUs, 7.8 GB), as installed (no updates applied by hand), with nothing beyond Windows: its built-in OpenSSH server (9.5), which lets in only administrators and `OpenSSH Users`, so `Setup-TestVM.ps1` put `vigil-test` in that group. Reached directly over SSH as `vigil-test`, an ordinary account. .NET's compile queue was run first ([`tests/windows-server`](../../../windows-server/README.md), step 4): `powershell -NoProfile` started in about 5 seconds before it and 0.4 after. Vigil 0.7.0 installed with the README's command (`-System -UpdateBy vigil-test`) from an elevated prompt; the service runs. The suites ran from `main` at `523a541`, one after another, as `vigil-test` over SSH.
+Installed on the same physical machine as the Server 2022, 2019 and 2016 runs below (4 CPUs, 7.8 GB), as installed (no updates applied by hand), with nothing beyond Windows: its built-in OpenSSH server (9.5), which lets in only administrators and `OpenSSH Users`, so the setup script ([`Setup-Vm.ps1`](../../../windows-server/Setup-Vm.ps1)) put `vigil-test` in that group. Reached directly over SSH as `vigil-test`, an ordinary account. .NET's compile queue was run first ([`tests/windows-server`](../../../windows-server/README.md), step 4): `powershell -NoProfile` started in about 5 seconds before it and 0.4 after. Vigil 0.7.0 installed with the README's command (`-System -UpdateBy vigil-test`) from an elevated prompt; the service runs. The suites ran from `main` at `523a541`, one after another, as `vigil-test` over SSH.
 
 | Item | Value |
 | --- | --- |
