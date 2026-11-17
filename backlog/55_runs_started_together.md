@@ -69,6 +69,39 @@ still stand out. A only if you decide to change VIGIL-002.
 five-minute jobs across the five minutes. VIGIL-002 stays as it is: no
 run is delayed.
 
+## Built (2026-11-17)
+
+**B, the smaller worker (Windows).** The supervisor writes the run,
+resolved from the configuration it validated, into the launch's `[run]`
+section (§4.3, updated); a worker with one does not read the
+configuration. Vigil's own workers, a job with a secret, a command that
+cannot be built or found, and a launch without a validated digest read it
+as before.
+
+**C, the spread pack.** Base pack 1.2.1 runs `disk`, `diskio`, `processes`
+and `host` each on their own minute (`cron = 1/5 * * * *`, 2/5, 3/5,
+4/5). On Windows a tick now starts at most six runs (the four one-minute
+jobs, the sender and one five-minute job), not nine. Configurations
+already holding the pack keep `run_every = 5m` until it is enabled again.
+
+**Measured** on the laptop as above (the nine runs, launch records as the
+supervisor writes them, 3 rounds each):
+
+| How the nine start | Before | With `[run]` |
+| --- | --- | --- |
+| one at a time | 1.69 s | **1.49 s** (−12%) |
+| all at once | 3.16 s | **2.64 s** (−16%) |
+
+Less than backlog 52's estimate of about 40% of the worker: the average
+includes `vigil_sender`, which has no `[run]`, and a run's cost includes
+its job script and PowerShell's own start, which this does not touch.
+Spreading the pack is not measured on its own; from the first table, six
+runs at once should cost between the 4-at-once and 9-at-once rows.
+
+**Not yet measured on the test machines:** that needs this build on them,
+which means a release (drafts stay with the user) or replacing `app\` by
+hand.
+
 ## Done when
 
 - The decision is recorded here.
