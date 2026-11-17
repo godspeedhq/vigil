@@ -117,8 +117,9 @@ require_env = VIGIL_IT_SURELY_UNSET
 "@
     [void](Invoke-Vigil @('secret', 'delete', 'VAULT_TOKEN'))
     $env:VIGIL_FAULT = 'crash'
+    $env:VIGIL_TEST_SENDER_LIMIT = '3'
     $rc = Invoke-Vigil @('precheck')
-    Remove-Item Env:\VIGIL_FAULT
+    Remove-Item Env:\VIGIL_FAULT, Env:\VIGIL_TEST_SENDER_LIMIT
     Test-Equal 'fails: exit code' '1' "$rc"
     Test-Equal 'fails: the good job still passes' 'True' (Test-Has '  ok    job.show')
     Test-Equal 'fails: working directory' 'True' (Test-Has "  FAIL  job.broken: working directory not found: $root\no\such\dir")
@@ -128,7 +129,8 @@ require_env = VIGIL_IT_SURELY_UNSET
     Test-Equal 'fails: require_env' 'True' (Test-Has '  FAIL  job.broken: missing environment variable VIGIL_IT_SURELY_UNSET')
     Test-Equal 'fails: store credential' 'True' (Test-Has "  FAIL  secret_store.vault: token secret:VAULT_TOKEN unavailable: not found in Vigil's secret store (vigil secret set VAULT_TOKEN)")
     Test-Equal 'fails: VIGIL_FAULT' 'True' (Test-Has '  FAIL  VIGIL_FAULT is set: fault injection is for tests only (22.4.1)')
-    Test-Equal 'fails: result' 'True' (Test-Has 'precheck failed: 7 problem(s)')
+    Test-Equal 'fails: VIGIL_TEST_SENDER_LIMIT' 'True' (Test-Has "  FAIL  VIGIL_TEST_SENDER_LIMIT is set: the sender's shorter limit is for tests only (22.4.7)")
+    Test-Equal 'fails: result' 'True' (Test-Has 'precheck failed: 8 problem(s)')
     Test-Equal 'no secret value printed' '' (@($script:lines | Where-Object { $_.Contains("pg value $PID") -or $_.Contains("vault value $PID") }) -join ' ')
 
     # 4. A rejected configuration: every problem, in file order, and nothing else.

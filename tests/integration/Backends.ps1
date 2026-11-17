@@ -207,6 +207,43 @@ run_every = 3650d
     Invoke-Tick
     Test-Equal 'rejected: drop counted' 'yes' (Test-Prom '(?m)^vigil_spool_dropped_total\{backend="datadog".*reason="rejected"')
 
+    # A hung sender is ended at its limit (4.5), recorded timed_out, and what
+    # it was sending goes with a later sender: at least once, never lost. The
+    # mock answers after 60 s; the test's limit is 3 s (22.4.7), not 5 minutes.
+    [System.IO.File]::WriteAllText("$root\mock\delay", '60')
+    [void](Invoke-Vigil @('run', 'emit'))
+    $senderState = Join-Path $root 'state\jobs\vigil_sender.state'
+    $before = Get-StateValue $senderState 'run_id'
+    # One tick, waiting for that process alone: capturing its output would
+    # also wait for the sender, which inherits the output pipe.
+    $tickAlone = {
+        $p = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @(
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'supervise', '--once')
+        $p.WaitForExit()
+    }
+    $env:VIGIL_TEST_SENDER_LIMIT = '3'
+    try { & $tickAlone }
+    finally { Remove-Item Env:\VIGIL_TEST_SENDER_LIMIT }
+    # A new sender run, then until it is concluded.
+    for ($i = 0; $i -lt 60 -and (Get-StateValue $senderState 'run_id') -ceq $before; $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 30 -and (Get-StateValue $senderState 'status') -ceq 'running'; $i++) {
+        Start-Sleep -Seconds 2
+        & $tickAlone
+    }
+    Test-Equal 'hung sender: recorded timed_out' 'timed_out' (Get-StateValue $senderState 'status')
+    $supLog = (Get-ChildItem -LiteralPath "$root\logs\supervisor" -Filter '2*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+    Test-Equal 'hung sender: ended for its limit' 'True' ([string]($supLog -match 'job vigil_sender: run \S+ passed max_runtime'))
+    if ((Get-StateValue $senderState 'status') -cne 'timed_out') {
+        Write-Host "`nsender state:"; Write-Host ([System.IO.File]::ReadAllText($senderState))
+        Write-Host 'supervisor log, last 15 lines:'; ($supLog -split "`n" | Where-Object { $_.Trim() } | Select-Object -Last 15) | ForEach-Object { Write-Host "  $_" }
+        Write-Host 'sender log, last 10 lines:'
+        Get-ChildItem -LiteralPath "$root\logs\jobs\vigil_sender" -Filter '*.log' | ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) } | Select-Object -Last 10 | ForEach-Object { Write-Host "  $_" }
+    }
+    Remove-Item -LiteralPath "$root\mock\delay"
+    Invoke-Tick
+    Test-Equal 'hung sender: a later sender delivers' '0' ([string]([int](Get-Queued 'datadog') + [int](Get-Queued 'otel') + [int](Get-Queued 'splunk')))
+    Test-Equal 'hung sender: and succeeds' 'succeeded' (Get-StateValue $senderState 'status')
+
     # The credentials are only ever in headers: never on disk outside the
     # secret store, and never in a URL.
     $leaks = foreach ($d in @('logs', 'state', 'spool', 'metrics')) {

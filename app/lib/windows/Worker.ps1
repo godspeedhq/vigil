@@ -707,6 +707,19 @@ function Invoke-VigilWorker {
             boot_id = $bootId; started_epoch = $started; started_at = $now.Iso
             worker_pid = $PID; worker_name = "$($self.ProcessName).exe"; worker_start = ConvertTo-VigilEpoch $self.StartTime
         }
+        # The sender has a fixed max_runtime of 5 minutes (4.5): with one
+        # sender at a time, a hung one would stop all delivery. It is its own
+        # job process, so the supervisor ends it as it ends a job past its
+        # deadline (10.3). VIGIL_TEST_SENDER_LIMIT shortens it for the tests
+        # (22.4.7).
+        if ($Job -ceq 'vigil_sender') {
+            $limit = 300
+            if ($env:VIGIL_TEST_SENDER_LIMIT -cmatch '^[0-9]+$') { $limit = [long]$env:VIGIL_TEST_SENDER_LIMIT }
+            $state.deadline_epoch = $started + $limit
+            $state.job_pid = $PID
+            $state.job_name = $state.worker_name
+            $state.job_start = $state.worker_start
+        }
         Write-VigilStateFile -Path $statePath -Fields $state
         [System.IO.File]::AppendAllText($log, "$($now.Iso) $RunId run start`r`n")
         try {

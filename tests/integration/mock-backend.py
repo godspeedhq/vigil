@@ -17,7 +17,8 @@ free port written to <dir>/port once it listens. Every request is appended
 to <dir>/requests.log as one JSON line: method, path, headers and body. It
 is answered with the status in <dir>/status (default 202 for Datadog and
 200 for OTLP, read again for every request so a test can make the backend
-fail) and the body in <dir>/reply (default {}).
+fail) and the body in <dir>/reply (default {}). With <dir>/delay, it waits
+that many seconds before answering, as a backend that hangs.
 
 Test only: never use it for anything else.
 """
@@ -27,6 +28,7 @@ import os
 import socketserver
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DIR = sys.argv[1]
@@ -47,14 +49,19 @@ class Handler(BaseHTTPRequestHandler):
         record = {"method": "POST", "path": self.path, "headers": dict(self.headers.items()), "body": body}
         with LOCK, open(os.path.join(DIR, "requests.log"), "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
+        time.sleep(float(read("delay", "0")))
         status = int(read("status", "202" if self.path.startswith("/api/") else "200"))
         hec = self.path.startswith("/services/collector")
         reply = read("reply", '{"text":"Success","code":0}' if hec else "{}").encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(reply)))
-        self.end_headers()
-        self.wfile.write(reply)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(reply)))
+            self.end_headers()
+            self.wfile.write(reply)
+        except OSError:
+            # The client gave up waiting (a delay longer than its timeout).
+            pass
 
     def log_message(self, *args):
         pass

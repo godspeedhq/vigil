@@ -607,7 +607,10 @@ function Invoke-VigilSupervisor {
                 # The parent is only checked while the worker is still this run's worker: once
                 # it has gone, its pid may belong to anything. A command line that cannot be
                 # read proves nothing either way, so then the parent must match.
-                $parentOk = (-not $w) -or ($w.CommandLine -and $w.CommandLine -notlike "*--run-id $RunId*") -or ($p.Parent -eq [int]$St.WorkerPid)
+                # The sender is its own job process (4.5): it has no parent to
+                # check, only its name and start time, as above.
+                $parentOk = (-not $w) -or ($w.CommandLine -and $w.CommandLine -notlike "*--run-id $RunId*") -or ($p.Parent -eq [int]$St.WorkerPid) -or
+                    ([int]$St.JobPid -eq [int]$St.WorkerPid)
                 $proven = $startOk -and $parentOk
             }
         }

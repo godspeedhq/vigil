@@ -317,6 +317,7 @@ function Invoke-VigilPrecheck {
     if ($env:VIGIL_TEST_SSH_CONFIG) { & $fail 'VIGIL_TEST_SSH_CONFIG is set: the ssh configuration override is for tests only (22.4.3)' }
     if ($env:VIGIL_TEST_RELEASE_URL) { & $fail 'VIGIL_TEST_RELEASE_URL is set: the release server override is for tests only (22.4.4)' }
     if ($env:VIGIL_TEST_NGEN_MISSING) { & $fail 'VIGIL_TEST_NGEN_MISSING is set: the missing native images stand-in is for tests only (22.4.6)' }
+    if ($env:VIGIL_TEST_SENDER_LIMIT) { & $fail 'VIGIL_TEST_SENDER_LIMIT is set: the sender''s shorter limit is for tests only (22.4.7)' }
 
     $out.Add('')
     if ($n.Failed -gt 0) { $out.Add("precheck failed: $($n.Failed) problem(s)") }

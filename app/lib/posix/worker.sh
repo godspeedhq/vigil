@@ -342,6 +342,19 @@ _vigil_wk_internal() {
     _vigil_wk_set worker_pid $$
     _vigil_wk_set worker_name bash
     _vigil_wk_set worker_start "$_vw_start"
+    # The sender has a fixed max_runtime of 5 minutes (4.5): with one sender
+    # at a time, a hung one would stop all delivery. It is its own job
+    # process, so the supervisor ends it as it ends a job past its deadline
+    # (10.3), proving it by the token it holds.
+    # VIGIL_TEST_SENDER_LIMIT shortens it for the tests (22.4.7).
+    if [ "$_vw_job" = vigil_sender ]; then
+        local limit=300
+        case ${VIGIL_TEST_SENDER_LIMIT-} in '' | *[!0-9]*) ;; *) limit=$VIGIL_TEST_SENDER_LIMIT ;; esac
+        _vigil_wk_set deadline_epoch $((started + limit))
+        _vigil_wk_set job_pid $$
+        _vigil_wk_set job_name bash
+        _vigil_wk_set job_start "$_vw_start"
+    fi
     _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
     _vigil_wk_log "$rid run start"
     _vw_reason=''
