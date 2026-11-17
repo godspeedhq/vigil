@@ -1,0 +1,57 @@
+# Runs one Windows integration test many times, to catch an intermittent
+# failure (backlog 19) rather than wait for it. Started by hand
+# (workflow_dispatch), or by pushing a branch named stress/<anything>, which
+# runs the defaults below. A failing round prints the test's own output.
+name: stress
+
+on:
+  workflow_dispatch:
+    inputs:
+      test:
+        description: 'tests/integration/<test>.ps1'
+        default: 'Max-Runtime'
+      rounds:
+        description: 'how many times'
+        default: '25'
+  push:
+    branches: ['stress/**']
+
+permissions:
+  contents: read
+
+jobs:
+  stress:
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [pwsh, powershell]
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      TEST: ${{ inputs.test || 'Max-Runtime' }}
+      ROUNDS: ${{ inputs.rounds || '25' }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: write the loop
+        shell: pwsh
+        run: |
+          Set-Content -LiteralPath stress.ps1 -Value @'
+          $failed = 0
+          for ($r = 1; $r -le [int]$env:ROUNDS; $r++) {
+              $out = & "./tests/integration/$env:TEST.ps1" *>&1 | Out-String
+              $code = $LASTEXITCODE
+              $summary = ($out -split "`n" | Where-Object { $_ -match '[0-9]+ passed, [0-9]+ failed|^  note ' })
+              Write-Host "round ${r}: $($summary -join ' / ')"
+              if ($code -ne 0) { $failed++; Write-Host $out }
+          }
+          Write-Host "$failed of $env:ROUNDS rounds failed"
+          if ($failed -gt 0) { exit 1 }
+          '@
+      - name: run it again and again (PowerShell 7)
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: ./stress.ps1
+      - name: run it again and again (Windows PowerShell 5.1)
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        run: ./stress.ps1

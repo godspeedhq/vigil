@@ -625,6 +625,9 @@ function Invoke-VigilSupervisor {
         # Repeated on every tick past the deadline, each time only after the proof
         # above, until the run ends.
         Stop-VigilProcessTree ([int]$St.JobPid)
+        # Every way is tried until the tree is gone; when the first did not
+        # end it, why, so a run that outlives its limit says so (backlog 19).
+        if ($Script:VigilKillReport) { & $log 'WARN' "job ${Job}: run ${RunId}: $Script:VigilKillReport" }
         return $true
     }
 

@@ -207,3 +207,25 @@ nor in 24 macOS upgrades and self updates and 12 Windows service runs before.
 ## Done when
 
 - Each has a known cause and is fixed, or is shown to be the test's timing.
+
+## Closed (2026-11-17)
+
+**`Max-Runtime.ps1` came back once on PowerShell 7 after the root-down kill**
+(CI on 2026-11-17, #179's run): the supervisor logged ending the job's tree,
+twice, 12 seconds apart, and the job's `cmd.exe` still ran its full 31
+seconds. The kill swallowed its errors, so the cause was not recorded.
+Decided with the owner: whoever sets `max_runtime` wants the run ended, so
+Vigil now uses every way it has until the tree is gone. After its own kill it
+waits 2 seconds on the run's process, which it holds open so the pid cannot
+be given to another, and if it is still running, `taskkill /T /F` follows on
+the same tree; a later tick tries both again. When the first way did not end
+it, the supervisor logs why. A stress workflow (`.github/workflows/stress.yml`,
+by hand or on a `stress/...` branch) then ran `Max-Runtime.ps1` 100 times on
+GitHub's Windows runners, 50 on each PowerShell: no failure, and the first
+way never missed. Not reproduced since; if it ever is, the log says why.
+
+**`Format.ps1` and `Version-Config.ps1`, above under Open, closed as not
+reproducible.** Neither has failed since 2026-11-03 and 2026-11-07, both
+print what they know when they do, and `Version-Config.ps1`'s harm is fixed
+(a nameless spool line is passed over). A recurrence reopens them with that
+evidence.

@@ -122,3 +122,8 @@ Tested before merging: `crash.sh` 35 of 35 on Fedora (bash 5.3) and the Mac
 (bash 3.2), with 50 races; `Crash.ps1` 35 of 35 on this laptop, PowerShell
 5.1 and 7; `backends` and `supervise` passing on Fedora and the Mac with
 both changes in.
+
+## Closed (2026-11-17)
+
+Merged: the sender's limit in #180, the crash points and the specification
+in #181, CI green on Linux, macOS and Windows.
