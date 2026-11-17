@@ -58,6 +58,27 @@ _vigil_cfg_trim() {
     _vigil_cfg_trimmed=$s
 }
 
+# A crash point (22.4.1), for the tests only. When VIGIL_FAULT names point
+# $1, as "name" or "name:N" (the Nth time this process reaches it), the
+# process exits at once with code 99, as if it had crashed there: no trap or
+# cleanup runs. With VIGIL_FAULT_SLEEP=<seconds> it waits that long instead
+# and carries on. Unset, it returns at once. It never changes behaviour
+# otherwise, and pre-flight fails while VIGIL_FAULT is set.
+_vigil_fault_seen=0
+vigil_fault() {
+    [ -n "${VIGIL_FAULT-}" ] || return 0
+    [ "${VIGIL_FAULT%%:*}" = "$1" ] || return 0
+    local n=1
+    case $VIGIL_FAULT in *:*) n=${VIGIL_FAULT#*:} ;; esac
+    case $n in '' | *[!0-9]*) return 0 ;; esac
+    _vigil_fault_seen=$((_vigil_fault_seen + 1))
+    [ "$_vigil_fault_seen" -eq "$n" ] || return 0
+    case ${VIGIL_FAULT_SLEEP-} in
+        '' | *[!0-9]*) exit 99 ;;
+        *) sleep "$VIGIL_FAULT_SLEEP" ;;
+    esac
+}
+
 # Prints what stops this account telling whether $1 is there, and succeeds:
 # $1 itself (a file it may not read, a folder it may not list or enter), or
 # the nearest folder above it that exists and that it may not enter. Fails

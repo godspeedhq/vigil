@@ -138,8 +138,10 @@ _vigil_send_place() {
         # only then marked done. A sender stopped at any point picks up here next
         # run: a copy is never lost, and at worst is placed again under the same
         # name, replacing itself.
-        cp "$f" "$_sd_be/$b/.$base.tmp.$$" && mv -f "$_sd_be/$b/.$base.tmp.$$" "$_sd_be/$b/$base" && : > "$f.$b.done"
+        cp "$f" "$_sd_be/$b/.$base.tmp.$$" && mv -f "$_sd_be/$b/.$base.tmp.$$" "$_sd_be/$b/$base" && : > "$f.$b.done" &&
+            vigil_fault fanout.after_place
     done < "$f.targets"
+    vigil_fault fanout.before_retire
     rm -f "$f" "$f.targets" "$f".*.done
 }
 
@@ -215,6 +217,7 @@ EOF
         done <<EOF
 $_vb_drops
 EOF
+        vigil_fault sender.after_send
         rm -f "${batch[@]}" "$_vw_statedir/backends/$b.state"
     done
 }
@@ -251,6 +254,7 @@ _vigil_send_deliver() {
     case $_vw_value in /*) path=$_vw_value ;; *) path="$_vw_root/$_vw_value" ;; esac
     tmp="$path.tmp.$$"
     if mkdir -p "${path%/*}" && vigil_prom_merge "$path" "${batch[@]}" > "$tmp" && mv -f "$tmp" "$path"; then
+        vigil_fault sender.after_send
         rm -f "${batch[@]}"
         rm -f "$sfile"
     else
@@ -289,6 +293,7 @@ vigil_send() {
         if [ ! -f "$f.targets" ]; then
             _vigil_send_targets "$f"
             printf '%s\n' $_sd_targets > "$f.targets.tmp.$$" && mv -f "$f.targets.tmp.$$" "$f.targets"
+            vigil_fault fanout.after_targets
         fi
         _vigil_send_place "$f"
     done
@@ -296,8 +301,10 @@ vigil_send() {
         [ -f "$f" ] || continue
         mv "$f" "$_sd_fan/${f##*/}" || continue
         f="$_sd_fan/${f##*/}"
+        vigil_fault fanout.after_claim
         _vigil_send_targets "$f"
         printf '%s\n' $_sd_targets > "$f.targets.tmp.$$" && mv -f "$f.targets.tmp.$$" "$f.targets"
+        vigil_fault fanout.after_targets
         _vigil_send_place "$f"
     done
 

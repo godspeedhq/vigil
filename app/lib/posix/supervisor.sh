@@ -790,10 +790,12 @@ _vigil_sup_start() {
         fi
     } > "$_su_statedir/locks/$job.$rid.launch.tmp.$$" &&
         mv -f "$_su_statedir/locks/$job.$rid.launch.tmp.$$" "$_su_statedir/locks/$job.$rid.launch" || return 1
+    vigil_fault launch.after_record
     # The worker must not inherit the supervisor lock (fd 8), or it would
     # keep the lock held after the supervisor exits.
     ( trap '' HUP; exec 8>&-; exec "$BASH" "$_su_app/vigil" --root "$_su_root" worker "$job" --run-id "$rid" ) \
         < /dev/null > /dev/null 2>&1 &
+    vigil_fault launch.after_spawn
     _su_running=$((_su_running + 1))
     # The forwarder's own starts are not logged: each would give it
     # something new to forward.
@@ -1226,6 +1228,8 @@ vigil_supervise() {
     printf '%s\n' "$_su_version" > "$_su_statedir/supervisor.version.tmp.$$" &&
         mv -f "$_su_statedir/supervisor.version.tmp.$$" "$_su_statedir/supervisor.version"
     _vigil_sup_log INFO "supervisor started, pid $$"
+    # Crash points are for the tests only (22.4.1).
+    [ -z "${VIGIL_FAULT-}" ] || _vigil_sup_log WARN "VIGIL_FAULT is set ($VIGIL_FAULT): crash points are for tests only"
 
     # A stop ends the loop after the current tick or sleep. Workers are detached
     # and carry on (4.3).

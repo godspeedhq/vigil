@@ -45,6 +45,30 @@
 
 $Script:VigilConfigMaxBytes = 1048576
 
+# A crash point (22.4.1), for the tests only. When VIGIL_FAULT names point
+# $Name, as "name" or "name:N" (the Nth time this process reaches it), the
+# process exits at once with code 99, as if it had crashed there: no finally
+# block runs. With VIGIL_FAULT_SLEEP=<seconds> it waits that long instead and
+# carries on. Unset, it returns at once. It never changes behaviour otherwise,
+# and pre-flight fails while VIGIL_FAULT is set. The twin of vigil_fault.
+$Script:VigilFaultSeen = 0
+function Invoke-VigilFault {
+    param([string]$Name)
+    $f = $env:VIGIL_FAULT
+    if (-not $f) { return }
+    $parts = $f.Split(':')
+    if ($parts[0] -cne $Name) { return }
+    $n = 1
+    if ($parts.Count -gt 1) {
+        if ($parts[1] -cnotmatch '^[0-9]+$') { return }
+        $n = [int]$parts[1]
+    }
+    $Script:VigilFaultSeen++
+    if ($Script:VigilFaultSeen -ne $n) { return }
+    if ($env:VIGIL_FAULT_SLEEP -cmatch '^[0-9]+$') { Start-Sleep -Seconds ([int]$env:VIGIL_FAULT_SLEEP); return }
+    [Environment]::Exit(99)
+}
+
 # What stops this account telling whether $Path is there: $Path itself (a
 # file it may not read, a folder it may not list), or the nearest folder
 # above it that exists and that it may not list; '' when $Path can be read or

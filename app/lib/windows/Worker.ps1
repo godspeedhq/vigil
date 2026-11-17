@@ -52,11 +52,13 @@ function Write-VigilStateFile {
     foreach ($k in $Fields.Keys) {
         [void]$sb.Append(('{0,-16} = {1}' -f $k, (Get-VigilStateValue ([string]$Fields[$k]))).TrimEnd() + "`n")
     }
-    Write-VigilFileAtomic -Path $Path -Text $sb.ToString()
+    Write-VigilFileAtomic -Path $Path -Text $sb.ToString() -Fault 'state.after_temp'
 }
 
+# -Fault names the crash point between the temporary file and the rename
+# (22.4.1).
 function Write-VigilFileAtomic {
-    param([string]$Path, [string]$Text)
+    param([string]$Path, [string]$Text, [string]$Fault)
     $tmp = "$Path.tmp.$PID"
     $bytes = (New-Object System.Text.UTF8Encoding $false).GetBytes($Text)
     $fs = [System.IO.File]::Open($tmp, 'Create', 'Write', 'None')
@@ -67,6 +69,7 @@ function Write-VigilFileAtomic {
         $fs.Flush($true)
     }
     finally { $fs.Dispose() }
+    if ($Fault) { Invoke-VigilFault $Fault }
     # Windows refuses to replace a file while another process has it open
     # without delete sharing, as the supervisor does for a moment while it
     # reads a state file, or a virus scanner might. Retried for up to five
@@ -664,6 +667,7 @@ function Invoke-VigilWorker {
         # Another process may have the launch record open for a moment (an
         # antivirus scan, a supervisor probe): retry briefly. A missing
         # record means the launch was abandoned, and fails at once.
+        Invoke-VigilFault 'worker.before_claim'
         $launchStream = $null
         for ($try = 1; -not $launchStream; $try++) {
             try { $launchStream = [System.IO.File]::Open($launch, 'Open', 'Read', 'None') }
@@ -684,6 +688,7 @@ function Invoke-VigilWorker {
         [Console]::Error.WriteLine("vigil: launch $RunId of $Job was abandoned; not running")
         return @{ Code = 4 }
     }
+    Invoke-VigilFault 'worker.after_claim'
 
     $jobs = Join-Path $ctx.State 'jobs'
     $jobLogs = Join-Path $ctx.Logs "jobs\$Job"
@@ -928,6 +933,7 @@ function Invoke-VigilWorker {
     # Events before the final state (4.3, step 7).
     $stem = "$($now.Epoch)-$Job-$RunId.events"
     Write-VigilFileAtomic -Path (Join-Path $incoming $stem) -Text (($events | ForEach-Object { "$_`n" }) -join '')
+    Invoke-VigilFault 'worker.after_spool'
 
     $state.status = $outcome
     $state.reason = $reason
@@ -941,6 +947,7 @@ function Invoke-VigilWorker {
     $state.dropped_lines = $output.Dropped
     $state.spool_file = $stem
     Write-VigilStateFile -Path $statePath -Fields $state
+    Invoke-VigilFault 'worker.after_state'
     # The job log (13.1): its output, then how it ended.
     $writer = New-Object System.IO.StreamWriter($log, $true, (New-Object System.Text.UTF8Encoding $false))
     try {
