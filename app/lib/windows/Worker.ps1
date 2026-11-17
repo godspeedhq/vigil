@@ -314,12 +314,13 @@ function Get-VigilProcessInfo {
 # ended with Process.Kill, children first. A process counts as a child only
 # if it started after its parent, so a reused pid can never draw an
 # unrelated process in.
+# Ends a process and everything under it, from the root down, with the
+# tree read from the kernel first (backlog 19). taskkill /T ends the
+# children first, so a cmd.exe parent could run its script's next line in
+# between: it is used only when the kernel cannot be asked (dynamic code not
+# allowed), or the root is already gone.
 function Stop-VigilProcessTree {
     param([int]$Id)
-    if (-not $Script:VigilWmiRefused) {
-        & taskkill.exe /T /F /PID $Id 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) { return }
-    }
     try {
         Initialize-VigilNative
         $all = [VigilNative]::Processes()
@@ -340,8 +341,10 @@ function Stop-VigilProcessTree {
         for ($i = 0; $i -lt $tree.Count; $i++) {
             try { $tree[$i].Kill() } catch { }
         }
+        return
     }
     catch { }
+    & taskkill.exe /T /F /PID $Id 2>&1 | Out-Null
 }
 
 # Windows has no kernel boot id; it is derived from the boot time (11.1).

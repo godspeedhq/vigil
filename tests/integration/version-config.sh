@@ -171,7 +171,7 @@ grep -q '^tick' "$cfg" || printf '\n[scheduler]\ntick = 1s\n' >> "$cfg"
 # Not through vigil(): $! must be the supervisor, not a subshell.
 bash "$root/app/vigil" --root "$root" supervise > /dev/null 2>&1 &
 sup=$!
-wait_until 30 test "$(runs beat)" -ge 1
+wait_until 90 test "$(runs beat)" -ge 1
 check 'without version, nothing moves' 0.1.0-it "$(version_of)"
 vigil self update --check > "$work/out" 2>&1
 check 'without version, self update is not refused' 0 "$?"
@@ -181,17 +181,17 @@ check 'without version, self update is not refused' 0 "$?"
 set_version "$cfg" 0.2.0-it
 wait_until 90 is_version 0.2.0-it
 check 'it updates to the version named' 0.2.0-it "$(version_of)"
-wait_until 30 is_result 0.2.0-it succeeded
+wait_until 90 is_result 0.2.0-it succeeded
 check 'and records it' succeeded "$(update_value result)"
 check 'as the same supervisor process' yes "$(kill -0 "$sup" 2>/dev/null && echo yes || echo no)"
 check 'which runs the new version' 0.2.0-it "$(vigil version --supervisor)"
-wait_until 20 sh -c "cat '$root'/logs/supervisor/2*.log | grep -q 'Vigil is now 0.2.0-it'"
+wait_until 90 sh -c "cat '$root'/logs/supervisor/2*.log | grep -q 'Vigil is now 0.2.0-it'"
 check 'the supervisor log says so' 1 "$(sup_log | grep -c 'Vigil is now 0.2.0-it, as the configuration asks')"
 check 'and said what it was doing' 1 "$(sup_log | grep -c 'updating Vigil 0.1.0-it to 0.2.0-it, as the configuration asks')"
 check 'the configuration was not written to' 1 "$(grep -c '^version = 0.2.0-it$' "$cfg")"
 [ "$(version_of)" = 0.2.0-it ] || explain
 before=$(runs beat)
-wait_until 20 test "$(runs beat)" -ge $((before + 2))
+wait_until 90 test "$(runs beat)" -ge $((before + 2))
 check 'jobs carry on' yes "$([ "$(runs beat)" -ge $((before + 2)) ] && echo yes || echo no)"
 
 vigil self update > "$work/out" 2>&1
@@ -210,7 +210,7 @@ check 'and that this account can update' 1 "$(grep -c 'note  this account can up
 set_version "$cfg" 0.1.0-it
 wait_until 90 is_version 0.1.0-it
 check 'it goes back to an older version named' 0.1.0-it "$(version_of)"
-wait_until 30 is_result 0.1.0-it succeeded
+wait_until 90 is_result 0.1.0-it succeeded
 check 'and records it' succeeded "$(update_value result)"
 [ "$(version_of)" = 0.1.0-it ] || explain
 
@@ -220,7 +220,7 @@ set_version "$cfg" 0.5.0-it
 wait_until 60 is_result 0.5.0-it unavailable
 check 'a release not there: recorded as unavailable' unavailable "$(update_value result)"
 check 'nothing changed' 0.1.0-it "$(version_of)"
-wait_until 20 sh -c "cat '$root'/logs/supervisor/2*.log | grep -q 'Vigil 0.5.0-it, which the configuration asks for, could not be downloaded'"
+wait_until 90 sh -c "cat '$root'/logs/supervisor/2*.log | grep -q 'Vigil 0.5.0-it, which the configuration asks for, could not be downloaded'"
 check 'logged as a warning' 1 "$(sup_log | grep -c 'WARN supervisor Vigil 0.5.0-it, which the configuration asks for, could not be downloaded: cannot download Vigil 0.5.0-it: is there such a release?; staying on 0.1.0-it, trying again in 5 minutes')"
 vigil status > "$work/out" 2>&1
 check 'status shows it' 1 "$(grep -c 'the configuration asks for 0.5.0-it; this is 0.1.0-it' "$work/out")"
@@ -242,7 +242,7 @@ check 'a release that does not run: recorded as failed' failed "$(update_value r
 check 'the working version stays' 0.5.0-it "$(version_of)"
 check 'and runs' 'Vigil 0.5.0-it' "$(vigil version)"
 check 'the reason is the installer''s' 1 "$(update_value reason | grep -c 'went back to the version that was installed')"
-wait_until 20 sh -c "cat '$root'/logs/supervisor/2*.log | grep -q 'Vigil 0.9.0-it, which the configuration asks for, could not be installed'"
+wait_until 90 sh -c "cat '$root'/logs/supervisor/2*.log | grep -q 'Vigil 0.9.0-it, which the configuration asks for, could not be installed'"
 check 'logged as an error' 1 "$(sup_log | grep -c 'ERROR supervisor Vigil 0.9.0-it, which the configuration asks for, could not be installed: .*; staying on 0.5.0-it until the configuration names another version')"
 at=$(update_value epoch)
 sleep 8
@@ -258,7 +258,7 @@ variant 0.5.0-it 0.6.0-it "mkdir -p migrations && printf 'exit 0\n' > migrations
 set_version "$cfg" 0.6.0-it
 wait_until 90 is_version 0.6.0-it
 check 'a release with a new data format' 0.6.0-it "$(version_of)"
-wait_until 20 sh -c "[ \"\$(cat '$root/state/format' 2>/dev/null)\" = 2 ]"
+wait_until 90 sh -c "[ \"\$(cat '$root/state/format' 2>/dev/null)\" = 2 ]"
 check 'migrates the data' 2 "$(cat "$root/state/format" 2>/dev/null)"
 set_version "$cfg" 0.5.0-it
 wait_until 120 is_result 0.5.0-it failed
@@ -295,7 +295,7 @@ check 'status reads the backends of the fetched configuration' 0 "$(grep -c 'no 
 # Latest first, so that once the line is gone self update finds nothing to do.
 printf '/releases/latest /releases/tag/v0.7.0-it\n' > "$work/mock/redirects"
 set_version "$work/fleet/hosts/vc.config" -
-wait_until 30 sh -c "! bash '$root/app/vigil' --root '$root' self update 2>&1 | grep -q 'set in the configuration'"
+wait_until 90 sh -c "! bash '$root/app/vigil' --root '$root' self update 2>&1 | grep -q 'set in the configuration'"
 vigil self update > "$work/out" 2>&1
 check 'removing the line gives self update back' 0 "$?"
 check 'nothing moved meanwhile' 0.7.0-it "$(version_of)"

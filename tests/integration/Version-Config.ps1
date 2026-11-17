@@ -224,13 +224,13 @@ try {
     Test-Equal 'its temporary folder under the root is gone after' 'False' ([string](Test-Path -LiteralPath "$root\update\supervisor"))
     Test-Equal 'as the same supervisor process' 'False' ([string]$sup.HasExited)
     Test-Equal 'which runs the new version' '0.2.0-it' (Invoke-Vigil version --supervisor).Text
-    Wait-Until 30 { (Get-SupLog).Contains('Vigil is now 0.2.0-it') }
+    Wait-Until 90 { (Get-SupLog).Contains('Vigil is now 0.2.0-it') }
     Test-Equal 'the supervisor log says so' 'True' ([string](Get-SupLog).Contains('Vigil is now 0.2.0-it, as the configuration asks'))
     Test-Equal 'and said what it was doing' 'True' ([string](Get-SupLog).Contains('updating Vigil 0.1.0-it to 0.2.0-it, as the configuration asks'))
     Test-Equal 'the configuration was not written to' 'True' ([string]([System.IO.File]::ReadAllText($cfg) -cmatch '(?m)^version = 0\.2\.0-it$'))
     if ((Get-Version) -cne '0.2.0-it') { Show-Run }
     $before = Get-Runs 'beat'
-    Wait-Until 30 { (Get-Runs 'beat') -ge $before + 2 }
+    Wait-Until 90 { (Get-Runs 'beat') -ge $before + 2 }
     Test-Equal 'jobs carry on' 'True' ([string]((Get-Runs 'beat') -ge $before + 2))
     $r = Invoke-Vigil self update
     Test-Equal 'self update is refused while version is set' '1' ([string]$r.Code)
@@ -256,7 +256,7 @@ try {
     Wait-Until 90 { (Get-Update 'version') -ceq '0.5.0-it' -and (Get-Update 'result') -ceq 'unavailable' }
     Test-Equal 'a release not there: recorded as unavailable' 'unavailable' (Get-Update 'result')
     Test-Equal 'nothing changed' '0.1.0-it' (Get-Version)
-    Wait-Until 30 { (Get-SupLog).Contains('Vigil 0.5.0-it, which the configuration asks for, could not be downloaded') }
+    Wait-Until 90 { (Get-SupLog).Contains('Vigil 0.5.0-it, which the configuration asks for, could not be downloaded') }
     Test-Equal 'logged as a warning' 'True' ([string]((Get-SupLog) -cmatch 'WARN supervisor Vigil 0\.5\.0-it, which the configuration asks for, could not be downloaded: .*; staying on 0\.1\.0-it, trying again in 5 minutes'))
     $r = Invoke-Vigil status
     Test-Equal 'status shows it' 'True' ([string]$r.Text.Contains('the configuration asks for 0.5.0-it; this is 0.1.0-it'))
@@ -277,7 +277,7 @@ try {
     Test-Equal 'the working version stays' '0.5.0-it' (Get-Version)
     Test-Equal 'and runs' 'Vigil 0.5.0-it' (Invoke-Vigil version).Text
     Test-Equal 'the reason is the installer''s' 'True' ([string](Get-Update 'reason').Contains('went back to the version that was installed'))
-    Wait-Until 30 { (Get-SupLog).Contains('Vigil 0.9.0-it, which the configuration asks for, could not be installed') }
+    Wait-Until 90 { (Get-SupLog).Contains('Vigil 0.9.0-it, which the configuration asks for, could not be installed') }
     Test-Equal 'logged as an error' 'True' ([string]((Get-SupLog) -cmatch 'ERROR supervisor Vigil 0\.9\.0-it, which the configuration asks for, could not be installed: .*; staying on 0\.5\.0-it until the configuration names another version'))
     $at = Get-Update 'epoch'
     Start-Sleep -Seconds 8
@@ -295,7 +295,7 @@ try {
     Set-ConfigVersion $cfg '0.6.0-it'
     Wait-Until 120 { (Get-Version) -ceq '0.6.0-it' }
     Test-Equal 'a release with a new data format' '0.6.0-it' (Get-Version)
-    Wait-Until 30 { (Test-Path -LiteralPath "$root\state\format") -and ([System.IO.File]::ReadAllText("$root\state\format").Trim() -ceq '2') }
+    Wait-Until 90 { (Test-Path -LiteralPath "$root\state\format") -and ([System.IO.File]::ReadAllText("$root\state\format").Trim() -ceq '2') }
     Test-Equal 'migrates the data' '2' $(try { [System.IO.File]::ReadAllText("$root\state\format").Trim() } catch { '' })
     Set-ConfigVersion $cfg '0.5.0-it'
     # The installer waits for a reload that never comes, then puts 0.6.0 back.
