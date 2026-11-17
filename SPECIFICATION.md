@@ -194,7 +194,7 @@ Workers never talk to backends. A worker writes its run's metric events to one s
 **Sender.** The sender is a worker like any other, with one fixed job id, `vigil_sender`:
 
 - On each tick where the spool is not empty and no sender is alive, the supervisor starts one, exactly as it starts a job: detached, with its own state file, identity check (§11) and log.
-- Only one sender runs at a time. It has a fixed internal `max_runtime` of 5 minutes.
+- Only one sender runs at a time. It has a fixed internal `max_runtime` of 5 minutes: its state records the deadline, and the sender as its own job process, so the supervisor ends it past that as it ends a job (§10.3), recorded `timed_out`. What it was sending is not retired, so the next sender sends it again: at least once, never lost.
 - Like every worker, it keeps running if the supervisor stops, and is never started while the supervisor is down.
 
 **Fan-out.** The sender copies each incoming file into `spool/backends/<name>/` for every enabled backend that should receive it (respecting each job's `backends` key). An interrupted fan-out must never silently lose a destination, so it follows a write-ahead protocol:
@@ -1722,7 +1722,7 @@ Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rul
 - Every job file exists and is runnable through its resolved runner, its runner `command` exists, and its `working_dir` exists: the checks a worker makes before a run (§4.3).
 - Every `secret` of every job resolves, and every `require_env` variable is set (or provided by a `secret`). Backend and secret store credentials (`env:`, `secret:` references) resolve, and each cloud secret store says whether it uses its vendor's CLI or Vigil's own HTTPS (§6.5.3). Values are fetched and thrown away; only references are printed.
 - State, log and spool directories are writable: each, or the nearest folder above it that exists, since precheck creates nothing.
-- `VIGIL_FAULT`, `VIGIL_TEST_IMDS`, `VIGIL_TEST_SSH_CONFIG`, `VIGIL_TEST_RELEASE_URL` and, on Windows, `VIGIL_TEST_DPAPI_REFUSED` and `VIGIL_TEST_NGEN_MISSING` are not set (§22.4.1 to §22.4.6).
+- `VIGIL_FAULT`, `VIGIL_TEST_IMDS`, `VIGIL_TEST_SSH_CONFIG`, `VIGIL_TEST_RELEASE_URL`, `VIGIL_TEST_SENDER_LIMIT` and, on Windows, `VIGIL_TEST_DPAPI_REFUSED` and `VIGIL_TEST_NGEN_MISSING` are not set (§22.4.1 to §22.4.7).
 - The minute of the next 24 hours at which the most jobs start, and how many, when it is more than one: a `note`, never a failure (§8). Each job's starts are worked out from its schedule as the supervisor would, at the current UTC offset.
 - On Windows, whether Windows PowerShell starts with .NET's native images: a `note` when it does not, never a failure (§16.7).
 
@@ -2406,6 +2406,10 @@ Windows refuses its data protection (DPAPI), which Vigil's secret store uses, to
 ### 22.4.6 Test Missing Native Images
 
 CI's Windows runners have .NET's native images, and removing them from a machine is not safe to do in a test. So `VIGIL_TEST_NGEN_MISSING`, set to anything, makes Vigil find them missing: `vigil doctor` warns and `vigil precheck` gives its note (§16.7). It can only make things fail. Pre-flight fails if it is set, like `VIGIL_FAULT`. A real machine without them was seen on Server 2019 (2026-11-13).
+
+### 22.4.7 Test Sender Limit
+
+The sender's 5-minute `max_runtime` (§4.5) is too long to wait for in a test. `VIGIL_TEST_SENDER_LIMIT`, a number of seconds, takes its place in the sender's deadline, so a test can hang a backend and see the supervisor end the sender, recorded `timed_out`, and a later sender deliver what it was sending (`tests/integration/backends.sh`, `Backends.ps1`). Anything but digits is ignored. Pre-flight fails if it is set, like `VIGIL_FAULT`.
 
 ### 22.5 Platform Matrix
 

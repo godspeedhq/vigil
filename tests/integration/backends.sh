@@ -217,6 +217,31 @@ check "large batch: delivered in one sender run" 0 "$(($(queued datadog) + $(que
 check "large batch: the sender run succeeded" succeeded "$(sed -n 's/^status *= *//p' "$root/state/jobs/vigil_sender.state")"
 check "large batch: the last series sent" yes "$(received '"path": "/v1/metrics"' '\"name\":\"many.series_999\",\"gauge\"' '\"asDouble\":999')"
 
+# A hung sender is ended at its limit (4.5), recorded timed_out, and what it
+# was sending goes with a later sender: at least once, never lost. The mock
+# answers after 60 s; the test's limit is 3 s (22.4.7), not 5 minutes.
+echo 60 > "$root/mock/delay"
+vigil run emit > /dev/null
+sender_state() { sed -n 's/^status *= *//p' "$root/state/jobs/vigil_sender.state" 2>/dev/null; }
+sender_run() { sed -n 's/^run_id *= *//p' "$root/state/jobs/vigil_sender.state" 2>/dev/null; }
+before=$(sender_run)
+VIGIL_TEST_SENDER_LIMIT=3 vigil supervise --once > /dev/null 2>&1
+# A new sender run, then until it is concluded.
+i=0
+while [ "$(sender_run)" = "$before" ] && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
+i=0
+while [ "$(sender_state)" = running ] && [ "$i" -lt 30 ]; do
+    sleep 2
+    vigil supervise --once > /dev/null 2>&1
+    i=$((i + 1))
+done
+check "hung sender: recorded timed_out" timed_out "$(sender_state)"
+check "hung sender: ended for its limit" yes "$(cat "$root"/logs/supervisor/2*.log | grep -q 'job vigil_sender: run .* passed max_runtime' && echo yes || echo no)"
+rm -f "$root/mock/delay"
+tick
+check "hung sender: a later sender delivers" 0 "$(($(queued datadog) + $(queued otel) + $(queued splunk)))"
+check "hung sender: and succeeds" succeeded "$(sender_state)"
+
 # The credentials are only ever in headers: never on disk outside the
 # secret store, and never in a URL.
 check "no credential in logs, state, spool or metrics" "" "$(grep -rlF -e "$dd_key" -e "$otel_token" -e "$hec_token" "$root/logs" "$root/state" "$root/spool" "$root/metrics" 2>/dev/null)"

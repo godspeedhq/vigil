@@ -108,7 +108,7 @@ secret      = X=secret:NO_SUCH_SECRET
 require_env = VIGIL_IT_SURELY_UNSET
 EOF
 vigil secret delete VAULT_TOKEN > /dev/null
-out=$(VIGIL_FAULT=crash vigil precheck 2>&1)
+out=$(VIGIL_FAULT=crash VIGIL_TEST_SENDER_LIMIT=3 vigil precheck 2>&1)
 check "fails: exit code" 1 "$?"
 check "fails: the good job still passes" yes "$(has '  ok    job.show')"
 check "fails: working directory" yes "$(has "  FAIL  job.broken: working directory not found: $root/no/such/dir")"
@@ -118,7 +118,8 @@ check "fails: secret" yes "$(has "  FAIL  job.broken: secret secret:NO_SUCH_SECR
 check "fails: require_env" yes "$(has '  FAIL  job.broken: missing environment variable VIGIL_IT_SURELY_UNSET')"
 check "fails: store credential" yes "$(has "  FAIL  secret_store.vault: token secret:VAULT_TOKEN unavailable: not found in Vigil's secret store (vigil secret set VAULT_TOKEN)")"
 check "fails: VIGIL_FAULT" yes "$(has '  FAIL  VIGIL_FAULT is set: fault injection is for tests only (22.4.1)')"
-check "fails: result" yes "$(has 'precheck failed: 7 problem(s)')"
+check "fails: VIGIL_TEST_SENDER_LIMIT" yes "$(has "  FAIL  VIGIL_TEST_SENDER_LIMIT is set: the sender's shorter limit is for tests only (22.4.7)")"
+check "fails: result" yes "$(has 'precheck failed: 8 problem(s)')"
 check "no secret value printed" "" "$(printf '%s\n' "$out" | grep -e "pg value $$" -e "vault value $$")"
 
 # 4. A rejected configuration: every problem, in file order, and nothing else.
