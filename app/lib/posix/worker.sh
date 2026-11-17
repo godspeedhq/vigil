@@ -559,6 +559,10 @@ vigil_worker() {
         ) > "$out" 2> "$err" < /dev/null &
         } 2> /dev/null
         pid=$!
+        # Off again at once: the job has its group, and every command the
+        # worker forks while job control is on would race the same way, with
+        # the message on the worker's own stderr (backlog 19).
+        set +m
         _vigil_wk_set job_pid "$pid"
         _vigil_wk_set job_name "${prog##*/}"
         _vigil_wk_start_time "$pid"
@@ -568,7 +572,6 @@ vigil_worker() {
         # restarts or reloads never touches a running job.
         wait "$pid"
         code=$?
-        set +m
         vigil_outcome "$exit_codes" "$code"
         outcome=$VIGIL_OUTCOME
         case $outcome in

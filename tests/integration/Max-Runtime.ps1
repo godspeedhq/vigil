@@ -102,8 +102,18 @@ $sup.WaitForExit()
 # No new runs from here on; let everything settle.
 $cfg = Join-Path $root 'config\vigil.config'
 [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace 'run_every   = 2s', 'run_every   = 1h'))
-Start-Sleep -Seconds 5
-Invoke-Tick
+# Tick until no run is active: a run launched just before the stop may not
+# have reached its deadline after a fixed number of ticks, on a slow start,
+# and would then finish its wait (backlog 19). Each tick ends overdue trees.
+$locks = Join-Path $root 'state\locks'
+$deadline = [DateTime]::UtcNow.AddSeconds(120)
+do {
+    Invoke-Tick
+    $active = @(Get-ChildItem -LiteralPath $locks -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'long.*' })
+    if ($active.Count -eq 0) { break }
+    Start-Sleep -Seconds 1
+} while ([DateTime]::UtcNow -lt $deadline)
+Test-Equal 'every run concluded' '' (($active | ForEach-Object Name) -join ' ')
 Invoke-Tick
 
 $st = Join-Path $root 'state\jobs\long.state'
@@ -118,8 +128,10 @@ Test-Equal 'tree ended and logged' 'True' "$($supLog -match 'job long: run .* pa
 Test-Equal 'no tick failed' 'False' "$($supLog -match 'tick failed')"
 Test-Equal 'no locks or markers left' '0' "$(@(Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -File).Count)"
 
-# The job's process tree is gone: nothing lives on to finish its wait.
-Start-Sleep -Seconds 30
+# The job's process tree is gone: nothing lives on to finish its wait. Every
+# run started before the ticks above, so one that lived on would have written
+# its marker 31 seconds after it started: 35 from now is past that for all.
+Start-Sleep -Seconds 35
 Test-Equal "long's process did not survive" 'False' "$(Test-Path -LiteralPath (Join-Path $root 'long.finished'))"
 
 if ($script:fail -gt 0) {

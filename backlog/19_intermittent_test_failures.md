@@ -12,30 +12,6 @@ The tests print what they know when these fail.
   refused update. Cause unknown; one guess is that it never started (the test
   did not check). The test now checks that it starts, and on a failure prints
   its log, stdout and stderr.
-- `tests/integration/Max-Runtime.ps1`, PowerShell 7: `long's process did not
-  survive`, on main (the merge of #95) on 2026-11-05. Some run's `cmd.exe`
-  lived on to write its marker after the supervisor ended its tree. The fix
-  below for PowerShell 5.1 orders Vigil's own kill from the root down, but
-  with WMI the kill is `taskkill /T /F`, and 30 tries locally never let
-  `cmd.exe` run its next line. Each kill was followed a tick later by
-  "uncertain", which only says the worker was still waiting for its job's
-  output. The marker now names the run and the time, and a failure prints
-  the job log, so the next one shows which run lived on and when.
-  2026-11-10 review: `taskkill /T /F` was seen to end the children first
-  ("PID 6532 (child of 17520) terminated", then 17520), the leaves-first
-  order this backlog fixed on the non-WMI path; and the failure pattern (only
-  "did not survive" failed, "no locks or markers left" passed) fits the job's
-  `cmd.exe` running its next line during the kill. Suggested: the root-down
-  order on the WMI path too. Still not reproduced (60 tries, with and without
-  load).
-- `tests/integration/version-config.sh`, macOS: `a release that will not
-  install is logged as an error` (expected 1 ERROR line, got 0), on #101 on
-  2026-11-05. The same run before it failed on a GitHub 504 downloading
-  0.2.2, which is not this. It passed on the next CI run and twice in a row
-  on the Mac (48 of 48). Cause unknown. A failure now prints
-  `update.reported` and every supervisor line about the update (asks,
-  could not be, reloading, staying on, started, stopped), so the next one
-  shows whether the supervisor saw the failed install at all.
 - `tests/integration/Version-Config.ps1`, PowerShell 7 (install): `a release
   not there: recorded as unavailable` (got `succeeded`), then 19 more, on
   main (the merge of #117, 5ddfc1c) on 2026-11-07. The supervisor log the
@@ -65,6 +41,68 @@ The tests print what they know when these fail.
   failed tick, and any spool file with a nameless line, line by line with
   each line's length.
 
+## Fixed (2026-11-17)
+
+- `tests/integration/Max-Runtime.ps1`, PowerShell 7: `long's process did not
+  survive` (open since 2026-11-05, below as it was). Two causes, each enough
+  on its own, both closed:
+  - **Vigil's:** with WMI, the kill was `taskkill /T /F`, which ends the
+    children first, so the job's `cmd.exe` could run its next line (write
+    the marker) in between. `Stop-VigilProcessTree` now always reads the tree
+    from the kernel and ends it from the root down; `taskkill` is only the
+    fallback where dynamic code is not allowed.
+  - **The test's:** after stopping the supervisor it ran exactly two ticks
+    to end overdue runs. A run launched just before the stop, with a worker
+    slow to start (PowerShell 7), had not reached its 3 s deadline by then,
+    was never ended, and finished its 31 s wait. The test now ticks until no
+    run of the job is active (up to 120 s), checks that, then waits 35 s.
+- `tests/integration/version-config.sh`, macOS: `a release that will not
+  install is logged as an error` (open since 2026-11-05). **The test's:** it
+  waited 20 s for the ERROR line, which a tick writes only after the failed
+  install is rolled back and the supervisor reloads. Every wait for a
+  condition in `version-config.sh` and `Version-Config.ps1` now allows 90 s;
+  each returns as soon as its condition holds, so a passing run is no slower.
+- `child setpgid ...: Operation not permitted` on macOS, again: on main on
+  2026-11-10 (`fetch.sh`, `mismatch: the active configuration runs`), a week
+  after the fix of 2026-11-03 below. **bash's, as before, from another
+  fork:** the worker kept job control on (`set -m`) until its job ended, so
+  every command it ran meanwhile to write the job's state raced the same
+  way, with the message on the worker's own stderr. Job control now goes off
+  as soon as the job is started (the job already has its group), as
+  `fetch.sh` already did; and the fetcher's own fork now sends that message
+  to `/dev/null` too.
+
+All passed after these changes: on Fedora (bash 5.3) and the Mac (bash 3.2),
+`run-job`, `max-runtime`, `supervise`, `uncertain`, `fetch` and
+`version-config`; on Windows (PowerShell 5.1 and 7), `Max-Runtime`, `Supervise`,
+`Fetch` and `Secrets`.
+
+As they were when open:
+
+- `tests/integration/Max-Runtime.ps1`, PowerShell 7: `long's process did not
+  survive`, on main (the merge of #95) on 2026-11-05. Some run's `cmd.exe`
+  lived on to write its marker after the supervisor ended its tree. The fix
+  below for PowerShell 5.1 orders Vigil's own kill from the root down, but
+  with WMI the kill is `taskkill /T /F`, and 30 tries locally never let
+  `cmd.exe` run its next line. Each kill was followed a tick later by
+  "uncertain", which only says the worker was still waiting for its job's
+  output. The marker now names the run and the time, and a failure prints
+  the job log, so the next one shows which run lived on and when.
+  2026-11-10 review: `taskkill /T /F` was seen to end the children first
+  ("PID 6532 (child of 17520) terminated", then 17520), the leaves-first
+  order this backlog fixed on the non-WMI path; and the failure pattern (only
+  "did not survive" failed, "no locks or markers left" passed) fits the job's
+  `cmd.exe` running its next line during the kill. Suggested: the root-down
+  order on the WMI path too. Still not reproduced (60 tries, with and without
+  load).
+- `tests/integration/version-config.sh`, macOS: `a release that will not
+  install is logged as an error` (expected 1 ERROR line, got 0), on #101 on
+  2026-11-05. The same run before it failed on a GitHub 504 downloading
+  0.2.2, which is not this. It passed on the next CI run and twice in a row
+  on the Mac (48 of 48). Cause unknown. A failure now prints
+  `update.reported` and every supervisor line about the update (asks,
+  could not be, reloading, staying on, started, stopped), so the next one
+  shows whether the supervisor saw the failed install at all.
 ## Fixed, cause known (2026-11-06)
 
 - `tests/integration/Version-Config.ps1`, PowerShell 5.1: `and changes
@@ -150,7 +188,8 @@ nor in 24 macOS upgrades and self updates and 12 Windows service runs before.
   merge of #41. A job did not run three more times within 60 seconds of the
   update. Most likely the stranded launch fixed above (2026-11-05).
 - `tests/integration/Service.ps1`, PowerShell 7: `user/pwsh: start succeeds`,
-  on #43. `vigil start` exited 1 and the service stayed inactive. The user
+  on #43, and once more on 2026-11-16 (backlog 54's branch), passing on rerun;
+  that run's log was not kept. `vigil start` exited 1 and the service stayed inactive. The user
   lifecycles share a root too, but this check comes after the run, so the
   stale state above does not explain it.
 - `tests/integration/self-update.sh`, macOS: `reload: it says so`.

@@ -122,8 +122,12 @@ _vigil_fetch_size() {
 _vigil_fetch_exec() {
     local secs=$1 out=$2 err=$3 pid n=0
     shift 3
+    # bash sets the group from both sides of the fork; on macOS the child's
+    # call can fail once the parent's has succeeded, and bash prints "child
+    # setpgid ...: Operation not permitted" on the stderr it has then. Only
+    # that, at the fork, goes to /dev/null (as in worker.sh).
     set -m
-    "$@" > "$out" 2> "$err" < /dev/null &
+    { "$@" > "$out" 2> "$err" < /dev/null & } 2> /dev/null
     pid=$!
     set +m
     while kill -0 "$pid" 2>/dev/null; do
