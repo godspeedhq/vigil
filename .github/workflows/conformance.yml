@@ -41,6 +41,8 @@ jobs:
         run: /bin/bash tests/integration/max-runtime.sh
       - name: uncertain runs (/bin/bash)
         run: /bin/bash tests/integration/uncertain.sh
+      - name: crash points (/bin/bash)
+        run: /bin/bash tests/integration/crash.sh
       - name: secrets (/bin/bash)
         run: /bin/bash tests/integration/secrets.sh
       - name: precheck (/bin/bash)
@@ -288,6 +290,9 @@ jobs:
       - name: uncertain runs
         if: matrix.part == 'core'
         run: ./tests/integration/Uncertain.ps1
+      - name: crash points
+        if: matrix.part == 'core'
+        run: ./tests/integration/Crash.ps1
       # As under a logon WMI refuses (SSH, a task without a stored password):
       # ownership is proven from the kernel instead.
       - name: max_runtime and uncertain runs, without WMI

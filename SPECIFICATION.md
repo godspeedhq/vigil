@@ -204,7 +204,7 @@ Workers never talk to backends. A worker writes its run's metric events to one s
 3. **Place, per target:** copy to a temporary name in `backends/<name>/`, rename it into place, then create the empty marker `fanout/<f>.<name>.done`.
 4. **Retire:** once every target has its marker, delete `fanout/<f>`, then the targets file and markers.
 
-On every sender start, unfinished fan-outs in `fanout/` are resumed before new incoming files are taken: targets with a marker are skipped, the rest are placed. A target whose backend has since been removed or disabled is dropped and counted in `vigil.spool.dropped` with `reason=backend_removed`, never silently. A crash between placing a copy and writing its marker places it again: a possible duplicate, consistent with at-least-once delivery, never a loss. A crash mid-copy leaves only a temporary file, which is never sent and is deleted on resume. Copies, not links, are used: event files are small, and copies keep size accounting exact on every filesystem.
+On every sender start, unfinished fan-outs in `fanout/` are resumed before new incoming files are taken: targets with a marker are skipped, the rest are placed. A target whose backend has since been removed or disabled is dropped and counted in `vigil.spool.dropped` with `reason=backend_removed`, never silently. A crash between placing a copy and writing its marker places it again: a possible duplicate, consistent with at-least-once delivery, never a loss. A crash mid-copy leaves only a temporary file, which is never sent; it is left behind. Copies, not links, are used: event files are small, and copies keep size accounting exact on every filesystem.
 
 **Delivery.** For each backend in turn, the sender:
 
@@ -937,8 +937,7 @@ Stopping the supervisor:
 
 1. Stops scheduling.
 2. Leaves running workers alone. They finish and record their own outcome.
-3. Flushes the spool within a bounded deadline.
-4. Exits.
+3. Exits. The spool is left as it is: the next sender delivers it.
 
 Service managers are configured not to kill the worker process tree on stop (§18).
 
@@ -1039,7 +1038,7 @@ A worker that cannot start at all never claims its launch, and nothing carries i
 
 When the state file is unreadable or missing, the run id is recovered from the launch, token and spool file names for that job. The process scan for a run id is only done in these cases and for launch records past their grace, not every tick.
 
-**Quarantine.** An unreadable state file is moved to `state/quarantine/<job id>.<epoch>.state` only once the run is concluded Finished or Crashed, never while it might be alive. Quarantine follows the log retention limit. Corruption is always recorded: `<m>.state_corrupt` and a `jobs.log` entry.
+**Quarantine.** An unreadable state file is moved to `state/quarantine/<job id>.<epoch>.state` only once the run is concluded Finished or Crashed, never while it might be alive. Quarantined files are kept until removed by hand. Corruption is always recorded: `<m>.state_corrupt` and a `jobs.log` entry.
 
 **Damaged numbers.** A state file is unreadable when it is empty, has no `[state]` header, has another schema, or holds a number that is not one: every number Vigil writes is digits with no leading zero, at most 18 (9 for a pid). None of an unreadable file's numbers is used. Other numbers Vigil reads back are checked the same way, and one that is damaged is never used in arithmetic: a launch record's `launch_epoch` makes the launch past its grace (so the run id is looked for, and the job held while anything carries it); a timeout marker's starts the grace before KILL again (Linux and macOS; Windows reads no number from it); `fetch.next` makes a fetch due; the log forwarder's makes it due; a source's `ok_epoch` is not reported. One damaged file never stops the tick or another job.
 
@@ -1221,7 +1220,7 @@ Field rules:
 
 - **Atomic publication.** Every state and recovery-record write goes to a temporary file in the same directory, `<name>.tmp.<pid>`, which is then renamed over the target: `mv -f` on POSIX; on Windows `File.Replace`, or `File.Move` when the target does not exist yet (`File.Replace` requires it). Same directory, so the rename never crosses filesystems. Readers only ever open the exact target name, so a temporary file is never mistaken for state.
 - **Durability.** On Windows the temporary file is flushed to disk (`FileStream.Flush($true)`) before the rename. bash has no portable per-file flush, so on Linux/macOS a power loss can leave an empty or truncated state file; that is handled as unreadable state (§11.3), never trusted. Atomic replacement prevents partially published state; it does not prevent every corruption, which is why state is evidence, not authority (§11).
-- **Leftover temporary files** (from a writer that died mid-write) are deleted by the supervisor only once the run they belong to is concluded, never while their writer might be alive. The supervisor's own temporary files (cursors, launch records, `config.valid`, `jobs.log`, its events) are deleted when it starts, once it holds the supervisor lock.
+- **Leftover temporary files** of a worker or the sender (from a writer that died mid-write) are left where they are: nothing reads or sends them. The supervisor's own temporary files (cursors, launch records, `config.valid`, `jobs.log`, its events) are deleted when it starts, once it holds the supervisor lock.
 - **One writer at a time (VIGIL-005).** While a run may be alive, its worker is the only writer of the job's state file. The supervisor writes it only to record a concluded run (`crashed`, `timed_out`, or an outcome reconciled from the spool, §11.3) — and only after it has established that the worker can no longer write: the run token is no longer held **and** no process carries the run id on its command line. A passed deadline, a missing PID or an unreadable state file is never, by itself, that proof. While ownership is uncertain, the supervisor writes only its own recovery record (§11.4).
 - An unreadable or unsupported state file is reported and handled per §11.3: never silently discarded, and quarantined only once the run is concluded.
 - Deleting a state file resets the job to "new" only when no run of it is alive (§11.3). Deleting the state of a live run changes nothing: the run is still found through its token and run id, and its final write recreates the file. Editing a state file is not supported.
@@ -1518,7 +1517,7 @@ Every metric carries the `[tags]` section plus automatic tags: `host` (the short
 - Reserved keys, set only by Vigil: `host`, `os`, `instance`, `job`, `label`, `uom`, `exit_code`. Declaring one is a validation error.
 - Tags are static per host, so adding more does not multiply the number of series in the backend.
 - A job adds or overrides tags for its own metrics with repeatable `tag = key=value` lines (§6.6), under the same key, value and reserved-key rules. A metric line's own tags (§14.3) override both, except reserved keys.
-- Some backends cap the number of tags (dimensions) per metric — Azure Monitor custom metrics allow 10 and CloudWatch 30, counting Vigil's automatic tags. Validation warns when an enabled backend's cap would be exceeded; the backend's own documentation is authoritative for current limits.
+- Some backends cap the number of tags (dimensions) per metric — Azure Monitor custom metrics allow 10 and CloudWatch 30, counting Vigil's automatic tags. Validation does not check these caps; the backend's own documentation is authoritative for current limits.
 
 ---
 
@@ -1716,7 +1715,7 @@ Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rul
 
 ### 16.4 Pre-flight Checks
 
-`vigil precheck` checks, without starting or changing anything, that everything runs need is there. Install and start run the same checks.
+`vigil precheck` checks, without starting or changing anything, that everything runs need is there. `vigil service install` and the installers run the same checks; `vigil start` does not.
 
 - Configuration parses and validates. Every problem is listed in file order, with its line, message and code; a rejected configuration stops here.
 - Every job file exists and is runnable through its resolved runner, its runner `command` exists, and its `working_dir` exists: the checks a worker makes before a run (§4.3).
@@ -1750,7 +1749,7 @@ precheck failed: 2 problem(s)
 - On Linux and macOS, `env:` and `require_env` are checked against the environment precheck runs in. Run it as the service account with the service's environment to see what the service will see.
 - When the supervisor refuses to start, or rejects a reload (§16.3), it prints or logs the same configuration report.
 
-Install and start abort with no changes if any check fails.
+Install aborts with no changes if any check fails.
 
 ### 16.5 Sources and Reconciliation
 
@@ -2281,7 +2280,7 @@ The configuration file is limited to 1 MiB. That limit is fixed, since a setting
 | Config invalid at startup | Refuse to start; print all errors. |
 | Config invalid on reload | Keep last valid config; post `config_reload_failed`. |
 | One job invalid | Skip that job; `INVALID`; `invalid_config` metric. |
-| Required env var missing at start | Refuse to start; print all missing names. |
+| Required env var missing | The job's runs fail with `missing environment variable <names>`, all of them named; pre-flight lists them. |
 | Job file missing | Skip; `FILE MISSING`; `file_missing` metric; auto-resume. |
 | Job exits non-zero | Classified per `exit_codes`; failure metric. |
 | Job exceeds `max_runtime` | Tree terminated; `timed_out`. |
@@ -2363,21 +2362,21 @@ Launch window (§4.3, §11.3) — the invariant is *exactly one run per launch, 
 
 20. Crash the supervisor at `launch.after_record` (record written, worker not started); after restart the launch is abandoned past its grace and the job is not run twice.
 21. Crash the supervisor at `launch.after_spawn`; the worker claims, and the restarted supervisor sees it Alive and starts nothing.
-22. Delay the worker past the launch grace before it claims (`worker.before_claim` with a pause); the supervisor abandons, and the late worker exits without running the job.
-23. Run claim against abandonment concurrently, at least 1,000 iterations per platform; exactly one side wins every time.
+22. Delay the worker past the launch grace before it claims (`worker.before_claim` with a pause): a process carries the run id, so the supervisor keeps holding and starts nothing (§11.3); the late worker claims and runs the job once.
+23. Run claim against abandonment concurrently, many times per platform (`CRASH_RACE_ROUNDS`: 50 on Linux and macOS and 10 on Windows in CI, where each round starts PowerShell; more on request); exactly one side wins every time.
 24. Leave a launch record from a previous boot; it is abandoned immediately.
 
 Fan-out (§4.5) — the invariant is *every event reaches every one of its targets at least once; no partial file is ever sent*:
 
 25. Crash the sender at `fanout.after_claim`, `fanout.after_targets`, after each placement (`fanout.after_place:N`) and at `fanout.before_retire`; after restart every target holds every event.
-26. Crash mid-copy; the temporary file is never sent and is cleaned up on resume.
+26. Crash mid-copy; the temporary file is never sent.
 27. Remove a backend from the config between a crash and the resume; the drop is counted with `reason=backend_removed`.
 28. Fill the disk part-way through a fan-out; the incoming file is not retired and the fan-out completes once space returns.
 29. Randomised crash loop over all launch and fan-out crash points, per platform, checked against both invariants.
 
 ### 22.4.1 Crash Points
 
-Timed kills cannot reliably land inside windows that last microseconds on three operating systems, so the code carries named crash points. When the environment variable `VIGIL_FAULT` names a point (for example `fanout.after_place:2`), the process exits immediately with code 99 when it reaches it.
+Timed kills cannot reliably land inside windows that last microseconds on three operating systems, so the code carries named crash points. When the environment variable `VIGIL_FAULT` names a point (for example `fanout.after_place:2`), the process exits immediately with code 99 when it reaches it, as if it had crashed there: no trap, `finally` block or cleanup runs. `name:N` exits the Nth time that process reaches it. With `VIGIL_FAULT_SLEEP=<seconds>` the point waits that long instead and carries on, to hold a process at that point (test 22). The code is `vigil_fault` (`config.sh`) and `Invoke-VigilFault` (`Config.ps1`); the tests are `tests/integration/crash.sh` and `Crash.ps1`.
 
 Points: `launch.after_record`, `launch.after_spawn`, `worker.before_claim`, `worker.after_claim`, `worker.after_spool`, `worker.after_state`, `fanout.after_claim`, `fanout.after_targets`, `fanout.after_place:N`, `fanout.before_retire`, `sender.after_send`, `state.after_temp` (temporary file written, not yet renamed).
 

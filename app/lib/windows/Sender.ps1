@@ -116,7 +116,9 @@ function Invoke-VigilSend {
             if ([System.IO.File]::Exists((Join-Path $q $base))) { [System.IO.File]::Delete((Join-Path $q $base)) }
             [System.IO.File]::Move($tmp, (Join-Path $q $base))
             [System.IO.File]::WriteAllText("$F.$b.done", '')
+            Invoke-VigilFault 'fanout.after_place'
         }
+        Invoke-VigilFault 'fanout.before_retire'
         [System.IO.File]::Delete($F)
         [System.IO.File]::Delete("$F.targets")
         foreach ($d in [System.IO.Directory]::GetFiles($fan, "$base.*.done")) { [System.IO.File]::Delete($d) }
@@ -135,14 +137,17 @@ function Invoke-VigilSend {
         if (-not [System.IO.File]::Exists("$f.targets")) {
             $t = & $targets $f
             Write-VigilFileAtomic -Path "$f.targets" -Text (($t -join "`n") + "`n")
+            Invoke-VigilFault 'fanout.after_targets'
         }
         & $place $f
     }
     foreach ($f in (& $sorted $in '*.events')) {
         $dest = Join-Path $fan ([System.IO.Path]::GetFileName($f))
         try { [System.IO.File]::Move($f, $dest) } catch { continue }
+        Invoke-VigilFault 'fanout.after_claim'
         $t = & $targets $dest
         Write-VigilFileAtomic -Path "$dest.targets" -Text (($t -join "`n") + "`n")
+        Invoke-VigilFault 'fanout.after_targets'
         & $place $dest
     }
 
@@ -246,6 +251,7 @@ function Invoke-VigilSend {
                     catch { & $backoff $b "cannot write $tfile"; break }
                 }
                 foreach ($d in $r.Drops) { $sp = $d.IndexOf(' '); & $dropn $b $d.Substring(0, $sp) ([long]$d.Substring($sp + 1)) }
+                Invoke-VigilFault 'sender.after_send'
                 foreach ($f in $batch) { [System.IO.File]::Delete($f) }
                 if ([System.IO.File]::Exists($sfile)) { [System.IO.File]::Delete($sfile) }
             }
@@ -263,6 +269,7 @@ function Invoke-VigilSend {
         try {
             [void](New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path))
             Write-VigilFileAtomic -Path $path -Text (Merge-VigilProm -Old $path -Events $batch)
+            Invoke-VigilFault 'sender.after_send'
             foreach ($f in $batch) { [System.IO.File]::Delete($f) }
             if ([System.IO.File]::Exists($sfile)) { [System.IO.File]::Delete($sfile) }
         }

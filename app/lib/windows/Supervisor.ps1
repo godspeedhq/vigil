@@ -656,6 +656,7 @@ function Invoke-VigilSupervisor {
             catch { }
         }
         Write-VigilFileAtomic -Path (Join-Path $locks "$Job.$rid.launch") -Text $text
+        Invoke-VigilFault 'launch.after_record'
         $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $App 'vigil.ps1'),
             '-Root', $sv.Root, 'worker', $Job, '--run-id', $rid)
         $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -666,6 +667,7 @@ function Invoke-VigilSupervisor {
         # Not waited for or tracked: the worker owns the run from here, and later
         # ticks learn how it is doing from the files it writes.
         [void][System.Diagnostics.Process]::Start($psi)
+        Invoke-VigilFault 'launch.after_spawn'
         $sv.Running++
         # The forwarder's own starts are not logged: each would give it
         # something new to forward.
@@ -1032,6 +1034,8 @@ function Invoke-VigilSupervisor {
             return ''
         }
         & $log 'INFO' "supervisor started, pid $PID"
+        # Crash points are for the tests only (22.4.1).
+        if ($env:VIGIL_FAULT) { & $log 'WARN' "VIGIL_FAULT is set ($($env:VIGIL_FAULT)): crash points are for tests only" }
         while ($true) {
             # A failing tick is logged, never fatal: the supervisor keeps
             # ticking (13.3).

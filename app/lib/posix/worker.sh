@@ -51,7 +51,9 @@ _vigil_wk_write_state() {
             printf '%-16s = %s\n' "${pair%% *}" "$_vw_value"
             i=$((i + 1))
         done
-    } > "$tmp" && mv -f "$tmp" "$path"
+    } > "$tmp" || return 1
+    vigil_fault state.after_temp
+    mv -f "$tmp" "$path"
 }
 
 _vigil_wk_set() {
@@ -402,6 +404,7 @@ vigil_worker() {
     # descriptor follows the file, so the token is held without a gap. If the
     # supervisor abandoned the launch first, either step fails and the job
     # does not run.
+    vigil_fault worker.before_claim
     if ! exec 9< "$launch"; then
         printf 'vigil: launch %s of %s was abandoned; not running\n' "$rid" "$_vw_job" >&2
         return 4
@@ -411,6 +414,7 @@ vigil_worker() {
         printf 'vigil: launch %s of %s was abandoned; not running\n' "$rid" "$_vw_job" >&2
         return 4
     fi
+    vigil_fault worker.after_claim
 
     mkdir -p "$_vw_statedir/jobs" "$_vw_logdir/jobs/$_vw_job" "$_vw_spooldir/incoming"
     _vigil_wk_logfile "$_vw_logdir/jobs/$_vw_job" "$(date '+%Y-%m-%d')"
@@ -622,6 +626,7 @@ vigil_worker() {
     stem="$_vw_epoch-$_vw_job-$rid.events"
     spool="$_vw_spooldir/incoming/$stem"
     vigil_run_events_dump > "$spool.tmp.$$" && mv -f "$spool.tmp.$$" "$spool"
+    vigil_fault worker.after_spool
 
     _vigil_wk_set status "$outcome"
     _vigil_wk_set reason "$reason"
@@ -636,6 +641,7 @@ vigil_worker() {
     _vigil_wk_set dropped_lines "$VIGIL_MET_DROPPED"
     _vigil_wk_set spool_file "$stem"
     _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
+    vigil_fault worker.after_state
     if [ -n "$reason" ]; then
         _vigil_wk_log "$rid run end $outcome ($reason) in ${duration}s, cpu ${_vw_cpu}s"
     else

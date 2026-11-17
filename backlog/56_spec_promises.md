@@ -83,3 +83,42 @@ and `vigil_update` keep their own timeouts.
   platforms, with a test.
 - §4.5, §10.4, §11.3, §12.3, §15, §16.4, §21 and §22.4 say what the code
   does.
+
+## Built (2026-11-17)
+
+**The sender's limit** (#180): the sender's state records its deadline and
+the sender as its own job process, so the supervisor ends it past 5 minutes
+as it ends a job, recorded `timed_out`; a later sender delivers what it was
+sending. `VIGIL_TEST_SENDER_LIMIT` (§22.4.7) shortens it for the tests.
+`backends.sh` and `Backends.ps1` hang the mock backend and check all of it.
+
+**Crash points:** `vigil_fault` (`config.sh`) and `Invoke-VigilFault`
+(`Config.ps1`), called at the twelve points of §22.4.1 on both platforms.
+`name:N` exits the Nth time; `VIGIL_FAULT_SLEEP` waits instead of exiting.
+An exit is abrupt: `exit 99` with no trap on the paths concerned, and on
+Windows `[Environment]::Exit(99)`, which runs no `finally` block. The
+supervisor warns at startup while `VIGIL_FAULT` is set.
+
+**Tests:** `tests/integration/crash.sh` and `Crash.ps1`, in CI on Linux,
+macOS and Windows (PowerShell 5.1 and 7): §22.4's 20, 21, 22, 23, 25, 26
+and 29. Two departures from §22.4 as it was written, both now in it:
+- **22.** A worker held before its claim carries the run id, so the
+  supervisor keeps holding it past the grace, as §11.3 says, rather than
+  abandoning it; the late worker then runs the job once. The invariant
+  holds either way: one run per launch, or none.
+- **23.** Not 1,000 rounds on every platform: `CRASH_RACE_ROUNDS`, 50 on
+  Linux and macOS and 10 on Windows by default, where each round starts
+  PowerShell. More can be run by hand.
+
+**The specification** now says what the code does for items 3 to 7, and
+§22.4.1 describes the crash points as built.
+
+Found on the way, in the tests only: a launch crash point fires at the
+first launch of a tick, so each launch test first lets the job's runs end
+(a tick launches its jobs before the sender); and a sender still running
+takes an event first, so each fan-out test waits for none to be running.
+
+Tested before merging: `crash.sh` 35 of 35 on Fedora (bash 5.3) and the Mac
+(bash 3.2), with 50 races; `Crash.ps1` 35 of 35 on this laptop, PowerShell
+5.1 and 7; `backends` and `supervise` passing on Fedora and the Mac with
+both changes in.
