@@ -643,6 +643,14 @@ function Invoke-VigilSupervisor {
         elseif ($sv.Mode -ceq 'local' -and $sv.ValidSha) {
             $text += "config        = $(Join-Path $sv.State 'config.valid')`nconfig_sha256 = $($sv.ValidSha)`n"
         }
+        # The run resolved from the configuration validated above, so the
+        # worker need not read it (4.3). Only when the launch names that
+        # configuration and its digest: otherwise the worker reads and
+        # validates the file itself.
+        if (($sv.Mode -ceq 'local' -and $sv.ValidSha) -or ($sv.Mode -ceq 'fetch' -and $sv.ActiveSha)) {
+            try { $text += Format-VigilRunSection -Parsed $sv.Parsed -Index $sv.Index -Job $Job -Root $sv.Root -Script $Script -Logs $sv.Logs -Spool $sv.Spool }
+            catch { }
+        }
         Write-VigilFileAtomic -Path (Join-Path $locks "$Job.$rid.launch") -Text $text
         $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $App 'vigil.ps1'),
             '-Root', $sv.Root, 'worker', $Job, '--run-id', $rid)
