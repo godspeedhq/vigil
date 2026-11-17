@@ -65,7 +65,16 @@ function Get-LockRid { param([string]$Job) $l = (Get-Locks $Job).Split(' ')[0]; 
 function Get-Marks { $f = "$root\marks"; if (Test-Path -LiteralPath $f) { @([System.IO.File]::ReadAllLines($f) | ForEach-Object { $_.Trim() } | Where-Object { $_ }) } else { @() } }
 function Get-MarkCount { param([string]$Rid) @(Get-Marks | Where-Object { $_ -ceq $Rid }).Count }
 function Get-Overlap { $f = "$root\overlap"; if (Test-Path -LiteralPath $f) { [System.IO.File]::ReadAllText($f).Trim() } else { '' } }
-function Test-InBoth { param([string]$Name) foreach ($b in 'a', 'b') { $f = "$root\metrics\$b.prom"; if (-not (Test-Path -LiteralPath $f) -or -not ([System.IO.File]::ReadAllText($f) -cmatch "(?m)^$Name")) { return $false } }; return $true }
+# A sender may be writing a file backend's file while it is read: wait for
+# it (up to 5 s) rather than take a busy file for a missing event.
+function Read-Backend {
+    param([string]$Path)
+    for ($i = 0; ; $i++) {
+        try { return [System.IO.File]::ReadAllText($Path) }
+        catch [System.IO.IOException] { if ($i -ge 50) { throw }; Start-Sleep -Milliseconds 100 }
+    }
+}
+function Test-InBoth { param([string]$Name) foreach ($b in 'a', 'b') { $f = "$root\metrics\$b.prom"; if (-not (Test-Path -LiteralPath $f) -or -not ((Read-Backend $f) -cmatch "(?m)^$Name")) { return $false } }; return $true }
 function Wait-Ticking { param([int]$Times, [scriptblock]$Until) for ($i = 0; $i -lt $Times -and -not (& $Until); $i++) { [void](Invoke-Once); Start-Sleep -Seconds 1 } }
 function Set-LaunchOld {
     param([string]$Job, [string]$Rid)
@@ -254,7 +263,7 @@ $partial = "$root\spool\backends\a\.1-it-partial.events.tmp.123"
 [System.IO.File]::WriteAllText($partial, "$([DateTimeOffset]::Now.ToUnixTimeSeconds()) partial_copy 1 gauge host=it`n")
 Add-Event 'after_partial'
 Wait-Ticking 15 { Test-InBoth 'after_partial' }
-Test-Equal '26: a temporary file is never sent' 'False' "$([System.IO.File]::ReadAllText("$root\metrics\a.prom") -cmatch '(?m)^partial_copy')"
+Test-Equal '26: a temporary file is never sent' 'False' "$((Read-Backend "$root\metrics\a.prom") -cmatch '(?m)^partial_copy')"
 Remove-Item -LiteralPath $partial -ErrorAction SilentlyContinue
 
 # --- 29. A randomised crash loop ------------------------------------------------------
