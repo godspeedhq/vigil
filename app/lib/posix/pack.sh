@@ -133,7 +133,8 @@ _vigil_pack_read() {
 
 # Finds the latest release and puts this platform's packs in _vp_src, verified:
 # the signature against the key installed here, then the file against
-# SHA256SUMS. From GitHub, or the configuration's release_url. The caller
+# SHA256SUMS. From GitHub, or the configuration's release_url or release_path.
+# The caller
 # removes _vp_work.
 _vigil_pack_fetch() {
     local root=$1 app=$2 base tag want file f key sum got why

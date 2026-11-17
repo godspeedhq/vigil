@@ -25,6 +25,7 @@
 # begins, for tour-page.sh:
 #
 #   ::section <title>    ::note <text>    ::cmd <command>    ::file <path>
+#   ::done (the end of the tour)
 #
 # Exit code: 0, or 1 if Vigil could not be set up at all.
 

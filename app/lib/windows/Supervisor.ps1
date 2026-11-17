@@ -21,14 +21,15 @@
 
     Invoke-VigilSupervisor -Root <dir> -App <app dir> [-Once]
         Returns 1 when another supervisor owns the state directory or the
-        configuration cannot be loaded at startup, else 0.
+        configuration cannot be loaded at startup; $Script:VigilReloadCode
+        when app\ holds a new version to reload into (18.7); else 0.
 
     Windows only; supervisor.sh is the Linux and macOS supervisor. The
     supervisor lock is held open exclusively for its whole life (12.4).
 
     Requires Config.ps1, Validate.ps1, Effective.ps1, Command.ps1,
     Schedule.ps1, Outcome.ps1, Metrics.ps1, Events.ps1, Recovery.ps1,
-    Worker.ps1 and Precheck.ps1.
+    Worker.ps1, Precheck.ps1, Fetch.ps1 and Logs.ps1.
 #>
 
 # How long, in seconds, a launch record may wait for its worker to claim it

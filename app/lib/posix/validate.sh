@@ -977,7 +977,7 @@ vigil_config_validate() {
         case $kind in
             job)
                 case $sub in
-                    # Vigil's own workers use these ids: vigil_sender, vigil_fetch, vigil_logs.
+                    # Vigil's own workers use these ids: vigil_sender, vigil_fetch, vigil_logs, vigil_update.
                     vigil_*)
                         _vigil_val_report "$sline" E_JOB_ID_RESERVED "job ids starting with vigil_ are reserved"
                         ;;

@@ -347,7 +347,8 @@ vigil_precheck() {
         done
     fi
 
-    # Credentials of backends and secret stores: resolved, never shown.
+    # Credentials of backends, secret stores, sources and log destinations:
+    # resolved, never shown.
     s=0
     while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
         sec=${VIGIL_CFG_SEC_NAME[$s]}

@@ -51,15 +51,17 @@
         The packs of scripts and jobs (18.10). What is a pack or a pack_job.
     vigil [-Root <dir>] init [empty] [--instance <name>] [--backend file,datadog,otel] [--no-pack]
         Writes a starting configuration (19): runners for the PowerShell
-        hosts found here, the backends, and the base pack's jobs; empty for neither;
-        job. Asks for what is not given when run at a console. Never
+        hosts found here, the backends, and the base pack's jobs; empty for
+        runners only, with no backend and no pack. Asks for what is not
+        given when run at a console. Never
         overwrites a configuration, never asks for a secret value.
     vigil [-Root <dir>] uninstall [--yes] [--keep-config]
         Removes Vigil (18.8): the service, the running workers proven to be
-        Vigil's, the root (or all but config and scripts) and the PATH
+        Vigil's, the root (or all but config, scripts and packs) and the PATH
         entries. Lists what it will remove and asks first, unless --yes.
-    vigil [-Root <dir>] version
-        The installed version.
+    vigil [-Root <dir>] version [--supervisor]
+        The installed version; with --supervisor, the version the running
+        supervisor is on (exit 1 when none is running).
     vigil [-Root <dir>] about
         What Vigil is, who made it and where it runs.
     vigil [-Root <dir>] self update [--check] [--version <version>]
@@ -311,8 +313,9 @@ switch ($Command) {
             Enable-VigilPack -Root $Root -What $pack | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
             if ($code -ne 0) { exit 1 }
         }
-        # A package registers its own service, and its install says how to
-        # start it: vigil service install would refuse (18.6).
+        # A package's install says how to start Vigil itself (18.6): one
+        # that registers its own service refuses vigil service install, and
+        # Scoop, which runs none, prints the --user command.
         if (-not $packaged) {
             Write-Output ''
             Write-Output 'Next: vigil precheck, then vigil service install'

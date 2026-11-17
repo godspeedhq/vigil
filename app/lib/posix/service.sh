@@ -594,7 +594,7 @@ _vigil_svc_runs() {
 }
 
 # vigil uninstall (18.8): the service, the proven workers, then the root
-# (all of it, or all but config/ and scripts/), and the command link.
+# (all of it, or all but config/, scripts/ and packs/), and the command link.
 vigil_uninstall() {
     local root=$1 yes=$2 keep=$3 statedir=$root/state n link answer p i alive
     if [ ! -f "$root/app/vigil" ] || [ "$root" = / ] || [ "$root" = "$HOME" ]; then

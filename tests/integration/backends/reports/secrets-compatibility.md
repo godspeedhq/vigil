@@ -12,7 +12,7 @@ How Vigil's secret stores work with real secret services and local emulators, an
 ## Matrix
 
 | Backend | Deployment | Validation | API compatibility | Authentication | Secret retrieval | Rotation | Result |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | OpenBao (`openbao/openbao:2.7.1`) | Docker, server mode, raft, TLS | Real backend | **Passed**: KV v2 reads, as Vigil's `hashicorp_vault` | **Passed**: token, AppRole; bad, expired and wrong-policy credentials refused | **Passed**: KV v2. KV v1: **Not supported** by Vigil | **Passed** | **Passed** |
 | HashiCorp Vault (`hashicorp/vault:2.2.0`) | Docker, server mode, raft, TLS | Real backend | **Passed**, the same | **Passed**, the same | **Passed**: KV v2. KV v1: **Not supported** by Vigil | **Passed** | **Passed** |
 | Floci AWS (`floci/floci:2.3.0`) | Docker, behind an nginx TLS front | Emulator | **Passed**: `GetSecretValue` as Vigil's `aws_secrets_manager` signs it; regions kept apart | **Emulator limitation**: any key is accepted, signatures are not checked | **Passed**, with `field`; binary secrets: **Not supported** by Vigil | **Passed** | **Passed**, as an emulator (see limits below) |

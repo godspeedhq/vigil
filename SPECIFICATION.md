@@ -139,7 +139,7 @@ One worker process per job run.
 **Launch.** Evidence of a run must exist before its process does, so a supervisor that crashes mid-launch can never mistake a started worker for a job that never ran. The supervisor:
 
 1. Generates a unique run id.
-2. Writes a launch record, `state/locks/<job id>.<run id>.launch` (`[launch]` section: job, run id, boot id, scheduled and launch times, and the configuration the run uses, below), atomically.
+2. Writes a launch record, `state/locks/<job id>.<run id>.launch` (`[launch]` section: job, run id, boot id, launch time (`launch_epoch`), and the configuration the run uses, below), atomically.
 3. Only then starts the worker, passing the run id on its command line (`--run-id`) and in the environment (`VIGIL_RUN_ID`).
 
 **Claim.** The worker takes ownership of the run by claiming the launch record, an operation that can succeed for exactly one party (§11.2):
@@ -837,7 +837,7 @@ Each tick, the supervisor reaches exactly one decision per job. The decision is 
 | `queue` | On time, a run is active, `overlap = queue_one` and none is queued | the slot |
 | `skip` | On time and a run is active, otherwise | the slot |
 
-Every decision except `disabled` also reports the next slot that can run — the first after both now and the cursor — shown as `NEXT` in `jobs.log`. `run` and `queue` hand the slot to admission (§8), which may still hold it as pending for capacity.
+Every decision except `disabled` also reports the next slot that can run — the first after both now and the cursor — shown as `NEXT` in `jobs.log`. `run` and `queue` hand the slot to admission (§8).
 
 ### 7.10 Cron
 
@@ -978,8 +978,8 @@ Boot id sources: `/proc/sys/kernel/random/boot_id` on Linux, `sysctl kern.bootti
 
 | Platform | Run token | Run id on command line | Run id in environment | Start time |
 | --- | --- | --- | --- | --- |
-| Linux | `/proc/<pid>/fd` links to the token: names the exact holder, worker or inherited child | `/proc/<pid>/cmdline` | `/proc/<pid>/environ` (own processes) | `/proc/<pid>/stat` |
-| macOS | `lsof -t <token>` lists every holder, worker or inherited child | `ps -o args= -p <pid>` | not relied on | `ps -o lstart= -p <pid>` |
+| Linux | `/proc/<pid>/fd` links to the token: names the exact holder, worker or inherited child | `/proc/<pid>/cmdline` | not relied on | `/proc/<pid>/stat` |
+| macOS | `lsof -t <token>` lists every holder, worker or inherited child | `ps -axww -o args=` | not relied on | not recorded (`*_start` empty, §12.2) |
 | Windows | An exclusive open fails while the worker or the job holds it: the job inherits the open handle, and so does whatever it starts | Process `CommandLine` | not relied on | `Get-Process` `StartTime` |
 
 The resulting guarantees are deliberately not conflated:
@@ -1088,7 +1088,7 @@ Each held job appears under `UNCERTAIN` in `jobs.log` with its reason (for examp
 Vigil terminates a process only for `max_runtime` or `vigil uninstall`, and only when it has proven the process belongs to the run:
 
 - **Worker:** its command line carries the run id, and its start time matches where available.
-- **Job process:** on Linux/macOS it holds the run token or carries `VIGIL_RUN_ID`; on Windows (where it holds the token too) its PID, name and start time match the state file and, while the worker lives, its parent is the worker.
+- **Job process:** on Linux/macOS it holds the run token; on Windows (where it holds the token too) its PID, name and start time match the state file and, while the worker lives, its parent is the worker.
 
 If ownership cannot be proven, Vigil does not terminate. The run is treated as uncertain (§11.4), with the reason `past max_runtime, but its job process cannot be proven to be the run's`, under the job's `on_uncertain` policy: held and reported every tick, never killed.
 
@@ -1098,7 +1098,7 @@ Deadlines: `deadline_epoch` is recorded at start. While the supervisor runs, ela
 
 Used only for `max_runtime` and `vigil uninstall`, after §11.5.
 
-- **Windows:** `taskkill /T /F` against the ownership-checked job process. Windows has no equivalent of `TERM` for console programs, so the tree is ended at once and `grace` does not apply. The worker is not killed: it records the outcome itself.
+- **Windows:** the ownership-checked job process and every process it started, read from the kernel first and ended from the root down, so a `cmd.exe` parent cannot run its next line between its children's ends; `taskkill /T /F` only where the kernel cannot be asked. Windows has no equivalent of `TERM` for console programs, so the tree is ended at once and `grace` does not apply. The worker is not killed: it records the outcome itself.
 - **Linux/macOS:** the worker starts the job in its own process group (`set -m`); termination signals the group: `TERM`, then `KILL` on the first tick at least `grace` later if it is still running. Ownership is proven by the job process holding the run token, which it inherits from the worker. The worker is not signalled: it records the outcome itself.
 
 Processes that deliberately escape their group or tree may survive. This limit is documented (§24).
@@ -1204,7 +1204,7 @@ spool_file       = 1793304870-dump_databases-20261029T200000Z-4821.events
 
 Field rules:
 
-- **Status** is one of `waiting`, `running`, `succeeded`, `warning`, `failed`, `unknown`, `timed_out` or `crashed`. `reason` holds a one-line explanation for anything other than success (for example `exit code 2`, `runner not found`, `worker vanished`).
+- **Status** is one of `running`, `succeeded`, `warning`, `failed`, `unknown`, `timed_out` or `crashed`. `reason` holds a one-line explanation for anything other than success (for example `exit code 2`, `runner not found`, `worker vanished`).
 - **Times are stored twice.** `*_epoch` fields are Unix seconds in UTC and are what Vigil computes with. `*_at` fields are ISO 8601 UTC, for humans. Both are needed because converting an ISO date back to a number is not portable between GNU and BSD `date`, while printing both is trivial on every platform.
 - **Process identity:** `*_pid`, `*_name` and `*_start` (epoch) for the worker and for the job process it started (§11.1). `*_name` is the process's own name (`cmd.exe` for a `.cmd` job), which is what ownership is checked against. On platforms where a start time is unavailable, `*_start` is empty.
 - **A running file** has `status = running` and no `ended_*`, `duration_seconds` or `exit_code`.
@@ -1222,14 +1222,14 @@ Field rules:
 - **Atomic publication.** Every state and recovery-record write goes to a temporary file in the same directory, `<name>.tmp.<pid>`, which is then renamed over the target: `mv -f` on POSIX; on Windows `File.Replace`, or `File.Move` when the target does not exist yet (`File.Replace` requires it). Same directory, so the rename never crosses filesystems. Readers only ever open the exact target name, so a temporary file is never mistaken for state.
 - **Durability.** On Windows the temporary file is flushed to disk (`FileStream.Flush($true)`) before the rename. bash has no portable per-file flush, so on Linux/macOS a power loss can leave an empty or truncated state file; that is handled as unreadable state (§11.3), never trusted. Atomic replacement prevents partially published state; it does not prevent every corruption, which is why state is evidence, not authority (§11).
 - **Leftover temporary files** (from a writer that died mid-write) are deleted by the supervisor only once the run they belong to is concluded, never while their writer might be alive. The supervisor's own temporary files (cursors, launch records, `config.valid`, `jobs.log`, its events) are deleted when it starts, once it holds the supervisor lock.
-- **One writer at a time (VIGIL-005).** While a run may be alive, its worker is the only writer of the job's state file. The supervisor writes it only to create the initial `waiting` state of a new job, or to record a concluded run (`crashed`, `timed_out`, or an outcome reconciled from the spool, §11.3) — and only after it has established that the worker can no longer write: the run token is no longer held **and** no process carries the run id on its command line. A passed deadline, a missing PID or an unreadable state file is never, by itself, that proof. While ownership is uncertain, the supervisor writes only its own recovery record (§11.4).
+- **One writer at a time (VIGIL-005).** While a run may be alive, its worker is the only writer of the job's state file. The supervisor writes it only to record a concluded run (`crashed`, `timed_out`, or an outcome reconciled from the spool, §11.3) — and only after it has established that the worker can no longer write: the run token is no longer held **and** no process carries the run id on its command line. A passed deadline, a missing PID or an unreadable state file is never, by itself, that proof. While ownership is uncertain, the supervisor writes only its own recovery record (§11.4).
 - An unreadable or unsupported state file is reported and handled per §11.3: never silently discarded, and quarantined only once the run is concluded.
 - Deleting a state file resets the job to "new" only when no run of it is alive (§11.3). Deleting the state of a live run changes nothing: the run is still found through its token and run id, and its final write recreates the file. Editing a state file is not supported.
 - Configuration is the source of truth for scheduling. State records what happened.
 
 ### 12.4 Single Supervisor
 
-The supervisor holds `state/supervisor.lock` open for its whole life, the same way a worker holds its run token (§11.2), and records its PID and start time in it. At startup it refuses to run if another live supervisor holds the lock. A lock file that exists but is not held is stale and is taken over.
+The supervisor holds `state/supervisor.lock` open for its whole life, the same way a worker holds its run token (§11.2), and records its PID in it, and on Linux and macOS its start time too. At startup it refuses to run if another live supervisor holds the lock. A lock file that exists but is not held is stale and is taken over.
 
 ---
 
@@ -1254,12 +1254,12 @@ Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every
 
 ### 13.2 Status File
 
-`logs/supervisor/jobs.log` is rewritten every tick and is the primary operator view. With sources (§6.9), it first shows `SOURCES`: the active revision and where it came from, or `waiting for the first fetch`, and the reason the last fetch failed, if it did. It then groups jobs into sections:
+`logs/supervisor/jobs.log` is rewritten every tick and is the primary operator view. While an edit is rejected it first says `CONFIGURATION REJECTED - the last valid configuration is active` (§16.3). With sources (§6.9), it then shows `SOURCES`: the active revision and where it came from, or `waiting for the first fetch`, and the reason the last fetch failed, if it did. When the configuration names a version that is not installed (§18.11), `VERSION` says which and why. It then groups jobs into sections:
 
+- `FILE MISSING`
 - `UNCERTAIN` (with the reason; §11.4)
 - `CRASHED` / `ORPHANED`
 - `INVALID` (with the validation reason)
-- `FILE MISSING`
 - `RUNNING` (PID, elapsed, time to `max_runtime`)
 - `WAITING` (next scheduled time)
 - `DISABLED`
@@ -1722,7 +1722,7 @@ Backend sections are checked for `type`, `enabled`, `timeout` and the `env:` rul
 - Every job file exists and is runnable through its resolved runner, its runner `command` exists, and its `working_dir` exists: the checks a worker makes before a run (§4.3).
 - Every `secret` of every job resolves, and every `require_env` variable is set (or provided by a `secret`). Backend and secret store credentials (`env:`, `secret:` references) resolve, and each cloud secret store says whether it uses its vendor's CLI or Vigil's own HTTPS (§6.5.3). Values are fetched and thrown away; only references are printed.
 - State, log and spool directories are writable: each, or the nearest folder above it that exists, since precheck creates nothing.
-- `VIGIL_FAULT`, `VIGIL_TEST_IMDS` and, on Windows, `VIGIL_TEST_DPAPI_REFUSED` and `VIGIL_TEST_NGEN_MISSING` are not set (§22.4.1, §22.4.2, §22.4.5, §22.4.6).
+- `VIGIL_FAULT`, `VIGIL_TEST_IMDS`, `VIGIL_TEST_SSH_CONFIG`, `VIGIL_TEST_RELEASE_URL` and, on Windows, `VIGIL_TEST_DPAPI_REFUSED` and `VIGIL_TEST_NGEN_MISSING` are not set (§22.4.1 to §22.4.6).
 - The minute of the next 24 hours at which the most jobs start, and how many, when it is more than one: a `note`, never a failure (§8). Each job's starts are worked out from its schedule as the supervisor would, at the current UTC offset.
 - On Windows, whether Windows PowerShell starts with .NET's native images: a `note` when it does not, never a failure (§16.7).
 
@@ -1869,7 +1869,7 @@ doctor: no warnings
 - **File permissions:** configuration, state, spool and the install directory must not be writable by untrusted users. Install sets owner-only permissions where the OS allows.
 - **No remote control:** Vigil exposes no network listener.
 - **Release signing:** a tagged release is built and signed by `.github/workflows/release.yml`, as a draft, with a key held only as a GitHub Actions secret and created by `tools/release/new-key.sh`, so it never exists on a developer's disk. Self-update refuses a release that key did not sign (§18.7), wherever it comes from, so releases kept on a copy of their own (`release_url`) are as safe as GitHub's.
-- **Script signing:** Windows releases are Authenticode-signed so they run under `AllSigned` execution policy.
+- **Script signing:** Windows releases are not Authenticode-signed yet (backlog 12), so a host whose execution policy is `AllSigned` cannot run them; `RemoteSigned` and below can, once the installer has cleared the downloaded-from-the-internet mark (§18.7).
 
 ---
 
@@ -1922,7 +1922,7 @@ Each service manager is configured so stopping the service stops only the superv
 | `precheck [<job>]` | Pre-flight checks (§16.4); with a job, also its effective settings (§6.6). |
 | `doctor` | How well Vigil runs here (§16.7): what its runs cost, how fast a shell starts, and on Windows .NET's native images, Defender and PowerShell's logging policies. Changes nothing; exits 1 on any `WARN`. |
 | `config` | Edit the configuration in `$VISUAL` / `$EDITOR`, saved only when valid (§16.6). |
-| `service install [--user \| --system] [--account <name>] [--host powershell \| pwsh] [--no-start]` / `service remove` | Register or unregister the service without touching files (for example to switch mode). See §18.9. |
+| `service install [--user \| --system] [--account <name>] [--host powershell \| pwsh] [--no-start]` / `service remove` | Register or unregister the service without touching files (for example to switch mode). `--account` is Linux and macOS only, `--host` Windows only. See §18.9. |
 | `start` / `stop` / `restart` | Service control. Stop leaves workers running. |
 | `status` | Print the service's state (`service: active, pid <n> (<manager>, <mode> mode)`, `inactive` or `not registered`), then `jobs.log`. When this account cannot read the root, the log folders or `jobs.log` (a system install on Windows is closed to all but SYSTEM and Administrators), it says which, and how to run it instead, and exits 1: it never reports a `jobs.log` it cannot see as not written yet. |
 | `supervise [--once]` | The supervisor itself (§4.1), as the service manager runs it: ticks until stopped (TERM or INT on Linux/macOS, stopping the process on Windows), or a single tick with `--once`. Running workers are never stopped with it. Refuses to start while another supervisor owns the state directory, or when the configuration is invalid and no earlier valid one exists. |
@@ -1946,17 +1946,17 @@ Everything is installed under one root (layout in §12.1):
 Outside the root, Vigil creates only:
 
 - The service registration: the systemd unit, the launchd plist, the NSSM service, or the Windows Run entry.
-- The `vigil` command: a link in `~/.local/bin` (user mode) or `/usr/local/bin` (system mode) on Linux/macOS; on Windows the root's `app\` folder is added to the user's or machine's `PATH`.
+- The `vigil` command: a link in `~/.local/bin` (user mode) or `/usr/local/bin` (system mode) on Linux/macOS; on Windows the root's `app\bin` folder is added to the user's or machine's `PATH`.
 
 `--prefix <path>` installs to a custom root.
 
 **Where the root comes from.** Every command takes it from `--root` (`-Root`), else the `VIGIL_ROOT` environment variable, else the root a package names (below), else the folder that contains `app/`. The service registration and the supervisor's workers always pass `--root`.
 
-**A packaged program.** A package (`.deb`, `.rpm`, Homebrew, Chocolatey, an MSI) installs the program where its package manager keeps programs, owned by it and read-only, and the root elsewhere. Its build writes `app/PACKAGED`, which Vigil itself never writes, as `key = value` lines:
+**A packaged program.** A package (`.deb`, `.rpm`, Homebrew, Scoop, MacPorts) installs the program where its package manager keeps programs, owned by it and read-only, and the root elsewhere. Its build writes `app/PACKAGED`, which Vigil itself never writes, as `key = value` lines:
 
 ```ini
 manager = dnf
-upgrade = sudo dnf upgrade vigil
+upgrade = sudo dnf install ./vigil-<version>-1.noarch.rpm, from the releases page
 root    = /opt/vigil
 service = sudo systemctl enable --now vigil
 ```
@@ -2017,7 +2017,7 @@ The installer:
 
 1. Runs pre-flight checks for Vigil's prerequisites (§5.1) and stops before changing anything if one is missing.
 2. Downloads a versioned release archive from GitHub Releases and verifies its SHA-256 (`sha256sum`, `shasum -a 256` or `Get-FileHash`) against the release's `SHA256SUMS` before using it. A mismatch, or an archive with no checksum, changes nothing. When there is a release key to check with, `SHA256SUMS` must first carry its signature (`SHA256SUMS.sig`): the key given with `--key` (`-Key`), else, on an upgrade, the `app/release-key.pem` of the version installed. The signature is then required, not checked only when present: whoever can replace an archive on a share can remove a signature beside it. A fresh install without `--key` has no key, and relies on GitHub and HTTPS.
-3. Unpacks it into the root (§18.6). On upgrade, only `app/` and `vendor/` are replaced, each swapped whole (`app.old` is removed after), so a process still running the old one keeps reading intact files; `config/` and `scripts/` are never touched. A running service is stopped first and started again after.
+3. Unpacks it into the root (§18.6). On upgrade, only `app/` and `vendor/` are replaced, each swapped whole (`app.old` is removed after), so a process still running the old one keeps reading intact files; `config/` and `scripts/` are never touched. A running supervisor that can hot reload replaces itself and the service is not touched; one from before hot reload is stopped first and started again after.
 4. Puts the `vigil` command on the `PATH` (§18.6). On Windows that is `app\bin`, which holds only `vigil.cmd`: it runs `vigil.ps1` from cmd.exe and PowerShell alike, with the execution policy bypassed for that one process, so `vigil` works where the policy refuses scripts (the default on Windows 10 and 11) without the policy being changed. An earlier install's `app\` entry is moved to `app\bin`.
 5. Runs `vigil init` on a fresh install (§19).
 6. Registers the service for the chosen mode (§18.9). When pre-flight fails, Vigil stays installed but not registered, and the installer says what to fix and the command to run after.
@@ -2026,10 +2026,10 @@ Details:
 
 - Every prompt has a flag equivalent (`sh -s -- --system --backend datadog`; `& ([scriptblock]::Create((irm .../install.ps1))) -System -Backend datadog`), so the installer runs unattended from deployment tooling. When piped, prompts read from `/dev/tty`, because standard input is the script itself.
 - `install.sh` is POSIX `sh`, since it is what `| sh` runs (dash on Debian and Ubuntu); Vigil itself then runs on bash.
-- Windows: the documented one-liner first enables TLS 1.2, which PowerShell 5.1 on older servers may not use by default. After verifying the hash, the installer removes the downloaded-from-the-internet mark from Vigil's files so a RemoteSigned execution policy does not block them; signed releases (§17) avoid the issue under AllSigned. Under `iex` the installer runs in the caller's own session, so it never calls `exit` (a failure throws) and restores the preferences it changes. `-ShellHost powershell | pwsh` chooses the service's host (§18.9).
+- Windows: the documented one-liner first enables TLS 1.2, which PowerShell 5.1 on older servers may not use by default. After verifying the hash, the installer removes the downloaded-from-the-internet mark from Vigil's files so a RemoteSigned execution policy does not block them; releases are not Authenticode-signed yet, so `AllSigned` blocks them (§17). Under `iex` the installer runs in the caller's own session, so it never calls `exit` (a failure throws) and restores the preferences it changes. `-ShellHost powershell | pwsh` chooses the service's host (§18.9).
 - A version can be pinned (`--version 1.2.0`); the default is the latest release. The installers, `vigil self update`, its daily check and `vigil pack update` find it where GitHub redirects `/releases/latest`, and, only when that page fails, from the GitHub API, which allows an address 60 requests an hour: too few for a fleet behind one to use first, enough to fall back on. From a `release_url` or `release_path` (below), it is the one line of `releases/latest/VERSION`.
 
-Release assets, built by `tools/release/package.sh <version>`: `vigil-<version>.tar.gz` (Linux, macOS), `vigil-<version>.zip` (Windows), each holding one folder `vigil-<version>/` with `app/` (including `app/VERSION`), `vendor/`, both installers, `LICENSE` and `README.md`; `install.sh` and `install.ps1` on their own; and `SHA256SUMS` covering all four.
+Release assets, built by `tools/release/package.sh <version>`: `vigil-<version>.tar.gz` (Linux, macOS), `vigil-<version>.zip` (Windows), each holding one folder `vigil-<version>/` with `app/` (including `app/VERSION`), `vendor/`, `packs/`, both installers, `LICENSE` and `README.md`; `install.sh` and `install.ps1` on their own; the packs alone (`vigil-packs-<version>-linux.tar.gz`, `-macos.tar.gz`, `-windows.zip`) and the `.deb` and `.rpm` (§18.6, §18.10); and `SHA256SUMS` covering every one of them, signed in `SHA256SUMS.sig`.
 
 **Self-update.** `vigil self update` upgrades an install to the latest release, or to `--version <version>`, older included; `--check` only says whether there is a newer one, and `vigil version` shows what is installed. There is one path that replaces Vigil: self-update downloads the installer of the release it is going to, checks it against that release's `SHA256SUMS`, and runs it with `--upgrade` (`-Upgrade`), which replaces `app/` and `vendor/` as above and does nothing else: no `vigil init`, no `PATH` change, and a service is never registered.
 
@@ -2055,7 +2055,7 @@ release_url = https://artifacts.example.com/vigil
 ```
 
 - **The layout is GitHub's,** so a copy is the release files as published: `<release_url>/releases/download/v<version>/<file>`. The latest release is the one line of `<release_url>/releases/latest/VERSION`, which the copy's owner writes; a fleet that names its version in the configuration never reads it.
-- **`https`,** or plain `http` to this machine only, as for a log destination (§15.3), and never with credentials in it (`E_URL`). Certificates are checked; a company's own certificate authority goes in the system's trust store.
+- **`https`,** or plain `http` to this machine only, as for a metrics backend (§15.3) or a log destination (§13.4.1), and never with credentials in it (`E_URL`). Certificates are checked; a company's own certificate authority goes in the system's trust store.
 - **Nothing is trusted for coming from there.** A release must be signed by the release key installed here, as from GitHub, so a copy can only serve releases as they were published. And unless a version is asked for (`--version`, or the configuration's `version`), self-update never goes back: when the latest release named is older than the one installed, it says so and changes nothing. A copy that names an old release cannot move a fleet back.
 - **Where.** Like `version`, it means the same in a local configuration and a fetched one, and cannot be in a pointer file. `vigil about` shows it.
 - **The installers** do not read it: a machine is installed from a copy with the reviewed path, the archive and the key (`--archive`, `--key`).
@@ -2249,7 +2249,7 @@ Flags: `--instance <name>` (default: the host name), `--backend <list>` from `fi
 
 ### 19.1 Check Library
 
-The repository includes a `checks/` library of ready-made job scripts, per platform: disk, memory, load, TCP port, certificate expiry and similar. `init` can enable a basic set. Contributed checks follow a short guide:
+The repository's packs (§18.10) are the library of ready-made job scripts, per platform: the base pack (CPU, memory, disk, network and more), nginx and postgres. `init` enables the base pack. Contributed checks follow a short guide:
 
 - Print results as `metric` lines (§14.3).
 - Use meaningful exit codes, or Nagios codes with `exit_codes = nagios`.
@@ -2320,6 +2320,8 @@ Both implementations run the same cases from `tests/conformance/` and must produ
 | `backend` | HTTP backends, a batch of events and the answers to give | Every request made (URL, headers, body) and what became of the batch (§15.3). |
 | `logs` | A configuration and lines of log files | The OTLP log record of each line, or that it is not forwarded (§13.4). |
 | `mocks` | The example configurations in `tests/mocks/` (§6.7) | Their validation and effective settings. |
+| `report` | The `validate` and `effective` cases | The report `vigil precheck` prints for each (§16.4). |
+| `store` | Secret stores and the answers to give | Every request made to the store, and the value or error (§6.5.3). |
 
 CI runs every suite on Windows PowerShell 5.1, Linux bash and macOS bash 3.2 (§22.5).
 
@@ -2395,7 +2397,7 @@ The `git` and `https` sources are tested against a small local file server over 
 
 Every change is also tested upgrading from the latest published release: the real installer installs it from GitHub, its own `vigil self update` moves it to the build under test, and a supervisor and jobs must carry on through that (`tests/integration/upgrade.sh`, `Upgrade.ps1`).
 
-The installers and `vigil self update` are tested against the file server of §22.4.3: the environment variable `VIGIL_TEST_RELEASE_URL` replaces the GitHub address, and is accepted only as `http://127.0.0.1:<port>`. Pre-flight fails if it is set, like `VIGIL_FAULT`. It stands for GitHub only: a `release_url` wins over it, and is tested against the same server, as plain `http` to this machine, which it allows.
+The installers and `vigil self update` are tested against the file server of §22.4.3: the environment variable `VIGIL_TEST_RELEASE_URL` replaces the GitHub address, and is accepted only as `http://127.0.0.1:<port>`. Pre-flight fails if it is set, like `VIGIL_FAULT`. With it, `VIGIL_TEST_RELEASE_KEY` may name the public key the test releases are signed with, in place of `app/release-key.pem`; without `VIGIL_TEST_RELEASE_URL` it is ignored. It stands for GitHub only: a `release_url` wins over it, and is tested against the same server, as plain `http` to this machine, which it allows.
 
 ### 22.4.5 Test DPAPI Refusal
 
@@ -2461,7 +2463,7 @@ Every result records Vigil version, OS and version, shell version, test id, resu
 
 **VIGIL-015 — Graceful Degradation.** Unavailable backends or optional features never stop core scheduling.
 
-**VIGIL-016 — Secrets by Reference.** Credentials appear in configuration only as `env:` references; raw values are rejected.
+**VIGIL-016 — Secrets by Reference.** Credentials appear in configuration only as `env:`, `secret:` or `store:` references; raw values are rejected.
 
 **VIGIL-017 — Workers Outlive the Supervisor.** Stopping or restarting the supervisor never terminates running workers, except through `vigil uninstall`.
 
@@ -2484,7 +2486,7 @@ Each invariant has a documented enforcement mechanism and regression tests.
 - A job whose run stays uncertain is held until the evidence resolves or an operator runs `vigil resolve`; it is reported every tick but does not run in the meantime (unless `on_uncertain = replace`). Under `manual` it stays held until `vigil resolve` even after the evidence resolves.
 - After a supervisor restart, deadlines are enforced from recorded timestamps, which are affected by clock changes; uninterrupted monotonic timing is only available while the supervisor runs.
 - bash cannot force a single file to disk, so after a power loss a just-written state file may be empty or truncated; it is then handled as unreadable state (§11.3). Windows flushes before renaming, but filesystem and storage caches can still lose a write.
-- Process-tree termination on Windows uses `taskkill /T`, which can miss children whose parent has already exited. Windows Job Objects would close this gap but need compiled code (§26).
+- Process-tree termination on Windows walks the tree from the kernel, which can miss children whose parent has already exited. Windows Job Objects would close this gap but need compiled code (§26).
 - User-mode installs run only while the user is logged in unless lingering (Linux) or system mode is used.
 - Prometheus remote_write is not supported.
 - NSSM is unmaintained upstream.
@@ -2497,7 +2499,6 @@ Each invariant has a documented enforcement mechanism and regression tests.
 - `https` and `sftp` sources deliver single files; scripts that need files beside them should come from `git` or `local` sources.
 - A `git` reference to a commit that is not the tip of a branch or a tag must be fetchable by its id; most hosted Git services allow this, a self-hosted server may need `uploadpack.allowReachableSHA1InWant`.
 - Scripts without a digest, from a `local` source or a `git` branch, may briefly differ between hosts until each has made its next check (§6.9).
-- A worker reads `config/vigil.config` when it starts. If that file was saved with an error after the supervisor launched the run, the worker refuses to run, and the launch is abandoned after the 30-second launch grace (§11.3); the job runs again at its next slot once the file is fixed.
 - A changed environment variable (`env:`) reaches Linux and macOS runs only after Vigil is next started (§6.5.1); use `secret:` or `store:` for anything rotated.
 - A secret given to a job is in its environment, readable while it runs by its own account and administrators (§6.5.4).
 
@@ -2555,10 +2556,9 @@ Not every backend type is required for v1. Reliable scheduling and supervision c
 ## 26. Future Development
 
 - Bounded catch-up policies for missed runs.
-- Cron-style expressions.
 - Per-job CPU and memory limits where the OS supports them for unprivileged users.
 - Stronger process containment: Windows Job Objects and Linux cgroups (`systemd-run --scope`) for complete tree termination. Deferred from v1 because Job Objects need compiled code from PowerShell 5.1 and cgroup scopes differ between user and system mode; the run token and run id already establish ownership without them.
-- Package-manager distribution: MacPorts, and an MSI and winget once releases can be code-signed.
+- Package-manager distribution: an MSI and winget once releases can be code-signed.
 - Signature verification of configuration revisions (signed Git tags or commits, signed manifests) before activation.
 - Log forwarding: more than one destination (§13.4).
 - Per-host overrides of jobs received from a source.

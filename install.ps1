@@ -28,7 +28,7 @@
     Steps: check the prerequisites, download the archive and verify its
     signature (when there is a key) and SHA-256 before using it, unpack it into the root (on upgrade only app\
     and vendor\ are replaced; config\ and scripts\ are never touched), clear
-    the downloaded-from-the-internet mark, add app\ to the PATH, run vigil
+    the downloaded-from-the-internet mark, add app\bin to the PATH, run vigil
     init on a fresh install, register the service.
 .PARAMETER User
     User mode: %LOCALAPPDATA%\Vigil, a Run entry at logon, no admin.
