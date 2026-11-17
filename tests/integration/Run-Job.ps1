@@ -190,6 +190,43 @@ Test-Equal 'run refused while a token exists' '4' "$((Invoke-Vigil @('run', 'ok'
 Test-Equal 'abandoned launch is not run' '4' "$((Invoke-Vigil @('worker', 'ok', '--run-id', '20260101T000000Z-2')).Code)"
 Test-Equal 'unknown job is not run' '4' "$((Invoke-Vigil @('run', 'nosuchjob')).Code)"
 
+# A launch carrying the run resolved by the supervisor ([run], 4.3): the
+# same state and events as above, and the configuration is not read again,
+# so an edit saved after the launch does not change the run.
+foreach ($lib in 'Config', 'Validate', 'Effective', 'Command', 'Worker') { . (Join-Path $repo "app\lib\windows\$lib.ps1") }
+$configFile = Join-Path $root 'config\vigil.config'
+function New-RunLaunch {
+    param([string]$Job, [string]$Rid)
+    $p = ConvertFrom-VigilConfig -Path $configFile
+    $run = Format-VigilRunSection -Parsed $p -Index (New-VigilConfigIndex -Parsed $p) -Job $Job -Root $root -Script '' `
+        -Logs (Join-Path $root 'logs') -Spool (Join-Path $root 'spool')
+    [System.IO.File]::WriteAllText((Join-Path $root "state\locks\$Job.$Rid.launch"),
+        "[launch]`njob           = $Job`nrun_id        = $Rid`nboot_id       = b`nlaunch_epoch  = 1`n$run")
+    return $run
+}
+$before = @{}
+foreach ($job in 'env', 'disk') { $before[$job] = (Get-Events $job) -replace 'duration_seconds [0-9]+', 'duration_seconds 0' }
+$saved = [System.IO.File]::ReadAllText($configFile)
+$n = 0
+foreach ($job in 'env', 'disk') {
+    $n++
+    $rid = "20260101T000000Z-3$n"
+    Test-Equal "$job launch has [run]" 'True' ([string]((New-RunLaunch $job $rid) -cmatch '(?m)^\[run\]$'))
+    # Saved after the launch: the run keeps what it was launched with.
+    [System.IO.File]::WriteAllText($configFile, $saved.Replace('GREETING=hello', 'GREETING=hi').Replace('os.disk', 'os.other').Replace('env = test', 'env = edited'))
+    $code = (Invoke-Vigil @('worker', $job, '--run-id', $rid)).Code
+    [System.IO.File]::WriteAllText($configFile, $saved)
+    Test-Equal "$job from [run]: exit code" $(if ($job -ceq 'disk') { '1' } else { '0' }) "$code"
+    Test-Equal "$job from [run]: the same events" $before[$job] ((Get-Events $job) -replace 'duration_seconds [0-9]+', 'duration_seconds 0')
+    Test-Equal "$job from [run]: instance" 'it' (Get-StateValue (Join-Path $root "state\jobs\$job.state") 'instance')
+}
+# Vigil's own workers and a job with a secret read the configuration.
+Add-Content -LiteralPath $configFile -Value "`n[job.secretive]`nfile      = scripts\env.ps1`nsecret    = GREETING=env:PATH`nrun_every = 5m"
+$p = ConvertFrom-VigilConfig -Path $configFile
+$ix = New-VigilConfigIndex -Parsed $p
+Test-Equal 'no [run] for a job with a secret' '' (Format-VigilRunSection -Parsed $p -Index $ix -Job 'secretive' -Root $root -Script '' -Logs 'l' -Spool 's')
+Test-Equal 'no [run] for the sender' '' (Format-VigilRunSection -Parsed $p -Index $ix -Job 'vigil_sender' -Root $root -Script '' -Logs 'l' -Spool 's')
+
 Remove-Item -Recurse -Force -LiteralPath $root
 Write-Host "$($script:pass) passed, $($script:fail) failed"
 if ($script:fail -gt 0) { exit 1 }

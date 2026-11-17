@@ -57,12 +57,27 @@ function Get-VigilRunEvents {
     }
 
     $index = New-VigilConfigIndex -Parsed $Parsed
-    $base = "host=$HostName os=$Os instance=$instance job=$Id"
     $m = $Id
+    $tags = @()
     foreach ($row in (Get-VigilEffectiveJob -Index $index -Id $Id)) {
         if ($row.Key -ceq 'metric_name') { $m = $row.Value }
-        elseif ($row.Key -ceq 'tag') { $base = Set-VigilEventTag $base $row.Value }
+        elseif ($row.Key -ceq 'tag') { $tags += $row.Value }
     }
+    $lines = Get-VigilRunEventLines -Instance $instance -Metric $m -Tags $tags -Id $Id -Epoch $Epoch -Outcome $Outcome `
+        -ExitCode $ExitCode -Duration $Duration -HostName $HostName -Os $Os -Output $Output
+    return ,$lines
+}
+
+# The same events from a job's settings already resolved: its instance,
+# metric name and tags (each key=value, merged as in 6.6), as a Windows
+# launch carries them (4.3).
+function Get-VigilRunEventLines {
+    param([string]$Instance, [string]$Metric, [string[]]$Tags, [string]$Id, [string]$Epoch, [string]$Outcome,
+        [string]$ExitCode, [string]$Duration, [string]$HostName, [string]$Os, $Output)
+
+    $base = "host=$HostName os=$Os instance=$Instance job=$Id"
+    foreach ($t in $Tags) { if ($t) { $base = Set-VigilEventTag $base $t } }
+    $m = $Metric
 
     $events = New-Object 'System.Collections.Generic.List[string]'
     $add = { param($Name, $Value, $Type, $Tags) $events.Add("$Epoch $m.$Name $Value $Type $Tags") }
