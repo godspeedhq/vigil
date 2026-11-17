@@ -98,9 +98,24 @@ its job script and PowerShell's own start, which this does not touch.
 Spreading the pack is not measured on its own; from the first table, six
 runs at once should cost between the 4-at-once and 9-at-once rows.
 
-**Not yet measured on the test machines:** that needs this build on them,
-which means a release (drafts stay with the user) or replacing `app\` by
-hand.
+**On the test machines** (2026-11-17, released in 0.10.1, which all five
+run): the same nine runs from a scratch root in vigil-test's home, no
+admin, 3 rounds each, PowerShell 5.1. Before is the same build with no
+`[run]` section in the launch.
+
+| Machine | One at a time | All nine at once |
+| --- | --- | --- |
+| Lenovo, Windows 11, i5-3320M (4 threads) | 4.45 → **3.70 s** (−17%) | 4.63 → **4.01 s** (−13%) |
+| HP, Windows 11 (8 threads) | 2.32 → **2.05 s** (−12%) | 5.24 → 5.56 s (+6%) |
+| Server 2025, i5 M 540 (4 threads) | 4.38 → **3.66 s** (−16%) | 5.58 → **4.83 s** (−13%) |
+
+`base_services` failed in every round, with and without `[run]`: over SSH
+these machines refuse the service manager. The HP's all-at-once row got
+worse; with 3 rounds that is within its noise, but it is what was measured.
+Starting together costs most on the 8-thread machines: about twice, on
+the HP as on the laptop. On the 4-thread machines it costs less extra
+(the Lenovo 4%, Server 2025 27%), but a run there costs more to begin
+with.
 
 ## Done when
 
