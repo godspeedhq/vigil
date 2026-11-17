@@ -126,6 +126,9 @@ Test-Equal 'timeouts are not failures' '' (Get-Prom 'long_failures_total')
 $supLog = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\supervisor') -Filter '*-*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
 Test-Equal 'tree ended and logged' 'True' "$($supLog -match 'job long: run .* passed max_runtime; ending its process tree')"
 Test-Equal 'no tick failed' 'False' "$($supLog -match 'tick failed')"
+# A kill that needed taskkill after the first way passes, but says why
+# (backlog 19): shown whether or not the test passes.
+foreach ($l in ($supLog -split "`n" | Where-Object { $_ -match 'the first kill did not end it' })) { Write-Host "  note  $($l.Trim())" }
 Test-Equal 'no locks or markers left' '0' "$(@(Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -File).Count)"
 
 # The job's process tree is gone: nothing lives on to finish its wait. Every

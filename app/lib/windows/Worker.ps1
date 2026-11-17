@@ -316,11 +316,20 @@ function Get-VigilProcessInfo {
 # only if it started after its parent, so a reused pid can never draw an
 # unrelated process in. taskkill /T ends the children first, so a cmd.exe
 # parent could run its script's next line in between; it is also refused
-# where WMI is (an SSH session, a task without a stored password). It is
-# used only when the kernel cannot be asked (dynamic code not allowed), or
-# the root is already gone.
+# where WMI is (an SSH session, a task without a stored password).
+# Every way is tried until the root is gone: if it is still running two
+# seconds after its kill, taskkill /T /F follows on the same tree. The root
+# is held open meanwhile, so its pid cannot be given to another process in
+# between. taskkill alone is used when the kernel cannot be asked (dynamic
+# code not allowed) or the root is already gone. When the first way did not
+# end it, $Script:VigilKillReport says why, for the caller to log; it is
+# empty otherwise.
+$Script:VigilKillReport = ''
 function Stop-VigilProcessTree {
     param([int]$Id)
+    $Script:VigilKillReport = ''
+    $root = $null
+    $why = ''
     try {
         Initialize-VigilNative
         $all = [VigilNative]::Processes()
@@ -339,12 +348,23 @@ function Stop-VigilProcessTree {
         # in between, as cmd.exe runs its script's next line once ping ends.
         # The tree is already known, so the children are still found.
         for ($i = 0; $i -lt $tree.Count; $i++) {
-            try { $tree[$i].Kill() } catch { }
+            try { $tree[$i].Kill() }
+            catch { if (-not $why) { $why = "pid $($tree[$i].Id): $($_.Exception.Message)" } }
         }
-        return
+        if ($root.WaitForExit(2000)) { return }
+        if (-not $why) { $why = 'still running 2 seconds after its kill' }
     }
-    catch { }
-    & taskkill.exe /T /F /PID $Id 2>&1 | Out-Null
+    catch {
+        # The root gone already, or the kernel not to be asked.
+        if (-not $root) { & taskkill.exe /T /F /PID $Id 2>&1 | Out-Null; return }
+        if (-not $why) { $why = $_.Exception.Message }
+    }
+    try {
+        $tk = (& taskkill.exe /T /F /PID $Id 2>&1 | Out-String).Trim() -replace '\s+', ' '
+        $ended = $root.WaitForExit(2000)
+    }
+    catch { $tk = $_.Exception.Message; $ended = $false }
+    $Script:VigilKillReport = "the first kill did not end it ($why); taskkill: $tk; $(if ($ended) { 'ended' } else { 'still running' })"
 }
 
 # Windows has no kernel boot id; it is derived from the boot time (11.1).
