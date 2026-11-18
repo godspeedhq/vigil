@@ -692,10 +692,15 @@ _vigil_sup_queue_load() {
     done < "$_su_statedir/pending"
 }
 
+# Saved before this tick's runs start, so it never names one of them: a
+# crash after a launch then cannot start a held run a second time (backlog
+# 58). The runs about to start are not saved: one a crash stops before its
+# launch is lost, never run twice. The pending= line stays for files written
+# before.
 _vigil_sup_queue_save() {
     local f="$_su_statedir/pending"
-    case $_su_pending$_su_queued in
-        *[![:space:]]*) printf 'pending=%s\nqueued=%s\n' "$_su_pending" "$_su_queued" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f" ;;
+    case $_su_queued in
+        *[![:space:]]*) printf 'pending=\nqueued=%s\n' "$_su_queued" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f" ;;
         *) rm -f "$f" ;;
     esac
 }
@@ -929,6 +934,8 @@ _vigil_sup_tick() {
         [ "$VIGIL_SCHED_NEXT" != - ] && _su_status_waiting="$_su_status_waiting$job: next $VIGIL_SCHED_NEXT"$'\n'
     done
 
+    _vigil_sup_queue_save
+
     # Admission (8): every due run starts now, oldest first. Vigil sets no
     # limit on how many run at once: the machine is its operator's.
     for job in $_su_pending; do
@@ -937,8 +944,6 @@ _vigil_sup_tick() {
         _su_status_running="$_su_status_running $job"
     done
     _su_pending=''
-
-    _vigil_sup_queue_save
 
     _vigil_sup_event '' up 1 gauge
     _vigil_sup_event '' workers "$_su_running" gauge

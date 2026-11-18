@@ -12,7 +12,8 @@
 <#
 .SYNOPSIS
     Integration test: the crash points of SPECIFICATION.md 22.4.1 drive the
-    launch and fan-out tests of 22.4 (20 to 23, 25, 26, 29) on Windows.
+    launch and fan-out tests of 22.4 (20 to 23, 25, 26, 29), and a held
+    queue_one run launched as the supervisor crashes (8, 9), on Windows.
 .DESCRIPTION
     The twin of crash.sh. Two invariants:
       launch:  exactly one run per launch, or none, never two;
@@ -290,6 +291,47 @@ Wait-Ticking 30 { -not (Get-Locks 'mark') }
 Test-Equal "29: $loop random crashes, every event delivered" '0' "$lost"
 Test-Equal '29: no launch ever ran twice' '' ((@(Get-Marks | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object Name)) -join ' ')
 Test-Equal '29: no run ever met another' '' (Get-Overlap)
+
+# --- A queued run (9): a crash after its launch never runs it twice ------------------
+#
+# q holds one run while another is active (queue_one). When the active run
+# ends, a tick launches the held one, and crashes right after (backlog 58).
+# The held run must be gone from state\pending by then, or the next
+# supervisor runs it again. q runs for 8 seconds: a tick here can take a few.
+Set-Content -LiteralPath "$root\scripts\q.cmd" -Value @(
+    '@echo off',
+    'echo %VIGIL_RUN_ID%>>"%IT_ROOT%\qmarks"',
+    'ping -n 9 127.0.0.1 >nul')
+function Set-ConfigQ {
+    param([string]$Every)
+    Set-Config '3650d'
+    [System.IO.File]::AppendAllText("$root\config\vigil.config", @"
+
+[job.q]
+file      = scripts\q.cmd
+env       = IT_ROOT=$root
+overlap   = queue_one
+run_every = $Every
+"@)
+}
+function Test-QQueued { $f = "$root\state\pending"; (Test-Path -LiteralPath $f) -and ([System.IO.File]::ReadAllText($f) -cmatch '(?m)^queued=(.* )?q( |\r?$)') }
+Set-ConfigQ '2s'
+Wait-Ticking 15 { [bool](Get-Locks 'q') }
+# Its next slot comes due while the first run is active: held.
+Start-Sleep -Seconds 2
+Wait-Ticking 5 { Test-QQueued }
+Test-Equal 'queued: a run is held while one is active' 'True' "$(Test-QQueued)"
+# Nothing else comes due: only the held run is left to start.
+Set-ConfigQ '3650d'
+for ($i = 0; $i -lt 30 -and (Get-Locks 'q'); $i++) { Start-Sleep -Seconds 1 }
+$code = Invoke-Once @{ VIGIL_FAULT = 'launch.after_spawn' }
+Test-Equal 'queued: the supervisor crashed after launching it' '99' "$code"
+Test-Equal 'queued: and it is no longer held' 'False' "$(Test-QQueued)"
+# Tick until the held run has ended, then a few more.
+Wait-Ticking 30 { -not (Get-Locks 'q') }
+for ($i = 0; $i -lt 6; $i++) { [void](Invoke-Once); Start-Sleep -Seconds 1 }
+Wait-Ticking 30 { -not (Get-Locks 'q') }
+Test-Equal 'queued: two runs, never three' '2' "$(@([System.IO.File]::ReadAllLines("$root\qmarks") | Where-Object { $_.Trim() }).Count)"
 
 # The supervisor says when crash points are on (22.4.1).
 $log = (Get-ChildItem -LiteralPath "$root\logs\supervisor" -Filter '2*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''

@@ -99,3 +99,11 @@ By §22.4 test number where there is one.
 3. The tests, §22.4's first, in a few pull requests, each on every
    platform.
 4. Then tick §25, criterion by criterion.
+
+## Seen while fixing the bugs
+
+- 2026-11-18, Fedora: one round of test 29 (6 random crashes) did not see
+  its event in both backends within 20 ticks. My output filter hid the
+  `lost after <point>` line, so the crash point is unknown. 24 more rounds
+  there, and every round on the Mac and on Windows, delivered everything.
+  If CI or a machine shows it again, the point it names is the lead.
