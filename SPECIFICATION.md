@@ -1096,7 +1096,7 @@ Deadlines: `deadline_epoch` is recorded at start. While the supervisor runs, ela
 Used only for `max_runtime` and `vigil uninstall`, after §11.5.
 
 - **Windows:** the ownership-checked job process and every process it started, read from the kernel first and ended from the root down, so a `cmd.exe` parent cannot run its next line between its children's ends; `taskkill /T /F` only where the kernel cannot be asked. Windows has no equivalent of `TERM` for console programs, so the tree is ended at once and `grace` does not apply. The worker is not killed: it records the outcome itself.
-- **Linux/macOS:** the worker starts the job in its own process group (`set -m`); termination signals the group: `TERM`, then `KILL` on the first tick at least `grace` later if it is still running. Ownership is proven by the job process holding the run token, which it inherits from the worker. The worker is not signalled: it records the outcome itself.
+- **Linux/macOS:** the worker starts the job in its own process group (`set -m`); termination signals the group: `TERM`, then `KILL` on the first tick at least `grace` later if it is still running. If the job's own process ends on the `TERM` while others in its group live on, its worker, still holding the token, sends the group `KILL` once `grace` has passed, then records the run: while the group has a member its id cannot be reused, so it is still the run's. Ownership is proven by the job process holding the run token, which it inherits from the worker. The worker is not signalled: it records the outcome itself.
 
 Processes that deliberately escape their group or tree may survive. This limit is documented (§24).
 

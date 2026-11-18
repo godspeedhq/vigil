@@ -56,6 +56,27 @@ _vigil_wk_write_state() {
     mv -f "$tmp" "$path"
 }
 
+# Waits while timed-out job $1's process group has a member, until grace $3
+# has passed since the TERM recorded in timeout marker $2, then sends the
+# group KILL (11.6).
+_vigil_wk_group_end() {
+    local term='' line
+    while IFS= read -r line || [ -n "$line" ]; do
+        case $line in 'term_epoch = '*) term=${line#*= } ;; esac
+    done < "$2"
+    _vigil_wk_secs "$3"
+    _vigil_wk_now
+    case $term in '' | *[!0-9]*) term=$_vw_epoch ;; esac
+    while kill -0 -- "-$1" 2>/dev/null; do
+        if [ $((_vw_epoch - term)) -ge "$_vw_secs" ]; then
+            kill -KILL -- "-$1" 2>/dev/null
+            return 0
+        fi
+        sleep 1
+        _vigil_wk_now
+    done
+}
+
 _vigil_wk_set() {
     local i=0
     while [ "$i" -lt "${#_vw_state[@]}" ]; do
@@ -388,7 +409,7 @@ vigil_worker() {
     _vw_root=$1
     _vw_job=$2
     local rid=$3 launch token code=- outcome=failed reason='' rc mode exit_codes
-    local i key value missing='' prog pid started duration out err stem spool maxrt='' deadline
+    local i key value missing='' prog pid started duration out err stem spool maxrt='' deadline grace=30s timeout
     local required='' secret_error=''
     local -a secrets snames svalues
     secrets=()
@@ -454,6 +475,7 @@ vigil_worker() {
         case $key in
             exit_codes) exit_codes=$value ;;
             max_runtime) maxrt=$value ;;
+            grace) grace=$value ;;
             secret) secrets[${#secrets[@]}]=$value ;;
             require_env) required="$required $value" ;;
         esac
@@ -589,6 +611,15 @@ vigil_worker() {
         # restarts or reloads never touches a running job.
         wait "$pid"
         code=$?
+        # Stopped for max_runtime (11.6), the job's own process may end on the
+        # TERM while something it started, in its group, ignores it. Once the
+        # token is released the supervisor's KILL would never come, so the
+        # worker, still holding it, sends it. While the group has a member its
+        # id cannot be reused: it is still this run's.
+        timeout="$_vw_statedir/locks/$_vw_job.$rid.timeout"
+        if [ -e "$timeout" ] && kill -0 -- "-$pid" 2>/dev/null; then
+            _vigil_wk_group_end "$pid" "$timeout" "$grace"
+        fi
         vigil_outcome "$exit_codes" "$code"
         outcome=$VIGIL_OUTCOME
         case $outcome in
