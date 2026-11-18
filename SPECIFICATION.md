@@ -2237,10 +2237,10 @@ version  = 0.3.1
 
 1. Detects the OS and available shells.
 2. Asks which backend(s) the organisation uses.
-3. Writes a commented config with the correct runners and paths, the chosen backends, and the jobs of the base pack (§18.10). At a console it asks which backends, and for each credential whether it is an environment variable, whose name it asks for, or a secret in Vigil's store, whose value only `vigil secret set` asks for, unseen. Away from a console it asks nothing: the base pack and the `file` backend, with `env:` placeholders.
+3. Writes a commented config with the correct runners and paths, the chosen backends, and the jobs of the base pack (§18.10). At a console it asks for the instance name (Enter takes the host name), which backends, and for each credential whether it is an environment variable, whose name it asks for, or a secret in Vigil's store, whose value only `vigil secret set` asks for, unseen. Away from a console it asks nothing: the base pack and the `file` backend, with `env:` placeholders.
 4. Prints the environment variable names that must be set.
 
-Flags: `--instance <name>` (default: the host name), `--backend <list>` from `file`, `datadog` and `otel` (default: `file`; other backends are added by hand) and `--no-pack` (the backends, but no jobs). `vigil init empty` asks nothing and writes the instance and runners only, for someone running only their own scripts: no jobs and no backend, which `vigil status` and `vigil precheck` point out. `vigil init` never overwrites a configuration.
+Flags: `--instance <name>` (default: the host name), `--backend <list>` from `file`, `datadog` and `otel` (default: `file`; other backends are added by hand) and `--no-pack` (the backends, but no jobs). `vigil init empty` is for someone running only their own scripts: no jobs and no backend, which `vigil status` and `vigil precheck` point out. It writes the instance, the tick and the runners for the shells found (so a job's script runs by its extension, with no executable bit or runner to add by hand), and a commented example job. At a console it asks only for the instance name, which every metric is tagged with; away from one, or with `--instance`, it asks nothing. `vigil init` never overwrites a configuration.
 
 `init` never asks for or stores secret values. Every prompt has a flag equivalent so it can run unattended from deployment tooling.
 
