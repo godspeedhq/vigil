@@ -326,8 +326,10 @@ for ($r = 1; $r -le $loop; $r++) {
     Add-Event "loop_$r"
     [void](Invoke-Once @{ VIGIL_FAULT = $point })
     Start-Sleep -Seconds 3
-    # Abandon any launch the crash left, as the grace would.
-    foreach ($f in @(Get-ChildItem -LiteralPath "$root\state\locks" -Filter 'mark.*.launch' -File -ErrorAction SilentlyContinue)) {
+    # Abandon any launch the crash left, as the grace would: the job's, or
+    # the sender's when the job was still running and the sender's launch
+    # was the tick's first.
+    foreach ($f in @(Get-ChildItem -LiteralPath "$root\state\locks" -Filter '*.launch' -File -ErrorAction SilentlyContinue)) {
         [System.IO.File]::WriteAllText($f.FullName, ([System.IO.File]::ReadAllText($f.FullName) -replace '(?m)^launch_epoch .*$', 'launch_epoch  = 1'))
     }
     Wait-Ticking 30 { Test-InBoth "loop_$r" }
