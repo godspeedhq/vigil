@@ -12,8 +12,9 @@
 <#
 .SYNOPSIS
     Integration test: the crash points of SPECIFICATION.md 22.4.1 drive the
-    launch and fan-out tests of 22.4 (20 to 23, 25 to 29), and a held
-    queue_one run launched as the supervisor crashes (8, 9), on Windows.
+    launch and fan-out tests of 22.4 (20 to 23, 25 to 29), the worker's own
+    crash points (7, 16), and a held queue_one run launched as the
+    supervisor crashes (8, 9), on Windows.
 .DESCRIPTION
     The twin of crash.sh. Two invariants:
       launch:  exactly one run per launch, or none, never two;
@@ -378,6 +379,85 @@ Wait-Ticking 30 { -not (Get-Locks 'q') }
 for ($i = 0; $i -lt 6; $i++) { [void](Invoke-Once); Start-Sleep -Seconds 1 }
 Wait-Ticking 30 { -not (Get-Locks 'q') }
 Test-Equal 'queued: two runs, never three' '2' "$(@([System.IO.File]::ReadAllLines("$root\qmarks") | Where-Object { $_.Trim() }).Count)"
+
+# --- The worker's crash points (7, 16, 23) ------------------------------------------
+#
+# Each case crashes the worker of one run of w at a point, then ticks once:
+# the run must be concluded as what it was, run once or not at all, and
+# leave no token. w runs for 8 s, so a sender started by the same tick is
+# done before w's events are written, and the supervisor finds them where
+# the worker left them.
+Set-Content -LiteralPath "$root\scripts\w.cmd" -Value @(
+    '@echo off',
+    'echo %VIGIL_RUN_ID%>>"%IT_ROOT%\wmarks"',
+    'ping -n 9 127.0.0.1 >nul')
+function Set-ConfigW {
+    param([string]$Every)
+    Set-Config '3650d'
+    [System.IO.File]::AppendAllText("$root\config\vigil.config", @"
+
+[job.w]
+file      = scripts\w.cmd
+env       = IT_ROOT=$root
+run_every = $Every
+"@)
+}
+function Get-WRan { param([string]$Rid) $f = "$root\wmarks"; if (Test-Path -LiteralPath $f) { @([System.IO.File]::ReadAllLines($f) | Where-Object { $_.Trim() -ceq $Rid }).Count } else { 0 } }
+function Get-WState { param([string]$Key) Get-StateValue "$root\state\jobs\w.state" $Key }
+# One run of w with VIGIL_FAULT=$Point; once no process carries its run id,
+# one tick.
+function Invoke-WCrash {
+    param([string]$Point)
+    Set-ConfigW '3650d'
+    Wait-Ticking 30 { -not (Get-Locks 'w') }
+    Set-ConfigW '1s'
+    $script:wrid = ''
+    for ($i = 0; $i -lt 10 -and -not $script:wrid; $i++) {
+        [void](Invoke-Once @{ VIGIL_FAULT = $Point })
+        $script:wrid = Get-LockRid 'w'
+        if (-not $script:wrid) { Start-Sleep -Seconds 1 }
+    }
+    Set-ConfigW '3650d'
+    $r = $script:wrid
+    for ($i = 0; $i -lt 60 -and @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($r) }).Count; $i++) { Start-Sleep -Milliseconds 500 }
+    [void](Invoke-Once)
+}
+
+# 23. worker.after_claim: the token taken, the job never started.
+Invoke-WCrash 'worker.after_claim'
+Test-Equal 'worker.after_claim: never ran' '0' "$(Get-WRan $wrid)"
+Test-Equal 'worker.after_claim: concluded crashed' "crashed $wrid" "$(Get-WState 'status') $(Get-WState 'run_id')"
+Test-Equal 'worker.after_claim: no token left' '' (Get-Locks 'w')
+
+# 7. state.after_temp:1: the first state write interrupted, its temporary
+# file left behind, before the job starts.
+Invoke-WCrash 'state.after_temp:1'
+Test-Equal '7: state.after_temp:1: never ran' '0' "$(Get-WRan $wrid)"
+Test-Equal '7: state.after_temp:1: concluded crashed' "crashed $wrid" "$(Get-WState 'status') $(Get-WState 'run_id')"
+Test-Equal '7: state.after_temp:1: the temporary file is left, never read' 'True' "$([bool](Get-ChildItem -LiteralPath "$root\state\jobs" -Filter 'w.state.tmp.*' -File -ErrorAction SilentlyContinue))"
+Test-Equal '7: state.after_temp:1: no token left' '' (Get-Locks 'w')
+
+# 7 and 16. state.after_temp:3: the final state write interrupted, after
+# the run's events: reconciled from them.
+Invoke-WCrash 'state.after_temp:3'
+Test-Equal '7: state.after_temp:3: ran once' '1' "$(Get-WRan $wrid)"
+Test-Equal '7: state.after_temp:3: reconciled from its spool file' "succeeded|reconciled from the spool file|$wrid" "$(Get-WState 'status')|$(Get-WState 'reason')|$(Get-WState 'run_id')"
+Test-Equal '7: state.after_temp:3: no token left' '' (Get-Locks 'w')
+
+# 16. worker.after_spool: the events written, the final state never.
+Invoke-WCrash 'worker.after_spool'
+Test-Equal '16: worker.after_spool: ran once' '1' "$(Get-WRan $wrid)"
+Test-Equal '16: worker.after_spool: reconciled from its spool file' "succeeded|reconciled from the spool file|$wrid" "$(Get-WState 'status')|$(Get-WState 'reason')|$(Get-WState 'run_id')"
+Test-Equal '16: worker.after_spool: no token left' '' (Get-Locks 'w')
+
+# worker.after_state: the final state written, the token never released.
+Invoke-WCrash 'worker.after_state'
+Test-Equal 'worker.after_state: ran once' '1' "$(Get-WRan $wrid)"
+Test-Equal 'worker.after_state: its own outcome kept' "succeeded||$wrid" "$(Get-WState 'status')|$(Get-WState 'reason')|$(Get-WState 'run_id')"
+$slog = (Get-ChildItem -LiteralPath "$root\logs\supervisor" -Filter '2*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+Test-Equal 'worker.after_state: not taken for a crash' 'False' "$($slog.Contains("run $wrid crashed"))"
+Test-Equal 'worker.after_state: no token left' '' (Get-Locks 'w')
+Test-Equal "the worker's crash points: no run ever ran twice" '' ((@([System.IO.File]::ReadAllLines("$root\wmarks") | Where-Object { $_.Trim() } | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object Name)) -join ' ')
 
 # The supervisor says when crash points are on (22.4.1).
 $log = (Get-ChildItem -LiteralPath "$root\logs\supervisor" -Filter '2*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
