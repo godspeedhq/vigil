@@ -35,3 +35,18 @@ On both platforms: `--watch` against a root with a running supervisor
 prints at least two frames in 5 seconds, each with `jobs.log`; with an extra
 argument it is a usage error; where `jobs.log` cannot be read it exits 1
 after one message, without looping.
+
+## Built
+
+#186, 2026-11-18, as described above. `vigil_service_watch` (bash) and
+`Watch-VigilServiceStatus` (PowerShell) call what `vigil status` calls, every
+2 seconds; nothing else changed.
+
+Tested: `supervise.sh` 53 of 53 on Fedora (bash 5.3) and the Intel Mac
+(bash 3.2); every new check in `Supervise.ps1` on PowerShell 5.1 and 7; at a
+real terminal on the Mac (BSD `script`), 3 frames in 5 seconds, each on a
+cleared screen; CI green on all platforms.
+
+The tests first gave `--watch` a fixed 8 seconds, and on a busy laptop
+PowerShell alone took 9 to start. They now wait for the first frame, up to a
+minute, then give it 5 seconds.
