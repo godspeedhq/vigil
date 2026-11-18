@@ -13,8 +13,8 @@
 # Linux and macOS, against mock-backend.py on this host. A run's metrics
 # reach both with their credentials in headers, a failing backend keeps its
 # events and backs off until it recovers, a rejected batch is dropped and
-# counted, and no credential ever reaches a log, state, spool or metrics
-# file.
+# counted, the spool size cap drops the oldest queued files and counts them,
+# and no credential ever reaches a log, state, spool or metrics file.
 #
 # Needs python3 (or python).
 #
@@ -241,6 +241,26 @@ rm -f "$root/mock/delay"
 tick
 check "hung sender: a later sender delivers" 0 "$(($(queued datadog) + $(queued otel) + $(queued splunk)))"
 check "hung sender: and succeeds" succeeded "$(sender_state)"
+
+# The spool size cap (4.5): the HTTP backends down, three runs' events of
+# about 400 KB each queued for them, max_mb = 1. The oldest files go until
+# the queues fit, each counted as spool_full for its backend; the file
+# backend, still up, takes the count.
+echo 503 > "$root/mock/status"
+printf '\n[spool]\nmax_mb = 1\n\n[job.fill]\nfile      = scripts/emit.sh\nrun_every = 3650d\nbackends  = datadog, otel, splunk\n' >> "$root/config/vigil.config"
+e=$(date '+%s')
+for r in 1 2 3; do
+    awk -v e="$e" 'BEGIN { p = sprintf("%900s", ""); gsub(/ /, "x", p); for (i = 0; i < 400; i++) printf "%s fill.x_%d %d gauge host=it pad=%s\n", e, i % 10, i, p }' > "$root/spool/incoming/$((e + r))-fill-r$r.events.tmp"
+    mv "$root/spool/incoming/$((e + r))-fill-r$r.events.tmp" "$root/spool/incoming/$((e + r))-fill-r$r.events"
+done
+tick
+queued_bytes=$(cat "$root"/spool/backends/*/*.events 2>/dev/null | wc -c | tr -d ' ')
+check "spool full: the queues fit in max_mb" yes "$([ "$queued_bytes" -le 1048576 ] && echo yes || echo no)"
+check "spool full: the oldest dropped" 0 "$(ls "$root"/spool/backends/*/ | grep -c 'fill-r1\.events$')"
+check "spool full: the newest kept" yes "$(ls "$root"/spool/backends/*/ | grep -q 'fill-r3\.events$' && echo yes || echo no)"
+tick
+check "spool full: the drop counted, by backend" yes "$(grep -q '^vigil_spool_dropped_total{backend="datadog".*reason="spool_full"} [1-9]' "$root/metrics/vigil.prom" && echo yes || echo no)"
+rm -f "$root/mock/status"
 
 # The credentials are only ever in headers: never on disk outside the
 # secret store, and never in a URL.
