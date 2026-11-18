@@ -96,6 +96,7 @@ function Invoke-VigilSend {
     $place = {
         param([string]$F)
         $base = [System.IO.Path]::GetFileName($F)
+        $failed = $false
         foreach ($b in [System.IO.File]::ReadAllLines("$F.targets")) {
             if (-not $b) { continue }
             if ([System.IO.File]::Exists("$F.$b.done")) { continue }
@@ -106,18 +107,28 @@ function Invoke-VigilSend {
                 continue
             }
             $q = Join-Path $be $b
-            [void](New-Item -ItemType Directory -Force -Path $q)
             # Each copy is written under a temporary name, renamed into the queue, and
             # only then marked done. A sender stopped at any point picks up here next
             # run: a copy is never lost, and at worst is placed again under the same
             # name, replacing itself.
             $tmp = Join-Path $q ".$base.tmp.$PID"
-            [System.IO.File]::Copy($F, $tmp, $true)
-            if ([System.IO.File]::Exists((Join-Path $q $base))) { [System.IO.File]::Delete((Join-Path $q $base)) }
-            [System.IO.File]::Move($tmp, (Join-Path $q $base))
-            [System.IO.File]::WriteAllText("$F.$b.done", '')
+            try {
+                [void][System.IO.Directory]::CreateDirectory($q)
+                [System.IO.File]::Copy($F, $tmp, $true)
+                if ([System.IO.File]::Exists((Join-Path $q $base))) { [System.IO.File]::Delete((Join-Path $q $base)) }
+                [System.IO.File]::Move($tmp, (Join-Path $q $base))
+                [System.IO.File]::WriteAllText("$F.$b.done", '')
+            }
+            catch {
+                # A copy that failed (a full disk): the fan-out stays for the next
+                # sender, and the other targets carry on (22.4, test 28).
+                try { [System.IO.File]::Delete($tmp) } catch { }
+                $failed = $true
+                continue
+            }
             Invoke-VigilFault 'fanout.after_place'
         }
+        if ($failed) { return }
         Invoke-VigilFault 'fanout.before_retire'
         [System.IO.File]::Delete($F)
         [System.IO.File]::Delete("$F.targets")
