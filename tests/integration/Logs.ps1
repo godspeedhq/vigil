@@ -230,6 +230,39 @@ forward_output = false
     Invoke-Forward
     Test-Equal 'recovered: resent' '1' (Get-Received 'after the outage')
 
+    # A destination that hangs never holds the jobs back, and a forwarder
+    # killed mid-send loses nothing (13.4): the next one sends from the
+    # checkpoint. A real supervisor runs a 1-second job meanwhile; a run here
+    # takes seconds, as each starts PowerShell (10.3).
+    [System.IO.File]::WriteAllText("$root\mock\delay", '60')
+    [System.IO.File]::AppendAllText($log, "2026-10-30T15:07:36Z 20261030T150733Z-1 out while it hangs`n")
+    Write-Text $cfg (& $config 'ops' '')
+    [System.IO.File]::AppendAllText($cfg, "`n[job.beat]`nfile      = scripts\quiet.cmd`nrun_every = 1s`n")
+    $lsup = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'supervise')
+    $started = [DateTime]::UtcNow
+    for ($i = 0; $i -lt 120 -and -not (Get-ChildItem -LiteralPath "$root\state\locks" -Filter 'vigil_logs.*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 250 }
+    for ($i = 0; $i -lt 40 -and -not ((Get-Field 'status') -ceq 'running' -and (Get-Field 'worker_pid')); $i++) { Start-Sleep -Milliseconds 250 }
+    Start-Sleep -Seconds 1
+    $fwd = Get-Field 'worker_pid'
+    if ($fwd) { Stop-Process -Id ([int]$fwd) -Force -ErrorAction SilentlyContinue }
+    Test-Equal 'hung: the forwarder was killed mid-send' 'True' "$([bool]$fwd)"
+    while (([DateTime]::UtcNow - $started).TotalSeconds -lt 30) { Start-Sleep -Seconds 1 }
+    if (-not $lsup.HasExited) { Stop-Process -Id $lsup.Id -Force }
+    $lsup.WaitForExit()
+    $beatRuns = ([regex]::Matches(((Get-ChildItem -LiteralPath "$root\logs\jobs\beat" -Filter '*.log' -ErrorAction SilentlyContinue | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''), ' run start')).Count
+    $hungLog = (Get-ChildItem -LiteralPath "$root\logs\supervisor" -Filter '2*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+    $beatSlots = ([regex]::Matches($hungLog, 'job beat: (slot \S+ skipped|run \S+ started)')).Count
+    Write-Host "        hung: $beatRuns runs, $beatSlots slots decided in 30 s"
+    Test-Equal 'hung: jobs still run' 'True' "$($beatRuns -ge 1)"
+    Test-Equal 'hung: scheduling goes on, a slot decided about every second' 'True' "$($beatSlots -ge 15)"
+    Test-Equal 'hung: on time, no slot missed' 'False' "$($hungLog -match 'job beat: slot \S+ missed')"
+    Remove-Item -LiteralPath "$root\mock\delay"
+    Clear-Requests
+    for ($i = 0; $i -lt 10 -and [int](Get-Received 'while it hangs') -lt 1; $i++) { Invoke-Forward; Start-Sleep -Seconds 1 }
+    Test-Equal 'killed: nothing lost, sent from the checkpoint' 'True' "$([int](Get-Received 'while it hangs') -ge 1)"
+    Write-Text $cfg (& $config 'ops' '')
+
     # A rejected login is reported as such.
     [System.IO.File]::WriteAllText("$root\mock\status", '401')
     Invoke-Forward

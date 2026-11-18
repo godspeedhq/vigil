@@ -67,6 +67,11 @@ Set-Content -LiteralPath (Join-Path $scripts 'env.ps1') -Value @(
     'Write-Output "metric greeting_len $($env:GREETING.Length)"',
     'Write-Output "metric run_id_set $(if ($env:VIGIL_RUN_ID) { 1 } else { 0 })"',
     'Write-Output "metric args $($args.Count)"')
+# {file} (6.4): the path goes inside the runner's argument, and is not
+# appended. If it were, -Command would end in a stray path, and fail.
+# (cmd.exe /c would not do: it splits its command line by its own rules,
+# 24.)
+Set-Content -LiteralPath (Join-Path $scripts 'sourced.txt') -Value @('metric sourced 1')
 
 Set-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value @"
 [vigil]
@@ -82,8 +87,19 @@ arg     = -ExecutionPolicy
 arg     = Bypass
 arg     = -File
 
+[runner.typed]
+command = $shell
+arg     = -NoProfile
+arg     = -Command
+arg     = Get-Content -LiteralPath '{file}'
+
 [runners]
 .ps1 = ps
+
+[job.sourced]
+file      = scripts\sourced.txt
+runner    = typed
+run_every = 5m
 
 [job.ok]
 file      = scripts\ok.ps1
@@ -144,6 +160,11 @@ function Get-Events {
 }
 
 Test-Run 'ok' 0 'succeeded' ''
+
+Test-Run 'sourced' 0 'succeeded' ''
+Test-Equal "{file}: the path inside the runner's argument" '1' "$(@((Get-Events 'sourced') -split "`n" | Where-Object { $_ -clike 'sourced.sourced 1 gauge *' }).Count)"
+$sourcedLog = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\sourced') -Filter '*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+Test-Equal '{file}: and not appended: the file printed once' '1' "$(([regex]::Matches($sourcedLog, ' out metric sourced 1\r?$', 'Multiline')).Count)"
 Test-Equal 'ok events' ("ok.duration_seconds 0 gauge instance=it job=ok env=test`n" +
     "ok.runs 1 count instance=it job=ok env=test`n" +
     "ok.succeeded 1 count instance=it job=ok env=test`n" +

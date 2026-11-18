@@ -151,6 +151,24 @@ for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $root); $i++) { Start-Sleep 
 Test-Equal 'the root is gone' 'False' "$(Test-Path -LiteralPath $root)"
 Test-Equal 'the PATH entry is gone' 'False' (Test-OnPath (Join-Path $root 'app\bin') 'User')
 
+# --- as the documented one-liner runs it: a fresh install with -Key ------------------
+#
+# irm ... | iex, or & ([scriptblock]::Create((irm ...))) with flags (18.7):
+# the installer's text runs in the caller's own session, with no script
+# file behind it. It must verify the signature on a fresh install too, and
+# return to its caller rather than exit.
+$root = Join-Path $work 'keyed'
+$block = "& ([scriptblock]::Create([System.IO.File]::ReadAllText('$installer'))) -User -Prefix '$root' -Archive '$a1' -Key '$pem' -Instance it -Backend file -NoService; 'the caller carries on'"
+$out = '' | & $shell -NoProfile -ExecutionPolicy Bypass -Command $block 2>&1
+$script:lastOut = ($out | ForEach-Object { "$_" }) -join "`n"
+Test-Equal 'one-liner: a fresh install with -Key succeeds' '0.0.1-it' (Get-Version $root)
+Test-Equal 'one-liner: the signature was checked' 'True' ([string]($script:lastOut -match '(?m)^verified SHA256SUMS [(]signed by '))
+Test-Equal 'one-liner: it returns to its caller, never exits' 'True' ([string]($script:lastOut -match '(?m)^the caller carries on$'))
+if (-not (Get-Version $root)) { Write-Host $script:lastOut }
+Test-Equal 'one-liner: uninstall succeeds' '0' "$(Invoke-Script (Join-Path $root 'app\vigil.ps1') @('uninstall', '--yes'))"
+for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $root); $i++) { Start-Sleep -Milliseconds 500 }
+Test-Equal 'one-liner: the PATH entry is gone' 'False' (Test-OnPath (Join-Path $root 'app\bin') 'User')
+
 # --- system mode, with the service -------------------------------------------------
 
 $admin = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole(

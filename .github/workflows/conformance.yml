@@ -64,6 +64,9 @@ jobs:
         run: test -x /usr/sbin/sshd || { sudo apt-get update -q && sudo apt-get install -y -q openssh-server; }
       - name: sources and the fetcher (/bin/bash)
         run: /bin/bash tests/integration/fetch.sh
+        # sshd is here (macOS has it): the sftp test must run, never skip.
+        env:
+          VIGIL_IT_REQUIRE_SFTP: '1'
       - name: log forwarding (/bin/bash)
         run: /bin/bash tests/integration/logs.sh
       - name: self update (/bin/bash)
@@ -360,12 +363,14 @@ jobs:
       - name: OpenSSH server for the sftp source test
         if: matrix.part == 'sources'
         shell: powershell
-        continue-on-error: true
         timeout-minutes: 10
         run: Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
       - name: sources and the fetcher
         if: matrix.part == 'sources'
         run: ./tests/integration/Fetch.ps1
+        # sshd was installed above: the sftp test must run, never skip.
+        env:
+          VIGIL_IT_REQUIRE_SFTP: '1'
       - name: log forwarding
         if: matrix.part == 'sources'
         run: ./tests/integration/Logs.ps1

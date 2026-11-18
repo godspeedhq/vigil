@@ -96,10 +96,13 @@ function Test-VigilNumber {
 }
 
 # Reads a state file: @{ Kind (missing, unreadable, running, final);
-# Status; RunId; Boot; Started }.
+# Status; RunId; Boot; Started; Deadline; JobPid; JobName; JobStart;
+# WorkerPid; Ended; Duration }.
 function Read-VigilRunState {
     param([string]$Path)
-    $r = @{ Kind = 'missing'; Status = ''; RunId = ''; Boot = ''; Started = ''; Deadline = ''; JobPid = ''; JobName = ''; JobStart = ''; WorkerPid = '' }
+    $r = @{ Kind = 'missing'; Status = ''; RunId = ''; Boot = ''; Started = ''; Deadline = ''; JobPid = ''; JobName = ''; JobStart = ''; WorkerPid = ''
+        Ended = ''; Duration = ''
+    }
     if (-not [System.IO.File]::Exists($Path)) { return $r }
     $r.Kind = 'unreadable'
     try { $lines = [System.IO.File]::ReadAllLines($Path) } catch { return $r }
@@ -120,6 +123,8 @@ function Read-VigilRunState {
             'job_name' { $r.JobName = $v }
             'job_start' { $r.JobStart = $v }
             'worker_pid' { $r.WorkerPid = $v }
+            'ended_at' { $r.Ended = $v }
+            'duration_seconds' { $r.Duration = $v }
         }
     }
     # A number that is not one makes the record unreadable, like any other
@@ -783,17 +788,35 @@ function Invoke-VigilSupervisor {
             $active = $acc.Active
             if ($active -ceq 'running') {
                 $sv.Running++
-                $status.Running += $job
+                # jobs.log (13.2): its PID, how long it has run, and how long
+                # until max_runtime; a run whose worker has not written its
+                # state yet is starting.
+                $line = "${job}: starting"
                 if ($acc.State.Kind -ceq 'running' -and $acc.State.Started) {
                     # The tick's time is read once, at its start, and a run
                     # launched by the last tick can start after it: never below 0.
-                    & $event $job 'running' "$([Math]::Max([long]0, $sv.Epoch - [long]$acc.State.Started))" 'gauge'
+                    $for = [Math]::Max([long]0, $sv.Epoch - [long]$acc.State.Started)
+                    & $event $job 'running' "$for" 'gauge'
+                    $line = "${job}:"
+                    if ($acc.State.JobPid) { $line += " pid $($acc.State.JobPid)," }
+                    $line += " running for ${for}s"
+                    if ($acc.State.Deadline) {
+                        $left = [long]$acc.State.Deadline - $sv.Epoch
+                        $line += $(if ($left -gt 0) { ", max_runtime in ${left}s" } else { ', past max_runtime' })
+                    }
                 }
+                $status.Running += $line
             }
             else {
                 # A run held by queue_one is admitted once the active run ends.
                 if ($sv.Queued.Remove($job)) { $sv.Pending.Add($job) }
-                if ($acc.State.Kind -ceq 'final') { $status.Last += "${job}: $($acc.State.Status)" }
+                if ($acc.State.Kind -ceq 'final') {
+                    # jobs.log (13.2): its outcome, when it ended, how long it took.
+                    $line = "${job}: $($acc.State.Status)"
+                    if ($acc.State.Ended) { $line += " at $($acc.State.Ended)" }
+                    if ($acc.State.Duration) { $line += ", took $($acc.State.Duration)s" }
+                    $status.Last += $line
+                }
             }
             if ($sv.Queued.Contains($job)) { $active = 'queued' }
             if ($sv.Pending.Contains($job)) { $active = 'running' }
@@ -857,7 +880,7 @@ function Invoke-VigilSupervisor {
             $sc = & $scriptOf $job
             if (-not $sc.Ok) { continue }
             & $start $job $sc.Path
-            $status.Running += $job
+            $status.Running += "${job}: starting"
         }
         $sv.Pending = New-Object 'System.Collections.Generic.List[string]'
 

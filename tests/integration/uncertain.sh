@@ -101,6 +101,11 @@ on_uncertain = replace
 file         = scripts/quick.sh
 run_every    = 2s
 on_uncertain = manual
+
+[job.v]
+file         = scripts/quick.sh
+run_every    = 2s
+on_uncertain = wait
 EOF
 
 # This system's boot id, as Vigil computes it.
@@ -115,7 +120,7 @@ unrelated=$!
 pids="$pids $unrelated"
 
 now=$(date '+%s')
-for j in w r m; do
+for j in w r m v; do
     rid=20260101T000000Z-9-$j
     : > "$root/state/locks/$j.$rid.token"
     # A stand-in worker: holds the run token open, so the run is alive.
@@ -143,6 +148,29 @@ tick
 check "uncertain gauge delivered" 1 "$(prom w_uncertain)"
 check "possible duplicates counted" yes "$([ -n "$(prom r_possible_duplicates_total)" ] && echo yes || echo no)"
 check "resolve refuses a job that is not held" 1 "$(vigil resolve nosuch > /dev/null 2>&1; echo $?)"
+
+# Reported every tick (11.4), not once: jobs.log lists it and the gauge is
+# posted at each, while the log says so only when it first became uncertain.
+listed=0
+for n in 1 2 3; do
+    tick
+    section UNCERTAIN | grep -q '  v: past max_runtime' && listed=$((listed + 1))
+done
+check "v: listed as uncertain at every tick" 3 "$listed"
+check "v: still posted as uncertain" 1 "$(prom v_uncertain)"
+check "v: logged once, when it became uncertain" 1 "$(cat "$root/logs/supervisor/"*-*.log | grep -c 'job v: run 20260101T000000Z-9-v is uncertain')"
+
+# vigil resolve on a run still uncertain: the operator's word concludes it.
+# Its stand-in worker still holds the token, and nothing is killed.
+check "v: resolve while still uncertain" 0 "$(vigil resolve v > /dev/null 2>&1; echo $?)"
+tick
+# Released at once, v may already have run again: its conclusion is in the log.
+check "v: concluded, resolved by the operator" 1 "$(cat "$root/logs/supervisor/"*-*.log | grep -c "job v: uncertain run 20260101T000000Z-9-v concluded, resolved by $(id -un)")"
+check "v: as crashed" 1 "$(cat "$root/logs/supervisor/"*-*.log | grep -c 'job v: run 20260101T000000Z-9-v crashed')"
+check "v: released, record gone" "" "$(ls "$root/state/recovery" | grep '^v\.')"
+check "v: its worker never killed" yes "$(eval "kill -0 \$holder_v" 2>/dev/null && echo yes || echo no)"
+check "v: nor the unrelated process" yes "$(kill -0 "$unrelated" 2>/dev/null && echo yes || echo no)"
+eval "kill \$holder_v"
 
 # The evidence clears: the stand-in workers exit, releasing their tokens.
 eval "kill \$holder_w \$holder_m"

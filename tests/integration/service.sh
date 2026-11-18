@@ -14,7 +14,8 @@
 # without a password, as on CI runners) and, where the account has a
 # service manager of its own, user mode. Registers a real service, checks
 # that a running job outlives "vigil stop" and "vigil service remove", and
-# that failing pre-flight checks register nothing.
+# that failing pre-flight checks register nothing, and that vigil uninstall
+# of a system service leaves no unit, plist or root behind.
 #
 # It changes the machine: run it on a CI runner or a throwaway VM.
 #
@@ -158,9 +159,29 @@ else
         check "system: the vigil account exists" 0 "$(id vigil > /dev/null 2>&1; echo $?)"
         check "system: state belongs to the vigil account" vigil "$(stat -c %U "$root/state")"
         check "system: app belongs to root" root "$(stat -c %U "$root/app")"
-        sudo userdel vigil 2> /dev/null
     fi
     sudo rm -rf "$root"
+
+    # vigil uninstall (18.8) of a system service: the service, its unit or
+    # plist and the root all go, and the service manager knows it no more.
+    root=/opt/vigil-it-u-$$
+    make_root "$root"
+    sudo /bin/bash "$root/app/vigil" --root "$root" service install --system > "$work/install.out" 2>&1
+    check "system: installed, to uninstall" active "$(svc_state sudo /bin/bash "$root/app/vigil" --root "$root")"
+    sudo /bin/bash "$root/app/vigil" --root "$root" uninstall --yes > "$work/uninstall.out" 2>&1
+    rc=$?
+    check "system: uninstall succeeds" 0 "$rc"
+    [ "$rc" -eq 0 ] || sed 's/^/        /' "$work/uninstall.out"
+    if [ "$os" = Linux ]; then
+        check "system: uninstall leaves no unit" no "$([ -e /etc/systemd/system/vigil.service ] && echo yes || echo no)"
+        check "system: and systemd knows none" no "$(systemctl list-unit-files vigil.service 2> /dev/null | grep -q '^vigil\.service' && echo yes || echo no)"
+    else
+        check "system: uninstall leaves no plist" no "$([ -e /Library/LaunchDaemons/vigil.plist ] && echo yes || echo no)"
+        check "system: and launchd knows none" no "$(sudo launchctl print system/vigil > /dev/null 2>&1 && echo yes || echo no)"
+    fi
+    check "system: the root is gone" no "$([ -e "$root" ] && echo yes || echo no)"
+    sudo rm -rf "$root"
+    [ "$os" = Linux ] && sudo userdel vigil 2> /dev/null
 fi
 
 # User mode: the account's own systemd manager or launchd GUI domain.
