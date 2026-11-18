@@ -2105,7 +2105,7 @@ Before deleting, it lists what will be removed — including how many scripts ar
 
 It refuses a folder that holds no `app/vigil` (`app\vigil.ps1`), so a mistyped `--root` deletes nothing, and a packaged program, which its package manager removes (§18.6). A worker is proven by its command line naming the run and the root (`worker <job> --run-id <run id>`) and by being the `worker_pid` of that run's state; a job process by holding the run token (Linux, macOS) or by its PID, name, start time and parent matching the state file (Windows, as for `max_runtime`, §11.5). Proven processes get TERM, then KILL after 10 seconds (on Windows the tree ends at once); a process the state names but that cannot be proven is listed as left running, and nothing else is ever touched.
 
-Environment variables set outside Vigil (machine environment, `vigil.env` aside) are left untouched. Uninstall is idempotent: running it on a clean machine succeeds and changes nothing. On Windows, when the root cannot be deleted because the uninstall itself is running from inside it, deletion is completed by a short-lived detached process after Vigil exits.
+Environment variables set outside Vigil (machine environment, `vigil.env` aside) are left untouched. On Windows, when the root cannot be deleted because the uninstall itself is running from inside it, deletion is completed by a short-lived detached process after Vigil exits.
 
 ### 18.10 Packs
 
@@ -2512,12 +2512,12 @@ Vigil v1 is ready when:
 - [ ] The supervisor runs on Windows PowerShell 5.1, Linux bash and macOS bash 3.2.
 - [ ] User-mode and system-mode installation work on all three platforms.
 - [ ] The one-line installers and the reviewed manual path work on all three platforms, verify checksums, and never overwrite `config/` or `scripts/` on upgrade.
-- [ ] `vigil uninstall` removes everything (or keeps `config/` and `scripts/` with `--keep-config`) and is idempotent.
+- [ ] `vigil uninstall` removes everything (or keeps `config/` and `scripts/` with `--keep-config`), and refuses a folder that is not a Vigil root.
 - [ ] A job added to `vigil.config` is scheduled without a restart, and a pointer file switches the instance to its fetched configuration.
 - [ ] Configuration and scripts are fetched from `local`, `git`, `https` and `sftp` sources; a failed fetch or an invalid candidate leaves the last valid configuration active, including across a restart.
-- [ ] A script version changes on a host only when its configuration changes; running jobs are never interrupted by an activation.
+- [ ] For pinned sources, a script version changes on a host only when its configuration changes (a branch moves by design, §24); running jobs are never interrupted by an activation.
 - [ ] Hosts report their configuration revision, and the same revision means the same configuration and script content.
-- [ ] The config parser and validator behave identically on PowerShell and bash (shared conformance suite), and every example configuration in `tests/mocks/` validates.
+- [ ] The config parser and validator behave identically on PowerShell and bash (shared conformance suite), and every example configuration in `tests/mocks/` validates, except `advanced/10-rejected.config`, which shows a rejection.
 - [ ] `run_every`, `run_at` (lists) and `run_on_days` schedule correctly, including missed-run handling.
 - [ ] Runners, the extension map, `{file}` substitution and direct execution work.
 - [ ] Per-job overrides follow §6.6 identically on PowerShell and bash, and `vigil precheck <job>` shows each effective value's source.
