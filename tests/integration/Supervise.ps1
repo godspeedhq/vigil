@@ -20,7 +20,8 @@
     crashed run and an abandoned launch recorded, events for a backend type
     not implemented yet counted as dropped, a second supervisor refused, and
     the faults of 22.4 tests 1, 2, 13, 17 and 24 (a corrupt or missing state
-    file, a reboot, a launch from the previous boot).
+    file, a reboot, a launch from the previous boot), and a queue_one run
+    held across a restart.
     The twin of supervise.sh.
 
     Exit code: 0 all passed, 1 any failed.
@@ -416,6 +417,55 @@ Test-Equal '24: a launch from before the reboot is abandoned at once' 'False' ([
 $supLog = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\supervisor') -Filter '*-*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
 Test-Equal '24: and logged' 'True' ([string]$supLog.Contains('job three: launch 20260101T000000Z-1-three abandoned'))
 Test-Equal '24: never run' 'False' ([string][System.IO.File]::Exists((Join-Path $root 'state\jobs\three.state')))
+Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
+
+# queue_one end to end (9, 8): a slot that comes due while a run is active
+# is held, one only, and kept in state\pending across a supervisor restart.
+# With no supervisor it never starts; after the restart it starts once the
+# active run has ended, never beside it. A run lasts 15 s: a tick here can
+# take a few.
+$root = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-queue.$PID"
+foreach ($d in 'config', 'scripts') { [void](New-Item -ItemType Directory -Force -Path (Join-Path $root $d)) }
+Set-Content -LiteralPath (Join-Path $root 'scripts\slow.cmd') -Value @(
+    '@echo off',
+    'mkdir "%IT_ROOT%\inflight" 2>nul || echo overlap>>"%IT_ROOT%\overlap"',
+    'echo %VIGIL_RUN_ID%>>"%IT_ROOT%\runs"',
+    'ping -n 16 127.0.0.1 >nul',
+    'rmdir "%IT_ROOT%\inflight" 2>nul')
+function Set-QueueConfig {
+    param([string]$Every)
+    [System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'),
+        "[vigil]`ninstance = queue`n`n[scheduler]`ntick = 1s`n`n[job.slow]`nfile      = scripts\slow.cmd`nenv       = IT_ROOT=$root`noverlap   = queue_one`nrun_every = $Every`n")
+}
+function Test-Held { $f = Join-Path $root 'state\pending'; (Test-Path -LiteralPath $f) -and ([System.IO.File]::ReadAllText($f) -cmatch '(?m)^queued=(.* )?slow( |\r?$)') }
+function Get-Runs { $f = Join-Path $root 'runs'; if (Test-Path -LiteralPath $f) { @([System.IO.File]::ReadAllLines($f) | Where-Object { $_.Trim() }).Count } else { 0 } }
+function Test-SlowIdle { -not (Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter 'slow.*' -ErrorAction SilentlyContinue) }
+function Test-Skipped { [bool]((Get-ChildItem -LiteralPath (Join-Path $root 'logs\supervisor') -Filter '*-*.log' -ErrorAction SilentlyContinue | ForEach-Object { Read-Shared $_.FullName }) -join '' -match 'job slow: slot \S+ skipped: a run is still active') }
+Set-QueueConfig '2s'
+$qSup = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'supervise')
+for ($i = 0; $i -lt 120 -and -not (Test-Held); $i++) { Start-Sleep -Milliseconds 500 }
+# A later slot of the active run is skipped, not held too. Then nothing
+# more comes due, and the supervisor stops while the run is still active.
+for ($i = 0; $i -lt 60 -and -not (Test-Skipped); $i++) { Start-Sleep -Milliseconds 500 }
+Set-QueueConfig '3650d'
+if (-not $qSup.HasExited) { Stop-Process -Id $qSup.Id -Force }
+$qSup.WaitForExit()
+# A run is active from its launch; its cmd.exe can take a few seconds more
+# to write its line.
+for ($i = 0; $i -lt 60 -and (Get-Runs) -lt 1; $i++) { Start-Sleep -Milliseconds 500 }
+Test-Equal 'queue_one: a slot due while a run is active is held' 'True' "$(Test-Held)"
+Test-Equal 'queue_one: one run active, one held' '1' "$(Get-Runs)"
+for ($i = 0; $i -lt 60 -and -not (Test-SlowIdle); $i++) { Start-Sleep -Milliseconds 500 }
+Start-Sleep -Seconds 2
+Test-Equal 'queue_one: with no supervisor, the held run never starts' '1 True' "$(Get-Runs) $(Test-Held)"
+for ($i = 0; $i -lt 30 -and (Get-Runs) -lt 2; $i++) { Invoke-OnceAlone; Start-Sleep -Seconds 1 }
+Test-Equal 'queue_one: after a restart, the held run starts' '2' "$(Get-Runs)"
+Test-Equal 'queue_one: and is no longer held' 'False' "$(Test-Held)"
+for ($i = 0; $i -lt 40 -and -not (Test-SlowIdle); $i++) { Invoke-OnceAlone; Start-Sleep -Seconds 1 }
+Invoke-OnceAlone
+Test-Equal 'queue_one: one held run only, the others skipped' '2 True' "$(Get-Runs) $(Test-Skipped)"
+Test-Equal 'queue_one: no run ever met another' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'overlap'))"
 Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
 
 # Damaged numbers (11.3, backlog 44): a launch record whose epoch is not a

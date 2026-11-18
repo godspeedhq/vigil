@@ -17,7 +17,7 @@
 # recorded, events for a backend type not implemented yet counted as
 # dropped, a second supervisor refused, and the faults of 22.4 tests 1, 2,
 # 13, 17 and 24 (a corrupt or missing state file, a reboot, a launch from
-# the previous boot).
+# the previous boot), and a queue_one run held across a restart.
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -347,6 +347,55 @@ check "13: and their tokens are gone" '' "$(ls "$root/state/locks" | grep -e '^o
 check "24: a launch from before the reboot is abandoned at once" '' "$(ls "$root/state/locks" | grep '^three\.')"
 check "24: and logged" yes "$(cat "$root/logs/supervisor/"*.log | grep -F 'job three: launch 20260101T000000Z-1-three abandoned' > /dev/null && echo yes || echo no)"
 check "24: never run" '' "$(ls "$root/state/jobs" | grep '^three')"
+rm -rf "$root"
+
+# queue_one end to end (9, 8): a slot that comes due while a run is active
+# is held, one only, and kept in state/pending across a supervisor restart.
+# With no supervisor it never starts; after the restart it starts once the
+# active run has ended, never beside it.
+root=$(mktemp -d "${TMPDIR:-/tmp}/vigil-queue.XXXXXX")
+root=$(cd "$root" && pwd)
+mkdir -p "$root/config" "$root/scripts"
+cat > "$root/scripts/slow.sh" <<'EOF'
+if ! mkdir "$IT_ROOT/inflight" 2>/dev/null; then echo overlap >> "$IT_ROOT/overlap"; fi
+echo "$VIGIL_RUN_ID" >> "$IT_ROOT/runs"
+sleep 10
+rmdir "$IT_ROOT/inflight"
+EOF
+queue_config() {
+    printf '[vigil]\ninstance = queue\n\n[scheduler]\ntick = 1s\n\n[runner.sh]\ncommand = /bin/sh\n\n[runners]\n.sh = sh\n\n[job.slow]\nfile      = scripts/slow.sh\nenv       = IT_ROOT=%s\noverlap   = queue_one\nrun_every = %s\n' "$root" "$1" > "$root/config/vigil.config"
+}
+held() { grep -Eq '^queued=(.* )?slow( |$)' "$root/state/pending" 2>/dev/null; }
+runs() { cat "$root/runs" 2>/dev/null | grep -c . ; }
+slow_idle() { ! ls "$root/state/locks" 2>/dev/null | grep -q '^slow\.'; }
+queue_config 2s
+"$BASH" "$vigil_cmd" --root "$root" supervise > /dev/null 2>&1 &
+q_sup=$!
+i=0
+while ! held && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+# A later slot of the active run is skipped, not held too. Then nothing
+# more comes due, and the supervisor stops while the run is still active.
+skipped() { grep -q 'job slow: slot .* skipped: a run is still active' "$root"/logs/supervisor/*.log 2>/dev/null; }
+i=0
+while ! skipped && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+queue_config 3650d
+kill -TERM "$q_sup"
+wait "$q_sup"
+check "queue_one: a slot due while a run is active is held" yes "$(held && echo yes || echo no)"
+check "queue_one: one run active, one held" 1 "$(runs)"
+i=0
+while ! slow_idle && [ "$i" -lt 30 ]; do sleep 0.5; i=$((i + 1)); done
+sleep 2
+check "queue_one: with no supervisor, the held run never starts" "1 held" "$(runs) $(held && echo held)"
+i=0
+while [ "$(runs)" -lt 2 ] && [ "$i" -lt 20 ]; do vigil supervise --once > /dev/null 2>&1; sleep 1; i=$((i + 1)); done
+check "queue_one: after a restart, the held run starts" 2 "$(runs)"
+check "queue_one: and is no longer held" no "$(held && echo yes || echo no)"
+i=0
+while ! slow_idle && [ "$i" -lt 30 ]; do vigil supervise --once > /dev/null 2>&1; sleep 1; i=$((i + 1)); done
+vigil supervise --once > /dev/null 2>&1
+check "queue_one: one held run only, the others skipped" "2 yes" "$(runs) $(skipped && echo yes || echo no)"
+check "queue_one: no run ever met another" "" "$(cat "$root/overlap" 2>/dev/null)"
 rm -rf "$root"
 
 # Damaged numbers (11.3, backlog 44): a launch record whose epoch is not a
