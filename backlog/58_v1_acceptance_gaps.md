@@ -7,8 +7,8 @@ where a test that runs on the platforms it names checks it, or a recorded
 real-machine test does.
 
 **18 met, 21 partly, 1 not met (28).** Almost every gap is a missing test,
-not missing behaviour; three are bugs (the third found while writing
-test 28). Nothing in §25 is ticked until its gaps here are closed.
+not missing behaviour; four are bugs (the third and fourth found while
+writing tests). Nothing in §25 is ticked until its gaps here are closed.
 
 Met: 1, 2, 3, 6, 9, 10, 12, 13, 15, 16, 19, 26, 30, 31, 33, 35, 38, 40.
 
@@ -42,6 +42,22 @@ Met: 1, 2, 3, 6, 9, 10, 12, 13, 15, 16, 19, 26, 30, 31, 33, 35, 38, 40.
    Fix, both platforms alike: a failed copy removes its temporary file and
    leaves the fan-out unretired; the sender carries on with the other
    targets and files, and the next sender tries again.
+4. **Linux and macOS: a descendant ignoring TERM outlives `max_runtime`
+   (§10.3, §11.6, criterion 29).** Found while making the test check
+   descendants. The supervisor sends TERM to the job's process group and
+   means to send KILL a grace later if the group is still running. But when
+   the job's own process exits on TERM, its worker records `timed_out` and
+   releases the token at once, so the run looks over and the KILL never
+   comes: a child in the same group that ignores TERM lives on. Seen on
+   Fedora and macOS: the child finished its sleep and left its marker.
+   Children that exit on TERM, and a job that ignores TERM itself, are
+   stopped. Windows ends the whole tree at once and passes the same test.
+
+   Fix: the worker, holding the token, waits while the job's group still
+   has a member, up to the grace from the TERM, then sends KILL to the
+   group, and only then records the run and releases the token. While the
+   group has a member its id cannot be reused, so the group is still the
+   run's.
 
 ## The specification and README, to say what is true
 
