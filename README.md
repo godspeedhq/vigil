@@ -1116,7 +1116,7 @@ The full reference is in [`SPECIFICATION.md`](SPECIFICATION.md) (§6), and [`tes
 | `vigil service install [--user \| --system]` | Runs the pre-flight checks, then registers the supervisor with systemd, launchd or NSSM and starts it. `--account <name>` (Linux, macOS), `--host powershell \| pwsh` (Windows), `--no-start`. |
 | `vigil service remove` | Unregisters it. Running jobs carry on. |
 | `vigil start` / `stop` / `restart` | Service control. Stopping never stops running jobs. |
-| `vigil status` | The service's state, then `jobs.log`. |
+| `vigil status [--watch]` | The service's state, then `jobs.log`. `--watch` shows it again every 2 seconds until Ctrl+C: a live view, with each new `jobs.log` within 2 seconds of the tick that writes it. |
 | `vigil init [empty] [--instance <name>] [--backend file,datadog,otel] [--no-pack]` | Writes a starting configuration: runners for the shells found here, the backends with `env:` placeholders, and the base pack's jobs (`--no-pack`: no jobs; `empty`: runners only). Asks for what is not given at a terminal. Never overwrites a configuration, never asks for a secret value. |
 | `vigil uninstall [--yes] [--keep-config]` | Removes Vigil: the service, the running workers proven to be Vigil's (never anything else), the root (or all but `config/` and `scripts/`) and the command link or `PATH` entry. Lists what it will remove and asks first. |
 

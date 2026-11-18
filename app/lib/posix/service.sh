@@ -534,6 +534,27 @@ vigil_service_status() {
     return 0
 }
 
+# vigil status --watch (backlog 57): vigil status again every 2 seconds,
+# until Ctrl+C. Each frame is made in full before it is shown, so the screen
+# is never half drawn; at a terminal it is cleared first. The time is UTC, as
+# on jobs.log's first line, which says when the supervisor last wrote it. A
+# frame that fails (jobs.log this account cannot read) is shown once, and
+# ends it.
+vigil_service_watch() {
+    local root=$1 frame rc clear=''
+    [ -t 1 ] && clear=$(printf '\033[H\033[2J')
+    while :; do
+        frame=$(vigil_service_status "$root" 2>&1)
+        rc=$?
+        if [ "$rc" != 0 ]; then
+            printf '%s\n' "$frame" >&2
+            return "$rc"
+        fi
+        printf '%severy 2 s, Ctrl+C to stop: %s\n\n%s\n' "$clear" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$frame"
+        sleep 2
+    done
+}
+
 # Prints the first of these folders and files this account cannot look into
 # or read, and succeeds; fails when it can read them all. Checked from the
 # top down: a folder that cannot be entered hides what is inside it.

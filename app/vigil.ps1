@@ -45,8 +45,9 @@
         Unregisters it. Running workers continue.
     vigil [-Root <dir>] start | stop | restart
         Service control. Stopping leaves running workers alone (18.3).
-    vigil [-Root <dir>] status
-        The service's state, then jobs.log.
+    vigil [-Root <dir>] status [--watch]
+        The service's state, then jobs.log. --watch prints it again every
+        2 seconds until Ctrl+C.
     vigil [-Root <dir>] pack list | enable <what> | disable <what> | update [--check]
         The packs of scripts and jobs (18.10). What is a pack or a pack_job.
     vigil [-Root <dir>] init [empty] [--instance <name>] [--backend file,datadog,otel] [--no-pack]
@@ -117,7 +118,7 @@ else {
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list | enable <what> | disable <what> | update [--check]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list | enable <what> | disable <what> | update [--check]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -339,6 +340,13 @@ switch ($Command) {
         exit $code
     }
     'status' {
+        # PowerShell binds "--watch" to the remaining arguments.
+        $flags = @(@($Job) + @($Rest) | Where-Object { $_ })
+        if ($flags.Count -eq 1 -and $flags[0] -ceq '--watch') {
+            try { Watch-VigilServiceStatus -Root $Root }
+            catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
+            exit 0
+        }
         if ($Job -or $Rest) { Exit-Usage }
         try { Get-VigilServiceStatus -Root $Root }
         catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
