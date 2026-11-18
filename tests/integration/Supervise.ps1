@@ -239,15 +239,26 @@ function Invoke-Vigil {
 $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $r = Invoke-Vigil status
 Test-Equal 'status shows jobs.log' '0|True' "$($r.Code)|$($r.Text -cmatch '(?m)^Vigil .* at ')"
-# vigil status --watch (backlog 57), given 8 seconds: how it ended, 'running'
-# when it was still going and was stopped (it is this test's own process),
-# else its exit code; and what it printed.
+# vigil status --watch (backlog 57), given 5 seconds from its first frame:
+# how it ended, 'running' when it was still going and was stopped (it is
+# this test's own process), else its exit code; and what it printed.
+# PowerShell alone can take seconds to start on a busy machine, so the
+# 5 seconds start at the first frame, or it ends, within a minute.
+function Read-Shared {
+    param([string]$Path)
+    try {
+        $s = [System.IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite')
+        try { (New-Object System.IO.StreamReader($s)).ReadToEnd() } finally { $s.Dispose() }
+    }
+    catch { '' }
+}
 function Invoke-Watch {
     $out = "$root.watch"
     $p = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError "$out.err" -ArgumentList @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'status', '--watch')
     [void]$p.Handle
-    $how = if ($p.WaitForExit(8000)) { [string]$p.ExitCode } else { $p.Kill(); [void]$p.WaitForExit(5000); 'running' }
+    for ($i = 0; $i -lt 120 -and -not $p.HasExited -and -not ((Read-Shared $out) -cmatch '(?m)^every 2 s'); $i++) { Start-Sleep -Milliseconds 500 }
+    $how = if ($p.WaitForExit(5000)) { [string]$p.ExitCode } else { $p.Kill(); [void]$p.WaitForExit(5000); 'running' }
     $text = [System.IO.File]::ReadAllText($out) + [System.IO.File]::ReadAllText("$out.err")
     Remove-Item -LiteralPath $out, "$out.err" -ErrorAction SilentlyContinue
     return @{ How = $how; Text = $text }

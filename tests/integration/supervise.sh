@@ -203,12 +203,18 @@ rm -f "$root/state/locks/slow.$rid.launch"
 out=$(vigil status 2>&1)
 rc=$?
 check "status shows jobs.log" "0 yes" "$rc $(printf '%s\n' "$out" | grep '^Vigil .* at ' > /dev/null && echo yes || echo no)"
-# vigil status --watch (backlog 57), given 5 seconds: prints how it ended,
-# "running" when it was still going and was stopped, else its exit code.
-# What it printed is in $root.watch.
+# vigil status --watch (backlog 57), given 5 seconds from its first frame
+# (or until it ends, within a minute): prints how it ended, "running" when it
+# was still going and was stopped, else its exit code. What it printed is in
+# $root.watch.
 watch_for() {
     "$BASH" "$vigil_cmd" --root "$root" status --watch > "$root.watch" 2>&1 &
     local p=$! i=0
+    while kill -0 "$p" 2> /dev/null && ! grep '^every 2 s' "$root.watch" > /dev/null 2>&1 && [ "$i" -lt 120 ]; do
+        sleep 0.5
+        i=$((i + 1))
+    done
+    i=0
     while kill -0 "$p" 2> /dev/null && [ "$i" -lt 10 ]; do sleep 0.5; i=$((i + 1)); done
     if kill -0 "$p" 2> /dev/null; then
         kill "$p"
