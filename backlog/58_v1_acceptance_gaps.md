@@ -7,8 +7,8 @@ where a test that runs on the platforms it names checks it, or a recorded
 real-machine test does.
 
 **18 met, 21 partly, 1 not met (28).** Almost every gap is a missing test,
-not missing behaviour; two are bugs. Nothing in §25 is ticked until its
-gaps here are closed.
+not missing behaviour; three are bugs (the third found while writing
+test 28). Nothing in §25 is ticked until its gaps here are closed.
 
 Met: 1, 2, 3, 6, 9, 10, 12, 13, 15, 16, 19, 26, 30, 31, 33, 35, 38, 40.
 
@@ -28,6 +28,20 @@ Met: 1, 2, 3, 6, 9, 10, 12, 13, 15, 16, 19, 26, 30, 31, 33, 35, 38, 40.
    once the worker has gone the parent is not checked either, so only the
    PID and name prove the run's process. A worker can almost always read its
    own job's start time, but a missing one must count as unproven.
+3. **A failed fan-out copy (§4.5, §22.4 test 28, criterion 22).** Found
+   while writing test 28, which has a copy fail by putting a file where a
+   backend's queue directory should be (a full disk fails the same copy).
+   - Linux and macOS lose the event for that backend. `_vigil_send_place`
+     leaves no done marker for the failed copy, then retires the fan-out
+     anyway. Seen on Fedora: b fixed, the event never reached it, nothing
+     logged.
+   - Windows loses nothing (the fan-out is kept and b gets the event once
+     fixed), but the failed copy stops the sender, so a's copy, already
+     placed, is not delivered while b's fails.
+
+   Fix, both platforms alike: a failed copy removes its temporary file and
+   leaves the fan-out unretired; the sender carries on with the other
+   targets and files, and the next sender tries again.
 
 ## The specification and README, to say what is true
 
