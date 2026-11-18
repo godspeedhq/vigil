@@ -90,7 +90,7 @@ Vigil's guiding rules:
 | Recovery from crashes, restarts, reboots and damaged state | Done | The suites (crashes and restarts simulated) |
 | `max_runtime` with ownership-checked process-tree termination | Done | The suites |
 | Uncertain runs: recovery records, `on_uncertain`, `vigil resolve` | Done | The suites |
-| Spool with write-ahead fan-out, size cap, per-backend backoff | Done | The suites; the size cap by hand on Fedora (`tests/integration/backends`) |
+| Spool with write-ahead fan-out, size cap, per-backend backoff | Done | The suites; against real backends by hand on Fedora (`tests/integration/backends`) |
 | Backend: `file` (Prometheus text format, for node_exporter / windows_exporter) | Done | The suites |
 | Backend: `otel` (OTLP/HTTP JSON) | Done | The suites; real: Grafana LGTM, Prometheus, Mimir, the OpenTelemetry Collector, Alloy, Uptrace and others, on Linux; LGTM on macOS and Windows too |
 | Backend: `splunk` (HTTP Event Collector) | Done | The suites; real: Splunk Enterprise 10.6, on Linux |

@@ -17,7 +17,8 @@
     Runs against mock-backend.py on this host. A run's metrics reach both
     with their credentials in headers, a failing backend keeps its events
     and backs off until it recovers, a rejected batch is dropped and
-    counted, and no credential ever reaches a log, state, spool or metrics
+    counted, the spool size cap drops the oldest queued files and counts
+    them, and no credential ever reaches a log, state, spool or metrics
     file. The twin of backends.sh.
 
     Needs Python.
@@ -243,6 +244,32 @@ run_every = 3650d
     Invoke-Tick
     Test-Equal 'hung sender: a later sender delivers' '0' ([string]([int](Get-Queued 'datadog') + [int](Get-Queued 'otel') + [int](Get-Queued 'splunk')))
     Test-Equal 'hung sender: and succeeds' 'succeeded' (Get-StateValue $senderState 'status')
+
+    # The spool size cap (4.5): the HTTP backends down, three runs' events of
+    # about 400 KB each queued for them, max_mb = 1. The oldest files go until
+    # the queues fit, each counted as spool_full for its backend; the file
+    # backend, still up, takes the count.
+    [System.IO.File]::WriteAllText("$root\mock\status", '503')
+    [System.IO.File]::AppendAllText("$root\config\vigil.config", "`n[spool]`nmax_mb = 1`n`n[job.fill]`nfile      = scripts\emit.cmd`nrun_every = 3650d`nbackends  = datadog, otel, splunk`n")
+    $e = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $pad = 'x' * 900
+    foreach ($r in 1, 2, 3) {
+        $sb = New-Object System.Text.StringBuilder
+        for ($i = 0; $i -lt 400; $i++) { [void]$sb.Append("$e fill.x_$($i % 10) $i gauge host=it pad=$pad`n") }
+        $f = "$root\spool\incoming\$($e + $r)-fill-r$r.events"
+        [System.IO.File]::WriteAllText("$f.tmp", $sb.ToString())
+        [System.IO.File]::Move("$f.tmp", $f)
+    }
+    Invoke-Tick
+    $queuedFiles = @(Get-ChildItem -LiteralPath "$root\spool\backends" -Recurse -File -Filter '*.events')
+    $queuedBytes = [long]0
+    foreach ($q in $queuedFiles) { $queuedBytes += $q.Length }
+    Test-Equal 'spool full: the queues fit in max_mb' 'True' ([string]($queuedBytes -le 1048576))
+    Test-Equal 'spool full: the oldest dropped' '0' ([string]@($queuedFiles | Where-Object { $_.Name -clike '*-fill-r1.events' }).Count)
+    Test-Equal 'spool full: the newest kept' 'True' ([string]([bool]@($queuedFiles | Where-Object { $_.Name -clike '*-fill-r3.events' }).Count))
+    Invoke-Tick
+    Test-Equal 'spool full: the drop counted, by backend' 'yes' (Test-Prom '(?m)^vigil_spool_dropped_total\{backend="datadog".*reason="spool_full"\} [1-9]')
+    Remove-Item -LiteralPath "$root\mock\status"
 
     # The credentials are only ever in headers: never on disk outside the
     # secret store, and never in a URL.
