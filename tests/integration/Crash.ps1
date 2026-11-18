@@ -12,7 +12,7 @@
 <#
 .SYNOPSIS
     Integration test: the crash points of SPECIFICATION.md 22.4.1 drive the
-    launch and fan-out tests of 22.4 (20 to 23, 25, 26, 29), and a held
+    launch and fan-out tests of 22.4 (20 to 23, 25 to 27, 29), and a held
     queue_one run launched as the supervisor crashes (8, 9), on Windows.
 .DESCRIPTION
     The twin of crash.sh. Two invariants:
@@ -266,6 +266,31 @@ Add-Event 'after_partial'
 Wait-Ticking 15 { Test-InBoth 'after_partial' }
 Test-Equal '26: a temporary file is never sent' 'False' "$((Read-Backend "$root\metrics\a.prom") -cmatch '(?m)^partial_copy')"
 Remove-Item -LiteralPath $partial -ErrorAction SilentlyContinue
+
+# 27. A backend removed between a crash and the resume: its copy is dropped
+# and counted, and the other backend still gets the event.
+function Test-DroppedB { (Read-Backend "$root\metrics\a.prom") -cmatch '(?m)^vigil_spool_dropped_total\{backend="b".*reason="backend_removed"' }
+function Test-InA { param([string]$Name) (Test-Path -LiteralPath "$root\metrics\a.prom") -and ((Read-Backend "$root\metrics\a.prom") -cmatch "(?m)^$Name") }
+function Test-Targets { [bool](Get-ChildItem -LiteralPath "$root\spool\fanout" -Filter '*.targets' -ErrorAction SilentlyContinue) }
+Set-Config '3650d'
+for ($i = 0; $i -lt 60 -and (Get-Locks 'vigil_sender'); $i++) { Start-Sleep -Milliseconds 500 }
+Add-Event 'removed_b'
+[void](Invoke-Once @{ VIGIL_FAULT = 'fanout.after_targets' })
+# It crashes at the first file it claims, which may be an older one of
+# Vigil's own: any fan-out with its targets fixed will do.
+for ($i = 0; $i -lt 40 -and -not (Test-Targets); $i++) { Start-Sleep -Milliseconds 500 }
+Start-Sleep -Seconds 1
+Test-Equal '27: the sender crashed with the targets fixed' 'True' "$(Test-Targets)"
+$cfgPath = "$root\config\vigil.config"
+[System.IO.File]::WriteAllText($cfgPath, ([System.IO.File]::ReadAllText($cfgPath) -replace '(?ms)^\[backend\.b\]\r?\ntype = file\r?\npath = metrics\\b\.prom\r?\n', ''))
+Wait-Ticking 30 { (Test-InA 'removed_b') -and (Test-DroppedB) }
+Test-Equal '27: the backend left has the event' 'True' "$(Test-InA 'removed_b')"
+Test-Equal "27: the removed one's copy dropped, counted as backend_removed" 'True' "$(Test-DroppedB)"
+Test-Equal '27: nothing left in the fan-out' '' ((@(Get-ChildItem -LiteralPath "$root\spool\fanout" -File -ErrorAction SilentlyContinue | ForEach-Object Name)) -join ' ')
+# b back. A sender started without it delivers by the configuration it was
+# launched with (4.3), even events that arrive while it starts: let it end.
+Set-Config '3650d'
+for ($i = 0; $i -lt 60 -and (Get-Locks 'vigil_sender'); $i++) { Start-Sleep -Milliseconds 500 }
 
 # --- 29. A randomised crash loop ------------------------------------------------------
 

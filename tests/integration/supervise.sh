@@ -15,7 +15,9 @@
 # file backend's Prometheus file: runs started, jobs running together with
 # no ceiling, overlaps skipped, a crashed run and an abandoned launch
 # recorded, events for a backend type not implemented yet counted as
-# dropped, and a second supervisor refused.
+# dropped, a second supervisor refused, and the faults of 22.4 tests 1, 2,
+# 13, 17 and 24 (a corrupt or missing state file, a reboot, a launch from
+# the previous boot).
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -271,6 +273,32 @@ rid=$(state_value "$st" run_id)
 wpid=$(state_value "$st" worker_pid)
 jpid=$(state_value "$st" job_pid)
 check "orphan: the run started" yes "$([ -n "$wpid" ] && [ -n "$jpid" ] && echo yes || echo no)"
+
+# While that run is alive (22.4, 17, 1 and 2). The job is due every second,
+# so a supervisor that lost track of the run would start another.
+others() { ls "$root/state/locks" | grep '^long\.' | grep -vF "long.$rid."; }
+# 17. The supervisor never writes a live run's state file.
+sum=$(cksum < "$st")
+vigil supervise --once > /dev/null 2>&1
+vigil supervise --once > /dev/null 2>&1
+check "17: a live run's state file is never written" "$sum" "$(cksum < "$st")"
+# 1. Its state file corrupted: the run is found by its token and run id.
+cp "$st" "$root/long.state.good"
+printf 'not a state file\n' > "$st"
+vigil supervise --once > /dev/null 2>&1
+vigil supervise --once > /dev/null 2>&1
+check "1: corrupt state: the job still runs" yes "$(kill -0 "$jpid" 2>/dev/null && kill -0 "$wpid" 2>/dev/null && echo yes || echo no)"
+check "1: no run started beside it" '' "$(others)"
+check "1: and its state file left as it is" 'not a state file' "$(cat "$st")"
+# 2. Its state file deleted: the same.
+rm -f "$st"
+vigil supervise --once > /dev/null 2>&1
+vigil supervise --once > /dev/null 2>&1
+check "2: deleted state: the job still runs" yes "$(kill -0 "$jpid" 2>/dev/null && kill -0 "$wpid" 2>/dev/null && echo yes || echo no)"
+check "2: no run started beside it" '' "$(others)"
+check "2: and nothing writes it" no "$([ -e "$st" ] && echo yes || echo no)"
+mv "$root/long.state.good" "$st"
+
 kill -9 "$wpid" 2>/dev/null
 i=0
 while kill -0 "$wpid" 2>/dev/null && [ "$i" -lt 20 ]; do sleep 0.25; i=$((i + 1)); done
@@ -290,6 +318,35 @@ check "orphan: and its token is gone" '' "$(ls "$root/state/locks" | grep -F "lo
 # Let the next run end before cleaning up.
 i=0
 while ls "$root/state/locks" 2>/dev/null | grep '^long\.' > /dev/null && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+rm -rf "$root"
+
+# A reboot (22.4, 13 and 24), as a boot id that is not this boot's: every
+# run recorded as running then is concluded, and a launch record from then is
+# abandoned at once, however young. Neither job is ever due, so no run of
+# theirs rewrites what this checks.
+root=$(mktemp -d "${TMPDIR:-/tmp}/vigil-reboot.XXXXXX")
+mkdir -p "$root/config" "$root/scripts" "$root/state/locks" "$root/state/jobs"
+printf 'echo metric done 1\n' > "$root/scripts/quick.sh"
+printf '[vigil]\ninstance = reboot\n\n[runner.sh]\ncommand = /bin/sh\n\n[runners]\n.sh = sh\n\n' > "$root/config/vigil.config"
+for j in one two three; do
+    printf '[job.%s]\nfile      = scripts/quick.sh\nrun_every = 3650d\n\n' "$j" >> "$root/config/vigil.config"
+done
+# The processes of before the reboot: one that has ended.
+sh -c 'exit 0' &
+gone=$!
+wait "$gone"
+for j in one two; do
+    printf '[state]\nschema_version = 1\njob = %s\nrun_id = 20260101T000000Z-1-%s\nstatus = running\nboot_id = before-the-reboot\nstarted_epoch = 1\njob_pid = %s\nworker_pid = %s\n' "$j" "$j" "$gone" "$gone" > "$root/state/jobs/$j.state"
+    : > "$root/state/locks/$j.20260101T000000Z-1-$j.token"
+done
+printf '[launch]\njob           = three\nrun_id        = 20260101T000000Z-1-three\nboot_id       = before-the-reboot\nlaunch_epoch  = %s\n' "$(date '+%s')" > "$root/state/locks/three.20260101T000000Z-1-three.launch"
+vigil supervise --once > /dev/null 2>&1
+check "13: after a reboot, every run recorded as running is concluded" "crashed crashed" \
+    "$(state_value "$root/state/jobs/one.state" status) $(state_value "$root/state/jobs/two.state" status)"
+check "13: and their tokens are gone" '' "$(ls "$root/state/locks" | grep -e '^one\.' -e '^two\.')"
+check "24: a launch from before the reboot is abandoned at once" '' "$(ls "$root/state/locks" | grep '^three\.')"
+check "24: and logged" yes "$(cat "$root/logs/supervisor/"*.log | grep -F 'job three: launch 20260101T000000Z-1-three abandoned' > /dev/null && echo yes || echo no)"
+check "24: never run" '' "$(ls "$root/state/jobs" | grep '^three')"
 rm -rf "$root"
 
 # Damaged numbers (11.3, backlog 44): a launch record whose epoch is not a
