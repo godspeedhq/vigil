@@ -175,7 +175,29 @@ function Test-Lifecycle {
     }
     Test-Equal "${tag}: the service is active after start" 'active' (Get-SvcState $Root)
     Test-Equal "${tag}: restart succeeds" '0' "$(Invoke-Vigil $Root @('restart'))"
-    Test-Equal "${tag}: the service is active after restart" 'active' (Get-SvcState $Root)
+    $restartSaid = $script:lastOut
+    $afterRestart = Get-SvcState $Root
+    Test-Equal "${tag}: the service is active after restart" 'active' $afterRestart
+    # Seen once in CI (user mode, PowerShell 7, run 44361165213): restart
+    # succeeded and status then said inactive. All that is known, to find out
+    # why if it comes back.
+    if ($afterRestart -cne 'active') {
+        Write-Host "        restart said: $restartSaid"
+        Write-Host "        status said: $script:lastOut"
+        $lockFile = Join-Path $Root 'state\supervisor.lock'
+        try {
+            $fs = [System.IO.File]::Open($lockFile, 'Open', 'Read', 'ReadWrite')
+            try { Write-Host "        lock: $((New-Object System.IO.StreamReader($fs)).ReadToEnd().Trim())" } finally { $fs.Dispose() }
+        }
+        catch { Write-Host "        lock: $($_.Exception.Message)" }
+        Get-ChildItem -LiteralPath $log -File -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "        [$($_.Name)]"
+            Get-Content -LiteralPath $_.FullName -Tail 12 | ForEach-Object { Write-Host "        $_" }
+        }
+        Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'pwsh.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -match 'supervise' } |
+            ForEach-Object { Write-Host "        process $($_.ProcessId) $($_.CreationDate): $($_.CommandLine)" }
+    }
 
     Test-Equal "${tag}: service remove succeeds" '0' "$(Invoke-Vigil $Root @('service', 'remove'))"
     Test-Equal "${tag}: the service is gone" 'not registered' (Get-SvcState $Root)
