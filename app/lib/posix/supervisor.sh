@@ -104,6 +104,11 @@ _vigil_sup_holds() {
 # written before the first signal tells the worker its job timed out.
 _vigil_sup_timeout() {
     local job=$1 rid=$2 token=$3 marker="$_su_statedir/locks/$1.$2.timeout" term='' line grace=30s i
+    # TERM sent and the job's own process gone: its worker, which still holds
+    # the token, ends the rest of its group after grace, then records the run.
+    if [ -f "$marker" ] && [ -n "$_ss_job_pid" ] && ! kill -0 "$_ss_job_pid" 2>/dev/null; then
+        return 0
+    fi
     if [ -z "$_ss_job_pid" ] || [ -z "$token" ]; then
         _su_held=no
     else

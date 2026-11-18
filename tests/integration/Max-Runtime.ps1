@@ -70,8 +70,11 @@ Write-Host "PowerShell $($PSVersionTable.PSVersion)"
 
 # The job would finish after about 30 seconds and leave a marker; it may not.
 # The marker names the run and the time, so a failure shows which run lived on.
+# It also starts a child that would leave its own: the whole tree is ended,
+# not only the job's cmd.exe.
 Set-Content -LiteralPath (Join-Path $root 'scripts\long.cmd') -Value @(
     '@echo off',
+    'start "" /b cmd /c "ping -n 31 127.0.0.1 >nul & echo %VIGIL_RUN_ID% at %TIME%>>"%IT_ROOT%\long.child""',
     'ping -n 31 127.0.0.1 >nul',
     'echo %VIGIL_RUN_ID% at %TIME%>>"%IT_ROOT%\long.finished"')
 
@@ -101,7 +104,7 @@ $sup.WaitForExit()
 
 # No new runs from here on; let everything settle.
 $cfg = Join-Path $root 'config\vigil.config'
-[System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace 'run_every   = 2s', 'run_every   = 1h'))
+[System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace 'run_every   = 2s', 'run_every   = 3650d'))
 # Tick until no run is active: a run launched just before the stop may not
 # have reached its deadline after a fixed number of ticks, on a slow start,
 # and would then finish its wait (backlog 19). Each tick ends overdue trees.
@@ -136,6 +139,7 @@ Test-Equal 'no locks or markers left' '0' "$(@(Get-ChildItem -LiteralPath (Join-
 # its marker 31 seconds after it started: 35 from now is past that for all.
 Start-Sleep -Seconds 35
 Test-Equal "long's process did not survive" 'False' "$(Test-Path -LiteralPath (Join-Path $root 'long.finished'))"
+Test-Equal "long's child did not survive" 'False' "$(Test-Path -LiteralPath (Join-Path $root 'long.child'))"
 
 if ($script:fail -gt 0) {
     $marker = Join-Path $root 'long.finished'

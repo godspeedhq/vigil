@@ -10,9 +10,11 @@
 # LICENSE file for the full terms.
 #
 # Integration test: max_runtime (SPECIFICATION.md 10.3, 11.5, 11.6) on
-# Linux and macOS. A real supervisor stops two overrunning jobs: one that
-# exits on TERM, and one that ignores TERM and is killed after grace. Both
-# are recorded as timed_out, counted as timeouts, and leave nothing behind.
+# Linux and macOS. A real supervisor stops three overrunning jobs: one that
+# exits on TERM, one that ignores TERM and is killed after grace, and one
+# that exits on TERM while its child ignores it. All are recorded as
+# timed_out, counted as timeouts, and leave nothing behind: no job process
+# and no descendant lives on.
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -62,15 +64,25 @@ printf 'bash %s\n' "$BASH_VERSION"
 mkdir -p "$root/config" "$root/scripts"
 root=$(cd "$root" && pwd)
 
-# Each job would finish after 30 seconds and leave a marker; neither may.
+# Each job would finish after 30 seconds and leave a marker; none may. Each
+# also starts a child that would leave its own: the whole tree is stopped,
+# not only the job's shell. orphan's child ignores TERM though its parent
+# does not, so only the KILL after grace can stop it.
 cat > "$root/scripts/long.sh" <<'EOF'
+( sleep 30; touch "$IT_ROOT/long.child" ) &
 sleep 30
 touch "$IT_ROOT/long.finished"
 EOF
 cat > "$root/scripts/stubborn.sh" <<'EOF'
 trap '' TERM
+( sleep 30; touch "$IT_ROOT/stubborn.child" ) &
 sleep 30
 touch "$IT_ROOT/stubborn.finished"
+EOF
+cat > "$root/scripts/orphan.sh" <<'EOF'
+( trap '' TERM; sleep 30; touch "$IT_ROOT/orphan.child" ) &
+sleep 30
+touch "$IT_ROOT/orphan.finished"
 EOF
 
 cat > "$root/config/vigil.config" <<EOF
@@ -102,6 +114,13 @@ env         = IT_ROOT=$root
 run_every   = 2s
 max_runtime = 3s
 grace       = 2s
+
+[job.orphan]
+file        = scripts/orphan.sh
+env         = IT_ROOT=$root
+run_every   = 2s
+max_runtime = 3s
+grace       = 2s
 EOF
 
 "$BASH" "$vigil_cmd" --root "$root" supervise > "$root/supervise.out" 2>&1 &
@@ -111,11 +130,11 @@ kill -TERM "$sup"
 wait "$sup"
 
 # No new runs from here on; let everything settle.
-sed -i.bak "s/^run_every   = 2s$/run_every   = 1h/" "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
+sed -i.bak "s/^run_every   = 2s$/run_every   = 3650d/" "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
 # Tick until no run is left: a run started just before the supervisor
 # stopped still needs its TERM and, after grace, its KILL.
 i=0
-while [ "$i" -lt 15 ] && ls "$root/state/locks" 2>/dev/null | grep -e '^long.' -e '^stubborn.' > /dev/null; do
+while [ "$i" -lt 15 ] && ls "$root/state/locks" 2>/dev/null | grep -e '^long.' -e '^stubborn.' -e '^orphan.' > /dev/null; do
     tick
     sleep 1
     i=$((i + 1))
@@ -125,6 +144,7 @@ tick
 check "long recorded as timed_out" timed_out "$(state_value "$root/state/jobs/long.state" status)"
 check "long reason" "stopped after max_runtime 3s" "$(state_value "$root/state/jobs/long.state" reason)"
 check "stubborn recorded as timed_out" timed_out "$(state_value "$root/state/jobs/stubborn.state" status)"
+check "orphan recorded as timed_out" timed_out "$(state_value "$root/state/jobs/orphan.state" status)"
 check "deadline recorded" yes "$([ -n "$(state_value "$root/state/jobs/long.state" deadline_epoch)" ] && echo yes || echo no)"
 check "long timeouts counted" yes "$([ -n "$(prom long_timeouts_total)" ] && echo yes || echo no)"
 check "stubborn timeouts counted" yes "$([ -n "$(prom stubborn_timeouts_total)" ] && echo yes || echo no)"
@@ -132,12 +152,17 @@ check "timeouts are not failures" "" "$(prom long_failures_total)"
 check "TERM sent and logged" yes "$(grep 'job long: run .* passed max_runtime; sent TERM' "$root/logs/supervisor/"*.log > /dev/null && echo yes || echo no)"
 check "KILL sent to the job ignoring TERM" yes "$(grep 'job stubborn: run .* sent KILL' "$root/logs/supervisor/"*.log > /dev/null && echo yes || echo no)"
 check "TERM was enough for long" "" "$(grep 'job long: run .* sent KILL' "$root/logs/supervisor/"*.log)"
+check "orphan never taken for uncertain while its worker waits" "" "$(grep 'job orphan: .*uncertain' "$root/logs/supervisor/"*.log)"
 check "no locks or markers left" "" "$(ls "$root/state/locks")"
 
 # Every job process is gone: none lives on to finish its sleep.
 sleep 30
 check "long's process did not survive" "" "$(ls "$root" | grep '^long.finished')"
 check "stubborn's process did not survive" "" "$(ls "$root" | grep '^stubborn.finished')"
+check "orphan's process did not survive" "" "$(ls "$root" | grep '^orphan.finished')"
+check "long's child did not survive" "" "$(ls "$root" | grep '^long.child')"
+check "stubborn's child did not survive" "" "$(ls "$root" | grep '^stubborn.child')"
+check "orphan's child, ignoring TERM, did not survive" "" "$(ls "$root" | grep '^orphan.child')"
 
 if [ "$fail" -gt 0 ]; then
     printf '\nsupervisor log:\n'
