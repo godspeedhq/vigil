@@ -449,7 +449,17 @@ function Invoke-VigilSupervisor {
         $launch = $null; $token = $null
         if ([System.IO.Directory]::Exists($locks)) {
             $launch = @([System.IO.Directory]::GetFiles($locks, "$Job.*.launch"))[0]
-            $token = @([System.IO.Directory]::GetFiles($locks, "$Job.*.token"))[0]
+            foreach ($t in [System.IO.Directory]::GetFiles($locks, "$Job.*.token")) {
+                # The token of a run vigil resolve concluded while its worker
+                # still held it (11.4): never concluded again, and deleted with
+                # its mark once let go.
+                $done = $t -replace '\.token$', '.resolved'
+                if ([System.IO.File]::Exists($done)) {
+                    try { [System.IO.File]::Delete($t); [System.IO.File]::Delete($done) } catch { }
+                    continue
+                }
+                if (-not $token) { $token = $t }
+            }
         }
         $st = Read-VigilRunState (Join-Path $sv.State "jobs\$Job.state")
         $lstate = 'none'; $tstate = 'none'; $boot = 'same'; $proc = '-'; $rid = ''
@@ -521,7 +531,12 @@ function Invoke-VigilSupervisor {
                     if ($spool.Found) { & $record $Job $rid 'finished' $st $spool }
                     else { & $record $Job $rid 'crashed' $st $spool "concluded by vigil resolve ($($rec.ResolvedBy))" }
                 }
-                if ($token) { try { [System.IO.File]::Delete($token) } catch { } }
+                # A worker still alive holds its token, which cannot be deleted
+                # then: marked concluded instead, so it is never concluded again.
+                if ($token) {
+                    try { [System.IO.File]::Delete($token) }
+                    catch { try { [System.IO.File]::WriteAllText(($token -replace '\.token$', '.resolved'), '') } catch { } }
+                }
                 foreach ($f in @((Join-Path $sv.State "locks\$Job.$rid.timeout"), $recPath, (Join-Path $sv.State "recovery\$Job.resolved"))) {
                     if ([System.IO.File]::Exists($f)) { try { [System.IO.File]::Delete($f) } catch { } }
                 }
