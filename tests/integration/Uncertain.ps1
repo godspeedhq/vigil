@@ -106,6 +106,11 @@ file         = scripts\quick.cmd
 run_every    = 2s
 on_uncertain = manual
 
+[job.v]
+file         = scripts\quick.cmd
+run_every    = 2s
+on_uncertain = wait
+
 [job.p]
 file         = scripts\quick.cmd
 run_every    = 2s
@@ -122,10 +127,10 @@ $boot = Get-VigilBootId
 
 # An unrelated process: the recorded "job process" of every fake run. It
 # must never be killed.
-$unrelated = Start-Process -FilePath 'ping.exe' -ArgumentList '-n', '300', '127.0.0.1' -PassThru -WindowStyle Hidden
+$unrelated = Start-Process -FilePath 'ping.exe' -ArgumentList '-n', '3600', '127.0.0.1' -PassThru -WindowStyle Hidden
 $now = [DateTimeOffset]::Now.ToUnixTimeSeconds()
 $holders = @{}
-foreach ($j in @('w', 'r', 'm')) {
+foreach ($j in @('w', 'r', 'm', 'v')) {
     $rid = "20260101T000000Z-9-$j"
     $token = Join-Path $locks "$j.$rid.token"
     [System.IO.File]::WriteAllText($token, '')
@@ -146,7 +151,7 @@ $samename = @{}
 $gone = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'exit' -PassThru -WindowStyle Hidden
 $gone.WaitForExit()
 foreach ($j in @('p', 'e')) {
-    $samename[$j] = Start-Process -FilePath 'ping.exe' -ArgumentList '-n', '300', '127.0.0.1' -PassThru -WindowStyle Hidden
+    $samename[$j] = Start-Process -FilePath 'ping.exe' -ArgumentList '-n', '3600', '127.0.0.1' -PassThru -WindowStyle Hidden
     $start = if ($j -ceq 'p') { [string]([DateTimeOffset]::new($samename[$j].StartTime).ToUnixTimeSeconds() - 100) } else { '' }
     $rid = "20260101T000000Z-9-$j"
     $token = Join-Path $locks "$j.$rid.token"
@@ -181,6 +186,30 @@ Test-Equal 'uncertain gauge delivered' '1' (Get-Prom 'w_uncertain')
 Test-Equal 'possible duplicates counted' 'True' "$((Get-Prom 'r_possible_duplicates_total') -ne '')"
 & $shell -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root resolve nosuch *> $null
 Test-Equal 'resolve refuses a job that is not held' '1' "$LASTEXITCODE"
+
+# Reported every tick (11.4), not once: jobs.log lists it and the gauge is
+# posted at each, while the log says so only when it first became uncertain.
+$listed = 0
+foreach ($n in 1, 2, 3) {
+    Invoke-Tick
+    if ((Get-Section 'UNCERTAIN') -match '  v: past max_runtime') { $listed++ }
+}
+Test-Equal 'v: listed as uncertain at every tick' '3' "$listed"
+Test-Equal 'v: still posted as uncertain' '1' (Get-Prom 'v_uncertain')
+Test-Equal 'v: logged once, when it became uncertain' '1' "$(([regex]::Matches((Get-SupervisorLog), 'job v: run 20260101T000000Z-9-v is uncertain')).Count)"
+
+# vigil resolve on a run still uncertain: the operator's word concludes it.
+# Its stand-in worker still holds the token, and nothing is killed.
+& $shell -NoProfile -ExecutionPolicy Bypass -File $vigil -Root $root resolve v *> $null
+Test-Equal 'v: resolve while still uncertain' '0' "$LASTEXITCODE"
+Invoke-Tick
+# Released at once, v may already have run again: its conclusion is in the log.
+Test-Equal 'v: concluded, resolved by the operator' 'True' "$((Get-SupervisorLog) -match 'job v: uncertain run 20260101T000000Z-9-v concluded, resolved by \S+')"
+Test-Equal 'v: as crashed' 'True' "$((Get-SupervisorLog) -match 'job v: run 20260101T000000Z-9-v crashed')"
+Test-Equal 'v: released, record gone' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'state\recovery\v.recovery'))"
+Test-Equal 'v: its worker never killed' 'False' "$($holders['v'].HasExited)"
+Test-Equal 'v: nor the unrelated process' 'False' "$($unrelated.HasExited)"
+Stop-Process -Id $holders['v'].Id -Force
 
 # The evidence clears: the stand-in workers exit, releasing their tokens.
 Stop-Process -Id $holders['w'].Id, $holders['m'].Id -Force

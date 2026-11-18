@@ -225,6 +225,36 @@ tick
 check "activated" yes "$(yes_no test -f "$root/state/config.active")"
 rev1=$(revision)
 check "revision is 12 hex digits" yes "$(yes_no expr "$rev1" : '[0-9a-f]\{12\}$')"
+# 16.5's revision, rebuilt from the activation record: the configuration
+# and each script, by the digest of its content. Fetch.ps1 checks the same,
+# so the two compute the same revision for the same content.
+sha256_of() { if command -v sha256sum > /dev/null 2>&1; then sha256sum; else shasum -a 256; fi | cut -c1-64; }
+rebuilt_revision() {
+    local a="$root/state/config.active" lines src entry fsha file
+    lines="config $(sed -n 's/^config *= *//p' "$a")"$'\n'
+    while read -r src entry fsha file; do
+        [ -n "$src" ] || continue
+        lines="${lines}script $src $file $fsha"$'\n'
+    done <<EOF
+$(sed -n 's/^script *= *//p' "$a")
+EOF
+    printf '%s' "$lines" | sha256_of | cut -c1-12
+}
+# Each digest is its content's: the configuration kept in state, and every
+# cached script.
+digests_match() {
+    local a="$root/state/config.active" sha src entry fsha file
+    sha=$(sed -n 's/^config *= *//p' "$a")
+    [ "$(sha256_of < "$root/state/configs/$sha.config")" = "$sha" ] || return 1
+    while read -r src entry fsha file; do
+        [ -n "$src" ] || continue
+        [ "$(sha256_of < "$root/cache/$src/$entry/$file")" = "$fsha" ] || return 1
+    done <<EOF
+$(sed -n 's/^script *= *//p' "$a")
+EOF
+}
+check "revision: 16.5's, rebuilt from the activation record" "$rev1" "$(rebuilt_revision)"
+check "revision: every digest in it is its content's" yes "$(digests_match && echo yes || echo no)"
 check "jobs.log shows the revision" yes "$(yes_no grep -q "revision $rev1 (local)" "$root/logs/supervisor/jobs.log")"
 check "git: unpacked at its commit" yes "$(yes_no test -f "$root/cache/ops/$(git --git-dir="$root/mock/www/ops.git" rev-parse v1)/checks/hello.sh")"
 check "git: run from the cache" 'from_git: succeeded|metric hello 1' "$(run from_git)"
@@ -415,7 +445,12 @@ for p in /usr/sbin/sshd /usr/local/sbin/sshd "$(command -v sshd 2>/dev/null)"; d
     [ -n "$p" ] && [ -x "$p" ] && { sshd=$p; break; }
 done
 if [ -z "$sshd" ] || ! command -v sftp > /dev/null 2>&1 || ! command -v ssh-keygen > /dev/null 2>&1; then
-    printf '  SKIP  sftp: no sshd here\n'
+    # CI installs sshd: there, a skip would hide that sftp went untested.
+    if [ -n "${VIGIL_IT_REQUIRE_SFTP-}" ]; then
+        check "sftp: sshd, sftp and ssh-keygen are here (VIGIL_IT_REQUIRE_SFTP)" yes no
+    else
+        printf '  SKIP  sftp: no sshd here\n'
+    fi
 else
     s=$root/ssh
     mkdir -p "$s" "$root/sftp"

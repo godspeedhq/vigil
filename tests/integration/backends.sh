@@ -154,8 +154,19 @@ command = /bin/sh
 [job.emit]
 file      = scripts/emit.sh
 run_every = 3650d
+
+[job.disk]
+metric_name = os.disk
+file        = scripts/check_disk.sh
+exit_codes  = nagios
+run_every   = 3650d
 EOF
 printf '%s' "$otel_token" | vigil secret set OTEL_TOKEN --stdin > /dev/null
+# A Nagios plugin's output, performance data after the |.
+cat > "$root/scripts/check_disk.sh" <<'EOF'
+echo "DISK WARNING - / 85% | /=11700MB;15600;17550;0;19500"
+exit 1
+EOF
 
 # Delivered to both, the credential in its header.
 vigil run emit > /dev/null
@@ -170,6 +181,14 @@ check "datadog queue drained" 0 "$(queued datadog)"
 check "otel queue drained" 0 "$(queued otel)"
 check "splunk queue drained" 0 "$(queued splunk)"
 check "sender succeeded" succeeded "$(sed -n 's/^status *= *//p' "$root/state/jobs/vigil_sender.state")"
+
+# Nagios performance data (14.4): parsed, normalised to base units (11700MB
+# is 12268339200 bytes), and delivered like any metric.
+vigil run disk > /dev/null
+tick
+check "nagios: perfdata delivered to datadog, in bytes" yes "$(received '"path": "/api/v2/series"' '\"metric\":\"os.disk.perf\"' '\"value\":12268339200' '\"label:/\"')"
+check "nagios: and to otel" yes "$(received '"path": "/v1/metrics"' '\"name\":\"os.disk.perf\",\"gauge\"' '12268339200')"
+check "nagios: and its outcome, a warning" yes "$(received '"path": "/v1/metrics"' '\"name\":\"os.disk.warnings\"')"
 
 # A failing backend keeps its events and backs off.
 echo 503 > "$root/mock/status"
@@ -261,6 +280,26 @@ check "spool full: the newest kept" yes "$(ls "$root"/spool/backends/*/ | grep -
 tick
 check "spool full: the drop counted, by backend" yes "$(grep -q '^vigil_spool_dropped_total{backend="datadog".*reason="spool_full"} [1-9]' "$root/metrics/vigil.prom" && echo yes || echo no)"
 rm -f "$root/mock/status"
+
+# Backends down or hung never hold jobs back (4.5, VIGIL-009): a real
+# supervisor ticking every second, its sender stuck on backends that answer
+# only after 60 seconds, still starts a 1-second job on time.
+echo 60 > "$root/mock/delay"
+printf '\n[job.beat]\nfile      = scripts/emit.sh\nrun_every = 1s\n' >> "$root/config/vigil.config"
+"$BASH" "$vigil_cmd" --root "$root" supervise > /dev/null 2>&1 &
+beat_sup=$!
+sleep 12
+kill -TERM "$beat_sup"
+wait "$beat_sup"
+beat_runs=$(cat "$root"/logs/jobs/beat/*.log 2>/dev/null | grep -c ' run start')
+printf '        outage: %s runs in 12 s\n' "$beat_runs"
+check "outage: jobs still run" yes "$([ "$beat_runs" -ge 5 ] && echo yes || echo no)"
+check "outage: on time, no slot missed" "" "$(cat "$root"/logs/supervisor/2*.log | grep 'job beat: slot .* missed')"
+check "outage: the sender was held up meanwhile" yes "$([ "$(queued datadog)" -gt 0 ] && echo yes || echo no)"
+rm -f "$root/mock/delay"
+# Its last sender waits on the mock for up to its timeout.
+i=0
+while ls "$root/state/locks" 2>/dev/null | grep -q '^vigil_sender\.' && [ "$i" -lt 120 ]; do sleep 0.5; i=$((i + 1)); done
 
 # The credentials are only ever in headers: never on disk outside the
 # secret store, and never in a URL.

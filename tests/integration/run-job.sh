@@ -10,9 +10,11 @@
 # LICENSE file for the full terms.
 #
 # Integration test: "vigil run <job>" end to end on Linux and macOS
-# (SPECIFICATION.md 4.3). Builds a throwaway install root, runs real jobs
+# (SPECIFICATION.md 4.3, 6.4). Builds a throwaway install root, runs real jobs
 # through the real command, and checks the exit code, state file, spool
-# events, job log and lock files of each run.
+# events, job log and lock files of each run: through a runner, through the
+# extension map, with {file} in a runner's argument, and directly, by a #!
+# line and the executable bit.
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -69,6 +71,21 @@ echo "metric run_id_set $([ -n "$VIGIL_RUN_ID" ] && echo 1 || echo 0)"
 echo "metric args $#"
 EOF
 chmod +x "$root/scripts/ok.sh" "$root/scripts/fail.sh"
+# Run directly (6.4): no runner names it and no extension maps it, so its
+# #! line and executable bit decide. noexec is the same without the bit.
+cat > "$root/scripts/direct.tool" <<'EOF'
+#!/bin/sh
+echo "metric direct 1"
+EOF
+cp "$root/scripts/direct.tool" "$root/scripts/noexec.tool"
+chmod +x "$root/scripts/direct.tool"
+chmod -x "$root/scripts/noexec.tool"
+# {file} (6.4): the path goes inside the runner's argument, and is not
+# appended. If it were appended, sh -c would take it as $0.
+cat > "$root/scripts/sourced.txt" <<'EOF'
+echo "metric sourced 1"
+case $0 in */sourced.txt) echo "metric appended 1" ;; *) echo "metric appended 0" ;; esac
+EOF
 
 cat > "$root/config/vigil.config" <<'EOF'
 [vigil]
@@ -80,8 +97,26 @@ env = test
 [runner.sh]
 command = /bin/sh
 
+[runner.dot]
+command = /bin/sh
+arg     = -c
+arg     = . {file}
+
 [runners]
 .sh = sh
+
+[job.direct]
+file      = scripts/direct.tool
+run_every = 5m
+
+[job.noexec]
+file      = scripts/noexec.tool
+run_every = 5m
+
+[job.sourced]
+file      = scripts/sourced.txt
+runner    = dot
+run_every = 5m
 
 [job.ok]
 file      = scripts/ok.sh
@@ -136,6 +171,15 @@ events() {
 }
 
 run ok 0 succeeded ''
+
+# Direct execution and {file} (6.4).
+run direct 0 succeeded ''
+check "direct: its own #! line ran it" 1 "$(events direct | grep -c '^direct\.direct 1 gauge')"
+# Without the executable bit it cannot run directly: it fails, saying why.
+run noexec 2 failed "not executable: $root/scripts/noexec.tool"
+run sourced 0 succeeded ''
+check "{file}: the path inside the runner's argument" 1 "$(events sourced | grep -c '^sourced\.sourced 1 gauge')"
+check "{file}: and not appended" 1 "$(events sourced | grep -c '^sourced\.appended 0 gauge')"
 check "ok events" "ok.duration_seconds 0 gauge instance=it job=ok env=test
 ok.runs 1 count instance=it job=ok env=test
 ok.succeeded 1 count instance=it job=ok env=test

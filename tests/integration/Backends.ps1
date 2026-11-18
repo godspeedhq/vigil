@@ -131,6 +131,8 @@ try {
     $env:VIGIL_IT_DD_KEY = $ddKey
 
     Set-Content -LiteralPath (Join-Path $root 'scripts\emit.cmd') -Value @('@echo off', 'echo metric answer 42')
+    # A Nagios plugin's output, performance data after the |.
+    Set-Content -LiteralPath (Join-Path $root 'scripts\check_disk.cmd') -Value @('@echo off', 'echo DISK WARNING - C: 85%% ^| C:=11700MB;15600;17550;0;19500', 'exit /b 1')
     Set-Content -LiteralPath (Join-Path $root 'config\vigil.config') -Value @"
 [vigil]
 instance = bk
@@ -159,6 +161,12 @@ timeout  = 5s
 [job.emit]
 file      = scripts\emit.cmd
 run_every = 3650d
+
+[job.disk]
+metric_name = os.disk
+file        = scripts\check_disk.cmd
+exit_codes  = nagios
+run_every   = 3650d
 "@
     [void](Invoke-Vigil @('secret', 'set', 'OTEL_TOKEN', '--stdin') $otelToken)
 
@@ -176,6 +184,14 @@ run_every = 3650d
     Test-Equal 'otel queue drained' '0' (Get-Queued 'otel')
     Test-Equal 'splunk queue drained' '0' (Get-Queued 'splunk')
     Test-Equal 'sender succeeded' 'succeeded' (Get-StateValue (Join-Path $root 'state\jobs\vigil_sender.state') 'status')
+
+    # Nagios performance data (14.4): parsed, normalised to base units
+    # (11700MB is 12268339200 bytes), and delivered like any metric.
+    [void](Invoke-Vigil @('run', 'disk'))
+    Invoke-Tick
+    Test-Equal 'nagios: perfdata delivered to datadog, in bytes' 'yes' (Test-Received @('"path": "/api/v2/series"', '\"metric\":\"os.disk.perf\"', '\"value\":12268339200'))
+    Test-Equal 'nagios: and to otel' 'yes' (Test-Received @('"path": "/v1/metrics"', '\"name\":\"os.disk.perf\",\"gauge\"', '12268339200'))
+    Test-Equal 'nagios: and its outcome, a warning' 'yes' (Test-Received @('"path": "/v1/metrics"', '\"name\":\"os.disk.warnings\"'))
 
     # A failing backend keeps its events and backs off.
     [System.IO.File]::WriteAllText("$root\mock\status", '503')
@@ -270,6 +286,30 @@ run_every = 3650d
     Invoke-Tick
     Test-Equal 'spool full: the drop counted, by backend' 'yes' (Test-Prom '(?m)^vigil_spool_dropped_total\{backend="datadog".*reason="spool_full"\} [1-9]')
     Remove-Item -LiteralPath "$root\mock\status"
+
+    # Backends down or hung never hold jobs back (4.5, VIGIL-009): a real
+    # supervisor ticking every second, its sender stuck on backends that
+    # answer only after 60 seconds, still starts a 1-second job on time. A
+    # run here takes seconds, as each starts PowerShell (10.3): the slots in
+    # between are skipped by overlap, never missed.
+    [System.IO.File]::WriteAllText("$root\mock\delay", '60')
+    [System.IO.File]::AppendAllText("$root\config\vigil.config", "`n[job.beat]`nfile      = scripts\emit.cmd`nrun_every = 1s`n")
+    $beatSup = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'supervise')
+    Start-Sleep -Seconds 30
+    if (-not $beatSup.HasExited) { Stop-Process -Id $beatSup.Id -Force }
+    $beatSup.WaitForExit()
+    $beatRuns = ([regex]::Matches(((Get-ChildItem -LiteralPath "$root\logs\jobs\beat" -Filter '*.log' -ErrorAction SilentlyContinue | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''), ' run start')).Count
+    $beatLog = (Get-ChildItem -LiteralPath "$root\logs\supervisor" -Filter '2*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+    $beatSlots = ([regex]::Matches($beatLog, 'job beat: (slot \S+ skipped|run \S+ started)')).Count
+    Write-Host "        outage: $beatRuns runs, $beatSlots slots decided in 30 s"
+    Test-Equal 'outage: jobs still run' 'True' "$($beatRuns -ge 1)"
+    Test-Equal 'outage: scheduling goes on, a slot decided about every second' 'True' "$($beatSlots -ge 15)"
+    Test-Equal 'outage: on time, no slot missed' 'False' "$($beatLog -match 'job beat: slot \S+ missed')"
+    Test-Equal 'outage: the sender was held up meanwhile' 'True' "$([int](Get-Queued 'datadog') -gt 0)"
+    Remove-Item -LiteralPath "$root\mock\delay"
+    # Its last sender waits on the mock for up to its timeout.
+    for ($i = 0; $i -lt 120 -and (Get-ChildItem -LiteralPath "$root\state\locks" -Filter 'vigil_sender.*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
 
     # The credentials are only ever in headers: never on disk outside the
     # secret store, and never in a URL.

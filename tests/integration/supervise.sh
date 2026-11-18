@@ -398,6 +398,58 @@ check "queue_one: one held run only, the others skipped" "2 yes" "$(runs) $(skip
 check "queue_one: no run ever met another" "" "$(cat "$root/overlap" 2>/dev/null)"
 rm -rf "$root"
 
+# jobs.log (13.2): each section a job can be in, saying what 13.2 says it
+# does. busy runs (its PID, how long, how long to max_runtime), quick has
+# run (its outcome, when it ended, how long it took), later waits (its next
+# time), broken is INVALID (why), and gone is a run whose worker vanished:
+# CRASHED in the tick that concludes it.
+root=$(mktemp -d "${TMPDIR:-/tmp}/vigil-status.XXXXXX")
+root=$(cd "$root" && pwd)
+mkdir -p "$root/config" "$root/scripts" "$root/state/jobs" "$root/state/locks"
+printf 'sleep 20\n' > "$root/scripts/busy.sh"
+printf 'echo "metric done 1"\n' > "$root/scripts/quick.sh"
+printf '[vigil]\ninstance = status\n\n[runner.sh]\ncommand = /bin/sh\n\n[runners]\n.sh = sh\n\n[job.busy]\nfile        = scripts/busy.sh\nrun_every   = 3650d\nmax_runtime = 10m\n\n[job.quick]\nfile      = scripts/quick.sh\nrun_every = 3650d\n\n[job.later]\nfile      = scripts/quick.sh\nrun_every = 1h\n\n[job.broken]\nfile = scripts/quick.sh\n\n[job.gone]\nfile      = scripts/quick.sh\nrun_every = 3650d\n' > "$root/config/vigil.config"
+section() { sed -n "/^$1\$/,/^\$/p" "$root/logs/supervisor/jobs.log"; }
+vigil run quick > /dev/null 2>&1
+vigil run busy > /dev/null 2>&1 &
+i=0
+while [ "$(state_value "$root/state/jobs/busy.state" status 2>/dev/null)" != running ] && [ "$i" -lt 20 ]; do sleep 0.5; i=$((i + 1)); done
+# gone: a run of this boot whose worker and job have both exited, its
+# token left behind.
+sh -c 'exit 0' &
+gone=$!
+wait "$gone"
+boot=$(state_value "$root/state/jobs/quick.state" boot_id)
+printf '[state]\nschema_version = 1\njob = gone\nrun_id = 20260101T000000Z-1-gone\nstatus = running\nboot_id = %s\nstarted_epoch = 1\njob_pid = %s\nworker_pid = %s\n' "$boot" "$gone" "$gone" > "$root/state/jobs/gone.state"
+: > "$root/state/locks/gone.20260101T000000Z-1-gone.token"
+vigil supervise --once > /dev/null 2>&1
+check "jobs.log: RUNNING gives the PID, how long, and the time to max_runtime" yes \
+    "$(section RUNNING | grep -Eq '^  busy: pid [0-9]+, running for [0-9]+s, max_runtime in [0-9]+s$' && echo yes || echo no)"
+check "jobs.log: LAST RUN gives the outcome, when it ended, and how long it took" yes \
+    "$(section 'LAST RUN' | grep -Eq '^  quick: succeeded at [0-9T:Z-]+, took [0-9]+s$' && echo yes || echo no)"
+check "jobs.log: WAITING gives the next time" yes "$(section WAITING | grep -q '^  later: next ' && echo yes || echo no)"
+check "jobs.log: INVALID gives why" yes "$(section INVALID | grep -q '^  broken: .*run_every, run_at or cron' && echo yes || echo no)"
+check "jobs.log: CRASHED names the run that just crashed" yes "$(section CRASHED | grep -q '^  gone$' && echo yes || echo no)"
+vigil supervise --once > /dev/null 2>&1
+check "jobs.log: and only in the tick that concluded it" no "$(section CRASHED | grep -q gone && echo yes || echo no)"
+check "jobs.log: then its LAST RUN says crashed" yes "$(section 'LAST RUN' | grep -q '^  gone: crashed' && echo yes || echo no)"
+if [ "$fail" -gt 0 ]; then cat "$root/logs/supervisor/jobs.log"; fi
+i=0
+while ls "$root/state/locks" 2>/dev/null | grep -q '^busy\.' && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
+rm -rf "$root"
+
+# The revision (16.5): the same file gives the same revision on every
+# platform. This one, byte for byte, is 746a566b1e8b, computed with Python's
+# hashlib from 16.5's definition; Supervise.ps1 expects the same.
+root=$(mktemp -d "${TMPDIR:-/tmp}/vigil-revision.XXXXXX")
+root=$(cd "$root" && pwd)
+mkdir -p "$root/config"
+printf '[vigil]\ninstance = revision\n\n[backend.file]\npath = metrics/vigil.prom\n' > "$root/config/vigil.config"
+tick
+tick
+check "revision: the same as on every platform" 746a566b1e8b "$(sed -n 's/^vigil_config_info{.*revision="\([0-9a-f]*\)".*/\1/p' "$root/metrics/vigil.prom" 2>/dev/null | head -n 1)"
+rm -rf "$root"
+
 # Damaged numbers (11.3, backlog 44): a launch record whose epoch is not a
 # number, a state file whose numbers are not, and an empty state file, next
 # to a healthy job. Each is read as damage, never used in arithmetic: the
@@ -456,6 +508,9 @@ printf "$good\n[weird]\n" > "$root/config/vigil.config"
 i=0
 while ! cat "$root/logs/supervisor/"*-*.log 2>/dev/null | grep -q 'configuration rejected' && [ "$i" -lt 30 ]; do sleep 1; i=$((i + 1)); done
 check "rejected edit: the supervisor rejects it" yes "$(cat "$root/logs/supervisor/"*-*.log 2>/dev/null | grep -q 'configuration rejected' && echo yes || echo no)"
+i=0
+while ! grep -q '^CONFIGURATION REJECTED - the last valid configuration is active$' "$root/logs/supervisor/jobs.log" 2>/dev/null && [ "$i" -lt 10 ]; do sleep 1; i=$((i + 1)); done
+check "rejected edit: jobs.log says so first" "CONFIGURATION REJECTED - the last valid configuration is active" "$(sed -n '3p' "$root/logs/supervisor/jobs.log")"
 # A run launched after the rejection must still run, with the last valid
 # configuration.
 rejected=$(state_value "$kept" run_id 2>/dev/null)
@@ -467,11 +522,31 @@ while [ "$i" -lt 60 ]; do
     i=$((i + 1))
 done
 check "rejected edit: later runs still run" yes "$([ "$(state_value "$kept" run_id 2>/dev/null)" != "$rejected" ] && [ "$(state_value "$kept" status 2>/dev/null)" = succeeded ] && echo yes || echo no)"
+
+# A valid edit activates at once (16.3): a job added is scheduled without a
+# restart, and a run in progress across the activation finishes untouched,
+# under the configuration it started with.
+printf 'sleep 5\necho "metric done 1"\n' > "$root/scripts/span.sh"
+printf "$good\n[job.span]\nfile      = scripts/span.sh\nrun_every = 1s\n" > "$root/config/vigil.config"
+span=$root/state/jobs/span.state
+i=0
+while [ "$(state_value "$span" status 2>/dev/null)" != running ] && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
+span_rid=$(state_value "$span" run_id 2>/dev/null)
+check "live edit: a run in progress" running "$(state_value "$span" status 2>/dev/null)"
+printf "$good\n[job.span]\nfile      = scripts/span.sh\nrun_every = 3650d\n\n[job.added]\nfile      = scripts/quick.sh\nrun_every = 1s\n" > "$root/config/vigil.config"
+added=$root/state/jobs/added.state
+i=0
+while [ "$(state_value "$added" status 2>/dev/null)" != succeeded ] && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
+check "live edit: a job added runs, without a restart" "succeeded yes" "$(state_value "$added" status 2>/dev/null) $(kill -0 "$rej_sup" 2>/dev/null && echo yes || echo no)"
+i=0
+while [ "$(state_value "$span" status 2>/dev/null)" = running ] && [ "$i" -lt 30 ]; do sleep 0.5; i=$((i + 1)); done
+check "live edit: the run across the activation finished untouched" "succeeded $span_rid" "$(state_value "$span" status 2>/dev/null) $(state_value "$span" run_id 2>/dev/null)"
+check "live edit: nothing was stopped" "" "$(cat "$root/logs/supervisor/"*-*.log 2>/dev/null | grep -e 'sent TERM' -e 'sent KILL' -e 'crashed')"
 kill -TERM "$rej_sup"
 wait "$rej_sup"
 if [ "$fail" -gt 0 ]; then cat "$root/logs/supervisor/"*-*.log 2>/dev/null | tail -20; fi
 i=0
-while ls "$root/state/locks" 2>/dev/null | grep '^kept\.' > /dev/null && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+while ls "$root/state/locks" 2>/dev/null | grep -e '^kept\.' -e '^span\.' -e '^added\.' > /dev/null && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
 rm -rf "$root"
 root=$main_root
 

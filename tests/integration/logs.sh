@@ -224,6 +224,37 @@ rm -f "$root/mock/status"
 forward
 check "recovered: resent" 1 "$(received 'after the outage')"
 
+# A destination that hangs never holds the jobs back, and a forwarder
+# killed mid-send loses nothing (13.4): the next one sends from the
+# checkpoint. A real supervisor runs a 1-second job meanwhile.
+echo 60 > "$root/mock/delay"
+cat >> "$root/logs/jobs/chatty/$(ls "$root/logs/jobs/chatty" | tail -1)" <<EOF
+2026-10-30T15:07:36Z 20261030T150733Z-1 out while it hangs
+EOF
+printf '\n[job.beat]\nfile      = scripts/quiet.sh\nrun_every = 1s\n' >> "$root/config/vigil.config"
+"$BASH" "$vigil_cmd" --root "$root" supervise > /dev/null 2>&1 &
+lsup=$!
+started=$(date '+%s')
+i=0
+while ! ls "$root/state/locks" 2>/dev/null | grep -q '^vigil_logs\.' && [ "$i" -lt 40 ]; do sleep 0.25; i=$((i + 1)); done
+sleep 1
+fwd=$(sed -n 's/^worker_pid *= *//p' "$root/state/jobs/vigil_logs.state" 2>/dev/null)
+[ -n "$fwd" ] && kill -KILL "$fwd" 2>/dev/null
+check "hung: the forwarder was killed mid-send" yes "$([ -n "$fwd" ] && echo yes || echo no)"
+while [ $(($(date '+%s') - started)) -lt 12 ]; do sleep 1; done
+kill -TERM "$lsup"
+wait "$lsup"
+beat_runs=$(cat "$root"/logs/jobs/beat/*.log 2>/dev/null | grep -c ' run start')
+printf '        hung: %s runs in 12 s\n' "$beat_runs"
+check "hung: jobs still run" yes "$([ "$beat_runs" -ge 5 ] && echo yes || echo no)"
+check "hung: on time, no slot missed" "" "$(cat "$root"/logs/supervisor/2*.log | grep 'job beat: slot .* missed')"
+rm -f "$root/mock/delay"
+: > "$root/mock/requests.log"
+i=0
+while [ "$(received 'while it hangs')" -lt 1 ] && [ "$i" -lt 10 ]; do forward; sleep 1; i=$((i + 1)); done
+check "killed: nothing lost, sent from the checkpoint" yes "$([ "$(received 'while it hangs')" -ge 1 ] && echo yes || echo no)"
+config > "$root/config/vigil.config"
+
 # A rejected login is reported as such.
 echo 401 > "$root/mock/status"
 forward

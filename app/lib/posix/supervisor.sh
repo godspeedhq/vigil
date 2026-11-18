@@ -193,11 +193,12 @@ _vigil_sup_isnum() {
 }
 
 # Reads state file $1. Sets _ss (missing, unreadable, running or final),
-# _ss_status, _ss_run_id, _ss_boot, _ss_started, _ss_deadline, _ss_job_pid
-# and _ss_worker_pid.
+# _ss_status, _ss_run_id, _ss_boot, _ss_started, _ss_deadline, _ss_job_pid,
+# _ss_worker_pid, _ss_ended and _ss_duration.
 _vigil_sup_read_state() {
     local line key value header=0
     _ss=missing _ss_status='' _ss_run_id='' _ss_boot='' _ss_started='' _ss_deadline='' _ss_job_pid='' _ss_worker_pid=''
+    _ss_ended='' _ss_duration=''
     [ -e "$1" ] || return 0
     _ss=unreadable
     [ -r "$1" ] || return 0
@@ -222,6 +223,8 @@ _vigil_sup_read_state() {
             deadline_epoch) _ss_deadline=$value ;;
             job_pid) _ss_job_pid=$value ;;
             worker_pid) _ss_worker_pid=$value ;;
+            ended_at) _ss_ended=$value ;;
+            duration_seconds) _ss_duration=$value ;;
         esac
     done < "$1"
     [ "$header" -eq 1 ] || return 0
@@ -835,7 +838,7 @@ _vigil_sup_remove() {
 }
 
 _vigil_sup_tick() {
-    local s name job cursor cfile active next i ok
+    local s name job cursor cfile active next i ok sl
     # Read once: every job in a tick is decided against the same moment.
     set -- $(date '+%s %Y-%m-%dT%H:%M:%S%z %Y-%m-%d')
     _su_epoch=$1
@@ -879,21 +882,38 @@ _vigil_sup_tick() {
         active=$_su_active
         if [ "$active" = running ]; then
             _su_running=$((_su_running + 1))
-            _su_status_running="$_su_status_running $job"
+            # jobs.log (13.2): its PID, how long it has run, and how long
+            # until max_runtime; a run whose worker has not written its state
+            # yet is starting.
+            sl="$job: starting"
             if [ -n "$_ss_started" ] && [ "$_ss" = running ]; then
                 # The tick's time is read once, at its start, and a run
                 # launched by the last tick can start after it: never below 0.
                 i=$((_su_epoch - _ss_started))
                 [ "$i" -ge 0 ] || i=0
                 _vigil_sup_event "$job" running "$i" gauge
+                sl="$job:"
+                [ -n "$_ss_job_pid" ] && sl="$sl pid $_ss_job_pid,"
+                sl="$sl running for ${i}s"
+                if [ -n "$_ss_deadline" ]; then
+                    i=$((_ss_deadline - _su_epoch))
+                    if [ "$i" -gt 0 ]; then sl="$sl, max_runtime in ${i}s"; else sl="$sl, past max_runtime"; fi
+                fi
             fi
+            _su_status_running="$_su_status_running$sl"$'\n'
         else
             # A run held by queue_one is admitted once the active run ends.
             if _vigil_sup_contains "$_su_queued" "$job"; then
                 _vigil_sup_remove _su_queued "$job"
                 _su_pending="$_su_pending $job"
             fi
-            [ "$_ss" = final ] && _su_status_last="$_su_status_last$job: $_ss_status"$'\n'
+            if [ "$_ss" = final ]; then
+                # jobs.log (13.2): its outcome, when it ended, how long it took.
+                sl="$job: $_ss_status"
+                [ -n "$_ss_ended" ] && sl="$sl at $_ss_ended"
+                [ -n "$_ss_duration" ] && sl="$sl, took ${_ss_duration}s"
+                _su_status_last="$_su_status_last$sl"$'\n'
+            fi
         fi
         _vigil_sup_contains "$_su_queued" "$job" && active=queued
         _vigil_sup_contains "$_su_pending" "$job" && active=running
@@ -946,7 +966,7 @@ _vigil_sup_tick() {
     for job in $_su_pending; do
         _vigil_sup_script "$job" || continue
         _vigil_sup_start "$job" "$_su_script"
-        _su_status_running="$_su_status_running $job"
+        _su_status_running="$_su_status_running$job: starting"$'\n'
     done
     _su_pending=''
 
@@ -1145,7 +1165,7 @@ _vigil_sup_status() {
         fi
         if [ -n "$_su_status_running" ]; then
             printf '\nRUNNING\n'
-            for j in $_su_status_running; do printf '  %s\n' "$j"; done
+            printf '%s' "$_su_status_running" | sed 's/^/  /'
         fi
         if [ -n "$_su_status_waiting" ]; then
             printf '\nWAITING\n'

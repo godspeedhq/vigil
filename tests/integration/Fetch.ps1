@@ -237,6 +237,25 @@ run_every = 3650d
     Test-Equal 'activated' 'True' ([string](Test-Path -LiteralPath "$root\state\config.active"))
     $rev1 = Get-Revision
     Test-Equal 'revision is 12 hex digits' 'True' ([string]($rev1 -cmatch '^[0-9a-f]{12}$'))
+    # 16.5's revision, rebuilt from the activation record: the configuration
+    # and each script, by the digest of its content. fetch.sh checks the
+    # same, so the two compute the same revision for the same content.
+    $sha256 = {
+        param([byte[]]$Bytes)
+        $h = [System.Security.Cryptography.SHA256]::Create()
+        try { -join ($h.ComputeHash($Bytes) | ForEach-Object { $_.ToString('x2') }) } finally { $h.Dispose() }
+    }
+    $record = [System.IO.File]::ReadAllLines("$root\state\config.active")
+    $cfgSha = @($record | Where-Object { $_ -cmatch '^config +=' } | ForEach-Object { ($_ -split '=', 2)[1].Trim() })[0]
+    $lines = "config $cfgSha`n"
+    $digestsOk = (& $sha256 ([System.IO.File]::ReadAllBytes("$root\state\configs\$cfgSha.config"))) -ceq $cfgSha
+    foreach ($l in @($record | Where-Object { $_ -cmatch '^script +=' })) {
+        $f = ($l -split '=', 2)[1].Trim() -split ' ', 4
+        $lines += "script $($f[0]) $($f[3]) $($f[2])`n"
+        if ((& $sha256 ([System.IO.File]::ReadAllBytes((Join-Path $root "cache\$($f[0])\$($f[1])\$($f[3])")))) -cne $f[2]) { $digestsOk = $false }
+    }
+    Test-Equal "revision: 16.5's, rebuilt from the activation record" $rev1 ((& $sha256 ([System.Text.Encoding]::UTF8.GetBytes($lines))).Substring(0, 12))
+    Test-Equal 'revision: every digest in it is its content''s' 'True' "$digestsOk"
     Test-Equal 'jobs.log shows the revision' 'True' ([string]([System.IO.File]::ReadAllText("$root\logs\supervisor\jobs.log").Contains("revision $rev1 (local)")))
     $c1 = (Invoke-Git @("--git-dir=$root\mock\www\ops.git", 'rev-parse', 'v1')).Trim()
     Test-Equal 'git: unpacked at its commit' 'True' ([string](Test-Path -LiteralPath "$root\cache\ops\$c1\checks\hello.cmd"))
@@ -389,7 +408,9 @@ run_every = 3650d
     $sshdExe = @("$env:SystemRoot\System32\OpenSSH\sshd.exe", "$env:ProgramFiles\OpenSSH\sshd.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     $keygen = @(Get-Command ssh-keygen -CommandType Application -ErrorAction SilentlyContinue)[0]
     if (-not $sshdExe -or -not $keygen -or -not (Get-Command sftp -CommandType Application -ErrorAction SilentlyContinue)) {
-        Write-Host '  SKIP  sftp: no sshd here'
+        # CI installs sshd: there, a skip would hide that sftp went untested.
+        if ($env:VIGIL_IT_REQUIRE_SFTP) { Test-Equal 'sftp: sshd, sftp and ssh-keygen are here (VIGIL_IT_REQUIRE_SFTP)' 'True' 'False' }
+        else { Write-Host '  SKIP  sftp: no sshd here' }
     }
     else {
         $s = Join-Path $root 'ssh'

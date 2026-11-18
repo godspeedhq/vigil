@@ -468,6 +468,63 @@ Test-Equal 'queue_one: one held run only, the others skipped' '2 True' "$(Get-Ru
 Test-Equal 'queue_one: no run ever met another' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'overlap'))"
 Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
 
+# jobs.log (13.2): each section a job can be in, saying what 13.2 says it
+# does. busy runs (its PID, how long, how long to max_runtime), quick has
+# run (its outcome, when it ended, how long it took), later waits (its next
+# time), broken is INVALID (why), and gone is a run whose worker vanished:
+# CRASHED in the tick that concludes it.
+$root = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-status.$PID"
+foreach ($d in 'config', 'scripts', 'state\jobs', 'state\locks') { [void](New-Item -ItemType Directory -Force -Path (Join-Path $root $d)) }
+Set-Content -LiteralPath (Join-Path $root 'scripts\busy.cmd') -Value @('@echo off', 'ping -n 31 127.0.0.1 >nul')
+Set-Content -LiteralPath (Join-Path $root 'scripts\quick.cmd') -Value @('@echo off', 'echo metric done 1')
+[System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'), ("[vigil]`ninstance = status`n`n[job.busy]`nfile        = scripts\busy.cmd`nrun_every   = 3650d`nmax_runtime = 10m`n`n" +
+        "[job.quick]`nfile      = scripts\quick.cmd`nrun_every = 3650d`n`n[job.later]`nfile      = scripts\quick.cmd`nrun_every = 1h`n`n" +
+        "[job.broken]`nfile = scripts\quick.cmd`n`n[job.gone]`nfile      = scripts\quick.cmd`nrun_every = 3650d`n"))
+function Get-StatusSection { param([string]$Name) $m = [regex]::Match((Read-Shared (Join-Path $root 'logs\supervisor\jobs.log')), "(?ms)^$Name\r?\n(.*?)(\r?\n\r?\n|\z)"); $m.Groups[1].Value }
+function Start-Run {
+    param([string]$Job)
+    Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'run', $Job)
+}
+(Start-Run 'quick').WaitForExit()
+[void](Start-Run 'busy')
+$busyState = Join-Path $root 'state\jobs\busy.state'
+for ($i = 0; $i -lt 60 -and -not ((Get-StateValue $busyState 'status') -ceq 'running' -and (Get-StateValue $busyState 'job_pid')); $i++) { Start-Sleep -Milliseconds 500 }
+# gone: a run of this boot whose worker and job have both exited, its
+# token left behind.
+$gone = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'exit' -PassThru -WindowStyle Hidden
+$gone.WaitForExit()
+$boot = Get-StateValue (Join-Path $root 'state\jobs\quick.state') 'boot_id'
+[System.IO.File]::WriteAllText((Join-Path $root 'state\jobs\gone.state'),
+    "[state]`nschema_version = 1`njob = gone`nrun_id = 20260101T000000Z-1-gone`nstatus = running`nboot_id = $boot`nstarted_epoch = 1`njob_pid = $($gone.Id)`nworker_pid = $($gone.Id)`n")
+[System.IO.File]::WriteAllText((Join-Path $root 'state\locks\gone.20260101T000000Z-1-gone.token'), '')
+Invoke-OnceAlone
+Test-Equal 'jobs.log: RUNNING gives the PID, how long, and the time to max_runtime' 'True' "$((Get-StatusSection 'RUNNING') -cmatch '(?m)^  busy: pid \d+, running for \d+s, max_runtime in \d+s\r?$')"
+Test-Equal 'jobs.log: LAST RUN gives the outcome, when it ended, and how long it took' 'True' "$((Get-StatusSection 'LAST RUN') -cmatch '(?m)^  quick: succeeded at [0-9T:Z-]+, took \d+s\r?$')"
+Test-Equal 'jobs.log: WAITING gives the next time' 'True' "$((Get-StatusSection 'WAITING') -cmatch '(?m)^  later: next ')"
+Test-Equal 'jobs.log: INVALID gives why' 'True' "$((Get-StatusSection 'INVALID') -cmatch '(?m)^  broken: .*run_every, run_at or cron')"
+Test-Equal 'jobs.log: CRASHED names the run that just crashed' 'True' "$((Get-StatusSection 'CRASHED') -cmatch '(?m)^  gone\r?$')"
+Invoke-OnceAlone
+Test-Equal 'jobs.log: and only in the tick that concluded it' 'False' "$((Get-StatusSection 'CRASHED') -cmatch 'gone')"
+Test-Equal 'jobs.log: then its LAST RUN says crashed' 'True' "$((Get-StatusSection 'LAST RUN') -cmatch '(?m)^  gone: crashed')"
+if ($script:fail -gt 0) { Write-Host (Read-Shared (Join-Path $root 'logs\supervisor\jobs.log')) }
+$busyPid = Get-StateValue $busyState 'job_pid'
+if ($busyPid) { Stop-Process -Id ([int]$busyPid) -Force -ErrorAction SilentlyContinue }
+for ($i = 0; $i -lt 60 -and (Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter 'busy.*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
+
+# The revision (16.5): the same file gives the same revision on every
+# platform. This one, byte for byte, is 746a566b1e8b, computed with Python's
+# hashlib from 16.5's definition; supervise.sh expects the same.
+$root = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-revision.$PID"
+[void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'config'))
+[System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'), "[vigil]`ninstance = revision`n`n[backend.file]`npath = metrics/vigil.prom`n")
+Invoke-Tick
+Invoke-Tick
+$revProm = Join-Path $root 'metrics\vigil.prom'
+Test-Equal 'revision: the same as on every platform' '746a566b1e8b' ([regex]::Match($(if (Test-Path -LiteralPath $revProm) { Read-Shared $revProm }), '(?m)^vigil_config_info\{.*revision="([0-9a-f]+)"').Groups[1].Value)
+Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
+
 # Damaged numbers (11.3, backlog 44): a launch record whose epoch is not a
 # number, a state file whose numbers are not, and an empty state file, next
 # to a healthy job. Each is read as damage, never cast: the tick carries on,
@@ -524,6 +581,9 @@ for ($i = 0; $i -lt 30 -and -not $rejLog.Contains('configuration rejected'); $i+
     $rejLog = (Get-ChildItem -LiteralPath $supDir -Filter '*-*.log' -ErrorAction SilentlyContinue | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
 }
 Test-Equal 'rejected edit: the supervisor rejects it' 'True' ([string]$rejLog.Contains('configuration rejected'))
+$jobsLog = Join-Path $supDir 'jobs.log'
+for ($i = 0; $i -lt 10 -and (Read-Shared $jobsLog) -cnotmatch '(?m)^CONFIGURATION REJECTED - the last valid configuration is active\r?$'; $i++) { Start-Sleep -Seconds 1 }
+Test-Equal 'rejected edit: jobs.log says so first' 'CONFIGURATION REJECTED - the last valid configuration is active' (((Read-Shared $jobsLog) -split "`r?`n")[2])
 # A run launched after the rejection must still run, with the last valid
 # configuration.
 $rejected = Get-StateValue $keptState 'run_id'
@@ -533,13 +593,32 @@ for ($i = 0; $i -lt 60; $i++) {
     Start-Sleep -Seconds 1
 }
 Test-Equal 'rejected edit: later runs still run' 'True' ([string]((Get-StateValue $keptState 'run_id') -cne $rejected -and (Get-StateValue $keptState 'status') -ceq 'succeeded'))
+
+# A valid edit activates at once (16.3): a job added is scheduled without a
+# restart, and a run in progress across the activation finishes untouched,
+# under the configuration it started with.
+Set-Content -LiteralPath (Join-Path $root 'scripts\span.cmd') -Value @('@echo off', 'ping -n 9 127.0.0.1 >nul', 'echo metric done 1')
+[System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'), "$good`n[job.span]`nfile      = scripts\span.cmd`nrun_every = 1s`n")
+$spanState = Join-Path $root 'state\jobs\span.state'
+for ($i = 0; $i -lt 120 -and (Get-StateValue $spanState 'status') -cne 'running'; $i++) { Start-Sleep -Milliseconds 500 }
+$spanRid = Get-StateValue $spanState 'run_id'
+Test-Equal 'live edit: a run in progress' 'running' (Get-StateValue $spanState 'status')
+[System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'),
+    "$good`n[job.span]`nfile      = scripts\span.cmd`nrun_every = 3650d`n`n[job.added]`nfile      = scripts\quick.cmd`nrun_every = 1s`n")
+$addedState = Join-Path $root 'state\jobs\added.state'
+for ($i = 0; $i -lt 120 -and (Get-StateValue $addedState 'status') -cne 'succeeded'; $i++) { Start-Sleep -Milliseconds 500 }
+Test-Equal 'live edit: a job added runs, without a restart' 'succeeded False' "$(Get-StateValue $addedState 'status') $($rejSup.HasExited)"
+for ($i = 0; $i -lt 60 -and (Get-StateValue $spanState 'status') -ceq 'running'; $i++) { Start-Sleep -Milliseconds 500 }
+Test-Equal 'live edit: the run across the activation finished untouched' "succeeded $spanRid" "$(Get-StateValue $spanState 'status') $(Get-StateValue $spanState 'run_id')"
+$liveLog = (Get-ChildItem -LiteralPath $supDir -Filter '*-*.log' -ErrorAction SilentlyContinue | ForEach-Object { Read-Shared $_.FullName }) -join ''
+Test-Equal 'live edit: nothing was stopped' 'False' "$($liveLog -match 'ending its process tree|crashed')"
 if (-not $rejSup.HasExited) { Stop-Process -Id $rejSup.Id -Force }
 $rejSup.WaitForExit()
 if ($script:fail -gt 0) {
     $rejLog = (Get-ChildItem -LiteralPath $supDir -Filter '*-*.log' -ErrorAction SilentlyContinue | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
     Write-Host $rejLog.Substring([Math]::Max(0, $rejLog.Length - 1500))
 }
-for ($i = 0; $i -lt 40 -and (Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter 'kept.*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+for ($i = 0; $i -lt 40 -and @(Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(kept|span|added)\.' }).Count; $i++) { Start-Sleep -Milliseconds 500 }
 Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
 $root = $mainRoot
 
