@@ -10,8 +10,9 @@
 # LICENSE file for the full terms.
 #
 # Integration test: the crash points of SPECIFICATION.md 22.4.1 drive the
-# launch and fan-out tests of 22.4 (20 to 23, 25 to 29), and a held queue_one
-# run launched as the supervisor crashes (8, 9), on Linux and macOS.
+# launch and fan-out tests of 22.4 (20 to 23, 25 to 29), the worker's own
+# crash points (7, 16), and a held queue_one run launched as the supervisor
+# crashes (8, 9), on Linux and macOS.
 # The twin of Crash.ps1. Two invariants:
 #   launch:  exactly one run per launch, or none, never two;
 #   fan-out: every event reaches every one of its targets at least once, and
@@ -370,6 +371,85 @@ i=0
 while [ "$i" -lt 8 ]; do tick; sleep 1; i=$((i + 1)); done
 tick_until 20 q_idle > /dev/null
 check "queued: two runs, never three" 2 "$(wc -l < "$root/qmarks" | tr -d ' ')"
+
+# --- The worker's crash points (7, 16, 23) ------------------------------------------
+#
+# Each case crashes the worker of one run of w at a point, then ticks once:
+# the run must be concluded as what it was, run once or not at all, and
+# leave no token. w runs for 4 s, so a sender started by the same tick is
+# done before w's events are written, and the supervisor finds them where
+# the worker left them.
+cat > "$root/scripts/w.sh" <<'EOF'
+echo "$VIGIL_RUN_ID" >> "$IT_ROOT/wmarks"
+sleep 4
+EOF
+config_w() {
+    config 3650d
+    cat >> "$root/config/vigil.config" <<EOF
+
+[job.w]
+file      = scripts/w.sh
+env       = IT_ROOT=$root
+run_every = $1
+EOF
+}
+w_idle() { [ -z "$(locks w)" ]; }
+w_ran() { cat "$root/wmarks" 2>/dev/null | grep -cx "$1" || true; }
+w_state() { state_value "$root/state/jobs/w.state" "$1"; }
+# One run of w with VIGIL_FAULT=$1; once no process carries its run id,
+# one tick.
+w_crash() {
+    local i=0
+    config_w 3650d
+    tick_until 30 w_idle > /dev/null
+    config_w 1s
+    rid=''
+    while [ -z "$rid" ] && [ "$i" -lt 10 ]; do
+        VIGIL_FAULT=$1 vigil supervise --once > /dev/null 2>&1
+        rid=$(lock_rid w)
+        [ -n "$rid" ] || sleep 1
+        i=$((i + 1))
+    done
+    config_w 3650d
+    i=0
+    while ps -A -o args= | grep -F -- "$rid" | grep -qv grep && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+    tick
+}
+
+# 23. worker.after_claim: the token taken, the job never started.
+w_crash worker.after_claim
+check "worker.after_claim: never ran" 0 "$(w_ran "$rid")"
+check "worker.after_claim: concluded crashed" "crashed $rid" "$(w_state status) $(w_state run_id)"
+check "worker.after_claim: no token left" "" "$(locks w)"
+
+# 7. state.after_temp:1: the first state write interrupted, its temporary
+# file left behind, before the job starts.
+w_crash state.after_temp:1
+check "7: state.after_temp:1: never ran" 0 "$(w_ran "$rid")"
+check "7: state.after_temp:1: concluded crashed" "crashed $rid" "$(w_state status) $(w_state run_id)"
+check "7: state.after_temp:1: the temporary file is left, never read" yes "$(ls "$root/state/jobs" | grep -q '^w\.state\.tmp\.' && echo yes || echo no)"
+check "7: state.after_temp:1: no token left" "" "$(locks w)"
+
+# 7 and 16. state.after_temp:3: the final state write interrupted, after
+# the run's events: reconciled from them.
+w_crash state.after_temp:3
+check "7: state.after_temp:3: ran once" 1 "$(w_ran "$rid")"
+check "7: state.after_temp:3: reconciled from its spool file" "succeeded|reconciled from the spool file|$rid" "$(w_state status)|$(w_state reason)|$(w_state run_id)"
+check "7: state.after_temp:3: no token left" "" "$(locks w)"
+
+# 16. worker.after_spool: the events written, the final state never.
+w_crash worker.after_spool
+check "16: worker.after_spool: ran once" 1 "$(w_ran "$rid")"
+check "16: worker.after_spool: reconciled from its spool file" "succeeded|reconciled from the spool file|$rid" "$(w_state status)|$(w_state reason)|$(w_state run_id)"
+check "16: worker.after_spool: no token left" "" "$(locks w)"
+
+# worker.after_state: the final state written, the token never released.
+w_crash worker.after_state
+check "worker.after_state: ran once" 1 "$(w_ran "$rid")"
+check "worker.after_state: its own outcome kept" "succeeded||$rid" "$(w_state status)|$(w_state reason)|$(w_state run_id)"
+check "worker.after_state: not taken for a crash" 0 "$(cat "$root"/logs/supervisor/2*.log | grep -c "run $rid crashed")"
+check "worker.after_state: no token left" "" "$(locks w)"
+check "the worker's crash points: no run ever ran twice" "" "$(sort "$root/wmarks" | uniq -d)"
 
 # The supervisor says when crash points are on (22.4.1).
 check "the supervisor warns while VIGIL_FAULT is set" yes "$(grep -q 'VIGIL_FAULT is set' "$root"/logs/supervisor/2*.log && echo yes || echo no)"
