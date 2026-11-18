@@ -105,6 +105,16 @@ on_uncertain = replace
 file         = scripts\quick.cmd
 run_every    = 2s
 on_uncertain = manual
+
+[job.p]
+file         = scripts\quick.cmd
+run_every    = 2s
+on_uncertain = wait
+
+[job.e]
+file         = scripts\quick.cmd
+run_every    = 2s
+on_uncertain = wait
 "@
 
 . (Join-Path $repo 'app\lib\windows\Worker.ps1')
@@ -126,6 +136,27 @@ foreach ($j in @('w', 'r', 'm')) {
         "[state]`nschema_version = 1`njob = $j`nrun_id = $rid`nstatus = running`nboot_id = $boot`nstarted_epoch = $now`n" +
         "deadline_epoch = 1`njob_pid = $($unrelated.Id)`njob_name = cmd.exe`n")
 }
+# A process with the recorded name that is not the run's: Windows reuses pids
+# quickly, so a name proves nothing alone (11.5, backlog 58). p's recorded
+# start time is another process's; e has none recorded at all. Its worker
+# gone, so its parent cannot be checked either: the start time is all that
+# is left, and a missing one proves nothing.
+$samename = @{}
+# The worker's pid: a process that has ended.
+$gone = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'exit' -PassThru -WindowStyle Hidden
+$gone.WaitForExit()
+foreach ($j in @('p', 'e')) {
+    $samename[$j] = Start-Process -FilePath 'ping.exe' -ArgumentList '-n', '300', '127.0.0.1' -PassThru -WindowStyle Hidden
+    $start = if ($j -ceq 'p') { [string]([DateTimeOffset]::new($samename[$j].StartTime).ToUnixTimeSeconds() - 100) } else { '' }
+    $rid = "20260101T000000Z-9-$j"
+    $token = Join-Path $locks "$j.$rid.token"
+    [System.IO.File]::WriteAllText($token, '')
+    $holders[$j] = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-Command',
+        "`$f = [System.IO.File]::Open('$token', 'Open', 'Read', 'None'); Start-Sleep -Seconds 300")
+    [System.IO.File]::WriteAllText((Join-Path $root "state\jobs\$j.state"),
+        "[state]`nschema_version = 1`njob = $j`nrun_id = $rid`nstatus = running`nboot_id = $boot`nstarted_epoch = $now`n" +
+        "deadline_epoch = 1`nworker_pid = $($gone.Id)`njob_pid = $($samename[$j].Id)`njob_name = PING.EXE`njob_start = $start`n")
+}
 Start-Sleep -Seconds 3
 
 Invoke-Tick
@@ -138,6 +169,10 @@ foreach ($j in @('w', 'r', 'm')) {
 }
 Test-Equal 'w: policy recorded' 'wait' (Get-StateValue (Join-Path $root 'state\recovery\w.recovery') 'policy')
 Test-Equal 'unrelated process never killed' 'False' "$($unrelated.HasExited)"
+Test-Equal 'p: same name, started at another time: uncertain' 'uncertain' (Get-StateValue (Join-Path $root 'state\recovery\p.recovery') 'conclusion')
+Test-Equal 'p: and never killed' 'False' "$($samename['p'].HasExited)"
+Test-Equal 'e: same name, no start time recorded: uncertain' 'uncertain' (Get-StateValue (Join-Path $root 'state\recovery\e.recovery') 'conclusion')
+Test-Equal 'e: and never killed' 'False' "$($samename['e'].HasExited)"
 Test-Equal 'w: held, no new run' '0' "$(@(Get-ChildItem -LiteralPath $locks -Filter 'w.*' | Where-Object { $_.Name -notlike '*-9-w*' }).Count)"
 Test-Equal 'm: held, no new run' '0' "$(@(Get-ChildItem -LiteralPath $locks -Filter 'm.*' | Where-Object { $_.Name -notlike '*-9-m*' }).Count)"
 Test-Equal 'r: replaced, a new run started' 'True' "$((Get-SupervisorLog) -match 'job r: run .* started beside an uncertain run')"
@@ -190,7 +225,7 @@ if ($script:fail -gt 0) {
     Write-Host "`nsupervisor log:"
     Write-Host (((Get-SupervisorLog).Split("`n") | Select-Object -Last 40) -join "`n")
 }
-foreach ($p in @($unrelated) + @($holders.Values)) { if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }
+foreach ($p in @($unrelated) + @($holders.Values) + @($samename.Values)) { if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }
 Start-Sleep -Seconds 4
 Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
 Write-Host "$($script:pass) passed, $($script:fail) failed"

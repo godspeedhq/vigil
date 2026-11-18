@@ -875,7 +875,7 @@ Vigil runs every job the configuration names, at its time, however many are due 
 
 Each run has a worker of its own: a bash process on Linux and macOS, a PowerShell process on Windows. Many jobs due in the same minute start that many processes together. `vigil precheck` reports the minute of the next 24 hours at which the most jobs start, and how many (§16.4), so it can be seen before it happens. It is information, never a failure.
 
-Runs that `queue_one` holds (§9) survive a supervisor restart, in `state/pending`, because their jobs' cursors have already moved past them (§7.9). Because workers outlive the supervisor, a restarted supervisor accounts for the workers that are still alive (from their state files) before it starts anything.
+Runs that `queue_one` holds (§9) survive a supervisor restart, in `state/pending`, because their jobs' cursors have already moved past them (§7.9). The file is saved before the tick's runs start, so it never names a run that is starting: a supervisor that crashes after launching a held run cannot start it a second time, and one that crashes just before loses that run rather than doubling it. Because workers outlive the supervisor, a restarted supervisor accounts for the workers that are still alive (from their state files) before it starts anything.
 
 ---
 

@@ -601,8 +601,8 @@ function Invoke-VigilSupervisor {
             if ($p -and $St.JobName -and $p.Name -ieq $St.JobName) {
                 # Pid, name and start time together: Windows reuses pids quickly, so a pid on
                 # its own could belong to something else by now. A second either way allows
-                # for rounding.
-                $startOk = (-not $St.JobStart) -or ([Math]::Abs((ConvertTo-VigilEpoch $p.Created) - [long]$St.JobStart) -le 1)
+                # for rounding. No start time recorded proves nothing (backlog 58).
+                $startOk = [bool]$St.JobStart -and ([Math]::Abs((ConvertTo-VigilEpoch $p.Created) - [long]$St.JobStart) -le 1)
                 $w = Get-VigilProcessInfo ([int]$St.WorkerPid)
                 # The parent is only checked while the worker is still this run's worker: once
                 # it has gone, its pid may belong to anything. A command line that cannot be
@@ -841,6 +841,16 @@ function Invoke-VigilSupervisor {
             if ($d.Next -cne '-') { $status.Waiting += "${job}: next $($d.Next)" }
         }
 
+        # Saved before this tick's runs start, so it never names one of them:
+        # a crash after a launch then cannot start a held run a second time
+        # (backlog 58). The runs about to start are not saved: one a crash
+        # stops before its launch is lost, never run twice. The pending= line
+        # stays for files written before.
+        if ($sv.Queued.Count -gt 0) {
+            Write-VigilFileAtomic -Path $queueFile -Text "pending=`nqueued=$(@($sv.Queued) -join ' ')`n"
+        }
+        elseif ([System.IO.File]::Exists($queueFile)) { [System.IO.File]::Delete($queueFile) }
+
         # Admission (8): every due run starts now, oldest first. Vigil sets no
         # limit on how many run at once: the machine is its operator's.
         foreach ($job in $sv.Pending) {
@@ -850,11 +860,6 @@ function Invoke-VigilSupervisor {
             $status.Running += $job
         }
         $sv.Pending = New-Object 'System.Collections.Generic.List[string]'
-
-        if ($sv.Pending.Count + $sv.Queued.Count -gt 0) {
-            Write-VigilFileAtomic -Path $queueFile -Text "pending=$($sv.Pending -join ' ')`nqueued=$(@($sv.Queued) -join ' ')`n"
-        }
-        elseif ([System.IO.File]::Exists($queueFile)) { [System.IO.File]::Delete($queueFile) }
 
         & $event '' 'up' '1' 'gauge'
         & $event '' 'workers' "$($sv.Running)" 'gauge'

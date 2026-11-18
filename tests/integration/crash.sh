@@ -10,7 +10,8 @@
 # LICENSE file for the full terms.
 #
 # Integration test: the crash points of SPECIFICATION.md 22.4.1 drive the
-# launch and fan-out tests of 22.4 (20 to 23, 25, 26, 29) on Linux and macOS.
+# launch and fan-out tests of 22.4 (20 to 23, 25, 26, 29), and a held queue_one
+# run launched as the supervisor crashes (8, 9), on Linux and macOS.
 # The twin of Crash.ps1. Two invariants:
 #   launch:  exactly one run per launch, or none, never two;
 #   fan-out: every event reaches every one of its targets at least once, and
@@ -280,6 +281,49 @@ tick_until 20 no_mark_lock > /dev/null
 check "29: $rounds random crashes, every event delivered" 0 "$lost"
 check "29: no launch ever ran twice" "" "$(dup_marks)"
 check "29: no run ever met another" "" "$(cat "$root/overlap" 2>/dev/null)"
+
+# --- A queued run (9): a crash after its launch never runs it twice ------------------
+#
+# q holds one run while another is active (queue_one). When the active run
+# ends, a tick launches the held one, and crashes right after (backlog 58).
+# The held run must be gone from state/pending by then, or the next
+# supervisor runs it again.
+cat > "$root/scripts/q.sh" <<'EOF'
+echo "$VIGIL_RUN_ID" >> "$IT_ROOT/qmarks"
+sleep 4
+EOF
+config_q() {
+    config 3650d
+    cat >> "$root/config/vigil.config" <<EOF
+
+[job.q]
+file      = scripts/q.sh
+env       = IT_ROOT=$root
+overlap   = queue_one
+run_every = $1
+EOF
+}
+q_idle() { [ -z "$(locks q)" ]; }
+q_queued() { grep -Eq '^queued=(.* )?q( |$)' "$root/state/pending" 2>/dev/null; }
+config_q 2s
+tick_until 10 sh -c "[ -n \"\$(ls '$root/state/locks' 2>/dev/null | grep '^q\.')\" ]" > /dev/null
+# Its next slot comes due while the first run is active: held.
+sleep 2
+tick_until 5 q_queued > /dev/null
+check "queued: a run is held while one is active" yes "$(q_queued && echo yes || echo no)"
+# Nothing else comes due: only the held run is left to start.
+config_q 3650d
+i=0
+while ! q_idle && [ "$i" -lt 20 ]; do sleep 1; i=$((i + 1)); done
+VIGIL_FAULT=launch.after_spawn vigil supervise --once > /dev/null 2>&1
+check "queued: the supervisor crashed after launching it" 99 "$?"
+check "queued: and it is no longer held" no "$(q_queued && echo yes || echo no)"
+# Tick until the held run has ended, then a few more.
+tick_until 20 q_idle > /dev/null
+i=0
+while [ "$i" -lt 8 ]; do tick; sleep 1; i=$((i + 1)); done
+tick_until 20 q_idle > /dev/null
+check "queued: two runs, never three" 2 "$(wc -l < "$root/qmarks" | tr -d ' ')"
 
 # The supervisor says when crash points are on (22.4.1).
 check "the supervisor warns while VIGIL_FAULT is set" yes "$(grep -q 'VIGIL_FAULT is set' "$root"/logs/supervisor/2*.log && echo yes || echo no)"
