@@ -18,7 +18,9 @@
     checks what it did through the file backend's Prometheus file: runs
     started, jobs running together with no ceiling, overlaps skipped, a
     crashed run and an abandoned launch recorded, events for a backend type
-    not implemented yet counted as dropped, and a second supervisor refused.
+    not implemented yet counted as dropped, a second supervisor refused, and
+    the faults of 22.4 tests 1, 2, 13, 17 and 24 (a corrupt or missing state
+    file, a reboot, a launch from the previous boot).
     The twin of supervise.sh.
 
     Exit code: 0 all passed, 1 any failed.
@@ -337,6 +339,34 @@ $rid = Get-StateValue $st 'run_id'
 $wpid = Get-StateValue $st 'worker_pid'
 $jpid = Get-StateValue $st 'job_pid'
 Test-Equal 'orphan: the run started' 'True' ([string]([bool]$wpid -and [bool]$jpid))
+
+# While that run is alive (22.4, 17, 1 and 2). The job is due every second,
+# so a supervisor that lost track of the run would start another.
+$locksDir = Join-Path $root 'state\locks'
+function Get-Others { (@(Get-ChildItem -LiteralPath $locksDir -Filter 'long.*' | Where-Object { -not $_.Name.StartsWith("long.$rid.") } | ForEach-Object Name)) -join ' ' }
+function Test-BothAlive { [string]([bool](Get-Process -Id ([int]$jpid) -ErrorAction SilentlyContinue) -and [bool](Get-Process -Id ([int]$wpid) -ErrorAction SilentlyContinue)) }
+# 17. The supervisor never writes a live run's state file.
+$sum = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($st))
+Invoke-OnceAlone
+Invoke-OnceAlone
+Test-Equal "17: a live run's state file is never written" $sum ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($st)))
+# 1. Its state file corrupted: the run is found by its token and run id.
+$good = [System.IO.File]::ReadAllBytes($st)
+[System.IO.File]::WriteAllText($st, "not a state file`n")
+Invoke-OnceAlone
+Invoke-OnceAlone
+Test-Equal '1: corrupt state: the job still runs' 'True' (Test-BothAlive)
+Test-Equal '1: no run started beside it' '' (Get-Others)
+Test-Equal '1: and its state file left as it is' "not a state file`n" ([System.IO.File]::ReadAllText($st))
+# 2. Its state file deleted: the same.
+[System.IO.File]::Delete($st)
+Invoke-OnceAlone
+Invoke-OnceAlone
+Test-Equal '2: deleted state: the job still runs' 'True' (Test-BothAlive)
+Test-Equal '2: no run started beside it' '' (Get-Others)
+Test-Equal '2: and nothing writes it' 'False' ([string][System.IO.File]::Exists($st))
+[System.IO.File]::WriteAllBytes($st, $good)
+
 Stop-Process -Id ([int]$wpid) -Force -ErrorAction SilentlyContinue
 for ($i = 0; $i -lt 20 -and (Get-Process -Id ([int]$wpid) -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 250 }
 Invoke-OnceAlone
@@ -356,6 +386,36 @@ Test-Equal 'orphan: once the job ends, the run is concluded' 'True' ([string]$su
 Test-Equal 'orphan: and its token is gone' '' ((@(Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter "long.$rid.*" | ForEach-Object Name)) -join ' ')
 # Let the next run end before cleaning up.
 for ($i = 0; $i -lt 40 -and (Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter 'long.*' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
+
+# A reboot (22.4, 13 and 24), as a boot id that is not this boot's: every
+# run recorded as running then is concluded, and a launch record from then is
+# abandoned at once, however young. Neither job is ever due, so no run of
+# theirs rewrites what this checks.
+$root = Join-Path ([System.IO.Path]::GetTempPath()) "vigil-reboot.$PID"
+foreach ($d in 'config', 'scripts', 'state\locks', 'state\jobs') { [void](New-Item -ItemType Directory -Force -Path (Join-Path $root $d)) }
+Set-Content -LiteralPath (Join-Path $root 'scripts\quick.cmd') -Value @('@echo off', 'echo metric done 1')
+$cfg = "[vigil]`ninstance = reboot`n`n"
+foreach ($j in 'one', 'two', 'three') { $cfg += "[job.$j]`nfile      = scripts\quick.cmd`nrun_every = 3650d`n`n" }
+[System.IO.File]::WriteAllText((Join-Path $root 'config\vigil.config'), $cfg)
+# The processes of before the reboot: one that has ended.
+$gone = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'exit' -PassThru -WindowStyle Hidden
+$gone.WaitForExit()
+foreach ($j in 'one', 'two') {
+    [System.IO.File]::WriteAllText((Join-Path $root "state\jobs\$j.state"),
+        "[state]`nschema_version = 1`njob = $j`nrun_id = 20260101T000000Z-1-$j`nstatus = running`nboot_id = before-the-reboot`nstarted_epoch = 1`njob_pid = $($gone.Id)`nworker_pid = $($gone.Id)`n")
+    [System.IO.File]::WriteAllText((Join-Path $root "state\locks\$j.20260101T000000Z-1-$j.token"), '')
+}
+[System.IO.File]::WriteAllText((Join-Path $root 'state\locks\three.20260101T000000Z-1-three.launch'),
+    "[launch]`njob           = three`nrun_id        = 20260101T000000Z-1-three`nboot_id       = before-the-reboot`nlaunch_epoch  = $([DateTimeOffset]::Now.ToUnixTimeSeconds())`n")
+Invoke-OnceAlone
+$rebootLocks = (@(Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -File | ForEach-Object Name)) -join ' '
+Test-Equal '13: after a reboot, every run recorded as running is concluded' 'crashed crashed' "$(Get-StateValue (Join-Path $root 'state\jobs\one.state') 'status') $(Get-StateValue (Join-Path $root 'state\jobs\two.state') 'status')"
+Test-Equal '13: and their tokens are gone' 'False' ([string]($rebootLocks -match '(^| )(one|two)\.'))
+Test-Equal '24: a launch from before the reboot is abandoned at once' 'False' ([string]($rebootLocks -match '(^| )three\.'))
+$supLog = (Get-ChildItem -LiteralPath (Join-Path $root 'logs\supervisor') -Filter '*-*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+Test-Equal '24: and logged' 'True' ([string]$supLog.Contains('job three: launch 20260101T000000Z-1-three abandoned'))
+Test-Equal '24: never run' 'False' ([string][System.IO.File]::Exists((Join-Path $root 'state\jobs\three.state')))
 Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
 
 # Damaged numbers (11.3, backlog 44): a launch record whose epoch is not a

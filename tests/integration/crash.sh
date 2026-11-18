@@ -10,7 +10,7 @@
 # LICENSE file for the full terms.
 #
 # Integration test: the crash points of SPECIFICATION.md 22.4.1 drive the
-# launch and fan-out tests of 22.4 (20 to 23, 25, 26, 29), and a held queue_one
+# launch and fan-out tests of 22.4 (20 to 23, 25 to 27, 29), and a held queue_one
 # run launched as the supervisor crashes (8, 9), on Linux and macOS.
 # The twin of Crash.ps1. Two invariants:
 #   launch:  exactly one run per launch, or none, never two;
@@ -253,6 +253,32 @@ event after_partial
 tick_until 10 in_both after_partial > /dev/null
 check "26: a temporary file is never sent" no "$(grep -q '^partial_copy' "$root/metrics/a.prom" && echo yes || echo no)"
 rm -f "$root/spool/backends/a/.1-it-partial.events.tmp.123"
+
+# 27. A backend removed between a crash and the resume: its copy is dropped
+# and counted, and the other backend still gets the event.
+dropped_b() { grep -q '^vigil_spool_dropped_total{backend="b".*reason="backend_removed"' "$root/metrics/a.prom" 2>/dev/null; }
+in_a() { grep -q "^$1" "$root/metrics/a.prom" 2>/dev/null; }
+config 3650d
+i=0
+while [ -n "$(locks vigil_sender)" ] && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
+event removed_b
+VIGIL_FAULT=fanout.after_targets vigil supervise --once > /dev/null 2>&1
+# It crashes at the first file it claims, which may be an older one of
+# Vigil's own: any fan-out with its targets fixed will do.
+i=0
+while ! ls "$root/spool/fanout" 2>/dev/null | grep -q '\.targets$' && [ "$i" -lt 20 ]; do sleep 0.5; i=$((i + 1)); done
+sleep 1
+check "27: the sender crashed with the targets fixed" yes "$(ls "$root/spool/fanout" 2>/dev/null | grep -q '\.targets$' && echo yes || echo no)"
+sed -i.bak '/^\[backend\.b\]/,/^path/d' "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
+tick_until 20 sh -c "grep -q '^removed_b' '$root/metrics/a.prom' && grep -q '^vigil_spool_dropped_total{backend=\"b\".*reason=\"backend_removed\"' '$root/metrics/a.prom'" > /dev/null
+check "27: the backend left has the event" yes "$(in_a removed_b && echo yes || echo no)"
+check "27: the removed one's copy dropped, counted as backend_removed" yes "$(dropped_b && echo yes || echo no)"
+check "27: nothing left in the fan-out" "" "$(ls "$root/spool/fanout" 2>/dev/null)"
+# b back. A sender started without it delivers by the configuration it was
+# launched with (4.3), even events that arrive while it starts: let it end.
+config 3650d
+i=0
+while [ -n "$(locks vigil_sender)" ] && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
 
 # --- 29. A randomised crash loop ------------------------------------------------------
 
