@@ -215,7 +215,14 @@ check "23: no run ever met another" "" "$(cat "$root/overlap" 2>/dev/null)"
 # --- Fan-out (22.4, 25 and 26) -----------------------------------------------------
 
 # One event, named $1, put in the spool as a job's would be.
-event() { printf '%s %s 1 gauge host=it\n' "$(date '+%s')" "$1" > "$root/spool/incoming/$(date '+%s')-it-$1.events.tmp" && mv -f "$root/spool/incoming/$(date '+%s')-it-$1.events.tmp" "$root/spool/incoming/$(date '+%s')-it-$1.events"; }
+# The time is read once: read again for the rename, a second that turns
+# between the two loses the event before Vigil ever sees it.
+event() {
+    local now f
+    now=$(date '+%s')
+    f="$root/spool/incoming/$now-it-$1.events"
+    printf '%s %s 1 gauge host=it\n' "$now" "$1" > "$f.tmp" && mv -f "$f.tmp" "$f"
+}
 mkdir -p "$root/spool/incoming"
 # The sender's run ids that started, and whether run $1 ended.
 sender_runs() { cat "$root"/logs/jobs/vigil_sender/*.log 2>/dev/null | sed -n 's/^[^ ]* \([^ ]*\) run start.*/\1/p'; }
@@ -303,6 +310,17 @@ check "28: and the fan-out is retired" no "$(fanout_has full_disk && echo yes ||
 
 # --- 29. A randomised crash loop ------------------------------------------------------
 
+# Where event $1 got to, when it was lost: every file of it, and the logs
+# around it.
+lost_dump() {
+    printf '        in a: %s  in b: %s\n' "$(grep -c "^$1" "$root/metrics/a.prom" 2>/dev/null)" "$(grep -c "^$1" "$root/metrics/b.prom" 2>/dev/null)"
+    (cd "$root/spool" && find . -type f) | sed 's/^/        spool: /'
+    ls "$root/state/locks" 2>/dev/null | sed 's/^/        lock: /'
+    grep -rl "$1" "$root/spool" 2>/dev/null | sed 's/^/        has it: /'
+    cat "$root"/logs/supervisor/2*.log 2>/dev/null | tail -12 | sed 's/^/        sup: /'
+    cat "$root"/logs/jobs/vigil_sender/*.log 2>/dev/null | tail -8 | sed 's/^/        sender: /'
+}
+
 points="launch.after_record launch.after_spawn fanout.after_claim fanout.after_targets fanout.after_place:1 fanout.after_place:2 fanout.before_retire sender.after_send state.after_temp"
 set -- $points
 count=$#
@@ -316,12 +334,14 @@ while [ "$r" -lt "$rounds" ]; do
     event "loop_$r"
     VIGIL_FAULT=$point vigil supervise --once > /dev/null 2>&1
     sleep 2
-    # Abandon any launch the crash left, as the grace would.
-    for f in "$root"/state/locks/mark.*.launch; do
+    # Abandon any launch the crash left, as the grace would: the job's, or
+    # the sender's when the job was still running and the sender's launch
+    # was the tick's first.
+    for f in "$root"/state/locks/*.launch; do
         [ -f "$f" ] || continue
         sed -i.bak 's/^launch_epoch .*/launch_epoch  = 1/' "$f" && rm -f "$f.bak"
     done
-    tick_until 20 in_both "loop_$r" > /dev/null || { lost=$((lost + 1)); printf '        lost after %s\n' "$point"; }
+    tick_until 20 in_both "loop_$r" > /dev/null || { lost=$((lost + 1)); printf '        lost after %s\n' "$point"; lost_dump "loop_$r"; }
 done
 config 3650d
 tick_until 20 no_mark_lock > /dev/null

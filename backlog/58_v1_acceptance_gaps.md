@@ -121,3 +121,15 @@ By §22.4 test number where there is one.
   `lost after <point>` line, so the crash point is unknown. 24 more rounds
   there, and every round on the Mac and on Windows, delivered everything.
   If CI or a machine shows it again, the point it names is the lead.
+- Explained 2026-11-18 by CI on macOS (run 44342725737), where it happened
+  again: the test lost the event, not Vigil. crash.sh's `event` read the
+  time three times, for the file and for its rename; when the second
+  turned between them, `mv` found no file and the event never reached the
+  spool. Now it reads the time once; Crash.ps1 did already. A second
+  test bug showed once the loss printed where the event got to: when the
+  job was still running, the crashing tick's first launch was the
+  sender's, and `launch.after_record` left the sender's launch record. The
+  test aged only the job's, so Vigil rightly started no sender until the
+  30-second grace passed, past the test's 20 ticks. Both twins now age
+  every launch left. Fedora: 2 of 75 rounds lost an event before, 0 of 75
+  after.
