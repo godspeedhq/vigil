@@ -41,8 +41,9 @@
 #       Unregisters it. Running workers continue.
 #   vigil [--root <dir>] start | stop | restart
 #       Service control. Stopping leaves running workers alone (18.3).
-#   vigil [--root <dir>] status
-#       The service's state, then jobs.log.
+#   vigil [--root <dir>] status [--watch]
+#       The service's state, then jobs.log. --watch prints it again every
+#       2 seconds until Ctrl+C.
 #   vigil [--root <dir>] init [empty] [--instance <name>] [--backend file,datadog,otel] [--no-pack]
 #       Writes a starting configuration (19): runners for the shells found
 #       here, the backends, and the base pack's jobs; empty for runners only,
@@ -105,7 +106,7 @@ elif vigil_packaged "$app" && [ -n "$_vp_root" ]; then
 fi
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list | enable <what> | disable <what> | update [--check]\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status [--watch]\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list | enable <what> | disable <what> | update [--check]\n' >&2
     exit 64
 }
 
@@ -341,6 +342,10 @@ case ${1-} in
         exit $?
         ;;
     status)
+        if [ "$#" -eq 2 ] && [ "$2" = --watch ]; then
+            vigil_service_watch "$root"
+            exit $?
+        fi
         [ "$#" -eq 1 ] || usage
         vigil_service_status "$root"
         rc=$?

@@ -423,6 +423,22 @@ function Get-VigilServiceStatus {
     else { Write-Output 'no jobs.log yet: the supervisor writes it every tick' }
 }
 
+# vigil status --watch (backlog 57): vigil status again every 2 seconds,
+# until Ctrl+C. Each frame is made in full before it is shown, so the screen
+# is never half drawn; at a console it is cleared first. The time is UTC, as
+# on jobs.log's first line, which says when the supervisor last wrote it. A
+# jobs.log this account cannot read throws, once, as for vigil status.
+function Watch-VigilServiceStatus {
+    param([string]$Root)
+    $console = -not [Console]::IsOutputRedirected
+    while ($true) {
+        $frame = @(Get-VigilServiceStatus -Root $Root) -join [Environment]::NewLine
+        if ($console) { [Console]::Clear() }
+        [Console]::Out.Write("every 2 s, Ctrl+C to stop: $([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'))$([Environment]::NewLine)$([Environment]::NewLine)$frame$([Environment]::NewLine)")
+        Start-Sleep -Seconds 2
+    }
+}
+
 # The first of these folders and files this account may not look into or
 # read, or ''. Each folder is listed, from the top down, so that one inside a
 # closed folder is not taken for missing.

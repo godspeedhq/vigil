@@ -239,6 +239,37 @@ function Invoke-Vigil {
 $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $r = Invoke-Vigil status
 Test-Equal 'status shows jobs.log' '0|True' "$($r.Code)|$($r.Text -cmatch '(?m)^Vigil .* at ')"
+# vigil status --watch (backlog 57), given 5 seconds from its first frame:
+# how it ended, 'running' when it was still going and was stopped (it is
+# this test's own process), else its exit code; and what it printed.
+# PowerShell alone can take seconds to start on a busy machine, so the
+# 5 seconds start at the first frame, or it ends, within a minute.
+function Read-Shared {
+    param([string]$Path)
+    try {
+        $s = [System.IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite')
+        try { (New-Object System.IO.StreamReader($s)).ReadToEnd() } finally { $s.Dispose() }
+    }
+    catch { '' }
+}
+function Invoke-Watch {
+    $out = "$root.watch"
+    $p = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError "$out.err" -ArgumentList @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'status', '--watch')
+    [void]$p.Handle
+    for ($i = 0; $i -lt 120 -and -not $p.HasExited -and -not ((Read-Shared $out) -cmatch '(?m)^every 2 s'); $i++) { Start-Sleep -Milliseconds 500 }
+    $how = if ($p.WaitForExit(5000)) { [string]$p.ExitCode } else { $p.Kill(); [void]$p.WaitForExit(5000); 'running' }
+    $text = [System.IO.File]::ReadAllText($out) + [System.IO.File]::ReadAllText("$out.err")
+    Remove-Item -LiteralPath $out, "$out.err" -ErrorAction SilentlyContinue
+    return @{ How = $how; Text = $text }
+}
+$w = Invoke-Watch
+Test-Equal 'status --watch keeps going' 'running' $w.How
+$frames = ([regex]::Matches($w.Text, '(?m)^every 2 s, Ctrl\+C to stop: ')).Count
+Test-Equal 'a frame every 2 seconds' 'True' ([string]($frames -ge 2))
+Test-Equal 'each with jobs.log' ([string]$frames) ([string]([regex]::Matches($w.Text, '(?m)^Vigil .* at ')).Count)
+$r = Invoke-Vigil status --watch now
+Test-Equal 'status --watch with more: usage' '64' ([string]$r.Code)
 $sup = Join-Path $root 'logs\supervisor'
 [void](& icacls.exe $sup /deny "${me}:(OI)(CI)(R)" 2>&1)
 try {
@@ -246,6 +277,8 @@ try {
     Test-Equal 'status with logs it cannot read: refused' '1' ([string]$r.Code)
     Test-Equal 'saying why, not that there is no jobs.log yet' "vigil: cannot read $sup from this account: run vigil status from an elevated prompt for a system install" $r.Text.Split("`n")[-1]
     Test-Equal 'and no PowerShell error' 'False' ([string]($r.Text -match 'Test-Path|no jobs.log yet'))
+    $w = Invoke-Watch
+    Test-Equal 'status --watch with logs it cannot read: refused, once' '1|1' "$($w.How)|$(([regex]::Matches($w.Text, 'cannot read')).Count)"
 }
 finally { [void](& icacls.exe $sup /remove:d $me 2>&1) }
 $cfgDir = Join-Path $root 'config'
