@@ -10,7 +10,7 @@
 # LICENSE file for the full terms.
 #
 # Integration test: the crash points of SPECIFICATION.md 22.4.1 drive the
-# launch and fan-out tests of 22.4 (20 to 23, 25 to 27, 29), and a held queue_one
+# launch and fan-out tests of 22.4 (20 to 23, 25 to 29), and a held queue_one
 # run launched as the supervisor crashes (8, 9), on Linux and macOS.
 # The twin of Crash.ps1. Two invariants:
 #   launch:  exactly one run per launch, or none, never two;
@@ -279,6 +279,26 @@ check "27: nothing left in the fan-out" "" "$(ls "$root/spool/fanout" 2>/dev/nul
 config 3650d
 i=0
 while [ -n "$(locks vigil_sender)" ] && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
+
+# 28. A copy that fails, as on a full disk: a file where b's queue directory
+# should be. The fan-out is not retired, a gets the event meanwhile, and b
+# gets it once its copy can be made.
+in_b() { grep -q "^$1" "$root/metrics/b.prom" 2>/dev/null; }
+fanout_has() { ls "$root/spool/fanout" 2>/dev/null | grep -q "$1"; }
+tick_until 20 sh -c "[ -z \"\$(ls '$root/spool/backends/b' 2>/dev/null)\" ]" > /dev/null
+rm -rf "$root/spool/backends/b"
+: > "$root/spool/backends/b"
+event full_disk
+tick_until 20 in_a full_disk > /dev/null
+tick
+check "28: the backend whose copy worked gets the event" yes "$(in_a full_disk && echo yes || echo no)"
+check "28: the fan-out is not retired" yes "$(fanout_has 'full_disk\.events$' && echo yes || echo no)"
+check "28: the failed copy is not marked done" no "$(fanout_has 'full_disk\.events\.b\.done$' && echo yes || echo no)"
+rm -f "$root/spool/backends/b"
+tick_until 20 in_b full_disk > /dev/null
+check "28: once the copy can be made, b gets the event" yes "$(in_b full_disk && echo yes || echo no)"
+tick_until 10 sh -c "! ls '$root/spool/fanout' 2>/dev/null | grep -q full_disk" > /dev/null
+check "28: and the fan-out is retired" no "$(fanout_has full_disk && echo yes || echo no)"
 
 # --- 29. A randomised crash loop ------------------------------------------------------
 

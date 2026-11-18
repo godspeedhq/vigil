@@ -123,7 +123,7 @@ _vigil_send_targets() {
 # Places fanout file $1 in every target queue not yet marked done, then
 # retires it (4.5, steps 3 and 4).
 _vigil_send_place() {
-    local f=$1 base=${1##*/} b
+    local f=$1 base=${1##*/} b failed=0
     while read -r b || [ -n "$b" ]; do
         [ -n "$b" ] || continue
         [ -e "$f.$b.done" ] && continue
@@ -133,14 +133,21 @@ _vigil_send_place() {
             : > "$f.$b.done"
             continue
         fi
-        mkdir -p "$_sd_be/$b"
         # Each copy is written under a temporary name, renamed into the queue, and
         # only then marked done. A sender stopped at any point picks up here next
         # run: a copy is never lost, and at worst is placed again under the same
         # name, replacing itself.
-        cp "$f" "$_sd_be/$b/.$base.tmp.$$" && mv -f "$_sd_be/$b/.$base.tmp.$$" "$_sd_be/$b/$base" && : > "$f.$b.done" &&
-            vigil_fault fanout.after_place
+        if ! { mkdir -p "$_sd_be/$b" && cp "$f" "$_sd_be/$b/.$base.tmp.$$" &&
+            mv -f "$_sd_be/$b/.$base.tmp.$$" "$_sd_be/$b/$base" && : > "$f.$b.done"; }; then
+            # A copy that failed (a full disk): the fan-out stays for the next
+            # sender, and the other targets carry on (22.4, test 28).
+            rm -f "$_sd_be/$b/.$base.tmp.$$"
+            failed=1
+            continue
+        fi
+        vigil_fault fanout.after_place
     done < "$f.targets"
+    [ "$failed" = 0 ] || return 0
     vigil_fault fanout.before_retire
     rm -f "$f" "$f.targets" "$f".*.done
 }

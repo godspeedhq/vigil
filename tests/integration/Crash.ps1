@@ -12,7 +12,7 @@
 <#
 .SYNOPSIS
     Integration test: the crash points of SPECIFICATION.md 22.4.1 drive the
-    launch and fan-out tests of 22.4 (20 to 23, 25 to 27, 29), and a held
+    launch and fan-out tests of 22.4 (20 to 23, 25 to 29), and a held
     queue_one run launched as the supervisor crashes (8, 9), on Windows.
 .DESCRIPTION
     The twin of crash.sh. Two invariants:
@@ -291,6 +291,27 @@ Test-Equal '27: nothing left in the fan-out' '' ((@(Get-ChildItem -LiteralPath "
 # launched with (4.3), even events that arrive while it starts: let it end.
 Set-Config '3650d'
 for ($i = 0; $i -lt 60 -and (Get-Locks 'vigil_sender'); $i++) { Start-Sleep -Milliseconds 500 }
+
+# 28. A copy that fails, as on a full disk: a file where b's queue directory
+# should be. The fan-out is not retired, a gets the event meanwhile, and b
+# gets it once its copy can be made.
+function Test-InB { param([string]$Name) (Test-Path -LiteralPath "$root\metrics\b.prom") -and ((Read-Backend "$root\metrics\b.prom") -cmatch "(?m)^$Name") }
+function Test-Fanout { param([string]$Pattern) [bool](@(Get-ChildItem -LiteralPath "$root\spool\fanout" -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -cmatch $Pattern })) }
+$bq = "$root\spool\backends\b"
+Wait-Ticking 30 { -not (Get-ChildItem -LiteralPath $bq -ErrorAction SilentlyContinue) }
+Remove-Item -LiteralPath $bq -Recurse -Force -ErrorAction SilentlyContinue
+[System.IO.File]::WriteAllText($bq, '')
+Add-Event 'full_disk'
+Wait-Ticking 30 { Test-InA 'full_disk' }
+[void](Invoke-Once)
+Test-Equal '28: the backend whose copy worked gets the event' 'True' "$(Test-InA 'full_disk')"
+Test-Equal '28: the fan-out is not retired' 'True' "$(Test-Fanout 'full_disk\.events$')"
+Test-Equal '28: the failed copy is not marked done' 'False' "$(Test-Fanout 'full_disk\.events\.b\.done$')"
+Remove-Item -LiteralPath $bq -Force
+Wait-Ticking 30 { Test-InB 'full_disk' }
+Test-Equal '28: once the copy can be made, b gets the event' 'True' "$(Test-InB 'full_disk')"
+Wait-Ticking 15 { -not (Test-Fanout 'full_disk') }
+Test-Equal '28: and the fan-out is retired' 'False' "$(Test-Fanout 'full_disk')"
 
 # --- 29. A randomised crash loop ------------------------------------------------------
 
