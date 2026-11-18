@@ -7,7 +7,7 @@ where a test that runs on the platforms it names checks it, or a recorded
 real-machine test does.
 
 **18 met, 21 partly, 1 not met (28).** Almost every gap is a missing test,
-not missing behaviour; four are bugs (the third and fourth found while
+not missing behaviour; five are bugs (the third to fifth found while
 writing tests). Nothing in §25 is ticked until its gaps here are closed.
 
 Met: 1, 2, 3, 6, 9, 10, 12, 13, 15, 16, 19, 26, 30, 31, 33, 35, 38, 40.
@@ -58,6 +58,20 @@ Met: 1, 2, 3, 6, 9, 10, 12, 13, 15, 16, 19, 26, 30, 31, 33, 35, 38, 40.
    group, and only then records the run and releases the token. While the
    group has a member its id cannot be reused, so the group is still the
    run's.
+5. **Windows: a run resolved while its worker lives is concluded twice
+   (§11.4, criteria 24 and 26).** Found while testing `vigil resolve` on a
+   run that is still uncertain. The supervisor concludes the run, releases
+   the job and deletes the run token, but the token is held open
+   exclusively by the worker that is still alive, so the delete fails and
+   is ignored. When that worker lets go at last, the token is found free
+   and the run concluded again: a second `crashed` logged and counted.
+   Seen on PowerShell 5.1: two `job v: run … crashed` lines for one run.
+   Linux and macOS delete a file that is held open, and conclude it once.
+
+   Fix: a token the supervisor could not delete after resolving its run is
+   marked as concluded (`locks/<job>.<run id>.resolved`). A marked token is
+   never concluded again: each tick tries to delete it, and deletes the
+   marker with it once its holder has let go.
 
 ## The specification and README, to say what is true
 
