@@ -15,7 +15,39 @@ permissions:
   contents: read
 
 jobs:
-  bash:
+  # Whether a pull request changes documentation only: Markdown at the top,
+  # backlog/ and packaging/README.md. Then the suites below are skipped, and
+  # the checks main requires pass on that; the pages workflow still builds
+  # the site from it. Anything else, packs/README.md included (the pack
+  # checker reads it), runs everything. A push to main always does.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.files.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: the files this pull request changes
+        id: files
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          docs_only=false
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+              files=$(git diff --name-only "$BASE" "$GITHUB_SHA")
+              printf '%s\n' "$files"
+              if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev '^([^/]+\.md|backlog/.*|packaging/README\.md)$' > /dev/null; then
+                  docs_only=true
+              fi
+          fi
+          echo "docs only: $docs_only"
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+
+  bash-suite:
+    name: bash suite (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -101,6 +133,8 @@ jobs:
   # as tests/integration/backends runs them (compose.services.yaml). The
   # runner has psql. macOS runners have no Docker; the scripts are the same.
   service-packs:
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -144,6 +178,8 @@ jobs:
   # systemd runs, for the service.
   linux-packages:
     name: linux packages (${{ matrix.target }})
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -178,6 +214,8 @@ jobs:
   # from a tap or bucket of its own, with archives built here.
   homebrew:
     name: homebrew formula (macOS)
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
@@ -193,6 +231,8 @@ jobs:
   # built here, on MacPorts' own installer for the runner's macOS.
   macports:
     name: macports port (macOS)
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
@@ -220,6 +260,8 @@ jobs:
 
   scoop:
     name: scoop manifest (Windows)
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
@@ -250,6 +292,8 @@ jobs:
   # with 5.1.
   windows-part:
     name: windows (${{ matrix.label }}, ${{ matrix.part }})
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -409,16 +453,37 @@ jobs:
         if: matrix.part == 'install'
         run: ./tests/integration/Install.ps1
 
-  # The checks main requires are named for each PowerShell: each passes once
-  # all six parts have passed.
+  # The checks main requires are named for each PowerShell and for each
+  # bash runner. Each passes once its suite has passed (for Windows, all six
+  # parts), or when the change is documentation only and the suite was
+  # skipped. A gate of its own, because a skipped matrix job reports under
+  # its unexpanded name, which main would wait for forever.
   windows:
     name: windows (${{ matrix.label }})
-    needs: windows-part
+    needs: [changes, windows-part]
     if: always()
     strategy:
       matrix:
         label: [PowerShell 5.1, PowerShell 7]
     runs-on: ubuntu-latest
     steps:
-      - name: every Windows part passed
-        run: test "${{ needs.windows-part.result }}" = success
+      - name: every Windows part passed, or the change is documentation only
+        env:
+          RESULT: ${{ needs.windows-part.result }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+        run: test "$RESULT" = success || { test "$DOCS_ONLY" = true && test "$RESULT" = skipped; }
+
+  bash:
+    name: bash (${{ matrix.os }})
+    needs: [changes, bash-suite]
+    if: always()
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ubuntu-latest
+    steps:
+      - name: the bash suite passed on both runners, or the change is documentation only
+        env:
+          RESULT: ${{ needs.bash-suite.result }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+        run: test "$RESULT" = success || { test "$DOCS_ONLY" = true && test "$RESULT" = skipped; }

@@ -83,15 +83,15 @@ section() {
     printf '| | |\n| --- | --- |\n'
     printf '| Run | [%s](%s) |\n| Commit | [`%s`](https://github.com/%s/commit/%s) |\n| Finished | %s |\n\n' "$run" "$url" "${sha:0:7}" "$slug" "$sha" "$when"
     printf 'A `SKIP` line means that part did not run on that machine, and says why.\n\n'
-    section 'bash (ubuntu-latest)' 'Linux (Ubuntu)' \
+    section 'bash suite (ubuntu-latest)' 'Linux (Ubuntu)' \
         'Self-update|/bin/bash tests/integration/self-update.sh' \
         'Sources and the fetcher|/bin/bash tests/integration/fetch.sh' \
         'Log forwarding|/bin/bash tests/integration/logs.sh' || exit 1
-    section 'bash (macos-latest)' 'macOS (bash 3.2)' \
+    section 'bash suite (macos-latest)' 'macOS (bash 3.2)' \
         'Self-update|/bin/bash tests/integration/self-update.sh' \
         'Sources and the fetcher|/bin/bash tests/integration/fetch.sh' \
         'Log forwarding|/bin/bash tests/integration/logs.sh' || exit 1
-    section 'windows (PowerShell 5.1)' 'Windows (PowerShell 5.1)' \
+    section 'windows (PowerShell 5.1, sources)' 'Windows (PowerShell 5.1)' \
         'Self-update|./tests/integration/Self-Update.ps1' \
         'Sources and the fetcher|./tests/integration/Fetch.ps1' \
         'Log forwarding|./tests/integration/Logs.ps1' || exit 1
