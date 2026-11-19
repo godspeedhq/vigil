@@ -103,7 +103,7 @@ Vigil's guiding rules:
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done | The suites |
 | One-line installers (`install.sh`, `install.ps1`), release archives with SHA-256 checksums | Done | The suites; releases installed on the real machines above |
 | `vigil self update`: verified, rolls back if the new version does not run, keeps your configuration, scripts and running jobs | Done | The suites; releases updated on the real machines above |
-| `[vigil] version`: the configuration names the release, and a fleet follows it up or down | Done | The suites, one machine at a time; never a fleet |
+| `[vigil] version`: the configuration names the release, and a fleet follows it up or down | Done | The suites; a 10-host test fleet on 2026-11-05 (7 Debian containers on Fedora 44, Intel macOS 12, two installs on Windows 11, over git, https, sftp and local sources), on test builds: a canary, the fleet, a downgrade, a release not yet published, one that does not run, and `vigil self update` refused ([the record](tests/integration/fleet/reports/2026-11-05/console.txt)) |
 | A copy of the releases: `release_url`, with or without a login, and `release_path` | Done | The suites; real: Artifactory OSS 7.77 over plain http on one Fedora machine. `release_path`: a local folder, and on Windows `\localhost`; never a real SMB or NFS server |
 | Fetching configuration and scripts from git, https, sftp and local directories or shares: digests, atomic activation, last good configuration | Done | The suites; real: Gitea, nginx and OpenSSH, from Linux, macOS and Windows |
 | Forwarding Vigil's own logs over OTLP, Splunk HEC or Datadog's logs intake, with checkpoints, backoff and reported gaps | Done | The suites; real: OTLP (Loki, LGTM and others) and Splunk. Datadog's logs intake against a mock only |
@@ -279,7 +279,7 @@ Put the release a machine should run in its configuration, and Vigil updates or 
 [vigil]
 instance = db-windows
 # Change it to update or downgrade; remove it to go back to manual updates.
-version  = 0.3.1
+version  = 1.0.0
 ```
 
 - Vigil compares it with what is installed and moves only when they differ. Jobs keep running across the update.
@@ -301,12 +301,12 @@ release_url = https://artifacts.example.com/vigil
 Self updates, the update notices, `vigil pack update` and the version in the configuration then download from there and never ask GitHub. The copy has GitHub's layout:
 
 ```text
-https://artifacts.example.com/vigil/releases/download/v0.5.4/vigil-0.5.4.tar.gz
-                                                            /vigil-0.5.4.zip
+https://artifacts.example.com/vigil/releases/download/v1.0.0/vigil-1.0.0.tar.gz
+                                                            /vigil-1.0.0.zip
                                                             /install.sh, install.ps1
-                                                            /vigil-packs-0.5.4-*.tar.gz, .zip
+                                                            /vigil-packs-1.0.0-*.tar.gz, .zip
                                                             /SHA256SUMS, SHA256SUMS.sig
-https://artifacts.example.com/vigil/releases/latest/VERSION   one line: 0.5.4
+https://artifacts.example.com/vigil/releases/latest/VERSION   one line: 1.0.0
 ```
 
 Copy each release's files unchanged: Vigil checks that they're signed by the release key it already has, so a changed file is refused, wherever it comes from. Nor will a copy whose `VERSION` names an older release move a machine back. Only a version you ask for does that, with `--version` or `version =`. A fleet that sets `version =` doesn't need the `VERSION` file at all.
