@@ -6,7 +6,7 @@
 | **Organisation** | GodspeedHQ |
 | **Repository** | <https://github.com/godspeedhq/vigil> |
 | **Licence** | Apache License 2.0 |
-| **Status** | Proposed v1 Specification |
+| **Status** | v1 Specification, implemented in Vigil 1.0 |
 
 ---
 
