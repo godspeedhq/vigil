@@ -35,7 +35,7 @@ A pack never touches Vigil itself: everything you write is under `packs/<name>/`
 
    Each failure says what to fix. `--run` turns the pack on with `vigil pack enable`, runs each job, and checks that every metric it prints is a number listed in `pack.config`. A job whose secret a throwaway Vigil does not have is skipped, and says which.
 5. **Show it working,** for a pack that reads a service (a database, a web server): run it against the real thing, in Docker or wherever you have one, and keep the console output as evidence (below).
-6. **Open a pull request** with the evidence. A pull request that changes packs only runs the pack checks in CI, on Linux, macOS and Windows; Vigil's own suites are not run for it, since a pack cannot break them.
+6. **Open a pull request** with the evidence. A pull request that changes packs only runs one check in CI, `tools/check-pack.sh --run` on Linux, in about a minute; Vigil's own suites are not run for it, since a pack cannot break them.
 
 ## What a pack script must be
 
@@ -73,7 +73,7 @@ CI checks that every script carries the licence and disclaimer.
 
 ### Tests and evidence
 
-- **The checks, in CI.** Every pack is checked and run by `tools/check-pack.sh --run` (Linux and macOS) and `tools/Check-Pack.ps1` (Windows PowerShell 5.1 and 7): the rules, every script parsing, and each job that needs no service run through a throwaway Vigil. That is all CI does for a pack. A pack gets no CI job of its own: there will be many packs, and a broken one fails only its own runs, never Vigil.
+- **The checks, in CI.** A pull request that changes packs only is checked by `tools/check-pack.sh --run` on Linux: the rules, every script parsing (the PowerShell ones too), and each Linux job that needs no service run through a throwaway Vigil. That is all CI does for it. Run `tools/check-pack.sh --run` on macOS and `tools/Check-Pack.ps1` on Windows yourself, for the scripts you wrote for them; a change to Vigil itself runs them all in CI. A pack gets no CI job of its own: there will be many packs, and a broken one fails only its own runs, never Vigil.
 - **The evidence, from you.** A pack that reads a service shows, before it is merged, that it works against the real service: its jobs run against a real server (in Docker is fine), their output, and the readings set beside what the service itself says. Show its bad states too, made on purpose where you can: the service down, a lock held, a replica stopped. Keep it as the postgres and mysql packs' is:
   - the run's console output in `tests/integration/backends/reports/runs/<date>/<host>/pack-<name>-<what>/console.txt`, with a header saying when, where, which Vigil commit and which versions of the service and its client; `tests/integration/backends/scripts/run-replication.sh` writes one, and is a model for a pack's own;
   - a few lines of that output in the pack's section of `packs/README.md`, with a link to the file.
@@ -86,7 +86,7 @@ CI checks that every script carries the licence and disclaimer.
 The maintainer merging a script checks:
 
 - [ ] It only reads, and uses only what ships with each platform.
-- [ ] It works on bash 3.2 and PowerShell 5.1, and the pack checks pass on all four CI jobs.
+- [ ] It works on bash 3.2 and PowerShell 5.1: the pack check passes in CI, and the evidence covers each platform it has scripts for.
 - [ ] A pack that reads a service comes with evidence of it working against the real service, kept in `reports/runs/` and shown in `packs/README.md`.
 - [ ] Its metrics are named as above, listed in `pack.config`, and documented in its header.
 - [ ] Any credential comes through a `secret:` reference, for a read-only account.
