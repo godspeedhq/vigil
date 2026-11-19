@@ -62,3 +62,17 @@ an apt repository.
 2. `tools/release/packs.sh` and `.github/workflows/packs.yml`; `package.sh`, the installers and the packages ship the base pack only.
 3. The specification (§18.10, and §18.7 for copies), README, `packs/README.md`, CONTRIBUTING (how a pack ships).
 4. Tests, both twins: the pack tests against a mock repository (index, signatures, a tampered archive, a refused signature, `@version`, a pack too new for this Vigil, never going back on update, remove refused while on, download and `--from` offline), and the copies (`release_url`, `release_path`).
+
+## Done
+
+Built as above. The source digest in each `pack` record (not in the first
+sketch) lets `packs.sh` refuse a pack whose files changed while its version
+did not. `vigil pack download` without `@` takes the version `install` would
+take here; with `@`, that version whatever Vigil it needs. `install --from`
+chooses among the versions whose archive is in the folder.
+
+Tested:
+- Fedora (bash 5.3): `pack.sh` 106 passed; `self-update.sh` 131, `install.sh`
+  33, `packaged.sh` 22 and `init-uninstall.sh` 38 passed.
+- The Intel Mac (bash 3.2): `pack.sh` 106 passed.
+- Windows 11: `Pack.ps1` 105 passed on PowerShell 7.
