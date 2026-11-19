@@ -79,6 +79,62 @@ A server that does not answer reports `postgres.up` 0, and the run succeeds: tha
 
 **Several servers:** `vigil pack enable` writes one copy of the jobs. For another server, copy a job's section in `vigil.config` under a new name (`[job.postgres_status_db2]`) and change its `env` lines; each copy reports with its own `job` tag.
 
+**Tested** on 2026-11-19 on the Fedora 44 test machine, against **PostgreSQL 14.25 and 18.1**, each a primary with a streaming replica (`compose.replication.yaml`), by `tests/integration/backends/scripts/run-replication.sh`: `service-packs.sh` through Vigil, **58 passed, 0 failed** on each, then the replica stopped and started. The full console output, with the versions of everything it ran: [PostgreSQL 18](../tests/integration/backends/reports/runs/2026-11-19/fedora/pack-postgres-18-replication/console.txt), [PostgreSQL 14](../tests/integration/backends/reports/runs/2026-11-19/fedora/pack-postgres-14-replication/console.txt). From PostgreSQL 18:
+
+A session holds a lock, idle in its transaction, and a second waits for it:
+
+```text
+  PASS  postgres: activity runs
+        metric active 2
+        metric idle 0
+        metric idle_in_transaction 1
+        metric waiting 1
+        metric blocked 1
+        metric longest_wait_seconds 4
+        metric longest_idle_in_transaction_seconds 6
+```
+
+Replication, from both sides, as the replica stops and starts again:
+
+```text
+# Both sides, streaming.
+$ PGPORT=15433 bash packs/postgres/replication.sh
+metric is_replica 0
+metric replicas 1
+metric slots_inactive 0
+metric lag_bytes 0 replica=replica1
+metric lag_seconds 0 replica=replica1
+metric slot_retained_bytes 0 slot=replica1
+$ PGPORT=15434 bash packs/postgres/replication.sh
+metric is_replica 1
+metric receiver_up 1
+metric replay_lag_bytes 0
+metric last_replay_seconds 5
+
+# The replica stops.
+$ PGPORT=15433 bash packs/postgres/replication.sh
+metric is_replica 0
+metric replicas 0
+metric slots_inactive 1
+metric slot_retained_bytes 0 slot=replica1
+$ PGPORT=15434 bash packs/postgres/status.sh
+metric up 0
+
+# The replica starts again, and catches up.
+$ PGPORT=15433 bash packs/postgres/replication.sh
+metric is_replica 0
+metric replicas 1
+metric slots_inactive 0
+metric lag_bytes 0 replica=replica1
+metric lag_seconds 0 replica=replica1
+metric slot_retained_bytes 0 slot=replica1
+$ PGPORT=15434 bash packs/postgres/replication.sh
+metric is_replica 1
+metric receiver_up 1
+metric replay_lag_bytes 0
+metric last_replay_seconds 12
+```
+
 ### mysql
 
 A MySQL or MariaDB server, on this machine or any it can reach (a container, another server, a managed service such as RDS or Cloud SQL), through the `mysql` client (MySQL's, or MariaDB's `mariadb`): a machine that runs Vigil but not the database needs only the client package. It logs in as a read-only user, never root. Linux and macOS.
@@ -110,6 +166,47 @@ Each script reads MySQL's and MariaDB's own names for the same thing, so a dashb
 - A source counts a replica whose machine stopped without closing the connection until that connection times out, so alert on each replica's own `io_running` and `mysql.up` too.
 
 A server that does not answer reports `mysql.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed. A refused login fails the run, and its log says why. For several servers, copy a job's section under a new name, as for postgres.
+
+**Tested** on 2026-11-19 on the Fedora 44 test machine, against **MySQL 8.4.13 and MariaDB 11.4.13**, each a source with a replica replicating by GTID (`compose.mysql.yaml`), each with its own client, by `tests/integration/backends/scripts/run-replication.sh`: `service-packs.sh` through Vigil, **39 passed, 0 failed** on each, then the replica's applying thread stopped and started, and the replica itself. The full console output: [MySQL 8.4](../tests/integration/backends/reports/runs/2026-11-19/fedora/pack-mysql-replication/console.txt), [MariaDB 11.4](../tests/integration/backends/reports/runs/2026-11-19/fedora/pack-mariadb-replication/console.txt). In CI, the same test runs against MySQL 8.4 and MariaDB 11.4 on every change to the packs, without a replica. From MariaDB 11.4:
+
+A transaction holds a row, idle on its connection, and a second statement waits for it:
+
+```text
+  PASS  mysql: activity runs
+        metric longest_transaction_seconds 10
+        metric idle_in_transaction 1
+        metric longest_idle_in_transaction_seconds 9
+        metric waiting 1
+        metric longest_wait_seconds 8
+```
+
+The replica's applying thread stops, then the replica itself, and it comes back:
+
+```text
+# The replica's applying thread stops.
+$ MYSQL_TCP_PORT=13317 bash packs/mysql/replication.sh
+metric is_replica 1
+metric replicas 0
+metric io_running 1 channel=default
+metric sql_running 0 channel=default
+
+# The replica stops.
+$ MYSQL_TCP_PORT=13316 bash packs/mysql/replication.sh
+metric is_replica 0
+metric replicas 1
+$ MYSQL_TCP_PORT=13317 bash packs/mysql/status.sh
+metric up 0
+
+# The replica starts again, and catches up.
+$ MYSQL_TCP_PORT=13317 bash packs/mysql/replication.sh
+metric is_replica 1
+metric replicas 0
+metric io_running 1 channel=default
+metric sql_running 1 channel=default
+metric lag_seconds 0 channel=default
+```
+
+The source still counts the stopped replica (`replicas 1`) until their connection times out; the replica's own `mysql.up` says at once that it is gone.
 
 ### nginx
 
