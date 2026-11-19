@@ -186,7 +186,7 @@ vigil doctor     # what Vigil costs here, and whether the machine slows it down
 vigil about      # the version, and where Vigil is installed
 ```
 
-Then turn on what you need: `vigil pack list` shows the [packs](#packs), and [Writing jobs](#writing-jobs) adds your own scripts.
+Then add what you need: `vigil pack search` shows the [packs](#packs) you can install, and [Writing jobs](#writing-jobs) adds your own scripts.
 
 Run `vigil precheck` after every edit to the configuration. A running Vigil rejects a bad edit and keeps the last good configuration, but one that starts (after a reboot, say) with a bad file stops and says why, until the file is fixed.
 
@@ -300,16 +300,20 @@ Keep a copy of the releases on a server of your own (Artifactory, Nexus, a web s
 release_url = https://artifacts.example.com/vigil
 ```
 
-Self updates, the update notices, `vigil pack update` and the version in the configuration then download from there and never ask GitHub. The copy has GitHub's layout:
+Self updates, the update notices, `vigil pack` and the version in the configuration then download from there and never ask GitHub. The copy has GitHub's layout:
 
 ```text
-https://artifacts.example.com/vigil/releases/download/v1.0.0/vigil-1.0.0.tar.gz
-                                                            /vigil-1.0.0.zip
+https://artifacts.example.com/vigil/releases/download/v1.1.0/vigil-1.1.0.tar.gz
+                                                            /vigil-1.1.0.zip
                                                             /install.sh, install.ps1
-                                                            /vigil-packs-1.0.0-*.tar.gz, .zip
                                                             /SHA256SUMS, SHA256SUMS.sig
-https://artifacts.example.com/vigil/releases/latest/VERSION   one line: 1.0.0
+https://artifacts.example.com/vigil/releases/latest/VERSION   one line: 1.1.0
+https://artifacts.example.com/vigil/releases/download/packs-2026.11.20/packs.index, packs.index.sig
+                                                                      /vigil-pack-postgres-1.2.0-linux.tar.gz, ...
+https://artifacts.example.com/vigil/packs/latest/RELEASE      one line: packs-2026.11.20
 ```
+
+The packs part is needed only for `vigil pack`. The index names the release each pack version's archive is in, so keep the archives of the versions you serve under their own releases.
 
 Copy each release's files unchanged: Vigil checks that they're signed by the release key it already has, so a changed file is refused, wherever it comes from. Nor will a copy whose `VERSION` names an older release move a machine back. Only a version you ask for does that, with `--version` or `version =`. A fleet that sets `version =` doesn't need the `VERSION` file at all.
 
@@ -791,19 +795,33 @@ Today `file`, `datadog`, `otel` and `splunk` deliver. Events for an enabled back
 
 ## Packs
 
-A pack is a signed set of scripts and jobs, so you get useful metrics straight away. They live in this repository under `packs/`, with scripts for Linux, macOS and Windows, and a machine only ever holds its own platform's.
+A pack is a signed set of scripts and jobs for one thing to watch: a database, a web server, the host itself. Packs work like an apt repository: search for one, install it, then turn on its jobs. A machine holds only the packs you install, and only its own platform's scripts.
 
-`vigil init` turns on the base pack: CPU, memory, disk and disk I/O, network, load, services, the busiest programs, and the host itself (uptime, OS, CPU model). [packs/README.md](packs/README.md) lists every metric. To run only your own scripts, use `vigil init empty`: no jobs, no backend, and `scripts/` ready for your own.
+Vigil comes with one, the base pack, and `vigil init` turns it on: CPU, memory, disk and disk I/O, network, load, services, the busiest programs, and the host itself (uptime, OS, CPU model). [packs/README.md](packs/README.md) lists every pack and metric. To run only your own scripts, use `vigil init empty`: no jobs, no backend, and `scripts/` ready for your own.
 
 ```sh
-vigil pack list                # each pack here, and whether its jobs are on
-vigil pack enable base_load    # a pack, or one of its jobs
-vigil pack disable base_load   # takes it out of the configuration; the script stays
-vigil pack update --check      # only say whether there is a newer one
-vigil pack update              # this platform's scripts from the latest release
+vigil pack search postgres     # the packs whose name or description has these words
+vigil pack info postgres       # its versions, platforms, and the Vigil each needs
+vigil pack install postgres    # puts it here; nothing runs yet
+vigil pack enable postgres     # turns its jobs on, and says what they need
+vigil pack list                # the packs here, and whether their jobs are on
+vigil pack update              # the packs here, to their newest versions
+vigil pack disable postgres    # takes its jobs out of the configuration
+vigil pack remove postgres     # deletes its scripts, once its jobs are off
 ```
 
-Vigil only runs what your configuration names, so `vigil pack update` changes scripts and never your configuration. A job that's on runs the new script at its next run, and the update lists what changed. A new script stays off until you enable it, and a script the pack dropped stays while a job uses it. `vigil self update` updates Vigil itself and leaves packs alone.
+Vigil only runs what your configuration names, so installing or updating a pack changes scripts and never your configuration. A job that's on runs the new script at its next run, and the update lists what changed. A new script stays off until you enable it, and a script the pack dropped stays while a job uses it. Packs are released on their own, so a new pack doesn't wait for a Vigil release, and `vigil self update` leaves them alone.
+
+Every pack is checked before it's installed: the index of packs is signed with the release key your Vigil already has, and each pack must match its SHA-256 in that index. `vigil pack install postgres@1.1.0` installs an older version; `vigil pack update` never goes back on its own.
+
+**A machine that can't reach GitHub.** Download the packs on one that can, for the other's platform, and carry the folder over:
+
+```sh
+vigil pack download postgres mysql --os windows --to ./packs-offline
+vigil pack install postgres --from D:\packs-offline     # on the machine offline
+```
+
+The folder holds the signed index too, so the offline machine checks the packs exactly as it would online. For a fleet that is always offline, keep a copy of the releases instead ([below](#a-fleet-that-doesnt-reach-github)).
 
 ## Writing jobs
 
@@ -1194,7 +1212,7 @@ tests/
   integration/          end-to-end tests that run real jobs and a real supervisor
   mocks/                annotated example configurations, also tested
 tools/docs/             the documentation site generator (build.sh) and publisher (publish.sh)
-tools/release/          builds the release archives and SHA256SUMS (package.sh)
+tools/release/          builds the release archives and SHA256SUMS (package.sh), and packs releases (packs.sh)
 install.sh, install.ps1 the one-line installers
 SPECIFICATION.md        the full design: what Vigil does and why
 VISION.md               the product vision

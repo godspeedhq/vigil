@@ -1123,7 +1123,8 @@ Everything lives under one install root (§18.6 gives the root per platform). A 
     vigil.config          the configuration, or a pointer to it (§6.8); never overwritten
     secrets/<NAME>        Vigil's secret store (§6.5.2): owner-only (SYSTEM and Administrators on a Windows system install); encrypted with DPAPI on Windows
   scripts/                the operator's job scripts - never overwritten
-  packs/<name>/           scripts of the packs added here (§18.10); Vigil-owned, replaced whole by an update
+  packs/<name>/           scripts of the packs installed here (§18.10); Vigil-owned, replaced whole by an update
+  packs/.index            the pack repository's signed index, fetched last, with .index.sig
   cache/                  fetched configuration and scripts (§16.5); Vigil-owned, safe to delete
     <source>/repo.git       git: bare mirror, never checked out
     <source>/<commit>/      git: the tree at one commit, read-only once complete
@@ -1963,7 +1964,7 @@ service = sudo systemctl enable --now vigil
 - `service`, when the package runs the service itself, is how to start it: `vigil service install` is refused with it, since a registration of Vigil's own would name a program path the next upgrade replaces. Without it (Scoop) `vigil service install` works as for the install script.
 - `vigil self update` is refused with the package manager's `upgrade` command, exit 1, before anything is downloaded, whatever the configuration's `version` says; a configured version (§18.11) fails the same way, with that reason. `--check` and the update notice name that command instead of `vigil self update`.
 - `vigil uninstall` is refused, and says to remove the package with its package manager, which stops the service and keeps the root.
-- `vigil init` puts the packs the package carries beside `app/` into the root's `packs/` (§18.10).
+- `vigil init` puts the base pack the package carries beside `app/` into the root's `packs/` (§18.10); other packs are installed with `vigil pack install`.
 - `vigil about` shows the program's folder and its package manager.
 - Nothing else differs: the root's layout (§12.1) and every other command are the same. A package that registers the service itself does so with the platform's own definition (below), and `vigil status`, `start`, `stop` and `restart` work on it.
 
@@ -1972,7 +1973,7 @@ service = sudo systemctl enable --now vigil
 | Path | What | Whose |
 | --- | --- | --- |
 | `/usr/lib/vigil/app/` | the program, with `PACKAGED` naming `/opt/vigil` | the package |
-| `/usr/lib/vigil/packs/` | the packs, Linux's scripts | the package |
+| `/usr/lib/vigil/packs/` | the base pack, Linux's scripts | the package |
 | `/usr/bin/vigil` | a link to `/usr/lib/vigil/app/vigil` | the package |
 | `/usr/lib/systemd/system/vigil.service` | the service, as the `vigil` account | the package |
 | `/opt/vigil` | the root, the same as the install script's | never the package's |
@@ -2025,9 +2026,9 @@ Details:
 - Every prompt has a flag equivalent (`sh -s -- --system --backend datadog`; `& ([scriptblock]::Create((irm .../install.ps1))) -System -Backend datadog`), so the installer runs unattended from deployment tooling. When piped, prompts read from `/dev/tty`, because standard input is the script itself.
 - `install.sh` is POSIX `sh`, since it is what `| sh` runs (dash on Debian and Ubuntu); Vigil itself then runs on bash.
 - Windows: the documented one-liner first enables TLS 1.2, which PowerShell 5.1 on older servers may not use by default. After verifying the hash, the installer removes the downloaded-from-the-internet mark from Vigil's files so a RemoteSigned execution policy does not block them; releases are not Authenticode-signed yet, so `AllSigned` blocks them (§17). Under `iex` the installer runs in the caller's own session, so it never calls `exit` (a failure throws) and restores the preferences it changes. `-ShellHost powershell | pwsh` chooses the service's host (§18.9).
-- A version can be pinned (`--version 1.2.0`); the default is the latest release. The installers, `vigil self update`, its daily check and `vigil pack update` find it where GitHub redirects `/releases/latest`, and, only when that page fails, from the GitHub API, which allows an address 60 requests an hour: too few for a fleet behind one to use first, enough to fall back on. From a `release_url` or `release_path` (below), it is the one line of `releases/latest/VERSION`.
+- A version can be pinned (`--version 1.2.0`); the default is the latest release. The installers, `vigil self update` and its daily check find it where GitHub redirects `/releases/latest`, and, only when that page fails, from the GitHub API, which allows an address 60 requests an hour: too few for a fleet behind one to use first, enough to fall back on. From a `release_url` or `release_path` (below), it is the one line of `releases/latest/VERSION`.
 
-Release assets, built by `tools/release/package.sh <version>`: `vigil-<version>.tar.gz` (Linux, macOS), `vigil-<version>.zip` (Windows), each holding one folder `vigil-<version>/` with `app/` (including `app/VERSION`), `vendor/`, `packs/`, both installers, `LICENSE` and `README.md`; `install.sh` and `install.ps1` on their own; the packs alone (`vigil-packs-<version>-linux.tar.gz`, `-macos.tar.gz`, `-windows.zip`) and the `.deb` and `.rpm` (§18.6, §18.10); and `SHA256SUMS` covering every one of them, signed in `SHA256SUMS.sig`.
+Release assets, built by `tools/release/package.sh <version>`: `vigil-<version>.tar.gz` (Linux, macOS), `vigil-<version>.zip` (Windows), each holding one folder `vigil-<version>/` with `app/` (including `app/VERSION`), `vendor/`, `packs/base/`, both installers, `LICENSE` and `README.md`; `install.sh` and `install.ps1` on their own; every pack (`vigil-packs-<version>-linux.tar.gz`, `-macos.tar.gz`, `-windows.zip`, for Vigil 1.0's `vigil pack update`, until 2.0) and the `.deb` and `.rpm` (§18.6, §18.10); and `SHA256SUMS` covering every one of them, signed in `SHA256SUMS.sig`.
 
 **Self-update.** `vigil self update` upgrades an install to the latest release, or to `--version <version>`, older included; `--check` only says whether there is a newer one, and `vigil version` shows what is installed. There is one path that replaces Vigil: self-update downloads the installer of the release it is going to, checks it against that release's `SHA256SUMS`, and runs it with `--upgrade` (`-Upgrade`), which replaces `app/` and `vendor/` as above and does nothing else: no `vigil init`, no `PATH` change, and a service is never registered.
 
@@ -2053,6 +2054,7 @@ release_url = https://artifacts.example.com/vigil
 ```
 
 - **The layout is GitHub's,** so a copy is the release files as published: `<release_url>/releases/download/v<version>/<file>`. The latest release is the one line of `<release_url>/releases/latest/VERSION`, which the copy's owner writes; a fleet that names its version in the configuration never reads it.
+- **Packs too.** A copy that holds packs releases (§18.10) as published, `<release_url>/releases/download/packs-<date>/<file>`, names the newest in the one line of `<release_url>/packs/latest/RELEASE`, and `vigil pack` reads them from there. A copy needs only the newest packs release's index and the archives of the versions it means to serve.
 - **`https`,** or plain `http` to this machine only, as for a metrics backend (§15.3) or a log destination (§13.4.1), and never with credentials in it (`E_URL`). Certificates are checked; a company's own certificate authority goes in the system's trust store.
 - **Nothing is trusted for coming from there.** A release must be signed by the release key installed here, as from GitHub, so a copy can only serve releases as they were published. And unless a version is asked for (`--version`, or the configuration's `version`), self-update never goes back: when the latest release named is older than the one installed, it says so and changes nothing. A copy that names an old release cannot move a fleet back.
 - **Where.** Like `version`, it means the same in a local configuration and a fetched one, and cannot be in a pointer file. `vigil about` shows it.
@@ -2080,7 +2082,7 @@ release_path = /mnt/releases/vigil          # Linux, macOS: a folder, or an NFS 
 release_path = \\fileserver\releases\vigil  # Windows: a UNC path, or a folder such as D:\releases\vigil
 ```
 
-- **The same layout as a `release_url`,** `<release_path>/releases/download/v<version>/<file>` and `<release_path>/releases/latest/VERSION`, so a folder can move behind a web server, or back, unchanged. The files are copied instead of downloaded, then checked exactly as a download is: signed by the installed release key, and matching `SHA256SUMS`. A share many people can write to still cannot pass a changed release, and self-update still never goes back unasked.
+- **The same layout as a `release_url`,** `<release_path>/releases/download/v<version>/<file>` and `<release_path>/releases/latest/VERSION`, and for packs `<release_path>/packs/latest/RELEASE`, so a folder can move behind a web server, or back, unchanged. The files are copied instead of downloaded, then checked exactly as a download is: signed by the installed release key, and matching `SHA256SUMS`. A share many people can write to still cannot pass a changed release, and self-update still never goes back unasked.
 - **An absolute path** in the form of any platform (`/…`, `\\server\share\…` or `C:\…`), since one configuration may be fetched by machines of all three (`E_RELEASE_PATH` otherwise). When the release is read, a machine takes only its own form: an absolute path on Linux and macOS, a UNC path or a path on a drive on Windows.
 - **`release_url` or `release_path`, not both** (`E_RELEASE_BOTH`): which one to use is not guessed. Like `release_url`, it cannot be in a pointer file, and `vigil about` shows it.
 - **Read as the account that runs Vigil.** When the latest release, or the one asked for (`version =`, `--version`), cannot be read, the error names the folder and that account (`cannot read the latest release from /mnt/releases/vigil (as vigil): is it there, and readable by this account?`, `cannot read Vigil 0.6.6 from /mnt/releases/vigil (as vigil): ...`). A Windows service running as LocalSystem reaches a share as the computer's account (`DOMAIN\HOST$`), and has no mapped drive letters: use a UNC path the share lets that account read. On Linux and macOS the share must be mounted at boot. A share that does not answer can hold a read up: the update notice's check runs detached (below), so it never holds up a command.
@@ -2110,16 +2112,23 @@ Environment variables set outside Vigil (machine environment, `vigil.env` aside)
 
 ### 18.10 Packs
 
-A pack is a set of scripts and jobs, with a version and a list of metrics, so a fresh install has useful metrics straight away. Packs are kept in the Vigil repository, under `packs/`, and each release carries them, signed with it.
+A pack is a set of scripts and jobs, with a version and a list of metrics. Packs are kept in the Vigil repository, under `packs/`, and published in the **pack repository**, signed: a machine holds only the packs installed on it. Vigil itself carries one, `base`, so a fresh install has useful metrics with no network.
 
 ```text
-vigil pack list                  each pack here, and whether its jobs are on
-vigil pack enable <what>         puts a pack's jobs, or one, in the configuration
-vigil pack disable <what>        takes them out; the scripts stay
-vigil pack update [--check]      this platform's scripts from the latest release
+vigil pack search [<word>...]                 the repository's packs whose name or description has every word
+vigil pack info <name>                        one pack: its versions, platforms and the oldest Vigil each runs on
+vigil pack install <name>[@<version>]...      puts packs in packs/; nothing runs yet
+          [--from <folder>]                   from a folder vigil pack download wrote
+vigil pack list [--available]                 the packs here, and whether their jobs are on; or those not here
+vigil pack enable <what>                      puts a pack's jobs, or one, in the configuration
+vigil pack disable <what>                     takes them out; the scripts stay
+vigil pack update [--check]                   the packs here, to the repository's newest
+vigil pack remove <name>...                   deletes a pack's scripts, once none of its jobs is on
+vigil pack download <name>[@<version>]...     packs and the signed index into a folder, for a machine offline
+          [--os linux|macos|windows] --to <folder>
 ```
 
-`<what>` is a pack (`base`) or one of its jobs (`base_cpu`).
+`<what>` is a pack (`base`) or one of its jobs (`base_cpu`). `search`, `info` and `list --available` read the index fetched last, `packs/.index`, and fetch it when there is none.
 
 **In the repository** a pack is a folder with `pack.config`, in the configuration format, and a folder of scripts per platform: `linux/`, `macos/` and `windows/`.
 
@@ -2138,13 +2147,33 @@ max_runtime = 30s
 
 `vigil` is the oldest Vigil it runs on, and each `pack.config` says so in a comment above it. `needs`, optional and repeated, is one line of plain text for each thing the jobs need that Vigil cannot see from them, such as a database role or a status page to turn on. A job runs `<job>.sh` on Linux and macOS and `<job>.ps1` on Windows, and is left out on a platform with no script. `metrics` lists what it reports. Every other key is copied to the job.
 
-**In a release,** the `.tar.gz` holds the Linux and macOS scripts and the `.zip` the Windows ones, and the installer copies only its own platform's into `packs/<name>/`, flat, so a machine never holds another platform's scripts. A package carries the packs beside `app/` instead, and `vigil init` copies them into the root the same way, each pack not already there (§18.6). Each release also has `vigil-packs-<version>-linux.tar.gz`, `-macos.tar.gz` and `-windows.zip`, covered by its `SHA256SUMS` and signature.
+**The pack repository** is the packs releases on GitHub, tagged `packs-<YYYY.MM.DD>` (`.2`, `.3` for more in a day), apart from Vigil's and never marked latest. `tools/release/packs.sh` builds one from main, and only the packs whose version is new since the last: a pack whose files changed while its version did not is refused. A release holds:
+
+- `vigil-pack-<name>-<version>-linux.tar.gz`, `-macos.tar.gz` and `-windows.zip`: the pack as `packs/<name>/` holds it on that platform, `pack.config` and that platform's scripts, in a folder `<name>/`. A platform the pack has no scripts for has no archive.
+- `packs.index`: every version of every pack, from this release and those before, one tab-separated record a line:
+
+  ```text
+  format	1
+  release	packs-2026.11.20
+  pack	postgres	1.2.0	0.3.0	packs-2026.11.20	<source digest>	PostgreSQL: up, connections, …
+  file	postgres	1.2.0	linux	vigil-pack-postgres-1.2.0-linux.tar.gz	<sha256>
+  ```
+
+  A `pack` is the name, version, oldest Vigil it runs on, the release its archives are in, a digest of its source, and its description; a `file` is the name, version, platform, archive and SHA-256. A Vigil reads format 1, and refuses another, saying `vigil self update`.
+- `packs.index.sig`: its signature with the release key, which Vigil verifies against `app/release-key.pem` before reading the index, then each archive against its SHA-256 in the index. One signature vouches for every archive.
+
+From GitHub, the newest packs release is the first `packs-` tag in the API's list of releases; from a copy (`release_url` or `release_path`, §18.7), the one line of `packs/latest/RELEASE`. Files come from `releases/download/<tag>/` either way.
+
+**Vigil's own release** carries the base pack: the `.tar.gz` the Linux and macOS scripts and the `.zip` the Windows ones, and the installer copies only its own platform's into `packs/base/`, flat, so a machine never holds another platform's scripts. A package carries it beside `app/` instead, and `vigil init` copies it into the root the same way, when it is not already there (§18.6). A root that holds other packs keeps them. Each Vigil release also has `vigil-packs-<version>-linux.tar.gz`, `-macos.tar.gz` and `-windows.zip`, every pack, for the `vigil pack update` of Vigil 1.0, which reads them, until 2.0.
 
 **Vigil runs only what the configuration names.** That decides what each command may touch:
 
 - `vigil self update` replaces `app/` and `vendor/`, never `packs/`.
-- `vigil pack update` downloads this platform's file from the latest release, verifies it as `vigil self update` verifies a release (§18.7), with the signature required, and replaces `packs/`. It never changes the configuration. A job already on runs the new script at its next run; a run in progress finishes on the old one. It says which scripts changed. When this account cannot read the installed packs (a system install from an ordinary account), it and `--check` refuse, saying so, before downloading anything, rather than report every pack as missing.
-- A new script stays off until `vigil pack enable` puts its job in the configuration. `vigil pack update` names it.
+- `vigil pack install` takes the newest version this Vigil runs, with scripts for this platform, or the version named with `@`, older too. It refuses a pack too new for this Vigil (`pack web 2.0.0 needs Vigil 1.2.0 or later: vigil self update`) and one with no scripts here. It puts the pack in `packs/<name>/`, says which jobs it has, all off, and what they need, and never changes the configuration.
+- `vigil pack update` updates the packs installed here, each to the newest version this Vigil runs, and installs nothing new. It never takes a pack back a version: one newer than the repository's stays, and only `install <name>@<version>` goes back. It names a newer version this Vigil cannot run. A pack not in the repository, such as one of your own, is kept as it is. It never changes the configuration. A job already on runs the new script at its next run; a run in progress finishes on the old one. It says which scripts changed. When this account cannot read the installed packs (a system install from an ordinary account), it and `--check` refuse, saying so, before downloading anything, rather than report every pack as missing.
+- `vigil pack remove` refuses while a job in the configuration runs one of the pack's scripts, naming the jobs: a removed script would fail the job at its next run.
+- **Offline.** `vigil pack download` writes the archives, `packs.index` and `packs.index.sig` to a folder, flat, for the platform named with `--os` (this one's by default): without `@`, the version `install` would take here; with it, that version, whatever Vigil it needs. On a machine that cannot reach the repository, `vigil pack install <name> --from <folder>` verifies the index's signature and the archive's SHA-256 exactly as online, choosing among the versions whose archive is in the folder. A site always offline can instead keep a full copy (§18.7), and then plain `install` and `update` work.
+- A new script stays off until `vigil pack enable` puts its job in the configuration. `vigil pack install` and `vigil pack update` name it.
 - A pack with no scripts for this platform (every `pack.config` ships everywhere; nginx has no Windows script) has nothing to turn on: `vigil pack enable` refuses (`pack nginx has no scripts for Windows`, exit 1), and `vigil pack list` shows it as `not available here`.
 - A script the pack dropped stays, while a job in the configuration runs it, and is reported, so an update can never break a working configuration.
 - Only `vigil init`, `vigil pack enable` and `vigil pack disable` change the configuration, and only when asked. The new configuration is validated first, judged by the pack's own jobs, and refused when it fails; then it replaces the old file whole (a file beside it, renamed over it, keeping its owner, mode or ACL), so a crash or a full disk leaves the old configuration or the new one, never part of one. A configuration from a source (§6.8) is not edited.
@@ -2174,7 +2203,7 @@ max_runtime = 30s
 # end of pack base
 ```
 
-`vigil pack update` refuses a pack whose `vigil` version is newer than this Vigil, so what is in `packs/` always runs here. Updates are manual, like Vigil's.
+No pack whose `vigil` version is newer than this Vigil is installed or updated to, so what is in `packs/` always runs here. Updates are manual, like Vigil's. Only Vigil's own signed index is read: there is no other pack repository.
 
 ### 18.9 Service Registration
 

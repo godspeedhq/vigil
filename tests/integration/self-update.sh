@@ -129,6 +129,9 @@ check 'up to date: says so' 1 "$(grep -c 'nothing to do' "$work/out")"
 # --- a newer release ------------------------------------------------------------------
 
 publish 0.0.2-it
+# A packs release (18.10), which the copies below carry for vigil pack update.
+bash "$repo/tools/release/packs.sh" packs-2026.01.01 "$www/releases/download/packs-2026.01.01" > /dev/null ||
+    { printf 'packs release failed\n'; exit 1; }
 vigil self update --check > "$work/out" 2>&1
 check '--check: succeeds' 0 "$?"
 check '--check: names the new version' 1 "$(grep -c '0.0.2-it is available' "$work/out")"
@@ -201,8 +204,10 @@ check 'no such release: nothing changed' 0.0.1-it "$(version_of)"
 # else was asked.
 m=$www/mirror
 mkdir -p "$m/releases/download" "$m/releases/latest"
-cp -R "$www/releases/download/v0.0.1-it" "$www/releases/download/v0.0.2-it" "$m/releases/download/"
+cp -R "$www/releases/download/v0.0.1-it" "$www/releases/download/v0.0.2-it" "$www/releases/download/packs-2026.01.01" "$m/releases/download/"
 printf '0.0.2-it\n' > "$m/releases/latest/VERSION"
+mkdir -p "$m/packs/latest"
+printf 'packs-2026.01.01\n' > "$m/packs/latest/RELEASE"
 rm -f "$work/mock/redirects"
 cp "$root/config/vigil.config" "$work/config.saved"
 awk -v u="$VIGIL_TEST_RELEASE_URL/mirror" '{ print } /^\[vigil\]$/ { print "release_url = " u }' "$work/config.saved" > "$root/config/vigil.config"
@@ -255,8 +260,10 @@ check 'release_url: back as it was' 0.0.1-it "$(version_of)"
 # shows nothing was asked of it at all.
 s=$work/share
 mkdir -p "$s/releases/download" "$s/releases/latest"
-cp -R "$www/releases/download/v0.0.1-it" "$www/releases/download/v0.0.2-it" "$s/releases/download/"
+cp -R "$www/releases/download/v0.0.1-it" "$www/releases/download/v0.0.2-it" "$www/releases/download/packs-2026.01.01" "$s/releases/download/"
 printf '0.0.2-it\n' > "$s/releases/latest/VERSION"
+mkdir -p "$s/packs/latest"
+printf 'packs-2026.01.01\n' > "$s/packs/latest/RELEASE"
 rm -f "$work/mock/redirects"
 awk -v p="$s" '{ print } /^\[vigil\]$/ { print "release_path = " p }' "$work/config.saved" > "$root/config/vigil.config"
 asked() { grep -c '"path"' "$work/mock/requests.log"; }

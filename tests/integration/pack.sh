@@ -10,7 +10,7 @@
 # LICENSE file for the full terms.
 #
 # Integration test: vigil pack (SPECIFICATION.md 18.10) on Linux and macOS,
-# against mock-files.py as the Vigil releases, signed with a key for this
+# against mock-files.py as the pack repository, signed with a key for this
 # run. The twin of Pack.ps1.
 #
 # Exit code: 0 all passed, 1 any failed.
@@ -48,19 +48,30 @@ yes_no() { if "$@" > /dev/null 2>&1; then echo yes; else echo no; fi; }
 precheck() { env -u VIGIL_TEST_RELEASE_URL bash "$root/app/vigil" --root "$root" precheck > /dev/null 2>&1; echo $?; }
 sha() { if command -v sha256sum > /dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi; }
 
-# Publishes release $1 with pack base at its version and jobs $2..., each
-# reporting one metric, signed with the key named by $KEY.
+# Adds pack $2 at version $3 with jobs $4..., each reporting one metric, to
+# packs release $1, and makes $1 the newest: its index carries every version
+# published before. $MIN is the Vigil it needs, $DESC its description.
 publish() {
-    local v=$1 d=$work/mock/www/releases/download/v$1 s=$work/stage/vigil-packs-$1 j f=vigil-packs-$1-$os.tar.gz
-    shift
+    local tag=$1 name=$2 v=$3 d=$work/mock/www/releases/download/$1 f
+    shift 3
     rm -rf "$work/stage"
-    mkdir -p "$d" "$s/base" "$work/mock/www/releases/tag"
-    make_pack "$s/base" "$v" "$@"
-    (cd "$work/stage" && tar -czf "$d/$f" "vigil-packs-$v")
-    (cd "$d" && sha "$f" > SHA256SUMS)
-    openssl dgst -sha256 -sign "${KEY:-$work/release.key}" -out "$d/SHA256SUMS.sig" "$d/SHA256SUMS"
-    : > "$work/mock/www/releases/tag/v$v"
-    printf '/releases/latest /releases/tag/v%s\n' "$v" > "$work/mock/redirects"
+    mkdir -p "$d" "$work/stage"
+    make_pack "$work/stage/$name" "$v" "$@"
+    f=vigil-pack-$name-$v-$os.tar.gz
+    (cd "$work/stage" && tar -czf "$d/$f" "$name")
+    printf 'pack\t%s\t%s\t%s\t%s\tdigest\t%s\n' "$name" "$v" "${MIN:-0.0.1}" "$tag" "${DESC:-For the test}" >> "$work/entries"
+    printf 'file\t%s\t%s\t%s\t%s\t%s\n' "$name" "$v" "$os" "$f" "$(sha "$d/$f" | cut -c1-64)" >> "$work/entries"
+    resign "$tag"
+}
+
+# Packs release $1, the newest, with an index of every version so far,
+# signed with the key named by $KEY.
+resign() {
+    local d=$work/mock/www/releases/download/$1
+    mkdir -p "$d" "$work/mock/www/api/releases"
+    { printf 'format\t1\nrelease\t%s\n' "$1"; cat "$work/entries"; } > "$d/packs.index"
+    openssl dgst -sha256 -sign "${KEY:-$work/release.key}" -out "$d/packs.index.sig" "$d/packs.index"
+    printf '[{"tag_name": "%s"}, {"tag_name": "v0.3.0"}]\n' "$1" > "$work/mock/www/api/releases/all"
 }
 
 # Writes pack base version $2 and jobs $3... in folder $1.
@@ -68,7 +79,7 @@ make_pack() {
     local to=$1 pv=$2 j
     shift 2
     mkdir -p "$to"
-    printf '[pack]\nversion = %s\nvigil = %s\ndescription = For the test\n\n' "$pv" "${MIN:-0.0.1}" > "$to/pack.config"
+    printf '[pack]\nversion = %s\nvigil = %s\ndescription = %s\n\n' "$pv" "${MIN:-0.0.1}" "${DESC:-For the test}" > "$to/pack.config"
     for j in "$@"; do
         printf '[job.%s]\nmetric_name = it.%s\nmetrics = up\nrun_every = %s\nmax_runtime = 30s\n\n' "$j" "$j" "${EVERY:-1h}" >> "$to/pack.config"
         printf 'echo "metric up 1" # %s\n' "$pv" > "$to/$j.sh"
@@ -86,6 +97,7 @@ done
 [ -n "$python" ] || { echo "needs python3"; exit 1; }
 mkdir -p "$root" "$work/mock/www"
 cp -R "$repo/app" "$repo/vendor" "$root/"
+: > "$work/entries"
 printf '0.3.0\n' > "$root/app/VERSION"
 export HOME=$work
 openssl genrsa -out "$work/release.key" 2048 2> /dev/null
@@ -144,23 +156,18 @@ check 'listed as not available here' "  not available here: no scripts for $osna
 rm -rf "$root/packs/elsewhere"
 
 printf 'Updating\n'
-publish 1.0.0 cpu disk
+publish packs-2026.01.01 base 1.0.0 cpu disk
 check 'nothing to do' 'pack base 1.0.0 is here: nothing to do' "$(vigil pack update)"
 sed -i.bak '/job.base_cpu/,/job.base_disk/s/^run_every = 1h$/run_every = 5m/' "$cfg" && rm -f "$cfg.bak"
-publish 1.1.0 cpu load
+publish packs-2026.01.02 base 1.1.0 cpu load
+DESC='A web server' publish packs-2026.01.02 web 1.0.0 status
 check 'the check says so' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' "$(vigil pack update --check)"
 check 'the check changes nothing' 1.0.0 "$(sed -n 's/^version = //p' "$root/packs/base/pack.config")"
-# /releases/latest failing: the API names the latest release.
-mv "$work/mock/redirects" "$work/mock/redirects.off"
-mkdir -p "$work/mock/www/api/releases"
-printf '{"tag_name": "v1.1.0"}\n' > "$work/mock/www/api/releases/latest"
-check 'the page failing: the API names it' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' "$(vigil pack update --check 2>&1)"
-rm -rf "$work/mock/www/api"
-mv "$work/mock/redirects.off" "$work/mock/redirects"
 was=$(cksum < "$cfg")
 out=$(vigil pack update 2>&1)
 check 'updates' 0 "$?"
 check 'to the new version' 1.1.0 "$(sed -n 's/^version = //p' "$root/packs/base/pack.config")"
+check 'installs nothing it was not asked for' no "$(yes_no test -e "$root/packs/web")"
 check 'the configuration is not touched' "$was" "$(cksum < "$cfg")"
 check 'a job on runs the new script' yes "$(yes_no grep -q '1.1.0' "$root/packs/base/cpu.sh")"
 check 'says what changed' yes "$(printf '%s' "$out" | grep -q '^changed: base_cpu' && echo yes || echo no)"
@@ -173,6 +180,7 @@ vigil run base_disk > /dev/null 2>&1
 check 'and the job still runs' 0 "$?"
 check 'precheck is still happy' 0 "$(precheck)"
 check 'your own script is untouched' "$before" "$(cksum < "$root/scripts/mine.sh")"
+check 'the index is kept for searching' yes "$(yes_no test -f "$root/packs/.index")"
 
 printf 'On and off\n'
 check 'a new script turns on' 'on: base_load' "$(vigil pack enable base_load 2>&1)"
@@ -181,26 +189,97 @@ check 'one job turns off' 'off: base_disk' "$(vigil pack disable base_disk 2>&1)
 check 'it leaves the configuration' 0 "$(grep -c 'base_disk\|packs/base/disk' "$cfg")"
 check 'turning off twice changes nothing' 'base_disk is already off' "$(vigil pack disable base_disk 2>&1)"
 check 'precheck is happy with that' 0 "$(precheck)"
-publish 1.2.0 cpu load
+publish packs-2026.01.03 base 1.2.0 cpu load
 out=$(vigil pack update 2>&1)
 check 'a dropped script goes once no job uses it' no "$(yes_no test -f "$root/packs/base/disk.sh")"
+
+printf 'Searching\n'
+check 'by a word' 'web 1.0.0: A web server' "$(vigil pack search web 2>&1)"
+check 'every word, in any case' 'web 1.0.0: A web server' "$(vigil pack search SERVER a 2>&1)"
+check 'all, with none' 'base 1.2.0, installed 1.2.0: For the test|web 1.0.0: A web server' "$(vigil pack search 2>&1 | tr '\n' '|' | sed 's/|$//')"
+check 'nothing found' 'no pack matches: nosuch' "$(vigil pack search nosuch 2>&1)"
+check 'what is not installed' 'web 1.0.0: A web server' "$(vigil pack list --available 2>&1)"
+check 'one pack' "web: A web server|installed: no|versions, newest first:|  1.0.0      Vigil 0.0.1 or later; $os (packs-2026.01.02)" "$(vigil pack info web 2>&1 | tr '\n' '|' | sed 's/|$//')"
+check 'an unknown one' 'vigil: no pack called nosuch: vigil pack search' "$(vigil pack info nosuch 2>&1)"
+
+printf 'Installing\n'
+was=$(cksum < "$cfg")
+out=$(vigil pack install web 2>&1)
+check 'installs' 0 "$?"
+check 'says what, and that it is off' 'installed pack web 1.0.0|off until enabled: web_status|To turn them all on: vigil pack enable web' "$(printf '%s' "$out" | tr '\n' '|' | sed 's/|$//')"
+check 'its scripts are here' yes "$(yes_no test -f "$root/packs/web/status.sh")"
+check 'the configuration is not touched' "$was" "$(cksum < "$cfg")"
+check 'twice: nothing to do' 'pack web 1.0.0 is here: nothing to do' "$(vigil pack install web 2>&1)"
+check 'listed, off' off "$(vigil pack list | awk '$1 == "web_status" { print $2 }')"
+check 'an unknown pack' 'vigil: no pack called nosuch: vigil pack search' "$(vigil pack install nosuch 2>&1)"
+check 'an unknown version' 'vigil: pack web has no version 9.9.9: vigil pack info web' "$(vigil pack install web@9.9.9 2>&1)"
+check 'a bad name' 'vigil: not a pack name: ../x' "$(vigil pack install ../x 2>&1)"
+MIN=99.0.0 DESC='A web server' publish packs-2026.01.04 web 2.0.0 status
+check 'one too new for this Vigil: asked for, refused' 'vigil: pack web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' "$(vigil pack install web@2.0.0 2>&1)"
+check 'and update says so, keeping what runs here' 'pack web 1.0.0 is here: nothing to do|  web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' "$(vigil pack update 2>&1 | grep web | tr '\n' '|' | sed 's/|$//')"
+check 'an older version, when asked' 'pack base went back from 1.2.0 to 1.1.0' "$(vigil pack install base@1.1.0 2>&1 | head -n 1)"
+check 'update takes it forward again' 'updated pack base 1.1.0 to 1.2.0' "$(vigil pack update 2>&1 | grep '^updated')"
+sed -i.bak 's/^version = 1.0.0$/version = 5.0.0/' "$root/packs/web/pack.config" && rm -f "$root/packs/web/pack.config.bak"
+check 'never back a version on its own' 'pack web 5.0.0 is here: nothing to do' "$(vigil pack update 2>&1 | grep '^pack web')"
+sed -i.bak 's/^version = 5.0.0$/version = 1.0.0/' "$root/packs/web/pack.config" && rm -f "$root/packs/web/pack.config.bak"
+
+printf 'Removing\n'
+vigil pack enable web > /dev/null 2>&1
+check 'refused while on' 'vigil: pack web is in use by: web_status. Turn them off first: vigil pack disable web' "$(vigil pack remove web 2>&1)"
+check 'and kept' yes "$(yes_no test -f "$root/packs/web/status.sh")"
+vigil pack disable web > /dev/null 2>&1
+check 'removes once off' 'removed pack web 1.0.0' "$(vigil pack remove web 2>&1)"
+check 'its scripts go' no "$(yes_no test -e "$root/packs/web")"
+check 'one not here' 'vigil: pack web is not installed: vigil pack list' "$(vigil pack remove web 2>&1)"
+check 'precheck is happy after' 0 "$(precheck)"
+
+printf 'Offline\n'
+usb=$work/usb
+out=$(vigil pack download web --to "$usb" 2>&1)
+check 'downloads' "downloaded web 1.0.0 for $osname: vigil-pack-web-1.0.0-$os.tar.gz|with the signed index. There: vigil pack install <name> --from <this folder>" "$(printf '%s' "$out" | tr '\n' '|' | sed 's/|$//')"
+check 'the index and its signature too' 'packs.index packs.index.sig vigil-pack-web-1.0.0-'"$os"'.tar.gz' "$(ls "$usb" | tr '\n' ' ' | sed 's/ $//')"
+check 'any version, for another Vigil' "downloaded web 2.0.0 for $osname: vigil-pack-web-2.0.0-$os.tar.gz" "$(vigil pack download web@2.0.0 --to "$usb" 2>&1 | head -n 1)"
+check 'a platform it has no scripts for' 'vigil: pack web has no scripts for Windows' "$(vigil pack download web --os windows --to "$usb" 2>&1)"
+check 'not a platform' 'vigil: not a platform: beos (linux, macos or windows)' "$(vigil pack download web --os beos --to "$usb" 2>&1)"
+# Nothing to reach: only the folder.
+offline() { VIGIL_TEST_RELEASE_URL=http://127.0.0.1:9 vigil "$@"; }
+out=$(offline pack install web --from "$usb" 2>&1)
+check 'installs from the folder, with no network' 'installed pack web 1.0.0' "$(printf '%s' "$out" | head -n 1)"
+offline pack remove web > /dev/null 2>&1
+check 'a pack not in the folder' "vigil: vigil-pack-base-1.2.0-$os.tar.gz is not in $usb: vigil pack download base@1.2.0 there" "$(offline pack install base@1.2.0 --from "$usb" 2>&1)"
+cp "$usb/vigil-pack-web-1.0.0-$os.tar.gz" "$work/keep.tgz"
+printf 'x' >> "$usb/vigil-pack-web-1.0.0-$os.tar.gz"
+check 'a tampered archive' "vigil: vigil-pack-web-1.0.0-$os.tar.gz does not match the pack index; nothing was changed" "$(offline pack install web --from "$usb" 2>&1)"
+cp "$work/keep.tgz" "$usb/vigil-pack-web-1.0.0-$os.tar.gz"
+cp "$usb/packs.index" "$work/keep.index"
+printf 'pack\tweb\t9.0.0\t0.0.1\tpacks-x\tdigest\tAdded\n' >> "$usb/packs.index"
+check 'an index changed after signing' "vigil: the pack index of $usb is not signed by the Vigil release key; nothing was changed" "$(offline pack install web --from "$usb" 2>&1)"
+cp "$work/keep.index" "$usb/packs.index"
+check 'nothing was installed' no "$(yes_no test -e "$root/packs/web")"
 
 printf 'Refused\n'
 snapshot() { cksum < "$cfg"; cksum < "$root/packs/base/pack.config"; }
 was=$(snapshot)
-KEY=$work/other.key publish 1.3.0 cpu
+KEY=$work/other.key publish packs-2026.02.01 base 1.3.0 cpu
 out=$(vigil pack update 2>&1)
 check 'a bad signature is refused' 1 "$?"
-check 'saying so' 'vigil: release 1.3.0 is not signed by the Vigil release key; nothing was changed' "$out"
-publish 1.4.0 cpu
-printf 'x' >> "$work/mock/www/releases/download/v1.4.0/vigil-packs-1.4.0-$os.tar.gz"
-check 'a tampered archive is refused' 'vigil: the packs of release 1.4.0 do not match its SHA256SUMS; nothing was changed' "$(vigil pack update 2>&1)"
-publish 1.5.0 cpu
-rm -f "$work/mock/www/releases/download/v1.5.0/SHA256SUMS.sig"
-check 'a missing signature is refused' 'vigil: cannot download the packs of release 1.5.0' "$(vigil pack update 2>&1)"
-MIN=99.0.0 publish 1.6.0 cpu
-check 'too old a Vigil is refused' 'vigil: pack base needs Vigil 99.0.0 or later: vigil self update' "$(vigil pack update 2>&1)"
+check 'saying so' 'vigil: the pack index of packs-2026.02.01 is not signed by the Vigil release key; nothing was changed' "$out"
+resign packs-2026.02.02
+a=$work/mock/www/releases/download/packs-2026.02.01/vigil-pack-base-1.3.0-$os.tar.gz
+cp "$a" "$work/keep.tgz"
+printf 'x' >> "$a"
+check 'a tampered archive is refused' "vigil: vigil-pack-base-1.3.0-$os.tar.gz does not match the pack index; nothing was changed" "$(vigil pack update 2>&1 | grep '^vigil:')"
+cp "$work/keep.tgz" "$a"
+resign packs-2026.02.03
+rm -f "$work/mock/www/releases/download/packs-2026.02.03/packs.index.sig"
+check 'a missing signature is refused' 'vigil: cannot download packs.index.sig of packs-2026.02.03' "$(vigil pack update 2>&1)"
 check 'and nothing changed' "$was" "$(snapshot)"
+printf '[]\n' > "$work/mock/www/api/releases/all"
+check 'no packs release' 'vigil: cannot find the latest packs release on GitHub: no network, or its API refused (it allows 60 requests an hour)' "$(vigil pack update 2>&1)"
+MIN=99.0.0 publish packs-2026.02.04 base 1.4.0 cpu
+out=$(vigil pack update 2>&1)
+check 'takes the newest this Vigil runs' 'updated pack base 1.2.0 to 1.3.0' "$(printf '%s' "$out" | grep '^updated')"
+check 'and names the one it cannot' '  base 1.4.0 needs Vigil 99.0.0 or later: vigil self update' "$(printf '%s' "$out" | grep 'needs Vigil')"
 
 # A job Vigil cannot accept: the configuration goes back.
 EVERY=soon make_pack "$work/bad" 1.7.0 extra

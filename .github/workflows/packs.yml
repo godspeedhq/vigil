@@ -1,0 +1,65 @@
+# Builds and signs a packs release (SPECIFICATION.md 18.10) from a packs
+# tag, as a draft, never marked latest: /releases/latest stays Vigil's, for
+# vigil self update and the installers. Only the packs whose version is new
+# since the last packs release are built; the index carries every version
+# before them, and names the release each one's archives are in.
+#   git tag packs-2026.11.20 <commit> && git push origin packs-2026.11.20
+# Publish it with: gh release edit <tag> --draft=false --latest=false
+name: packs
+
+on:
+  push:
+    tags: ['packs-*']
+
+permissions:
+  contents: write
+
+jobs:
+  packs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: only what is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: the last packs release's index
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prev=$(gh release list --exclude-drafts --limit 100 --json tagName -q '.[].tagName' | grep '^packs-' | grep -vx "$GITHUB_REF_NAME" | head -n 1 || true)
+          mkdir -p "$RUNNER_TEMP/prev"
+          if [ -n "$prev" ]; then
+            gh release download "$prev" -p packs.index -D "$RUNNER_TEMP/prev"
+            # Its signature too: an index carried over is one Vigil signed.
+            gh release download "$prev" -p packs.index.sig -D "$RUNNER_TEMP/prev"
+            openssl dgst -sha256 -verify app/release-key.pem -signature "$RUNNER_TEMP/prev/packs.index.sig" "$RUNNER_TEMP/prev/packs.index"
+          fi
+          echo "prev=$prev" >> "$GITHUB_ENV"
+      - name: build and sign
+        env:
+          VIGIL_RELEASE_KEY: ${{ secrets.VIGIL_RELEASE_KEY }}
+        run: |
+          test -f app/release-key.pem
+          test -n "$VIGIL_RELEASE_KEY"
+          (umask 077 && printf '%s\n' "$VIGIL_RELEASE_KEY" > "$RUNNER_TEMP/release.key")
+          index=''
+          [ -z "$prev" ] || index=$RUNNER_TEMP/prev/packs.index
+          VIGIL_SIGN_KEY="$RUNNER_TEMP/release.key" bash tools/release/packs.sh "$GITHUB_REF_NAME" dist $index | tee "$RUNNER_TEMP/built"
+          rm -f "$RUNNER_TEMP/release.key"
+          openssl dgst -sha256 -verify app/release-key.pem -signature dist/packs.index.sig dist/packs.index
+      - name: create the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo 'Packs in this release:'
+            echo
+            sed -n 's/^packs: \([a-z0-9_]*\) \([^ ]*\)$/- `\1` \2/p' "$RUNNER_TEMP/built"
+            echo
+            echo 'Install one with `vigil pack install <name>`, update the ones installed with `vigil pack update`.'
+          } > "$RUNNER_TEMP/notes.md"
+          files=$(ls dist/vigil-pack-* 2> /dev/null || true)
+          # shellcheck disable=SC2086
+          gh release create "$GITHUB_REF_NAME" --draft --latest=false --verify-tag --title "Vigil packs ${GITHUB_REF_NAME#packs-}" \
+            --notes-file "$RUNNER_TEMP/notes.md" dist/packs.index dist/packs.index.sig $files
