@@ -22,9 +22,9 @@ jobs:
   # - packs only: the packs, besides documentation (packs/, the pack
   #   checkers, the pack tests and the servers they run against in
   #   tests/integration/backends). A pack is scripts beside Vigil and cannot
-  #   break it, so the packs job (every pack checked and run on each shell)
-  #   and the service-packs job run in place of the suites, and the checks
-  #   main requires pass only when both have.
+  #   break it, and it comes with evidence of working against the real
+  #   service (CONTRIBUTING.md). So one Linux job, packs, checks it in place
+  #   of everything else, and the checks main requires pass when it has.
   # - anything else, the workflow itself included: everything.
   # A push to main is classed the same way, by what it changes since the
   # commit before it, so a merged pack does not run the suites again. The
@@ -152,10 +152,11 @@ jobs:
   # The service packs against real servers: PostgreSQL, MySQL, MariaDB and
   # nginx in Docker, as tests/integration/backends runs them. The runner has
   # psql and MySQL's client, which also talks to MariaDB here. macOS runners
-  # have no Docker; the scripts are the same.
+  # have no Docker; the scripts are the same. Run with the suites only: a
+  # pack-only change brings its evidence instead.
   service-packs:
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -505,81 +506,31 @@ jobs:
         if: matrix.part == 'install'
         run: ./tests/integration/Install.ps1
 
-  # A pull request that changes packs only: every pack checked and run on
-  # each shell, as the suites run them, in place of the suites.
+  # A pull request that changes packs only: the pack checker, on Linux, in
+  # place of everything else. It checks every pack's rules, parses every
+  # script (the PowerShell ones with the runner's pwsh), and runs each Linux
+  # job that needs no service through a throwaway Vigil. That a pack works
+  # against its service is shown by the evidence it brings.
   packs:
-    name: packs (${{ matrix.label }})
     needs: changes
     if: needs.changes.outputs.packs_only == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: ubuntu-latest
-            os: ubuntu-latest
-            shell: bash
-          - label: macos-latest
-            os: macos-latest
-            shell: bash
-          - label: PowerShell 5.1
-            os: windows-latest
-            shell: powershell
-          - label: PowerShell 7
-            os: windows-latest
-            shell: pwsh
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    defaults:
-      run:
-        shell: ${{ matrix.shell }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - name: licence and disclaimer in every script
-        if: matrix.shell == 'bash'
         run: /bin/bash tools/check-headers.sh
       - name: every pack, checked and run (/bin/bash)
-        if: matrix.shell == 'bash'
         run: /bin/bash tools/check-pack.sh --run
-      - name: packs (/bin/bash)
-        if: matrix.shell == 'bash'
-        run: /bin/bash tests/integration/pack.sh
-      - name: the base pack (/bin/bash)
-        if: matrix.shell == 'bash'
-        run: /bin/bash tests/integration/base-pack.sh
-      - name: packs
-        if: matrix.shell != 'bash'
-        run: ./tests/integration/Pack.ps1
-      - name: the base pack
-        if: matrix.shell != 'bash'
-        run: ./tests/integration/Base-Pack.ps1
-      - name: every pack's Windows scripts, run
-        if: matrix.shell != 'bash'
-        run: ./tools/Check-Pack.ps1
-      # As in the Windows suite: the runner's PostgreSQL, the pack's role made
-      # here.
-      - name: the postgres pack
-        if: matrix.shell != 'bash'
-        run: |
-          $monitor = [guid]::NewGuid().ToString('N')
-          Write-Output "::add-mask::$monitor"
-          Get-Service -Name 'postgresql*' | Set-Service -StartupType Manual -PassThru | Start-Service
-          $psql = Join-Path $env:PGBIN 'psql.exe'
-          & $psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE vigil_monitor LOGIN PASSWORD '$monitor' IN ROLE pg_monitor"
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          Remove-Item Env:\PGPASSWORD
-          $env:VIGIL_IT_PG_HOST = '127.0.0.1'
-          $env:VIGIL_IT_PG_PASSWORD = $monitor
-          ./tests/integration/Service-Packs.ps1
 
   # The checks main requires are named for each PowerShell and for each
   # bash runner. Each passes once its suite has passed (for Windows, all six
   # parts), or when the suite was skipped because the change is
-  # documentation only, or packs only and the packs and service-packs jobs
-  # passed. A gate of its own, because a skipped matrix job reports under
+  # documentation only, or packs only and the packs job passed. A gate of its own, because a skipped matrix job reports under
   # its unexpanded name, which main would wait for forever.
   windows:
     name: windows (${{ matrix.label }})
-    needs: [changes, windows-part, packs, service-packs]
+    needs: [changes, windows-part, packs]
     if: always()
     strategy:
       fail-fast: false
@@ -593,17 +544,16 @@ jobs:
           DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
           PACKS_ONLY: ${{ needs.changes.outputs.packs_only }}
           PACKS: ${{ needs.packs.result }}
-          SERVICE_PACKS: ${{ needs.service-packs.result }}
         run: |
           test "$RESULT" = success && exit 0
           test "$RESULT" = skipped && test "$DOCS_ONLY" = true && exit 0
-          test "$RESULT" = skipped && test "$PACKS_ONLY" = true && test "$PACKS" = success && test "$SERVICE_PACKS" = success && exit 0
-          echo "suite: $RESULT; docs only: $DOCS_ONLY; packs only: $PACKS_ONLY, packs: $PACKS, service packs: $SERVICE_PACKS"
+          test "$RESULT" = skipped && test "$PACKS_ONLY" = true && test "$PACKS" = success && exit 0
+          echo "suite: $RESULT; docs only: $DOCS_ONLY; packs only: $PACKS_ONLY, packs: $PACKS"
           exit 1
 
   bash:
     name: bash (${{ matrix.os }})
-    needs: [changes, bash-suite, packs, service-packs]
+    needs: [changes, bash-suite, packs]
     if: always()
     strategy:
       fail-fast: false
@@ -617,10 +567,9 @@ jobs:
           DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
           PACKS_ONLY: ${{ needs.changes.outputs.packs_only }}
           PACKS: ${{ needs.packs.result }}
-          SERVICE_PACKS: ${{ needs.service-packs.result }}
         run: |
           test "$RESULT" = success && exit 0
           test "$RESULT" = skipped && test "$DOCS_ONLY" = true && exit 0
-          test "$RESULT" = skipped && test "$PACKS_ONLY" = true && test "$PACKS" = success && test "$SERVICE_PACKS" = success && exit 0
-          echo "suite: $RESULT; docs only: $DOCS_ONLY; packs only: $PACKS_ONLY, packs: $PACKS, service packs: $SERVICE_PACKS"
+          test "$RESULT" = skipped && test "$PACKS_ONLY" = true && test "$PACKS" = success && exit 0
+          echo "suite: $RESULT; docs only: $DOCS_ONLY; packs only: $PACKS_ONLY, packs: $PACKS"
           exit 1
