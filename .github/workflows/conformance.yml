@@ -26,7 +26,10 @@ jobs:
   #   and the service-packs job run in place of the suites, and the checks
   #   main requires pass only when both have.
   # - anything else, the workflow itself included: everything.
-  # A push to main always runs everything.
+  # A push to main is classed the same way, by what it changes since the
+  # commit before it, so a merged pack does not run the suites again. The
+  # Test evidence page reads the newest run on main whose suites ran. A run
+  # by hand, or a push whose commit before is unknown, runs everything.
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -36,15 +39,19 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: the files this pull request changes
+      - name: the files this change touches
         id: files
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           docs_only=false packs_only=false
           docs='^([^/]+\.md|backlog/.*|packaging/README\.md)$'
           packs='^(packs/.*|tools/(check-pack\.sh|Check-Pack\.ps1|new-pack\.sh)|tests/integration/(service-packs\.sh|Service-Packs\.ps1|base-pack\.sh|Base-Pack\.ps1|pack\.sh|Pack\.ps1)|tests/integration/backends/.*)$'
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+          case $GITHUB_EVENT_NAME in pull_request | push) ;; *) BASE='' ;; esac
+          # No commit before (a new branch, or one this clone lacks): everything.
+          case $BASE in '' | *[!0]* ) ;; *) BASE='' ;; esac
+          [ -z "$BASE" ] || git cat-file -e "$BASE^{commit}" 2> /dev/null || BASE=''
+          if [ -n "$BASE" ]; then
               files=$(git diff --name-only "$BASE" "$GITHUB_SHA")
               printf '%s\n' "$files"
               if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev "$docs" > /dev/null; then

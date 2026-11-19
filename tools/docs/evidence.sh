@@ -27,9 +27,17 @@ set -u
 
 slug=godspeedhq/vigil
 run=${1-}
+# The newest passing run on main whose suites ran: a change of packs or of
+# documentation alone passes without them, and has no suite output to show.
 if [ -z "$run" ]; then
-    run=$(gh run list --repo "$slug" --workflow conformance --branch main --status success --limit 1 \
-        --json databaseId --jq '.[0].databaseId' 2> /dev/null)
+    for id in $(gh run list --repo "$slug" --workflow conformance --branch main --status success --limit 30 \
+        --json databaseId --jq '.[].databaseId' 2> /dev/null); do
+        if gh api "repos/$slug/actions/runs/$id/jobs" --paginate \
+            --jq '.jobs[] | select(.name == "bash suite (ubuntu-latest)") | .conclusion' 2> /dev/null | grep -qx success; then
+            run=$id
+            break
+        fi
+    done
 fi
 [ -n "$run" ] || exit 1
 info=$(gh run view "$run" --repo "$slug" --json headSha,updatedAt,url,conclusion \
@@ -60,7 +68,13 @@ step() {
 section() {
     local job=$1 title=$2 id item heading cmd
     shift 2
-    id=$(gh api "repos/$slug/actions/runs/$run/jobs" --paginate --jq ".jobs[] | select(.name == \"$job\") | .id" 2> /dev/null | head -n 1)
+    # A job's id, a number: an error body from the API (a rate limit, for
+    # one) is not one, and is asked again.
+    local try
+    for try in 1 2 3; do
+        id=$(gh api "repos/$slug/actions/runs/$run/jobs" --paginate --jq ".jobs[] | select(.name == \"$job\") | .id" 2> /dev/null | head -n 1)
+        case $id in '' | *[!0-9]*) id=''; sleep 5 ;; *) break ;; esac
+    done
     [ -n "$id" ] || return 1
     curl -sfL -H "Authorization: Bearer $token" -H 'Accept: application/vnd.github+json' \
         "https://api.github.com/repos/$slug/actions/jobs/$id/logs" > "$tmp/log" || return 1
