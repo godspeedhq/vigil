@@ -287,6 +287,9 @@ $cfgPath = "$root\config\vigil.config"
 Wait-Ticking 30 { (Test-InA 'removed_b') -and (Test-DroppedB) }
 Test-Equal '27: the backend left has the event' 'True' "$(Test-InA 'removed_b')"
 Test-Equal "27: the removed one's copy dropped, counted as backend_removed" 'True' "$(Test-DroppedB)"
+# Once the senders have finished: the next may be mid-way through Vigil's own
+# newer events, which are not this test's.
+for ($i = 0; $i -lt 60 -and (Get-Locks 'vigil_sender'); $i++) { Start-Sleep -Milliseconds 500 }
 Test-Equal '27: nothing left in the fan-out' '' ((@(Get-ChildItem -LiteralPath "$root\spool\fanout" -File -ErrorAction SilentlyContinue | ForEach-Object Name)) -join ' ')
 # b back. A sender started without it delivers by the configuration it was
 # launched with (4.3), even events that arrive while it starts: let it end.
