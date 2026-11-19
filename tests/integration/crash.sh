@@ -395,6 +395,13 @@ i=0
 while [ "$i" -lt 8 ]; do tick; sleep 1; i=$((i + 1)); done
 tick_until 20 q_idle > /dev/null
 check "queued: two runs, never three" 2 "$(wc -l < "$root/qmarks" | tr -d ' ')"
+# Seen once with three, on Windows PowerShell 7, and not since: if it comes
+# back, which runs, and what the supervisor said about q.
+if [ "$(wc -l < "$root/qmarks" | tr -d ' ')" != 2 ]; then
+    sed 's/^/        run: /' "$root/qmarks"
+    cat "$root"/logs/supervisor/2*.log 2>/dev/null | grep -E 'job q[: ]|VIGIL_FAULT|supervisor started' | tail -30 | sed 's/^/        sup: /'
+    cat "$root"/logs/jobs/q/*.log 2>/dev/null | sed 's/^/        job: /'
+fi
 
 # --- The worker's crash points (7, 16, 23) ------------------------------------------
 #
