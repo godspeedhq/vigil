@@ -1,0 +1,63 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# A PostgreSQL primary and a streaming replica, for the postgres pack's
+# replication job (tests/integration/service-packs.sh, with
+# VIGIL_IT_PG_REPLICA_HOST). Not somewhere Vigil sends: what its pack reads.
+#
+#   pg-primary   on 15433, with vigil_monitor (pg_monitor) and replicator
+#   pg-replica   on 15434, a copy of the primary streaming from it through
+#                the slot replica1
+#
+# Small enough for a test machine: each server is capped at 256 MB. Any
+# version from 14 on, by image:
+#   PG_IMAGE=postgres:14.20-alpine docker compose -f compose.replication.yaml up -d
+# Passwords from .env: POSTGRES_PASSWORD, POSTGRES_MONITOR_PASSWORD and
+# POSTGRES_REPLICATION_PASSWORD. Down with -v between versions: the data of
+# one major version does not start another.
+
+x-pg: &pg
+  image: ${PG_IMAGE:-postgres:18.1-alpine}
+  mem_limit: 256m
+  environment:
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    POSTGRES_MONITOR_PASSWORD: ${POSTGRES_MONITOR_PASSWORD:-}
+    POSTGRES_REPLICATION_PASSWORD: ${POSTGRES_REPLICATION_PASSWORD:-}
+  command: ["postgres", "-c", "shared_buffers=32MB", "-c", "max_wal_senders=5", "-c", "wal_level=replica", "-c", "hot_standby=on"]
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U postgres -h 127.0.0.1 || exit 1"]
+    interval: 5s
+    timeout: 5s
+    retries: 30
+
+services:
+  pg-primary:
+    <<: *pg
+    ports:
+      - "127.0.0.1:15433:5432"
+    volumes:
+      - ./configs/services/postgres/monitor-role.sh:/docker-entrypoint-initdb.d/1-monitor-role.sh:ro,z
+      - ./configs/services/postgres/replication-role.sh:/docker-entrypoint-initdb.d/2-replication-role.sh:ro,z
+      - pg-primary-data:/var/lib/postgresql
+
+  pg-replica:
+    <<: *pg
+    depends_on:
+      pg-primary:
+        condition: service_healthy
+    entrypoint: ["/replica-entrypoint.sh"]
+    ports:
+      - "127.0.0.1:15434:5432"
+    volumes:
+      - ./configs/services/postgres/replica-entrypoint.sh:/replica-entrypoint.sh:ro,z
+      - pg-replica-data:/var/lib/postgresql
+
+volumes:
+  pg-primary-data:
+  pg-replica-data:

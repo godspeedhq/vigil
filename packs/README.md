@@ -52,7 +52,7 @@ For what a server runs. They are off until you turn one on: `vigil init` never e
 
 ### postgres
 
-A PostgreSQL server on this machine, through PostgreSQL's own client tools (`psql`, `pg_isready`), which a database server has. It logs in as a read-only role, never a superuser.
+A PostgreSQL server, on this machine or any it can reach (a container, another server, a managed service such as RDS or Cloud SQL), through PostgreSQL's own client tools (`psql`, `pg_isready`): a machine that runs Vigil but not PostgreSQL needs only the client package. It logs in as a read-only role, never a superuser.
 
 1. Create the role once, as a database administrator:
 
@@ -67,8 +67,17 @@ A PostgreSQL server on this machine, through PostgreSQL's own client tools (`psq
 | --- | --- | --- | --- | --- |
 | `postgres_status` | Up, connections and the limit, the longest query and transaction, commits, rollbacks, deadlocks, cache hits | Yes | Yes | Yes |
 | `postgres_size` | Each database's size | Yes | Yes | Yes |
+| `postgres_activity` | Sessions active, idle and idle in a transaction; those waiting on a lock and those blocked by another; the longest lock wait and the longest idle transaction | Yes | Yes | No |
+| `postgres_replication` | On a primary: replicas streaming, each one's lag in bytes and seconds, unused replication slots and the WAL each slot keeps. On a replica: whether it receives, and how far its replay is behind | Yes | Yes | No |
+| `postgres_wraparound` | Each database's transaction ID and multixact age, as a count and as a percent of the limit where PostgreSQL stops accepting writes; the oldest transaction anything still needs | Yes | Yes | No |
+| `postgres_vacuum` | Each database's dead rows and the tables past the autovacuum threshold; autovacuum workers running and the limit | Yes | Yes | No |
+| `postgres_io` | Checkpoints on schedule and forced, temporary files and their bytes, WAL written (running totals) | Yes | Yes | No |
 
-A server that does not answer reports `postgres.up` 0, and the run succeeds: that is a reading. A refused login fails the run, and its log says why.
+The jobs from `postgres_activity` on need PostgreSQL 14 or later. Each script's header says what its metrics mean and how to read them.
+
+A server that does not answer reports `postgres.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed, since `postgres_status` has said it. A refused login fails the run, and its log says why.
+
+**Several servers:** `vigil pack enable` writes one copy of the jobs. For another server, copy a job's section in `vigil.config` under a new name (`[job.postgres_status_db2]`) and change its `env` lines; each copy reports with its own `job` tag.
 
 ### nginx
 

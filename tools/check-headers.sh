@@ -20,8 +20,9 @@ set -u
 
 cd "$(dirname "$0")/.." || exit 1
 
-# The notice sits in the header, and the longest header is a pack script's.
-readonly HEADER_LINES=50
+# The notice sits in the header, and the longest header is a pack script's
+# (postgres replication.sh, which documents nine metrics).
+readonly HEADER_LINES=64
 
 missing=0
 checked=0

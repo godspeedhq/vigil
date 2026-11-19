@@ -146,6 +146,7 @@ jobs:
           echo "::add-mask::$pg_super"
           echo "::add-mask::$pg_monitor"
           echo "VIGIL_IT_PG_PASSWORD=$pg_monitor" >> "$GITHUB_ENV"
+          echo "VIGIL_IT_PG_SUPER_PASSWORD=$pg_super" >> "$GITHUB_ENV"
           services=$PWD/tests/integration/backends/configs/services
           docker run -d --name pg -p 127.0.0.1:5432:5432 \
             -e POSTGRES_PASSWORD="$pg_super" -e POSTGRES_MONITOR_PASSWORD="$pg_monitor" \
