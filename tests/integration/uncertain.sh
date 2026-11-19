@@ -171,6 +171,13 @@ check "v: released, record gone" "" "$(ls "$root/state/recovery" | grep '^v\.')"
 check "v: its worker never killed" yes "$(eval "kill -0 \$holder_v" 2>/dev/null && echo yes || echo no)"
 check "v: nor the unrelated process" yes "$(kill -0 "$unrelated" 2>/dev/null && echo yes || echo no)"
 eval "kill \$holder_v"
+# Its worker lets go at last: the run was concluded already, so it is not
+# concluded again, and the job's state stays its later runs'.
+sleep 1
+tick
+tick
+check "v: concluded once, not again when its worker lets go" 1 "$(cat "$root/logs/supervisor/"*-*.log | grep -c 'job v: run 20260101T000000Z-9-v crashed')"
+check "v: its state is a later run's" no "$(state_value "$root/state/jobs/v.state" run_id | grep -q '9-v' && echo yes || echo no)"
 
 # The evidence clears: the stand-in workers exit, releasing their tokens.
 eval "kill \$holder_w \$holder_m"

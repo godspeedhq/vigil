@@ -1076,7 +1076,7 @@ resolved_by  =
 resolved_at  =
 ```
 
-The record survives supervisor restarts, so a held job stays held without re-deriving why. `vigil resolve` writes `resolved_by` (the operator's user name) and `resolved_at` to a file of its own, `state/recovery/<job id>.resolved`, so the supervisor rewriting the record every tick can never lose them; the supervisor reads both. At its next tick the supervisor concludes the run (finished from its spool file, else `crashed` with reason `concluded by vigil resolve (<user>)`), releases the job and deletes both files. A record is also deleted when the run is concluded automatically, except under `manual`, where the conclusion is written into the record and the job stays held until resolved. `vigil resolve` on a job that is not held fails and changes nothing.
+The record survives supervisor restarts, so a held job stays held without re-deriving why. `vigil resolve` writes `resolved_by` (the operator's user name) and `resolved_at` to a file of its own, `state/recovery/<job id>.resolved`, so the supervisor rewriting the record every tick can never lose them; the supervisor reads both. At its next tick the supervisor concludes the run (finished from its spool file, else `crashed` with reason `concluded by vigil resolve (<user>)`), releases the job and deletes both files. On Windows a worker that is still alive holds its token open, so it cannot be deleted then: the supervisor marks it concluded (`locks/<job id>.<run id>.resolved`), never concludes it again, and deletes it and the mark once its holder has let go. A record is also deleted when the run is concluded automatically, except under `manual`, where the conclusion is written into the record and the job stays held until resolved. `vigil resolve` on a job that is not held fails and changes nothing.
 
 Each held job appears under `UNCERTAIN` in `jobs.log` with its reason (for example `past max_runtime, but its job process cannot be proven to be the run's`), or, under `manual` once the evidence has cleared, as `run <id> crashed; held until vigil resolve`. The supervisor log records when a run first becomes uncertain, each run started beside one under `replace`, and each release.
 
@@ -1148,6 +1148,7 @@ Everything lives under one install root (§18.6 gives the root per platform). A 
     locks/<job id>.<run id>.launch  written by the supervisor before the worker starts
     locks/<job id>.<run id>.token held open by the live worker after its claim
     locks/<job id>.<run id>.timeout  written by the supervisor before it stops an overrunning run (§10.3)
+    locks/<job id>.<run id>.resolved  Windows: beside a token still held when vigil resolve concluded its run (§11.4)
     quarantine/<job id>.<epoch>.state   unreadable state, kept as evidence
     recovery/<job id>.recovery    supervisor-owned record of a held job (§11.4)
     recovery/<job id>.resolved    written by vigil resolve: who confirmed the held run is over, and when

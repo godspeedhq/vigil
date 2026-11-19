@@ -21,6 +21,10 @@
       w  wait     held while uncertain; released when the evidence clears
       r  replace  scheduling goes on, posting possible_duplicates
       m  manual   still held after the evidence clears, until vigil resolve
+    v is resolved by hand while its worker still holds its token, and is
+    concluded once. p, e and q each record a job process with the right
+    name that is not the run's: a start time that differs (p), none (e),
+    or the right one but another parent than its live worker (q).
     Every tick is a fresh supervisor process, so holds must survive
     restarts. The twin of uncertain.sh.
 
@@ -120,6 +124,11 @@ on_uncertain = wait
 file         = scripts\quick.cmd
 run_every    = 2s
 on_uncertain = wait
+
+[job.q]
+file         = scripts\quick.cmd
+run_every    = 2s
+on_uncertain = wait
 "@
 
 . (Join-Path $repo 'app\lib\windows\Worker.ps1')
@@ -162,6 +171,20 @@ foreach ($j in @('p', 'e')) {
         "[state]`nschema_version = 1`njob = $j`nrun_id = $rid`nstatus = running`nboot_id = $boot`nstarted_epoch = $now`n" +
         "deadline_epoch = 1`nworker_pid = $($gone.Id)`njob_pid = $($samename[$j].Id)`njob_name = PING.EXE`njob_start = $start`n")
 }
+# q's recorded job process has the name and the start time recorded, and its
+# worker is alive and this run's (its command line carries the run id), but
+# it is not that worker's child: only the parent check tells them apart
+# (11.5, backlog 58).
+$rid = '20260101T000000Z-9-q'
+$token = Join-Path $locks "q.$rid.token"
+[System.IO.File]::WriteAllText($token, '')
+$holders['q'] = Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-Command',
+    "`$f = [System.IO.File]::Open('$token', 'Open', 'Read', 'None'); Start-Sleep -Seconds 300 # --run-id $rid")
+$samename['q'] = Start-Process -FilePath 'ping.exe' -ArgumentList '-n', '3600', '127.0.0.1' -PassThru -WindowStyle Hidden
+$qStart = [DateTimeOffset]::new($samename['q'].StartTime).ToUnixTimeSeconds()
+[System.IO.File]::WriteAllText((Join-Path $root 'state\jobs\q.state'),
+    "[state]`nschema_version = 1`njob = q`nrun_id = $rid`nstatus = running`nboot_id = $boot`nstarted_epoch = $now`n" +
+    "deadline_epoch = 1`nworker_pid = $($holders['q'].Id)`njob_pid = $($samename['q'].Id)`njob_name = PING.EXE`njob_start = $qStart`n")
 Start-Sleep -Seconds 3
 
 Invoke-Tick
@@ -178,6 +201,8 @@ Test-Equal 'p: same name, started at another time: uncertain' 'uncertain' (Get-S
 Test-Equal 'p: and never killed' 'False' "$($samename['p'].HasExited)"
 Test-Equal 'e: same name, no start time recorded: uncertain' 'uncertain' (Get-StateValue (Join-Path $root 'state\recovery\e.recovery') 'conclusion')
 Test-Equal 'e: and never killed' 'False' "$($samename['e'].HasExited)"
+Test-Equal 'q: same name and start time, not its live worker''s child: uncertain' 'uncertain' (Get-StateValue (Join-Path $root 'state\recovery\q.recovery') 'conclusion')
+Test-Equal 'q: and never killed' 'False' "$($samename['q'].HasExited)"
 Test-Equal 'w: held, no new run' '0' "$(@(Get-ChildItem -LiteralPath $locks -Filter 'w.*' | Where-Object { $_.Name -notlike '*-9-w*' }).Count)"
 Test-Equal 'm: held, no new run' '0' "$(@(Get-ChildItem -LiteralPath $locks -Filter 'm.*' | Where-Object { $_.Name -notlike '*-9-m*' }).Count)"
 Test-Equal 'r: replaced, a new run started' 'True' "$((Get-SupervisorLog) -match 'job r: run .* started beside an uncertain run')"
@@ -209,7 +234,16 @@ Test-Equal 'v: as crashed' 'True' "$((Get-SupervisorLog) -match 'job v: run 2026
 Test-Equal 'v: released, record gone' 'False' "$(Test-Path -LiteralPath (Join-Path $root 'state\recovery\v.recovery'))"
 Test-Equal 'v: its worker never killed' 'False' "$($holders['v'].HasExited)"
 Test-Equal 'v: nor the unrelated process' 'False' "$($unrelated.HasExited)"
+Test-Equal 'v: its token, still held, marked concluded' 'True' "$(Test-Path -LiteralPath (Join-Path $locks 'v.20260101T000000Z-9-v.resolved'))"
 Stop-Process -Id $holders['v'].Id -Force
+# Its worker lets go at last: the run was concluded already, so it is not
+# concluded again, and the job's state stays its later runs'.
+Start-Sleep -Seconds 1
+Invoke-Tick
+Invoke-Tick
+Test-Equal 'v: concluded once, not again when its worker lets go' '1' "$(([regex]::Matches((Get-SupervisorLog), 'job v: run 20260101T000000Z-9-v crashed')).Count)"
+Test-Equal 'v: its state is a later run''s' 'False' "$((Get-StateValue (Join-Path $root 'state\jobs\v.state') 'run_id') -like '*9-v')"
+Test-Equal 'v: the token and its mark gone once let go' '' ((@(Get-ChildItem -LiteralPath $locks -Filter 'v.20260101T000000Z-9-v.*' | ForEach-Object Name)) -join ' ')
 
 # The evidence clears: the stand-in workers exit, releasing their tokens.
 Stop-Process -Id $holders['w'].Id, $holders['m'].Id -Force
