@@ -53,6 +53,8 @@ Vigil runs the work, records the work, and forwards the evidence. Storage, dashb
 
 ## Why Vigil
 
+The name Vigil comes from the idea of keeping watch. Just as a vigil is a period of watchfulness, Vigil watches over your scripts, tracking their execution, detecting failures and reporting what happened.
+
 Vigil began with a practical problem: a reliable way to run and monitor operational scripts on Windows servers hosting a database, where PowerShell was already there and introducing another monitoring agent would have meant more approvals. Rather than add another dependency, I built on the tools already available, and wondered whether other people run into the same constraints.
 
 It isn't here to replace the schedulers, collectors and observability tools you already use. If they meet your needs, keep using them. Vigil is simply another option, and it can sit alongside them: sending its telemetry through your OpenTelemetry Collector, or straight to Datadog, Splunk or a Prometheus-based stack.
