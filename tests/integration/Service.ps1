@@ -80,6 +80,15 @@ function Get-SvcState {
     return $first
 }
 
+# The supervisor's pid, from the first line of vigil status, or ''.
+function Get-SupervisorPid {
+    param([string]$Root)
+    [void](Invoke-Vigil $Root @('status'))
+    $first = ($script:lastOut -split "`n")[0]
+    if ($first -cmatch ', pid (\d+)') { return $Matches[1] }
+    return ''
+}
+
 function Get-StateValue {
     param([string]$Path, [string]$Key)
     if (-not (Test-Path -LiteralPath $Path)) { return '' }
@@ -95,14 +104,14 @@ function Test-Alive {
     return "$([bool](Get-Process -Id ([int]$ProcessId) -ErrorAction SilentlyContinue))"
 }
 
-# An install root: the app, NSSM, a job that holds on for five minutes and
+# An install root: the app, NSSM, a job that holds on for fifteen minutes and
 # a configuration.
 function New-Root {
     param([string]$Root)
     [void](New-Item -ItemType Directory -Force -Path (Join-Path $Root 'config'), (Join-Path $Root 'scripts'))
     Copy-Item -Recurse -LiteralPath (Join-Path $repo 'app') -Destination $Root
     Copy-Item -Recurse -LiteralPath (Join-Path $repo 'vendor') -Destination $Root
-    [System.IO.File]::WriteAllText((Join-Path $Root 'scripts\hold.cmd'), "@echo off`r`nping -n 300 127.0.0.1 > nul`r`n")
+    [System.IO.File]::WriteAllText((Join-Path $Root 'scripts\hold.cmd'), "@echo off`r`nping -n 900 127.0.0.1 > nul`r`n")
     [System.IO.File]::WriteAllText((Join-Path $Root 'config\vigil.config'), @"
 [vigil]
 instance = service-it
@@ -174,10 +183,22 @@ function Test-Lifecycle {
         Get-ChildItem -LiteralPath $log -File | ForEach-Object { Write-Host "        [$($_.Name)]"; Get-Content -LiteralPath $_.FullName -Tail 12 | ForEach-Object { Write-Host "        $_" } }
     }
     Test-Equal "${tag}: the service is active after start" 'active' (Get-SvcState $Root)
-    Test-Equal "${tag}: restart succeeds" '0' "$(Invoke-Vigil $Root @('restart'))"
-    $restartSaid = $script:lastOut
-    $afterRestart = Get-SvcState $Root
+    # Backlog 59: a restart that saw the supervisor it had just killed as
+    # still running started none. Each restart must leave a new one.
+    $restarts = if ($Mode -ceq 'user') { 3 } else { 1 }
+    $newPid = 'True'
+    for ($r = 1; $r -le $restarts; $r++) {
+        $old = Get-SupervisorPid $Root
+        $rc = Invoke-Vigil $Root @('restart')
+        $restartSaid = $script:lastOut
+        $afterRestart = Get-SvcState $Root
+        $new = Get-SupervisorPid $Root
+        if ($rc -ne 0 -or $afterRestart -cne 'active') { break }
+        if (-not $new -or $new -eq $old) { $newPid = "restart $r left pid [$new], before [$old]"; break }
+    }
+    Test-Equal "${tag}: restart succeeds" '0' "$rc"
     Test-Equal "${tag}: the service is active after restart" 'active' $afterRestart
+    Test-Equal "${tag}: each restart leaves a new supervisor" 'True' $newPid
     # Seen once in CI (user mode, PowerShell 7, run 44361165213): restart
     # succeeded and status then said inactive. All that is known, to find out
     # why if it comes back.
@@ -206,7 +227,7 @@ function Test-Lifecycle {
 
     # Test cleanup: these are the test's own processes. The job's whole tree:
     # its ping holds the run token too (backlog 43), and would keep the run
-    # alive, and the next lifecycle waiting, for its five minutes.
+    # alive, and the next lifecycle waiting, for its fifteen minutes.
     [void](& taskkill.exe /T /F /PID $job 2>&1)
     foreach ($p in @($job, $worker)) { Stop-Process -Id ([int]$p) -Force -ErrorAction SilentlyContinue }
 }
