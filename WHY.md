@@ -1,5 +1,6 @@
 # Why Vigil?
 
+- [The name](#the-name)
 - [It started with a problem I needed to solve](#it-started-with-a-problem-i-needed-to-solve)
 - [From a Windows problem to a cross-platform tool](#from-a-windows-problem-to-a-cross-platform-tool)
 - [Vigil isn't here to replace your existing tools](#vigil-isnt-here-to-replace-your-existing-tools)
@@ -7,6 +8,10 @@
 - [Why not just use cron, Telegraf or OpenTelemetry?](#why-not-just-use-cron-telegraf-or-opentelemetry)
 - [More open source, more choice](#more-open-source-more-choice)
 - [An invitation, not a prescription](#an-invitation-not-a-prescription)
+
+## The name
+
+The name Vigil comes from the idea of keeping watch. Just as a vigil is a period of watchfulness, Vigil watches over your scripts, tracking their execution, detecting failures and reporting what happened.
 
 ## It started with a problem I needed to solve
 
