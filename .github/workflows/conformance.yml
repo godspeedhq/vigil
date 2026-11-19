@@ -463,6 +463,7 @@ jobs:
     needs: [changes, windows-part]
     if: always()
     strategy:
+      fail-fast: false
       matrix:
         label: [PowerShell 5.1, PowerShell 7]
     runs-on: ubuntu-latest
@@ -478,6 +479,7 @@ jobs:
     needs: [changes, bash-suite]
     if: always()
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ubuntu-latest
