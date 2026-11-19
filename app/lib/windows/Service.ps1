@@ -324,11 +324,27 @@ function Remove-VigilService {
         }
         'user' {
             $p = Get-VigilSupervisorProcess -Root $Root
-            if ($p) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
+            if ($p) { Stop-VigilUserSupervisor -Root $Root -Process $p }
             Remove-ItemProperty -LiteralPath $Script:VigilRunKey -Name 'Vigil'
             Write-Output 'removed the Vigil Run entry; running workers continue'
         }
         default { Write-Output "vigil is not registered as a service for $Root; nothing to do" }
+    }
+}
+
+# Stops the user-mode supervisor $Process, proven by Get-VigilSupervisorProcess,
+# and returns once it no longer counts as the supervisor. A killed process
+# can be gone from the process list while its handles, the lock among them,
+# are still being closed, and WMI can still list it: until then it would
+# pass for a live supervisor, and a restart would start nothing (backlog
+# 59). Its workers are separate processes and carry on (18.3).
+function Stop-VigilUserSupervisor {
+    param([string]$Root, $Process)
+    Stop-Process -Id $Process.ProcessId -Force -ErrorAction SilentlyContinue
+    $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    while (($q = Get-VigilSupervisorProcess -Root $Root) -and $q.ProcessId -eq $Process.ProcessId) {
+        if ([DateTime]::UtcNow -gt $deadline) { throw "the supervisor (pid $($Process.ProcessId)) did not stop within 30s" }
+        Start-Sleep -Milliseconds 100
     }
 }
 
@@ -351,10 +367,7 @@ function Invoke-VigilServiceControl {
             $p = Get-VigilSupervisorProcess -Root $Root
             # A restart of nothing is a start, and says so.
             if (-not $p -and $Action -ceq 'restart') { $Action = 'start' }
-            if ($p) {
-                Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop
-                try { (Get-Process -Id $p.ProcessId -ErrorAction Stop).WaitForExit(30000) | Out-Null } catch { }
-            }
+            if ($p) { Stop-VigilUserSupervisor -Root $Root -Process $p }
         }
         if ($Action -cne 'stop' -and -not (Get-VigilSupervisorProcess -Root $Root)) {
             # Started as logon would: detached from this process, holding
