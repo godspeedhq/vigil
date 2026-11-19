@@ -15,15 +15,23 @@ permissions:
   contents: read
 
 jobs:
-  # Whether a pull request changes documentation only: Markdown at the top,
-  # backlog/ and packaging/README.md. Then the suites below are skipped, and
-  # the checks main requires pass on that; the pages workflow still builds
-  # the site from it. Anything else, packs/README.md included (the pack
-  # checker reads it), runs everything. A push to main always does.
+  # What a pull request changes, as three classes:
+  # - documentation only: Markdown at the top, backlog/ and
+  #   packaging/README.md. The suites below are skipped, and the checks main
+  #   requires pass on that; the pages workflow still builds the site.
+  # - packs only: the packs, besides documentation (packs/, the pack
+  #   checkers, the pack tests and the servers they run against in
+  #   tests/integration/backends). A pack is scripts beside Vigil and cannot
+  #   break it, so the packs job (every pack checked and run on each shell)
+  #   and the service-packs job run in place of the suites, and the checks
+  #   main requires pass only when both have.
+  # - anything else, the workflow itself included: everything.
+  # A push to main always runs everything.
   changes:
     runs-on: ubuntu-latest
     outputs:
       docs_only: ${{ steps.files.outputs.docs_only }}
+      packs_only: ${{ steps.files.outputs.packs_only }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -33,21 +41,26 @@ jobs:
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          docs_only=false
+          docs_only=false packs_only=false
+          docs='^([^/]+\.md|backlog/.*|packaging/README\.md)$'
+          packs='^(packs/.*|tools/(check-pack\.sh|Check-Pack\.ps1|new-pack\.sh)|tests/integration/(service-packs\.sh|Service-Packs\.ps1|base-pack\.sh|Base-Pack\.ps1|pack\.sh|Pack\.ps1)|tests/integration/backends/.*)$'
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
               files=$(git diff --name-only "$BASE" "$GITHUB_SHA")
               printf '%s\n' "$files"
-              if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev '^([^/]+\.md|backlog/.*|packaging/README\.md)$' > /dev/null; then
+              if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev "$docs" > /dev/null; then
                   docs_only=true
+              elif [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev "$docs" | grep -Ev "$packs" > /dev/null; then
+                  packs_only=true
               fi
           fi
-          echo "docs only: $docs_only"
+          echo "docs only: $docs_only; packs only: $packs_only"
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+          echo "packs_only=$packs_only" >> "$GITHUB_OUTPUT"
 
   bash-suite:
     name: bash suite (${{ matrix.os }})
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -211,7 +224,7 @@ jobs:
   linux-packages:
     name: linux packages (${{ matrix.target }})
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -233,7 +246,7 @@ jobs:
         if: matrix.target != 'systemd'
         run: |
           case "${{ matrix.target }}" in
-            debian:* | ubuntu:*) prep='apt-get update -q > /dev/null' ;;
+            debian:* | ubuntu:*) prep='sh /src/tests/packages/apt-update.sh' ;;
             *) prep=: ;;
           esac
           docker run --rm -v "$RUNNER_TEMP:/pk:ro" -v "$PWD:/src:ro" "${{ matrix.target }}" \
@@ -247,7 +260,7 @@ jobs:
   homebrew:
     name: homebrew formula (macOS)
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
@@ -264,7 +277,7 @@ jobs:
   macports:
     name: macports port (macOS)
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
@@ -293,7 +306,7 @@ jobs:
   scoop:
     name: scoop manifest (Windows)
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
@@ -325,7 +338,7 @@ jobs:
   windows-part:
     name: windows (${{ matrix.label }}, ${{ matrix.part }})
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -485,14 +498,81 @@ jobs:
         if: matrix.part == 'install'
         run: ./tests/integration/Install.ps1
 
+  # A pull request that changes packs only: every pack checked and run on
+  # each shell, as the suites run them, in place of the suites.
+  packs:
+    name: packs (${{ matrix.label }})
+    needs: changes
+    if: needs.changes.outputs.packs_only == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ubuntu-latest
+            os: ubuntu-latest
+            shell: bash
+          - label: macos-latest
+            os: macos-latest
+            shell: bash
+          - label: PowerShell 5.1
+            os: windows-latest
+            shell: powershell
+          - label: PowerShell 7
+            os: windows-latest
+            shell: pwsh
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: licence and disclaimer in every script
+        if: matrix.shell == 'bash'
+        run: /bin/bash tools/check-headers.sh
+      - name: every pack, checked and run (/bin/bash)
+        if: matrix.shell == 'bash'
+        run: /bin/bash tools/check-pack.sh --run
+      - name: packs (/bin/bash)
+        if: matrix.shell == 'bash'
+        run: /bin/bash tests/integration/pack.sh
+      - name: the base pack (/bin/bash)
+        if: matrix.shell == 'bash'
+        run: /bin/bash tests/integration/base-pack.sh
+      - name: packs
+        if: matrix.shell != 'bash'
+        run: ./tests/integration/Pack.ps1
+      - name: the base pack
+        if: matrix.shell != 'bash'
+        run: ./tests/integration/Base-Pack.ps1
+      - name: every pack's Windows scripts, run
+        if: matrix.shell != 'bash'
+        run: ./tools/Check-Pack.ps1
+      # As in the Windows suite: the runner's PostgreSQL, the pack's role made
+      # here.
+      - name: the postgres pack
+        if: matrix.shell != 'bash'
+        run: |
+          $monitor = [guid]::NewGuid().ToString('N')
+          Write-Output "::add-mask::$monitor"
+          Get-Service -Name 'postgresql*' | Set-Service -StartupType Manual -PassThru | Start-Service
+          $psql = Join-Path $env:PGBIN 'psql.exe'
+          & $psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE vigil_monitor LOGIN PASSWORD '$monitor' IN ROLE pg_monitor"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Remove-Item Env:\PGPASSWORD
+          $env:VIGIL_IT_PG_HOST = '127.0.0.1'
+          $env:VIGIL_IT_PG_PASSWORD = $monitor
+          ./tests/integration/Service-Packs.ps1
+
   # The checks main requires are named for each PowerShell and for each
   # bash runner. Each passes once its suite has passed (for Windows, all six
-  # parts), or when the change is documentation only and the suite was
-  # skipped. A gate of its own, because a skipped matrix job reports under
+  # parts), or when the suite was skipped because the change is
+  # documentation only, or packs only and the packs and service-packs jobs
+  # passed. A gate of its own, because a skipped matrix job reports under
   # its unexpanded name, which main would wait for forever.
   windows:
     name: windows (${{ matrix.label }})
-    needs: [changes, windows-part]
+    needs: [changes, windows-part, packs, service-packs]
     if: always()
     strategy:
       fail-fast: false
@@ -500,15 +580,23 @@ jobs:
         label: [PowerShell 5.1, PowerShell 7]
     runs-on: ubuntu-latest
     steps:
-      - name: every Windows part passed, or the change is documentation only
+      - name: every Windows part passed, or the change is documentation or packs only
         env:
           RESULT: ${{ needs.windows-part.result }}
           DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
-        run: test "$RESULT" = success || { test "$DOCS_ONLY" = true && test "$RESULT" = skipped; }
+          PACKS_ONLY: ${{ needs.changes.outputs.packs_only }}
+          PACKS: ${{ needs.packs.result }}
+          SERVICE_PACKS: ${{ needs.service-packs.result }}
+        run: |
+          test "$RESULT" = success && exit 0
+          test "$RESULT" = skipped && test "$DOCS_ONLY" = true && exit 0
+          test "$RESULT" = skipped && test "$PACKS_ONLY" = true && test "$PACKS" = success && test "$SERVICE_PACKS" = success && exit 0
+          echo "suite: $RESULT; docs only: $DOCS_ONLY; packs only: $PACKS_ONLY, packs: $PACKS, service packs: $SERVICE_PACKS"
+          exit 1
 
   bash:
     name: bash (${{ matrix.os }})
-    needs: [changes, bash-suite]
+    needs: [changes, bash-suite, packs, service-packs]
     if: always()
     strategy:
       fail-fast: false
@@ -516,8 +604,16 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ubuntu-latest
     steps:
-      - name: the bash suite passed on both runners, or the change is documentation only
+      - name: the bash suite passed on both runners, or the change is documentation or packs only
         env:
           RESULT: ${{ needs.bash-suite.result }}
           DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
-        run: test "$RESULT" = success || { test "$DOCS_ONLY" = true && test "$RESULT" = skipped; }
+          PACKS_ONLY: ${{ needs.changes.outputs.packs_only }}
+          PACKS: ${{ needs.packs.result }}
+          SERVICE_PACKS: ${{ needs.service-packs.result }}
+        run: |
+          test "$RESULT" = success && exit 0
+          test "$RESULT" = skipped && test "$DOCS_ONLY" = true && exit 0
+          test "$RESULT" = skipped && test "$PACKS_ONLY" = true && test "$PACKS" = success && test "$SERVICE_PACKS" = success && exit 0
+          echo "suite: $RESULT; docs only: $DOCS_ONLY; packs only: $PACKS_ONLY, packs: $PACKS, service packs: $SERVICE_PACKS"
+          exit 1

@@ -281,6 +281,10 @@ sed -i.bak '/^\[backend\.b\]/,/^path/d' "$root/config/vigil.config" && rm -f "$r
 tick_until 20 sh -c "grep -q '^removed_b' '$root/metrics/a.prom' && grep -q '^vigil_spool_dropped_total{backend=\"b\".*reason=\"backend_removed\"' '$root/metrics/a.prom'" > /dev/null
 check "27: the backend left has the event" yes "$(in_a removed_b && echo yes || echo no)"
 check "27: the removed one's copy dropped, counted as backend_removed" yes "$(dropped_b && echo yes || echo no)"
+# Once the senders have finished: the next may be mid-way through Vigil's own
+# newer events, which are not this test's.
+i=0
+while [ -n "$(locks vigil_sender)" ] && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
 check "27: nothing left in the fan-out" "" "$(ls "$root/spool/fanout" 2>/dev/null)"
 # b back. A sender started without it delivers by the configuration it was
 # launched with (4.3), even events that arrive while it starts: let it end.
