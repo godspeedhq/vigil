@@ -1,0 +1,108 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# MySQL and MariaDB, each a source and a replica replicating by GTID, for
+# the mysql pack (tests/integration/service-packs.sh, with
+# VIGIL_IT_MYSQL_HOST). Not somewhere Vigil sends: what its pack reads. One
+# pair at a time, by profile:
+#
+#   --profile mysql     mysql-source on 13306, mysql-replica on 13307
+#   --profile mariadb   mariadb-source on 13316, mariadb-replica on 13317
+#
+# Each has vigil_monitor, the pack's read-only user; each source has the
+# database orders. Small enough for a test machine: each server is capped at
+# 384 MB, with a 32 MB buffer pool (and MySQL's performance_schema off, which
+# the pack does not need). Passwords from .env: MYSQL_ROOT_PASSWORD,
+# MYSQL_MONITOR_PASSWORD and MYSQL_REPLICATION_PASSWORD.
+
+x-common: &common
+  mem_limit: 384m
+
+x-mysql-env: &mysql-env
+  MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
+  MONITOR_PASSWORD: ${MYSQL_MONITOR_PASSWORD:-}
+  REPLICATION_PASSWORD: ${MYSQL_REPLICATION_PASSWORD:-}
+
+x-mariadb-env: &mariadb-env
+  MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
+  MONITOR_PASSWORD: ${MYSQL_MONITOR_PASSWORD:-}
+  REPLICATION_PASSWORD: ${MYSQL_REPLICATION_PASSWORD:-}
+
+services:
+  mysql-source:
+    <<: *common
+    image: mysql:8.4.13
+    profiles: ["mysql"]
+    command: ["mysqld", "--server-id=1", "--log-bin=binlog", "--gtid-mode=ON", "--enforce-gtid-consistency=ON",
+              "--innodb-buffer-pool-size=32M", "--performance-schema=OFF"]
+    environment:
+      <<: *mysql-env
+      ROLE: source
+    ports:
+      - "127.0.0.1:13306:3306"
+    volumes:
+      - ./configs/services/mysql/monitor-user.sh:/docker-entrypoint-initdb.d/1-monitor-user.sh:ro,z
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysqladmin -uroot ping -h 127.0.0.1 --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+
+  mysql-replica:
+    <<: *common
+    image: mysql:8.4.13
+    profiles: ["mysql"]
+    depends_on:
+      mysql-source:
+        condition: service_healthy
+    command: ["mysqld", "--server-id=2", "--log-bin=binlog", "--gtid-mode=ON", "--enforce-gtid-consistency=ON",
+              "--innodb-buffer-pool-size=32M", "--performance-schema=OFF"]
+    environment:
+      <<: *mysql-env
+      SOURCE_HOST: mysql-source
+    ports:
+      - "127.0.0.1:13307:3306"
+    volumes:
+      - ./configs/services/mysql/monitor-user.sh:/docker-entrypoint-initdb.d/1-monitor-user.sh:ro,z
+      - ./configs/services/mysql/replica.sh:/docker-entrypoint-initdb.d/2-replica.sh:ro,z
+
+  mariadb-source:
+    <<: *common
+    image: mariadb:11.4.13
+    profiles: ["mariadb"]
+    command: ["mariadbd", "--server-id=11", "--log-bin=binlog", "--innodb-buffer-pool-size=32M"]
+    environment:
+      <<: *mariadb-env
+      ROLE: source
+    ports:
+      - "127.0.0.1:13316:3306"
+    volumes:
+      - ./configs/services/mysql/monitor-user.sh:/docker-entrypoint-initdb.d/1-monitor-user.sh:ro,z
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+
+  mariadb-replica:
+    <<: *common
+    image: mariadb:11.4.13
+    profiles: ["mariadb"]
+    depends_on:
+      mariadb-source:
+        condition: service_healthy
+    command: ["mariadbd", "--server-id=12", "--log-bin=binlog", "--innodb-buffer-pool-size=32M"]
+    environment:
+      <<: *mariadb-env
+      SOURCE_HOST: mariadb-source
+    ports:
+      - "127.0.0.1:13317:3306"
+    volumes:
+      - ./configs/services/mysql/monitor-user.sh:/docker-entrypoint-initdb.d/1-monitor-user.sh:ro,z
+      - ./configs/services/mysql/replica.sh:/docker-entrypoint-initdb.d/2-replica.sh:ro,z
