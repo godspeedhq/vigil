@@ -129,9 +129,10 @@ jobs:
       - name: installer (/bin/bash)
         run: /bin/bash tests/integration/install.sh
 
-  # The service packs against real servers: PostgreSQL and nginx in Docker,
-  # as tests/integration/backends runs them (compose.services.yaml). The
-  # runner has psql. macOS runners have no Docker; the scripts are the same.
+  # The service packs against real servers: PostgreSQL, MySQL, MariaDB and
+  # nginx in Docker, as tests/integration/backends runs them. The runner has
+  # psql and MySQL's client, which also talks to MariaDB here. macOS runners
+  # have no Docker; the scripts are the same.
   service-packs:
     needs: changes
     if: needs.changes.outputs.docs_only != 'true'
@@ -139,14 +140,20 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-      - name: PostgreSQL 18 and nginx
+      - name: PostgreSQL 18, MySQL 8.4, MariaDB 11.4 and nginx
         run: |
           pg_super=$(openssl rand -hex 16)
           pg_monitor=$(openssl rand -hex 16)
+          my_root=$(openssl rand -hex 16)
+          my_monitor=$(openssl rand -hex 16)
           echo "::add-mask::$pg_super"
           echo "::add-mask::$pg_monitor"
+          echo "::add-mask::$my_root"
+          echo "::add-mask::$my_monitor"
           echo "VIGIL_IT_PG_PASSWORD=$pg_monitor" >> "$GITHUB_ENV"
           echo "VIGIL_IT_PG_SUPER_PASSWORD=$pg_super" >> "$GITHUB_ENV"
+          echo "VIGIL_IT_MYSQL_PASSWORD=$my_monitor" >> "$GITHUB_ENV"
+          echo "VIGIL_IT_MYSQL_ROOT_PASSWORD=$my_root" >> "$GITHUB_ENV"
           services=$PWD/tests/integration/backends/configs/services
           docker run -d --name pg -p 127.0.0.1:5432:5432 \
             -e POSTGRES_PASSWORD="$pg_super" -e POSTGRES_MONITOR_PASSWORD="$pg_monitor" \
@@ -154,23 +161,47 @@ jobs:
             postgres:18.1-alpine
           docker run -d --name ngx -p 127.0.0.1:9082:80 \
             -v "$services/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" nginx:1.30.5-alpine
-          # Each answers once it is ready: the role exists only after the
-          # init script, and nginx resets connections while it starts.
-          pg=''; ngx=''
-          for i in $(seq 1 60); do
+          docker run -d --name my -p 127.0.0.1:13306:3306 \
+            -e MYSQL_ROOT_PASSWORD="$my_root" -e MONITOR_PASSWORD="$my_monitor" -e ROLE=source \
+            -e REPLICATION_PASSWORD="$(openssl rand -hex 16)" \
+            -v "$services/mysql/monitor-user.sh:/docker-entrypoint-initdb.d/1-monitor-user.sh:ro" \
+            mysql:8.4.13 --innodb-buffer-pool-size=64M
+          docker run -d --name maria -p 127.0.0.1:13316:3306 \
+            -e MARIADB_ROOT_PASSWORD="$my_root" -e MONITOR_PASSWORD="$my_monitor" -e ROLE=source \
+            -e REPLICATION_PASSWORD="$(openssl rand -hex 16)" \
+            -v "$services/mysql/monitor-user.sh:/docker-entrypoint-initdb.d/1-monitor-user.sh:ro" \
+            mariadb:11.4.13
+          mysql --version
+          # Each answers once it is ready: the role and users exist only after
+          # the init scripts, and nginx resets connections while it starts.
+          pg=''; ngx=''; my=''; maria=''
+          for i in $(seq 1 90); do
             [ -n "$pg" ] || { pg_isready -q -h 127.0.0.1 -p 5432 && docker exec pg psql -U postgres -Atc "SELECT 1 FROM pg_roles WHERE rolname = 'vigil_monitor'" 2> /dev/null | grep -q 1 && pg=up; }
             [ -n "$ngx" ] || { curl -fsS -o /dev/null http://127.0.0.1:9082/nginx_status 2> /dev/null && ngx=up; }
-            [ -n "$pg" ] && [ -n "$ngx" ] && break
+            [ -n "$my" ] || { MYSQL_PWD=$my_monitor mysql --protocol=TCP -h 127.0.0.1 -P 13306 -u vigil_monitor -N -e 'SELECT 1' > /dev/null 2>&1 && my=up; }
+            [ -n "$maria" ] || { MYSQL_PWD=$my_monitor mysql --protocol=TCP -h 127.0.0.1 -P 13316 -u vigil_monitor -N -e 'SELECT 1' > /dev/null 2>&1 && maria=up; }
+            [ -n "$pg" ] && [ -n "$ngx" ] && [ -n "$my" ] && [ -n "$maria" ] && break
             sleep 2
           done
           [ -n "$pg" ] || { echo "PostgreSQL never became ready"; docker logs pg; exit 1; }
           [ -n "$ngx" ] || { echo "nginx never became ready"; docker logs ngx; exit 1; }
+          [ -n "$my" ] || { echo "MySQL never became ready"; docker logs my; exit 1; }
+          [ -n "$maria" ] || { echo "MariaDB never became ready"; docker logs maria; exit 1; }
           curl -fsS http://127.0.0.1:9082/nginx_status
-      - name: the service packs (/bin/bash)
+      - name: the service packs, MySQL among them (/bin/bash)
         env:
           VIGIL_IT_PG_HOST: 127.0.0.1
           VIGIL_IT_PG_PORT: '5432'
+          VIGIL_IT_MYSQL_HOST: 127.0.0.1
+          VIGIL_IT_MYSQL_PORT: '13306'
           VIGIL_IT_NGINX_URL: http://127.0.0.1:9082/nginx_status
+        run: /bin/bash tests/integration/service-packs.sh
+      - name: the mysql pack against MariaDB (/bin/bash)
+        env:
+          VIGIL_IT_PG_HOST: ''
+          VIGIL_IT_NGINX_URL: ''
+          VIGIL_IT_MYSQL_HOST: 127.0.0.1
+          VIGIL_IT_MYSQL_PORT: '13316'
         run: /bin/bash tests/integration/service-packs.sh
 
   # The .deb and .rpm (backlog 30, step 1), built as a release builds them,

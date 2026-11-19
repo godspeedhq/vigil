@@ -79,6 +79,38 @@ A server that does not answer reports `postgres.up` 0, and the run succeeds: tha
 
 **Several servers:** `vigil pack enable` writes one copy of the jobs. For another server, copy a job's section in `vigil.config` under a new name (`[job.postgres_status_db2]`) and change its `env` lines; each copy reports with its own `job` tag.
 
+### mysql
+
+A MySQL or MariaDB server, on this machine or any it can reach (a container, another server, a managed service such as RDS or Cloud SQL), through the `mysql` client (MySQL's, or MariaDB's `mariadb`): a machine that runs Vigil but not the database needs only the client package. It logs in as a read-only user, never root. Linux and macOS.
+
+1. Create the user once, as a database administrator:
+
+   ```sql
+   CREATE USER 'vigil_monitor'@'%' IDENTIFIED BY '...';
+   GRANT PROCESS, REPLICATION CLIENT ON *.* TO 'vigil_monitor'@'%';
+   -- MariaDB only: reading replication status is a right of its own there
+   GRANT REPLICA MONITOR ON *.* TO 'vigil_monitor'@'%';
+   ```
+
+   Neither grant lets it read or change any table's data.
+2. Give Vigil its password: `vigil secret set MYSQL_MONITOR_PASSWORD`, as the account Vigil runs as. The jobs pass it to the client in `MYSQL_PWD`, never on a command line.
+3. `vigil pack enable mysql`. The jobs connect to `127.0.0.1:3306` as `vigil_monitor`; for anything else, edit their `env` lines (`MYSQL_HOST`, `MYSQL_TCP_PORT`, `MYSQL_USER`) in `vigil.config`.
+
+| Job | Reports | Linux | macOS | Windows |
+| --- | --- | --- | --- | --- |
+| `mysql_status` | Up, connections and the limit, statements running and the longest, statements, slow ones, failed connection attempts, temporary tables spilled to disk | Yes | Yes | No |
+| `mysql_activity` | The longest open transaction, transactions open on an idle connection and the longest, transactions waiting on a row lock and the longest wait | Yes | Yes | No |
+| `mysql_replication` | On a replica: whether each replication thread runs, and the lag, per channel. On a source: replicas connected | Yes | Yes | No |
+| `mysql_innodb` | Buffer pool hit rate and use, undo history waiting for purge, row lock waits and deadlocks | Yes | Yes | No |
+| `mysql_size` | Each database's InnoDB tables on disk | Yes | Yes | No |
+
+Each script reads MySQL's and MariaDB's own names for the same thing, so a dashboard works for both. It needs nothing from `performance_schema`, which MariaDB leaves off by default. Each script's header says what its metrics mean and how to read them. Two things the servers do that are worth knowing:
+
+- On MariaDB `buffer_pool_hit_pct` can be missing, on a fresh server most of all: MariaDB counts read requests only in part, and while it shows more reads from disk than requests, no hit rate can be worked out.
+- A source counts a replica whose machine stopped without closing the connection until that connection times out, so alert on each replica's own `io_running` and `mysql.up` too.
+
+A server that does not answer reports `mysql.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed. A refused login fails the run, and its log says why. For several servers, copy a job's section under a new name, as for postgres.
+
 ### nginx
 
 An nginx server on this machine, from its `stub_status` page, which you turn on once, reachable from this machine only:

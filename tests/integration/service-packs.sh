@@ -9,9 +9,10 @@
 # for any claim, damages or other liability arising from its use. See the
 # LICENSE file for the full terms.
 #
-# Integration test: the service packs (packs/postgres, packs/nginx) against
-# real servers, on Linux and macOS. The twin of Service-Packs.ps1, which
-# tests postgres on Windows (nginx has no Windows script).
+# Integration test: the service packs (packs/postgres, packs/mysql,
+# packs/nginx) against real servers, on Linux and macOS. The twin of
+# Service-Packs.ps1, which tests postgres on Windows (nginx and mysql have no
+# Windows scripts).
 #
 # A pack is tested only when its server is given, and SKIPped otherwise:
 #   VIGIL_IT_PG_HOST, VIGIL_IT_PG_PORT   a PostgreSQL server (default port 5432)
@@ -21,9 +22,19 @@
 #                                        make dead rows and an unused slot
 #   VIGIL_IT_PG_REPLICA_HOST, _PORT      optional: a streaming replica of it
 #                                        (compose.replication.yaml)
+#   VIGIL_IT_MYSQL_HOST, _PORT           a MySQL or MariaDB server (default
+#                                        port 3306)
+#   VIGIL_IT_MYSQL_PASSWORD              its vigil_monitor user's password;
+#                                        the user has PROCESS and REPLICATION
+#                                        CLIENT (and on MariaDB REPLICA
+#                                        MONITOR), and nothing more
+#   VIGIL_IT_MYSQL_ROOT_PASSWORD         optional: its root's, to hold a row
+#                                        lock and make a deadlock
+#   VIGIL_IT_MYSQL_REPLICA_HOST, _PORT   optional: a replica of it
+#                                        (compose.mysql.yaml)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
-# CI starts both as service containers; tests/integration/backends has
-# them for a machine of your own (scripts/run-pack.sh).
+# CI starts them as service containers; tests/integration/backends has
+# them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
 #
 # For each pack: it is off until enabled; vigil pack enable puts its jobs in
 # the configuration; each job runs and reports what the server says; a
@@ -32,7 +43,10 @@
 # its transaction and one blocked behind its lock, a sort spilled to disk,
 # dead rows and an unused replication slot, a replica from both sides; the
 # other jobs say nothing while the server is down; a wrong password fails
-# the run and says why, and the password is written nowhere.
+# the run and says why, and the password is written nowhere. For mysql
+# also: a row lock held by a transaction idle on its connection, with
+# another waiting for it, and a deadlock; a replica from both sides; a wrong
+# password and a server that is down.
 #
 # Exit code: 0 all passed or skipped, 1 any failed.
 
@@ -77,7 +91,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres nginx; do
+for p in postgres mysql nginx; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -237,6 +251,118 @@ else
     set_env PGPORT "${VIGIL_IT_PG_PORT:-5432}"
 fi
 
+# --- mysql ------------------------------------------------------------------
+if [ -z "${VIGIL_IT_MYSQL_HOST-}" ] || [ -z "${VIGIL_IT_MYSQL_PASSWORD-}" ]; then
+    printf '  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD\n'
+elif ! command -v mysql > /dev/null 2>&1 && ! command -v mariadb > /dev/null 2>&1; then
+    printf '  SKIP  mysql: neither mysql nor mariadb is installed here\n'
+else
+    printf 'mysql at %s:%s\n' "$VIGIL_IT_MYSQL_HOST" "${VIGIL_IT_MYSQL_PORT:-3306}"
+    myclient=$(command -v mysql || command -v mariadb)
+    # The test's own sessions; their stderr (MariaDB's client warns there)
+    # is not the test's business.
+    myroot() {
+        MYSQL_PWD=$VIGIL_IT_MYSQL_ROOT_PASSWORD "$myclient" --protocol=TCP -h "$VIGIL_IT_MYSQL_HOST" \
+            -P "${VIGIL_IT_MYSQL_PORT:-3306}" -u root -N -B orders "$@" 2> /dev/null
+    }
+    jobs_on() { vigil pack list | awk '$1 ~ /^mysql_/ { print $2 }' | tr '\n' ' ' | sed 's/ $//'; }
+    check 'mysql: off until enabled' 'off off off off off' "$(jobs_on)"
+    out=$(vigil pack enable mysql 2>&1)
+    check 'mysql: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'mysql: its jobs are on' 'on on on on on' "$(jobs_on)"
+    check 'mysql: the password is a secret reference' 1 "$(grep -c '^secret *= MYSQL_PWD=secret:MYSQL_MONITOR_PASSWORD' "$root/config/vigil.config" | awk '{ print ($1 >= 1) }')"
+    printf '%s' "$VIGIL_IT_MYSQL_PASSWORD" | vigil secret set MYSQL_MONITOR_PASSWORD --stdin > /dev/null
+    set_env MYSQL_HOST "$VIGIL_IT_MYSQL_HOST"
+    set_env MYSQL_TCP_PORT "${VIGIL_IT_MYSQL_PORT:-3306}"
+    check 'mysql: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+
+    # With root: a transaction holds a row lock, idle on its connection, and
+    # another statement waits for the row.
+    if [ -n "${VIGIL_IT_MYSQL_ROOT_PASSWORD-}" ]; then
+        printf 'DROP TABLE IF EXISTS vigil_it_ledger;
+CREATE TABLE vigil_it_ledger (id INT PRIMARY KEY, v INT) ENGINE = InnoDB;
+INSERT INTO vigil_it_ledger VALUES (1, 0), (2, 0);\n' | myroot
+        ( echo 'BEGIN; UPDATE vigil_it_ledger SET v = v + 1 WHERE id = 1;'; sleep 20; echo 'ROLLBACK;' ) | myroot > /dev/null &
+        hold=$!
+        sleep 2
+        echo 'UPDATE vigil_it_ledger SET v = v + 2 WHERE id = 1;' | myroot > /dev/null &
+        waiter=$!
+        sleep 4
+    else
+        printf '  SKIP  mysql: a held row lock and a deadlock: set VIGIL_IT_MYSQL_ROOT_PASSWORD\n'
+    fi
+    for j in status activity replication innodb size; do
+        vigil run "mysql_$j" > "$work/out" 2>&1
+        check "mysql: $j runs" 0 "$?"
+        grep -h ' out metric ' "$root/logs/jobs/mysql_$j"/*.log | tail -n 10 | sed 's/^[^ ]* [^ ]* out /        /'
+    done
+    check 'mysql: up' 1 "$(printed mysql_status up)"
+    check 'mysql: connections seen' yes "$([ "$(printed mysql_status connections)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'mysql: the limit' yes "$([ "$(printed mysql_status max_connections)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'mysql: statements counted' yes "$([ "$(printed mysql_status queries_count)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'mysql: a source' 0 "$(printed mysql_replication is_replica)"
+    check 'mysql: the buffer pool' yes "$(v=$(printed mysql_innodb buffer_pool_used_pct); [ "$v" -ge 0 ] 2> /dev/null && [ "$v" -le 100 ] && echo yes || echo no)"
+    check 'mysql: no warning taken for data' 0 "$(grep ' out metric ' "$root"/logs/jobs/mysql_*/*.log | grep -vcE ' out metric [a-z_]+ -?[0-9]+( [a-z]+=[A-Za-z0-9_.-]+)?$')"
+    if [ -n "${VIGIL_IT_MYSQL_ROOT_PASSWORD-}" ]; then
+        check 'mysql: the transaction idle on its connection' yes "$([ "$(printed mysql_activity idle_in_transaction)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+        check 'mysql: the statement waiting for its row' yes "$([ "$(printed mysql_activity waiting)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+        check 'mysql: the wait timed' yes "$([ "$(printed mysql_activity longest_wait_seconds)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+        check 'mysql: the waiting statement seen running' yes "$([ "$(printed mysql_status longest_query_seconds)" -ge 2 ] 2> /dev/null && echo yes || echo no)"
+        check 'mysql: the table sized' yes "$([ "$(printed mysql_size size_bytes database=orders)" -gt 0 ] 2> /dev/null && echo yes || echo no)"
+        kill "$hold" "$waiter" 2> /dev/null
+        wait "$hold" "$waiter" 2> /dev/null
+        hold=''
+        # A deadlock: two transactions take the same two rows in opposite orders.
+        before=$(printed mysql_innodb deadlocks_count)
+        ( echo 'BEGIN; UPDATE vigil_it_ledger SET v = 1 WHERE id = 1;'; sleep 2; echo 'UPDATE vigil_it_ledger SET v = 1 WHERE id = 2;'; sleep 3; echo 'COMMIT;' ) | myroot > /dev/null &
+        a=$!
+        ( sleep 1; echo 'BEGIN; UPDATE vigil_it_ledger SET v = 2 WHERE id = 2;'; sleep 2; echo 'UPDATE vigil_it_ledger SET v = 2 WHERE id = 1;'; sleep 1; echo 'COMMIT;' ) | myroot > /dev/null &
+        b=$!
+        wait "$a" "$b" 2> /dev/null
+        vigil run mysql_innodb > "$work/out" 2>&1
+        check 'mysql: the deadlock counted' yes "$([ "$(printed mysql_innodb deadlocks_count)" -gt "${before:-0}" ] 2> /dev/null && echo yes || echo no)"
+        echo 'DROP TABLE vigil_it_ledger;' | myroot
+    fi
+
+    # With a replica of this server: the source sees it, and the replica says
+    # it is one, with both its threads running.
+    if [ -n "${VIGIL_IT_MYSQL_REPLICA_HOST-}" ]; then
+        check 'mysql: the replica seen from the source' yes "$([ "$(printed mysql_replication replicas)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+        set_env MYSQL_HOST "$VIGIL_IT_MYSQL_REPLICA_HOST"
+        set_env MYSQL_TCP_PORT "${VIGIL_IT_MYSQL_REPLICA_PORT:-3306}"
+        vigil run mysql_replication > "$work/out" 2>&1
+        check 'mysql: replication runs on the replica' 0 "$?"
+        grep -h ' out metric ' "$root/logs/jobs/mysql_replication"/*.log | tail -n 5 | sed 's/^[^ ]* [^ ]* out /        /'
+        check 'mysql: a replica' 1 "$(printed mysql_replication is_replica)"
+        check 'mysql: receiving' 1 "$(printed mysql_replication io_running channel=default)"
+        check 'mysql: applying' 1 "$(printed mysql_replication sql_running channel=default)"
+        check 'mysql: its lag' yes "$([ -n "$(printed mysql_replication lag_seconds channel=default)" ] && echo yes || echo no)"
+        set_env MYSQL_HOST "$VIGIL_IT_MYSQL_HOST"
+        set_env MYSQL_TCP_PORT "${VIGIL_IT_MYSQL_PORT:-3306}"
+    else
+        printf '  SKIP  mysql: a replica: set VIGIL_IT_MYSQL_REPLICA_HOST (compose.mysql.yaml)\n'
+    fi
+
+    # A wrong password fails the run and says why; it is not "down".
+    printf 'not-the-password' | vigil secret set MYSQL_MONITOR_PASSWORD --stdin > /dev/null
+    vigil run mysql_status > "$work/out" 2>&1
+    check 'mysql: a wrong password fails the run' 2 "$?"
+    check 'mysql: and says why' yes "$(grep -q 'refused the login' "$root"/logs/jobs/mysql_status/*.log && echo yes || echo no)"
+    printf '%s' "$VIGIL_IT_MYSQL_PASSWORD" | vigil secret set MYSQL_MONITOR_PASSWORD --stdin > /dev/null
+
+    # A server that does not answer is a reading; the other jobs say nothing.
+    set_env MYSQL_TCP_PORT 1
+    vigil run mysql_status > "$work/out" 2>&1
+    check 'mysql: a server that is down still runs' 0 "$?"
+    check 'mysql: and reads as up 0' 0 "$(printed mysql_status up)"
+    before=$(grep -c ' out metric ' "$root"/logs/jobs/mysql_activity/*.log)
+    vigil run mysql_activity > "$work/out" 2>&1
+    check 'mysql: the other jobs succeed when it is down' 0 "$?"
+    check 'mysql: and say nothing' "$before" "$(grep -c ' out metric ' "$root"/logs/jobs/mysql_activity/*.log)"
+    set_env MYSQL_TCP_PORT "${VIGIL_IT_MYSQL_PORT:-3306}"
+fi
+
 # --- nginx ------------------------------------------------------------------
 if [ -z "${VIGIL_IT_NGINX_URL-}" ]; then
     printf '  SKIP  nginx: set VIGIL_IT_NGINX_URL\n'
@@ -270,6 +396,10 @@ if [ -n "${VIGIL_IT_PG_HOST-}" ] && [ -n "${VIGIL_IT_PG_PASSWORD-}" ] && command
     check 'postgres: the 1.2.0 jobs reach it too' yes "$(grep -q '^postgres_activity_blocked{' "$root/metrics/vigil.prom" && grep -q '^postgres_wraparound_xid_pct{.*database="postgres"' "$root/metrics/vigil.prom" && echo yes || echo no)"
     check 'postgres: sizes reach the backend' yes "$(grep -q '^postgres_database_size_bytes{.*database="postgres"' "$root/metrics/vigil.prom" && echo yes || echo no)"
     check 'postgres: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_PG_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+fi
+if [ -n "${VIGIL_IT_MYSQL_HOST-}" ] && [ -n "${VIGIL_IT_MYSQL_PASSWORD-}" ] && { command -v mysql || command -v mariadb; } > /dev/null 2>&1; then
+    check 'mysql: metrics reach the backend' yes "$(grep -q '^mysql_connections{' "$root/metrics/vigil.prom" && grep -q '^mysql_activity_waiting{' "$root/metrics/vigil.prom" && echo yes || echo no)"
+    check 'mysql: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_MYSQL_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
     check 'nginx: metrics reach the backend' yes "$(grep -q '^nginx_requests_count{' "$root/metrics/vigil.prom" && echo yes || echo no)"
