@@ -17,6 +17,10 @@
 #   VIGIL_IT_PG_HOST, VIGIL_IT_PG_PORT   a PostgreSQL server (default port 5432)
 #   VIGIL_IT_PG_PASSWORD                 its vigil_monitor role's password; the
 #                                        role has pg_monitor and nothing more
+#   VIGIL_IT_PG_SUPER_PASSWORD           optional: its postgres superuser's, to
+#                                        make dead rows and an unused slot
+#   VIGIL_IT_PG_REPLICA_HOST, _PORT      optional: a streaming replica of it
+#                                        (compose.replication.yaml)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
 # CI starts both as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh).
@@ -24,8 +28,11 @@
 # For each pack: it is off until enabled; vigil pack enable puts its jobs in
 # the configuration; each job runs and reports what the server says; a
 # server that is down reads as up 0; and its metrics reach a backend. For
-# postgres also: a long query and transaction are seen, a wrong password
-# fails the run and says why, and the password is written nowhere.
+# postgres also: a long query and transaction are seen, a session idle in
+# its transaction and one blocked behind its lock, a sort spilled to disk,
+# dead rows and an unused replication slot, a replica from both sides; the
+# other jobs say nothing while the server is down; a wrong password fails
+# the run and says why, and the password is written nowhere.
 #
 # Exit code: 0 all passed or skipped, 1 any failed.
 
@@ -121,6 +128,95 @@ else
     check 'postgres: the postgres database sized' yes "$([ "$(printed postgres_size size_bytes database=postgres)" -gt 0 ] 2> /dev/null && echo yes || echo no)"
     check 'postgres: no template database' 0 "$(grep -c 'database=template' "$root"/logs/jobs/postgres_size/*.log)"
 
+    # The jobs from 1.2.0, on Linux and macOS.
+    check 'postgres: the 1.2.0 jobs are on' 'on on on on on' "$(vigil pack list | awk '$1 ~ /^postgres_(activity|replication|wraparound|vacuum|io)$/ { print $2 }' | tr '\n' ' ' | sed 's/ $//')"
+    pg() { PGPASSWORD=$VIGIL_IT_PG_PASSWORD psql -X -q -h "$VIGIL_IT_PG_HOST" -p "${VIGIL_IT_PG_PORT:-5432}" -U vigil_monitor -d postgres "$@"; }
+    super() { PGPASSWORD=$VIGIL_IT_PG_SUPER_PASSWORD PGOPTIONS='-c client_min_messages=warning' psql -X -q -h "$VIGIL_IT_PG_HOST" -p "${VIGIL_IT_PG_PORT:-5432}" -U postgres -v ON_ERROR_STOP=1 "$@"; }
+    shown() { grep -h ' out metric ' "$root/logs/jobs/$1"/*.log | tail -n "$2" | sed 's/^[^ ]* [^ ]* out /        /'; }
+
+    # A session holds a lock, idle in its transaction; another waits for it.
+    ( echo 'BEGIN; SELECT pg_advisory_xact_lock(4242);'; sleep 20 ) | pg > /dev/null 2>&1 &
+    hold=$!
+    sleep 2
+    pg -c 'SELECT pg_advisory_lock(4242)' > /dev/null 2>&1 &
+    waiter=$!
+    sleep 4
+    vigil run postgres_activity > "$work/out" 2>&1
+    check 'postgres: activity runs' 0 "$?"
+    shown postgres_activity 7
+    check 'postgres: the session idle in its transaction' yes "$([ "$(printed postgres_activity idle_in_transaction)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'postgres: for some seconds' yes "$([ "$(printed postgres_activity longest_idle_in_transaction_seconds)" -ge 2 ] 2> /dev/null && echo yes || echo no)"
+    check 'postgres: the session waiting on its lock' yes "$([ "$(printed postgres_activity waiting)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'postgres: blocked by it' yes "$([ "$(printed postgres_activity blocked)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'postgres: the wait timed' yes "$([ "$(printed postgres_activity longest_wait_seconds)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    kill "$hold" "$waiter" 2> /dev/null
+    wait "$hold" "$waiter" 2> /dev/null
+    hold=''
+
+    vigil run postgres_wraparound > "$work/out" 2>&1
+    check 'postgres: wraparound runs' 0 "$?"
+    grep -h ' out metric ' "$root/logs/jobs/postgres_wraparound"/*.log | grep -e 'database=postgres' -e oldest | sed 's/^[^ ]* [^ ]* out /        /'
+    check 'postgres: the postgres database aged' yes "$([ "$(printed postgres_wraparound xid_age_count database=postgres)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'postgres: and far from the limit' 0 "$(printed postgres_wraparound xid_pct database=postgres)"
+    check 'postgres: template0 too, which vacuum must also freeze' yes "$([ -n "$(printed postgres_wraparound xid_age_count database=template0)" ] && echo yes || echo no)"
+
+    # A sort larger than work_mem spills to disk.
+    pg -c "SET work_mem = '64kB'; SELECT count(*) FROM (SELECT g FROM generate_series(1, 300000) g ORDER BY g DESC) s;" > /dev/null
+    sleep 2
+    vigil run postgres_io > "$work/out" 2>&1
+    check 'postgres: io runs' 0 "$?"
+    shown postgres_io 5
+    check 'postgres: the spill counted' yes "$([ "$(printed postgres_io temp_files_count)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'postgres: and its bytes' yes "$([ "$(printed postgres_io temp_bytes)" -ge 100000 ] 2> /dev/null && echo yes || echo no)"
+    check 'postgres: WAL written' yes "$([ "$(printed postgres_io wal_bytes)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'postgres: checkpoints counted' yes "$([ -n "$(printed postgres_io checkpoints_timed_count)" ] && [ -n "$(printed postgres_io checkpoints_requested_count)" ] && echo yes || echo no)"
+
+    # With the server's superuser: dead rows autovacuum may not touch, and a
+    # replication slot nothing uses. The read-only role can make neither.
+    if [ -n "${VIGIL_IT_PG_SUPER_PASSWORD-}" ]; then
+        super -d orders -c 'DROP TABLE IF EXISTS vigil_it_ledger; CREATE TABLE vigil_it_ledger(id int) WITH (autovacuum_enabled = false);
+            INSERT INTO vigil_it_ledger SELECT generate_series(1, 20000); DELETE FROM vigil_it_ledger;' > /dev/null
+        super -d postgres -c "SELECT pg_create_physical_replication_slot('vigil_it_slot', true);" > /dev/null
+        sleep 2
+    else
+        printf '  SKIP  postgres: dead rows and an unused slot: set VIGIL_IT_PG_SUPER_PASSWORD\n'
+    fi
+    vigil run postgres_vacuum > "$work/out" 2>&1
+    check 'postgres: vacuum runs' 0 "$?"
+    shown postgres_vacuum 6
+    check 'postgres: autovacuum workers' yes "$([ "$(printed postgres_vacuum autovacuum_max_workers)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'postgres: each database it may connect to' yes "$([ -n "$(printed postgres_vacuum dead_tuples_count database=postgres)" ] && [ -n "$(printed postgres_vacuum dead_tuples_count database=orders)" ] && echo yes || echo no)"
+    vigil run postgres_replication > "$work/out" 2>&1
+    check 'postgres: replication runs' 0 "$?"
+    shown postgres_replication 4
+    check 'postgres: a primary' 0 "$(printed postgres_replication is_replica)"
+    if [ -n "${VIGIL_IT_PG_SUPER_PASSWORD-}" ]; then
+        check 'postgres: the dead rows' yes "$([ "$(printed postgres_vacuum dead_tuples_count database=orders)" -ge 20000 ] 2> /dev/null && echo yes || echo no)"
+        check 'postgres: their table due' yes "$([ "$(printed postgres_vacuum tables_due_count database=orders)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+        check 'postgres: the unused slot' yes "$([ "$(printed postgres_replication slots_inactive)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+        check 'postgres: the WAL it keeps' yes "$([ -n "$(printed postgres_replication slot_retained_bytes slot=vigil_it_slot)" ] && echo yes || echo no)"
+        super -d orders -c 'DROP TABLE vigil_it_ledger;' > /dev/null
+        super -d postgres -c "SELECT pg_drop_replication_slot('vigil_it_slot');" > /dev/null
+    fi
+
+    # With a streaming replica of this server: the primary sees it, and the
+    # replica says it is one and receives.
+    if [ -n "${VIGIL_IT_PG_REPLICA_HOST-}" ]; then
+        check 'postgres: the replica seen from the primary' yes "$([ "$(printed postgres_replication replicas)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+        check 'postgres: its lag' yes "$([ -n "$(printed postgres_replication lag_bytes replica=)" ] && echo yes || echo no)"
+        set_env PGHOST "$VIGIL_IT_PG_REPLICA_HOST"
+        set_env PGPORT "${VIGIL_IT_PG_REPLICA_PORT:-5432}"
+        vigil run postgres_replication > "$work/out" 2>&1
+        check 'postgres: replication runs on the replica' 0 "$?"
+        shown postgres_replication 4
+        check 'postgres: a replica' 1 "$(printed postgres_replication is_replica)"
+        check 'postgres: receiving' 1 "$(printed postgres_replication receiver_up)"
+        set_env PGHOST "$VIGIL_IT_PG_HOST"
+        set_env PGPORT "${VIGIL_IT_PG_PORT:-5432}"
+    else
+        printf '  SKIP  postgres: a replica: set VIGIL_IT_PG_REPLICA_HOST (compose.replication.yaml)\n'
+    fi
+
     # A wrong password fails the run and says why; it is not "down".
     printf 'not-the-password' | vigil secret set POSTGRES_MONITOR_PASSWORD --stdin > /dev/null
     vigil run postgres_status > "$work/out" 2>&1
@@ -133,6 +229,11 @@ else
     vigil run postgres_status > "$work/out" 2>&1
     check 'postgres: a server that is down still runs' 0 "$?"
     check 'postgres: and reads as up 0' 0 "$(printed postgres_status up)"
+    # The others print nothing then, and succeed: status has said it.
+    before=$(grep -c ' out metric ' "$root"/logs/jobs/postgres_activity/*.log)
+    vigil run postgres_activity > "$work/out" 2>&1
+    check 'postgres: the other jobs succeed when it is down' 0 "$?"
+    check 'postgres: and say nothing' "$before" "$(grep -c ' out metric ' "$root"/logs/jobs/postgres_activity/*.log)"
     set_env PGPORT "${VIGIL_IT_PG_PORT:-5432}"
 fi
 
@@ -166,6 +267,7 @@ sleep 3
 vigil supervise --once > /dev/null 2>&1
 if [ -n "${VIGIL_IT_PG_HOST-}" ] && [ -n "${VIGIL_IT_PG_PASSWORD-}" ] && command -v psql > /dev/null 2>&1; then
     check 'postgres: metrics reach the backend' yes "$(grep -q '^postgres_connections{' "$root/metrics/vigil.prom" && echo yes || echo no)"
+    check 'postgres: the 1.2.0 jobs reach it too' yes "$(grep -q '^postgres_activity_blocked{' "$root/metrics/vigil.prom" && grep -q '^postgres_wraparound_xid_pct{.*database="postgres"' "$root/metrics/vigil.prom" && echo yes || echo no)"
     check 'postgres: sizes reach the backend' yes "$(grep -q '^postgres_database_size_bytes{.*database="postgres"' "$root/metrics/vigil.prom" && echo yes || echo no)"
     check 'postgres: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_PG_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
