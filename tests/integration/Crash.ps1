@@ -384,6 +384,16 @@ Wait-Ticking 30 { -not (Get-Locks 'q') }
 for ($i = 0; $i -lt 6; $i++) { [void](Invoke-Once); Start-Sleep -Seconds 1 }
 Wait-Ticking 30 { -not (Get-Locks 'q') }
 Test-Equal 'queued: two runs, never three' '2' "$(@([System.IO.File]::ReadAllLines("$root\qmarks") | Where-Object { $_.Trim() }).Count)"
+# Seen once with three, on PowerShell 7, and not since: if it comes back,
+# which runs, and what the supervisor said about q.
+$qruns = @([System.IO.File]::ReadAllLines("$root\qmarks") | Where-Object { $_.Trim() })
+if ($qruns.Count -ne 2) {
+    $qruns | ForEach-Object { Write-Host "        run: $_" }
+    Get-ChildItem -LiteralPath "$root\logs\supervisor" -Filter '2*.log' | ForEach-Object { Get-Content -LiteralPath $_.FullName } |
+        Where-Object { $_ -match 'job q[: ]|VIGIL_FAULT|supervisor started' } | Select-Object -Last 30 | ForEach-Object { Write-Host "        sup: $_" }
+    Get-ChildItem -LiteralPath "$root\logs\jobs\q" -File -ErrorAction SilentlyContinue | ForEach-Object { Get-Content -LiteralPath $_.FullName } |
+        ForEach-Object { Write-Host "        job: $_" }
+}
 
 # --- The worker's crash points (7, 16, 23) ------------------------------------------
 #
