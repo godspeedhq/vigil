@@ -17,7 +17,7 @@ Vigil runs your scripts on a schedule, watches every run from start to finish, a
 
 Vigil runs the work, records the work, and forwards the evidence. Storage, dashboards and alerting stay with the tools built for them.
 
-> **Status: pre-1.0 (v0.10.x).** Scheduling, supervision, recovery, service registration, the installers, self-update, the `file`, Datadog, OTLP and Splunk metrics backends, fetching configuration and scripts from git, https, sftp and local sources, secret stores, and forwarding Vigil's own logs work end to end on Linux, macOS and Windows 11. Windows Server 2016 to 2025 are tested, with caveats ([Windows](#windows)), and other metrics backends are planned, not built. See [What works today](#what-works-today) for what each is tested against.
+> **Status: v1 (1.0.x).** Every v1 acceptance criterion ([§25](SPECIFICATION.md#25-v1-acceptance-criteria)) is met and tested. Scheduling, supervision, recovery, service registration, the installers, self-update, the `file`, Datadog, OTLP and Splunk metrics backends, fetching configuration and scripts from git, https, sftp and local sources, secret stores, and forwarding Vigil's own logs work end to end on Linux, macOS and Windows 11. Windows Server 2016 to 2025 are tested, with caveats ([Windows](#windows)), and other metrics backends are planned, not built. See [What works today](#what-works-today) for what each is tested against.
 
 ---
 
