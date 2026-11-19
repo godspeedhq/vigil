@@ -510,8 +510,12 @@ function Invoke-VigilSupervisor {
         $active = '-'
         $reason = ''
         if ($c -ceq 'alive' -and $st.Kind -ceq 'running' -and $st.Deadline -and $sv.Epoch -ge [long]$st.Deadline) {
-            if (-not (& $timeout $Job $rid $st)) {
-                # Never kill what cannot be proven to be the run's (VIGIL-007).
+            # The run may have ended since this tick looked: its worker sent the
+            # kill, recorded the run and let go of the token. Then it is left
+            # alone, and the next tick concludes it from its final state (backlog
+            # 60). Otherwise: never kill what cannot be proven to be the run's
+            # (VIGIL-007).
+            if (-not (& $timeout $Job $rid $st) -and (Test-VigilFileHeld $token) -cne 'no') {
                 $c = 'uncertain'
                 $reason = "past max_runtime, but its job process cannot be proven to be the run's"
             }
