@@ -2370,7 +2370,7 @@ Fan-out (§4.5) — the invariant is *every event reaches every one of its targe
 25. Crash the sender at `fanout.after_claim`, `fanout.after_targets`, after each placement (`fanout.after_place:N`) and at `fanout.before_retire`; after restart every target holds every event.
 26. Crash mid-copy; the temporary file is never sent.
 27. Remove a backend from the config between a crash and the resume; the drop is counted with `reason=backend_removed`.
-28. Fill the disk part-way through a fan-out; the incoming file is not retired and the fan-out completes once space returns.
+28. Fill the disk part-way through a fan-out; the incoming file is not retired and the fan-out completes once space returns. The suites make a copy fail as a full disk does (a file where a backend's queue directory should be), which needs no privileges on any platform; a real full disk was checked by hand on macOS, on a small disk image mounted over the spool.
 29. Randomised crash loop over all launch and fan-out crash points, per platform, checked against both invariants.
 
 ### 22.4.1 Crash Points
@@ -2510,46 +2510,46 @@ Each invariant has a documented enforcement mechanism and regression tests.
 
 Vigil v1 is ready when:
 
-- [ ] The supervisor runs on Windows PowerShell 5.1, Linux bash and macOS bash 3.2.
-- [ ] User-mode and system-mode installation work on all three platforms.
-- [ ] The one-line installers and the reviewed manual path work on all three platforms, verify checksums, and never overwrite `config/` or `scripts/` on upgrade.
-- [ ] `vigil uninstall` removes everything (or keeps `config/` and `scripts/` with `--keep-config`), and refuses a folder that is not a Vigil root.
-- [ ] A job added to `vigil.config` is scheduled without a restart, and a pointer file switches the instance to its fetched configuration.
-- [ ] Configuration and scripts are fetched from `local`, `git`, `https` and `sftp` sources; a failed fetch or an invalid candidate leaves the last valid configuration active, including across a restart.
-- [ ] For pinned sources, a script version changes on a host only when its configuration changes (a branch moves by design, §24); running jobs are never interrupted by an activation.
-- [ ] Hosts report their configuration revision, and the same revision means the same configuration and script content.
-- [ ] The config parser and validator behave identically on PowerShell and bash (shared conformance suite), and every example configuration in `tests/mocks/` validates, except `advanced/10-rejected.config`, which shows a rejection.
-- [ ] `run_every`, `run_at` (lists) and `run_on_days` schedule correctly, including missed-run handling.
-- [ ] Runners, the extension map, `{file}` substitution and direct execution work.
-- [ ] Per-job overrides follow §6.6 identically on PowerShell and bash, and `vigil precheck <job>` shows each effective value's source.
-- [ ] Standard, Nagios and explicit exit-code classification work.
-- [ ] Overlap policies are enforced, and no run is held back for any other reason.
-- [ ] Workers survive supervisor stop and restart on all three platforms.
-- [ ] Crashed, orphaned and identity-mismatched workers are handled per §11.3.
-- [ ] Corrupt or missing state never, by itself, causes a run to be killed or a duplicate run to start.
-- [ ] A live run is recognised from its run token and run id alone, with its state file deleted or corrupted.
-- [ ] A finished run whose final state was lost is reconciled from its spool file.
-- [ ] A reboot is recognised from the boot id and all prior runs are concluded.
-- [ ] A supervisor crash at any point of a launch never produces two runs; a worker that loses its claim never runs the job.
-- [ ] An interrupted fan-out never loses a destination or sends a partial file; every drop is counted.
-- [ ] The crash points of §22.4.1 drive the launch and fan-out tests on every platform.
-- [ ] Uncertain runs are held, reported every tick, resolvable by `vigil resolve`, and never killed; a held job stays held across supervisor restarts.
-- [ ] The supervisor never writes a state file whose worker may still be alive; it takes over writing only after proving the worker can no longer write.
-- [ ] `on_uncertain` `wait`, `replace` and `manual` behave per §11.4.
-- [ ] A reused PID can never authorise a termination.
-- [ ] Every test in §22.4 passes on Windows, Linux and macOS separately.
-- [ ] `max_runtime` terminates the whole process tree on all three platforms.
-- [ ] Invalid configuration is rejected safely, at startup and on reload.
-- [ ] `env:` enforcement rejects raw secrets.
-- [ ] Each job has its own log; `jobs.log` reflects every state.
-- [ ] Job-emitted metric lines are parsed and forwarded.
-- [ ] Nagios performance data is parsed, unit-normalised and forwarded.
-- [ ] The file backend and at least the Datadog, OTLP and Splunk backends work.
-- [ ] Backend failures do not block jobs; the spool is bounded.
-- [ ] Fault-injection tests cover §22.4.
-- [ ] `init`, installation and configuration are documented.
-- [ ] Optional log forwarding (§13.4) sends supervisor and job logs to an OTLP destination, resumes from its checkpoints after any restart, reports every gap, and never affects jobs, scheduling or metrics delivery.
-- [ ] Known limitations are published.
+- [x] The supervisor runs on Windows PowerShell 5.1, Linux bash and macOS bash 3.2.
+- [x] User-mode and system-mode installation work on all three platforms.
+- [x] The one-line installers and the reviewed manual path work on all three platforms, verify checksums, and never overwrite `config/` or `scripts/` on upgrade.
+- [x] `vigil uninstall` removes everything (or keeps `config/` and `scripts/` with `--keep-config`), and refuses a folder that is not a Vigil root.
+- [x] A job added to `vigil.config` is scheduled without a restart, and a pointer file switches the instance to its fetched configuration.
+- [x] Configuration and scripts are fetched from `local`, `git`, `https` and `sftp` sources; a failed fetch or an invalid candidate leaves the last valid configuration active, including across a restart.
+- [x] For pinned sources, a script version changes on a host only when its configuration changes (a branch moves by design, §24); running jobs are never interrupted by an activation.
+- [x] Hosts report their configuration revision, and the same revision means the same configuration and script content.
+- [x] The config parser and validator behave identically on PowerShell and bash (shared conformance suite), and every example configuration in `tests/mocks/` validates, except `advanced/10-rejected.config`, which shows a rejection.
+- [x] `run_every`, `run_at` (lists) and `run_on_days` schedule correctly, including missed-run handling.
+- [x] Runners, the extension map, `{file}` substitution and direct execution work.
+- [x] Per-job overrides follow §6.6 identically on PowerShell and bash, and `vigil precheck <job>` shows each effective value's source.
+- [x] Standard, Nagios and explicit exit-code classification work.
+- [x] Overlap policies are enforced, and no run is held back for any other reason.
+- [x] Workers survive supervisor stop and restart on all three platforms.
+- [x] Crashed, orphaned and identity-mismatched workers are handled per §11.3.
+- [x] Corrupt or missing state never, by itself, causes a run to be killed or a duplicate run to start.
+- [x] A live run is recognised from its run token and run id alone, with its state file deleted or corrupted.
+- [x] A finished run whose final state was lost is reconciled from its spool file.
+- [x] A reboot is recognised from the boot id and all prior runs are concluded.
+- [x] A supervisor crash at any point of a launch never produces two runs; a worker that loses its claim never runs the job.
+- [x] An interrupted fan-out never loses a destination or sends a partial file; every drop is counted.
+- [x] The crash points of §22.4.1 drive the launch and fan-out tests on every platform.
+- [x] Uncertain runs are held, reported every tick, resolvable by `vigil resolve`, and never killed; a held job stays held across supervisor restarts.
+- [x] The supervisor never writes a state file whose worker may still be alive; it takes over writing only after proving the worker can no longer write.
+- [x] `on_uncertain` `wait`, `replace` and `manual` behave per §11.4.
+- [x] A reused PID can never authorise a termination.
+- [x] Every test in §22.4 passes on Windows, Linux and macOS separately.
+- [x] `max_runtime` terminates the whole process tree on all three platforms.
+- [x] Invalid configuration is rejected safely, at startup and on reload.
+- [x] `env:` enforcement rejects raw secrets.
+- [x] Each job has its own log; `jobs.log` reflects every state.
+- [x] Job-emitted metric lines are parsed and forwarded.
+- [x] Nagios performance data is parsed, unit-normalised and forwarded.
+- [x] The file backend and at least the Datadog, OTLP and Splunk backends work.
+- [x] Backend failures do not block jobs; the spool is bounded.
+- [x] Fault-injection tests cover §22.4.
+- [x] `init`, installation and configuration are documented.
+- [x] Optional log forwarding (§13.4) sends supervisor and job logs to an OTLP destination, resumes from its checkpoints after any restart, reports every gap, and never affects jobs, scheduling or metrics delivery.
+- [x] Known limitations are published.
 
 Not every backend type is required for v1. Reliable scheduling and supervision come before breadth of backends.
 

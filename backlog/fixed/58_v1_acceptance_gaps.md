@@ -6,7 +6,7 @@ bash 3.2 and Windows PowerShell 5.1 and 7). A criterion counted as met only
 where a test that runs on the platforms it names checks it, or a recorded
 real-machine test does.
 
-**18 met, 21 partly, 1 not met (28).** Almost every gap is a missing test,
+**18 met, 21 partly, 1 not met (28), at the audit; all 40 met since (see Built).** Almost every gap is a missing test,
 not missing behaviour; five are bugs (the third to fifth found while
 writing tests). Nothing in §25 is ticked until its gaps here are closed.
 
@@ -163,3 +163,50 @@ By §22.4 test number where there is one.
   30-second grace passed, past the test's 20 ticks. Both twins now age
   every launch left. Fedora: 2 of 75 rounds lost an event before, 0 of 75
   after.
+
+## Built
+
+2026-11-18, in this order. Every criterion of §25 is now ticked.
+
+- #189 this backlog; #191 the wording of §18.8, criteria 4, 7 and 9, and
+  the README.
+- #190 bugs 1 (a queued run run twice) and 2 (an empty `job_start` taken as
+  a match on Windows).
+- #193, #194 bug 3: a failed fan-out copy lost the event on Linux and
+  macOS and stalled the sender on Windows. Test 28.
+- #197, #201 bug 4: on Linux and macOS a descendant ignoring TERM outlived
+  `max_runtime`; the worker now ends the group after grace. The
+  max_runtime tests check descendants.
+- #202, #204 bug 5: on Windows a run resolved while its worker lived was
+  concluded twice; a token that cannot be deleted then is marked
+  concluded. The identity proof's parent check is reached at last.
+- #192 §22.4 tests 1, 2, 13, 17, 24 and 27; #195 the worker's crash points
+  (7, 16, `worker.after_claim`); #196 the spool cap in CI; #199 `queue_one`
+  across a restart.
+- #203 `jobs.log` as §13.2 says (a running job's PID, time and time to
+  `max_runtime`; a last run's end and duration), and tests for every other
+  gap above: `jobs.log` sections, a live edit, the revision across
+  platforms, direct execution and `{file}`, uncertain runs every tick and
+  `vigil resolve` on one, Nagios data delivered, backends and a log
+  destination hung, the sftp test no longer able to skip in CI, system
+  uninstall leaving no unit, and the installer as the one-liner runs it.
+- Test bugs found on the way: #198 (test 29's lost events, both the
+  test's), #201 (`run_every = 1h` in the max_runtime tests started a run
+  on the hour), #200 (a once-seen Windows service flake now explains
+  itself).
+- #205, #206 criterion 2: a Windows user-mode `vigil restart` could start
+  no supervisor, taking the one it had just killed, whose lock was not yet
+  released, for a live one (backlog 59).
+
+Tested: every suite named above on Fedora (bash 5.3), the Intel Mac (bash
+3.2) and Windows 11 (PowerShell 5.1 and 7), and in CI on all of them.
+`vigil uninstall` of a system service runs only in CI, which has sudo.
+
+Test 28, the disk filling during a fan-out, is tested in the suites by a
+copy made to fail as a full disk makes it fail (§22.4 now says so). A real
+full disk was checked once by hand on macOS, main after #194: a 4 MB disk
+image mounted over `spool/`, filled with `dd`. While it was full nothing
+was delivered and the event stayed in `fanout/`; once space came back,
+both backends had it and nothing was left. The sender recorded that run
+`succeeded` with no reason, though it had placed nothing: the event is
+safe, but the failure is silent. Worth a log line in a later release.
