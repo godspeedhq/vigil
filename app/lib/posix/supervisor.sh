@@ -386,9 +386,17 @@ _vigil_sup_account() {
     if [ "$VIGIL_RECOVERY" = alive ] && [ "$_ss" = running ] && [ -n "$_ss_deadline" ] &&
         [ "$_su_epoch" -ge "$_ss_deadline" ]; then
         if ! _vigil_sup_timeout "$job" "$rid" "$token"; then
-            # Never kill what cannot be proven to be the run's (VIGIL-007).
-            VIGIL_RECOVERY=uncertain
-            reason="past max_runtime, but its job process cannot be proven to be the run's"
+            # The run may have ended since this tick looked: its worker sent the
+            # KILL after grace, recorded the run and let go of the token. Then it
+            # is left alone, and the next tick concludes it from its final state
+            # (backlog 60). Otherwise: never kill what cannot be proven to be the
+            # run's (VIGIL-007).
+            _su_held=error
+            [ -z "$token" ] || _vigil_sup_held "$token"
+            if [ "$_su_held" != no ]; then
+                VIGIL_RECOVERY=uncertain
+                reason="past max_runtime, but its job process cannot be proven to be the run's"
+            fi
         fi
     fi
     if [ "$VIGIL_RECOVERY" = uncertain ] && [ -z "$reason" ]; then

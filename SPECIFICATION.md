@@ -1087,7 +1087,7 @@ Vigil terminates a process only for `max_runtime` or `vigil uninstall`, and only
 - **Worker:** its command line carries the run id, and its start time matches where available.
 - **Job process:** on Linux/macOS it holds the run token; on Windows (where it holds the token too) its PID, name and start time match the state file and, while the worker lives, its parent is the worker.
 
-If ownership cannot be proven, Vigil does not terminate. The run is treated as uncertain (§11.4), with the reason `past max_runtime, but its job process cannot be proven to be the run's`, under the job's `on_uncertain` policy: held and reported every tick, never killed.
+If ownership cannot be proven, Vigil does not terminate. The run is treated as uncertain (§11.4), with the reason `past max_runtime, but its job process cannot be proven to be the run's`, under the job's `on_uncertain` policy: held and reported every tick, never killed. A run whose token is no longer held by then is not uncertain: it ended while the tick was looking, and the next tick concludes it from its final state.
 
 Deadlines: `deadline_epoch` is recorded at start. While the supervisor runs, elapsed time is measured with a monotonic clock where the platform offers one to scripts. After a supervisor restart, only the recorded timestamps are available; they are used for enforcement but are not equivalent to uninterrupted monotonic timing (§24).
 
