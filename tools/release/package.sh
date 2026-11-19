@@ -19,7 +19,9 @@
 #   vigil-<version>.zip      Windows
 #   install.sh, install.ps1  the installers, also published on their own
 #   vigil-packs-<version>-linux.tar.gz, -macos.tar.gz, -windows.zip
-#                            one platform's packs, for vigil pack update
+#                            one platform's packs, every one, for the vigil
+#                            pack update of Vigil 1.0 (tools/release/packs.sh
+#                            makes the pack repository of later ones)
 #   vigil_<version>-1_all.deb, vigil-<version>-1.noarch.rpm
 #                            when nfpm is on PATH (linux-packages.sh)
 #   SHA256SUMS               the SHA-256 of each, as sha256sum prints them
@@ -27,8 +29,8 @@
 #
 # Each archive holds one folder, vigil-<version>/, with app/ (and
 # app/VERSION), vendor/, install.sh, install.ps1, LICENSE and README.md, and
-# packs/ with the scripts of its platforms: Linux and macOS in the .tar.gz,
-# Windows in the .zip. The installer takes only its own (18.10).
+# packs/base with the scripts of its platforms: Linux and macOS in the
+# .tar.gz, Windows in the .zip. The installer takes only its own (18.10).
 # Needs tar and gzip, and for the .zip: zip, python3 or (Git Bash) PowerShell.
 
 set -u
@@ -65,11 +67,9 @@ stage_pack() {
     done
 }
 printf '%s\n' "$version" > "$stage/$name/app/VERSION"
-for p in "$repo"/packs/*/; do
-    [ -f "$p/pack.config" ] || continue
-    p=${p%/}
-    stage_pack "$stage/$name/packs/${p##*/}" "$p" linux macos
-done
+# Vigil carries the base pack alone, so a new machine has metrics with no
+# network; the others are installed from the pack repository (18.10).
+stage_pack "$stage/$name/packs/base" "$repo/packs/base" linux macos
 chmod -R u+rwX,go+rX,go-w "$stage/$name" || exit 1
 chmod 755 "$stage/$name/app/vigil" "$stage/$name/install.sh"
 
@@ -88,14 +88,11 @@ rm -f "$out/$name.tar.gz" "$out/$name.zip" "$out"/vigil-packs-"$version"-*
 (cd "$stage" && tar -czf "$out/$name.tar.gz" "$name") || exit 1
 # The .zip holds Windows' scripts instead.
 rm -rf "$stage/$name/packs"
-for p in "$repo"/packs/*/; do
-    [ -f "$p/pack.config" ] || continue
-    p=${p%/}
-    stage_pack "$stage/$name/packs/${p##*/}" "$p" windows
-done
+stage_pack "$stage/$name/packs/base" "$repo/packs/base" windows
 zip_it "$name" "$out/$name.zip" || exit 1
 
-# Each platform's packs on their own, flat.
+# Each platform's packs on their own, flat: every pack, for the vigil pack
+# update of Vigil 1.0, which reads these. Until 2.0.
 pack_files=''
 packs=vigil-packs-$version
 for os in linux macos windows; do

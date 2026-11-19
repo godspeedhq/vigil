@@ -1,6 +1,6 @@
 # Vigil packs
 
-A pack is a set of scripts and jobs that gives a machine useful metrics straight away. `vigil init` turns on the base pack, and `vigil pack` manages them after that. [SPECIFICATION.md](../SPECIFICATION.md), section 18.10, has the full format.
+A pack is a set of scripts and jobs that gives a machine useful metrics for one thing it runs. Vigil comes with the base pack, which `vigil init` turns on; the others are installed from the pack repository: `vigil pack search`, `vigil pack install <name>`, then `vigil pack enable <name>`. [SPECIFICATION.md](../SPECIFICATION.md), section 18.10, has the full format.
 
 ## What's here
 
@@ -11,7 +11,7 @@ packs/<name>/macos/         scripts for macOS
 packs/<name>/windows/       scripts for Windows
 ```
 
-Each release carries the packs, signed with it, and a machine only ever holds its own platform's scripts.
+Packs are released on their own, as packs releases tagged `packs-<date>`: each new pack version gets an archive per platform, listed in an index signed with the release key. A machine holds only the packs installed on it, and only its own platform's scripts.
 
 ## The base pack
 

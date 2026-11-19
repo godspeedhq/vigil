@@ -13,7 +13,7 @@
 .SYNOPSIS
     Integration test: vigil pack (SPECIFICATION.md 18.10) on Windows.
 .DESCRIPTION
-    Runs against mock-files.py as the Vigil releases, signed with a key for
+    Runs against mock-files.py as the pack repository, signed with a key for
     this run. The twin of pack.sh.
 
     Needs Python, and Git Bash for openssl.
@@ -62,9 +62,9 @@ function Get-Snapshot { (Get-Text $cfg) + (Get-Text "$root\packs\base\pack.confi
 
 # Writes pack base at $Version with these jobs in a folder.
 function New-TestPack {
-    param([string]$To, [string]$Version, [string[]]$Jobs, [string]$Min = '0.0.1', [string]$Every = '1h')
+    param([string]$To, [string]$Version, [string[]]$Jobs, [string]$Min = '0.0.1', [string]$Every = '1h', [string]$About = 'For the test')
     [void](New-Item -ItemType Directory -Force -Path $To)
-    $m = "[pack]`nversion = $Version`nvigil = $Min`ndescription = For the test`n`n"
+    $m = "[pack]`nversion = $Version`nvigil = $Min`ndescription = $About`n`n"
     foreach ($j in $Jobs) {
         $m += "[job.$j]`nmetric_name = it.$j`nmetrics = up`nrun_every = $Every`nmax_runtime = 30s`n`n"
         [System.IO.File]::WriteAllText("$To\$j.ps1", "Write-Output 'metric up 1' # $Version`n")
@@ -72,24 +72,34 @@ function New-TestPack {
     [System.IO.File]::WriteAllText("$To\pack.config", $m)
 }
 
-# Publishes release $Version with pack base and these jobs.
-function Publish-Packs {
-    param([string]$Version, [string[]]$Jobs, [string]$Key = "$work/release.key", [string]$Min = '0.0.1')
-    $d = "$www\releases\download\v$Version"
+# Adds pack $Name at $Version with these jobs to packs release $Tag, and
+# makes $Tag the newest: its index carries every version published before.
+function Publish-Pack {
+    param([string]$Tag, [string]$Name, [string]$Version, [string[]]$Jobs, [string]$Key = "$work/release.key", [string]$Min = '0.0.1', [string]$About = 'For the test')
+    $d = "$www\releases\download\$Tag"
     $stage = "$work\stage"
-    $s = "$stage\vigil-packs-$Version"
     if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
-    [void](New-Item -ItemType Directory -Force -Path $d, "$www\releases\tag")
-    New-TestPack "$s\base" $Version $Jobs -Min $Min
-    $f = "vigil-packs-$Version-windows.zip"
-    Compress-Archive -LiteralPath $s -DestinationPath "$d\$f" -Force
+    [void](New-Item -ItemType Directory -Force -Path $d)
+    New-TestPack "$stage\$Name" $Version $Jobs -Min $Min -About $About
+    $f = "vigil-pack-$Name-$Version-windows.zip"
+    Compress-Archive -LiteralPath "$stage\$Name" -DestinationPath "$d\$f" -Force
     $h = (Get-FileHash -Algorithm SHA256 -LiteralPath "$d\$f").Hash.ToLowerInvariant()
-    [System.IO.File]::WriteAllText("$d\SHA256SUMS", "$h  $f`n")
-    $b = $d.Replace('\', '/')
-    Invoke-Openssl "dgst -sha256 -sign '$($Key.Replace('\', '/'))' -out '$b/SHA256SUMS.sig' '$b/SHA256SUMS'"
-    [System.IO.File]::WriteAllText("$www\releases\tag\v$Version", '')
-    [System.IO.File]::WriteAllText("$work\mock\redirects", "/releases/latest /releases/tag/v$Version`n")
+    [System.IO.File]::AppendAllText("$work\entries", "pack`t$Name`t$Version`t$Min`t$Tag`tdigest`t$About`nfile`t$Name`t$Version`twindows`t$f`t$h`n")
+    Publish-Index $Tag -Key $Key
 }
+
+# Packs release $Tag, the newest, with an index of every version so far.
+function Publish-Index {
+    param([string]$Tag, [string]$Key = "$work/release.key")
+    $d = "$www\releases\download\$Tag"
+    [void](New-Item -ItemType Directory -Force -Path $d, "$www\api\releases")
+    [System.IO.File]::WriteAllText("$d\packs.index", "format`t1`nrelease`t$Tag`n" + (Get-Text "$work\entries"))
+    $b = $d.Replace('\', '/')
+    Invoke-Openssl "dgst -sha256 -sign '$($Key.Replace('\', '/'))' -out '$b/packs.index.sig' '$b/packs.index'"
+    [System.IO.File]::WriteAllText("$www\api\releases\all", "[{`"tag_name`": `"$Tag`"}, {`"tag_name`": `"v0.3.0`"}]`n")
+}
+
+function Join-Lines { param([string]$Text) ($Text.Split("`n") | ForEach-Object { $_.TrimEnd() }) -join '|' }
 
 function Get-JobState { param([string]$Job) foreach ($l in (Invoke-Vigil pack list).Text.Split("`n")) { if ($l.Trim() -cmatch "^$Job +(\S+)$") { return $Matches[1] } } }
 
@@ -113,6 +123,7 @@ $mock = $null
 
 try {
     Copy-Item -Recurse -LiteralPath (Join-Path $repo 'app'), (Join-Path $repo 'vendor') -Destination $root
+    [System.IO.File]::WriteAllText("$work\entries", '')
     [System.IO.File]::WriteAllText("$root\app\VERSION", "0.3.0`n")
     $kw = $work.Replace('\', '/')
     Invoke-Openssl "genrsa -out '$kw/release.key' 2048"
@@ -168,26 +179,21 @@ try {
     Remove-Item -Recurse -Force -LiteralPath "$root\packs\elsewhere"
 
     Write-Host 'Updating'
-    Publish-Packs '1.0.0' @('cpu', 'disk')
+    Publish-Pack 'packs-2026.01.01' base '1.0.0' @('cpu', 'disk')
     Test-Equal 'nothing to do' 'pack base 1.0.0 is here: nothing to do' (Invoke-Vigil pack update).Text
     $t = Get-Text $cfg
     $at = $t.IndexOf('[job.base_cpu]')
     $t = $t.Substring(0, $at) + ([regex]'run_every = 1h').Replace($t.Substring($at), 'run_every = 5m', 1)
     [System.IO.File]::WriteAllText($cfg, $t)
-    Publish-Packs '1.1.0' @('cpu', 'load')
+    Publish-Pack 'packs-2026.01.02' base '1.1.0' @('cpu', 'load')
+    Publish-Pack 'packs-2026.01.02' web '1.0.0' @('status') -About 'A web server'
     Test-Equal 'the check says so' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' (Invoke-Vigil pack update --check).Text
-    # /releases/latest failing: the API names the latest release.
-    Move-Item -LiteralPath "$work\mock\redirects" -Destination "$work\mock\redirects.off" -Force
-    [void](New-Item -ItemType Directory -Force -Path "$work\mock\www\api\releases")
-    [System.IO.File]::WriteAllText("$work\mock\www\api\releases\latest", "{`"tag_name`": `"v1.1.0`"}`n")
-    Test-Equal 'the page failing: the API names it' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' (Invoke-Vigil pack update --check).Text
-    Remove-Item -LiteralPath "$work\mock\www\api" -Recurse -Force
-    Move-Item -LiteralPath "$work\mock\redirects.off" -Destination "$work\mock\redirects" -Force
     Test-Equal 'the check changes nothing' '1.0.0' (Get-PackVersion)
     $was = Get-Text $cfg
     $r = Invoke-Vigil pack update
     Test-Equal 'updates' '0' ([string]$r.Code)
     Test-Equal 'to the new version' '1.1.0' (Get-PackVersion)
+    Test-Equal 'installs nothing it was not asked for' 'False' ([string](Test-Path -LiteralPath "$root\packs\web"))
     Test-Equal 'the configuration is not touched' $was (Get-Text $cfg)
     Test-Equal 'a job on runs the new script' 'True' ([string](Get-Text "$root\packs\base\cpu.ps1").Contains('1.1.0'))
     Test-Equal 'says what changed' 'True' ([string]($r.Text -cmatch '(?m)^changed: base_cpu'))
@@ -199,6 +205,7 @@ try {
     Test-Equal 'and the job still runs' '0' ([string](Invoke-Vigil run base_disk).Code)
     Test-Equal 'precheck is still happy' '0' (Invoke-Precheck)
     Test-Equal 'your own script is untouched' $mine (Get-Text "$root\scripts\mine.ps1")
+    Test-Equal 'the index is kept for searching' 'True' ([string](Test-Path -LiteralPath "$root\packs\.index"))
 
     Write-Host 'On and off'
     Test-Equal 'a new script turns on' 'on: base_load' (Invoke-Vigil pack enable base_load).Text
@@ -207,25 +214,100 @@ try {
     Test-Equal 'it leaves the configuration' '0' (Get-Count 'base_disk|packs/base/disk')
     Test-Equal 'turning off twice changes nothing' 'base_disk is already off' (Invoke-Vigil pack disable base_disk).Text
     Test-Equal 'precheck is happy with that' '0' (Invoke-Precheck)
-    Publish-Packs '1.2.0' @('cpu', 'load')
+    Publish-Pack 'packs-2026.01.03' base '1.2.0' @('cpu', 'load')
     [void](Invoke-Vigil pack update)
     Test-Equal 'a dropped script goes once no job uses it' 'False' ([string](Test-Path -LiteralPath "$root\packs\base\disk.ps1"))
 
+    Write-Host 'Searching'
+    Test-Equal 'by a word' 'web 1.0.0: A web server' (Invoke-Vigil pack search web).Text
+    Test-Equal 'every word, in any case' 'web 1.0.0: A web server' (Invoke-Vigil pack search SERVER a).Text
+    Test-Equal 'all, with none' 'base 1.2.0, installed 1.2.0: For the test|web 1.0.0: A web server' (Join-Lines (Invoke-Vigil pack search).Text)
+    Test-Equal 'nothing found' 'no pack matches: nosuch' (Invoke-Vigil pack search nosuch).Text
+    Test-Equal 'what is not installed' 'web 1.0.0: A web server' (Invoke-Vigil pack list --available).Text
+    Test-Equal 'one pack' 'web: A web server|installed: no|versions, newest first:|  1.0.0      Vigil 0.0.1 or later; windows (packs-2026.01.02)' (Join-Lines (Invoke-Vigil pack info web).Text)
+    Test-Equal 'an unknown one' 'vigil: no pack called nosuch: vigil pack search' (Invoke-Vigil pack info nosuch).Text
+
+    Write-Host 'Installing'
+    $was = Get-Text $cfg
+    $r = Invoke-Vigil pack install web
+    Test-Equal 'installs' '0' ([string]$r.Code)
+    Test-Equal 'says what, and that it is off' 'installed pack web 1.0.0|off until enabled: web_status|To turn them all on: vigil pack enable web' (Join-Lines $r.Text)
+    Test-Equal 'its scripts are here' 'True' ([string](Test-Path -LiteralPath "$root\packs\web\status.ps1"))
+    Test-Equal 'the configuration is not touched' $was (Get-Text $cfg)
+    Test-Equal 'twice: nothing to do' 'pack web 1.0.0 is here: nothing to do' (Invoke-Vigil pack install web).Text
+    Test-Equal 'listed, off' 'off' (Get-JobState 'web_status')
+    Test-Equal 'an unknown pack' 'vigil: no pack called nosuch: vigil pack search' (Invoke-Vigil pack install nosuch).Text
+    Test-Equal 'an unknown version' 'vigil: pack web has no version 9.9.9: vigil pack info web' (Invoke-Vigil pack install web@9.9.9).Text
+    Test-Equal 'a bad name' 'vigil: not a pack name: ../x' (Invoke-Vigil pack install ../x).Text
+    Publish-Pack 'packs-2026.01.04' web '2.0.0' @('status') -Min '99.0.0' -About 'A web server'
+    Test-Equal 'one too new for this Vigil: asked for, refused' 'vigil: pack web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' (Invoke-Vigil pack install web@2.0.0).Text
+    Test-Equal 'and update says so, keeping what runs here' 'pack web 1.0.0 is here: nothing to do|  web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' (@((Invoke-Vigil pack update).Text.Split("`n") | Where-Object { $_ -cmatch 'web' } | ForEach-Object { $_.TrimEnd() }) -join '|')
+    Test-Equal 'an older version, when asked' 'pack base went back from 1.2.0 to 1.1.0' @((Invoke-Vigil pack install base@1.1.0).Text.Split("`n"))[0].TrimEnd()
+    Test-Equal 'update takes it forward again' 'updated pack base 1.1.0 to 1.2.0' (@((Invoke-Vigil pack update).Text.Split("`n") | Where-Object { $_.StartsWith('updated') }) -join '|').TrimEnd()
+    $wc = "$root\packs\web\pack.config"
+    [System.IO.File]::WriteAllText($wc, (Get-Text $wc).Replace('version = 1.0.0', 'version = 5.0.0'))
+    Test-Equal 'never back a version on its own' 'pack web 5.0.0 is here: nothing to do' (@((Invoke-Vigil pack update).Text.Split("`n") | Where-Object { $_.StartsWith('pack web') }) -join '|').TrimEnd()
+    [System.IO.File]::WriteAllText($wc, (Get-Text $wc).Replace('version = 5.0.0', 'version = 1.0.0'))
+
+    Write-Host 'Removing'
+    [void](Invoke-Vigil pack enable web)
+    Test-Equal 'refused while on' 'vigil: pack web is in use by: web_status. Turn them off first: vigil pack disable web' (Invoke-Vigil pack remove web).Text
+    Test-Equal 'and kept' 'True' ([string](Test-Path -LiteralPath "$root\packs\web\status.ps1"))
+    [void](Invoke-Vigil pack disable web)
+    Test-Equal 'removes once off' 'removed pack web 1.0.0' (Invoke-Vigil pack remove web).Text
+    Test-Equal 'its scripts go' 'False' ([string](Test-Path -LiteralPath "$root\packs\web"))
+    Test-Equal 'one not here' 'vigil: pack web is not installed: vigil pack list' (Invoke-Vigil pack remove web).Text
+    Test-Equal 'precheck is happy after' '0' (Invoke-Precheck)
+
+    Write-Host 'Offline'
+    $usb = "$work\usb"
+    Test-Equal 'downloads' 'downloaded web 1.0.0 for Windows: vigil-pack-web-1.0.0-windows.zip|with the signed index. There: vigil pack install <name> --from <this folder>' (Join-Lines (Invoke-Vigil pack download web --to $usb).Text)
+    Test-Equal 'the index and its signature too' 'packs.index packs.index.sig vigil-pack-web-1.0.0-windows.zip' ((Get-ChildItem -LiteralPath $usb | Sort-Object Name | ForEach-Object { $_.Name }) -join ' ')
+    Test-Equal 'any version, for another Vigil' 'downloaded web 2.0.0 for Windows: vigil-pack-web-2.0.0-windows.zip' @((Invoke-Vigil pack download web@2.0.0 --to $usb).Text.Split("`n"))[0].TrimEnd()
+    Test-Equal 'a platform it has no scripts for' 'vigil: pack web has no scripts for Linux' (Invoke-Vigil pack download web --os linux --to $usb).Text
+    Test-Equal 'not a platform' 'vigil: not a platform: beos (linux, macos or windows)' (Invoke-Vigil pack download web --os beos --to $usb).Text
+    # Nothing to reach: only the folder.
+    $url = $env:VIGIL_TEST_RELEASE_URL
+    $env:VIGIL_TEST_RELEASE_URL = 'http://127.0.0.1:9'
+    try {
+        Test-Equal 'installs from the folder, with no network' 'installed pack web 1.0.0' @((Invoke-Vigil pack install web --from $usb).Text.Split("`n"))[0].TrimEnd()
+        [void](Invoke-Vigil pack remove web)
+        Test-Equal 'a pack not in the folder' "vigil: vigil-pack-base-1.2.0-windows.zip is not in ${usb}: vigil pack download base@1.2.0 there" (Invoke-Vigil pack install base@1.2.0 --from $usb).Text
+        $z = "$usb\vigil-pack-web-1.0.0-windows.zip"
+        Copy-Item -LiteralPath $z -Destination "$work\keep.zip"
+        [System.IO.File]::AppendAllText($z, 'x')
+        Test-Equal 'a tampered archive' 'vigil: vigil-pack-web-1.0.0-windows.zip does not match the pack index; nothing was changed' (Invoke-Vigil pack install web --from $usb).Text
+        Copy-Item -LiteralPath "$work\keep.zip" -Destination $z -Force
+        Copy-Item -LiteralPath "$usb\packs.index" -Destination "$work\keep.index"
+        [System.IO.File]::AppendAllText("$usb\packs.index", "pack`tweb`t9.0.0`t0.0.1`tpacks-x`tdigest`tAdded`n")
+        Test-Equal 'an index changed after signing' "vigil: the pack index of $usb is not signed by the Vigil release key; nothing was changed" (Invoke-Vigil pack install web --from $usb).Text
+        Copy-Item -LiteralPath "$work\keep.index" -Destination "$usb\packs.index" -Force
+        Test-Equal 'nothing was installed' 'False' ([string](Test-Path -LiteralPath "$root\packs\web"))
+    }
+    finally { $env:VIGIL_TEST_RELEASE_URL = $url }
+
     Write-Host 'Refused'
     $was = Get-Snapshot
-    Publish-Packs '1.3.0' @('cpu') -Key "$work/other.key"
+    Publish-Pack 'packs-2026.02.01' base '1.3.0' @('cpu') -Key "$work/other.key"
     $r = Invoke-Vigil pack update
     Test-Equal 'a bad signature is refused' '1' ([string]$r.Code)
-    Test-Equal 'saying so' 'vigil: release 1.3.0 is not signed by the Vigil release key; nothing was changed' $r.Text
-    Publish-Packs '1.4.0' @('cpu')
-    [System.IO.File]::AppendAllText("$www\releases\download\v1.4.0\vigil-packs-1.4.0-windows.zip", 'x')
-    Test-Equal 'a tampered archive is refused' 'vigil: the packs of release 1.4.0 do not match its SHA256SUMS; nothing was changed' (Invoke-Vigil pack update).Text
-    Publish-Packs '1.5.0' @('cpu')
-    Remove-Item -LiteralPath "$www\releases\download\v1.5.0\SHA256SUMS.sig"
-    Test-Equal 'a missing signature is refused' 'vigil: cannot download the packs of release 1.5.0' (Invoke-Vigil pack update).Text
-    Publish-Packs '1.6.0' @('cpu') -Min '99.0.0'
-    Test-Equal 'too old a Vigil is refused' 'vigil: pack base needs Vigil 99.0.0 or later: vigil self update' (Invoke-Vigil pack update).Text
+    Test-Equal 'saying so' 'vigil: the pack index of packs-2026.02.01 is not signed by the Vigil release key; nothing was changed' $r.Text
+    Publish-Index 'packs-2026.02.02'
+    $a = "$www\releases\download\packs-2026.02.01\vigil-pack-base-1.3.0-windows.zip"
+    Copy-Item -LiteralPath $a -Destination "$work\keep.zip" -Force
+    [System.IO.File]::AppendAllText($a, 'x')
+    Test-Equal 'a tampered archive is refused' 'vigil: vigil-pack-base-1.3.0-windows.zip does not match the pack index; nothing was changed' (@((Invoke-Vigil pack update).Text.Split("`n") | Where-Object { $_.StartsWith('vigil:') }) -join '|')
+    Copy-Item -LiteralPath "$work\keep.zip" -Destination $a -Force
+    Publish-Index 'packs-2026.02.03'
+    Remove-Item -LiteralPath "$www\releases\download\packs-2026.02.03\packs.index.sig"
+    Test-Equal 'a missing signature is refused' 'vigil: cannot download packs.index.sig of packs-2026.02.03' (Invoke-Vigil pack update).Text
     Test-Equal 'and nothing changed' $was (Get-Snapshot)
+    [System.IO.File]::WriteAllText("$www\api\releases\all", "[]`n")
+    Test-Equal 'no packs release' 'vigil: cannot find the latest packs release on GitHub: no network, or its API refused (it allows 60 requests an hour)' (Invoke-Vigil pack update).Text
+    Publish-Pack 'packs-2026.02.04' base '1.4.0' @('cpu') -Min '99.0.0'
+    $r = Invoke-Vigil pack update
+    Test-Equal 'takes the newest this Vigil runs' 'updated pack base 1.2.0 to 1.3.0' (@($r.Text.Split("`n") | Where-Object { $_.StartsWith('updated') }) -join '|').TrimEnd()
+    Test-Equal 'and names the one it cannot' '  base 1.4.0 needs Vigil 99.0.0 or later: vigil self update' (@($r.Text.Split("`n") | Where-Object { $_ -cmatch 'needs Vigil' }) -join '|').TrimEnd()
 
     # A job Vigil cannot accept: the configuration goes back.
     New-TestPack "$work\bad" '1.7.0' @('extra') -Every 'soon'

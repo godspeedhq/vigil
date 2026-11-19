@@ -163,6 +163,10 @@ try {
 
     # A newer release.
     Publish-Release '0.0.2-it'
+    # A packs release (18.10), which the copies below carry for vigil pack update.
+    $pd = Join-Path $www 'releases\download\packs-2026.01.01'
+    & $bash -c "VIGIL_SIGN_KEY='$(ConvertTo-BashPath "$work\release.key")' bash '$(ConvertTo-BashPath "$repo\tools\release\packs.sh")' packs-2026.01.01 '$(ConvertTo-BashPath $pd)'" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'packs release failed' }
     $r = Invoke-Vigil self update --check
     Test-Equal '--check: succeeds' '0' ([string]$r.Code)
     Test-Equal '--check: names the new version' 'True' ([string]$r.Text.Contains('0.0.2-it is available'))
@@ -242,8 +246,10 @@ try {
     # else was asked.
     $m = Join-Path $www 'mirror'
     [void](New-Item -ItemType Directory -Force -Path "$m\releases\download", "$m\releases\latest")
-    Copy-Item -LiteralPath $d1, (Join-Path $www 'releases\download\v0.0.2-it') -Destination "$m\releases\download" -Recurse
+    Copy-Item -LiteralPath $d1, (Join-Path $www 'releases\download\v0.0.2-it'), $pd -Destination "$m\releases\download" -Recurse
     [System.IO.File]::WriteAllText("$m\releases\latest\VERSION", "0.0.2-it`n")
+    [void](New-Item -ItemType Directory -Force -Path "$m\packs\latest")
+    [System.IO.File]::WriteAllText("$m\packs\latest\RELEASE", "packs-2026.01.01`n")
     Remove-Item -LiteralPath "$work\mock\redirects" -Force
     $cfgFile = "$root\config\vigil.config"
     $saved = [System.IO.File]::ReadAllText($cfgFile)
@@ -303,8 +309,10 @@ try {
     # asked of it at all.
     $s = Join-Path $work 'share'
     [void](New-Item -ItemType Directory -Force -Path "$s\releases\download", "$s\releases\latest")
-    Copy-Item -LiteralPath $d1, (Join-Path $www 'releases\download\v0.0.2-it') -Destination "$s\releases\download" -Recurse
+    Copy-Item -LiteralPath $d1, (Join-Path $www 'releases\download\v0.0.2-it'), $pd -Destination "$s\releases\download" -Recurse
     [System.IO.File]::WriteAllText("$s\releases\latest\VERSION", "0.0.2-it`n")
+    [void](New-Item -ItemType Directory -Force -Path "$s\packs\latest")
+    [System.IO.File]::WriteAllText("$s\packs\latest\RELEASE", "packs-2026.01.01`n")
     Remove-Item -LiteralPath "$work\mock\redirects" -Force
     $withPath = { param($p) [System.IO.File]::WriteAllText($cfgFile, ($saved -replace '(?m)^\[vigil\]\r?$', "[vigil]`n$p")) }
     & $withPath "release_path = $s"

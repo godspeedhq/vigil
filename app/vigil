@@ -62,8 +62,14 @@
 #   vigil [--root <dir>] self update [--check] [--version <version>]
 #       Upgrades this install to the latest release, or the one given (18.7).
 #       --check only says whether there is a newer one.
-#   vigil [--root <dir>] pack list | enable <what> | disable <what> | update [--check]
-#       The packs of scripts and jobs (18.10). What is a pack or a pack_job.
+#   vigil [--root <dir>] pack list [--available] | search [<word>...] | info <name>
+#   vigil [--root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove <name>...
+#   vigil [--root <dir>] pack enable <what> | disable <what> | update [--check]
+#   vigil [--root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>
+#       The packs of scripts and jobs (18.10), from the pack repository:
+#       search it, install a pack, then enable its jobs. What is a pack or a
+#       pack_job. download writes packs for a machine offline, which installs
+#       them --from the folder.
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
@@ -106,7 +112,7 @@ elif vigil_packaged "$app" && [ -n "$_vp_root" ]; then
 fi
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status [--watch]\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list | enable <what> | disable <what> | update [--check]\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status [--watch]\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check]\n       vigil [--root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove <name>...\n       vigil [--root <dir>] pack enable <what> | disable <what>\n       vigil [--root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>\n' >&2
     exit 64
 }
 
@@ -376,14 +382,42 @@ case ${1-} in
         exit 1
         ;;
     pack)
-        case ${2-}:$# in
-            list:2) vigil_pack_list "$root" ;;
-            enable:3) vigil_pack_enable "$root" "$3" ;;
-            disable:3) vigil_pack_disable "$root" "$3" ;;
-            update:2) vigil_pack_update "$root" "$app" 0 ;;
-            update:3)
-                [ "$3" = --check ] || usage
-                vigil_pack_update "$root" "$app" 1
+        [ "$#" -ge 2 ] || usage
+        sub=$2
+        shift 2
+        case $sub:$#:${1-} in
+            list:0:) vigil_pack_list "$root" ;;
+            list:1:--available) vigil_pack_available "$root" "$app" ;;
+            enable:1:* | disable:1:*) vigil_pack_"$sub" "$root" "$1" ;;
+            update:0:) vigil_pack_update "$root" "$app" 0 ;;
+            update:1:--check) vigil_pack_update "$root" "$app" 1 ;;
+            info:1:*) vigil_pack_info "$root" "$app" "$1" ;;
+            search:*) vigil_pack_search "$root" "$app" "$@" ;;
+            remove:0:) usage ;;
+            remove:*) vigil_pack_remove "$root" "$@" ;;
+            install:* | download:*)
+                from='' os='' to=''
+                set -- "$@" --end
+                while [ "$1" != --end ]; do
+                    case $sub:$1 in
+                        install:--from) [ "$2" != --end ] || usage; from=$2; shift 2 ;;
+                        download:--os) [ "$2" != --end ] || usage; os=$2; shift 2 ;;
+                        download:--to) [ "$2" != --end ] || usage; to=$2; shift 2 ;;
+                        *:-*) usage ;;
+                        *) set -- "$@" "$1"; shift ;;
+                    esac
+                done
+                shift
+                [ "$#" -gt 0 ] || usage
+                if [ "$sub" = install ]; then
+                    vigil_pack_install "$root" "$app" "$from" "$@"
+                else
+                    [ -n "$to" ] || usage
+                    if [ -z "$os" ]; then
+                        case $(uname -s) in Darwin) os=macos ;; *) os=linux ;; esac
+                    fi
+                    vigil_pack_download "$root" "$app" "$os" "$to" "$@"
+                fi
                 ;;
             *) usage ;;
         esac

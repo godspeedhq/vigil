@@ -2,14 +2,14 @@
 
 Thank you for helping. This guide is mostly about the scripts in [`packs/`](packs), which most contributions are, then briefly about Vigil itself.
 
-You sign nothing and hold no keys. A contribution is a pull request: it is reviewed, it must pass every test, and once merged it is signed by the release pipeline with the rest of the release. A signature on a pack means the project reviewed what is in it, not that you vouched for it.
+You sign nothing and hold no keys. A contribution is a pull request: it is reviewed, it must pass every test, and once merged it is signed by the release pipeline: a script of Vigil's with the next Vigil release, a pack with the next packs release. A signature on a pack means the project reviewed what is in it, not that you vouched for it.
 
 ## How a script reaches a release
 
 1. You open a pull request against `main`.
 2. The tests run on Linux, macOS and Windows (PowerShell 5.1 and 7). `main` accepts nothing that has not passed all four, and nothing but a pull request: no direct pushes, no force-pushes, no deleting the branch.
 3. A maintainer reviews it, against the checklist below, and merges it.
-4. A release is built and signed only from a commit on `main` (the release workflow refuses any other), so nothing unreviewed is ever signed.
+4. A release is built and signed only from a commit on `main` (the release workflows refuse any other), so nothing unreviewed is ever signed. A pack ships in a packs release (a `packs-<date>` tag), with no Vigil release needed: only a pack whose version went up is published again, so raise `version` in its `pack.config` with every change.
 
 ## Your first pack
 
