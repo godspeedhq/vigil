@@ -47,3 +47,19 @@ uncertain. Nothing unproven is ever killed either way.
 
 Test: the loaded loop above, again, on the Mac; and the max_runtime tests
 on every platform.
+
+## Built
+
+2026-11-19. When the stop cannot prove the job process, both twins look at
+the run token again (`_vigil_sup_held`, `Test-VigilFileHeld`). No one
+holding it means the run has just ended: it stays alive for this tick, and
+the next concludes it from its final state. A token still held, or one that
+cannot be checked (an empty token, a failed probe), keeps the verdict
+uncertain, so nothing unproven is ever killed. §11.5 says so.
+
+Tested:
+- The loaded loop on the Intel Mac: 60 rounds, 60 passed (1 of 36 failed
+  before the fix).
+- Fedora: `max-runtime.sh` 19 passed, `uncertain.sh` 35 passed.
+- Windows 11: `Max-Runtime.ps1` 12 passed and `Uncertain.ps1` 47 passed, on
+  PowerShell 5.1 and 7.
