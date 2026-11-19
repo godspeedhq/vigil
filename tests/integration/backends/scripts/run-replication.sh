@@ -130,7 +130,9 @@ wait_streaming || { dc logs --tail 30; die 'the replica never streamed'; }
 if [ "$pack" = postgres ]; then
     printf 'server   PostgreSQL %s\n\n' "$(PGPORT=$sport psql -X -Atc 'SHOW server_version')"
 else
-    printf 'server   %s\n\n' "$(MYSQL_TCP_PORT=$sport mysql --protocol=TCP -h 127.0.0.1 -u vigil_monitor -N -B -e 'SELECT VERSION()' 2> /dev/null)"
+    # The port on the command line: a client run from an image gets only
+    # the password's variable.
+    printf 'server   %s\n\n' "$(mysql --protocol=TCP -h 127.0.0.1 -P "$sport" -u vigil_monitor -N -B -e 'SELECT VERSION()' 2> /dev/null)"
 fi
 
 say "The pack through Vigil, the replica given."
