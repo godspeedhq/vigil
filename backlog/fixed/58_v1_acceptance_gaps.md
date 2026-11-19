@@ -194,6 +194,9 @@ By §22.4 test number where there is one.
   test's), #201 (`run_every = 1h` in the max_runtime tests started a run
   on the hour), #200 (a once-seen Windows service flake now explains
   itself).
+- #205, #206 criterion 2: a Windows user-mode `vigil restart` could start
+  no supervisor, taking the one it had just killed, whose lock was not yet
+  released, for a live one (backlog 59).
 
 Tested: every suite named above on Fedora (bash 5.3), the Intel Mac (bash
 3.2) and Windows 11 (PowerShell 5.1 and 7), and in CI on all of them.
