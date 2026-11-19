@@ -75,4 +75,4 @@ Tested:
 - Fedora (bash 5.3): `pack.sh` 106 passed; `self-update.sh` 131, `install.sh`
   33, `packaged.sh` 22 and `init-uninstall.sh` 38 passed.
 - The Intel Mac (bash 3.2): `pack.sh` 106 passed.
-- Windows 11: `Pack.ps1` 105 passed on PowerShell 7.
+- Windows 11: `Pack.ps1` 105 passed on PowerShell 7 and on 5.1.
