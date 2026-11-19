@@ -1,0 +1,179 @@
+== pack-mysql-windows
+date     2026-11-19T21:10:17Z
+host     DESKTOP-5RNMH9R (Windows 10.0.22631.6199)
+vigil    847a6647de8140eafe762173dc98a843b8c8b451
+shells   Windows PowerShell 5.1.22621.6133, PowerShell 7.6.10
+client   mysql.exe  Ver 8.4.13 for Win64 on x86_64 (MySQL Community Server - GPL) (the vendor's Windows zip)
+server   8.4.13, a primary and a replica on the Fedora test machine, through SSH tunnels
+
+
+# Every job, on the primary, on each PowerShell.
+> $env:MYSQL_TCP_PORT=13306; powershell -File packs\mysql\windows\status.ps1
+metric up 1
+metric aborted_connects_count 0
+metric tmp_disk_tables_count 0
+metric queries_count 37
+metric slow_queries_count 0
+metric connections 2
+metric max_connections 151
+metric connections_pct 1
+metric running 0
+metric longest_query_seconds 0
+[exit 0]
+> $env:MYSQL_TCP_PORT=13306; pwsh -File packs\mysql\windows\status.ps1
+metric up 1
+metric aborted_connects_count 0
+metric tmp_disk_tables_count 1
+metric queries_count 53
+metric slow_queries_count 0
+metric connections 2
+metric max_connections 151
+metric connections_pct 1
+metric running 0
+metric longest_query_seconds 0
+[exit 0]
+> $env:MYSQL_TCP_PORT=13306; powershell -File packs\mysql\windows\activity.ps1
+metric longest_transaction_seconds 0
+metric idle_in_transaction 0
+metric longest_idle_in_transaction_seconds 0
+metric waiting 0
+metric longest_wait_seconds 0
+[exit 0]
+> $env:MYSQL_TCP_PORT=13306; pwsh -File packs\mysql\windows\activity.ps1
+metric longest_transaction_seconds 0
+metric idle_in_transaction 0
+metric longest_idle_in_transaction_seconds 0
+metric waiting 0
+metric longest_wait_seconds 0
+[exit 0]
+> $env:MYSQL_TCP_PORT=13306; powershell -File packs\mysql\windows\replication.ps1
+metric is_replica 0
+metric replicas 1
+[exit 0]
+> $env:MYSQL_TCP_PORT=13306; pwsh -File packs\mysql\windows\replication.ps1
+metric is_replica 0
+metric replicas 1
+[exit 0]
+> $env:MYSQL_TCP_PORT=13306; powershell -File packs\mysql\windows\innodb.ps1
+metric buffer_pool_hit_pct 94
+metric buffer_pool_used_pct 48
+metric history_list_count 5
+metric row_lock_waits_count 0
+metric deadlocks_count 0
+[exit 0]
+> $env:MYSQL_TCP_PORT=13306; pwsh -File packs\mysql\windows\innodb.ps1
+metric buffer_pool_hit_pct 94
+metric buffer_pool_used_pct 48
+metric history_list_count 5
+metric row_lock_waits_count 0
+metric deadlocks_count 0
+[exit 0]
+> $env:MYSQL_TCP_PORT=13306; powershell -File packs\mysql\windows\size.ps1
+[exit 0]
+> $env:MYSQL_TCP_PORT=13306; pwsh -File packs\mysql\windows\size.ps1
+[exit 0]
+
+# The replica.
+> $env:MYSQL_TCP_PORT=13307; powershell -File packs\mysql\windows\replication.ps1
+metric is_replica 1
+metric replicas 0
+metric io_running 1 channel=default
+metric sql_running 1 channel=default
+metric lag_seconds 0 channel=default
+[exit 0]
+> $env:MYSQL_TCP_PORT=13307; pwsh -File packs\mysql\windows\replication.ps1
+metric is_replica 1
+metric replicas 0
+metric io_running 1 channel=default
+metric sql_running 1 channel=default
+metric lag_seconds 0 channel=default
+[exit 0]
+
+# The replica's applying thread stops.
+> $env:MYSQL_TCP_PORT=13307; powershell -File packs\mysql\windows\replication.ps1
+metric is_replica 1
+metric replicas 0
+metric io_running 1 channel=default
+metric sql_running 0 channel=default
+[exit 0]
+> $env:MYSQL_TCP_PORT=13307; pwsh -File packs\mysql\windows\replication.ps1
+metric is_replica 1
+metric replicas 0
+metric io_running 1 channel=default
+metric sql_running 0 channel=default
+[exit 0]
+
+# The replica stops.
+> $env:MYSQL_TCP_PORT=13306; powershell -File packs\mysql\windows\replication.ps1
+metric is_replica 0
+metric replicas 1
+[exit 0]
+> $env:MYSQL_TCP_PORT=13306; pwsh -File packs\mysql\windows\replication.ps1
+metric is_replica 0
+metric replicas 1
+[exit 0]
+> $env:MYSQL_TCP_PORT=13307; powershell -File packs\mysql\windows\status.ps1
+metric up 0
+[exit 0]
+> $env:MYSQL_TCP_PORT=13307; pwsh -File packs\mysql\windows\status.ps1
+metric up 0
+[exit 0]
+
+# The replica starts again.
+> $env:MYSQL_TCP_PORT=13307; powershell -File packs\mysql\windows\replication.ps1
+metric is_replica 1
+metric replicas 0
+metric io_running 1 channel=default
+metric sql_running 1 channel=default
+metric lag_seconds 0 channel=default
+[exit 0]
+> $env:MYSQL_TCP_PORT=13307; pwsh -File packs\mysql\windows\replication.ps1
+metric is_replica 1
+metric replicas 0
+metric io_running 1 channel=default
+metric sql_running 1 channel=default
+metric lag_seconds 0 channel=default
+[exit 0]
+
+# Through Vigil on Windows: vigil pack enable, then vigil run for each job.
+> vigil pack enable mysql
+on: mysql_status
+on: mysql_activity
+on: mysql_replication
+on: mysql_innodb
+on: mysql_size
+> vigil run mysql_status
+mysql_status: succeeded in 3s, run 20261119T211148Z-14132
+> vigil run mysql_activity
+mysql_activity: succeeded in 2s, run 20261119T211201Z-11576
+> vigil run mysql_replication
+mysql_replication: succeeded in 2s, run 20261119T211212Z-21944
+> vigil run mysql_innodb
+mysql_innodb: succeeded in 2s, run 20261119T211224Z-11156
+> vigil run mysql_size
+mysql_size: succeeded in 2s, run 20261119T211236Z-14328
+> the metrics as Vigil logged them
+metric aborted_connects_count 0
+metric buffer_pool_hit_pct 94
+metric buffer_pool_used_pct 48
+metric connections 2
+metric connections_pct 1
+metric deadlocks_count 0
+metric history_list_count 0
+metric idle_in_transaction 0
+metric is_replica 0
+metric longest_idle_in_transaction_seconds 0
+metric longest_query_seconds 0
+metric longest_transaction_seconds 0
+metric longest_wait_seconds 0
+metric max_connections 151
+metric queries_count 184
+metric replicas 1
+metric row_lock_waits_count 0
+metric running 0
+metric slow_queries_count 1
+metric tmp_disk_tables_count 10
+metric up 1
+metric waiting 0
+> the password, anywhere in the root
+nowhere

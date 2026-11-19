@@ -1,0 +1,292 @@
+== pack-postgres-windows
+date     2026-11-19T21:06:30Z
+host     DESKTOP-5RNMH9R (Windows 10.0.22631.6199)
+vigil    847a6647de8140eafe762173dc98a843b8c8b451
+shells   Windows PowerShell 5.1.22621.6133, PowerShell 7.6.10
+client   psql (PostgreSQL) 18.6 (the vendor's Windows zip)
+server   PostgreSQL 18.1, a primary and a replica on the Fedora test machine, through SSH tunnels
+
+
+# Every job, on the primary, on each PowerShell.
+> $env:PGPORT=15433; powershell -File packs\postgres\windows\status.ps1
+metric up 1
+metric connections 1
+metric max_connections 100
+metric longest_query_seconds 0
+metric longest_transaction_seconds 0
+metric commits_count 1114
+metric rollbacks_count 1
+metric deadlocks_count 0
+metric cache_hit_pct 98
+metric connections_pct 1
+[exit 0]
+> $env:PGPORT=15433; pwsh -File packs\postgres\windows\status.ps1
+metric up 1
+metric connections 1
+metric max_connections 100
+metric longest_query_seconds 0
+metric longest_transaction_seconds 0
+metric commits_count 1117
+metric rollbacks_count 1
+metric deadlocks_count 0
+metric cache_hit_pct 98
+metric connections_pct 1
+[exit 0]
+> $env:PGPORT=15433; powershell -File packs\postgres\windows\activity.ps1
+metric active 0
+metric idle 0
+metric idle_in_transaction 0
+metric waiting 0
+metric blocked 0
+metric longest_wait_seconds 0
+metric longest_idle_in_transaction_seconds 0
+[exit 0]
+> $env:PGPORT=15433; pwsh -File packs\postgres\windows\activity.ps1
+metric active 0
+metric idle 0
+metric idle_in_transaction 0
+metric waiting 0
+metric blocked 0
+metric longest_wait_seconds 0
+metric longest_idle_in_transaction_seconds 0
+[exit 0]
+> $env:PGPORT=15433; powershell -File packs\postgres\windows\replication.ps1
+metric is_replica 0
+metric replicas 1
+metric slots_inactive 0
+metric lag_bytes 0 replica=replica1
+metric lag_seconds 0 replica=replica1
+metric slot_retained_bytes 0 slot=replica1
+[exit 0]
+> $env:PGPORT=15433; pwsh -File packs\postgres\windows\replication.ps1
+metric is_replica 0
+metric replicas 1
+metric slots_inactive 0
+metric lag_bytes 0 replica=replica1
+metric lag_seconds 0 replica=replica1
+metric slot_retained_bytes 0 slot=replica1
+[exit 0]
+> $env:PGPORT=15433; powershell -File packs\postgres\windows\wraparound.ps1
+metric xid_age_count 22 database=postgres
+metric xid_age_count 22 database=orders
+metric xid_age_count 22 database=template1
+metric xid_age_count 22 database=template0
+metric xid_pct 0 database=postgres
+metric xid_pct 0 database=orders
+metric xid_pct 0 database=template1
+metric xid_pct 0 database=template0
+metric mxid_age_count 0 database=postgres
+metric mxid_age_count 0 database=orders
+metric mxid_age_count 0 database=template1
+metric mxid_age_count 0 database=template0
+metric mxid_pct 0 database=postgres
+metric mxid_pct 0 database=orders
+metric mxid_pct 0 database=template1
+metric mxid_pct 0 database=template0
+metric oldest_xmin_age_count 0
+[exit 0]
+> $env:PGPORT=15433; pwsh -File packs\postgres\windows\wraparound.ps1
+metric xid_age_count 22 database=postgres
+metric xid_age_count 22 database=orders
+metric xid_age_count 22 database=template1
+metric xid_age_count 22 database=template0
+metric xid_pct 0 database=postgres
+metric xid_pct 0 database=orders
+metric xid_pct 0 database=template1
+metric xid_pct 0 database=template0
+metric mxid_age_count 0 database=postgres
+metric mxid_age_count 0 database=orders
+metric mxid_age_count 0 database=template1
+metric mxid_age_count 0 database=template0
+metric mxid_pct 0 database=postgres
+metric mxid_pct 0 database=orders
+metric mxid_pct 0 database=template1
+metric mxid_pct 0 database=template0
+metric oldest_xmin_age_count 0
+[exit 0]
+> $env:PGPORT=15433; powershell -File packs\postgres\windows\vacuum.ps1
+metric autovacuum_workers 0
+metric autovacuum_max_workers 3
+metric dead_tuples_count 0 database=orders
+metric tables_due_count 0 database=orders
+metric dead_tuples_count 0 database=postgres
+metric tables_due_count 0 database=postgres
+[exit 0]
+> $env:PGPORT=15433; pwsh -File packs\postgres\windows\vacuum.ps1
+metric autovacuum_workers 0
+metric autovacuum_max_workers 3
+metric dead_tuples_count 0 database=orders
+metric tables_due_count 0 database=orders
+metric dead_tuples_count 0 database=postgres
+metric tables_due_count 0 database=postgres
+[exit 0]
+> $env:PGPORT=15433; powershell -File packs\postgres\windows\io.ps1
+metric checkpoints_timed_count 1
+metric checkpoints_requested_count 2
+metric temp_files_count 1
+metric temp_bytes 181411
+metric wal_bytes 12419801
+[exit 0]
+> $env:PGPORT=15433; pwsh -File packs\postgres\windows\io.ps1
+metric checkpoints_timed_count 1
+metric checkpoints_requested_count 2
+metric temp_files_count 1
+metric temp_bytes 181411
+metric wal_bytes 12419801
+[exit 0]
+> $env:PGPORT=15433; powershell -File packs\postgres\windows\size.ps1
+metric size_bytes 7861951 database=orders
+metric size_bytes 7861951 database=postgres
+[exit 0]
+> $env:PGPORT=15433; pwsh -File packs\postgres\windows\size.ps1
+metric size_bytes 7861951 database=orders
+metric size_bytes 7861951 database=postgres
+[exit 0]
+
+# The replica.
+> $env:PGPORT=15434; powershell -File packs\postgres\windows\replication.ps1
+metric is_replica 1
+metric receiver_up 1
+metric replay_lag_bytes 0
+metric last_replay_seconds 290
+[exit 0]
+> $env:PGPORT=15434; pwsh -File packs\postgres\windows\replication.ps1
+metric is_replica 1
+metric receiver_up 1
+metric replay_lag_bytes 0
+metric last_replay_seconds 292
+[exit 0]
+
+# A session holds a lock, idle in its transaction; another waits for it.
+> $env:PGPORT=15433; powershell -File packs\postgres\windows\activity.ps1
+metric active 1
+metric idle 0
+metric idle_in_transaction 1
+metric waiting 1
+metric blocked 1
+metric longest_wait_seconds 6
+metric longest_idle_in_transaction_seconds 8
+[exit 0]
+> $env:PGPORT=15433; pwsh -File packs\postgres\windows\activity.ps1
+metric active 1
+metric idle 0
+metric idle_in_transaction 1
+metric waiting 1
+metric blocked 1
+metric longest_wait_seconds 7
+metric longest_idle_in_transaction_seconds 9
+[exit 0]
+
+# The replica stops.
+> $env:PGPORT=15433; powershell -File packs\postgres\windows\replication.ps1
+metric is_replica 0
+metric replicas 0
+metric slots_inactive 1
+metric slot_retained_bytes 0 slot=replica1
+[exit 0]
+> $env:PGPORT=15433; pwsh -File packs\postgres\windows\replication.ps1
+metric is_replica 0
+metric replicas 0
+metric slots_inactive 1
+metric slot_retained_bytes 0 slot=replica1
+[exit 0]
+> $env:PGPORT=15434; powershell -File packs\postgres\windows\status.ps1
+metric up 0
+[exit 0]
+> $env:PGPORT=15434; pwsh -File packs\postgres\windows\status.ps1
+metric up 0
+[exit 0]
+
+# The replica starts again.
+> $env:PGPORT=15434; powershell -File packs\postgres\windows\replication.ps1
+metric is_replica 1
+metric receiver_up 1
+metric replay_lag_bytes 0
+metric last_replay_seconds 0
+[exit 0]
+> $env:PGPORT=15434; pwsh -File packs\postgres\windows\replication.ps1
+metric is_replica 1
+metric receiver_up 1
+metric replay_lag_bytes 0
+metric last_replay_seconds 0
+[exit 0]
+
+# Through Vigil on Windows: vigil pack enable, then vigil run for each job.
+> vigil pack enable postgres
+on: postgres_status
+on: postgres_size
+on: postgres_activity
+on: postgres_replication
+on: postgres_wraparound
+on: postgres_vacuum
+on: postgres_io
+> vigil run postgres_status
+postgres_status: succeeded in 2s, run 20261119T210805Z-12036
+> vigil run postgres_activity
+postgres_activity: succeeded in 2s, run 20261119T210817Z-19140
+> vigil run postgres_replication
+postgres_replication: succeeded in 2s, run 20261119T210829Z-11584
+> vigil run postgres_wraparound
+postgres_wraparound: succeeded in 2s, run 20261119T210841Z-10668
+> vigil run postgres_vacuum
+postgres_vacuum: succeeded in 3s, run 20261119T210853Z-14756
+> vigil run postgres_io
+postgres_io: succeeded in 1s, run 20261119T210905Z-18476
+> vigil run postgres_size
+postgres_size: succeeded in 1s, run 20261119T210917Z-8132
+> the metrics as Vigil logged them
+metric active 0
+metric autovacuum_max_workers 3
+metric autovacuum_workers 0
+metric blocked 0
+metric cache_hit_pct 98
+metric checkpoints_requested_count 2
+metric checkpoints_timed_count 1
+metric commits_count 1221
+metric connections 1
+metric connections_pct 1
+metric dead_tuples_count 0 database=orders
+metric dead_tuples_count 0 database=postgres
+metric deadlocks_count 0
+metric idle 0
+metric idle_in_transaction 0
+metric is_replica 0
+metric lag_bytes 0 replica=replica1
+metric lag_seconds 0 replica=replica1
+metric longest_idle_in_transaction_seconds 0
+metric longest_query_seconds 0
+metric longest_transaction_seconds 0
+metric longest_wait_seconds 0
+metric max_connections 100
+metric mxid_age_count 0 database=orders
+metric mxid_age_count 0 database=postgres
+metric mxid_age_count 0 database=template0
+metric mxid_age_count 0 database=template1
+metric mxid_pct 0 database=orders
+metric mxid_pct 0 database=postgres
+metric mxid_pct 0 database=template0
+metric mxid_pct 0 database=template1
+metric oldest_xmin_age_count 0
+metric replicas 1
+metric rollbacks_count 2
+metric size_bytes 7861951 database=orders
+metric size_bytes 7861951 database=postgres
+metric slot_retained_bytes 0 slot=replica1
+metric slots_inactive 0
+metric tables_due_count 0 database=orders
+metric tables_due_count 0 database=postgres
+metric temp_bytes 181411
+metric temp_files_count 1
+metric up 1
+metric waiting 0
+metric wal_bytes 12419801
+metric xid_age_count 22 database=orders
+metric xid_age_count 22 database=postgres
+metric xid_age_count 22 database=template0
+metric xid_age_count 22 database=template1
+metric xid_pct 0 database=orders
+metric xid_pct 0 database=postgres
+metric xid_pct 0 database=template0
+metric xid_pct 0 database=template1
+> the password, anywhere in the root
+nowhere
