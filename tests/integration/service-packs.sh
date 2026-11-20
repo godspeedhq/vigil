@@ -10,7 +10,8 @@
 # LICENSE file for the full terms.
 #
 # Integration test: the service packs (packs/postgres, packs/mysql,
-# packs/redis, packs/nginx) against real servers, on Linux and macOS. The
+# packs/redis, packs/mssql, packs/nginx) against real servers, on Linux and
+# macOS. The
 # twin of Service-Packs.ps1, which tests them on Windows (nginx has no
 # Windows script).
 #
@@ -45,6 +46,20 @@
 #                                        only, its default user open, with
 #   VIGIL_IT_REDIS_CACERT                the CA its certificate is from
 #                                        (compose.redis.yaml has all three)
+#   VIGIL_IT_MSSQL_HOST, _PORT           a SQL Server (default port 1433), by
+#                                        the name on its certificate
+#   VIGIL_IT_MSSQL_PASSWORD              its vigil_monitor login's password; the
+#                                        login has what packs/README.md says
+#                                        to grant, and nothing more
+#   VIGIL_IT_MSSQL_CACERT                the CA its certificate is from, when
+#                                        the system does not trust it
+#   VIGIL_IT_MSSQL_SA_PASSWORD           optional: sa's, to make a database,
+#                                        backups, an integrity check, blocking
+#                                        and a failing Agent job
+#   VIGIL_IT_MSSQL_REPLICA_HOST, _PORT   optional: the secondary of its
+#                                        availability group (compose.mssql.yaml
+#                                        has both, scripts/run-mssql.sh sets
+#                                        them up)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
@@ -65,7 +80,11 @@
 # refused when the certificate cannot be trusted or when asked without TLS;
 # a server with no password; a wrong password, even where the server's
 # default user would answer; a user that may not run INFO; and a server
-# that is down.
+# that is down. For mssql also: a session asleep with its transaction open
+# and another blocked behind it, backups and an integrity check just done,
+# Agent's jobs unreadable without their role and then a failed one seen; an
+# availability group from both sides; a certificate it cannot trust and a
+# wrong password, which fail the run; and a server that is down.
 #
 # Exit code: 0 all passed or skipped, 1 any failed.
 
@@ -79,6 +98,7 @@ root=$work/root
 pass=0
 fail=0
 hold=''
+hold2=''
 
 check() {
     if [ "$2" = "$3" ]; then
@@ -90,8 +110,9 @@ check() {
     fi
 }
 cleanup() {
-    # The test's own psql, holding a transaction open.
+    # The test's own clients, holding a transaction open, or waiting.
     [ -n "$hold" ] && kill "$hold" 2> /dev/null
+    [ -n "$hold2" ] && kill "$hold2" 2> /dev/null
     rm -rf "$work"
 }
 trap cleanup EXIT
@@ -110,7 +131,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres mysql redis nginx; do
+for p in postgres mysql redis mssql nginx; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -584,6 +605,172 @@ else
     set_env REDIS_PORT "$rport"
     # And it is up again, for the backend.
     runs redis_status > /dev/null
+fi
+
+# --- mssql ------------------------------------------------------------------
+if [ -z "${VIGIL_IT_MSSQL_HOST-}" ] || [ -z "${VIGIL_IT_MSSQL_PASSWORD-}" ]; then
+    printf '  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD\n'
+elif ! command -v sqlcmd > /dev/null 2>&1 && [ ! -x /opt/mssql-tools18/bin/sqlcmd ]; then
+    printf '  SKIP  mssql: sqlcmd is not installed here\n'
+else
+    # The jobs have their password from Vigil: never from this test's own
+    # environment.
+    unset SQLCMDPASSWORD
+    mport=${VIGIL_IT_MSSQL_PORT:-1433}
+    printf 'mssql at %s:%s\n' "$VIGIL_IT_MSSQL_HOST" "$mport"
+    mclient=$(command -v sqlcmd || echo /opt/mssql-tools18/bin/sqlcmd)
+    # The test's own SQL, as sa, on stdin; the password in the environment.
+    msa() {
+        SQLCMDPASSWORD=$VIGIL_IT_MSSQL_SA_PASSWORD SSL_CERT_FILE=${VIGIL_IT_MSSQL_CACERT-} \
+            "$mclient" -S "tcp:$VIGIL_IT_MSSQL_HOST,${2:-$mport}" -U sa -d master -Nm -l 10 -h -1 -W -b -i /dev/stdin <<< "SET NOCOUNT ON; $1" 2>&1
+    }
+    mjobs_on() { vigil pack list | awk '$1 ~ /^mssql_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    between() { local v; v=$(printed "$1" "$2" "${3-}"); awk -v v="$v" -v a="$4" -v b="$5" 'BEGIN { print (v ~ /^-?[0-9]+(\.[0-9]+)?$/ && v + 0 >= a && v + 0 <= b) ? "yes" : "no [" v "]" }'; }
+    # The mssql jobs' MSSQL_CACERT line, $1, or none when empty, as an
+    # operator adds it under MSSQL_PORT.
+    ca_env() {
+        awk -v ca="$1" '
+            /^env *= MSSQL_CACERT=/ { next }
+            { print }
+            /^env *= MSSQL_PORT=/ { if (ca != "") print "env         = MSSQL_CACERT=" ca }' "$root/config/vigil.config" > "$work/cfg" && cat "$work/cfg" > "$root/config/vigil.config"
+    }
+    said() {
+        local f rid
+        f=$(ls "$root/logs/jobs/$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    runs() { vigil run "$1" > "$work/out" 2>&1; echo $?; }
+    mjobs='status performance activity cpu replication waits io memory tempdb connections databases health config backups agent'
+    check 'mssql: off until enabled' 'off=15' "$(mjobs_on)"
+    out=$(vigil pack enable mssql 2>&1)
+    check 'mssql: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'mssql: its jobs are on' 'on=15' "$(mjobs_on)"
+    check 'mssql: the password is a secret reference' 15 "$(grep -c '^secret *= SQLCMDPASSWORD=secret:MSSQL_MONITOR_PASSWORD' "$root/config/vigil.config")"
+    printf '%s' "$VIGIL_IT_MSSQL_PASSWORD" | vigil secret set MSSQL_MONITOR_PASSWORD --stdin > /dev/null
+    set_env MSSQL_HOST "$VIGIL_IT_MSSQL_HOST"
+    set_env MSSQL_PORT "$mport"
+    [ -n "${VIGIL_IT_MSSQL_CACERT-}" ] && ca_env "$VIGIL_IT_MSSQL_CACERT"
+    check 'mssql: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+
+    # As sa: a table, a full backup and a log backup, an integrity check, a
+    # session asleep with its transaction open holding a row lock and
+    # another blocked behind it, and an Agent job that fails.
+    if [ -n "${VIGIL_IT_MSSQL_SA_PASSWORD-}" ]; then
+        db=${VIGIL_IT_MSSQL_DATABASE:-vigil_it}
+        msa "IF DB_ID('$db') IS NULL BEGIN CREATE DATABASE [$db]; ALTER DATABASE [$db] SET RECOVERY FULL; END" > /dev/null
+        msa "USE [$db]; IF OBJECT_ID('dbo.t') IS NULL CREATE TABLE dbo.t (id int PRIMARY KEY, v int); IF NOT EXISTS (SELECT 1 FROM dbo.t) INSERT dbo.t VALUES (1, 0), (2, 0);" > /dev/null
+        msa "BACKUP DATABASE [$db] TO DISK = N'/var/opt/mssql/data/$db.bak' WITH INIT; BACKUP LOG [$db] TO DISK = N'/var/opt/mssql/data/$db.trn' WITH INIT;" > /dev/null
+        msa "DBCC CHECKDB([$db]) WITH NO_INFOMSGS;" > /dev/null
+        msa "USE msdb; IF EXISTS (SELECT 1 FROM dbo.sysjobs WHERE name = N'vigil_it_failing') EXEC dbo.sp_delete_job @job_name = N'vigil_it_failing';
+            EXEC dbo.sp_add_job @job_name = N'vigil_it_failing';
+            EXEC dbo.sp_add_jobstep @job_name = N'vigil_it_failing', @step_name = N'fail', @subsystem = N'TSQL', @command = N'RAISERROR(''vigil test'', 16, 1);';
+            EXEC dbo.sp_add_jobserver @job_name = N'vigil_it_failing';
+            EXEC dbo.sp_start_job @job_name = N'vigil_it_failing';" > /dev/null
+        # The holder: asleep, its transaction open, until the test ends it.
+        { printf 'SET NOCOUNT ON; USE [%s]; BEGIN TRAN; UPDATE dbo.t SET v = v + 1 WHERE id = 1;\nGO\n' "$db"; sleep 45; } |
+            SQLCMDPASSWORD=$VIGIL_IT_MSSQL_SA_PASSWORD SSL_CERT_FILE=${VIGIL_IT_MSSQL_CACERT-} "$mclient" -S "tcp:$VIGIL_IT_MSSQL_HOST,$mport" -U sa -Nm -l 10 > /dev/null 2>&1 &
+        hold=$!
+        sleep 3
+        # The waiter, blocked behind it, gives up after 40 seconds.
+        msa "SET LOCK_TIMEOUT 40000; USE [$db]; UPDATE dbo.t SET v = v + 1 WHERE id = 1;" > /dev/null &
+        hold2=$!
+        sleep 8
+    else
+        printf '  SKIP  mssql: a database, backups, CHECKDB, blocking and an Agent job: set VIGIL_IT_MSSQL_SA_PASSWORD\n'
+    fi
+    for j in $mjobs; do
+        check "mssql: $j runs" 0 "$(runs "mssql_$j")"
+        grep -h ' out metric ' "$root/logs/jobs/mssql_$j"/*.log | tail -n 12 | sed 's/^[^ ]* [^ ]* out /        /'
+    done
+    check 'mssql: up' 1 "$(printed mssql_status up)"
+    check 'mssql: what it is' yes "$(grep -h ' out metric info 1 release=' "$root"/logs/jobs/mssql_status/*.log | grep -qE 'release=20(19|22|25) version=1[5-7]\.[0-9.]+ update=[A-Za-z0-9]+ edition=[a-z]+ os=(linux|windows)$' && echo yes || echo no)"
+    check 'mssql: its uptime' yes "$(between mssql_status uptime_seconds '' 1 1e10)"
+    check 'mssql: connections' yes "$(between mssql_status connections '' 1 100000)"
+    check 'mssql: requests counted' yes "$(between mssql_performance batch_requests_count '' 1 1e18)"
+    check 'mssql: page life' yes "$(between mssql_performance page_life_expectancy_seconds '' 0 1e10)"
+    check 'mssql: the buffer cache hit ratio' yes "$(between mssql_performance buffer_cache_hit_pct '' 0 100)"
+    check 'mssql: workers against the most' yes "$(between mssql_cpu workers_pct '' 0.01 100)"
+    check 'mssql: SQL Server CPU' yes "$(between mssql_cpu sql_pct '' 0 100)"
+    check 'mssql: waits by kind' yes "$(between mssql_waits wait_ms_count kind=disk_read 0 1e18)"
+    check 'mssql: reads, file by file' yes "$(between mssql_io reads_count 'database=master file=master kind=data' 1 1e18)"
+    check 'mssql: memory it aims for' yes "$(between mssql_memory target_bytes '' 1 1e15)"
+    check 'mssql: the plan cache' yes "$(between mssql_memory plan_cache_bytes '' 1 1e15)"
+    check 'mssql: tempdb free' yes "$(between mssql_tempdb free_pct '' 0 100)"
+    check 'mssql: our connections encrypted' yes "$(between mssql_connections connections encrypted=yes 1 100000)"
+    check 'mssql: master online' 1 "$(printed mssql_databases online database=master)"
+    check 'mssql: log use' yes "$(between mssql_databases log_used_pct database=master 0 100)"
+    check 'mssql: virtual log files' yes "$(between mssql_health vlfs database=master 1 1e6)"
+    check 'mssql: disk space' yes "$(between mssql_health volume_free_pct volume= 0 100)"
+    check 'mssql: no damaged pages' 0 "$(printed mssql_health suspect_pages)"
+    check 'mssql: xp_cmdshell off' 0 "$(printed mssql_config xp_cmdshell)"
+    check 'mssql: Agent jobs not readable without the role' 0 "$(printed mssql_agent readable)"
+    check 'mssql: no warning taken for data' 0 "$(grep ' out metric ' "$root"/logs/jobs/mssql_*/*.log | grep -vcE ' out metric [a-z_]+ -?[0-9]+(\.[0-9]+)?( [a-z0-9_]+=[A-Za-z0-9_.-]+)*$')"
+    if [ -n "${VIGIL_IT_MSSQL_SA_PASSWORD-}" ]; then
+        check 'mssql: a request blocked' yes "$(between mssql_activity requests_blocked '' 1 1000)"
+        check 'mssql: and its head blocker' yes "$(between mssql_activity head_blockers '' 1 1000)"
+        check 'mssql: asleep with a transaction open' yes "$(between mssql_activity idle_in_transaction '' 1 1000)"
+        check 'mssql: for some seconds' yes "$(between mssql_activity idle_in_transaction_seconds '' 3 120)"
+        check 'mssql: the open transaction' yes "$(between mssql_activity oldest_transaction_seconds '' 3 120)"
+        check 'mssql: the wait is a lock' yes "$(grep -h ' out metric longest_wait_seconds ' "$root"/logs/jobs/mssql_activity/*.log | tail -n 1 | grep -q 'type=LCK_M_' && echo yes || echo no)"
+        check 'mssql: the database online' 1 "$(printed mssql_databases online "database=$db")"
+        check 'mssql: in full recovery' yes "$(grep -h " out metric recovery 1 database=$db model=full" "$root"/logs/jobs/mssql_databases/*.log > /dev/null && echo yes || echo no)"
+        check 'mssql: checked today' 0 "$(printed mssql_health checkdb_age_days "database=$db")"
+        check 'mssql: its full backup just taken' yes "$(between mssql_backups full_age_seconds "database=$db" 0 3600)"
+        check 'mssql: and its log backup' yes "$(between mssql_backups log_age_seconds "database=$db" 0 3600)"
+        check 'mssql: no differential' -1 "$(printed mssql_backups diff_age_seconds "database=$db")"
+        msa "USE msdb; IF USER_ID('vigil_monitor') IS NULL CREATE USER vigil_monitor FOR LOGIN vigil_monitor; ALTER ROLE SQLAgentReaderRole ADD MEMBER vigil_monitor;" > /dev/null
+        check 'mssql: agent runs with the role' 0 "$(runs mssql_agent)"
+        grep -h ' out metric ' "$root/logs/jobs/mssql_agent"/*.log | tail -n 6 | sed 's/^[^ ]* [^ ]* out /        /'
+        check 'mssql: Agent jobs readable' 1 "$(printed mssql_agent readable)"
+        check 'mssql: Agent running' 1 "$(printed mssql_status agent_running)"
+        check 'mssql: the failed job seen' yes "$(between mssql_agent job_failed_24h job=vigil_it_failing 1 100)"
+        check 'mssql: failures counted' yes "$(between mssql_agent failed_24h '' 1 1000)"
+        msa "USE msdb; ALTER ROLE SQLAgentReaderRole DROP MEMBER vigil_monitor; EXEC dbo.sp_delete_job @job_name = N'vigil_it_failing';" > /dev/null
+        kill "$hold" "$hold2" 2> /dev/null
+        wait "$hold" "$hold2" 2> /dev/null
+        hold='' hold2=''
+    fi
+
+    if [ -n "${VIGIL_IT_MSSQL_REPLICA_HOST-}" ]; then
+        check 'mssql: the primary seen' 1 "$(printed mssql_replication primary 'replica=mssql-primary')"
+        check 'mssql: the secondary connected' 1 "$(printed mssql_replication connected 'replica=mssql-secondary')"
+        check 'mssql: healthy' 2 "$(printed mssql_replication health 'replica=mssql-secondary')"
+        check 'mssql: its database synchronized' 2 "$(printed mssql_replication sync_state 'replica=mssql-secondary database=')"
+        check 'mssql: its send queue' yes "$(between mssql_replication send_queue_bytes 'replica=mssql-secondary database=' 0 1e15)"
+        set_env MSSQL_HOST "$VIGIL_IT_MSSQL_REPLICA_HOST"
+        set_env MSSQL_PORT "${VIGIL_IT_MSSQL_REPLICA_PORT:-1433}"
+        check 'mssql: replication runs on the secondary' 0 "$(runs mssql_replication)"
+        grep -h ' out metric ' "$root/logs/jobs/mssql_replication"/*.log | tail -n 6 | sed 's/^[^ ]* [^ ]* out /        /'
+        check 'mssql: a secondary' 0 "$(printed mssql_replication primary 'replica=mssql-secondary')"
+        check 'mssql: its database, from its side' 2 "$(printed mssql_replication sync_state 'replica=mssql-secondary database=')"
+        set_env MSSQL_HOST "$VIGIL_IT_MSSQL_HOST"
+        set_env MSSQL_PORT "$mport"
+    else
+        printf '  SKIP  mssql: an availability group: set VIGIL_IT_MSSQL_REPLICA_HOST (compose.mssql.yaml)\n'
+    fi
+
+    if [ -n "${VIGIL_IT_MSSQL_CACERT-}" ]; then
+        ca_env ''
+        check 'mssql: a certificate it cannot trust fails the run' 2 "$(runs mssql_status)"
+        check 'mssql: and says why' yes "$(said mssql_status 'certificate')"
+        ca_env "$VIGIL_IT_MSSQL_CACERT"
+    fi
+    printf 'not-the-Password1' | vigil secret set MSSQL_MONITOR_PASSWORD --stdin > /dev/null
+    check 'mssql: a wrong password fails the run' 2 "$(runs mssql_status)"
+    check 'mssql: and says why' yes "$(said mssql_status 'Login failed')"
+    printf '%s' "$VIGIL_IT_MSSQL_PASSWORD" | vigil secret set MSSQL_MONITOR_PASSWORD --stdin > /dev/null
+    check 'mssql: the password is written nowhere' 0 "$(grep -rlF -- "$VIGIL_IT_MSSQL_PASSWORD" "$root/config" "$root/logs" "$root/metrics" "$root/state" 2> /dev/null | wc -l | tr -d ' ')"
+
+    set_env MSSQL_PORT 1
+    check 'mssql: a server that is down still runs' 0 "$(runs mssql_status)"
+    check 'mssql: and reads as up 0' 0 "$(printed mssql_status up)"
+    before=$(grep -c ' out metric ' "$root"/logs/jobs/mssql_databases/*.log)
+    check 'mssql: the other jobs succeed when it is down' 0 "$(runs mssql_databases)"
+    check 'mssql: and say nothing' "$before" "$(grep -c ' out metric ' "$root"/logs/jobs/mssql_databases/*.log)"
+    set_env MSSQL_PORT "$mport"
+    runs mssql_status > /dev/null
 fi
 
 # --- nginx ------------------------------------------------------------------
