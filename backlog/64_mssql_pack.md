@@ -36,8 +36,10 @@ GRANT VIEW SERVER PERFORMANCE STATE, VIEW SERVER SECURITY STATE, VIEW ANY DATABA
 GRANT VIEW SERVER STATE, VIEW ANY DATABASE TO vigil_monitor;
 ```
 
-and for the jobs that read `msdb` (backups, log shipping, Agent), a user
-there that may read only what they need. Each grant is checked against 2019,
+and for `mssql_agent`, a user in `msdb` with `SELECT` on `sysjobs`,
+`sysjobhistory`, `sysjobactivity` and `syssessions` (`SQLAgentReaderRole`
+does not give it: it works through Agent's procedures). Backups need
+nothing more: `public` may read `msdb`'s backup history. Each grant is checked against 2019,
 2022 and 2025 before it is written into `needs`; a job whose right is
 missing fails, saying which.
 

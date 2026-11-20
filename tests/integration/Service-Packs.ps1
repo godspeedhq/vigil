@@ -11,9 +11,9 @@
 
 <#
 .SYNOPSIS
-    Integration test: the postgres and redis service packs against real
-    servers, on Windows. The twin of service-packs.sh (nginx has no Windows
-    script).
+    Integration test: the postgres, redis and mssql service packs against
+    real servers, on Windows. The twin of service-packs.sh (nginx has no
+    Windows script).
 .DESCRIPTION
     Tested only when a server is given, and SKIPped otherwise:
         VIGIL_IT_PG_HOST, VIGIL_IT_PG_PORT   a PostgreSQL server (port 5432 by default)
@@ -31,8 +31,17 @@
                                              only, its default user open, with
         VIGIL_IT_REDIS_CACERT                the CA its certificate is from, which
                                              names the TLS host as given
+        VIGIL_IT_MSSQL_HOST, _PORT           a SQL Server (port 1433 by default), by
+                                             a name on its certificate, from a CA
+                                             this machine trusts
+        VIGIL_IT_MSSQL_PASSWORD              its vigil_monitor login's password; the
+                                             login has what packs/README.md says
+                                             to grant
+        VIGIL_IT_MSSQL_SA_PASSWORD           optional: sa's, to make a database,
+                                             backups, an integrity check and
+                                             blocking
     psql is found as the pack finds it: on the PATH, or in PostgreSQL's own
-    folders under Program Files. The redis pack needs no client.
+    folders under Program Files. The redis and mssql packs need no client.
 
     The pack is off until enabled; vigil pack enable puts its jobs in the
     configuration; each job runs and reports what the server says; a long
@@ -202,6 +211,10 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $rk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\redis\pack.config') -Destination $rk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\redis\windows') | Copy-Item -Destination $rk
+    $mk = Join-Path $root 'packs\mssql'
+    [void](New-Item -ItemType Directory -Force -Path $mk)
+    Copy-Item -LiteralPath (Join-Path $repo 'packs\mssql\pack.config') -Destination $mk
+    Get-ChildItem -LiteralPath (Join-Path $repo 'packs\mssql\windows') | Copy-Item -Destination $mk
     $list = (Invoke-Vigil pack list).Text
     # pack list indents each job under its pack.
     Test-Equal 'the pack is off until enabled' 'off off' ((@($list.Split("`n") | Where-Object { $_ -match '^\s*postgres_(status|size)\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })) -join ' ')
@@ -464,8 +477,137 @@ try {
                 Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains($env:VIGIL_IT_REDIS_PASSWORD) })
         Test-Equal 'redis: the password is written nowhere' '0' ([string]$leaks.Count)
     }
+
+    # --- mssql --------------------------------------------------------------
+    if (-not $env:VIGIL_IT_MSSQL_HOST -or -not $env:VIGIL_IT_MSSQL_PASSWORD) { Write-Host '  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD' }
+    else {
+        # The jobs have their password from Vigil: never from this test's
+        # own environment.
+        Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+        $mport = if ($env:VIGIL_IT_MSSQL_PORT) { $env:VIGIL_IT_MSSQL_PORT } else { '1433' }
+        Write-Host "mssql at $($env:VIGIL_IT_MSSQL_HOST):$mport"
+        # activity first, while the waiter waits.
+        $mjobs = 'activity', 'status', 'performance', 'cpu', 'replication', 'waits', 'io', 'memory', 'tempdb', 'connections', 'databases', 'health', 'config', 'backups', 'agent'
+        function Get-MssqlJobsOn {
+            $list = (Invoke-Vigil pack list).Text
+            $s = @($list.Split("`n") | Where-Object { $_ -match '^\s*mssql_\w+\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            return (@($s | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        function Invoke-Job { param([string]$Job) return [string](Invoke-Vigil run $Job).Code }
+        # The test's own connections, as sa, encrypted and checked like the
+        # pack's.
+        function New-MssqlSa {
+            $b = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+            $b['Data Source'] = "tcp:$($env:VIGIL_IT_MSSQL_HOST),$mport"
+            $b['Encrypt'] = $true; $b['TrustServerCertificate'] = $false; $b['Pooling'] = $false
+            $b['User ID'] = 'sa'; $b['Password'] = $env:VIGIL_IT_MSSQL_SA_PASSWORD
+            $c = New-Object System.Data.SqlClient.SqlConnection($b.ConnectionString)
+            $c.Open()
+            return $c
+        }
+        function Invoke-MssqlSa {
+            param($Conn, [string]$Sql)
+            $cmd = $Conn.CreateCommand(); $cmd.CommandTimeout = 120; $cmd.CommandText = $Sql
+            [void]$cmd.ExecuteNonQuery()
+        }
+        Test-Equal 'mssql: off until enabled' 'off=15' (Get-MssqlJobsOn)
+        $r = Invoke-Vigil pack enable mssql
+        Test-Equal 'mssql: enabled' '0' ([string]$r.Code)
+        $r.Text.Split("`n") | ForEach-Object { Write-Host "        $_" }
+        Test-Equal 'mssql: its jobs are on' 'on=15' (Get-MssqlJobsOn)
+        $cfg = Join-Path $root 'config\vigil.config'
+        Test-Equal 'mssql: the password is a secret reference' '15' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*SQLCMDPASSWORD=secret:MSSQL_MONITOR_PASSWORD')).Count)
+        Set-VigilSecret MSSQL_MONITOR_PASSWORD $env:VIGIL_IT_MSSQL_PASSWORD
+        Set-Env 'MSSQL_HOST' $env:VIGIL_IT_MSSQL_HOST
+        Set-Env 'MSSQL_PORT' $mport
+        $r = Invoke-Vigil precheck
+        Test-Equal 'mssql: precheck is happy' '0' ([string]$r.Code)
+
+        # As sa: a database, a full and a log backup, an integrity check, a
+        # session asleep with its transaction open holding a row lock, and
+        # another blocked behind it.
+        $sa = $null; $holder = $null; $waiter = $null; $wait = $null
+        if ($env:VIGIL_IT_MSSQL_SA_PASSWORD) {
+            $db = if ($env:VIGIL_IT_MSSQL_DATABASE) { $env:VIGIL_IT_MSSQL_DATABASE } else { 'vigil_it' }
+            $sa = New-MssqlSa
+            Invoke-MssqlSa $sa "IF DB_ID('$db') IS NULL BEGIN CREATE DATABASE [$db]; ALTER DATABASE [$db] SET RECOVERY FULL; END"
+            Invoke-MssqlSa $sa "USE [$db]; IF OBJECT_ID('dbo.t') IS NULL CREATE TABLE dbo.t (id int PRIMARY KEY, v int); IF NOT EXISTS (SELECT 1 FROM dbo.t) INSERT dbo.t VALUES (1, 0), (2, 0);"
+            Invoke-MssqlSa $sa "BACKUP DATABASE [$db] TO DISK = N'/var/opt/mssql/data/$db.bak' WITH INIT; BACKUP LOG [$db] TO DISK = N'/var/opt/mssql/data/$db.trn' WITH INIT;"
+            Invoke-MssqlSa $sa "DBCC CHECKDB([$db]) WITH NO_INFOMSGS;"
+            $holder = New-MssqlSa
+            Invoke-MssqlSa $holder "USE [$db]; BEGIN TRAN; UPDATE dbo.t SET v = v + 1 WHERE id = 1;"
+            $waiter = New-MssqlSa
+            $wc = $waiter.CreateCommand(); $wc.CommandTimeout = 200
+            $wc.CommandText = "SET LOCK_TIMEOUT 150000; USE [$db]; UPDATE dbo.t SET v = v + 1 WHERE id = 1;"
+            $wait = $wc.ExecuteNonQueryAsync()
+            Start-Sleep -Seconds 8
+        }
+        else { Write-Host '  SKIP  mssql: a database, backups, CHECKDB and blocking: set VIGIL_IT_MSSQL_SA_PASSWORD' }
+        foreach ($j in $mjobs) {
+            Test-Equal "mssql: $j runs" '0' (Invoke-Job "mssql_$j")
+            Show-LastRun "mssql_$j"
+        }
+        Test-Equal 'mssql: up' '1' (Get-Printed mssql_status up)
+        Test-Equal 'mssql: what it is' 'True' ([string](@(Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\mssql_status') -Filter '*.log' | ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) } |
+                    Where-Object { $_ -match ' out metric info 1 release=20(19|22|25) version=1[5-7]\.[0-9.]+ update=[A-Za-z0-9]+ edition=[a-z]+ os=(linux|windows)$' }).Count -gt 0))
+        Test-Equal 'mssql: connections' 'yes' (Test-Between mssql_status connections '' 1 100000)
+        Test-Equal 'mssql: requests counted' 'yes' (Test-Between mssql_performance batch_requests_count '' 1 1e18)
+        Test-Equal 'mssql: workers against the most' 'yes' (Test-Between mssql_cpu workers_pct '' 0.01 100)
+        Test-Equal 'mssql: reads, file by file' 'yes' (Test-Between mssql_io reads_count 'database=master file=master kind=data' 1 1e18)
+        Test-Equal 'mssql: memory it aims for' 'yes' (Test-Between mssql_memory target_bytes '' 1 1e15)
+        Test-Equal 'mssql: tempdb free' 'yes' (Test-Between mssql_tempdb free_pct '' 0 100)
+        Test-Equal 'mssql: our connections encrypted' 'yes' (Test-Between mssql_connections connections 'encrypted=yes' 1 100000)
+        Test-Equal 'mssql: master online' '1' (Get-Printed mssql_databases online 'database=master')
+        Test-Equal 'mssql: disk space' 'yes' (Test-Between mssql_health volume_free_pct 'volume=' 0 100)
+        Test-Equal 'mssql: xp_cmdshell off' '0' (Get-Printed mssql_config xp_cmdshell)
+        Test-Equal 'mssql: Agent jobs not readable without their grants' '0' (Get-Printed mssql_agent readable)
+        if ($sa) {
+            Test-Equal 'mssql: a request blocked' 'yes' (Test-Between mssql_activity requests_blocked '' 1 1000)
+            Test-Equal 'mssql: and its head blocker' 'yes' (Test-Between mssql_activity head_blockers '' 1 1000)
+            Test-Equal 'mssql: asleep with a transaction open' 'yes' (Test-Between mssql_activity idle_in_transaction '' 1 1000)
+            Test-Equal 'mssql: the open transaction' 'yes' (Test-Between mssql_activity oldest_transaction_seconds '' 3 300)
+            Test-Equal 'mssql: checked today' '0' (Get-Printed mssql_health checkdb_age_days "database=$db")
+            Test-Equal 'mssql: its full backup just taken' 'yes' (Test-Between mssql_backups full_age_seconds "database=$db" 0 3600)
+            Test-Equal 'mssql: and its log backup' 'yes' (Test-Between mssql_backups log_age_seconds "database=$db" 0 3600)
+            Invoke-MssqlSa $sa "USE msdb; IF USER_ID('vigil_monitor') IS NULL CREATE USER vigil_monitor FOR LOGIN vigil_monitor; GRANT SELECT ON dbo.sysjobs TO vigil_monitor; GRANT SELECT ON dbo.sysjobhistory TO vigil_monitor; GRANT SELECT ON dbo.sysjobactivity TO vigil_monitor; GRANT SELECT ON dbo.syssessions TO vigil_monitor;"
+            Test-Equal 'mssql: agent runs with its grants' '0' (Invoke-Job mssql_agent)
+            Test-Equal 'mssql: Agent jobs readable' '1' (Get-Printed mssql_agent readable)
+            Invoke-MssqlSa $sa 'USE msdb; DROP USER vigil_monitor;'
+            $holder.Dispose(); $holder = $null
+            try { [void]$wait.Wait(60000) } catch { }
+            $waiter.Dispose(); $waiter = $null
+            $sa.Dispose(); $sa = $null
+        }
+
+        Set-VigilSecret MSSQL_MONITOR_PASSWORD 'not-the-Password1'
+        Test-Equal 'mssql: a wrong password fails the run' '2' (Invoke-Job mssql_status)
+        Test-Equal 'mssql: and says why' 'True' (Test-Said mssql_status 'Login failed')
+        Set-VigilSecret MSSQL_MONITOR_PASSWORD $env:VIGIL_IT_MSSQL_PASSWORD
+
+        # A server that does not answer is a reading; the others say nothing.
+        Set-Env 'MSSQL_PORT' '1'
+        Test-Equal 'mssql: a server that is down still runs' '0' (Invoke-Job mssql_status)
+        Test-Equal 'mssql: and reads as up 0' '0' (Get-Printed mssql_status up)
+        $count = { @(Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\mssql_databases') -Filter '*.log' | ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) } | Where-Object { $_ -match ' out metric ' }).Count }
+        $before = & $count
+        Test-Equal 'mssql: the other jobs succeed when it is down' '0' (Invoke-Job mssql_databases)
+        Test-Equal 'mssql: and say nothing' ([string]$before) ([string](& $count))
+        Set-Env 'MSSQL_PORT' $mport
+        [void](Invoke-Job mssql_status)
+
+        [void](Invoke-Vigil supervise --once)
+        Start-Sleep -Seconds 3
+        [void](Invoke-Vigil supervise --once)
+        $prom = [System.IO.File]::ReadAllText((Join-Path $root 'metrics\vigil.prom'))
+        Test-Equal 'mssql: metrics reach the backend' 'True' ([string](($prom -match '(?m)^mssql_up\{') -and ($prom -match '(?m)^mssql_database_online\{.*database="master"') -and ($prom -match '(?m)^mssql_waits_wait_ms')))
+        $leaks = @(Get-ChildItem -LiteralPath (Join-Path $root 'config'), (Join-Path $root 'logs'), (Join-Path $root 'state'), (Join-Path $root 'spool'), (Join-Path $root 'metrics') -Recurse -File -ErrorAction SilentlyContinue |
+                Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains($env:VIGIL_IT_MSSQL_PASSWORD) })
+        Test-Equal 'mssql: the password is written nowhere' '0' ([string]$leaks.Count)
+    }
 }
 finally {
+    # The mssql test's own connections, holding a lock or waiting on one.
+    foreach ($c in $holder, $waiter, $sa) { if ($c) { try { $c.Dispose() } catch { } } }
     if ($script:blocked) { $script:blocked.Tcp.Close() }
     if ($hold -and -not $hold.HasExited) { Stop-Process -Id $hold.Id -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1

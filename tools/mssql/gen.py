@@ -356,8 +356,8 @@ JOBS = [
          act="never_backed_up above 0; full_age_seconds -1 or far past the schedule: the backups stopped."),
     dict(job='agent', metric_name='mssql.agent', when='cron        = 14/15 * * * *', title="a SQL Server's Agent jobs",
          what="Reports SQL Agent's jobs, from msdb: how many there are, those that failed in the last 24 "
-              "hours, those running now and how long the longest has run. Reading them needs msdb's "
-              "SQLAgentReaderRole: without it, readable 0 and nothing else.",
+              "hours, those running now and how long the longest has run. Reading them needs SELECT on "
+              "four of msdb's tables (packs/README.md): without it, readable 0 and nothing else.",
          metrics=[
              ('readable', '1 when this login may read Agent\'s jobs, else 0'),
              ('jobs', 'Agent jobs'),
@@ -371,7 +371,7 @@ JOBS = [
                   'metric job_failed_24h 1 job=nightly_index_maintenance', 'metric running 0'],
          healthy="readable 1; failed_24h 0.",
          watch="longest_running_seconds longer than the job usually takes.",
-         act="failed_24h above 0: see which in job_failed_24h; readable 0: grant the role (packs/README.md)."),
+         act="failed_24h above 0: see which in job_failed_24h; readable 0: grant what packs/README.md says."),
 ]
 
 
@@ -581,7 +581,7 @@ def pack_config():
           'programs_macos = sqlcmd (mssql-tools18 or go-sqlcmd)',
           'docs        = https://github.com/godspeedhq/vigil/blob/main/packs/README.md#mssql',
           "needs       = a read-only login, as an administrator: CREATE LOGIN vigil_monitor WITH PASSWORD = '...'; GRANT VIEW SERVER PERFORMANCE STATE, VIEW SERVER SECURITY STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE TO vigil_monitor (2019: VIEW SERVER STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE)",
-          "needs       = for mssql_agent, in msdb: CREATE USER vigil_monitor FOR LOGIN vigil_monitor; ALTER ROLE SQLAgentReaderRole ADD MEMBER vigil_monitor",
+          "needs       = for mssql_agent, in msdb: CREATE USER vigil_monitor FOR LOGIN vigil_monitor; GRANT SELECT ON dbo.sysjobs TO vigil_monitor; GRANT SELECT ON dbo.sysjobhistory TO vigil_monitor; GRANT SELECT ON dbo.sysjobactivity TO vigil_monitor; GRANT SELECT ON dbo.syssessions TO vigil_monitor",
           '']
     for j in JOBS:
         names = [n for n, _ in j['metrics']]

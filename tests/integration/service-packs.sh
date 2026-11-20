@@ -82,7 +82,7 @@
 # default user would answer; a user that may not run INFO; and a server
 # that is down. For mssql also: a session asleep with its transaction open
 # and another blocked behind it, backups and an integrity check just done,
-# Agent's jobs unreadable without their role and then a failed one seen; an
+# Agent's jobs unreadable without their grants and then a failed one seen; an
 # availability group from both sides; a certificate it cannot trust and a
 # wrong password, which fail the run; and a server that is down.
 #
@@ -641,7 +641,8 @@ else
         grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
     }
     runs() { vigil run "$1" > "$work/out" 2>&1; echo $?; }
-    mjobs='status performance activity cpu replication waits io memory tempdb connections databases health config backups agent'
+    # activity first, while the waiter waits.
+    mjobs='activity status performance cpu replication waits io memory tempdb connections databases health config backups agent'
     check 'mssql: off until enabled' 'off=15' "$(mjobs_on)"
     out=$(vigil pack enable mssql 2>&1)
     check 'mssql: enabled' 0 "$?"
@@ -669,12 +670,12 @@ else
             EXEC dbo.sp_add_jobserver @job_name = N'vigil_it_failing';
             EXEC dbo.sp_start_job @job_name = N'vigil_it_failing';" > /dev/null
         # The holder: asleep, its transaction open, until the test ends it.
-        { printf 'SET NOCOUNT ON; USE [%s]; BEGIN TRAN; UPDATE dbo.t SET v = v + 1 WHERE id = 1;\nGO\n' "$db"; sleep 45; } |
+        { printf 'SET NOCOUNT ON; USE [%s]; BEGIN TRAN; UPDATE dbo.t SET v = v + 1 WHERE id = 1;\nGO\n' "$db"; sleep 160; } |
             SQLCMDPASSWORD=$VIGIL_IT_MSSQL_SA_PASSWORD SSL_CERT_FILE=${VIGIL_IT_MSSQL_CACERT-} "$mclient" -S "tcp:$VIGIL_IT_MSSQL_HOST,$mport" -U sa -Nm -l 10 > /dev/null 2>&1 &
         hold=$!
         sleep 3
-        # The waiter, blocked behind it, gives up after 40 seconds.
-        msa "SET LOCK_TIMEOUT 40000; USE [$db]; UPDATE dbo.t SET v = v + 1 WHERE id = 1;" > /dev/null &
+        # The waiter, blocked behind it, gives up after 150 seconds.
+        msa "SET LOCK_TIMEOUT 150000; USE [$db]; UPDATE dbo.t SET v = v + 1 WHERE id = 1;" > /dev/null &
         hold2=$!
         sleep 8
     else
@@ -705,7 +706,7 @@ else
     check 'mssql: disk space' yes "$(between mssql_health volume_free_pct volume= 0 100)"
     check 'mssql: no damaged pages' 0 "$(printed mssql_health suspect_pages)"
     check 'mssql: xp_cmdshell off' 0 "$(printed mssql_config xp_cmdshell)"
-    check 'mssql: Agent jobs not readable without the role' 0 "$(printed mssql_agent readable)"
+    check 'mssql: Agent jobs not readable without their grants' 0 "$(printed mssql_agent readable)"
     check 'mssql: no warning taken for data' 0 "$(grep ' out metric ' "$root"/logs/jobs/mssql_*/*.log | grep -vcE ' out metric [a-z_]+ -?[0-9]+(\.[0-9]+)?( [a-z0-9_]+=[A-Za-z0-9_.-]+)*$')"
     if [ -n "${VIGIL_IT_MSSQL_SA_PASSWORD-}" ]; then
         check 'mssql: a request blocked' yes "$(between mssql_activity requests_blocked '' 1 1000)"
@@ -720,14 +721,14 @@ else
         check 'mssql: its full backup just taken' yes "$(between mssql_backups full_age_seconds "database=$db" 0 3600)"
         check 'mssql: and its log backup' yes "$(between mssql_backups log_age_seconds "database=$db" 0 3600)"
         check 'mssql: no differential' -1 "$(printed mssql_backups diff_age_seconds "database=$db")"
-        msa "USE msdb; IF USER_ID('vigil_monitor') IS NULL CREATE USER vigil_monitor FOR LOGIN vigil_monitor; ALTER ROLE SQLAgentReaderRole ADD MEMBER vigil_monitor;" > /dev/null
-        check 'mssql: agent runs with the role' 0 "$(runs mssql_agent)"
+        msa "USE msdb; IF USER_ID('vigil_monitor') IS NULL CREATE USER vigil_monitor FOR LOGIN vigil_monitor; GRANT SELECT ON dbo.sysjobs TO vigil_monitor; GRANT SELECT ON dbo.sysjobhistory TO vigil_monitor; GRANT SELECT ON dbo.sysjobactivity TO vigil_monitor; GRANT SELECT ON dbo.syssessions TO vigil_monitor;" > /dev/null
+        check 'mssql: agent runs with its grants' 0 "$(runs mssql_agent)"
         grep -h ' out metric ' "$root/logs/jobs/mssql_agent"/*.log | tail -n 6 | sed 's/^[^ ]* [^ ]* out /        /'
         check 'mssql: Agent jobs readable' 1 "$(printed mssql_agent readable)"
         check 'mssql: Agent running' 1 "$(printed mssql_status agent_running)"
         check 'mssql: the failed job seen' yes "$(between mssql_agent job_failed_24h job=vigil_it_failing 1 100)"
         check 'mssql: failures counted' yes "$(between mssql_agent failed_24h '' 1 1000)"
-        msa "USE msdb; ALTER ROLE SQLAgentReaderRole DROP MEMBER vigil_monitor; EXEC dbo.sp_delete_job @job_name = N'vigil_it_failing';" > /dev/null
+        msa "USE msdb; DROP USER vigil_monitor; EXEC dbo.sp_delete_job @job_name = N'vigil_it_failing';" > /dev/null
         kill "$hold" "$hold2" 2> /dev/null
         wait "$hold" "$hold2" 2> /dev/null
         hold='' hold2=''

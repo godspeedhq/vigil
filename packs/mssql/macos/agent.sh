@@ -13,9 +13,9 @@
 #
 # Reports SQL Agent's jobs, from msdb: how many there are, those that failed
 # in the last 24 hours, those running now and how long the longest has run.
-# Reading them needs msdb's SQLAgentReaderRole: without it, readable 0 and
-# nothing else. One query, read-only, that never waits more than 5 seconds
-# for a lock and gives way in a deadlock.
+# Reading them needs SELECT on four of msdb's tables (packs/README.md):
+# without it, readable 0 and nothing else. One query, read-only, that never
+# waits more than 5 seconds for a lock and gives way in a deadlock.
 #
 # Connects to MSSQL_HOST and MSSQL_PORT as MSSQL_USER, with the password in
 # SQLCMDPASSWORD, all set by the job; never on a command line. Always
@@ -46,7 +46,7 @@
 #   Healthy  readable 1; failed_24h 0.
 #   Watch    longest_running_seconds longer than the job usually takes.
 #   Act      failed_24h above 0: see which in job_failed_24h; readable 0:
-#            grant the role (packs/README.md).
+#            grant what packs/README.md says.
 #
 # Requires: bash, sqlcmd (mssql-tools18 or go-sqlcmd), and a login with what
 #   packs/README.md says to grant
@@ -103,9 +103,13 @@ INSERT @pc SELECT SUBSTRING(RTRIM(object_name), CHARINDEX(N':', object_name) + 1
     FROM sys.dm_os_performance_counters;
 -- SQL Agent's jobs, from msdb: those that failed in the last 24 hours,
 -- those running now, and how long the longest has run. Reading them needs
--- msdb's SQLAgentReaderRole: without it, readable 0 and nothing else.
-IF HAS_PERMS_BY_NAME(N'msdb.dbo.sysjobhistory', N'OBJECT', N'SELECT') = 1
+-- SELECT on four of msdb's tables (packs/README.md): without it, readable 0
+-- and nothing else. SQLAgentReaderRole does not give it: it works through
+-- Agent's procedures.
+IF HAS_PERMS_BY_NAME(N'msdb.dbo.sysjobs', N'OBJECT', N'SELECT') = 1
+    AND HAS_PERMS_BY_NAME(N'msdb.dbo.sysjobhistory', N'OBJECT', N'SELECT') = 1
     AND HAS_PERMS_BY_NAME(N'msdb.dbo.sysjobactivity', N'OBJECT', N'SELECT') = 1
+    AND HAS_PERMS_BY_NAME(N'msdb.dbo.syssessions', N'OBJECT', N'SELECT') = 1
 BEGIN
     INSERT @m (name, v) VALUES ('readable', 1);
     DECLARE @h TABLE (job_id uniqueidentifier, finished datetime, status int);

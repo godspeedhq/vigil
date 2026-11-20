@@ -1,8 +1,12 @@
 -- SQL Agent's jobs, from msdb: those that failed in the last 24 hours,
 -- those running now, and how long the longest has run. Reading them needs
--- msdb's SQLAgentReaderRole: without it, readable 0 and nothing else.
-IF HAS_PERMS_BY_NAME(N'msdb.dbo.sysjobhistory', N'OBJECT', N'SELECT') = 1
+-- SELECT on four of msdb's tables (packs/README.md): without it, readable 0
+-- and nothing else. SQLAgentReaderRole does not give it: it works through
+-- Agent's procedures.
+IF HAS_PERMS_BY_NAME(N'msdb.dbo.sysjobs', N'OBJECT', N'SELECT') = 1
+    AND HAS_PERMS_BY_NAME(N'msdb.dbo.sysjobhistory', N'OBJECT', N'SELECT') = 1
     AND HAS_PERMS_BY_NAME(N'msdb.dbo.sysjobactivity', N'OBJECT', N'SELECT') = 1
+    AND HAS_PERMS_BY_NAME(N'msdb.dbo.syssessions', N'OBJECT', N'SELECT') = 1
 BEGIN
     INSERT @m (name, v) VALUES ('readable', 1);
     DECLARE @h TABLE (job_id uniqueidentifier, finished datetime, status int);
