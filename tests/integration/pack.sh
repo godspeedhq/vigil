@@ -194,13 +194,34 @@ out=$(vigil pack update 2>&1)
 check 'a dropped script goes once no job uses it' no "$(yes_no test -f "$root/packs/base/disk.sh")"
 
 printf 'Searching\n'
-check 'by a word' 'web 1.0.0: A web server' "$(vigil pack search web 2>&1)"
-check 'every word, in any case' 'web 1.0.0: A web server' "$(vigil pack search SERVER a 2>&1)"
-check 'all, with none' 'base 1.2.0, installed 1.2.0: For the test|web 1.0.0: A web server' "$(vigil pack search 2>&1 | tr '\n' '|' | sed 's/|$//')"
+# One line, with | for each line break.
+lines() { tr '\n' '|' | sed 's/|$//'; }
+check 'by a word, as a table' 'Packs in packs-2026.01.03:||Name Version Here About|---- ------- ---- -----|web  1.0.0        A web server' "$(vigil pack search web 2>&1 | lines)"
+check 'every word, in any case' 'web  1.0.0        A web server' "$(vigil pack search SERVER a 2>&1 | tail -n 1)"
+check 'all, with none' 'base 1.2.0   installed For the test|web  1.0.0             A web server' "$(vigil pack search 2>&1 | tail -n 2 | lines)"
 check 'nothing found' 'no pack matches: nosuch' "$(vigil pack search nosuch 2>&1)"
-check 'what is not installed' 'web 1.0.0: A web server' "$(vigil pack list --available 2>&1)"
-check 'one pack' "web: A web server|installed: no|versions, newest first:|  1.0.0      Vigil 0.0.1 or later; $os (packs-2026.01.02)" "$(vigil pack info web 2>&1 | tr '\n' '|' | sed 's/|$//')"
+check 'what is not installed' 'Packs in packs-2026.01.03 not installed here:||Name Version Here About|---- ------- ---- -----|web  1.0.0        A web server' "$(vigil pack list --available 2>&1 | lines)"
+check 'one pack' "Name       : web|About      : A web server|Here       : not installed: vigil pack install web|Platforms  : $osname||Version Platforms Needs Vigil Release|------- --------- ----------- -------|1.0.0   $(printf '%-9s' "$osname") 0.0.1       packs-2026.01.02" "$(vigil pack info web 2>&1 | lines)"
 check 'an unknown one' 'vigil: no pack called nosuch: vigil pack search' "$(vigil pack info nosuch 2>&1)"
+# Released after the index here was saved: found, as search fetches the
+# newest index rather than read the saved one.
+DESC='A database' publish packs-2026.01.03.1 db 1.0.0 status
+printf 'info\tdb\t1.0.0\tworks_with\tDB 1 or later\ninfo\tdb\t1.0.0\tprograms_%s\tdbcli\ninfo\tdb\t1.0.0\tsecret\tDB_PW\ninfo\tdb\t1.0.0\tneeds\ta role, as an administrator: CREATE ROLE it\ninfo\tdb\t1.0.0\tneeds\tits log on\ninfo\tdb\t1.0.0\tsetting\tDB_HOST=localhost\ninfo\tdb\t1.0.0\tsetting\tDB_PORT=1\ninfo\tdb\t1.0.0\tdocs\thttps://example.com/packs/README.md#db\n' "$os" >> "$work/entries"
+# One with no scripts here, and what it needs on the platform it has.
+other=windows otherh=Windows
+printf 'pack\telsewhere\t1.0.0\t0.0.1\tpacks-2026.01.03.1\tdigest\tElsewhere only\nfile\telsewhere\t1.0.0\t%s\tvigil-pack-elsewhere-1.0.0-%s.zip\t%s\ninfo\telsewhere\t1.0.0\tprograms_%s\tthat\n' "$other" "$other" "$(printf '0%.0s' $(seq 64))" "$other" >> "$work/entries"
+resign packs-2026.01.03.1
+check 'a pack released since the index here was saved' 'db   1.0.0        A database' "$(vigil pack search database 2>&1 | tail -n 1)"
+check 'and the new index is saved' packs-2026.01.03.1 "$(awk -F '\t' '$1 == "release" { print $2 }' "$root/packs/.index")"
+check 'a pack with no scripts here' "elsewhere 1.0.0   not for $osname Elsewhere only" "$(vigil pack search elsewhere 2>&1 | tail -n 1)"
+check 'what a pack needs, from its info records' "Name       : db|About      : A database|Here       : not installed: vigil pack install db|Platforms  : $osname|Works with : DB 1 or later|Programs   : dbcli|Secrets    : DB_PW|Needs      : a role, as an administrator:|             CREATE ROLE it|             its log on|Settings   : DB_HOST=localhost DB_PORT=1 (the env lines in vigil.config, once|             enabled)|Docs       : https://example.com/packs/README.md#db" "$(vigil pack info db 2>&1 | sed '/^$/,$d' | lines)"
+check 'and on a platform it has no scripts for' "Here       : not for $osname|Platforms  : $otherh|Programs   : that (on $otherh)|Secrets    : none" "$(vigil pack info elsewhere 2>&1 | sed -n '3,4p;5,6p' | lines)"
+out=$(VIGIL_TEST_RELEASE_URL=http://127.0.0.1:9 vigil pack search database 2> "$work/err")
+check 'offline, from the index saved here' 'db   1.0.0        A database' "$(printf '%s\n' "$out" | tail -n 1)"
+check 'saying so' 'vigil: cannot find the latest packs release on GitHub: no network, or its API refused (it allows 60 requests an hour); showing the index saved here, of packs-2026.01.03.1' "$(cat "$work/err")"
+mv "$root/packs/.index" "$work/keep.saved"
+check 'offline, with none saved' 'vigil: cannot find the latest packs release on GitHub: no network, or its API refused (it allows 60 requests an hour)' "$(VIGIL_TEST_RELEASE_URL=http://127.0.0.1:9 vigil pack info db 2>&1)"
+mv "$work/keep.saved" "$root/packs/.index"
 
 printf 'Installing\n'
 was=$(cksum < "$cfg")

@@ -368,6 +368,7 @@ Then `vigil pack enable nginx`, which reminds you of the page. The job reads `ht
 - Exit 0 when the script worked. A high reading is not a failure.
 - Read data; never change the machine.
 - Start with the same header as the other scripts: what it does, its metrics, an example of its output, what healthy and unhealthy look like, what it needs, its exit codes and the disclaimer.
+- In `pack.config`, say what `vigil pack info` shows before anyone installs it: `works_with`, the servers it is meant for and tested with; `programs_linux`, `programs_macos` and `programs_windows`, the programs its scripts need on each; `docs`, its section here; and `needs`, what an administrator sets up first.
 
 ## Disclaimer
 

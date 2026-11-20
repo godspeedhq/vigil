@@ -2116,7 +2116,7 @@ A pack is a set of scripts and jobs, with a version and a list of metrics. Packs
 
 ```text
 vigil pack search [<word>...]                 the repository's packs whose name or description has every word
-vigil pack info <name>                        one pack: its versions, platforms and the oldest Vigil each runs on
+vigil pack info <name>                        one pack: whether it is here, what it needs, and its versions
 vigil pack install <name>[@<version>]...      puts packs in packs/; nothing runs yet
           [--from <folder>]                   from a folder vigil pack download wrote
 vigil pack list [--available]                 the packs here, and whether their jobs are on; or those not here
@@ -2128,7 +2128,49 @@ vigil pack download <name>[@<version>]...     packs and the signed index into a 
           [--os linux|macos|windows] --to <folder>
 ```
 
-`<what>` is a pack (`base`) or one of its jobs (`base_cpu`). `search`, `info` and `list --available` read the index fetched last, `packs/.index`, and fetch it when there is none.
+`<what>` is a pack (`base`) or one of its jobs (`base_cpu`). `search`, `info` and `list --available` read the newest index, as `install` does, so a pack released since the last command is found. Every index fetched is saved as `packs/.index`, when `packs/` is writable; when the repository cannot be reached, they read that one instead, saying so on stderr (`vigil: cannot find the latest packs release on GitHub: …; showing the index saved here, of packs-2026.11.20`), and fail only when there is none.
+
+`search` and `list --available` print a table, with the newest version of each pack. **Here** is `installed`, `<version> installed` when another version is, or `not for <platform>` when the pack has no scripts for this one: such a pack is listed all the same, for a machine prepared from this one (`vigil pack download --os`). On a terminal, the description is cut to its width, ending `...`, so each row stays one line; piped or written to a file, rows are whole.
+
+```text
+$ vigil pack search
+Packs in packs-2026.11.20.2:
+
+Name     Version Here            About
+----     ------- ----            -----
+base     1.2.2   installed       CPU, memory, disk, disk I/O, network, load, ...
+mysql    1.0.1                   MySQL and MariaDB: up, connections, queries,...
+nginx    1.1.1                   nginx: up, connections and requests, from st...
+postgres 1.2.1   1.2.0 installed PostgreSQL: up, connections, sessions and lo...
+redis    1.0.1                   Redis and Valkey: up, clients, commands and ...
+```
+
+`info` shows one pack, from its newest version: whether it is here and what to do next (install, update, `vigil self update` for a version this Vigil cannot run, or `not for <platform>`), and what it needs, from the index's `info` records. Values wrap at 78 columns under themselves; a link and a `needs` command (what follows its first `: `) are never split, so they copy whole. Nothing is looked up on the machine: whether a program or a secret is there is `vigil precheck`'s to say, as the account Vigil runs as. Then every version, newest first.
+
+```text
+$ vigil pack info postgres
+Name       : postgres
+About      : PostgreSQL: up, connections, sessions and locks, replication,
+             wraparound, vacuum, checkpoints and WAL, database sizes
+Here       : 1.2.0 installed; 1.2.1 is available: vigil pack update
+Platforms  : Linux, macOS, Windows
+Works with : PostgreSQL 14 or later (status and size: any supported version);
+             tested with 14 and 18
+Programs   : psql, pg_isready
+Secrets    : POSTGRES_MONITOR_PASSWORD
+Needs      : a read-only role, as a database administrator:
+             CREATE ROLE vigil_monitor LOGIN PASSWORD '...' IN ROLE pg_monitor
+Settings   : PGHOST=localhost PGPORT=5432 PGUSER=vigil_monitor
+             PGDATABASE=postgres (the env lines in vigil.config, once enabled)
+Docs       : https://github.com/godspeedhq/vigil/blob/main/packs/README.md#postgres
+
+Version Platforms             Needs Vigil Release
+------- ---------             ----------- -------
+1.2.1   Linux, macOS, Windows 0.3.0       packs-2026.11.20.2
+1.2.0   Linux, macOS, Windows 0.3.0       packs-2026.11.20
+```
+
+**Programs** are this platform's; for a pack with no scripts here, those of the platforms it has (`curl (on Linux and macOS)`). A version published before its pack had `info` records shows the first four lines only.
 
 **In the repository** a pack is a folder with `pack.config`, in the configuration format, and a folder of scripts per platform: `linux/`, `macos/` and `windows/`.
 
@@ -2145,7 +2187,7 @@ run_every   = 1m
 max_runtime = 30s
 ```
 
-`vigil` is the oldest Vigil it runs on, and each `pack.config` says so in a comment above it. `needs`, optional and repeated, is one line of plain text for each thing the jobs need that Vigil cannot see from them, such as a database role or a status page to turn on. A job runs `<job>.sh` on Linux and macOS and `<job>.ps1` on Windows, and is left out on a platform with no script. `metrics` lists what it reports. Every other key is copied to the job.
+`vigil` is the oldest Vigil it runs on, and each `pack.config` says so in a comment above it. `needs`, optional and repeated, is one line of plain text for each thing the jobs need that Vigil cannot see from them, such as a database role or a status page to turn on: what it is, then `: ` and the command, when there is one. `works_with`, optional, says which servers it is meant for and was tested with. `programs_linux`, `programs_macos` and `programs_windows`, each optional, name the programs its scripts need on that platform (none, when absent). `docs` is where it is explained. Vigil reads these only for `vigil pack info`, and older Vigils skip them. A job runs `<job>.sh` on Linux and macOS and `<job>.ps1` on Windows, and is left out on a platform with no script. `metrics` lists what it reports. Every other key is copied to the job.
 
 **The pack repository** is the packs releases on GitHub, tagged `packs-<YYYY.MM.DD>` (`.2`, `.3` for more in a day), apart from Vigil's and never marked latest. `tools/release/packs.sh` builds one from main, and only the packs whose version is new since the last: a pack whose files changed while its version did not is refused. A release holds:
 
@@ -2157,9 +2199,11 @@ max_runtime = 30s
   release	packs-2026.11.20
   pack	postgres	1.2.0	0.3.0	packs-2026.11.20	<source digest>	PostgreSQL: up, connections, …
   file	postgres	1.2.0	linux	vigil-pack-postgres-1.2.0-linux.tar.gz	<sha256>
+  info	postgres	1.2.0	programs_linux	psql, pg_isready
+  info	postgres	1.2.0	secret	POSTGRES_MONITOR_PASSWORD
   ```
 
-  A `pack` is the name, version, oldest Vigil it runs on, the release its archives are in, a digest of its source, and its description; a `file` is the name, version, platform, archive and SHA-256. A Vigil reads format 1, and refuses another, saying `vigil self update`.
+  A `pack` is the name, version, oldest Vigil it runs on, the release its archives are in, a digest of its source, and its description; a `file` is the name, version, platform, archive and SHA-256. An `info` is the name, version, a key and its value, for `vigil pack info`, made from `pack.config` when that version is built: `works_with`, `programs_<platform>` and `docs` from `[pack]`; `needs`, one each; `secret`, each store name its jobs' `secret` lines read, once; and `setting`, each `env` line of its jobs, once. Each version's are in the order `pack.config` has them, and a release carries those of the versions before it. A Vigil reads format 1, refuses another, saying `vigil self update`, and skips records of a kind it does not know, so Vigils from before `info` read an index that has them.
 - `packs.index.sig`: its signature with the release key, which Vigil verifies against `app/release-key.pem` before reading the index, then each archive against its SHA-256 in the index. One signature vouches for every archive.
 
 From GitHub, the newest packs release is the first `packs-` tag in the API's list of releases; from a copy (`release_url` or `release_path`, §18.7), the one line of `packs/latest/RELEASE`. Files come from `releases/download/<tag>/` either way.

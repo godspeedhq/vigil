@@ -73,6 +73,14 @@ version     = 0.1.0
 # pack on an older one.
 vigil       = $vigil
 description = TODO: $name, in a few words
+# What vigil pack info shows besides: the servers it is meant for, the
+# programs its scripts need on each platform (delete a line for none), and
+# where it is explained.
+works_with  = TODO: the $name versions it is meant for, and tested with
+programs_linux = TODO: the programs the Linux scripts need, such as a client
+programs_macos = TODO: the programs the macOS scripts need
+programs_windows = TODO: the programs the Windows scripts need
+docs        = https://github.com/godspeedhq/vigil/blob/main/packs/README.md#$name
 # needs: what the jobs need that Vigil cannot see from them, one line each,
 # shown by vigil pack enable and vigil pack list (a role, a page to turn on).
 # Their secrets and env settings are shown without it. Delete it if none.

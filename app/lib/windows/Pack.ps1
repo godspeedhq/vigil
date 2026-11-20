@@ -25,8 +25,9 @@
         Each pack here and whether its jobs are on.
     Find-VigilPack -Root <dir> -App <app dir> -Words <word>... [-Available]
     Get-VigilPackInfo -Root <dir> -App <app dir> -Name <name>
-        From the index last fetched (packs\.index), or fetched now; with
-        -Available, the repository's packs not installed here.
+        From the newest index; when the repository cannot be reached, the
+        one saved here (packs\.index), saying so. With -Available, the
+        repository's packs not installed here.
     Install-VigilPack -Root <dir> -App <app dir> -From <folder, or ''> -Specs <name[@version]>...
         From the repository, or a folder vigil pack download wrote.
     Remove-VigilPack -Root <dir> -Names <name>...
@@ -48,8 +49,13 @@
     Requires Config.ps1, Validate.ps1 and SelfUpdate.ps1.
 #>
 
+# While Open-VigilPackRepo -Saved tries the repository, the reasons it
+# could not are held here, not printed: the index saved here may answer.
+$script:VigilPackHeld = $null
+
 function Stop-VigilPack {
     param([string]$Why)
+    if ($null -ne $script:VigilPackHeld) { $script:VigilPackHeld.Add($Why); return }
     [Console]::Error.WriteLine("vigil: $Why")
 }
 
@@ -102,17 +108,20 @@ function Test-VigilPackSigned {
     return [bool](Test-VigilSignature -KeyFile $Key -Data ([System.IO.File]::ReadAllBytes($Path)) -Signature ([System.IO.File]::ReadAllBytes("$Path.sig")))
 }
 
-# Index $Path: @{ Packs; Files }, each a list of records, or $null when it is
-# not of format 1, the one this Vigil reads.
+# Index $Path: @{ Release; Packs; Files; Info }, each a list of records, or
+# $null when it is not of format 1, the one this Vigil reads. A record of a
+# kind this Vigil does not know is skipped.
 function Read-VigilPackIndex {
     param([string]$Path)
     $lines = [System.IO.File]::ReadAllLines($Path)
     if ($lines.Count -eq 0 -or $lines[0] -cne "format`t1") { return $null }
-    $r = @{ Packs = (New-Object 'System.Collections.Generic.List[object]'); Files = (New-Object 'System.Collections.Generic.List[object]') }
+    $r = @{ Release = ''; Packs = (New-Object 'System.Collections.Generic.List[object]'); Files = (New-Object 'System.Collections.Generic.List[object]'); Info = (New-Object 'System.Collections.Generic.List[object]') }
     foreach ($l in $lines) {
         $x = $l.Split("`t")
         if ($x[0] -ceq 'pack' -and $x.Count -ge 7) { $r.Packs.Add(@{ Name = $x[1]; Version = $x[2]; Vigil = $x[3]; Release = $x[4]; About = $x[6] }) }
         elseif ($x[0] -ceq 'file' -and $x.Count -ge 6) { $r.Files.Add(@{ Name = $x[1]; Version = $x[2]; Os = $x[3]; File = $x[4]; Sha = $x[5].ToLowerInvariant() }) }
+        elseif ($x[0] -ceq 'info' -and $x.Count -ge 5) { $r.Info.Add(@{ Name = $x[1]; Version = $x[2]; Key = $x[3]; Value = $x[4] }) }
+        elseif ($x[0] -ceq 'release' -and $x.Count -ge 2) { $r.Release = $x[1] }
     }
     return $r
 }
@@ -167,12 +176,33 @@ function Get-VigilPackFile {
 
 # Opens the repository for a command: the source (or folder $From, which
 # holds what vigil pack download wrote), the key, a temporary folder (Work,
-# which the caller removes) and the index of the newest release, verified;
-# with -Cached, packs\.index when it is there and signed. One fetched from a
-# release is kept as packs\.index for search, info and list --available, when
-# packs\ is writable. @{ Ok; Work; Src; Folder; Key; Index; IndexPath; App }.
+# which the caller removes) and the index of the newest release, verified.
+# One fetched from a release is kept as packs\.index, when packs\ is
+# writable. With -Saved, when the repository cannot give it, that saved
+# index, when it is there and signed, saying so: search, info and list
+# --available still answer offline, and never from an old index when a new
+# one can be had. @{ Ok; Work; Src; Folder; Key; Index; IndexPath; App }.
 function Open-VigilPackRepo {
-    param([string]$Root, [string]$App, [string]$From = '', [switch]$Cached)
+    param([string]$Root, [string]$App, [string]$From = '', [switch]$Saved)
+    if ($Saved) {
+        $script:VigilPackHeld = New-Object 'System.Collections.Generic.List[string]'
+        try { $r = Open-VigilPackRepo -Root $Root -App $App -From $From }
+        finally { $held = $script:VigilPackHeld; $script:VigilPackHeld = $null }
+        if ($r.Ok) { return $r }
+        # Not $saved: PowerShell's names ignore case, and that is -Saved.
+        $kept = Join-Path $Root 'packs\.index'
+        if ($r.Key -and (Test-VigilPackSigned -Key $r.Key -Path $kept)) {
+            $idx = Read-VigilPackIndex -Path $kept
+            if ($idx) {
+                $why = if ($held.Count -gt 0) { $held[0] } else { 'cannot reach the pack repository' }
+                [Console]::Error.WriteLine("vigil: $why; showing the index saved here, of $($idx.Release)")
+                $r.Index = $idx; $r.IndexPath = $kept; $r.Ok = $true
+                return $r
+            }
+        }
+        foreach ($w in $held) { [Console]::Error.WriteLine("vigil: $w") }
+        return $r
+    }
     $r = @{ Ok = $false; Work = ''; Src = $null; Folder = ''; Key = ''; Index = $null; IndexPath = ''; App = $App }
     $key = Join-Path $App 'release-key.pem'
     if ($env:VIGIL_TEST_RELEASE_URL -and $env:VIGIL_TEST_RELEASE_KEY) { $key = $env:VIGIL_TEST_RELEASE_KEY }
@@ -194,10 +224,6 @@ function Open-VigilPackRepo {
     [void](New-Item -ItemType Directory -Path $work)
     $r.Work = $work
     $cache = Join-Path $Root 'packs\.index'
-    if ($Cached -and (Test-VigilPackSigned -Key $key -Path $cache)) {
-        $r.Index = Read-VigilPackIndex -Path $cache
-        if ($r.Index) { $r.IndexPath = $cache; $r.Ok = $true; return $r }
-    }
     $rel = ''
     if (-not $r.Folder) {
         $rel = Get-VigilPackLatest -Src $r.Src
@@ -839,16 +865,61 @@ function Remove-VigilPack {
     return $code
 }
 
-# The index's packs, one line each with the newest version: those whose
-# name or description has every word of $Words (all, when there is none), or
-# with -Available, those not installed.
+# The width of the console standard output is, or 0 when it is redirected:
+# rows piped or written to a file stay whole.
+function Get-VigilPackCols {
+    try {
+        if ([Console]::IsOutputRedirected) { return 0 }
+        $c = [Console]::WindowWidth
+        if ($c -gt 0) { return $c }
+    }
+    catch { }
+    return 0
+}
+
+# Rows (each an array of fields, the first the header) as a table: each
+# column as wide as its widest field, a rule under each header, and with
+# $Cols the console's width (0: none), the last column cut to fit, with
+# "...", so each row stays one line.
+function Format-VigilPackTable {
+    param([object[]]$Rows, [int]$Cols)
+    $k = $Rows[0].Count
+    $w = New-Object 'int[]' $k
+    foreach ($r in $Rows) { for ($i = 0; $i -lt $k; $i++) { if (([string]$r[$i]).Length -gt $w[$i]) { $w[$i] = ([string]$r[$i]).Length } } }
+    if ($Cols -gt 0) {
+        $room = $Cols - 1
+        for ($i = 0; $i -lt $k - 1; $i++) { $room -= $w[$i] + 1 }
+        if ($room -lt 10) { $room = 10 }
+        if ($w[$k - 1] -gt $room) { $w[$k - 1] = $room }
+    }
+    $all = New-Object 'System.Collections.Generic.List[object]'
+    $all.Add($Rows[0])
+    $all.Add([string[]]@(for ($i = 0; $i -lt $k; $i++) { '-' * ([string]$Rows[0][$i]).Length }))
+    for ($j = 1; $j -lt $Rows.Count; $j++) { $all.Add($Rows[$j]) }
+    foreach ($r in $all) {
+        $sb = New-Object System.Text.StringBuilder
+        for ($i = 0; $i -lt $k; $i++) {
+            $x = [string]$r[$i]
+            if ($i -gt 0) { [void]$sb.Append(' ') }
+            if ($i -lt $k - 1) { [void]$sb.Append($x.PadRight($w[$i])) }
+            elseif ($x.Length -gt $w[$i]) { [void]$sb.Append($x.Substring(0, $w[$i] - 3) + '...') }
+            else { [void]$sb.Append($x) }
+        }
+        $sb.ToString().TrimEnd(' ')
+    }
+}
+
+# The index's packs, as a table with the newest version of each: those
+# whose name or description has every word of $Words (all, when there is
+# none), or with -Available, those not installed.
 function Show-VigilPackIndex {
     param([string]$Root, $Repo, [string[]]$Words, [switch]$Available)
     $newest = @{}
     foreach ($p in $Repo.Index.Packs) {
         if (-not $newest.ContainsKey($p.Name) -or (Test-VigilNewer $p.Version $newest[$p.Name].Version)) { $newest[$p.Name] = $p }
     }
-    $n = 0
+    $rows = New-Object 'System.Collections.Generic.List[object]'
+    $rows.Add([string[]]@('Name', 'Version', 'Here', 'About'))
     foreach ($name in ($newest.Keys | Sort-Object { $_ } -CaseSensitive)) {
         $p = $newest[$name]
         $t = "$name $($p.About)".ToLowerInvariant()
@@ -857,20 +928,26 @@ function Show-VigilPackIndex {
         if (-not $hit) { continue }
         $was = Read-VigilPack -Dir (Join-Path $Root "packs\$name") -Name $name
         if ($Available -and $was) { continue }
-        $line = "$name $($p.Version)"
-        if ($was) { $line += ", installed $($was.Version)" }
-        elseif (-not ($Repo.Index.Files | Where-Object { $_.Name -ceq $name -and $_.Version -ceq $p.Version -and $_.Os -ceq 'windows' })) { $line += ', no scripts for Windows' }
-        Write-Output "${line}: $($p.About)"
-        $n++
+        $here = ''
+        if (-not $was) {
+            if (-not ($Repo.Index.Files | Where-Object { $_.Name -ceq $name -and $_.Version -ceq $p.Version -and $_.Os -ceq 'windows' })) { $here = 'not for Windows' }
+        }
+        elseif ($was.Version -ceq $p.Version) { $here = 'installed' }
+        else { $here = "$($was.Version) installed" }
+        $rows.Add([string[]]@($name, $p.Version, $here, $p.About))
     }
-    if ($n -eq 0) {
+    if ($rows.Count -eq 1) {
         if ($Available) { Write-Output 'every pack is installed' } else { Write-Output "no pack matches: $($Words -join ' ')" }
+        return
     }
+    if ($Available) { Write-Output "Packs in $($Repo.Index.Release) not installed here:" } else { Write-Output "Packs in $($Repo.Index.Release):" }
+    Write-Output ''
+    Format-VigilPackTable -Rows $rows.ToArray() -Cols (Get-VigilPackCols)
 }
 
 function Find-VigilPack {
     param([string]$Root, [string]$App, [string[]]$Words, [switch]$Available)
-    $repo = Open-VigilPackRepo -Root $Root -App $App -Cached
+    $repo = Open-VigilPackRepo -Root $Root -App $App -Saved
     try {
         if (-not $repo.Ok) { return 1 }
         Show-VigilPackIndex -Root $Root -Repo $repo -Words $Words -Available:$Available
@@ -879,12 +956,39 @@ function Find-VigilPack {
     finally { Close-VigilPackRepo $repo }
 }
 
+# A field of vigil pack info: its label, then its text wrapped at 78 columns
+# under itself; a word is never split.
+function Format-VigilPackField {
+    param([string]$Label, [string]$Text)
+    $pre = if ($Label) { '{0,-10} : ' -f $Label } else { ' ' * 13 }
+    $line = ''
+    foreach ($w in @($Text -split '\s+' | Where-Object { $_ })) {
+        if ($line -and ($pre.Length + $line.Length + 1 + $w.Length -gt 78)) {
+            $pre + $line
+            $pre = ' ' * 13
+            $line = $w
+        }
+        elseif ($line) { $line += " $w" }
+        else { $line = $w }
+    }
+    $pre + $line
+}
+
+# Items as "a", "a and b" or "a, b and c".
+function Join-VigilPackAnd {
+    param([string[]]$Items)
+    if ($Items.Count -le 1) { return ($Items -join '') }
+    return (($Items[0..($Items.Count - 2)] -join ', ') + ' and ' + $Items[$Items.Count - 1])
+}
+
+# One pack, from the index: what it is, whether it is here, what it needs
+# (its newest version's info records), and every version, newest first.
 function Get-VigilPackInfo {
     param([string]$Root, [string]$App, [string]$Name)
     $x = Split-VigilPackSpec $Name
     if (-not $x) { return 1 }
     if ($x.At) { Stop-VigilPack "vigil pack info takes a name, without a version: $($x.Name)"; return 1 }
-    $repo = Open-VigilPackRepo -Root $Root -App $App -Cached
+    $repo = Open-VigilPackRepo -Root $Root -App $App -Saved
     try {
         if (-not $repo.Ok) { return 1 }
         $all = @($repo.Index.Packs | Where-Object { $_.Name -ceq $Name })
@@ -896,15 +1000,81 @@ function Get-VigilPackInfo {
             while ($i -lt $sorted.Count -and -not (Test-VigilNewer $p.Version $sorted[$i].Version)) { $i++ }
             $sorted.Insert($i, $p)
         }
+        $newest = $sorted[0]
         $was = Read-VigilPack -Dir (Join-Path $Root "packs\$Name") -Name $Name
-        Write-Output "${Name}: $($all[$all.Count - 1].About)"
-        Write-Output "installed: $(if ($was) { $was.Version } else { 'no' })"
-        Write-Output 'versions, newest first:'
-        foreach ($p in $sorted) {
-            $plats = @($repo.Index.Files | Where-Object { $_.Name -ceq $Name -and $_.Version -ceq $p.Version } | ForEach-Object { $_.Os }) -join ', '
-            if (-not $plats) { $plats = 'no scripts' }
-            Write-Output ('  {0,-10} Vigil {1} or later; {2} ({3})' -f $p.Version, $p.Vigil, $plats, $p.Release)
+        $pick = Select-VigilPackVersion -Repo $repo -Name $Name -Want '' -Os windows -Mine (Get-VigilPackMine -App $App)
+        if ($was) {
+            if ($pick.Version -and (Test-VigilNewer $pick.Version $was.Version)) { $here = "$($was.Version) installed; $($pick.Version) is available: vigil pack update" }
+            elseif ($pick.Newer -and (Test-VigilNewer $pick.Newer $was.Version)) { $here = "$($was.Version) installed; $($pick.Newer) needs Vigil $($pick.NewerVigil) or later: vigil self update" }
+            elseif ($was.Version -ceq $newest.Version) { $here = "$($was.Version) installed, the newest" }
+            else { $here = "$($was.Version) installed" }
         }
+        elseif ($pick.Version) { $here = "not installed: vigil pack install $Name" }
+        elseif ($pick.Newer) { $here = "not installed; $($pick.Newer) needs Vigil $($pick.NewerVigil) or later: vigil self update" }
+        else { $here = 'not for Windows' }
+        $pretty = @{ linux = 'Linux'; macos = 'macOS'; windows = 'Windows' }
+        $has = @{}
+        foreach ($f in $repo.Index.Files) { if ($f.Name -ceq $Name -and $f.Version -ceq $newest.Version) { $has[$f.Os] = $true } }
+        $po = @('linux', 'macos', 'windows' | Where-Object { $has.ContainsKey($_) })
+        $ps = @($po | ForEach-Object { $pretty[$_] })
+        $one = @{}
+        $sec = New-Object 'System.Collections.Generic.List[string]'
+        $nd = New-Object 'System.Collections.Generic.List[string]'
+        $st = New-Object 'System.Collections.Generic.List[string]'
+        $info = $false
+        foreach ($i in $repo.Index.Info) {
+            if ($i.Name -cne $Name -or $i.Version -cne $newest.Version) { continue }
+            $info = $true
+            if ($i.Key -ceq 'secret') { $sec.Add($i.Value) }
+            elseif ($i.Key -ceq 'needs') { $nd.Add($i.Value) }
+            elseif ($i.Key -ceq 'setting') { $st.Add($i.Value) }
+            else { $one[$i.Key] = $i.Value }
+        }
+        Format-VigilPackField 'Name' $Name
+        Format-VigilPackField 'About' $newest.About
+        Format-VigilPackField 'Here' $here
+        Format-VigilPackField 'Platforms' $(if ($ps.Count -gt 0) { $ps -join ', ' } else { 'none' })
+        if ($one['works_with']) { Format-VigilPackField 'Works with' $one['works_with'] }
+        if ($info) {
+            # This platform's programs; or, with no scripts here, those of
+            # the platforms it has.
+            if ($has.ContainsKey('windows')) {
+                $p = $one['programs_windows']
+                Format-VigilPackField 'Programs' $(if ($p) { $p } else { 'none on Windows' })
+            }
+            elseif ($po.Count -gt 0) {
+                $vals = @($po | ForEach-Object { [string]$one["programs_$_"] })
+                if (@($vals | Select-Object -Unique).Count -eq 1) {
+                    Format-VigilPackField 'Programs' $(if ($vals[0]) { "$($vals[0]) (on $(Join-VigilPackAnd $ps))" } else { 'none' })
+                }
+                else {
+                    $parts = @(for ($i = 0; $i -lt $po.Count; $i++) { if ($vals[$i]) { "$($vals[$i]) (on $($ps[$i]))" } })
+                    Format-VigilPackField 'Programs' ($parts -join ', ')
+                }
+            }
+            Format-VigilPackField 'Secrets' $(if ($sec.Count -gt 0) { $sec -join ', ' } else { 'none' })
+            # What it is, wrapped, then the command whole on a line of its
+            # own, to copy.
+            for ($i = 0; $i -lt $nd.Count; $i++) {
+                $label = if ($i -eq 0) { 'Needs' } else { '' }
+                $p = $nd[$i].IndexOf(': ')
+                if ($p -ge 0) {
+                    Format-VigilPackField $label $nd[$i].Substring(0, $p + 1)
+                    (' ' * 13) + $nd[$i].Substring($p + 2)
+                }
+                else { Format-VigilPackField $label $nd[$i] }
+            }
+            if ($st.Count -gt 0) { Format-VigilPackField 'Settings' "$($st -join ' ') (the env lines in vigil.config, once enabled)" }
+            if ($one['docs']) { ('{0,-10} : ' -f 'Docs') + $one['docs'] }
+        }
+        ''
+        $rows = New-Object 'System.Collections.Generic.List[object]'
+        $rows.Add([string[]]@('Version', 'Platforms', 'Needs Vigil', 'Release'))
+        foreach ($p in $sorted) {
+            $plats = @('linux', 'macos', 'windows' | Where-Object { $o = $_; @($repo.Index.Files | Where-Object { $_.Name -ceq $Name -and $_.Version -ceq $p.Version -and $_.Os -ceq $o }).Count -gt 0 } | ForEach-Object { $pretty[$_] })
+            $rows.Add([string[]]@($p.Version, $(if ($plats.Count -gt 0) { $plats -join ', ' } else { 'none' }), $p.Vigil, $p.Release))
+        }
+        Format-VigilPackTable -Rows $rows.ToArray() -Cols 0
         return 0
     }
     finally { Close-VigilPackRepo $repo }

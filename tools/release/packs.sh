@@ -32,8 +32,13 @@
 #   release  <tag>
 #   pack     <name> <version> <oldest Vigil> <release> <source digest> <description>
 #   file     <name> <version> <os> <archive> <sha256>
+#   info     <name> <version> <key> <value>
 # The source digest covers a pack's files: a pack whose files changed while
-# its version did not is refused, as its version must go up.
+# its version did not is refused, as its version must go up. The info
+# records are what vigil pack info shows, from pack.config: works_with,
+# programs_linux, programs_macos, programs_windows and docs from [pack],
+# each needs line, each secret its jobs read (secret), and each env line
+# once (setting). A Vigil skips records it does not know.
 #
 # Needs tar, gzip, openssl, and for the .zip: zip, python3 or (Git Bash)
 # PowerShell.
@@ -77,6 +82,32 @@ manifest() {
         inpack && $1 == k && $2 == "=" { sub(/^[^=]*= */, ""); sub(/[ \t]+$/, ""); print; exit }
     ' "$1"
 }
+# The info records of pack $2 version $3, from manifest $1 (see above).
+info() {
+    awk -v n="$2" -v v="$3" '
+        function put(k, x) { gsub(/\t/, " ", x); printf "info\t%s\t%s\t%s\t%s\n", n, v, k, x }
+        /^\[/ { sec = $0; next }
+        /^[ \t]*[#;]/ || !/=/ { next }
+        {
+            k = $0; sub(/[ \t]*=.*/, "", k); sub(/^[ \t]+/, "", k)
+            x = $0; sub(/^[^=]*=[ \t]*/, "", x); sub(/[ \t]+$/, "", x)
+        }
+        sec == "[pack]" && (k == "works_with" || k == "docs" || k ~ /^programs_(linux|macos|windows)$/) { one[k] = x }
+        sec == "[pack]" && k == "needs" { needs[++nn] = x }
+        sec ~ /^\[job\./ && k == "secret" {
+            r = x; sub(/^[^=]*=/, "", r); sub(/^secret:/, "", r)
+            if (!(("secret " r) in seen)) { seen["secret " r] = 1; secrets[++ns] = r }
+        }
+        sec ~ /^\[job\./ && k == "env" && !(("env " x) in seen) { seen["env " x] = 1; envs[++ne] = x }
+        END {
+            split("works_with programs_linux programs_macos programs_windows", ks, " ")
+            for (i = 1; i <= 4; i++) if (ks[i] in one) put(ks[i], one[ks[i]])
+            for (i = 1; i <= ns; i++) put("secret", secrets[i])
+            for (i = 1; i <= nn; i++) put("needs", needs[i])
+            for (i = 1; i <= ne; i++) put("setting", envs[i])
+            if ("docs" in one) put("docs", one["docs"])
+        }' "$1"
+}
 # The digest of a pack's source: every file's name and content, in order.
 digest() {
     local d=$1 f
@@ -85,7 +116,9 @@ digest() {
 }
 
 new=$stage/packs.index
+infos=$stage/info
 printf 'format\t1\nrelease\t%s\n' "$tag" > "$new"
+: > "$infos"
 rc=0 built=0
 for d in "$repo"/packs/*/; do
     [ -f "$d/pack.config" ] || continue
@@ -96,6 +129,9 @@ for d in "$repo"/packs/*/; do
     about=$(manifest "$d/pack.config" description | tr '\t' ' ')
     case $version in '' | *[!0-9A-Za-z.-]*) printf 'packs: %s has no valid version\n' "$name" >&2; rc=1; continue ;; esac
     sum=$(digest "$d")
+    # From the files here, for a new version or a published one: the same
+    # files either way, by its digest.
+    info "$d/pack.config" "$name" "$version" >> "$infos"
     if [ -n "$prev" ] && old=$(awk -F '\t' -v n="$name" -v v="$version" '$1 == "pack" && $2 == n && $3 == v' "$prev") && [ -n "$old" ]; then
         # Published already: carried over, unless its files changed.
         if [ "$(printf '%s\n' "$old" | cut -f6)" != "$sum" ]; then
@@ -126,13 +162,17 @@ for d in "$repo"/packs/*/; do
     printf 'packs: %s %s\n' "$name" "$version"
 done
 [ "$rc" = 0 ] || exit 1
-# Every version published before, as it was.
+# Every version published before, as it was, with its info records unless
+# they were just made from its files.
 [ -z "$prev" ] || awk -F '\t' '$1 == "pack" || $1 == "file"' "$prev" >> "$new"
+[ -z "$prev" ] || awk -F '\t' 'FNR == NR { had[$2 "\t" $3] = 1; next } $1 == "info" && !(($2 "\t" $3) in had)' "$infos" "$prev" >> "$infos"
 # Packs then files, each by name and version.
 {
     head -n 2 "$new"
     tail -n +3 "$new" | awk -F '\t' '$1 == "pack"' | LC_ALL=C sort -t "$(printf '\t')" -k2,2 -k3,3
     tail -n +3 "$new" | awk -F '\t' '$1 == "file"' | LC_ALL=C sort -t "$(printf '\t')" -k2,2 -k3,3 -k4,4
+    # Each pack's in the order pack.config has them.
+    LC_ALL=C sort -s -t "$(printf '\t')" -k2,2 -k3,3 "$infos"
 } > "$out/packs.index"
 if [ -n "${VIGIL_SIGN_KEY-}" ]; then
     openssl dgst -sha256 -sign "$VIGIL_SIGN_KEY" -out "$out/packs.index.sig" "$out/packs.index" || exit 1

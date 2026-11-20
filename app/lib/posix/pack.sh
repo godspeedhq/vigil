@@ -25,7 +25,8 @@
 #     The repository's packs not installed here.
 #   vigil_pack_search <root> <app dir> [<word>...]
 #   vigil_pack_info <root> <app dir> <name>
-#     From the index last fetched (packs/.index), or fetched now.
+#     From the newest index; when the repository cannot be reached, the one
+#     saved here (packs/.index), saying so.
 #   vigil_pack_install <root> <app dir> <folder, or ''> <name[@version]>...
 #     From the repository, or a folder vigil pack download wrote.
 #   vigil_pack_remove <root> <name>...
@@ -221,8 +222,8 @@ _vigil_pack_format() {
 
 # The index of the newest packs release, or of the folder, verified, into
 # _vp_index (in _vp_work). One fetched from a release is kept as
-# packs/.index for search, info and list --available, when packs/ is
-# writable.
+# packs/.index, when packs/ is writable, for search, info and list
+# --available when the repository cannot be reached.
 _vigil_pack_fetch_index() {
     local root=$1 rel='' from fmt
     if [ "$_vp_mirror" != 3 ]; then
@@ -256,20 +257,31 @@ _vigil_pack_fetch_index() {
     return 0
 }
 
+# The release index $1 is of, printed.
+_vigil_pack_release() {
+    awk -F '\t' '$1 == "release" { print $2; exit }' "$1"
+}
+
 # Sets up for a command that reads the repository: the source, a temporary
-# folder (_vp_work, which the caller removes) and, unless $4 is "cached" and
-# packs/.index is there and signed, the index from the newest release.
+# folder (_vp_work, which the caller removes) and the index from the newest
+# release. With $4 = saved, when the repository cannot give it, the one
+# packs/.index holds, when it is there and signed, saying so: search, info
+# and list --available still answer offline, and never from an old index
+# when a new one can be had.
 _vigil_pack_begin() {
-    local root=$1 app=$2 from=$3 how=${4-}
+    local root=$1 app=$2 from=$3 how=${4-} saved=$1/packs/.index
     _vp_app=$app
     _vigil_pack_source "$root" "$app" "$from" || return 1
     _vp_work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-pack.XXXXXX") || { _vigil_pack_die 'cannot make a temporary folder'; return 1; }
-    if [ "$how" = cached ] && [ -f "$root/packs/.index" ] && _vigil_pack_signed "$root/packs/.index" &&
-        [ "$(_vigil_pack_format "$root/packs/.index")" = 1 ]; then
-        _vp_index=$root/packs/.index
+    [ "$how" = saved ] || { _vigil_pack_fetch_index "$root"; return; }
+    _vigil_pack_fetch_index "$root" 2> "$_vp_work/why" && return 0
+    if [ -f "$saved" ] && _vigil_pack_signed "$saved" && [ "$(_vigil_pack_format "$saved")" = 1 ]; then
+        _vp_index=$saved
+        printf '%s; showing the index saved here, of %s\n' "$(sed -n 1p "$_vp_work/why")" "$(_vigil_pack_release "$saved")" >&2
         return 0
     fi
-    _vigil_pack_fetch_index "$root"
+    cat "$_vp_work/why" >&2
+    return 1
 }
 
 # Runs command $1 with the rest as its arguments, and removes _vp_work after.
@@ -896,24 +908,74 @@ _vigil_pack_remove() {
     return "$rc"
 }
 
-# The index's packs, one line each with the newest version: those whose
-# name or description has every word of $3 (all, when there is none), or
-# with $2 = available, those not installed.
+# The width of the terminal standard output is, into _vp_cols, or 0 when it
+# is not one: rows piped or written to a file stay whole.
+_vigil_pack_cols() {
+    _vp_cols=0
+    [ -t 1 ] || return 0
+    # The terminal's own size first: tput, its output a pipe here, gives
+    # its terminfo default (80) on macOS.
+    _vp_cols=$(stty size < /dev/tty 2> /dev/null | cut -d ' ' -f 2)
+    case $_vp_cols in '' | *[!0-9]* | 0) _vp_cols=${COLUMNS-} ;; esac
+    case $_vp_cols in '' | *[!0-9]* | 0) _vp_cols=$(tput cols 2> /dev/null) ;; esac
+    case $_vp_cols in '' | *[!0-9]* | 0) _vp_cols=80 ;; esac
+}
+
+# Rows of tab-separated fields on stdin, the first the header, as a table:
+# each column as wide as its widest field, a rule under each header, and
+# with $1 the terminal's width (0: none), the last column cut to fit, with
+# "...", so each row stays one line.
+_vigil_pack_table() {
+    awk -F '\t' -v cols="$1" '
+        function show(r,   i, x, line) {
+            line = ""
+            for (i = 1; i <= k; i++) {
+                x = c[r, i]
+                if (i == k && length(x) > w[k]) x = substr(x, 1, w[k] - 3) "..."
+                line = line (i > 1 ? " " : "") (i < k ? sprintf("%-" w[i] "s", x) : x)
+            }
+            sub(/ +$/, "", line)
+            print line
+        }
+        {
+            n = NR
+            if (NR == 1) k = NF
+            for (i = 1; i <= k; i++) { c[NR, i] = $i; if (length($i) > w[i]) w[i] = length($i) }
+        }
+        END {
+            if (n == 0) exit
+            if (cols > 0) {
+                room = cols - 1
+                for (i = 1; i < k; i++) room -= w[i] + 1
+                if (room < 10) room = 10
+                if (w[k] > room) w[k] = room
+            }
+            show(1)
+            for (i = 1; i <= k; i++) { x = c[1, i]; gsub(/./, "-", x); c[0, i] = x }
+            show(0)
+            for (r = 2; r <= n; r++) show(r)
+        }'
+}
+
+# The index's packs, as a table with the newest version of each: those
+# whose name or description has every word of $3 (all, when there is none),
+# or with $2 = available, those not installed.
 _vigil_pack_show() {
-    local root=$1 how=$2 words=$3 name v plats about line n=0 was
+    local root=$1 how=$2 words=$3 name v plats about here rows='' n=0 was
     _vigil_pack_os
     while IFS='	' read -r name v plats about; do
         [ -n "$name" ] || continue
         was=''
         if _vigil_pack_read "$root/packs/$name" "$name"; then was=$_vp_version; fi
         [ "$how" != available ] || [ -z "$was" ] || continue
-        line="$name $v"
-        if [ -n "$was" ]; then
-            line="$line, installed $was"
+        if [ -z "$was" ]; then
+            case " $plats " in *" $_vp_os "*) here='' ;; *) here="not for $_vp_osname" ;; esac
+        elif [ "$was" = "$v" ]; then
+            here=installed
         else
-            case " $plats " in *" $_vp_os "*) ;; *) line="$line, no scripts for $_vp_osname" ;; esac
+            here="$was installed"
         fi
-        printf '%s: %s\n' "$line" "$about"
+        rows="$rows$name	$v	$here	$about"$'\n'
         n=$((n + 1))
     done << EOF
 $(awk -F '\t' -v w="$words" '
@@ -941,53 +1003,172 @@ EOF
         else
             printf 'no pack matches: %s\n' "$words"
         fi
+        return 0
     fi
-    return 0
+    if [ "$how" = available ]; then
+        printf 'Packs in %s not installed here:\n\n' "$(_vigil_pack_release "$_vp_index")"
+    else
+        printf 'Packs in %s:\n\n' "$(_vigil_pack_release "$_vp_index")"
+    fi
+    _vigil_pack_cols
+    printf 'Name\tVersion\tHere\tAbout\n%s' "$rows" | _vigil_pack_table "$_vp_cols"
 }
 
 _vigil_pack_search() {
     local root=$1 app=$2
     shift 2
-    _vigil_pack_begin "$root" "$app" '' cached || return 1
+    _vigil_pack_begin "$root" "$app" '' saved || return 1
     _vigil_pack_show "$root" search "$*"
 }
 
 _vigil_pack_available() {
-    _vigil_pack_begin "$1" "$2" '' cached || return 1
+    _vigil_pack_begin "$1" "$2" '' saved || return 1
     _vigil_pack_show "$1" available ''
 }
 
+# One pack, from the index: what it is, whether it is here, what it needs
+# (its newest version's info records), and every version, newest first.
 _vigil_pack_info() {
-    local root=$1 app=$2 name=$3 was='' about v old rel plats
+    local root=$1 app=$2 name=$3 was='' newest here
     _vigil_pack_spec "$name" || return 1
     [ -z "$_vp_at" ] || { _vigil_pack_die "vigil pack info takes a name, without a version: $_vp_name"; return 1; }
-    _vigil_pack_begin "$root" "$app" '' cached || return 1
-    about=$(awk -F '\t' -v n="$name" '$1 == "pack" && $2 == n { d = $7 } END { print d }' "$_vp_index")
-    if ! awk -F '\t' -v n="$name" '$1 == "pack" && $2 == n { f = 1 } END { exit !f }' "$_vp_index"; then
+    _vigil_pack_begin "$root" "$app" '' saved || return 1
+    newest=$(awk -F '\t' -v n="$name" '
+        function newer(a, b,   x, y, i) {
+            split(a, x, /[.-]/); split(b, y, /[.-]/)
+            for (i = 1; i <= 3; i++) { if (x[i] + 0 > y[i] + 0) return 1; if (x[i] + 0 < y[i] + 0) return 0 }
+            return 0
+        }
+        $1 == "pack" && $2 == n && (v == "" || newer($3, v)) { v = $3 }
+        END { print v }' "$_vp_index")
+    if [ -z "$newest" ]; then
         _vigil_pack_die "no pack called $name: vigil pack search"
         return 1
     fi
+    _vigil_pack_os
+    _vigil_pack_mine
     if _vigil_pack_read "$root/packs/$name" "$name"; then was=$_vp_version; fi
-    printf '%s: %s\n' "$name" "$about"
-    printf 'installed: %s\n' "${was:-no}"
-    printf 'versions, newest first:\n'
-    while IFS='	' read -r v old rel plats; do
-        [ -n "$v" ] || continue
-        printf '  %-10s Vigil %s or later; %s (%s)\n' "$v" "$old" "$plats" "$rel"
-    done << EOF
-$(awk -F '\t' -v n="$name" '
-    function newer(a, b,   x, y, i) {
-        split(a, x, /[.-]/); split(b, y, /[.-]/)
-        for (i = 1; i <= 3; i++) { if (x[i] + 0 > y[i] + 0) return 1; if (x[i] + 0 < y[i] + 0) return 0 }
-        return 0
-    }
-    $1 == "pack" && $2 == n { o[$3] = $4; r[$3] = $5; vs[++k] = $3 }
-    $1 == "file" && $2 == n { p[$3] = p[$3] (p[$3] == "" ? "" : ", ") $4 }
-    END {
-        for (i = 2; i <= k; i++) for (j = i; j > 1 && newer(vs[j], vs[j - 1]); j--) { t = vs[j]; vs[j] = vs[j - 1]; vs[j - 1] = t }
-        for (i = 1; i <= k; i++) { v = vs[i]; printf "%s\t%s\t%s\t%s\n", v, o[v], r[v], (p[v] == "") ? "no scripts" : p[v] }
-    }' "$_vp_index")
-EOF
+    _vigil_pack_pick "$name" '' "$_vp_os" "$_vp_mine" || :
+    if [ -n "$was" ]; then
+        if [ -n "$_vp_pick" ] && _vigil_self_newer "$_vp_pick" "$was"; then
+            here="$was installed; $_vp_pick is available: vigil pack update"
+        elif [ -n "$_vp_newer" ] && _vigil_self_newer "$_vp_newer" "$was"; then
+            here="$was installed; $_vp_newer needs Vigil $_vp_newer_vigil or later: vigil self update"
+        elif [ "$was" = "$newest" ]; then
+            here="$was installed, the newest"
+        else
+            here="$was installed"
+        fi
+    elif [ -n "$_vp_pick" ]; then
+        here="not installed: vigil pack install $name"
+    elif [ -n "$_vp_newer" ]; then
+        here="not installed; $_vp_newer needs Vigil $_vp_newer_vigil or later: vigil self update"
+    else
+        here="not for $_vp_osname"
+    fi
+    awk -F '\t' -v n="$name" -v v="$newest" -v here="$here" -v os="$_vp_os" '
+        function pretty(o) { return o == "linux" ? "Linux" : o == "macos" ? "macOS" : "Windows" }
+        # Items 1 to k of list, as "a", "a and b" or "a, b and c".
+        function joined(list, k,   i, s) {
+            s = list[1]
+            for (i = 2; i <= k; i++) s = s (i == k ? " and " : ", ") list[i]
+            return s
+        }
+        function lead(label) { return label == "" ? sprintf("%13s", "") : sprintf("%-10s : ", label) }
+        # A field, its text wrapped at 78 columns under itself; a word is
+        # never split.
+        function field(label, text,   k, ws, i, line, pre) {
+            pre = lead(label)
+            k = split(text, ws, " ")
+            line = ""
+            for (i = 1; i <= k; i++) {
+                if (line != "" && length(pre) + length(line) + 1 + length(ws[i]) > 78) {
+                    print pre line
+                    pre = lead("")
+                    line = ws[i]
+                } else line = (line == "" ? ws[i] : line " " ws[i])
+            }
+            print pre line
+        }
+        $1 == "pack" && $2 == n && $3 == v { about = $7 }
+        $1 == "file" && $2 == n && $3 == v { has[$4] = 1 }
+        $1 == "info" && $2 == n && $3 == v {
+            info = 1
+            if ($4 == "secret") sec[++ks] = $5
+            else if ($4 == "needs") nd[++kn] = $5
+            else if ($4 == "setting") st[++kt] = $5
+            else one[$4] = $5
+        }
+        END {
+            field("Name", n)
+            field("About", about)
+            field("Here", here)
+            split("linux macos windows", all, " ")
+            kp = 0
+            for (i = 1; i <= 3; i++) if (all[i] in has) { ps[++kp] = pretty(all[i]); po[kp] = all[i] }
+            if (kp == 0) field("Platforms", "none")
+            else { s = ps[1]; for (i = 2; i <= kp; i++) s = s ", " ps[i]; field("Platforms", s) }
+            if (one["works_with"] != "") field("Works with", one["works_with"])
+            if (!info) exit
+            # This platform s programs; or, with no scripts here, those of
+            # the platforms it has.
+            if (os in has) {
+                x = one["programs_" os]
+                field("Programs", x != "" ? x : "none on " pretty(os))
+            } else if (kp > 0) {
+                same = 1
+                for (i = 2; i <= kp; i++) if (one["programs_" po[i]] != one["programs_" po[1]]) same = 0
+                if (same) {
+                    x = one["programs_" po[1]]
+                    field("Programs", x == "" ? "none" : x " (on " joined(ps, kp) ")")
+                } else {
+                    s = ""
+                    for (i = 1; i <= kp; i++) {
+                        x = one["programs_" po[i]]
+                        if (x != "") s = s (s == "" ? "" : ", ") x " (on " ps[i] ")"
+                    }
+                    field("Programs", s)
+                }
+            }
+            if (ks == 0) field("Secrets", "none")
+            else { s = sec[1]; for (i = 2; i <= ks; i++) s = s ", " sec[i]; field("Secrets", s) }
+            # What it is, wrapped, then the command whole on a line of its
+            # own, to copy.
+            for (i = 1; i <= kn; i++) {
+                p = index(nd[i], ": ")
+                if (p > 0) {
+                    field(i == 1 ? "Needs" : "", substr(nd[i], 1, p))
+                    print lead("") substr(nd[i], p + 2)
+                } else field(i == 1 ? "Needs" : "", nd[i])
+            }
+            if (kt > 0) {
+                s = st[1]
+                for (i = 2; i <= kt; i++) s = s " " st[i]
+                field("Settings", s " (the env lines in vigil.config, once enabled)")
+            }
+            if (one["docs"] != "") print lead("Docs") one["docs"]
+        }' "$_vp_index"
+    printf '\n'
+    awk -F '\t' -v n="$name" '
+        function newer(a, b,   x, y, i) {
+            split(a, x, /[.-]/); split(b, y, /[.-]/)
+            for (i = 1; i <= 3; i++) { if (x[i] + 0 > y[i] + 0) return 1; if (x[i] + 0 < y[i] + 0) return 0 }
+            return 0
+        }
+        function pretty(o) { return o == "linux" ? "Linux" : o == "macos" ? "macOS" : "Windows" }
+        $1 == "pack" && $2 == n { o[$3] = $4; r[$3] = $5; vs[++k] = $3 }
+        $1 == "file" && $2 == n { has[$3, $4] = 1 }
+        END {
+            for (i = 2; i <= k; i++) for (j = i; j > 1 && newer(vs[j], vs[j - 1]); j--) { t = vs[j]; vs[j] = vs[j - 1]; vs[j - 1] = t }
+            split("linux macos windows", all, " ")
+            print "Version\tPlatforms\tNeeds Vigil\tRelease"
+            for (i = 1; i <= k; i++) {
+                v = vs[i]
+                p = ""
+                for (j = 1; j <= 3; j++) if ((v, all[j]) in has) p = p (p == "" ? "" : ", ") pretty(all[j])
+                printf "%s\t%s\t%s\t%s\n", v, (p == "") ? "none" : p, o[v], r[v]
+            }
+        }' "$_vp_index" | _vigil_pack_table 0
 }
 
 _vigil_pack_download() {
