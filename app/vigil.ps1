@@ -93,7 +93,17 @@ param(
 
 $app = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-$libs = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate', 'Pack', 'ConfigEdit', 'Doctor')
+# Windows PowerShell started by something PowerShell 7 started (a terminal,
+# an editor, Git Bash) inherits PowerShell 7's module folders ahead of its
+# own, then loads PowerShell 7's Microsoft.PowerShell.Security, which it
+# cannot: every secret and every ACL would fail (backlog 62). PowerShell 7
+# drops those folders when it starts Windows PowerShell itself; so does
+# Vigil, for itself and every process it starts.
+if ($PSVersionTable.PSEdition -ne 'Core' -and $env:PSModulePath) {
+    $env:PSModulePath = @($env:PSModulePath -split ';' | Where-Object { $_ -and $_ -notmatch '\\PowerShell\\(\d[^\\]*\\)?Modules\\?$' }) -join ';'
+}
+
+$libs =@('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Recovery', 'Prom', 'Secrets', 'Stores', 'Worker', 'Backends', 'Sender', 'Fetch', 'Logs', 'Format', 'Supervisor', 'Precheck', 'Service', 'Init', 'SelfUpdate', 'Pack', 'ConfigEdit', 'Doctor')
 # A worker started by the supervisor loads only the libraries its kind of run
 # can use: each one costs a fresh process time to read and scan, and every
 # run is a fresh process. '*' is any job; the rest are Vigil's own workers.
