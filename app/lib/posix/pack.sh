@@ -913,8 +913,11 @@ _vigil_pack_remove() {
 _vigil_pack_cols() {
     _vp_cols=0
     [ -t 1 ] || return 0
-    _vp_cols=$(tput cols 2> /dev/null) || _vp_cols=''
-    case $_vp_cols in '' | *[!0-9]*) _vp_cols=$(stty size < /dev/tty 2> /dev/null | cut -d ' ' -f 2) ;; esac
+    # The terminal's own size first: tput, its output a pipe here, gives
+    # its terminfo default (80) on macOS.
+    _vp_cols=$(stty size < /dev/tty 2> /dev/null | cut -d ' ' -f 2)
+    case $_vp_cols in '' | *[!0-9]* | 0) _vp_cols=${COLUMNS-} ;; esac
+    case $_vp_cols in '' | *[!0-9]* | 0) _vp_cols=$(tput cols 2> /dev/null) ;; esac
     case $_vp_cols in '' | *[!0-9]* | 0) _vp_cols=80 ;; esac
 }
 
