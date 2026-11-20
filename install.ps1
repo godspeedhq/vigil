@@ -87,6 +87,15 @@ $needActive = $true
 
 # Restored at the end, for the same reason.
 $savedPreferences = @($ErrorActionPreference, $ProgressPreference)
+# Windows PowerShell started by something PowerShell 7 started inherits
+# PowerShell 7's module folders ahead of its own, and cannot then load
+# Microsoft.PowerShell.Security, which Get-Acl and Set-Acl need (backlog
+# 62). Dropped while this runs, as PowerShell 7 does when it starts Windows
+# PowerShell, and put back at the end.
+$savedModulePath = $env:PSModulePath
+if ($PSVersionTable.PSEdition -ne 'Core' -and $env:PSModulePath) {
+    $env:PSModulePath = @($env:PSModulePath -split ';' | Where-Object { $_ -and $_ -notmatch '\\PowerShell\\(\d[^\\]*\\)?Modules\\?$' }) -join ';'
+}
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $repoUrl = 'https://github.com/godspeedhq/vigil'
@@ -572,4 +581,5 @@ try {
 finally {
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
     $ErrorActionPreference, $ProgressPreference = $savedPreferences
+    $env:PSModulePath = $savedModulePath
 }

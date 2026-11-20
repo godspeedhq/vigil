@@ -221,6 +221,45 @@ try {
     }
     finally { Remove-Item Env:\VIGIL_TEST_DPAPI_REFUSED }
 
+    # 5c. Windows PowerShell started with PowerShell 7's module folders ahead
+    # of its own, as a terminal, an editor or Git Bash started by PowerShell 7
+    # starts it: it would load PowerShell 7's Microsoft.PowerShell.Security,
+    # which it cannot, and every secret would fail (62). Vigil drops those
+    # folders, as PowerShell 7 does when it starts Windows PowerShell itself.
+    # Started by .NET, not by this shell: PowerShell 7 would clean the path.
+    $pwshCmd = @(Get-Command pwsh.exe -CommandType Application -ErrorAction SilentlyContinue)
+    if ($pwshCmd.Count -eq 0) { Write-Host 'SKIP PowerShell 7 module folders: pwsh is not installed' }
+    else {
+        $ps7Modules = Join-Path (Split-Path -Parent $pwshCmd[0].Source) 'Modules'
+        function Invoke-Vigil51 {
+            param([string]$Arguments, [string]$InputText)
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$vigil`" -Root `"$root`" $Arguments"
+            $psi.UseShellExecute = $false
+            $psi.RedirectStandardInput = $true
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+            $psi.EnvironmentVariables['PSModulePath'] = "$ps7Modules;$env:PSModulePath"
+            $p = [System.Diagnostics.Process]::Start($psi)
+            $o = $p.StandardOutput.ReadToEndAsync()
+            $e = $p.StandardError.ReadToEndAsync()
+            if ($InputText) { $p.StandardInput.Write($InputText) }
+            $p.StandardInput.Close()
+            $p.WaitForExit()
+            return @{ Code = $p.ExitCode; Output = "$($o.Result)$($e.Result)" }
+        }
+        $r = Invoke-Vigil51 'secret set PS7PATHS --stdin' 'from Windows PowerShell'
+        Test-Equal 'PowerShell 7 module folders: secret set works' '0' "$($r.Code)"
+        if ($r.Code -ne 0) { Write-Host "        $($r.Output.Trim())" }
+        Test-Equal 'PowerShell 7 module folders: the secret is stored' 'True' "$([System.IO.File]::Exists((Join-Path $root 'config\secrets\PS7PATHS')))"
+        # The step before left this job failed: succeeded is this run's.
+        $r = Invoke-Vigil51 'run show'
+        Test-Equal 'PowerShell 7 module folders: a run reads its secrets' 'succeeded' (Get-StateValue (Join-Path $root 'state\jobs\show.state') 'status')
+        if ($r.Code -ne 0) { Write-Host "        $($r.Output.Trim())" }
+        [void](Invoke-Vigil @('secret', 'delete', 'PS7PATHS'))
+    }
+
     # 6. delete removes it.
     [void](Invoke-Vigil @('secret', 'delete', 'PGPASSWORD'))
     Test-Equal 'delete' 'False' "$((Invoke-Vigil @('secret', 'list')).Output -cmatch '(?m)^PGPASSWORD ')"
