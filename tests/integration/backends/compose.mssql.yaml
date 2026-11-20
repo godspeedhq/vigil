@@ -1,0 +1,47 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Microsoft SQL Server for the mssql pack (tests/integration/service-packs.sh,
+# with VIGIL_IT_MSSQL_HOST), one version at a time: MSSQL_IMAGE, any SQL
+# Server image from 2019 (default: 2022). Not somewhere Vigil sends: what
+# its pack reads. Developer edition, free for testing.
+#
+#   mssql-primary    on 11433: the primary of an availability group
+#   mssql-secondary  on 11434: its secondary, readable
+#
+# Both force TLS with a certificate from MSSQL_TLS_DIR (server.crt,
+# server.key, ca.crt: scripts/run-mssql.sh makes them, naming localhost,
+# both hosts and 127.0.0.1), and run SQL Agent. scripts/run-mssql.sh makes
+# the read-only login, the availability group and its database. sa's
+# password from .env: MSSQL_SA_PASSWORD. Each takes 2 GB, the least SQL
+# Server runs in.
+
+x-mssql: &mssql
+  image: ${MSSQL_IMAGE:-mcr.microsoft.com/mssql/server:2022-CU28-ubuntu-22.04}
+  mem_limit: 2g
+  environment:
+    ACCEPT_EULA: "Y"
+    MSSQL_PID: Developer
+    MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-}
+  volumes:
+    - ./configs/services/mssql/mssql.conf:/var/opt/mssql/mssql.conf:ro,z
+    - ${MSSQL_TLS_DIR:-./.mssql-tls}:/tls:ro,z
+
+services:
+  mssql-primary:
+    <<: *mssql
+    hostname: mssql-primary
+    ports:
+      - "127.0.0.1:11433:1433"
+
+  mssql-secondary:
+    <<: *mssql
+    hostname: mssql-secondary
+    ports:
+      - "127.0.0.1:11434:1433"

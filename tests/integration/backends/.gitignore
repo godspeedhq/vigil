@@ -13,3 +13,6 @@ reports/evidence/
 # The redis pack's TLS test certificates (scripts/run-replication.sh, or a
 # run of compose.redis.yaml of your own).
 .redis-tls/
+# The mssql pack's TLS test certificates (scripts/run-mssql.sh, or a run of
+# compose.mssql.yaml of your own).
+.mssql-tls/
