@@ -16,9 +16,11 @@
 #   scripts/run-replication.sh postgres [image]   compose.replication.yaml
 #   scripts/run-replication.sh mysql              compose.mysql.yaml
 #   scripts/run-replication.sh mariadb            compose.mysql.yaml
+#   scripts/run-replication.sh redis [image]      compose.redis.yaml
 #
 # It starts the pair (postgres: any image from 14 on, default the one the
-# Compose file pins), waits for the replica to stream, runs
+# Compose file pins; redis: any Redis from 6.2 or Valkey, default Valkey
+# 9.2, with a TLS server beside it), waits for the replica to stream, runs
 # tests/integration/service-packs.sh with the replica given, then stops and
 # starts the replica, and (MySQL, MariaDB) its applying thread, showing what
 # the pack's replication and status scripts report at each step. The pair is
@@ -26,10 +28,12 @@
 #
 # Passwords from .env: POSTGRES_PASSWORD, POSTGRES_MONITOR_PASSWORD and
 # POSTGRES_REPLICATION_PASSWORD, or MYSQL_ROOT_PASSWORD,
-# MYSQL_MONITOR_PASSWORD and MYSQL_REPLICATION_PASSWORD. The postgres pack
-# needs psql and pg_isready here; the mysql pack a mysql or mariadb client,
-# and with neither, this runs the one in the server's image (docker run),
-# and says so.
+# MYSQL_MONITOR_PASSWORD and MYSQL_REPLICATION_PASSWORD, or
+# REDIS_MONITOR_PASSWORD, REDIS_ADMIN_PASSWORD and
+# REDIS_REPLICATION_PASSWORD. The postgres pack needs psql and pg_isready
+# here; the mysql pack a mysql or mariadb client, and the redis pack
+# redis-cli or valkey-cli: with neither, this runs the one in the server's
+# image (docker run), and says so.
 
 here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck disable=SC1091
@@ -49,7 +53,13 @@ case $target in
         if [ "$target" = mysql ]; then sport=13306 rport=13307; else sport=13316 rport=13317; fi
         secrets=("${MYSQL_ROOT_PASSWORD-}" "${MYSQL_MONITOR_PASSWORD-}" "${MYSQL_REPLICATION_PASSWORD-}")
         ;;
-    *) die 'usage: run-replication.sh postgres [image] | mysql | mariadb' ;;
+    redis)
+        file=compose.redis.yaml profile='' pack=redis
+        src=redis-primary rep=redis-replica sport=16379 rport=16380
+        [ -n "${2-}" ] && export REDIS_IMAGE=$2
+        secrets=("${REDIS_MONITOR_PASSWORD-}" "${REDIS_ADMIN_PASSWORD-}" "${REDIS_REPLICATION_PASSWORD-}")
+        ;;
+    *) die 'usage: run-replication.sh postgres [image] | mysql | mariadb | redis [image]' ;;
 esac
 
 dc() {
@@ -70,6 +80,30 @@ if [ "$pack" = postgres ]; then
     v=${v##*:}
     name=pack-postgres-${v%%[.-]*}-replication
 fi
+# And each Redis or Valkey: pack-valkey-9-replication.
+if [ "$pack" = redis ]; then
+    v=${REDIS_IMAGE:-valkey/valkey:9.2.0-alpine}
+    s=redis
+    case $v in *valkey*) s=valkey ;; esac
+    v=${v##*:}
+    name=pack-$s-${v%%[.-]*}-replication
+    # The TLS server's certificate, from a CA of this run's own, naming
+    # 127.0.0.1 only.
+    tls=$work/tls
+    mkdir -p "$tls"
+    (
+        cd "$tls" || exit 1
+        openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.crt -days 2 -subj '/CN=Vigil test CA' \
+            -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' &&
+            openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj '/CN=127.0.0.1' &&
+            printf 'subjectAltName=IP:127.0.0.1\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n' > server.ext &&
+            openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 2 -extfile server.ext
+    ) > "$work/tls.out" 2>&1 || { cat "$work/tls.out"; die 'could not make the TLS certificates'; }
+    rm -f "$tls/ca.key"
+    chmod 755 "$tls"
+    chmod 644 "$tls"/*
+    export REDIS_TLS_DIR=$tls
+fi
 evidence_start "$name" "$bk_dir/$file" "$0" "$@"
 scripts=$bk_repo/packs/$pack/linux
 [ "$(uname -s)" = Darwin ] && scripts=$bk_repo/packs/$pack/macos
@@ -82,6 +116,28 @@ if [ "$pack" = postgres ]; then
     port_var=PGPORT
     export VIGIL_IT_PG_HOST=127.0.0.1 VIGIL_IT_PG_PORT=$sport VIGIL_IT_PG_PASSWORD=${POSTGRES_MONITOR_PASSWORD-} \
         VIGIL_IT_PG_SUPER_PASSWORD=${POSTGRES_PASSWORD-} VIGIL_IT_PG_REPLICA_HOST=127.0.0.1 VIGIL_IT_PG_REPLICA_PORT=$rport
+elif [ "$pack" = redis ]; then
+    if command -v redis-cli > /dev/null 2>&1 || command -v valkey-cli > /dev/null 2>&1; then
+        printf 'client   %s\n' "$( (command -v redis-cli > /dev/null && redis-cli --version) || valkey-cli --version)"
+    else
+        # No client here: the server image's own, run for each call, by the
+        # name that image gives it. Only the password's name is on the
+        # command line; docker passes its value. The TLS files are where the
+        # host has them.
+        image=$(dc config --images 2> /dev/null | grep -m 1 -E 'redis|valkey')
+        bin=redis-cli
+        case $image in *valkey*) bin=valkey-cli ;; esac
+        mkdir -p "$work/bin"
+        printf '#!/bin/sh\nexec docker run --rm -i --network host -e REDISCLI_AUTH -v %s:%s:ro,z %s %s "$@"\n' "$tls" "$tls" "$image" "$bin" > "$work/bin/$bin"
+        chmod +x "$work/bin/$bin"
+        export PATH="$work/bin:$PATH"
+        printf 'client   %s, from the image %s (none is installed here)\n' "$("$bin" --version)" "$image"
+    fi
+    export REDIS_HOST=127.0.0.1 REDIS_USER=vigil_monitor REDISCLI_AUTH=${REDIS_MONITOR_PASSWORD-}
+    port_var=REDIS_PORT
+    export VIGIL_IT_REDIS_HOST=127.0.0.1 VIGIL_IT_REDIS_PORT=$sport VIGIL_IT_REDIS_PASSWORD=${REDIS_MONITOR_PASSWORD-} \
+        VIGIL_IT_REDIS_ADMIN_PASSWORD=${REDIS_ADMIN_PASSWORD-} VIGIL_IT_REDIS_REPLICA_HOST=127.0.0.1 VIGIL_IT_REDIS_REPLICA_PORT=$rport \
+        VIGIL_IT_REDIS_TLS_HOST=127.0.0.1 VIGIL_IT_REDIS_TLS_PORT=16381 VIGIL_IT_REDIS_CACERT=$tls/ca.crt
 else
     if command -v mysql > /dev/null 2>&1 || command -v mariadb > /dev/null 2>&1; then
         printf 'client   %s\n' "$( (command -v mysql > /dev/null && mysql --version) || mariadb --version)"
@@ -109,7 +165,7 @@ job() {
     env "$port_var=$1" bash "$scripts/$2.sh"
 }
 # Whether the replica streams: its own replication job says so.
-streaming() { env "$port_var=$rport" bash "$scripts/replication.sh" 2> /dev/null | grep -qE 'receiver_up 1|sql_running 1'; }
+streaming() { env "$port_var=$rport" bash "$scripts/replication.sh" 2> /dev/null | grep -qE 'receiver_up 1|sql_running 1|link_up 1'; }
 wait_streaming() {
     local i
     for i in $(seq 1 60); do streaming && return 0; sleep 2; done
@@ -129,6 +185,8 @@ dc up -d > "$work/up.out" 2>&1 || { cat "$work/up.out"; die "the pair would not 
 wait_streaming || { dc logs --tail 30; die 'the replica never streamed'; }
 if [ "$pack" = postgres ]; then
     printf 'server   PostgreSQL %s\n\n' "$(PGPORT=$sport psql -X -Atc 'SHOW server_version')"
+elif [ "$pack" = redis ]; then
+    printf 'server   %s\n\n' "$(REDIS_PORT=$sport bash "$scripts/status.sh" | grep '^metric info ' | cut -d ' ' -f 4-)"
 else
     # The port on the command line: a client run from an image gets only
     # the password's variable.

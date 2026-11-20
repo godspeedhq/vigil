@@ -10,3 +10,6 @@ reports/evidence/
 # The source tests' keys, credentials and served fixtures
 # (configs/sources/keys.sh and */provision.sh).
 .sources/
+# The redis pack's TLS test certificates (scripts/run-replication.sh, or a
+# run of compose.redis.yaml of your own).
+.redis-tls/

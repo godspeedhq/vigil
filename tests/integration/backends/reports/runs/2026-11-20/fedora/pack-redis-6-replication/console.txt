@@ -1,0 +1,188 @@
+== pack-redis-6-replication
+date     2026-11-20T07:51:12Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    73f393a57fc88dac3ed5c67a4db9c8f404a4c973 (deployed copy)
+command  tests/integration/backends/scripts/run-replication.sh redis redis:6.2.24-alpine
+bash     5.3.9(1)-release
+git      git version 2.56.0
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.18.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.redis.yaml pins them)
+         ${REDIS_IMAGE:-valkey/valkey:9.2.0-alpine}
+
+client   redis-cli 6.2.24, from the image redis:6.2.24-alpine (none is installed here)
+server   server=redis version=6.2.24 mode=standalone
+
+
+# The pack through Vigil, the replica given.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+redis at 127.0.0.1:16379
+  PASS  redis: off until enabled
+  PASS  redis: enabled
+        on: redis_status
+        on: redis_memory
+        on: redis_replication
+        on: redis_persistence
+        on: redis_keyspace
+        needs secret:REDIS_MONITOR_PASSWORD: not set: vigil secret set REDIS_MONITOR_PASSWORD, as the account Vigil runs as
+        needs a user that may only read INFO, as an administrator: ACL SETUSER vigil_monitor on >... -@all +info +ping (then ACL SAVE or CONFIG REWRITE, so it outlives a restart)
+        settings in vigil.config: REDIS_HOST=127.0.0.1 REDIS_PORT=6379 REDIS_USER=vigil_monitor
+  PASS  redis: its jobs are on
+  PASS  redis: the password is a secret reference
+  PASS  redis: precheck is happy
+  PASS  redis: status runs
+        metric up 1
+        metric info 1 server=redis version=6.2.24 mode=standalone
+        metric loading 0
+        metric uptime_seconds 25
+        metric clients 2
+        metric blocked_clients 1
+        metric max_clients 10000
+        metric clients_pct 0
+        metric rejected_connections_count 0
+        metric connections_count 25
+        metric commands_count 20075
+        metric ops_per_sec 0
+        metric hits_count 1
+        metric misses_count 1
+        metric hit_pct 50
+        metric evicted_keys_count 13929
+        metric expired_keys_count 0
+        metric error_replies_count 1
+  PASS  redis: memory runs
+        metric used_bytes 33511928
+        metric rss_bytes 53194752
+        metric peak_bytes 69406344
+        metric max_bytes 33554432 policy=allkeys-lru
+        metric used_pct 99
+        metric fragmentation_ratio 1.59
+  PASS  redis: replication runs
+        metric is_replica 0
+        metric replicas 1
+        metric online 1 replica=172.20.0.4_6379
+        metric lag_bytes 0 replica=172.20.0.4_6379
+        metric lag_seconds 0 replica=172.20.0.4_6379
+  PASS  redis: persistence runs
+        metric last_save_ok 1
+        metric last_save_age_seconds 10
+        metric changes_since_save 0
+        metric save_in_progress 0
+        metric last_fork_usec 3803
+        metric aof_enabled 1
+        metric aof_last_write_ok 1
+        metric aof_last_rewrite_ok 1
+        metric aof_rewrite_in_progress 0
+  PASS  redis: keyspace runs
+        metric keys 6076 db=db0
+        metric expires 0 db=db0
+        metric keys 1 db=db3
+        metric expires 1 db=db3
+  PASS  redis: up
+  PASS  redis: what it is
+  PASS  redis: not loading
+  PASS  redis: clients seen
+  PASS  redis: the limit
+  PASS  redis: clients against it
+  PASS  redis: commands counted
+  PASS  redis: memory used
+  PASS  redis: memory from the system
+  PASS  redis: the limit and its policy
+  PASS  redis: fragmentation
+  PASS  redis: a primary
+  PASS  redis: the last snapshot worked
+  PASS  redis: its age
+  PASS  redis: the append-only file is fine
+  PASS  redis: keys in db0
+  PASS  redis: no warning taken for data
+  PASS  redis: a lookup that hit
+  PASS  redis: one that missed
+  PASS  redis: the hit rate
+  PASS  redis: the blocked client
+  PASS  redis: keys in db3
+  PASS  redis: expiring in db3
+  PASS  redis: the snapshot just written
+  PASS  redis: its fork timed
+  PASS  redis: keys evicted at maxmemory
+  PASS  redis: memory against the limit
+  PASS  redis: the policy that evicts
+  PASS  redis: the replica seen from the primary
+  PASS  redis: in step
+  PASS  redis: its lag in bytes
+  PASS  redis: its lag in seconds
+  PASS  redis: replication runs on the replica
+        metric is_replica 1
+        metric replicas 0
+        metric link_up 1
+        metric last_io_seconds 3
+        metric sync_in_progress 0
+  PASS  redis: a replica
+  PASS  redis: its link up
+  PASS  redis: heard from the primary
+  PASS  redis: no copy under way
+  PASS  redis: keyspace runs on the replica
+  PASS  redis: the keys copied over
+  PASS  redis: TLS, against its CA
+  PASS  redis: TLS: up
+  PASS  redis: TLS: the other jobs too
+  PASS  redis: TLS: a certificate it cannot trust fails the run
+  PASS  redis: and says why
+  PASS  redis: plain TCP to a TLS port fails the run
+  PASS  redis: a wrong password fails, though the default user is open
+  PASS  redis: and says why
+  PASS  redis: with no password, as the default user
+  PASS  redis: up
+  PASS  redis: a wrong password fails the run
+  PASS  redis: and says why
+  PASS  redis: a user that may not run INFO fails the run
+  PASS  redis: and says why
+  PASS  redis: a server that is down still runs
+  PASS  redis: and reads as up 0
+  PASS  redis: the other jobs succeed when it is down
+  PASS  redis: and say nothing
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  PASS  redis: metrics reach the backend
+  PASS  redis: the password is written nowhere
+71 passed, 0 failed
+
+# Both sides, streaming.
+$ REDIS_PORT=16379 bash packs/redis/replication.sh
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=172.20.0.4_6379
+metric lag_bytes 0 replica=172.20.0.4_6379
+metric lag_seconds 0 replica=172.20.0.4_6379
+$ REDIS_PORT=16380 bash packs/redis/replication.sh
+metric is_replica 1
+metric replicas 0
+metric link_up 1
+metric last_io_seconds 9
+metric sync_in_progress 0
+
+# The replica stops.
+$ REDIS_PORT=16379 bash packs/redis/replication.sh
+metric is_replica 0
+metric replicas 0
+$ REDIS_PORT=16380 bash packs/redis/status.sh
+metric up 0
+(the replica's other jobs print nothing while it does not answer; status reports it)
+
+# The replica starts again, and catches up.
+$ REDIS_PORT=16379 bash packs/redis/replication.sh
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=172.20.0.4_6379
+metric lag_bytes 0 replica=172.20.0.4_6379
+metric lag_seconds 0 replica=172.20.0.4_6379
+$ REDIS_PORT=16380 bash packs/redis/replication.sh
+metric is_replica 1
+metric replicas 0
+metric link_up 1
+metric last_io_seconds 2
+metric sync_in_progress 0
+evidence: reports/runs/2026-11-20/fedora/pack-redis-6-replication

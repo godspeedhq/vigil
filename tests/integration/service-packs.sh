@@ -10,9 +10,9 @@
 # LICENSE file for the full terms.
 #
 # Integration test: the service packs (packs/postgres, packs/mysql,
-# packs/nginx) against real servers, on Linux and macOS. The twin of
-# Service-Packs.ps1, which tests postgres on Windows (nginx and mysql have no
-# Windows scripts).
+# packs/redis, packs/nginx) against real servers, on Linux and macOS. The
+# twin of Service-Packs.ps1, which tests them on Windows (nginx has no
+# Windows script).
 #
 # A pack is tested only when its server is given, and SKIPped otherwise:
 #   VIGIL_IT_PG_HOST, VIGIL_IT_PG_PORT   a PostgreSQL server (default port 5432)
@@ -32,6 +32,19 @@
 #                                        lock and make a deadlock
 #   VIGIL_IT_MYSQL_REPLICA_HOST, _PORT   optional: a replica of it
 #                                        (compose.mysql.yaml)
+#   VIGIL_IT_REDIS_HOST, _PORT           a Redis or Valkey server (default
+#                                        port 6379)
+#   VIGIL_IT_REDIS_PASSWORD              its vigil_monitor user's password; the
+#                                        user may run INFO and PING, and
+#                                        nothing more
+#   VIGIL_IT_REDIS_ADMIN_PASSWORD        optional: its admin user's, to make
+#                                        keys, lookups, a blocked client,
+#                                        evictions and a snapshot
+#   VIGIL_IT_REDIS_REPLICA_HOST, _PORT   optional: a replica of it
+#   VIGIL_IT_REDIS_TLS_HOST, _PORT       optional: a server that speaks TLS
+#                                        only, its default user open, with
+#   VIGIL_IT_REDIS_CACERT                the CA its certificate is from
+#                                        (compose.redis.yaml has all three)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
@@ -46,7 +59,13 @@
 # the run and says why, and the password is written nowhere. For mysql
 # also: a row lock held by a transaction idle on its connection, with
 # another waiting for it, and a deadlock; a replica from both sides; a wrong
-# password and a server that is down.
+# password and a server that is down. For redis also: keys in two
+# databases, lookups that hit and miss, a blocked client, evictions at
+# maxmemory and a snapshot; a replica from both sides; TLS against a CA, and
+# refused when the certificate cannot be trusted or when asked without TLS;
+# a server with no password; a wrong password, even where the server's
+# default user would answer; a user that may not run INFO; and a server
+# that is down.
 #
 # Exit code: 0 all passed or skipped, 1 any failed.
 
@@ -91,7 +110,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres mysql nginx; do
+for p in postgres mysql redis nginx; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -363,6 +382,210 @@ INSERT INTO vigil_it_ledger VALUES (1, 0), (2, 0);\n' | myroot
     set_env MYSQL_TCP_PORT "${VIGIL_IT_MYSQL_PORT:-3306}"
 fi
 
+# --- redis ------------------------------------------------------------------
+if [ -z "${VIGIL_IT_REDIS_HOST-}" ] || [ -z "${VIGIL_IT_REDIS_PASSWORD-}" ]; then
+    printf '  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD\n'
+elif ! command -v redis-cli > /dev/null 2>&1 && ! command -v valkey-cli > /dev/null 2>&1; then
+    printf '  SKIP  redis: neither redis-cli nor valkey-cli is installed here\n'
+else
+    # The jobs have their password from Vigil, or none: never from this
+    # test's own environment.
+    unset REDISCLI_AUTH VALKEYCLI_AUTH
+    rport=${VIGIL_IT_REDIS_PORT:-6379}
+    printf 'redis at %s:%s\n' "$VIGIL_IT_REDIS_HOST" "$rport"
+    rclient=$(command -v redis-cli || command -v valkey-cli)
+    # The test's own commands, as admin, which may do anything.
+    radmin() {
+        REDISCLI_AUTH=$VIGIL_IT_REDIS_ADMIN_PASSWORD "$rclient" -h "$VIGIL_IT_REDIS_HOST" -p "$rport" --user admin "$@" 2> /dev/null
+    }
+    rjobs_on() { vigil pack list | awk '$1 ~ /^redis_/ { print $2 }' | tr '\n' ' ' | sed 's/ $//'; }
+    # Whether the last value job $1 printed for $2 (tags $3) is a number
+    # from $4 to $5.
+    between() { local v; v=$(printed "$1" "$2" "${3-}"); awk -v v="$v" -v a="$4" -v b="$5" 'BEGIN { print (v ~ /^-?[0-9]+(\.[0-9]+)?$/ && v + 0 >= a && v + 0 <= b) ? "yes" : "no [" v "]" }'; }
+    # The redis jobs' TLS lines: REDIS_TLS=$1 and REDIS_CACERT=$2, each left
+    # out when empty, as an operator adds them under REDIS_PORT.
+    tls_env() {
+        awk -v tls="$1" -v ca="$2" '
+            /^env *= REDIS_(TLS|CACERT)=/ { next }
+            { print }
+            /^env *= REDIS_PORT=/ {
+                if (tls != "") print "env         = REDIS_TLS=" tls
+                if (ca != "") print "env         = REDIS_CACERT=" ca
+            }' "$root/config/vigil.config" > "$work/cfg" && cat "$work/cfg" > "$root/config/vigil.config"
+    }
+    # Its last run's log, for what it said.
+    said() {
+        local f rid
+        f=$(ls "$root/logs/jobs/$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    runs() { vigil run "$1" > "$work/out" 2>&1; echo $?; }
+    check 'redis: off until enabled' 'off off off off off' "$(rjobs_on)"
+    out=$(vigil pack enable redis 2>&1)
+    check 'redis: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'redis: its jobs are on' 'on on on on on' "$(rjobs_on)"
+    check 'redis: the password is a secret reference' 1 "$(grep -c '^secret *= REDISCLI_AUTH=secret:REDIS_MONITOR_PASSWORD' "$root/config/vigil.config" | awk '{ print ($1 >= 1) }')"
+    printf '%s' "$VIGIL_IT_REDIS_PASSWORD" | vigil secret set REDIS_MONITOR_PASSWORD --stdin > /dev/null
+    set_env REDIS_HOST "$VIGIL_IT_REDIS_HOST"
+    set_env REDIS_PORT "$rport"
+    check 'redis: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+
+    # With admin: a lookup that hits and one that misses; more data than
+    # maxmemory allows, when there is a limit, so the server evicts; then
+    # keys in two databases, some expiring; a client blocked on a list no one
+    # writes; and a snapshot. The lookups come first, and the keys two
+    # seconds after the fill: the server's LRU clock ticks once a second, and
+    # a key written in the same second as the fill may be evicted with it.
+    if [ -n "${VIGIL_IT_REDIS_ADMIN_PASSWORD-}" ]; then
+        radmin SET vigil_it:key:1 1 > /dev/null
+        radmin GET vigil_it:key:1 > /dev/null
+        radmin GET vigil_it:no-such-key > /dev/null
+        maxmem=$(radmin CONFIG GET maxmemory | tail -n 1 | tr -d '\r')
+        if [ "${maxmem:-0}" -gt 0 ] 2> /dev/null; then
+            n=$((maxmem / 4096 / 2000 + 1))
+            for i in $(seq 1 $((n * 2))); do
+                radmin EVAL "for i = 1, 2000 do redis.call('SET', 'vigil_it:fill:' .. ARGV[1] .. ':' .. i, string.rep('x', 4096)) end" 0 "$i" > /dev/null
+            done
+            sleep 2
+        fi
+        for i in 1 2 3 4 5; do radmin SET "vigil_it:key:$i" "$i" > /dev/null; done
+        radmin -n 3 SET vigil_it:expiring 1 EX 600 > /dev/null
+        radmin BLPOP vigil_it:never 25 > /dev/null &
+        hold=$!
+        radmin BGSAVE > /dev/null
+        for _ in $(seq 1 30); do
+            radmin INFO persistence | tr -d '\r' | grep -q '^rdb_bgsave_in_progress:0' && break
+            sleep 1
+        done
+        sleep 2
+    else
+        printf '  SKIP  redis: keys, lookups, a blocked client, evictions and a snapshot: set VIGIL_IT_REDIS_ADMIN_PASSWORD\n'
+    fi
+    for j in status memory replication persistence keyspace; do
+        check "redis: $j runs" 0 "$(runs "redis_$j")"
+        grep -h ' out metric ' "$root/logs/jobs/redis_$j"/*.log | tail -n 20 | sed 's/^[^ ]* [^ ]* out /        /'
+    done
+    check 'redis: up' 1 "$(printed redis_status up)"
+    check 'redis: what it is' yes "$(grep -h ' out metric info 1 server=' "$root"/logs/jobs/redis_status/*.log | grep -qE 'server=(redis|valkey) version=[0-9][0-9.]* mode=standalone$' && echo yes || echo no)"
+    check 'redis: not loading' 0 "$(printed redis_status loading)"
+    check 'redis: clients seen' yes "$(between redis_status clients '' 1 100000)"
+    check 'redis: the limit' yes "$(between redis_status max_clients '' 1 10000000)"
+    check 'redis: clients against it' yes "$(between redis_status clients_pct '' 0 100)"
+    check 'redis: commands counted' yes "$(between redis_status commands_count '' 1 1e18)"
+    check 'redis: memory used' yes "$(between redis_memory used_bytes '' 1 1e15)"
+    check 'redis: memory from the system' yes "$(between redis_memory rss_bytes '' 1 1e15)"
+    check 'redis: the limit and its policy' yes "$(grep -h ' out metric max_bytes [0-9]* policy=[a-z-]*$' "$root"/logs/jobs/redis_memory/*.log > /dev/null && echo yes || echo no)"
+    check 'redis: fragmentation' yes "$(between redis_memory fragmentation_ratio '' 0 100000)"
+    check 'redis: a primary' 0 "$(printed redis_replication is_replica)"
+    check 'redis: the last snapshot worked' 1 "$(printed redis_persistence last_save_ok)"
+    check 'redis: its age' yes "$(between redis_persistence last_save_age_seconds '' 0 1e9)"
+    check 'redis: the append-only file is fine' 1 "$(printed redis_persistence aof_last_write_ok)"
+    check 'redis: keys in db0' yes "$(between redis_keyspace keys db=db0 0 1e12)"
+    check 'redis: no warning taken for data' 0 "$(grep ' out metric ' "$root"/logs/jobs/redis_*/*.log | grep -vcE ' out metric [a-z_]+ -?[0-9]+(\.[0-9]+)?( [a-z]+=[A-Za-z0-9_.-]+)*$')"
+    if [ -n "${VIGIL_IT_REDIS_ADMIN_PASSWORD-}" ]; then
+        check 'redis: a lookup that hit' yes "$(between redis_status hits_count '' 1 1e18)"
+        check 'redis: one that missed' yes "$(between redis_status misses_count '' 1 1e18)"
+        check 'redis: the hit rate' yes "$(between redis_status hit_pct '' 0 100)"
+        check 'redis: the blocked client' yes "$(between redis_status blocked_clients '' 1 100000)"
+        check 'redis: keys in db3' yes "$(between redis_keyspace keys db=db3 1 1e12)"
+        check 'redis: expiring in db3' yes "$(between redis_keyspace expires db=db3 1 1e12)"
+        check 'redis: the snapshot just written' yes "$(between redis_persistence last_save_age_seconds '' 0 60)"
+        check 'redis: its fork timed' yes "$(between redis_persistence last_fork_usec '' 1 1e9)"
+        if [ "${maxmem:-0}" -gt 0 ] 2> /dev/null; then
+            check 'redis: keys evicted at maxmemory' yes "$(between redis_status evicted_keys_count '' 1 1e18)"
+            check 'redis: memory against the limit' yes "$(between redis_memory used_pct '' 50 150)"
+            check 'redis: the policy that evicts' yes "$(grep -h ' out metric max_bytes ' "$root"/logs/jobs/redis_memory/*.log | tail -n 1 | grep -q 'policy=allkeys-lru$' && echo yes || echo no)"
+        fi
+        kill "$hold" 2> /dev/null
+        wait "$hold" 2> /dev/null
+        hold=''
+    fi
+
+    # With a replica of this server: the primary sees it in step, and the
+    # replica says it is one, linked and up to date.
+    if [ -n "${VIGIL_IT_REDIS_REPLICA_HOST-}" ]; then
+        check 'redis: the replica seen from the primary' yes "$(between redis_replication replicas '' 1 1000)"
+        check 'redis: in step' 1 "$(printed redis_replication online replica=)"
+        check 'redis: its lag in bytes' yes "$(between redis_replication lag_bytes replica= 0 1e15)"
+        check 'redis: its lag in seconds' yes "$(between redis_replication lag_seconds replica= 0 1e9)"
+        set_env REDIS_HOST "$VIGIL_IT_REDIS_REPLICA_HOST"
+        set_env REDIS_PORT "${VIGIL_IT_REDIS_REPLICA_PORT:-6379}"
+        check 'redis: replication runs on the replica' 0 "$(runs redis_replication)"
+        grep -h ' out metric ' "$root/logs/jobs/redis_replication"/*.log | tail -n 5 | sed 's/^[^ ]* [^ ]* out /        /'
+        check 'redis: a replica' 1 "$(printed redis_replication is_replica)"
+        check 'redis: its link up' 1 "$(printed redis_replication link_up)"
+        check 'redis: heard from the primary' yes "$(between redis_replication last_io_seconds '' 0 60)"
+        check 'redis: no copy under way' 0 "$(printed redis_replication sync_in_progress)"
+        if [ -n "${VIGIL_IT_REDIS_ADMIN_PASSWORD-}" ]; then
+            check 'redis: keyspace runs on the replica' 0 "$(runs redis_keyspace)"
+            check 'redis: the keys copied over' yes "$(between redis_keyspace keys db=db3 1 1e12)"
+        fi
+        set_env REDIS_HOST "$VIGIL_IT_REDIS_HOST"
+        set_env REDIS_PORT "$rport"
+    else
+        printf '  SKIP  redis: a replica: set VIGIL_IT_REDIS_REPLICA_HOST (compose.redis.yaml)\n'
+    fi
+
+    # TLS: the server's certificate checked against the CA given; one that
+    # cannot be trusted, and plain TCP to a TLS port, fail the run. This
+    # server's default user is open: with no password the jobs read it as
+    # that user, and a wrong password must still fail, though the default
+    # user would answer.
+    if [ -n "${VIGIL_IT_REDIS_TLS_HOST-}" ] && [ -n "${VIGIL_IT_REDIS_CACERT-}" ]; then
+        set_env REDIS_HOST "$VIGIL_IT_REDIS_TLS_HOST"
+        set_env REDIS_PORT "${VIGIL_IT_REDIS_TLS_PORT:-6379}"
+        tls_env 1 "$VIGIL_IT_REDIS_CACERT"
+        check 'redis: TLS, against its CA' 0 "$(runs redis_status)"
+        check 'redis: TLS: up' 1 "$(printed redis_status up)"
+        check 'redis: TLS: the other jobs too' '0 0 0 0' "$(for j in memory replication persistence keyspace; do runs "redis_$j"; done | tr '\n' ' ' | sed 's/ $//')"
+        tls_env 1 ''
+        check 'redis: TLS: a certificate it cannot trust fails the run' 2 "$(runs redis_status)"
+        check 'redis: and says why' yes "$(said redis_status 'INFO failed')"
+        tls_env 0 ''
+        check 'redis: plain TCP to a TLS port fails the run' 2 "$(runs redis_status)"
+        tls_env 1 "$VIGIL_IT_REDIS_CACERT"
+        printf 'not-the-password' | vigil secret set REDIS_MONITOR_PASSWORD --stdin > /dev/null
+        check 'redis: a wrong password fails, though the default user is open' 2 "$(runs redis_status)"
+        check 'redis: and says why' yes "$(said redis_status 'refused the login')"
+        printf '%s' "$VIGIL_IT_REDIS_PASSWORD" | vigil secret set REDIS_MONITOR_PASSWORD --stdin > /dev/null
+        # No password at all, as on a server with none: the secret lines go.
+        cp "$root/config/vigil.config" "$work/cfg.keep"
+        grep -v '^secret *= REDISCLI_AUTH=' "$work/cfg.keep" > "$root/config/vigil.config"
+        check 'redis: with no password, as the default user' 0 "$(runs redis_status)"
+        check 'redis: up' 1 "$(printed redis_status up)"
+        cat "$work/cfg.keep" > "$root/config/vigil.config"
+        tls_env '' ''
+        set_env REDIS_HOST "$VIGIL_IT_REDIS_HOST"
+        set_env REDIS_PORT "$rport"
+    else
+        printf '  SKIP  redis: TLS: set VIGIL_IT_REDIS_TLS_HOST and VIGIL_IT_REDIS_CACERT (compose.redis.yaml)\n'
+    fi
+
+    # A wrong password fails the run and says why; it is not "down".
+    printf 'not-the-password' | vigil secret set REDIS_MONITOR_PASSWORD --stdin > /dev/null
+    check 'redis: a wrong password fails the run' 2 "$(runs redis_status)"
+    check 'redis: and says why' yes "$(said redis_status 'refused the login')"
+    printf '%s' "$VIGIL_IT_REDIS_PASSWORD" | vigil secret set REDIS_MONITOR_PASSWORD --stdin > /dev/null
+    # A user that may not run INFO.
+    set_env REDIS_USER vigil_noinfo
+    check 'redis: a user that may not run INFO fails the run' 2 "$(runs redis_memory)"
+    check 'redis: and says why' yes "$(said redis_memory 'NOPERM')"
+    set_env REDIS_USER vigil_monitor
+
+    # A server that does not answer is a reading; the other jobs say nothing.
+    set_env REDIS_PORT 1
+    check 'redis: a server that is down still runs' 0 "$(runs redis_status)"
+    check 'redis: and reads as up 0' 0 "$(printed redis_status up)"
+    before=$(grep -c ' out metric ' "$root"/logs/jobs/redis_memory/*.log)
+    check 'redis: the other jobs succeed when it is down' 0 "$(runs redis_memory)"
+    check 'redis: and say nothing' "$before" "$(grep -c ' out metric ' "$root"/logs/jobs/redis_memory/*.log)"
+    set_env REDIS_PORT "$rport"
+    # And it is up again, for the backend.
+    runs redis_status > /dev/null
+fi
+
 # --- nginx ------------------------------------------------------------------
 if [ -z "${VIGIL_IT_NGINX_URL-}" ]; then
     printf '  SKIP  nginx: set VIGIL_IT_NGINX_URL\n'
@@ -400,6 +623,10 @@ fi
 if [ -n "${VIGIL_IT_MYSQL_HOST-}" ] && [ -n "${VIGIL_IT_MYSQL_PASSWORD-}" ] && { command -v mysql || command -v mariadb; } > /dev/null 2>&1; then
     check 'mysql: metrics reach the backend' yes "$(grep -q '^mysql_connections{' "$root/metrics/vigil.prom" && grep -q '^mysql_activity_waiting{' "$root/metrics/vigil.prom" && echo yes || echo no)"
     check 'mysql: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_MYSQL_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+fi
+if [ -n "${VIGIL_IT_REDIS_HOST-}" ] && [ -n "${VIGIL_IT_REDIS_PASSWORD-}" ] && { command -v redis-cli || command -v valkey-cli; } > /dev/null 2>&1; then
+    check 'redis: metrics reach the backend' yes "$(grep -q '^redis_up{' "$root/metrics/vigil.prom" && grep -q '^redis_memory_used_bytes{' "$root/metrics/vigil.prom" && grep -q '^redis_keyspace_keys{.*db="db0"' "$root/metrics/vigil.prom" && echo yes || echo no)"
+    check 'redis: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_REDIS_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
     check 'nginx: metrics reach the backend' yes "$(grep -q '^nginx_requests_count{' "$root/metrics/vigil.prom" && echo yes || echo no)"

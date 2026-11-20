@@ -232,6 +232,105 @@ metric lag_seconds 0 channel=default
 
 The source still counts the stopped replica (`replicas 1`) until their connection times out; the replica's own `mysql.up` says at once that it is gone.
 
+### redis
+
+A Redis or Valkey server, on this machine or any it can reach (a container, another server, a managed service), from its `INFO`, as a user that may run `INFO` and `PING` and nothing else. On Linux and macOS through `redis-cli` or `valkey-cli`, whichever is there; on Windows the scripts speak the server's protocol themselves, with what ships with Windows, so there is nothing to install. Linux, macOS and Windows.
+
+1. Create the user once, as an administrator (Redis 6 or later, or Valkey):
+
+   ```text
+   ACL SETUSER vigil_monitor on >... -@all +info +ping
+   ```
+
+   Then `ACL SAVE` if the server keeps its users in an ACL file, or `CONFIG REWRITE` if it keeps them in its configuration, so the user outlives a restart. It can read no key and change nothing.
+2. Give Vigil its password: `vigil secret set REDIS_MONITOR_PASSWORD`, as the account Vigil runs as. The jobs pass it in `REDISCLI_AUTH`, which `redis-cli` and `valkey-cli` read for themselves: never on a command line.
+3. `vigil pack enable redis`. The jobs connect to `127.0.0.1:6379` as `vigil_monitor`; for anything else, edit their `env` lines (`REDIS_HOST`, `REDIS_PORT`, `REDIS_USER`) in `vigil.config`.
+
+A server with a password but no users of its own (`requirepass` only): set `REDIS_USER=default`. A server with no password at all: delete the jobs' `secret` lines, and they read it as its default user.
+
+**TLS:** give each job `env = REDIS_TLS=1`, and `env = REDIS_CACERT=<a CA file>` unless the server's certificate is from a CA the machine already trusts. On Linux and macOS, `REDIS_CERT` and `REDIS_KEY` give a client certificate, for a server that asks for one. A certificate that cannot be trusted fails the run and says so. Know this: `redis-cli` and `valkey-cli` check that the certificate is from a trusted CA, but not that it names the server (we tried Redis 6.2 to 8.10 and Valkey 7.2 to 9.2), so give `REDIS_CACERT` a CA that signs only your own servers. On Windows, .NET checks the name too.
+
+**What it needs:**
+
+| | Linux | macOS | Windows |
+| --- | --- | --- | --- |
+| A client on the Vigil machine | `redis-cli` or `valkey-cli`: Debian and Ubuntu `redis-tools` or `valkey-tools`, Fedora `valkey`, RHEL 9 and its rebuilds `redis` or `valkey` | Homebrew's `redis` or `valkey` | None |
+| The server | Redis 6.2 or later, or Valkey; tested with Redis 6.2, 7.4 and 8.10 and Valkey 7.2, 8.1 and 9.2 | | |
+| A user | `vigil_monitor`, allowed `INFO` and `PING` only (step 1) | | |
+| A secret | `REDIS_MONITOR_PASSWORD`, set with `vigil secret set` as the account Vigil runs as (step 2) | | |
+| Where to connect | Each job's `env` lines: `REDIS_HOST`, `REDIS_PORT`, `REDIS_USER`; for TLS `REDIS_TLS`, `REDIS_CACERT` | | |
+
+The client must be on the `PATH` the Vigil service runs with. Only `redis-cli` from Redis 7.4 and `valkey-cli` from Valkey 8.1 have a connect timeout: with an older client (Ubuntu 24.04's is 7.0), a server that drops packets rather than refusing the connection keeps the run waiting until the job's `max_runtime`, and the run times out instead of reading `up 0`.
+
+| Job | Reports | Linux | macOS | Windows |
+| --- | --- | --- | --- | --- |
+| `redis_status` | Up, what it is (Redis or Valkey, its version, standalone, cluster or Sentinel), clients and the limit, blocked clients, refused connections, commands, lookups that hit and missed, evicted and expired keys, error replies | Yes | Yes | Yes |
+| `redis_memory` | Memory used against `maxmemory` and the policy at the limit, memory from the system, the peak, fragmentation | Yes | Yes | Yes |
+| `redis_replication` | On a primary: replicas connected, and each one's state and lag in bytes and seconds. On a replica: whether its link is up, when it last heard from the primary, and whether a full copy is under way | Yes | Yes | Yes |
+| `redis_persistence` | Whether the last snapshot and append-only file writes worked, the snapshot's age and the changes since, how long the last fork stopped the server | Yes | Yes | Yes |
+| `redis_keyspace` | Keys in each database, and those with a time to live, from the server's own counts: it never reads a key | Yes | Yes | Yes |
+
+Each script's header says what its metrics mean and how to read them. Worth knowing:
+
+- `hit_pct` is since the server started, so it moves slowly: graph `hits_count` and `misses_count` as rates to see the hit rate now.
+- `fragmentation_ratio` is high on a server with little data, with no harm: judge it once there is data. Below 1, the system is swapping the server out.
+- A cluster node is read as a server of its own. On a Sentinel, `redis_status` reports it (`mode=sentinel`) and the other jobs print nothing.
+
+A server that does not answer reports `redis.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed. A refused login, a user that may not run `INFO`, and a TLS handshake that fails, fail the run, and its log says why. A wrong password fails even where the server's default user is open and would answer. For several servers, copy a job's section under a new name, as for postgres.
+
+**Tested** on 2026-11-20 on the Fedora 44 test machine, against **Redis 6.2.24, 7.4.12 and 8.10.3 and Valkey 7.2.16, 8.1.12 and 9.2.0**, each a primary with a replica and a TLS server beside it (`compose.redis.yaml`), each with its own client, by `tests/integration/backends/scripts/run-replication.sh redis <image>`: `service-packs.sh` through Vigil, **71 passed, 0 failed** on each, then the replica stopped and started. The full console output: [Redis 6.2](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-redis-6-replication/console.txt), [Redis 7.4](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-redis-7-replication/console.txt), [Redis 8.10](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-redis-8-replication/console.txt), [Valkey 7.2](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-valkey-7-replication/console.txt), [Valkey 8.1](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-valkey-8-replication/console.txt), [Valkey 9.2](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-valkey-9-replication/console.txt). **On Windows**, every job on Windows PowerShell 5.1 and PowerShell 7 against the same servers on the Fedora machine, then `Service-Packs.ps1` through Vigil itself on each: [Valkey 9.2](../tests/integration/backends/reports/runs/2026-11-20/windows/pack-valkey-windows/console.txt), [Redis 8.10](../tests/integration/backends/reports/runs/2026-11-20/windows/pack-redis-windows/console.txt). In CI, the same test runs against Valkey 9.2 and Redis 8.10, with the runner's own `redis-cli` (8.0.5 on 2026-11-20), on every change to Vigil itself. From Valkey 9.2, on Linux:
+
+Twice its `maxmemory` written to a primary that evicts (`allkeys-lru`), with a client blocked on a list no one writes:
+
+```text
+  PASS  redis: status runs
+        metric up 1
+        metric info 1 server=valkey version=9.2.0 mode=standalone
+        metric clients 2
+        metric blocked_clients 1
+        metric evicted_keys_count 15825
+  PASS  redis: memory runs
+        metric used_bytes 33560408
+        metric max_bytes 33554432 policy=allkeys-lru
+        metric used_pct 100
+        metric fragmentation_ratio 1.72
+```
+
+Replication, from both sides, as the replica stops and starts again:
+
+```text
+# Both sides, streaming.
+$ REDIS_PORT=16379 bash packs/redis/replication.sh
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=172.20.0.4_6379
+metric lag_bytes 0 replica=172.20.0.4_6379
+metric lag_seconds 1 replica=172.20.0.4_6379
+$ REDIS_PORT=16380 bash packs/redis/replication.sh
+metric is_replica 1
+metric replicas 0
+metric link_up 1
+metric last_io_seconds 7
+metric sync_in_progress 0
+
+# The replica stops.
+$ REDIS_PORT=16379 bash packs/redis/replication.sh
+metric is_replica 0
+metric replicas 0
+$ REDIS_PORT=16380 bash packs/redis/status.sh
+metric up 0
+
+# The replica starts again, and catches up.
+$ REDIS_PORT=16379 bash packs/redis/replication.sh
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=172.20.0.4_6379
+metric lag_bytes 0 replica=172.20.0.4_6379
+metric lag_seconds 1 replica=172.20.0.4_6379
+```
+
+**On macOS**, the Mac test machine has no Redis client, so the macOS scripts ran under its bash 3.2 and awk against replies captured from real Valkey 9.2 and Redis 6.2 servers, replayed by a stand-in `redis-cli`, then through Vigil: the same output, line for line, as the Linux scripts give on Fedora for the same replies. [The console output, with the replies and the stand-in](../tests/integration/backends/reports/runs/2026-11-20/macos/pack-redis-macos-replay/console.txt).
+
 ### nginx
 
 An nginx server on this machine, from its `stub_status` page, which you turn on once, reachable from this machine only:
@@ -254,6 +353,11 @@ Then `vigil pack enable nginx`, which reminds you of the page. The job reads `ht
 | `postgres.cache_hit_pct` | Above 99, on a busy database | Falling | Well below your usual |
 | `postgres.deadlocks_count` (as a rate) | 0 | Any | Rising |
 | `nginx.dropped_count` (as a rate) | 0 | Any | Rising: nginx is turning connections away |
+| `redis.up` | 1 | | 0 |
+| `redis.clients_pct` | Below 70 | 70 to 90 | Above 90, or `rejected_connections_count` rising: clients are turned away |
+| `redis.memory.used_pct` | Below 80, or steady at the limit on a cache meant to evict | 80 to 95 with policy `noeviction` | At 100 with policy `noeviction`: writes fail |
+| `redis.replication.link_up` (a replica) | 1 | | 0: it serves older and older data |
+| `redis.persistence.last_save_ok`, `aof_last_write_ok` | 1 | | 0: the disk is full or not writable, and the server refuses writes |
 
 ## Writing a pack
 

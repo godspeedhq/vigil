@@ -1,0 +1,69 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Redis or Valkey for the redis pack (tests/integration/service-packs.sh,
+# with VIGIL_IT_REDIS_HOST), one image at a time: REDIS_IMAGE, any Redis
+# from 6.2 or any Valkey (default: Valkey 9.2). Not somewhere Vigil sends:
+# what its pack reads.
+#
+#   redis-primary  on 16379: snapshots, the append-only file, maxmemory
+#   redis-replica  on 16380: a replica of redis-primary
+#   redis-tls      on 16381: TLS only, its certificate from REDIS_TLS_DIR
+#                  (server.crt, server.key, ca.crt: scripts/run-replication.sh
+#                  makes them); the default user open, as on an unsecured
+#                  server
+#
+# configs/services/redis/start.sh makes each one's users: vigil_monitor, the
+# pack's, with what README says to grant, and the tests' own. Passwords from
+# .env: REDIS_MONITOR_PASSWORD, REDIS_ADMIN_PASSWORD and
+# REDIS_REPLICATION_PASSWORD. Small enough for a test machine: each is
+# capped at 256 MB.
+
+x-redis: &redis
+  image: ${REDIS_IMAGE:-valkey/valkey:9.2.0-alpine}
+  mem_limit: 256m
+  entrypoint: ["/bin/sh", "/vigil-it/start.sh"]
+  volumes:
+    - ./configs/services/redis/start.sh:/vigil-it/start.sh:ro,z
+
+x-redis-env: &redis-env
+  MONITOR_PASSWORD: ${REDIS_MONITOR_PASSWORD:-}
+  ADMIN_PASSWORD: ${REDIS_ADMIN_PASSWORD:-}
+  REPLICATION_PASSWORD: ${REDIS_REPLICATION_PASSWORD:-}
+
+services:
+  redis-primary:
+    <<: *redis
+    environment:
+      <<: *redis-env
+      ROLE: primary
+    ports:
+      - "127.0.0.1:16379:6379"
+
+  redis-replica:
+    <<: *redis
+    depends_on:
+      - redis-primary
+    environment:
+      <<: *redis-env
+      ROLE: replica
+      PRIMARY_HOST: redis-primary
+    ports:
+      - "127.0.0.1:16380:6379"
+
+  redis-tls:
+    <<: *redis
+    environment:
+      <<: *redis-env
+      ROLE: tls
+    ports:
+      - "127.0.0.1:16381:6379"
+    volumes:
+      - ./configs/services/redis/start.sh:/vigil-it/start.sh:ro,z
+      - ${REDIS_TLS_DIR:-./.redis-tls}:/tls:ro,z

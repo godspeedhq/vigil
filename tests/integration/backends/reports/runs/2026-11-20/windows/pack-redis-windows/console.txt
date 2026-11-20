@@ -1,0 +1,449 @@
+== pack-redis-windows
+date     2026-11-20T08:46:24Z
+host     DESKTOP-5RNMH9R (Windows 10.0.22631.0)
+vigil    73f393a57fc88dac3ed5c67a4db9c8f404a4c973, with local changes
+shells   Windows PowerShell 5.1.22621.6133, PowerShell 7.6.10
+client   none: the scripts speak the server's protocol themselves, with .NET's TCP and TLS
+server   Redis 8.10.3, a primary, a replica and a TLS-only server on the Fedora test machine, through SSH tunnels
+
+# Every job, on the primary, on each PowerShell.
+> $env:REDIS_PORT=16379; powershell -File packs\redis\windows\status.ps1
+metric up 1
+metric info 1 server=redis version=8.10.3 mode=standalone
+metric loading 0
+metric uptime_seconds 22
+metric clients 1
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 4
+metric commands_count 37
+metric ops_per_sec 1
+metric hits_count 0
+metric misses_count 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 1
+[exit 0]
+> $env:REDIS_PORT=16379; powershell -File packs\redis\windows\memory.ps1
+metric used_bytes 1524104
+metric rss_bytes 23265280
+metric peak_bytes 1524424
+metric max_bytes 33554432 policy=allkeys-lru
+metric used_pct 4
+metric fragmentation_ratio 15.28
+[exit 0]
+> $env:REDIS_PORT=16379; powershell -File packs\redis\windows\replication.ps1
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=172.20.0.4_6379
+metric lag_bytes 0 replica=172.20.0.4_6379
+metric lag_seconds 0 replica=172.20.0.4_6379
+[exit 0]
+> $env:REDIS_PORT=16379; powershell -File packs\redis\windows\persistence.ps1
+metric last_save_ok 1
+metric last_save_age_seconds 26
+metric changes_since_save 0
+metric save_in_progress 0
+metric last_fork_usec 567
+metric aof_enabled 1
+metric aof_last_write_ok 1
+metric aof_last_rewrite_ok 1
+metric aof_rewrite_in_progress 0
+[exit 0]
+> $env:REDIS_PORT=16379; powershell -File packs\redis\windows\keyspace.ps1
+metric keys 0 db=db0
+metric expires 0 db=db0
+[exit 0]
+> $env:REDIS_PORT=16379; pwsh -File packs\redis\windows\status.ps1
+metric up 1
+metric info 1 server=redis version=8.10.3 mode=standalone
+metric loading 0
+metric uptime_seconds 28
+metric clients 1
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 9
+metric commands_count 53
+metric ops_per_sec 2
+metric hits_count 0
+metric misses_count 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 1
+[exit 0]
+> $env:REDIS_PORT=16379; pwsh -File packs\redis\windows\memory.ps1
+metric used_bytes 1524104
+metric rss_bytes 23265280
+metric peak_bytes 1524424
+metric max_bytes 33554432 policy=allkeys-lru
+metric used_pct 4
+metric fragmentation_ratio 15.28
+[exit 0]
+> $env:REDIS_PORT=16379; pwsh -File packs\redis\windows\replication.ps1
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=172.20.0.4_6379
+metric lag_bytes 0 replica=172.20.0.4_6379
+metric lag_seconds 1 replica=172.20.0.4_6379
+[exit 0]
+> $env:REDIS_PORT=16379; pwsh -File packs\redis\windows\persistence.ps1
+metric last_save_ok 1
+metric last_save_age_seconds 32
+metric changes_since_save 0
+metric save_in_progress 0
+metric last_fork_usec 567
+metric aof_enabled 1
+metric aof_last_write_ok 1
+metric aof_last_rewrite_ok 1
+metric aof_rewrite_in_progress 0
+[exit 0]
+> $env:REDIS_PORT=16379; pwsh -File packs\redis\windows\keyspace.ps1
+metric keys 0 db=db0
+metric expires 0 db=db0
+[exit 0]
+
+# The replica.
+> $env:REDIS_PORT=16380; powershell -File packs\redis\windows\replication.ps1
+metric is_replica 1
+metric replicas 0
+metric link_up 1
+metric last_io_seconds 5
+metric sync_in_progress 0
+[exit 0]
+> $env:REDIS_PORT=16380; pwsh -File packs\redis\windows\replication.ps1
+metric is_replica 1
+metric replicas 0
+metric link_up 1
+metric last_io_seconds 6
+metric sync_in_progress 0
+[exit 0]
+
+# TLS, the certificate checked against the test CA and the name 127.0.0.1.
+> $env:REDIS_PORT=16381; $env:REDIS_TLS=1; $env:REDIS_CACERT=ca.crt; powershell -File packs\redis\windows\status.ps1
+metric up 1
+metric info 1 server=redis version=8.10.3 mode=standalone
+metric loading 0
+metric uptime_seconds 38
+metric clients 1
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 1
+metric commands_count 9
+metric ops_per_sec 0
+metric hits_count 0
+metric misses_count 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 0
+[exit 0]
+> $env:REDIS_PORT=16381; $env:REDIS_TLS=1; $env:REDIS_CACERT=ca.crt; pwsh -File packs\redis\windows\status.ps1
+metric up 1
+metric info 1 server=redis version=8.10.3 mode=standalone
+metric loading 0
+metric uptime_seconds 40
+metric clients 1
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 2
+metric commands_count 11
+metric ops_per_sec 0
+metric hits_count 0
+metric misses_count 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 0
+[exit 0]
+
+# TLS, by a name the certificate does not hold.
+> $env:REDIS_HOST=localhost; $env:REDIS_PORT=16381; $env:REDIS_TLS=1; $env:REDIS_CACERT=ca.crt; powershell -File packs\redis\windows\status.ps1
+status: the TLS handshake failed: The remote certificate is invalid according to the validation procedure.
+[exit 1]
+> $env:REDIS_HOST=localhost; $env:REDIS_PORT=16381; $env:REDIS_TLS=1; $env:REDIS_CACERT=ca.crt; pwsh -File packs\redis\windows\status.ps1
+status: the TLS handshake failed: The remote certificate was rejected by the provided RemoteCertificateValidationCallback.
+[exit 1]
+
+# A server that is down.
+> $env:REDIS_PORT=1; powershell -File packs\redis\windows\status.ps1
+metric up 0
+[exit 0]
+> $env:REDIS_PORT=1; pwsh -File packs\redis\windows\status.ps1
+metric up 0
+[exit 0]
+
+# Through Vigil on Windows: tests\integration\Service-Packs.ps1, on powershell.
+PowerShell 5.1.22621.6133
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+redis at 127.0.0.1:16379
+  PASS  redis: off until enabled
+  PASS  redis: enabled
+        on: redis_status
+        on: redis_memory
+        on: redis_replication
+        on: redis_persistence
+        on: redis_keyspace
+        needs secret:REDIS_MONITOR_PASSWORD: not set: vigil secret set REDIS_MONITOR_PASSWORD, as the account Vigil runs as (an elevated prompt for a system install)
+        needs a user that may only read INFO, as an administrator: ACL SETUSER vigil_monitor on >... -@all +info +ping (then ACL SAVE or CONFIG REWRITE, so it outlives a restart)
+        settings in vigil.config: REDIS_HOST=127.0.0.1 REDIS_PORT=6379 REDIS_USER=vigil_monitor
+  PASS  redis: its jobs are on
+  PASS  redis: the password is a secret reference
+  PASS  redis: precheck is happy
+  PASS  redis: status runs
+        metric up 1
+        metric info 1 server=redis version=8.10.3 mode=standalone
+        metric loading 0
+        metric uptime_seconds 128
+        metric clients 2
+        metric blocked_clients 1
+        metric max_clients 10000
+        metric clients_pct 0
+        metric rejected_connections_count 0
+        metric connections_count 16
+        metric commands_count 20188
+        metric ops_per_sec 1
+        metric hits_count 1
+        metric misses_count 1
+        metric hit_pct 50
+        metric evicted_keys_count 14055
+        metric expired_keys_count 0
+        metric error_replies_count 1
+  PASS  redis: memory runs
+        metric used_bytes 33593184
+        metric rss_bytes 70279168
+        metric peak_bytes 71610296
+        metric max_bytes 33554432 policy=allkeys-lru
+        metric used_pct 100
+        metric fragmentation_ratio 2.09
+  PASS  redis: replication runs
+        metric is_replica 0
+        metric replicas 1
+        metric online 1 replica=172.20.0.4_6379
+        metric lag_bytes 0 replica=172.20.0.4_6379
+        metric lag_seconds 1 replica=172.20.0.4_6379
+  PASS  redis: persistence runs
+        metric last_save_ok 1
+        metric last_save_age_seconds 48
+        metric changes_since_save 0
+        metric save_in_progress 0
+        metric last_fork_usec 2355
+        metric aof_enabled 1
+        metric aof_last_write_ok 1
+        metric aof_last_rewrite_ok 1
+        metric aof_rewrite_in_progress 0
+  PASS  redis: keyspace runs
+        metric keys 5950 db=db0
+        metric expires 0 db=db0
+        metric keys 1 db=db3
+        metric expires 1 db=db3
+  PASS  redis: up
+  PASS  redis: what it is
+  PASS  redis: not loading
+  PASS  redis: clients seen
+  PASS  redis: the limit
+  PASS  redis: clients against it
+  PASS  redis: commands counted
+  PASS  redis: memory used
+  PASS  redis: memory from the system
+  PASS  redis: the limit and its policy
+  PASS  redis: fragmentation
+  PASS  redis: a primary
+  PASS  redis: the last snapshot worked
+  PASS  redis: its age
+  PASS  redis: the append-only file is fine
+  PASS  redis: keys in db0
+  PASS  redis: nothing but numbers taken for data
+  PASS  redis: a lookup that hit
+  PASS  redis: one that missed
+  PASS  redis: the hit rate
+  PASS  redis: the blocked client
+  PASS  redis: keys in db3
+  PASS  redis: expiring in db3
+  PASS  redis: the snapshot just written
+  PASS  redis: its fork timed
+  PASS  redis: keys evicted at maxmemory
+  PASS  redis: memory against the limit
+  PASS  redis: the policy that evicts
+  PASS  redis: the replica seen from the primary
+  PASS  redis: in step
+  PASS  redis: its lag in bytes
+  PASS  redis: its lag in seconds
+  PASS  redis: replication runs on the replica
+        metric is_replica 1
+        metric replicas 0
+        metric link_up 1
+        metric last_io_seconds 1
+        metric sync_in_progress 0
+  PASS  redis: a replica
+  PASS  redis: its link up
+  PASS  redis: heard from the primary
+  PASS  redis: no copy under way
+  PASS  redis: keyspace runs on the replica
+  PASS  redis: the keys copied over
+  PASS  redis: TLS, against its CA
+  PASS  redis: TLS: up
+  PASS  redis: TLS: the other jobs too
+  PASS  redis: TLS: a certificate it cannot trust fails the run
+  PASS  redis: and says why
+  PASS  redis: TLS: a certificate that names another host fails the run
+  PASS  redis: and says why
+  PASS  redis: plain TCP to a TLS port fails the run
+  PASS  redis: a wrong password fails, though the default user is open
+  PASS  redis: and says why
+  PASS  redis: with no password, as the default user
+  PASS  redis: up
+  PASS  redis: a wrong password fails the run
+  PASS  redis: and says why
+  PASS  redis: a user that may not run INFO fails the run
+  PASS  redis: and says why
+  PASS  redis: a server that is down still runs
+  PASS  redis: and reads as up 0
+  PASS  redis: the other jobs succeed when it is down
+  PASS  redis: and say nothing
+  PASS  redis: metrics reach the backend
+  PASS  redis: the password is written nowhere
+73 passed, 0 failed
+[exit 0]
+
+# Through Vigil on Windows: tests\integration\Service-Packs.ps1, on pwsh.
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+redis at 127.0.0.1:16379
+  PASS  redis: off until enabled
+  PASS  redis: enabled
+        on: redis_status
+        on: redis_memory
+        on: redis_replication
+        on: redis_persistence
+        on: redis_keyspace
+        needs secret:REDIS_MONITOR_PASSWORD: not set: vigil secret set REDIS_MONITOR_PASSWORD, as the account Vigil runs as (an elevated prompt for a system install)
+        needs a user that may only read INFO, as an administrator: ACL SETUSER vigil_monitor on >... -@all +info +ping (then ACL SAVE or CONFIG REWRITE, so it outlives a restart)
+        settings in vigil.config: REDIS_HOST=127.0.0.1 REDIS_PORT=6379 REDIS_USER=vigil_monitor
+  PASS  redis: its jobs are on
+  PASS  redis: the password is a secret reference
+  PASS  redis: precheck is happy
+  PASS  redis: status runs
+        metric up 1
+        metric info 1 server=redis version=8.10.3 mode=standalone
+        metric loading 0
+        metric uptime_seconds 528
+        metric clients 2
+        metric blocked_clients 1
+        metric max_clients 10000
+        metric clients_pct 0
+        metric rejected_connections_count 0
+        metric connections_count 30
+        metric commands_count 40634
+        metric ops_per_sec 1
+        metric hits_count 2
+        metric misses_count 2
+        metric hit_pct 50
+        metric evicted_keys_count 33489
+        metric expired_keys_count 0
+        metric error_replies_count 3
+  PASS  redis: memory runs
+        metric used_bytes 33587560
+        metric rss_bytes 81182720
+        metric peak_bytes 78868984
+        metric max_bytes 33554432 policy=allkeys-lru
+        metric used_pct 100
+        metric fragmentation_ratio 2.42
+  PASS  redis: replication runs
+        metric is_replica 0
+        metric replicas 1
+        metric online 1 replica=172.20.0.4_6379
+        metric lag_bytes 0 replica=172.20.0.4_6379
+        metric lag_seconds 0 replica=172.20.0.4_6379
+  PASS  redis: persistence runs
+        metric last_save_ok 1
+        metric last_save_age_seconds 48
+        metric changes_since_save 0
+        metric save_in_progress 0
+        metric last_fork_usec 2767
+        metric aof_enabled 1
+        metric aof_last_write_ok 1
+        metric aof_last_rewrite_ok 1
+        metric aof_rewrite_in_progress 0
+  PASS  redis: keyspace runs
+        metric keys 5953 db=db0
+        metric expires 0 db=db0
+        metric keys 1 db=db3
+        metric expires 1 db=db3
+  PASS  redis: up
+  PASS  redis: what it is
+  PASS  redis: not loading
+  PASS  redis: clients seen
+  PASS  redis: the limit
+  PASS  redis: clients against it
+  PASS  redis: commands counted
+  PASS  redis: memory used
+  PASS  redis: memory from the system
+  PASS  redis: the limit and its policy
+  PASS  redis: fragmentation
+  PASS  redis: a primary
+  PASS  redis: the last snapshot worked
+  PASS  redis: its age
+  PASS  redis: the append-only file is fine
+  PASS  redis: keys in db0
+  PASS  redis: nothing but numbers taken for data
+  PASS  redis: a lookup that hit
+  PASS  redis: one that missed
+  PASS  redis: the hit rate
+  PASS  redis: the blocked client
+  PASS  redis: keys in db3
+  PASS  redis: expiring in db3
+  PASS  redis: the snapshot just written
+  PASS  redis: its fork timed
+  PASS  redis: keys evicted at maxmemory
+  PASS  redis: memory against the limit
+  PASS  redis: the policy that evicts
+  PASS  redis: the replica seen from the primary
+  PASS  redis: in step
+  PASS  redis: its lag in bytes
+  PASS  redis: its lag in seconds
+  PASS  redis: replication runs on the replica
+        metric is_replica 1
+        metric replicas 0
+        metric link_up 1
+        metric last_io_seconds 1
+        metric sync_in_progress 0
+  PASS  redis: a replica
+  PASS  redis: its link up
+  PASS  redis: heard from the primary
+  PASS  redis: no copy under way
+  PASS  redis: keyspace runs on the replica
+  PASS  redis: the keys copied over
+  PASS  redis: TLS, against its CA
+  PASS  redis: TLS: up
+  PASS  redis: TLS: the other jobs too
+  PASS  redis: TLS: a certificate it cannot trust fails the run
+  PASS  redis: and says why
+  PASS  redis: TLS: a certificate that names another host fails the run
+  PASS  redis: and says why
+  PASS  redis: plain TCP to a TLS port fails the run
+  PASS  redis: a wrong password fails, though the default user is open
+  PASS  redis: and says why
+  PASS  redis: with no password, as the default user
+  PASS  redis: up
+  PASS  redis: a wrong password fails the run
+  PASS  redis: and says why
+  PASS  redis: a user that may not run INFO fails the run
+  PASS  redis: and says why
+  PASS  redis: a server that is down still runs
+  PASS  redis: and reads as up 0
+  PASS  redis: the other jobs succeed when it is down
+  PASS  redis: and say nothing
+  PASS  redis: metrics reach the backend
+  PASS  redis: the password is written nowhere
+73 passed, 0 failed
+[exit 0]
