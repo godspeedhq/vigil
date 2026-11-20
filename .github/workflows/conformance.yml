@@ -149,11 +149,12 @@ jobs:
       - name: installer (/bin/bash)
         run: /bin/bash tests/integration/install.sh
 
-  # The service packs against real servers: PostgreSQL, MySQL, MariaDB and
-  # nginx in Docker, as tests/integration/backends runs them. The runner has
-  # psql and MySQL's client, which also talks to MariaDB here. macOS runners
-  # have no Docker; the scripts are the same. Run with the suites only: a
-  # pack-only change brings its evidence instead.
+  # The service packs against real servers: PostgreSQL, MySQL, MariaDB,
+  # Valkey, Redis and nginx in Docker, as tests/integration/backends runs
+  # them. The runner has psql and MySQL's client, which also talks to
+  # MariaDB here; Ubuntu's redis-tools gives redis-cli, older than either
+  # server. macOS runners have no Docker; the scripts are the same. Run with
+  # the suites only: a pack-only change brings its evidence instead.
   service-packs:
     needs: changes
     if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'
@@ -161,7 +162,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-      - name: PostgreSQL 18, MySQL 8.4, MariaDB 11.4 and nginx
+      - name: PostgreSQL 18, MySQL 8.4, MariaDB 11.4, Valkey 9.2, Redis 8.10 and nginx
         run: |
           pg_super=$(openssl rand -hex 16)
           pg_monitor=$(openssl rand -hex 16)
@@ -175,6 +176,12 @@ jobs:
           echo "VIGIL_IT_PG_SUPER_PASSWORD=$pg_super" >> "$GITHUB_ENV"
           echo "VIGIL_IT_MYSQL_PASSWORD=$my_monitor" >> "$GITHUB_ENV"
           echo "VIGIL_IT_MYSQL_ROOT_PASSWORD=$my_root" >> "$GITHUB_ENV"
+          rd_monitor=$(openssl rand -hex 16)
+          rd_admin=$(openssl rand -hex 16)
+          echo "::add-mask::$rd_monitor"
+          echo "::add-mask::$rd_admin"
+          echo "VIGIL_IT_REDIS_PASSWORD=$rd_monitor" >> "$GITHUB_ENV"
+          echo "VIGIL_IT_REDIS_ADMIN_PASSWORD=$rd_admin" >> "$GITHUB_ENV"
           services=$PWD/tests/integration/backends/configs/services
           docker run -d --name pg -p 127.0.0.1:5432:5432 \
             -e POSTGRES_PASSWORD="$pg_super" -e POSTGRES_MONITOR_PASSWORD="$pg_monitor" \
@@ -192,37 +199,55 @@ jobs:
             -e REPLICATION_PASSWORD="$(openssl rand -hex 16)" \
             -v "$services/mysql/monitor-user.sh:/docker-entrypoint-initdb.d/1-monitor-user.sh:ro" \
             mariadb:11.4.13
+          # Each with its users made by start.sh, as compose.redis.yaml has them.
+          for r in "valkey 16379 valkey/valkey:9.2.0-alpine" "redis 16389 redis:8.10.3-alpine"; do
+            set -- $r
+            docker run -d --name "$1" -p "127.0.0.1:$2:6379" --entrypoint /bin/sh \
+              -e ROLE=primary -e MONITOR_PASSWORD="$rd_monitor" -e ADMIN_PASSWORD="$rd_admin" \
+              -e REPLICATION_PASSWORD="$(openssl rand -hex 16)" \
+              -v "$services/redis/start.sh:/vigil-it/start.sh:ro" "$3" /vigil-it/start.sh
+          done
+          sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends redis-tools > /dev/null
           mysql --version
+          redis-cli --version
           # Each answers once it is ready: the role and users exist only after
           # the init scripts, and nginx resets connections while it starts.
-          pg=''; ngx=''; my=''; maria=''
+          pg=''; ngx=''; my=''; maria=''; vk=''; rd=''
           for i in $(seq 1 90); do
             [ -n "$pg" ] || { pg_isready -q -h 127.0.0.1 -p 5432 && docker exec pg psql -U postgres -Atc "SELECT 1 FROM pg_roles WHERE rolname = 'vigil_monitor'" 2> /dev/null | grep -q 1 && pg=up; }
             [ -n "$ngx" ] || { curl -fsS -o /dev/null http://127.0.0.1:9082/nginx_status 2> /dev/null && ngx=up; }
             [ -n "$my" ] || { MYSQL_PWD=$my_monitor mysql --protocol=TCP -h 127.0.0.1 -P 13306 -u vigil_monitor -N -e 'SELECT 1' > /dev/null 2>&1 && my=up; }
             [ -n "$maria" ] || { MYSQL_PWD=$my_monitor mysql --protocol=TCP -h 127.0.0.1 -P 13316 -u vigil_monitor -N -e 'SELECT 1' > /dev/null 2>&1 && maria=up; }
-            [ -n "$pg" ] && [ -n "$ngx" ] && [ -n "$my" ] && [ -n "$maria" ] && break
+            [ -n "$vk" ] || { REDISCLI_AUTH=$rd_monitor redis-cli -p 16379 --user vigil_monitor PING 2> /dev/null | grep -q PONG && vk=up; }
+            [ -n "$rd" ] || { REDISCLI_AUTH=$rd_monitor redis-cli -p 16389 --user vigil_monitor PING 2> /dev/null | grep -q PONG && rd=up; }
+            [ -n "$pg" ] && [ -n "$ngx" ] && [ -n "$my" ] && [ -n "$maria" ] && [ -n "$vk" ] && [ -n "$rd" ] && break
             sleep 2
           done
           [ -n "$pg" ] || { echo "PostgreSQL never became ready"; docker logs pg; exit 1; }
           [ -n "$ngx" ] || { echo "nginx never became ready"; docker logs ngx; exit 1; }
           [ -n "$my" ] || { echo "MySQL never became ready"; docker logs my; exit 1; }
           [ -n "$maria" ] || { echo "MariaDB never became ready"; docker logs maria; exit 1; }
+          [ -n "$vk" ] || { echo "Valkey never became ready"; docker logs valkey; exit 1; }
+          [ -n "$rd" ] || { echo "Redis never became ready"; docker logs redis; exit 1; }
           curl -fsS http://127.0.0.1:9082/nginx_status
-      - name: the service packs, MySQL among them (/bin/bash)
+      - name: the service packs, MySQL and Valkey among them (/bin/bash)
         env:
           VIGIL_IT_PG_HOST: 127.0.0.1
           VIGIL_IT_PG_PORT: '5432'
           VIGIL_IT_MYSQL_HOST: 127.0.0.1
           VIGIL_IT_MYSQL_PORT: '13306'
+          VIGIL_IT_REDIS_HOST: 127.0.0.1
+          VIGIL_IT_REDIS_PORT: '16379'
           VIGIL_IT_NGINX_URL: http://127.0.0.1:9082/nginx_status
         run: /bin/bash tests/integration/service-packs.sh
-      - name: the mysql pack against MariaDB (/bin/bash)
+      - name: the mysql pack against MariaDB, the redis pack against Redis (/bin/bash)
         env:
           VIGIL_IT_PG_HOST: ''
           VIGIL_IT_NGINX_URL: ''
           VIGIL_IT_MYSQL_HOST: 127.0.0.1
           VIGIL_IT_MYSQL_PORT: '13316'
+          VIGIL_IT_REDIS_HOST: 127.0.0.1
+          VIGIL_IT_REDIS_PORT: '16389'
         run: /bin/bash tests/integration/service-packs.sh
 
   # The .deb and .rpm (backlog 30, step 1), built as a release builds them,

@@ -2276,7 +2276,7 @@ Flags: `--instance <name>` (default: the host name), `--backend <list>` from `fi
 
 ### 19.1 Check Library
 
-The repository's packs (§18.10) are the library of ready-made job scripts, per platform: the base pack (CPU, memory, disk, network and more), nginx and postgres. `init` enables the base pack. Contributed checks follow a short guide:
+The repository's packs (§18.10) are the library of ready-made job scripts, per platform: the base pack (CPU, memory, disk, network and more), and packs for postgres, mysql (MySQL and MariaDB), redis (Redis and Valkey) and nginx. `init` enables the base pack. Contributed checks follow a short guide:
 
 - Print results as `metric` lines (§14.3).
 - Use meaningful exit codes, or Nagios codes with `exit_codes = nagios`.

@@ -79,7 +79,7 @@ CI checks that every script carries the licence and disclaimer.
   - a few lines of that output in the pack's section of `packs/README.md`, with a link to the file.
 
   The site's Real systems pages show every run kept there.
-- The postgres, mysql and nginx packs are also tested against real servers in CI (`tests/integration/service-packs.sh`). That stays, but it is not the model: a new pack brings evidence instead.
+- The postgres, mysql, redis and nginx packs are also tested against real servers in CI (`tests/integration/service-packs.sh`). That stays, but it is not the model: a new pack brings evidence instead.
 
 ## Review checklist
 
