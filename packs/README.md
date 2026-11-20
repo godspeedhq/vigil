@@ -280,7 +280,56 @@ A server that does not answer reports `redis.up` 0, and the run succeeds: that i
 
 **Tested** on 2026-11-20 on the Fedora 44 test machine, against **Redis 6.2.24, 7.4.12 and 8.10.3 and Valkey 7.2.16, 8.1.12 and 9.2.0**, each a primary with a replica and a TLS server beside it (`compose.redis.yaml`), each with its own client, by `tests/integration/backends/scripts/run-replication.sh redis <image>`: `service-packs.sh` through Vigil, **71 passed, 0 failed** on each, then the replica stopped and started. The full console output: [Redis 6.2](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-redis-6-replication/console.txt), [Redis 7.4](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-redis-7-replication/console.txt), [Redis 8.10](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-redis-8-replication/console.txt), [Valkey 7.2](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-valkey-7-replication/console.txt), [Valkey 8.1](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-valkey-8-replication/console.txt), [Valkey 9.2](../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-valkey-9-replication/console.txt). **On Windows**, every job on Windows PowerShell 5.1 and PowerShell 7 against the same servers on the Fedora machine, then `Service-Packs.ps1` through Vigil itself on each: [Valkey 9.2](../tests/integration/backends/reports/runs/2026-11-20/windows/pack-valkey-windows/console.txt), [Redis 8.10](../tests/integration/backends/reports/runs/2026-11-20/windows/pack-redis-windows/console.txt). In CI, the same test runs against Valkey 9.2 and Redis 8.10, with Ubuntu's `redis-cli`, on every change to Vigil itself. From Valkey 9.2, on Linux:
 
-@EXAMPLE@
+Twice its `maxmemory` written to a primary that evicts (`allkeys-lru`), with a client blocked on a list no one writes:
+
+```text
+  PASS  redis: status runs
+        metric up 1
+        metric info 1 server=valkey version=9.2.0 mode=standalone
+        metric clients 2
+        metric blocked_clients 1
+        metric evicted_keys_count 15825
+  PASS  redis: memory runs
+        metric used_bytes 33560408
+        metric max_bytes 33554432 policy=allkeys-lru
+        metric used_pct 100
+        metric fragmentation_ratio 1.72
+```
+
+Replication, from both sides, as the replica stops and starts again:
+
+```text
+# Both sides, streaming.
+$ REDIS_PORT=16379 bash packs/redis/replication.sh
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=172.20.0.4_6379
+metric lag_bytes 0 replica=172.20.0.4_6379
+metric lag_seconds 1 replica=172.20.0.4_6379
+$ REDIS_PORT=16380 bash packs/redis/replication.sh
+metric is_replica 1
+metric replicas 0
+metric link_up 1
+metric last_io_seconds 7
+metric sync_in_progress 0
+
+# The replica stops.
+$ REDIS_PORT=16379 bash packs/redis/replication.sh
+metric is_replica 0
+metric replicas 0
+$ REDIS_PORT=16380 bash packs/redis/status.sh
+metric up 0
+
+# The replica starts again, and catches up.
+$ REDIS_PORT=16379 bash packs/redis/replication.sh
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=172.20.0.4_6379
+metric lag_bytes 0 replica=172.20.0.4_6379
+metric lag_seconds 1 replica=172.20.0.4_6379
+```
+
+**On macOS**, the Mac test machine has no Redis client, so the macOS scripts ran under its bash 3.2 and awk against replies captured from real Valkey 9.2 and Redis 6.2 servers, replayed by a stand-in `redis-cli`, then through Vigil: the same output, line for line, as the Linux scripts give on Fedora for the same replies. [The console output, with the replies and the stand-in](../tests/integration/backends/reports/runs/2026-11-20/macos/pack-redis-macos-replay/console.txt).
 
 ### nginx
 

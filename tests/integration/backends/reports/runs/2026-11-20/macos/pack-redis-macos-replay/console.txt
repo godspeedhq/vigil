@@ -1,0 +1,493 @@
+== pack-redis-macos-replay
+date     2026-11-20T08:04:55Z
+host     the Intel Mac test machine (macOS 12.7.6)
+vigil    73f393a57fc88dac3ed5c67a4db9c8f404a4c973
+command  replay.sh <a copy of that commit> replies/ console
+client   a stand-in redis-cli (in replay.sh): the Mac has no Redis client. It replays replies/, captured
+         from real servers on the Fedora machine (Valkey 9.2.0: a primary with data, its replica and a
+         Sentinel; Redis 6.2.24: a primary and its replica; each client's --help), and the failures as
+         the real clients print them: port 1 refused, 2 a wrong password, 3 a user that may not run INFO,
+         4 a certificate that cannot be trusted
+compare  the same replies through packs/redis/linux on Fedora (bash 5.3, GNU awk 5.3): the same output
+         line for line, but for the order sort lists the client's arguments in
+
+== Darwin, bash 3.2.57(1)-release, awk: awk version 20200816
+
+# valkey9, port 16479: status.sh
+metric up 1
+metric info 1 server=valkey version=9.2.0 mode=standalone
+metric loading 0
+metric uptime_seconds 12
+metric clients 3
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 9
+metric commands_count 39
+metric ops_per_sec 3
+metric hits_count 0
+metric misses_count 2
+metric hit_pct 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 0
+[exit 0]
+
+# valkey9, port 16479: memory.sh
+metric used_bytes 1471656
+metric rss_bytes 11665408
+metric peak_bytes 1471656
+metric max_bytes 67108864 policy=allkeys-lru
+metric used_pct 2
+metric fragmentation_ratio 8.08
+[exit 0]
+
+# valkey9, port 16479: replication.sh
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=127.0.0.1_16480
+metric lag_bytes 0 replica=127.0.0.1_16480
+metric lag_seconds 0 replica=127.0.0.1_16480
+[exit 0]
+
+# valkey9, port 16479: persistence.sh
+metric last_save_ok 1
+metric last_save_age_seconds 4
+metric changes_since_save 0
+metric save_in_progress 0
+metric last_fork_usec 452
+metric aof_enabled 1
+metric aof_last_write_ok 1
+metric aof_last_rewrite_ok 1
+metric aof_rewrite_in_progress 0
+[exit 0]
+
+# valkey9, port 16479: keyspace.sh
+metric keys 1 db=db2
+metric expires 1 db=db2
+[exit 0]
+
+# valkey9, port 16480: status.sh
+metric up 1
+metric info 1 server=valkey version=9.2.0 mode=standalone
+metric loading 0
+metric uptime_seconds 12
+metric clients 4
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 3
+metric commands_count 34
+metric ops_per_sec 1
+metric hits_count 0
+metric misses_count 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 0
+[exit 0]
+
+# valkey9, port 16480: memory.sh
+metric used_bytes 1368824
+metric rss_bytes 11722752
+metric peak_bytes 1368824
+metric max_bytes 0 policy=noeviction
+metric fragmentation_ratio 8.74
+[exit 0]
+
+# valkey9, port 16480: replication.sh
+metric is_replica 1
+metric replicas 0
+metric link_up 1
+metric last_io_seconds 1
+metric sync_in_progress 0
+[exit 0]
+
+# valkey9, port 16480: persistence.sh
+metric last_save_ok 1
+metric last_save_age_seconds 12
+metric changes_since_save 0
+metric save_in_progress 0
+metric last_fork_usec 0
+metric aof_enabled 0
+metric aof_last_write_ok 1
+metric aof_last_rewrite_ok 1
+metric aof_rewrite_in_progress 0
+[exit 0]
+
+# valkey9, port 16480: keyspace.sh
+metric keys 1 db=db2
+metric expires 1 db=db2
+[exit 0]
+
+# valkey9, port 16481: status.sh
+metric up 1
+metric info 1 server=valkey version=9.2.0 mode=sentinel
+metric uptime_seconds 12
+metric clients 1
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 1
+metric commands_count 0
+metric ops_per_sec 0
+metric hits_count 0
+metric misses_count 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 0
+[exit 0]
+
+# valkey9, port 16481: memory.sh
+[exit 0]
+
+# valkey9, port 16481: replication.sh
+[exit 0]
+
+# valkey9, port 16481: persistence.sh
+[exit 0]
+
+# valkey9, port 16481: keyspace.sh
+[exit 0]
+
+# valkey9, port 1: status.sh
+metric up 0
+[exit 0]
+
+# valkey9, port 1: memory.sh
+[exit 0]
+
+# valkey9, port 1: replication.sh
+[exit 0]
+
+# valkey9, port 1: persistence.sh
+[exit 0]
+
+# valkey9, port 1: keyspace.sh
+[exit 0]
+
+# valkey9, port 2: status.sh
+status: the server refused the login: AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+[exit 1]
+
+# valkey9, port 2: memory.sh
+memory: the server refused the login: AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+[exit 1]
+
+# valkey9, port 2: replication.sh
+replication: the server refused the login: AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+[exit 1]
+
+# valkey9, port 2: persistence.sh
+persistence: the server refused the login: AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+[exit 1]
+
+# valkey9, port 2: keyspace.sh
+keyspace: the server refused the login: AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+[exit 1]
+
+# valkey9, port 3: status.sh
+status: INFO failed: NOPERM User vigil_noinfo has no permissions to run the 'info' command 
+[exit 1]
+
+# valkey9, port 3: memory.sh
+memory: INFO failed: NOPERM User vigil_noinfo has no permissions to run the 'info' command 
+[exit 1]
+
+# valkey9, port 3: replication.sh
+replication: INFO failed: NOPERM User vigil_noinfo has no permissions to run the 'info' command 
+[exit 1]
+
+# valkey9, port 3: persistence.sh
+persistence: INFO failed: NOPERM User vigil_noinfo has no permissions to run the 'info' command 
+[exit 1]
+
+# valkey9, port 3: keyspace.sh
+keyspace: INFO failed: NOPERM User vigil_noinfo has no permissions to run the 'info' command 
+[exit 1]
+
+# valkey9, port 4: status.sh
+status: INFO failed: Could not connect to Redis at 127.0.0.1:4: SSL_connect failed: certificate verify failed 
+[exit 1]
+
+# valkey9, port 4: memory.sh
+memory: INFO failed: Could not connect to Redis at 127.0.0.1:4: SSL_connect failed: certificate verify failed 
+[exit 1]
+
+# valkey9, port 4: replication.sh
+replication: INFO failed: Could not connect to Redis at 127.0.0.1:4: SSL_connect failed: certificate verify failed 
+[exit 1]
+
+# valkey9, port 4: persistence.sh
+persistence: INFO failed: Could not connect to Redis at 127.0.0.1:4: SSL_connect failed: certificate verify failed 
+[exit 1]
+
+# valkey9, port 4: keyspace.sh
+keyspace: INFO failed: Could not connect to Redis at 127.0.0.1:4: SSL_connect failed: certificate verify failed 
+[exit 1]
+
+# valkey9: what the client was given (a connect timeout only where its --help has one)
+--help
+-h 127.0.0.1 -p 1 -t 5 --user vigil_monitor INFO
+-h 127.0.0.1 -p 16479 -t 5 --user vigil_monitor INFO
+-h 127.0.0.1 -p 16480 -t 5 --user vigil_monitor INFO
+-h 127.0.0.1 -p 16481 -t 5 --user vigil_monitor INFO
+-h 127.0.0.1 -p 2 -t 5 --user vigil_monitor INFO
+-h 127.0.0.1 -p 3 -t 5 --user vigil_monitor INFO
+-h 127.0.0.1 -p 4 -t 5 --user vigil_monitor INFO
+the password on a command line: 0
+
+# redis62, port 16479: status.sh
+metric up 1
+metric info 1 server=redis version=6.2.24 mode=standalone
+metric loading 0
+metric uptime_seconds 12
+metric clients 1
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 7
+metric commands_count 21
+metric ops_per_sec 0
+metric hits_count 0
+metric misses_count 2
+metric hit_pct 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 0
+[exit 0]
+
+# redis62, port 16479: memory.sh
+metric used_bytes 1945720
+metric rss_bytes 7098368
+metric peak_bytes 2003560
+metric max_bytes 67108864 policy=allkeys-lru
+metric used_pct 2
+metric fragmentation_ratio 3.77
+[exit 0]
+
+# redis62, port 16479: replication.sh
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=127.0.0.1_16480
+metric lag_bytes 0 replica=127.0.0.1_16480
+metric lag_seconds 1 replica=127.0.0.1_16480
+[exit 0]
+
+# redis62, port 16479: persistence.sh
+metric last_save_ok 1
+metric last_save_age_seconds 4
+metric changes_since_save 0
+metric save_in_progress 0
+metric last_fork_usec 313
+metric aof_enabled 1
+metric aof_last_write_ok 1
+metric aof_last_rewrite_ok 1
+metric aof_rewrite_in_progress 0
+[exit 0]
+
+# redis62, port 16479: keyspace.sh
+metric keys 1 db=db2
+metric expires 1 db=db2
+[exit 0]
+
+# redis62, port 16480: status.sh
+metric up 1
+metric info 1 server=redis version=6.2.24 mode=standalone
+metric loading 0
+metric uptime_seconds 13
+metric clients 2
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 1
+metric commands_count 3
+metric ops_per_sec 0
+metric hits_count 0
+metric misses_count 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 0
+[exit 0]
+
+# redis62, port 16480: memory.sh
+metric used_bytes 1945584
+metric rss_bytes 7299072
+metric peak_bytes 1945584
+metric max_bytes 0 policy=noeviction
+metric fragmentation_ratio 3.88
+[exit 0]
+
+# redis62, port 16480: replication.sh
+metric is_replica 1
+metric replicas 0
+metric link_up 1
+metric last_io_seconds 3
+metric sync_in_progress 0
+[exit 0]
+
+# redis62, port 16480: persistence.sh
+metric last_save_ok 1
+metric last_save_age_seconds 13
+metric changes_since_save 1
+metric save_in_progress 0
+metric last_fork_usec 0
+metric aof_enabled 0
+metric aof_last_write_ok 1
+metric aof_last_rewrite_ok 1
+metric aof_rewrite_in_progress 0
+[exit 0]
+
+# redis62, port 16480: keyspace.sh
+metric keys 1 db=db2
+metric expires 1 db=db2
+[exit 0]
+
+# redis62, port 1: status.sh
+metric up 0
+[exit 0]
+
+# redis62, port 1: memory.sh
+[exit 0]
+
+# redis62, port 1: replication.sh
+[exit 0]
+
+# redis62, port 1: persistence.sh
+[exit 0]
+
+# redis62, port 1: keyspace.sh
+[exit 0]
+
+# redis62, port 2: status.sh
+status: the server refused the login: AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+[exit 1]
+
+# redis62, port 2: memory.sh
+memory: the server refused the login: AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+[exit 1]
+
+# redis62, port 2: replication.sh
+replication: the server refused the login: AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+[exit 1]
+
+# redis62, port 2: persistence.sh
+persistence: the server refused the login: AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+[exit 1]
+
+# redis62, port 2: keyspace.sh
+keyspace: the server refused the login: AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+[exit 1]
+
+# redis62, port 3: status.sh
+status: INFO failed: NOPERM User vigil_noinfo has no permissions to run the 'info' command 
+[exit 1]
+
+# redis62, port 3: memory.sh
+memory: INFO failed: NOPERM User vigil_noinfo has no permissions to run the 'info' command 
+[exit 1]
+
+# redis62, port 3: replication.sh
+replication: INFO failed: NOPERM User vigil_noinfo has no permissions to run the 'info' command 
+[exit 1]
+
+# redis62, port 3: persistence.sh
+persistence: INFO failed: NOPERM User vigil_noinfo has no permissions to run the 'info' command 
+[exit 1]
+
+# redis62, port 3: keyspace.sh
+keyspace: INFO failed: NOPERM User vigil_noinfo has no permissions to run the 'info' command 
+[exit 1]
+
+# redis62, port 4: status.sh
+status: INFO failed: Could not connect to Redis at 127.0.0.1:4: SSL_connect failed: certificate verify failed 
+[exit 1]
+
+# redis62, port 4: memory.sh
+memory: INFO failed: Could not connect to Redis at 127.0.0.1:4: SSL_connect failed: certificate verify failed 
+[exit 1]
+
+# redis62, port 4: replication.sh
+replication: INFO failed: Could not connect to Redis at 127.0.0.1:4: SSL_connect failed: certificate verify failed 
+[exit 1]
+
+# redis62, port 4: persistence.sh
+persistence: INFO failed: Could not connect to Redis at 127.0.0.1:4: SSL_connect failed: certificate verify failed 
+[exit 1]
+
+# redis62, port 4: keyspace.sh
+keyspace: INFO failed: Could not connect to Redis at 127.0.0.1:4: SSL_connect failed: certificate verify failed 
+[exit 1]
+
+# redis62: what the client was given (a connect timeout only where its --help has one)
+--help
+-h 127.0.0.1 -p 1 --user vigil_monitor INFO
+-h 127.0.0.1 -p 16479 --user vigil_monitor INFO
+-h 127.0.0.1 -p 16480 --user vigil_monitor INFO
+-h 127.0.0.1 -p 2 --user vigil_monitor INFO
+-h 127.0.0.1 -p 3 --user vigil_monitor INFO
+-h 127.0.0.1 -p 4 --user vigil_monitor INFO
+the password on a command line: 0
+
+# Through Vigil, on macos
+init: 0
+on: redis_status
+on: redis_memory
+on: redis_replication
+on: redis_persistence
+on: redis_keyspace
+needs secret:REDIS_MONITOR_PASSWORD: not set: vigil secret set REDIS_MONITOR_PASSWORD, as the account Vigil runs as
+needs a user that may only read INFO, as an administrator: ACL SETUSER vigil_monitor on >... -@all +info +ping (then ACL SAVE or CONFIG REWRITE, so it outlives a restart)
+settings in vigil.config: REDIS_HOST=127.0.0.1 REDIS_PORT=6379 REDIS_USER=vigil_monitor
+secret set: 0
+redis_status: succeeded in Ns
+redis_memory: succeeded in Ns
+redis_replication: succeeded in Ns
+redis_persistence: succeeded in Ns
+redis_keyspace: succeeded in Ns
+metric aof_enabled 1
+metric aof_last_rewrite_ok 1
+metric aof_last_write_ok 1
+metric aof_rewrite_in_progress 0
+metric blocked_clients 0
+metric changes_since_save 0
+metric clients 3
+metric clients_pct 0
+metric commands_count 39
+metric connections_count 9
+metric error_replies_count 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric expires 1 db=db2
+metric fragmentation_ratio 8.08
+metric hit_pct 0
+metric hits_count 0
+metric info 1 server=valkey version=9.2.0 mode=standalone
+metric is_replica 0
+metric keys 1 db=db2
+metric lag_bytes 0 replica=127.0.0.1_16480
+metric lag_seconds 0 replica=127.0.0.1_16480
+metric last_fork_usec 452
+metric last_save_age_seconds 4
+metric last_save_ok 1
+metric loading 0
+metric max_bytes 67108864 policy=allkeys-lru
+metric max_clients 10000
+metric misses_count 2
+metric online 1 replica=127.0.0.1_16480
+metric ops_per_sec 3
+metric peak_bytes 1471656
+metric rejected_connections_count 0
+metric replicas 1
+metric rss_bytes 11665408
+metric save_in_progress 0
+metric up 1
+metric uptime_seconds 12
+metric used_bytes 1471656
+metric used_pct 2
+reach the backend: 55 lines of redis_
+the password, anywhere in the root: 0
