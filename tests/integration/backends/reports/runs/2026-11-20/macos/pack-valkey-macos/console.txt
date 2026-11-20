@@ -1,0 +1,238 @@
+== pack-valkey-macos
+date     2026-11-20T10:47:40Z
+host     the Intel Mac test machine (macOS 12.7.6, x86_64)
+vigil    bc2052fcc69a12209e4249a2fc4de837a9d4e147 (deployed copy)
+bash     3.2.57(1)-release
+awk      awk version 20200816
+client   valkey-cli 9.2.0, built from its source in a scratch folder, without TLS (macOS has no OpenSSL headers)
+server   Valkey 9.2.0, a primary and a replica on the Fedora test machine, through SSH tunnels
+
+# Every job, directly, on the primary and the replica.
+$ REDIS_PORT=16379 bash packs/redis/macos/status.sh
+metric up 1
+metric info 1 server=valkey version=9.2.0 mode=standalone
+metric loading 0
+metric uptime_seconds 63
+metric clients 1
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 3
+metric commands_count 67
+metric ops_per_sec 1
+metric hits_count 0
+metric misses_count 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 1
+[exit 0]
+$ REDIS_PORT=16379 bash packs/redis/macos/memory.sh
+metric used_bytes 1294856
+metric rss_bytes 11546624
+metric peak_bytes 1294856
+metric max_bytes 33554432 policy=allkeys-lru
+metric used_pct 3
+metric fragmentation_ratio 8.99
+[exit 0]
+$ REDIS_PORT=16379 bash packs/redis/macos/replication.sh
+metric is_replica 0
+metric replicas 1
+metric online 1 replica=172.20.0.4_6379
+metric lag_bytes 0 replica=172.20.0.4_6379
+metric lag_seconds 1 replica=172.20.0.4_6379
+[exit 0]
+$ REDIS_PORT=16379 bash packs/redis/macos/persistence.sh
+metric last_save_ok 1
+metric last_save_age_seconds 64
+metric changes_since_save 0
+metric save_in_progress 0
+metric last_fork_usec 445
+metric aof_enabled 1
+metric aof_last_write_ok 1
+metric aof_last_rewrite_ok 1
+metric aof_rewrite_in_progress 0
+[exit 0]
+$ REDIS_PORT=16379 bash packs/redis/macos/keyspace.sh
+metric keys 0 db=db0
+metric expires 0 db=db0
+[exit 0]
+$ REDIS_PORT=16380 bash packs/redis/macos/status.sh
+metric up 1
+metric info 1 server=valkey version=9.2.0 mode=standalone
+metric loading 0
+metric uptime_seconds 63
+metric clients 2
+metric blocked_clients 0
+metric max_clients 10000
+metric clients_pct 0
+metric rejected_connections_count 0
+metric connections_count 5
+metric commands_count 19
+metric ops_per_sec 0
+metric hits_count 0
+metric misses_count 0
+metric evicted_keys_count 0
+metric expired_keys_count 0
+metric error_replies_count 0
+[exit 0]
+$ REDIS_PORT=16380 bash packs/redis/macos/memory.sh
+metric used_bytes 1270624
+metric rss_bytes 11563008
+metric peak_bytes 1283464
+metric max_bytes 0 policy=noeviction
+metric fragmentation_ratio 9.18
+[exit 0]
+$ REDIS_PORT=16380 bash packs/redis/macos/replication.sh
+metric is_replica 1
+metric replicas 0
+metric link_up 1
+metric last_io_seconds 3
+metric sync_in_progress 0
+[exit 0]
+$ REDIS_PORT=16380 bash packs/redis/macos/persistence.sh
+metric last_save_ok 1
+metric last_save_age_seconds 63
+metric changes_since_save 0
+metric save_in_progress 0
+metric last_fork_usec 0
+metric aof_enabled 0
+metric aof_last_write_ok 1
+metric aof_last_rewrite_ok 1
+metric aof_rewrite_in_progress 0
+[exit 0]
+$ REDIS_PORT=16380 bash packs/redis/macos/keyspace.sh
+metric keys 0 db=db0
+metric expires 0 db=db0
+[exit 0]
+
+# A server that is down.
+$ REDIS_PORT=1 bash packs/redis/macos/status.sh
+metric up 0
+[exit 0]
+
+# Through Vigil: tests/integration/service-packs.sh, the replica given.
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+redis at 127.0.0.1:16379
+  PASS  redis: off until enabled
+  PASS  redis: enabled
+        on: redis_status
+        on: redis_memory
+        on: redis_replication
+        on: redis_persistence
+        on: redis_keyspace
+        needs secret:REDIS_MONITOR_PASSWORD: not set: vigil secret set REDIS_MONITOR_PASSWORD, as the account Vigil runs as
+        needs a user that may only read INFO, as an administrator: ACL SETUSER vigil_monitor on >... -@all +info +ping (then ACL SAVE or CONFIG REWRITE, so it outlives a restart)
+        settings in vigil.config: REDIS_HOST=127.0.0.1 REDIS_PORT=6379 REDIS_USER=vigil_monitor
+  PASS  redis: its jobs are on
+  PASS  redis: the password is a secret reference
+  PASS  redis: precheck is happy
+  PASS  redis: status runs
+        metric up 1
+        metric info 1 server=valkey version=9.2.0 mode=standalone
+        metric loading 0
+        metric uptime_seconds 77
+        metric clients 2
+        metric blocked_clients 1
+        metric max_clients 10000
+        metric clients_pct 0
+        metric rejected_connections_count 0
+        metric connections_count 32
+        metric commands_count 20138
+        metric ops_per_sec 0
+        metric hits_count 1
+        metric misses_count 1
+        metric hit_pct 50
+        metric evicted_keys_count 15827
+        metric expired_keys_count 0
+        metric error_replies_count 1
+  PASS  redis: memory runs
+        metric used_bytes 33562800
+        metric rss_bytes 57475072
+        metric peak_bytes 54466288
+        metric max_bytes 33554432 policy=allkeys-lru
+        metric used_pct 100
+        metric fragmentation_ratio 1.71
+  PASS  redis: replication runs
+        metric is_replica 0
+        metric replicas 1
+        metric online 1 replica=172.20.0.4_6379
+        metric lag_bytes 0 replica=172.20.0.4_6379
+        metric lag_seconds 1 replica=172.20.0.4_6379
+  PASS  redis: persistence runs
+        metric last_save_ok 1
+        metric last_save_age_seconds 6
+        metric changes_since_save 0
+        metric save_in_progress 0
+        metric last_fork_usec 1778
+        metric aof_enabled 1
+        metric aof_last_write_ok 1
+        metric aof_last_rewrite_ok 1
+        metric aof_rewrite_in_progress 0
+  PASS  redis: keyspace runs
+        metric keys 4179 db=db0
+        metric expires 0 db=db0
+        metric keys 1 db=db3
+        metric expires 1 db=db3
+  PASS  redis: up
+  PASS  redis: what it is
+  PASS  redis: not loading
+  PASS  redis: clients seen
+  PASS  redis: the limit
+  PASS  redis: clients against it
+  PASS  redis: commands counted
+  PASS  redis: memory used
+  PASS  redis: memory from the system
+  PASS  redis: the limit and its policy
+  PASS  redis: fragmentation
+  PASS  redis: a primary
+  PASS  redis: the last snapshot worked
+  PASS  redis: its age
+  PASS  redis: the append-only file is fine
+  PASS  redis: keys in db0
+  PASS  redis: no warning taken for data
+  PASS  redis: a lookup that hit
+  PASS  redis: one that missed
+  PASS  redis: the hit rate
+  PASS  redis: the blocked client
+  PASS  redis: keys in db3
+  PASS  redis: expiring in db3
+  PASS  redis: the snapshot just written
+  PASS  redis: its fork timed
+  PASS  redis: keys evicted at maxmemory
+  PASS  redis: memory against the limit
+  PASS  redis: the policy that evicts
+  PASS  redis: the replica seen from the primary
+  PASS  redis: in step
+  PASS  redis: its lag in bytes
+  PASS  redis: its lag in seconds
+  PASS  redis: replication runs on the replica
+        metric is_replica 1
+        metric replicas 0
+        metric link_up 1
+        metric last_io_seconds 1
+        metric sync_in_progress 0
+  PASS  redis: a replica
+  PASS  redis: its link up
+  PASS  redis: heard from the primary
+  PASS  redis: no copy under way
+  PASS  redis: keyspace runs on the replica
+  PASS  redis: the keys copied over
+  SKIP  redis: TLS: set VIGIL_IT_REDIS_TLS_HOST and VIGIL_IT_REDIS_CACERT (compose.redis.yaml)
+  PASS  redis: a wrong password fails the run
+  PASS  redis: and says why
+  PASS  redis: a user that may not run INFO fails the run
+  PASS  redis: and says why
+  PASS  redis: a server that is down still runs
+  PASS  redis: and reads as up 0
+  PASS  redis: the other jobs succeed when it is down
+  PASS  redis: and say nothing
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  PASS  redis: metrics reach the backend
+  PASS  redis: the password is written nowhere
+61 passed, 0 failed
+[exit 0]

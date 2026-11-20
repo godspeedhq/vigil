@@ -329,7 +329,7 @@ metric lag_bytes 0 replica=172.20.0.4_6379
 metric lag_seconds 1 replica=172.20.0.4_6379
 ```
 
-**On macOS**, the Mac test machine has no Redis client, so the macOS scripts ran under its bash 3.2 and awk against replies captured from real Valkey 9.2 and Redis 6.2 servers, replayed by a stand-in `redis-cli`, then through Vigil: the same output, line for line, as the Linux scripts give on Fedora for the same replies. [The console output, with the replies and the stand-in](../tests/integration/backends/reports/runs/2026-11-20/macos/pack-redis-macos-replay/console.txt).
+**On macOS**, on the Intel Mac test machine under its bash 3.2 and awk, with clients built from their source: every job directly, then `service-packs.sh` through Vigil, **61 passed, 0 failed** on each, against a primary and a replica on the Fedora machine: `valkey-cli` 9.2.0 against [Valkey 9.2](../tests/integration/backends/reports/runs/2026-11-20/macos/pack-valkey-macos/console.txt), and `redis-cli` 7.2.17, which has no connect timeout, against [Redis 8.10](../tests/integration/backends/reports/runs/2026-11-20/macos/pack-redis-macos/console.txt). Those clients were built without TLS, so TLS was tested on Linux and Windows. Before that, the macOS scripts ran against replies captured from real servers and replayed by a stand-in client, and gave the same output, line for line, as the Linux scripts: [that run](../tests/integration/backends/reports/runs/2026-11-20/macos/pack-redis-macos-replay/console.txt).
 
 ### nginx
 
