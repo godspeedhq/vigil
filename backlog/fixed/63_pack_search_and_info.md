@@ -50,3 +50,19 @@ while `vigil pack install redis` installed it.
   they were.
 
 ## Done
+
+- `tests/integration/pack.sh` and `Pack.ps1`, Searching: the table, the
+  card with and without `info` records, a pack with no scripts here, a pack
+  released after the index was saved (found), and offline (the saved index,
+  saying so; none saved, the reason). 114 passed, 0 failed on Fedora 44 and
+  on macOS 12 under bash 3.2; 113 passed, 0 failed on Windows 11 under
+  Windows PowerShell 5.1 and PowerShell 7 (2026-11-20). On the Lenovo over
+  SSH, 112 passed; the one failure, a secret set, is that logon's (Windows
+  refuses data protection to an SSH key logon), not this change's.
+- The cut, on real terminals: 69 columns of a 70-column terminal and 99 of
+  100 on Fedora and macOS; 69 of a 70-column console on Windows, under 5.1
+  and 7, against the live repository. Piped: whole rows.
+- Vigil 1.1.1 against an index with `info` records and the new
+  `pack.config` keys, on Fedora and on Windows: search, info, install and
+  enable work as before.
+- `tools/check-pack.sh --run`: 5 packs pass.
