@@ -26,8 +26,9 @@ CONNECT_SH = (
     "encrypted, the server's certificate checked against the system's CAs or "
     "MSSQL_CACERT, a CA file, and against the server's name: give MSSQL_HOST "
     "the name on the certificate (Microsoft's sqlcmd does not match an IP "
-    "address), or MSSQL_CERT_NAME. Uses sqlcmd: Microsoft's (mssql-tools18) "
-    "or the Go one (go-sqlcmd).")
+    "address), or MSSQL_CERT_NAME. On macOS the Go sqlcmd ignores "
+    "MSSQL_CACERT, and trusts the System keychain only: put your CA there. "
+    "Uses sqlcmd: Microsoft's (mssql-tools18) or the Go one (go-sqlcmd).")
 CONNECT_PS = (
     "Connects to MSSQL_HOST and MSSQL_PORT as MSSQL_USER, with the password in "
     "SQLCMDPASSWORD, all set by the job; never on a command line; or, with "
@@ -462,6 +463,11 @@ case $why in
         @DOWN@
         exit 0
         ;;
+esac
+# On macOS the Go client checks certificates against the keychain only, and
+# ignores SSL_CERT_FILE: say so, rather than leave MSSQL_CACERT a mystery.
+case $(uname -s):${MSSQL_CACERT-}:$why in
+    Darwin:?*:*x509*) why="$why(on macOS the Go sqlcmd ignores MSSQL_CACERT: trust the CA in the System keychain)" ;;
 esac
 echo "$me: the query failed: $why" >&2
 exit 1

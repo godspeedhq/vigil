@@ -1,0 +1,369 @@
+== pack-mssql-2025-replication
+date     2026-11-20T21:04:10Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    unknown: not a Git checkout
+command  scripts/run-mssql.sh mcr.microsoft.com/mssql/server:2025-CU11-ubuntu-24.04
+bash     5.3.9(1)-release
+git      git version 2.56.0
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.18.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.mssql.yaml pins them)
+         ${MSSQL_IMAGE:-mcr.microsoft.com/mssql/server:2022-CU28-ubuntu-22.04}
+
+client   Version: v1.10.0
+server   release=2025 version=17.0.5065.9 update=CU11 edition=developer os=linux
+
+
+# The pack through Vigil, the secondary given.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+mssql at localhost:11433
+  PASS  mssql: off until enabled
+  PASS  mssql: enabled
+        on: mssql_status
+        on: mssql_performance
+        on: mssql_activity
+        on: mssql_cpu
+        on: mssql_replication
+        on: mssql_waits
+        on: mssql_io
+        on: mssql_memory
+        on: mssql_tempdb
+        on: mssql_connections
+        on: mssql_databases
+        on: mssql_health
+        on: mssql_config
+        on: mssql_backups
+        on: mssql_agent
+        needs secret:MSSQL_MONITOR_PASSWORD: not set: vigil secret set MSSQL_MONITOR_PASSWORD, as the account Vigil runs as
+        needs a read-only login, as an administrator: CREATE LOGIN vigil_monitor WITH PASSWORD = '...'; GRANT VIEW SERVER PERFORMANCE STATE, VIEW SERVER SECURITY STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE TO vigil_monitor (2019: VIEW SERVER STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE)
+        needs for mssql_agent, in msdb: CREATE USER vigil_monitor FOR LOGIN vigil_monitor; GRANT SELECT ON dbo.sysjobs TO vigil_monitor; GRANT SELECT ON dbo.sysjobhistory TO vigil_monitor; GRANT SELECT ON dbo.sysjobactivity TO vigil_monitor; GRANT SELECT ON dbo.syssessions TO vigil_monitor
+        settings in vigil.config: MSSQL_HOST=localhost MSSQL_PORT=1433 MSSQL_USER=vigil_monitor
+  PASS  mssql: its jobs are on
+  PASS  mssql: the password is a secret reference
+  PASS  mssql: precheck is happy
+  PASS  mssql: activity runs
+        metric sessions 4 state=sleeping
+        metric sessions 0 state=dormant
+        metric sessions 0 state=preconnect
+        metric requests 1
+        metric requests_blocked 1
+        metric head_blockers 1
+        metric longest_request_seconds 9
+        metric longest_wait_seconds 9.38 type=LCK_M_X
+        metric oldest_transaction_seconds 12
+        metric idle_in_transaction 1
+        metric idle_in_transaction_seconds 12
+        metric longest_snapshot_seconds 12
+  PASS  mssql: status runs
+        metric up 1
+        metric info 1 release=2025 version=17.0.5065.9 update=CU11 edition=developer os=linux
+        metric uptime_seconds 73
+        metric cpus 4
+        metric schedulers 4
+        metric connections 6
+        metric connections_max 32767
+        metric clustered 0
+        metric hadr_enabled 1
+        metric agent_running 1
+  PASS  mssql: performance runs
+        metric page_reads_count 5345
+        metric page_writes_count 747
+        metric lock_waits_count 21
+        metric lock_timeouts_count 6
+        metric deadlocks_count 1
+        metric page_splits_count 273
+        metric full_scans_count 272
+        metric memory_grants_pending 0
+        metric memory_grants_outstanding 0
+        metric buffer_cache_hit_pct 100
+        metric missing_indexes 4
+        metric missing_index_top_impact_pct 68.15
+  PASS  mssql: cpu runs
+        metric sql_pct 8
+        metric runnable_tasks 0
+        metric work_queued 0
+        metric pending_disk_io 0
+        metric workers 88
+        metric workers_max 256
+        metric workers_pct 34.38
+  PASS  mssql: replication runs
+        metric local 1 group=ag1 replica=mssql-primary
+        metric primary 0 group=ag1 replica=mssql-secondary
+        metric connected 1 group=ag1 replica=mssql-secondary
+        metric health 2 group=ag1 replica=mssql-secondary
+        metric local 0 group=ag1 replica=mssql-secondary
+        metric sync_state 2 group=ag1 replica=mssql-secondary database=vigil_it
+        metric suspended 0 group=ag1 replica=mssql-secondary database=vigil_it
+        metric send_queue_bytes 61440 group=ag1 replica=mssql-secondary database=vigil_it
+        metric send_rate_bytes 76457984 group=ag1 replica=mssql-secondary database=vigil_it
+        metric redo_queue_bytes 0 group=ag1 replica=mssql-secondary database=vigil_it
+        metric redo_rate_bytes 605184 group=ag1 replica=mssql-secondary database=vigil_it
+        metric lag_seconds 0 group=ag1 replica=mssql-secondary database=vigil_it
+  PASS  mssql: waits runs
+        metric top_wait_ms_count 805 type=ASYNC_IO_COMPLETION
+        metric top_wait_ms_count 590 type=PREEMPTIVE_OS_QUERYREGISTRY
+        metric top_waits_count 6 type=LCK_M_SCH_M
+        metric top_waits_count 7 type=LCK_M_SCH_S
+        metric top_waits_count 170 type=PREEMPTIVE_OS_CRYPTOPS
+        metric top_waits_count 417 type=WRITELOG
+        metric top_waits_count 458 type=PAGEIOLATCH_SH
+        metric top_waits_count 6 type=LCK_M_U
+        metric top_waits_count 406 type=PREEMPTIVE_OS_FILEOPS
+        metric top_waits_count 3 type=LCK_M_S
+        metric top_waits_count 18 type=ASYNC_IO_COMPLETION
+        metric top_waits_count 299 type=PREEMPTIVE_OS_QUERYREGISTRY
+  PASS  mssql: io runs
+        metric written_bytes_count 1040384 database=vigil_it file=vigil_it kind=data
+        metric read_stall_ms_count 329 database=vigil_it file=vigil_it kind=data
+        metric write_stall_ms_count 27 database=vigil_it file=vigil_it kind=data
+        metric size_bytes 8388608 database=vigil_it file=vigil_it kind=data
+        metric reads_count 16 database=vigil_it file=vigil_it_log kind=log
+        metric writes_count 89 database=vigil_it file=vigil_it_log kind=log
+        metric read_bytes_count 1458176 database=vigil_it file=vigil_it_log kind=log
+        metric written_bytes_count 573440 database=vigil_it file=vigil_it_log kind=log
+        metric read_stall_ms_count 33 database=vigil_it file=vigil_it_log kind=log
+        metric write_stall_ms_count 60 database=vigil_it file=vigil_it_log kind=log
+        metric size_bytes 8388608 database=vigil_it file=vigil_it_log kind=log
+        metric files_not_shown 0
+  PASS  mssql: memory runs
+        metric system_available_bytes 927961088
+        metric system_low 0
+        metric buffer_pool_bytes 43212800
+        metric memory_grants_bytes 0
+        metric plan_cache_bytes 44679168
+        metric single_use_plan_bytes 1236992
+        metric xtp_bytes 2310144
+        metric clerk_bytes 58851328 clerk=sosnode
+        metric clerk_bytes 43368448 clerk=sqlbufferpool
+        metric clerk_bytes 25280512 clerk=cachestore_phdr
+        metric clerk_bytes 16900096 clerk=cachestore_objcp
+        metric clerk_bytes 12156928 clerk=sqlstoreng
+  PASS  mssql: tempdb runs
+        metric size_bytes 33554432
+        metric free_bytes 29032448
+        metric free_pct 86.52
+        metric version_store_bytes 131072
+        metric user_objects_bytes 2228224
+        metric internal_objects_bytes 393216
+        metric log_used_pct 43
+        metric data_files 4
+  PASS  mssql: connections runs
+        metric connections 6 encrypted=yes
+        metric connections 0 encrypted=no
+        metric connections_by_auth 0 auth=kerberos
+        metric connections_by_auth 3 auth=ntlm
+        metric connections_by_auth 3 auth=sql
+        metric sessions 3 database=msdb
+        metric sessions 2 database=vigil_it
+  PASS  mssql: databases runs
+        metric read_only 0 database=vigil_it
+        metric recovery 1 database=vigil_it model=full
+        metric data_bytes 8388608 database=vigil_it
+        metric log_bytes 8380416 database=vigil_it
+        metric log_used_bytes 806912 database=vigil_it
+        metric log_used_pct 9 database=vigil_it
+        metric log_reuse_waiting 0 database=vigil_it reason=nothing
+        metric active_transactions 1 database=vigil_it
+        metric compatibility_level 170 database=vigil_it
+        metric compatibility_behind 0 database=vigil_it
+        metric query_store 0 database=msdb
+        metric query_store 2 database=vigil_it
+  PASS  mssql: health runs
+        metric vlfs 8 database=master
+        metric vlfs 3 database=model
+        metric vlfs 3 database=msdb
+        metric vlfs 4 database=vigil_it
+        metric pct_growth_files 2 database=master
+        metric pct_growth_files 2 database=msdb
+        metric max_size_used_pct 0 database=vigil_it file=vigil_it_log kind=log
+        metric max_size_used_pct 0 database=msdb file=MSDBLog kind=log
+        metric volume_total_bytes 117884059648 volume=unknown
+        metric volume_free_bytes 62268960768 volume=unknown
+        metric volume_free_pct 52.82 volume=unknown
+        metric suspect_pages 0
+  PASS  mssql: config runs
+        metric max_server_memory_mb 2147483647
+        metric max_server_memory_default 1
+        metric maxdop 0
+        metric cost_threshold 5
+        metric optimize_for_ad_hoc 0
+        metric xp_cmdshell 0
+        metric clr_enabled 0
+        metric ole_automation 0
+        metric remote_admin_connections 0
+        metric sa_enabled 1
+        metric sysadmins 1
+        metric locked_pages 0
+  PASS  mssql: backups runs
+        metric full_age_seconds -1 database=master
+        metric full_age_seconds -1 database=model
+        metric diff_age_seconds -1 database=model
+        metric log_age_seconds -1 database=model
+        metric full_age_seconds -1 database=msdb
+        metric diff_age_seconds -1 database=msdb
+        metric full_age_seconds 47 database=vigil_it
+        metric diff_age_seconds -1 database=vigil_it
+        metric log_age_seconds 47 database=vigil_it
+        metric never_backed_up 3
+  PASS  mssql: agent runs
+        metric readable 0
+  PASS  mssql: up
+  PASS  mssql: what it is
+  PASS  mssql: its uptime
+  PASS  mssql: connections
+  PASS  mssql: requests counted
+  PASS  mssql: page life
+  PASS  mssql: the buffer cache hit ratio
+  PASS  mssql: workers against the most
+  PASS  mssql: SQL Server CPU
+  PASS  mssql: waits by kind
+  PASS  mssql: reads, file by file
+  PASS  mssql: memory it aims for
+  PASS  mssql: the plan cache
+  PASS  mssql: tempdb free
+  PASS  mssql: our connections encrypted
+  PASS  mssql: master online
+  PASS  mssql: log use
+  PASS  mssql: virtual log files
+  PASS  mssql: disk space
+  PASS  mssql: no damaged pages
+  PASS  mssql: xp_cmdshell off
+  PASS  mssql: Agent jobs not readable without their grants
+  PASS  mssql: no warning taken for data
+  PASS  mssql: a request blocked
+  PASS  mssql: and its head blocker
+  PASS  mssql: asleep with a transaction open
+  PASS  mssql: for some seconds
+  PASS  mssql: the open transaction
+  PASS  mssql: the wait is a lock
+  PASS  mssql: the database online
+  PASS  mssql: in full recovery
+  PASS  mssql: checked today
+  PASS  mssql: its full backup just taken
+  PASS  mssql: and its log backup
+  PASS  mssql: no differential
+  PASS  mssql: agent runs with its grants
+        metric jobs 1
+        metric jobs_enabled 1
+        metric failed_24h 1
+        metric job_failed_24h 1 job=vigil_it_failing
+        metric running 0
+        metric longest_running_seconds 0
+  PASS  mssql: Agent jobs readable
+  PASS  mssql: Agent running
+  PASS  mssql: the failed job seen
+  PASS  mssql: failures counted
+  PASS  mssql: the primary seen
+  PASS  mssql: the secondary connected
+  PASS  mssql: healthy
+  PASS  mssql: its database synchronized
+  PASS  mssql: its send queue
+  PASS  mssql: replication runs on the secondary
+        metric suspended 0 group=ag1 replica=mssql-secondary database=vigil_it
+        metric send_queue_bytes 61440 group=ag1 replica=mssql-secondary database=vigil_it
+        metric send_rate_bytes 79188992 group=ag1 replica=mssql-secondary database=vigil_it
+        metric redo_queue_bytes 0 group=ag1 replica=mssql-secondary database=vigil_it
+        metric redo_rate_bytes 566272 group=ag1 replica=mssql-secondary database=vigil_it
+        metric lag_seconds 0 group=ag1 replica=mssql-secondary database=vigil_it
+  PASS  mssql: a secondary
+  PASS  mssql: its database, from its side
+  PASS  mssql: a certificate it cannot trust fails the run
+  PASS  mssql: and says why
+  PASS  mssql: a wrong password fails the run
+  PASS  mssql: and says why
+  PASS  mssql: the password is written nowhere
+  PASS  mssql: a server that is down still runs
+  PASS  mssql: and reads as up 0
+  PASS  mssql: the other jobs succeed when it is down
+  PASS  mssql: and say nothing
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+79 passed, 0 failed
+
+# Both sides, synchronized.
+$ MSSQL_PORT=11433 bash packs/mssql/replication.sh
+metric primary 1 group=ag1 replica=mssql-primary
+metric connected 1 group=ag1 replica=mssql-primary
+metric health 2 group=ag1 replica=mssql-primary
+metric local 1 group=ag1 replica=mssql-primary
+metric primary 0 group=ag1 replica=mssql-secondary
+metric connected 1 group=ag1 replica=mssql-secondary
+metric health 2 group=ag1 replica=mssql-secondary
+metric local 0 group=ag1 replica=mssql-secondary
+metric sync_state 2 group=ag1 replica=mssql-secondary database=vigil_it
+metric suspended 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric send_queue_bytes 61440 group=ag1 replica=mssql-secondary database=vigil_it
+metric send_rate_bytes 79188992 group=ag1 replica=mssql-secondary database=vigil_it
+metric redo_queue_bytes 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric redo_rate_bytes 566272 group=ag1 replica=mssql-secondary database=vigil_it
+metric lag_seconds 0 group=ag1 replica=mssql-secondary database=vigil_it
+$ MSSQL_PORT=11434 bash packs/mssql/replication.sh
+metric primary 0 group=ag1 replica=mssql-secondary
+metric connected 1 group=ag1 replica=mssql-secondary
+metric health 2 group=ag1 replica=mssql-secondary
+metric local 1 group=ag1 replica=mssql-secondary
+metric sync_state 2 group=ag1 replica=mssql-secondary database=vigil_it
+metric suspended 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric send_queue_bytes 61440 group=ag1 replica=mssql-secondary database=vigil_it
+metric send_rate_bytes 79188992 group=ag1 replica=mssql-secondary database=vigil_it
+metric redo_queue_bytes 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric redo_rate_bytes 566272 group=ag1 replica=mssql-secondary database=vigil_it
+metric lag_seconds 0 group=ag1 replica=mssql-secondary database=vigil_it
+
+# The secondary stops.
+$ MSSQL_PORT=11433 bash packs/mssql/replication.sh
+metric primary 1 group=ag1 replica=mssql-primary
+metric connected 1 group=ag1 replica=mssql-primary
+metric health 2 group=ag1 replica=mssql-primary
+metric local 1 group=ag1 replica=mssql-primary
+metric primary 0 group=ag1 replica=mssql-secondary
+metric connected 0 group=ag1 replica=mssql-secondary
+metric health 0 group=ag1 replica=mssql-secondary
+metric local 0 group=ag1 replica=mssql-secondary
+metric sync_state 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric suspended 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric send_queue_bytes 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric send_rate_bytes 79188992 group=ag1 replica=mssql-secondary database=vigil_it
+metric redo_queue_bytes 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric redo_rate_bytes 566272 group=ag1 replica=mssql-secondary database=vigil_it
+metric lag_seconds 0 group=ag1 replica=mssql-secondary database=vigil_it
+$ MSSQL_PORT=11434 bash packs/mssql/status.sh
+metric up 0
+(the secondary's other jobs print nothing while it does not answer; status reports it)
+
+# The secondary starts again, and catches up.
+$ MSSQL_PORT=11433 bash packs/mssql/replication.sh
+metric primary 1 group=ag1 replica=mssql-primary
+metric connected 1 group=ag1 replica=mssql-primary
+metric health 2 group=ag1 replica=mssql-primary
+metric local 1 group=ag1 replica=mssql-primary
+metric primary 0 group=ag1 replica=mssql-secondary
+metric connected 1 group=ag1 replica=mssql-secondary
+metric health 2 group=ag1 replica=mssql-secondary
+metric local 0 group=ag1 replica=mssql-secondary
+metric sync_state 2 group=ag1 replica=mssql-secondary database=vigil_it
+metric suspended 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric send_queue_bytes 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric send_rate_bytes 81920000 group=ag1 replica=mssql-secondary database=vigil_it
+metric redo_queue_bytes 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric redo_rate_bytes 3003392 group=ag1 replica=mssql-secondary database=vigil_it
+metric lag_seconds 0 group=ag1 replica=mssql-secondary database=vigil_it
+$ MSSQL_PORT=11434 bash packs/mssql/replication.sh
+metric primary 0 group=ag1 replica=mssql-secondary
+metric connected 1 group=ag1 replica=mssql-secondary
+metric health 2 group=ag1 replica=mssql-secondary
+metric local 1 group=ag1 replica=mssql-secondary
+metric sync_state 2 group=ag1 replica=mssql-secondary database=vigil_it
+metric suspended 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric send_queue_bytes 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric send_rate_bytes 81920000 group=ag1 replica=mssql-secondary database=vigil_it
+metric redo_queue_bytes 0 group=ag1 replica=mssql-secondary database=vigil_it
+metric redo_rate_bytes 3003392 group=ag1 replica=mssql-secondary database=vigil_it
+metric lag_seconds 0 group=ag1 replica=mssql-secondary database=vigil_it
+evidence: reports/runs/2026-11-20/fedora/pack-mssql-2025-replication

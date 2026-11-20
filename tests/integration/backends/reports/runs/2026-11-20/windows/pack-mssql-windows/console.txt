@@ -1,0 +1,1486 @@
+== pack-mssql-windows
+date     2026-11-20T21:29:37Z
+host     DESKTOP-5RNMH9R (Windows 10.0.22631.0)
+vigil    464224f7b20e56e7ad94cb30b4b6104d132382d4, with local changes
+shells   Windows PowerShell 5.1.22621.6133, PowerShell 7.6.10
+client   none: .NET's own SQL Server client (System.Data.SqlClient)
+server   SQL Server 2022 (16.0.4325.4, CU28), TLS only, on the Fedora test machine, through an SSH tunnel
+
+# Every job, on powershell.
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\status.ps1
+metric up 1
+metric info 1 release=2022 version=16.0.4325.4 update=CU28 edition=developer os=linux
+metric uptime_seconds 165
+metric cpus 4
+metric schedulers 4
+metric connections 4
+metric connections_max 32767
+metric clustered 0
+metric hadr_enabled 1
+metric agent_running 1
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\performance.ps1
+metric batch_requests_count 61
+metric compilations_count 229
+metric recompilations_count 24
+metric transactions_count 566
+metric logins_count 15
+metric logouts_count 11
+metric processes_blocked 0
+metric errors_count 257
+metric page_life_expectancy_seconds 166
+metric lazy_writes_count 0
+metric checkpoint_pages_count 361
+metric page_reads_count 4776
+metric page_writes_count 1007
+metric lock_waits_count 18
+metric lock_timeouts_count 2
+metric deadlocks_count 0
+metric page_splits_count 107
+metric full_scans_count 115
+metric memory_grants_pending 0
+metric memory_grants_outstanding 0
+metric buffer_cache_hit_pct 100
+metric missing_indexes 0
+metric missing_index_top_impact_pct 0
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\activity.ps1
+metric sessions 0 state=running
+metric sessions 3 state=sleeping
+metric sessions 0 state=dormant
+metric sessions 0 state=preconnect
+metric requests 0
+metric requests_blocked 0
+metric head_blockers 0
+metric longest_request_seconds 0
+metric longest_wait_seconds 0 type=none
+metric oldest_transaction_seconds 0
+metric idle_in_transaction 0
+metric idle_in_transaction_seconds 0
+metric longest_snapshot_seconds 0
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\cpu.ps1
+metric sql_pct 0
+metric runnable_tasks 0
+metric work_queued 0
+metric pending_disk_io 0
+metric workers 70
+metric workers_max 256
+metric workers_pct 27.34
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\replication.ps1
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\waits.ps1
+metric wait_ms_count 191 kind=cpu
+metric wait_ms_count 1312 kind=disk_read
+metric wait_ms_count 3694 kind=external
+metric wait_ms_count 36 kind=latch
+metric wait_ms_count 11648 kind=lock
+metric wait_ms_count 642 kind=log_write
+metric wait_ms_count 0 kind=memory
+metric wait_ms_count 13 kind=network
+metric wait_ms_count 422 kind=other
+metric wait_ms_count 0 kind=parallelism
+metric wait_ms_count 0 kind=replication
+metric top_wait_ms_count 9605 type=LCK_M_U
+metric top_wait_ms_count 2169 type=PREEMPTIVE_OS_CRYPTOPS
+metric top_wait_ms_count 1930 type=LCK_M_S
+metric top_wait_ms_count 715 type=PREEMPTIVE_OS_FILEOPS
+metric top_wait_ms_count 679 type=WRITELOG
+metric top_wait_ms_count 619 type=ASYNC_IO_COMPLETION
+metric top_wait_ms_count 382 type=PAGEIOLATCH_SH
+metric top_wait_ms_count 290 type=AZURE_IMDS_VERSIONS
+metric top_wait_ms_count 177 type=PAGEIOLATCH_EX
+metric top_wait_ms_count 160 type=PREEMPTIVE_OS_WRITEFILEGATHER
+metric top_waits_count 12 type=LCK_M_U
+metric top_waits_count 47 type=PREEMPTIVE_OS_CRYPTOPS
+metric top_waits_count 3 type=LCK_M_S
+metric top_waits_count 360 type=PREEMPTIVE_OS_FILEOPS
+metric top_waits_count 463 type=WRITELOG
+metric top_waits_count 7 type=ASYNC_IO_COMPLETION
+metric top_waits_count 272 type=PAGEIOLATCH_SH
+metric top_waits_count 1 type=AZURE_IMDS_VERSIONS
+metric top_waits_count 93 type=PAGEIOLATCH_EX
+metric top_waits_count 26 type=PREEMPTIVE_OS_WRITEFILEGATHER
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\io.ps1
+metric reads_count 74 database=master file=master kind=data
+metric writes_count 166 database=master file=master kind=data
+metric read_bytes_count 4030464 database=master file=master kind=data
+metric written_bytes_count 2596864 database=master file=master kind=data
+metric read_stall_ms_count 125 database=master file=master kind=data
+metric write_stall_ms_count 36 database=master file=master kind=data
+metric size_bytes 4915200 database=master file=master kind=data
+metric reads_count 12 database=master file=mastlog kind=log
+metric writes_count 185 database=master file=mastlog kind=log
+metric read_bytes_count 229376 database=master file=mastlog kind=log
+metric written_bytes_count 1748992 database=master file=mastlog kind=log
+metric read_stall_ms_count 2 database=master file=mastlog kind=log
+metric write_stall_ms_count 185 database=master file=mastlog kind=log
+metric size_bytes 2097152 database=master file=mastlog kind=log
+metric reads_count 70 database=model file=modeldev kind=data
+metric writes_count 81 database=model file=modeldev kind=data
+metric read_bytes_count 19030016 database=model file=modeldev kind=data
+metric written_bytes_count 843776 database=model file=modeldev kind=data
+metric read_stall_ms_count 216 database=model file=modeldev kind=data
+metric write_stall_ms_count 259 database=model file=modeldev kind=data
+metric size_bytes 8388608 database=model file=modeldev kind=data
+metric reads_count 7 database=model file=modellog kind=log
+metric writes_count 111 database=model file=modellog kind=log
+metric read_bytes_count 253952 database=model file=modellog kind=log
+metric written_bytes_count 962560 database=model file=modellog kind=log
+metric read_stall_ms_count 1 database=model file=modellog kind=log
+metric write_stall_ms_count 346 database=model file=modellog kind=log
+metric size_bytes 8388608 database=model file=modellog kind=log
+metric reads_count 127 database=msdb file=MSDBData kind=data
+metric writes_count 112 database=msdb file=MSDBData kind=data
+metric read_bytes_count 8085504 database=msdb file=MSDBData kind=data
+metric written_bytes_count 1081344 database=msdb file=MSDBData kind=data
+metric read_stall_ms_count 257 database=msdb file=MSDBData kind=data
+metric write_stall_ms_count 177 database=msdb file=MSDBData kind=data
+metric size_bytes 15925248 database=msdb file=MSDBData kind=data
+metric reads_count 9 database=msdb file=MSDBLog kind=log
+metric writes_count 132 database=msdb file=MSDBLog kind=log
+metric read_bytes_count 520192 database=msdb file=MSDBLog kind=log
+metric written_bytes_count 1101824 database=msdb file=MSDBLog kind=log
+metric read_stall_ms_count 13 database=msdb file=MSDBLog kind=log
+metric write_stall_ms_count 147 database=msdb file=MSDBLog kind=log
+metric size_bytes 1310720 database=msdb file=MSDBLog kind=log
+metric reads_count 36 database=tempdb file=tempdev kind=data
+metric writes_count 4 database=tempdb file=tempdev kind=data
+metric read_bytes_count 2179072 database=tempdb file=tempdev kind=data
+metric written_bytes_count 32768 database=tempdb file=tempdev kind=data
+metric read_stall_ms_count 196 database=tempdb file=tempdev kind=data
+metric write_stall_ms_count 1 database=tempdb file=tempdev kind=data
+metric size_bytes 8388608 database=tempdb file=tempdev kind=data
+metric reads_count 7 database=tempdb file=templog kind=log
+metric writes_count 36 database=tempdb file=templog kind=log
+metric read_bytes_count 1007616 database=tempdb file=templog kind=log
+metric written_bytes_count 1810432 database=tempdb file=templog kind=log
+metric read_stall_ms_count 10 database=tempdb file=templog kind=log
+metric write_stall_ms_count 80 database=tempdb file=templog kind=log
+metric size_bytes 8388608 database=tempdb file=templog kind=log
+metric reads_count 9 database=tempdb file=tempdev2 kind=data
+metric writes_count 11 database=tempdb file=tempdev2 kind=data
+metric read_bytes_count 131072 database=tempdb file=tempdev2 kind=data
+metric written_bytes_count 90112 database=tempdb file=tempdev2 kind=data
+metric read_stall_ms_count 4 database=tempdb file=tempdev2 kind=data
+metric write_stall_ms_count 1 database=tempdb file=tempdev2 kind=data
+metric size_bytes 8388608 database=tempdb file=tempdev2 kind=data
+metric reads_count 9 database=tempdb file=tempdev3 kind=data
+metric writes_count 11 database=tempdb file=tempdev3 kind=data
+metric read_bytes_count 131072 database=tempdb file=tempdev3 kind=data
+metric written_bytes_count 90112 database=tempdb file=tempdev3 kind=data
+metric read_stall_ms_count 5 database=tempdb file=tempdev3 kind=data
+metric write_stall_ms_count 2 database=tempdb file=tempdev3 kind=data
+metric size_bytes 8388608 database=tempdb file=tempdev3 kind=data
+metric reads_count 9 database=tempdb file=tempdev4 kind=data
+metric writes_count 11 database=tempdb file=tempdev4 kind=data
+metric read_bytes_count 131072 database=tempdb file=tempdev4 kind=data
+metric written_bytes_count 90112 database=tempdb file=tempdev4 kind=data
+metric read_stall_ms_count 4 database=tempdb file=tempdev4 kind=data
+metric write_stall_ms_count 1 database=tempdb file=tempdev4 kind=data
+metric size_bytes 8388608 database=tempdb file=tempdev4 kind=data
+metric reads_count 37 database=vigil_it file=vigil_it kind=data
+metric writes_count 27 database=vigil_it file=vigil_it kind=data
+metric read_bytes_count 2187264 database=vigil_it file=vigil_it kind=data
+metric written_bytes_count 262144 database=vigil_it file=vigil_it kind=data
+metric read_stall_ms_count 36 database=vigil_it file=vigil_it kind=data
+metric write_stall_ms_count 18 database=vigil_it file=vigil_it kind=data
+metric size_bytes 8388608 database=vigil_it file=vigil_it kind=data
+metric reads_count 7 database=vigil_it file=vigil_it_log kind=log
+metric writes_count 17 database=vigil_it file=vigil_it_log kind=log
+metric read_bytes_count 1007616 database=vigil_it file=vigil_it_log kind=log
+metric written_bytes_count 131072 database=vigil_it file=vigil_it_log kind=log
+metric read_stall_ms_count 9 database=vigil_it file=vigil_it_log kind=log
+metric write_stall_ms_count 38 database=vigil_it file=vigil_it_log kind=log
+metric size_bytes 8388608 database=vigil_it file=vigil_it_log kind=log
+metric files_not_shown 0
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\memory.ps1
+metric target_bytes 1032241152
+metric total_bytes 261799936
+metric process_bytes 4294967296
+metric process_low 0
+metric system_total_bytes 1718616064
+metric system_available_bytes 852426752
+metric system_low 0
+metric buffer_pool_bytes 41230336
+metric memory_grants_bytes 0
+metric plan_cache_bytes 24829952
+metric single_use_plan_bytes 925696
+metric xtp_bytes 2310144
+metric clerk_bytes 55435264 clerk=sosnode
+metric clerk_bytes 41435136 clerk=sqlbufferpool
+metric clerk_bytes 17637376 clerk=cachestore_phdr
+metric clerk_bytes 11313152 clerk=sqlstoreng
+metric clerk_bytes 8282112 clerk=sqlgeneral
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\tempdb.ps1
+metric size_bytes 33554432
+metric free_bytes 29229056
+metric free_pct 87.11
+metric version_store_bytes 0
+metric user_objects_bytes 2097152
+metric internal_objects_bytes 393216
+metric log_used_pct 29
+metric data_files 4
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\connections.ps1
+metric connections 4 encrypted=yes
+metric connections 0 encrypted=no
+metric connections_by_auth 0 auth=kerberos
+metric connections_by_auth 3 auth=ntlm
+metric connections_by_auth 1 auth=sql
+metric sessions 3 database=msdb
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\databases.ps1
+metric databases 5
+metric databases_not_shown 0
+metric online 1 database=master
+metric state 0 database=master state=online
+metric read_only 0 database=master
+metric recovery 1 database=master model=simple
+metric data_bytes 4915200 database=master
+metric log_bytes 2088960 database=master
+metric log_used_bytes 811008 database=master
+metric log_used_pct 38 database=master
+metric log_reuse_waiting 0 database=master reason=nothing
+metric active_transactions 0 database=master
+metric compatibility_level 160 database=master
+metric compatibility_behind 0 database=master
+metric online 1 database=model
+metric state 0 database=model state=online
+metric read_only 0 database=model
+metric recovery 1 database=model model=full
+metric data_bytes 8388608 database=model
+metric log_bytes 8380416 database=model
+metric log_used_bytes 988160 database=model
+metric log_used_pct 11 database=model
+metric log_reuse_waiting 0 database=model reason=nothing
+metric active_transactions 0 database=model
+metric compatibility_level 160 database=model
+metric compatibility_behind 0 database=model
+metric online 1 database=msdb
+metric state 0 database=msdb state=online
+metric read_only 0 database=msdb
+metric recovery 1 database=msdb model=simple
+metric data_bytes 15925248 database=msdb
+metric log_bytes 1302528 database=msdb
+metric log_used_bytes 561152 database=msdb
+metric log_used_pct 43 database=msdb
+metric log_reuse_waiting 0 database=msdb reason=nothing
+metric active_transactions 0 database=msdb
+metric compatibility_level 160 database=msdb
+metric compatibility_behind 0 database=msdb
+metric online 1 database=tempdb
+metric state 0 database=tempdb state=online
+metric read_only 0 database=tempdb
+metric recovery 1 database=tempdb model=simple
+metric data_bytes 33554432 database=tempdb
+metric log_bytes 8380416 database=tempdb
+metric log_used_bytes 3004416 database=tempdb
+metric log_used_pct 35 database=tempdb
+metric log_reuse_waiting 1 database=tempdb reason=active_transaction
+metric active_transactions 0 database=tempdb
+metric compatibility_level 160 database=tempdb
+metric compatibility_behind 0 database=tempdb
+metric online 1 database=vigil_it
+metric state 0 database=vigil_it state=online
+metric read_only 0 database=vigil_it
+metric recovery 1 database=vigil_it model=full
+metric data_bytes 8388608 database=vigil_it
+metric log_bytes 8380416 database=vigil_it
+metric log_used_bytes 533504 database=vigil_it
+metric log_used_pct 6 database=vigil_it
+metric log_reuse_waiting 0 database=vigil_it reason=nothing
+metric active_transactions 0 database=vigil_it
+metric compatibility_level 160 database=vigil_it
+metric compatibility_behind 0 database=vigil_it
+metric query_store 0 database=msdb
+metric query_store 2 database=vigil_it
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\health.ps1
+metric checkdb_age_days -1 database=master
+metric checkdb_age_days -1 database=model
+metric checkdb_age_days -1 database=msdb
+metric checkdb_age_days -1 database=vigil_it
+metric vlfs 8 database=master
+metric vlfs 3 database=model
+metric vlfs 5 database=msdb
+metric vlfs 4 database=vigil_it
+metric pct_growth_files 2 database=master
+metric pct_growth_files 2 database=msdb
+metric max_size_used_pct 0 database=vigil_it file=vigil_it_log kind=log
+metric max_size_used_pct 0 database=msdb file=MSDBLog kind=log
+metric volume_total_bytes 117884059648 volume=unknown
+metric volume_free_bytes 62393171968 volume=unknown
+metric volume_free_pct 52.93 volume=unknown
+metric suspect_pages 0
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\config.ps1
+metric max_server_memory_mb 2147483647
+metric max_server_memory_default 1
+metric maxdop 0
+metric cost_threshold 5
+metric optimize_for_ad_hoc 0
+metric xp_cmdshell 0
+metric clr_enabled 0
+metric ole_automation 0
+metric remote_admin_connections 0
+metric sa_enabled 1
+metric sysadmins 1
+metric locked_pages 0
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\backups.ps1
+metric full_age_seconds -1 database=master
+metric full_age_seconds -1 database=model
+metric diff_age_seconds -1 database=model
+metric log_age_seconds -1 database=model
+metric full_age_seconds -1 database=msdb
+metric diff_age_seconds -1 database=msdb
+metric full_age_seconds -1 database=vigil_it
+metric diff_age_seconds -1 database=vigil_it
+metric log_age_seconds -1 database=vigil_it
+metric never_backed_up 4
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; powershell -File packs\mssql\windows\agent.ps1
+metric readable 0
+[exit 0]
+
+# Every job, on pwsh.
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\status.ps1
+metric up 1
+metric info 1 release=2022 version=16.0.4325.4 update=CU28 edition=developer os=linux
+metric uptime_seconds 197
+metric cpus 4
+metric schedulers 4
+metric connections 4
+metric connections_max 32767
+metric clustered 0
+metric hadr_enabled 1
+metric agent_running 1
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\performance.ps1
+metric batch_requests_count 76
+metric compilations_count 427
+metric recompilations_count 195
+metric transactions_count 1401
+metric logins_count 30
+metric logouts_count 26
+metric processes_blocked 0
+metric errors_count 287
+metric page_life_expectancy_seconds 197
+metric lazy_writes_count 0
+metric checkpoint_pages_count 361
+metric page_reads_count 4912
+metric page_writes_count 1007
+metric lock_waits_count 18
+metric lock_timeouts_count 2
+metric deadlocks_count 0
+metric page_splits_count 603
+metric full_scans_count 423
+metric memory_grants_pending 0
+metric memory_grants_outstanding 0
+metric buffer_cache_hit_pct 100
+metric missing_indexes 0
+metric missing_index_top_impact_pct 0
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\activity.ps1
+metric sessions 0 state=running
+metric sessions 3 state=sleeping
+metric sessions 0 state=dormant
+metric sessions 0 state=preconnect
+metric requests 0
+metric requests_blocked 0
+metric head_blockers 0
+metric longest_request_seconds 0
+metric longest_wait_seconds 0 type=none
+metric oldest_transaction_seconds 0
+metric idle_in_transaction 0
+metric idle_in_transaction_seconds 0
+metric longest_snapshot_seconds 0
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\cpu.ps1
+metric sql_pct 2
+metric runnable_tasks 0
+metric work_queued 0
+metric pending_disk_io 0
+metric workers 70
+metric workers_max 256
+metric workers_pct 27.34
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\replication.ps1
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\waits.ps1
+metric wait_ms_count 226 kind=cpu
+metric wait_ms_count 1317 kind=disk_read
+metric wait_ms_count 3795 kind=external
+metric wait_ms_count 35 kind=latch
+metric wait_ms_count 11648 kind=lock
+metric wait_ms_count 643 kind=log_write
+metric wait_ms_count 0 kind=memory
+metric wait_ms_count 28 kind=network
+metric wait_ms_count 422 kind=other
+metric wait_ms_count 0 kind=parallelism
+metric wait_ms_count 0 kind=replication
+metric top_wait_ms_count 9605 type=LCK_M_U
+metric top_wait_ms_count 2173 type=PREEMPTIVE_OS_CRYPTOPS
+metric top_wait_ms_count 1930 type=LCK_M_S
+metric top_wait_ms_count 715 type=PREEMPTIVE_OS_FILEOPS
+metric top_wait_ms_count 680 type=WRITELOG
+metric top_wait_ms_count 619 type=ASYNC_IO_COMPLETION
+metric top_wait_ms_count 387 type=PAGEIOLATCH_SH
+metric top_wait_ms_count 290 type=AZURE_IMDS_VERSIONS
+metric top_wait_ms_count 177 type=PAGEIOLATCH_EX
+metric top_wait_ms_count 160 type=PREEMPTIVE_OS_WRITEFILEGATHER
+metric top_waits_count 12 type=LCK_M_U
+metric top_waits_count 92 type=PREEMPTIVE_OS_CRYPTOPS
+metric top_waits_count 3 type=LCK_M_S
+metric top_waits_count 360 type=PREEMPTIVE_OS_FILEOPS
+metric top_waits_count 465 type=WRITELOG
+metric top_waits_count 7 type=ASYNC_IO_COMPLETION
+metric top_waits_count 276 type=PAGEIOLATCH_SH
+metric top_waits_count 1 type=AZURE_IMDS_VERSIONS
+metric top_waits_count 93 type=PAGEIOLATCH_EX
+metric top_waits_count 26 type=PREEMPTIVE_OS_WRITEFILEGATHER
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\io.ps1
+metric reads_count 74 database=master file=master kind=data
+metric writes_count 166 database=master file=master kind=data
+metric read_bytes_count 4030464 database=master file=master kind=data
+metric written_bytes_count 2596864 database=master file=master kind=data
+metric read_stall_ms_count 125 database=master file=master kind=data
+metric write_stall_ms_count 36 database=master file=master kind=data
+metric size_bytes 4915200 database=master file=master kind=data
+metric reads_count 12 database=master file=mastlog kind=log
+metric writes_count 186 database=master file=mastlog kind=log
+metric read_bytes_count 229376 database=master file=mastlog kind=log
+metric written_bytes_count 1753088 database=master file=mastlog kind=log
+metric read_stall_ms_count 2 database=master file=mastlog kind=log
+metric write_stall_ms_count 185 database=master file=mastlog kind=log
+metric size_bytes 2097152 database=master file=mastlog kind=log
+metric reads_count 70 database=model file=modeldev kind=data
+metric writes_count 81 database=model file=modeldev kind=data
+metric read_bytes_count 19030016 database=model file=modeldev kind=data
+metric written_bytes_count 843776 database=model file=modeldev kind=data
+metric read_stall_ms_count 216 database=model file=modeldev kind=data
+metric write_stall_ms_count 259 database=model file=modeldev kind=data
+metric size_bytes 8388608 database=model file=modeldev kind=data
+metric reads_count 7 database=model file=modellog kind=log
+metric writes_count 111 database=model file=modellog kind=log
+metric read_bytes_count 253952 database=model file=modellog kind=log
+metric written_bytes_count 962560 database=model file=modellog kind=log
+metric read_stall_ms_count 1 database=model file=modellog kind=log
+metric write_stall_ms_count 346 database=model file=modellog kind=log
+metric size_bytes 8388608 database=model file=modellog kind=log
+metric reads_count 128 database=msdb file=MSDBData kind=data
+metric writes_count 112 database=msdb file=MSDBData kind=data
+metric read_bytes_count 8151040 database=msdb file=MSDBData kind=data
+metric written_bytes_count 1081344 database=msdb file=MSDBData kind=data
+metric read_stall_ms_count 260 database=msdb file=MSDBData kind=data
+metric write_stall_ms_count 177 database=msdb file=MSDBData kind=data
+metric size_bytes 15925248 database=msdb file=MSDBData kind=data
+metric reads_count 9 database=msdb file=MSDBLog kind=log
+metric writes_count 132 database=msdb file=MSDBLog kind=log
+metric read_bytes_count 520192 database=msdb file=MSDBLog kind=log
+metric written_bytes_count 1101824 database=msdb file=MSDBLog kind=log
+metric read_stall_ms_count 13 database=msdb file=MSDBLog kind=log
+metric write_stall_ms_count 147 database=msdb file=MSDBLog kind=log
+metric size_bytes 1310720 database=msdb file=MSDBLog kind=log
+metric reads_count 36 database=tempdb file=tempdev kind=data
+metric writes_count 4 database=tempdb file=tempdev kind=data
+metric read_bytes_count 2179072 database=tempdb file=tempdev kind=data
+metric written_bytes_count 32768 database=tempdb file=tempdev kind=data
+metric read_stall_ms_count 196 database=tempdb file=tempdev kind=data
+metric write_stall_ms_count 1 database=tempdb file=tempdev kind=data
+metric size_bytes 8388608 database=tempdb file=tempdev kind=data
+metric reads_count 7 database=tempdb file=templog kind=log
+metric writes_count 98 database=tempdb file=templog kind=log
+metric read_bytes_count 1007616 database=tempdb file=templog kind=log
+metric written_bytes_count 5476352 database=tempdb file=templog kind=log
+metric read_stall_ms_count 10 database=tempdb file=templog kind=log
+metric write_stall_ms_count 445 database=tempdb file=templog kind=log
+metric size_bytes 8388608 database=tempdb file=templog kind=log
+metric reads_count 9 database=tempdb file=tempdev2 kind=data
+metric writes_count 11 database=tempdb file=tempdev2 kind=data
+metric read_bytes_count 131072 database=tempdb file=tempdev2 kind=data
+metric written_bytes_count 90112 database=tempdb file=tempdev2 kind=data
+metric read_stall_ms_count 4 database=tempdb file=tempdev2 kind=data
+metric write_stall_ms_count 1 database=tempdb file=tempdev2 kind=data
+metric size_bytes 8388608 database=tempdb file=tempdev2 kind=data
+metric reads_count 9 database=tempdb file=tempdev3 kind=data
+metric writes_count 11 database=tempdb file=tempdev3 kind=data
+metric read_bytes_count 131072 database=tempdb file=tempdev3 kind=data
+metric written_bytes_count 90112 database=tempdb file=tempdev3 kind=data
+metric read_stall_ms_count 5 database=tempdb file=tempdev3 kind=data
+metric write_stall_ms_count 2 database=tempdb file=tempdev3 kind=data
+metric size_bytes 8388608 database=tempdb file=tempdev3 kind=data
+metric reads_count 9 database=tempdb file=tempdev4 kind=data
+metric writes_count 11 database=tempdb file=tempdev4 kind=data
+metric read_bytes_count 131072 database=tempdb file=tempdev4 kind=data
+metric written_bytes_count 90112 database=tempdb file=tempdev4 kind=data
+metric read_stall_ms_count 4 database=tempdb file=tempdev4 kind=data
+metric write_stall_ms_count 1 database=tempdb file=tempdev4 kind=data
+metric size_bytes 8388608 database=tempdb file=tempdev4 kind=data
+metric reads_count 37 database=vigil_it file=vigil_it kind=data
+metric writes_count 27 database=vigil_it file=vigil_it kind=data
+metric read_bytes_count 2187264 database=vigil_it file=vigil_it kind=data
+metric written_bytes_count 262144 database=vigil_it file=vigil_it kind=data
+metric read_stall_ms_count 36 database=vigil_it file=vigil_it kind=data
+metric write_stall_ms_count 18 database=vigil_it file=vigil_it kind=data
+metric size_bytes 8388608 database=vigil_it file=vigil_it kind=data
+metric reads_count 7 database=vigil_it file=vigil_it_log kind=log
+metric writes_count 17 database=vigil_it file=vigil_it_log kind=log
+metric read_bytes_count 1007616 database=vigil_it file=vigil_it_log kind=log
+metric written_bytes_count 131072 database=vigil_it file=vigil_it_log kind=log
+metric read_stall_ms_count 9 database=vigil_it file=vigil_it_log kind=log
+metric write_stall_ms_count 38 database=vigil_it file=vigil_it_log kind=log
+metric size_bytes 8388608 database=vigil_it file=vigil_it_log kind=log
+metric files_not_shown 0
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\memory.ps1
+metric target_bytes 1032241152
+metric total_bytes 271867904
+metric process_bytes 4294967296
+metric process_low 0
+metric system_total_bytes 1718616064
+metric system_available_bytes 839065600
+metric system_low 0
+metric buffer_pool_bytes 42541056
+metric memory_grants_bytes 0
+metric plan_cache_bytes 26435584
+metric single_use_plan_bytes 802816
+metric xtp_bytes 2310144
+metric clerk_bytes 55443456 clerk=sosnode
+metric clerk_bytes 42557440 clerk=sqlbufferpool
+metric clerk_bytes 19136512 clerk=cachestore_phdr
+metric clerk_bytes 11337728 clerk=sqlstoreng
+metric clerk_bytes 8282112 clerk=sqlgeneral
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\tempdb.ps1
+metric size_bytes 33554432
+metric free_bytes 29097984
+metric free_pct 86.72
+metric version_store_bytes 0
+metric user_objects_bytes 2162688
+metric internal_objects_bytes 393216
+metric log_used_pct 73
+metric data_files 4
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\connections.ps1
+metric connections 4 encrypted=yes
+metric connections 0 encrypted=no
+metric connections_by_auth 0 auth=kerberos
+metric connections_by_auth 3 auth=ntlm
+metric connections_by_auth 1 auth=sql
+metric sessions 3 database=msdb
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\databases.ps1
+metric databases 5
+metric databases_not_shown 0
+metric online 1 database=master
+metric state 0 database=master state=online
+metric read_only 0 database=master
+metric recovery 1 database=master model=simple
+metric data_bytes 4915200 database=master
+metric log_bytes 2088960 database=master
+metric log_used_bytes 815104 database=master
+metric log_used_pct 39 database=master
+metric log_reuse_waiting 0 database=master reason=nothing
+metric active_transactions 0 database=master
+metric compatibility_level 160 database=master
+metric compatibility_behind 0 database=master
+metric online 1 database=model
+metric state 0 database=model state=online
+metric read_only 0 database=model
+metric recovery 1 database=model model=full
+metric data_bytes 8388608 database=model
+metric log_bytes 8380416 database=model
+metric log_used_bytes 988160 database=model
+metric log_used_pct 11 database=model
+metric log_reuse_waiting 0 database=model reason=nothing
+metric active_transactions 0 database=model
+metric compatibility_level 160 database=model
+metric compatibility_behind 0 database=model
+metric online 1 database=msdb
+metric state 0 database=msdb state=online
+metric read_only 0 database=msdb
+metric recovery 1 database=msdb model=simple
+metric data_bytes 15925248 database=msdb
+metric log_bytes 1302528 database=msdb
+metric log_used_bytes 561152 database=msdb
+metric log_used_pct 43 database=msdb
+metric log_reuse_waiting 0 database=msdb reason=nothing
+metric active_transactions 0 database=msdb
+metric compatibility_level 160 database=msdb
+metric compatibility_behind 0 database=msdb
+metric online 1 database=tempdb
+metric state 0 database=tempdb state=online
+metric read_only 0 database=tempdb
+metric recovery 1 database=tempdb model=simple
+metric data_bytes 33554432 database=tempdb
+metric log_bytes 8380416 database=tempdb
+metric log_used_bytes 6650880 database=tempdb
+metric log_used_pct 79 database=tempdb
+metric log_reuse_waiting 1 database=tempdb reason=active_transaction
+metric active_transactions 0 database=tempdb
+metric compatibility_level 160 database=tempdb
+metric compatibility_behind 0 database=tempdb
+metric online 1 database=vigil_it
+metric state 0 database=vigil_it state=online
+metric read_only 0 database=vigil_it
+metric recovery 1 database=vigil_it model=full
+metric data_bytes 8388608 database=vigil_it
+metric log_bytes 8380416 database=vigil_it
+metric log_used_bytes 533504 database=vigil_it
+metric log_used_pct 6 database=vigil_it
+metric log_reuse_waiting 0 database=vigil_it reason=nothing
+metric active_transactions 0 database=vigil_it
+metric compatibility_level 160 database=vigil_it
+metric compatibility_behind 0 database=vigil_it
+metric query_store 0 database=msdb
+metric query_store 2 database=vigil_it
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\health.ps1
+metric checkdb_age_days -1 database=master
+metric checkdb_age_days -1 database=model
+metric checkdb_age_days -1 database=msdb
+metric checkdb_age_days -1 database=vigil_it
+metric vlfs 8 database=master
+metric vlfs 3 database=model
+metric vlfs 5 database=msdb
+metric vlfs 4 database=vigil_it
+metric pct_growth_files 2 database=master
+metric pct_growth_files 2 database=msdb
+metric max_size_used_pct 0 database=vigil_it file=vigil_it_log kind=log
+metric max_size_used_pct 0 database=msdb file=MSDBLog kind=log
+metric volume_total_bytes 117884059648 volume=unknown
+metric volume_free_bytes 62389510144 volume=unknown
+metric volume_free_pct 52.92 volume=unknown
+metric suspect_pages 0
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\config.ps1
+metric max_server_memory_mb 2147483647
+metric max_server_memory_default 1
+metric maxdop 0
+metric cost_threshold 5
+metric optimize_for_ad_hoc 0
+metric xp_cmdshell 0
+metric clr_enabled 0
+metric ole_automation 0
+metric remote_admin_connections 0
+metric sa_enabled 1
+metric sysadmins 1
+metric locked_pages 0
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\backups.ps1
+metric full_age_seconds -1 database=master
+metric full_age_seconds -1 database=model
+metric diff_age_seconds -1 database=model
+metric log_age_seconds -1 database=model
+metric full_age_seconds -1 database=msdb
+metric diff_age_seconds -1 database=msdb
+metric full_age_seconds -1 database=vigil_it
+metric diff_age_seconds -1 database=vigil_it
+metric log_age_seconds -1 database=vigil_it
+metric never_backed_up 4
+[exit 0]
+> $env:MSSQL_HOST='127.0.0.1'; $env:MSSQL_PORT=11433; pwsh -File packs\mssql\windows\agent.ps1
+metric readable 0
+[exit 0]
+
+# A server that is down.
+> $env:MSSQL_PORT=11499; powershell -File packs\mssql\windows\status.ps1
+metric up 0
+[exit 0]
+> $env:MSSQL_PORT=11499; powershell -File packs\mssql\windows\databases.ps1
+[exit 0]
+> $env:MSSQL_PORT=11499; pwsh -File packs\mssql\windows\status.ps1
+metric up 0
+[exit 0]
+> $env:MSSQL_PORT=11499; pwsh -File packs\mssql\windows\databases.ps1
+[exit 0]
+
+# Through Vigil on Windows: tests\integration\Service-Packs.ps1, on powershell.
+PowerShell 5.1.22621.6133
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+mssql at 127.0.0.1:11433
+  PASS  mssql: off until enabled
+  PASS  mssql: enabled
+        on: mssql_status
+        on: mssql_performance
+        on: mssql_activity
+        on: mssql_cpu
+        on: mssql_replication
+        on: mssql_waits
+        on: mssql_io
+        on: mssql_memory
+        on: mssql_tempdb
+        on: mssql_connections
+        on: mssql_databases
+        on: mssql_health
+        on: mssql_config
+        on: mssql_backups
+        on: mssql_agent
+        needs secret:MSSQL_MONITOR_PASSWORD: not set: vigil secret set MSSQL_MONITOR_PASSWORD, as the account Vigil runs as (an elevated prompt for a system install)
+        needs a read-only login, as an administrator: CREATE LOGIN vigil_monitor WITH PASSWORD = '...'; GRANT VIEW SERVER PERFORMANCE STATE, VIEW SERVER SECURITY STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE TO vigil_monitor (2019: VIEW SERVER STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE)
+        needs for mssql_agent, in msdb: CREATE USER vigil_monitor FOR LOGIN vigil_monitor; GRANT SELECT ON dbo.sysjobs TO vigil_monitor; GRANT SELECT ON dbo.sysjobhistory TO vigil_monitor; GRANT SELECT ON dbo.sysjobactivity TO vigil_monitor; GRANT SELECT ON dbo.syssessions TO vigil_monitor
+        settings in vigil.config: MSSQL_HOST=localhost MSSQL_PORT=1433 MSSQL_USER=vigil_monitor
+  PASS  mssql: its jobs are on
+  PASS  mssql: the password is a secret reference
+  PASS  mssql: precheck is happy
+  PASS  mssql: activity runs
+        metric sessions 1 state=running
+        metric sessions 6 state=sleeping
+        metric sessions 0 state=dormant
+        metric sessions 0 state=preconnect
+        metric requests 1
+        metric requests_blocked 1
+        metric head_blockers 1
+        metric longest_request_seconds 19
+        metric longest_wait_seconds 19.54 type=LCK_M_X
+        metric oldest_transaction_seconds 19
+        metric idle_in_transaction 1
+        metric idle_in_transaction_seconds 19
+        metric longest_snapshot_seconds 0
+  PASS  mssql: status runs
+        metric up 1
+        metric info 1 release=2022 version=16.0.4325.4 update=CU28 edition=developer os=linux
+        metric uptime_seconds 375
+        metric cpus 4
+        metric schedulers 4
+        metric connections 8
+        metric connections_max 32767
+        metric clustered 0
+        metric hadr_enabled 1
+        metric agent_running 1
+  PASS  mssql: performance runs
+        metric batch_requests_count 190
+        metric compilations_count 735
+        metric recompilations_count 385
+        metric transactions_count 2504
+        metric logins_count 50
+        metric logouts_count 42
+        metric processes_blocked 1
+        metric errors_count 352
+        metric page_life_expectancy_seconds 386
+        metric lazy_writes_count 0
+        metric checkpoint_pages_count 362
+        metric page_reads_count 5400
+        metric page_writes_count 1116
+        metric lock_waits_count 18
+        metric lock_timeouts_count 3
+        metric deadlocks_count 0
+        metric page_splits_count 1150
+        metric full_scans_count 842
+        metric memory_grants_pending 0
+        metric memory_grants_outstanding 0
+        metric buffer_cache_hit_pct 100
+        metric missing_indexes 0
+        metric missing_index_top_impact_pct 0
+  PASS  mssql: cpu runs
+        metric sql_pct 2
+        metric runnable_tasks 0
+        metric work_queued 0
+        metric pending_disk_io 0
+        metric workers 73
+        metric workers_max 256
+        metric workers_pct 28.52
+  PASS  mssql: replication runs
+  PASS  mssql: waits runs
+        metric wait_ms_count 267 kind=cpu
+        metric wait_ms_count 1458 kind=disk_read
+        metric wait_ms_count 4564 kind=external
+        metric wait_ms_count 37 kind=latch
+        metric wait_ms_count 11648 kind=lock
+        metric wait_ms_count 763 kind=log_write
+        metric wait_ms_count 0 kind=memory
+        metric wait_ms_count 57 kind=network
+        metric wait_ms_count 681 kind=other
+        metric wait_ms_count 0 kind=parallelism
+        metric wait_ms_count 0 kind=replication
+        metric top_wait_ms_count 9605 type=LCK_M_U
+        metric top_wait_ms_count 2178 type=PREEMPTIVE_OS_CRYPTOPS
+        metric top_wait_ms_count 1930 type=LCK_M_S
+        metric top_wait_ms_count 805 type=WRITELOG
+        metric top_wait_ms_count 772 type=PREEMPTIVE_OS_FILEOPS
+        metric top_wait_ms_count 720 type=ASYNC_IO_COMPLETION
+        metric top_wait_ms_count 433 type=PREEMPTIVE_OS_WRITEFILEGATHER
+        metric top_wait_ms_count 416 type=PAGEIOLATCH_SH
+        metric top_wait_ms_count 290 type=AZURE_IMDS_VERSIONS
+        metric top_wait_ms_count 209 type=PREEMPTIVE_OS_VERIFYTRUST
+        metric top_waits_count 12 type=LCK_M_U
+        metric top_waits_count 153 type=PREEMPTIVE_OS_CRYPTOPS
+        metric top_waits_count 3 type=LCK_M_S
+        metric top_waits_count 537 type=WRITELOG
+        metric top_waits_count 397 type=PREEMPTIVE_OS_FILEOPS
+        metric top_waits_count 12 type=ASYNC_IO_COMPLETION
+        metric top_waits_count 27 type=PREEMPTIVE_OS_WRITEFILEGATHER
+        metric top_waits_count 367 type=PAGEIOLATCH_SH
+        metric top_waits_count 1 type=AZURE_IMDS_VERSIONS
+        metric top_waits_count 4 type=PREEMPTIVE_OS_VERIFYTRUST
+  PASS  mssql: io runs
+        metric reads_count 74 database=master file=master kind=data
+        metric writes_count 167 database=master file=master kind=data
+        metric read_bytes_count 4030464 database=master file=master kind=data
+        metric written_bytes_count 2605056 database=master file=master kind=data
+        metric read_stall_ms_count 125 database=master file=master kind=data
+        metric write_stall_ms_count 36 database=master file=master kind=data
+        metric size_bytes 4915200 database=master file=master kind=data
+        metric reads_count 12 database=master file=mastlog kind=log
+        metric writes_count 209 database=master file=mastlog kind=log
+        metric read_bytes_count 229376 database=master file=mastlog kind=log
+        metric written_bytes_count 1892352 database=master file=mastlog kind=log
+        metric read_stall_ms_count 2 database=master file=mastlog kind=log
+        metric write_stall_ms_count 227 database=master file=mastlog kind=log
+        metric size_bytes 2097152 database=master file=mastlog kind=log
+        metric reads_count 70 database=model file=modeldev kind=data
+        metric writes_count 82 database=model file=modeldev kind=data
+        metric read_bytes_count 19030016 database=model file=modeldev kind=data
+        metric written_bytes_count 851968 database=model file=modeldev kind=data
+        metric read_stall_ms_count 216 database=model file=modeldev kind=data
+        metric write_stall_ms_count 259 database=model file=modeldev kind=data
+        metric size_bytes 8388608 database=model file=modeldev kind=data
+        metric reads_count 7 database=model file=modellog kind=log
+        metric writes_count 112 database=model file=modellog kind=log
+        metric read_bytes_count 253952 database=model file=modellog kind=log
+        metric written_bytes_count 970752 database=model file=modellog kind=log
+        metric read_stall_ms_count 1 database=model file=modellog kind=log
+        metric write_stall_ms_count 346 database=model file=modellog kind=log
+        metric size_bytes 8388608 database=model file=modellog kind=log
+        metric reads_count 128 database=msdb file=MSDBData kind=data
+        metric writes_count 112 database=msdb file=MSDBData kind=data
+        metric read_bytes_count 8151040 database=msdb file=MSDBData kind=data
+        metric written_bytes_count 1081344 database=msdb file=MSDBData kind=data
+        metric read_stall_ms_count 260 database=msdb file=MSDBData kind=data
+        metric write_stall_ms_count 177 database=msdb file=MSDBData kind=data
+        metric size_bytes 15925248 database=msdb file=MSDBData kind=data
+        metric reads_count 9 database=msdb file=MSDBLog kind=log
+        metric writes_count 150 database=msdb file=MSDBLog kind=log
+        metric read_bytes_count 520192 database=msdb file=MSDBLog kind=log
+        metric written_bytes_count 1208320 database=msdb file=MSDBLog kind=log
+        metric read_stall_ms_count 13 database=msdb file=MSDBLog kind=log
+        metric write_stall_ms_count 173 database=msdb file=MSDBLog kind=log
+        metric size_bytes 1310720 database=msdb file=MSDBLog kind=log
+        metric reads_count 36 database=tempdb file=tempdev kind=data
+        metric writes_count 7 database=tempdb file=tempdev kind=data
+        metric read_bytes_count 2179072 database=tempdb file=tempdev kind=data
+        metric written_bytes_count 73728 database=tempdb file=tempdev kind=data
+        metric read_stall_ms_count 196 database=tempdb file=tempdev kind=data
+        metric write_stall_ms_count 6 database=tempdb file=tempdev kind=data
+        metric size_bytes 8388608 database=tempdb file=tempdev kind=data
+        metric reads_count 11 database=tempdb file=templog kind=log
+        metric writes_count 171 database=tempdb file=templog kind=log
+        metric read_bytes_count 1024000 database=tempdb file=templog kind=log
+        metric written_bytes_count 9310208 database=tempdb file=templog kind=log
+        metric read_stall_ms_count 11 database=tempdb file=templog kind=log
+        metric write_stall_ms_count 718 database=tempdb file=templog kind=log
+        metric size_bytes 75497472 database=tempdb file=templog kind=log
+        metric reads_count 9 database=tempdb file=tempdev2 kind=data
+        metric writes_count 11 database=tempdb file=tempdev2 kind=data
+        metric read_bytes_count 131072 database=tempdb file=tempdev2 kind=data
+        metric written_bytes_count 90112 database=tempdb file=tempdev2 kind=data
+        metric read_stall_ms_count 4 database=tempdb file=tempdev2 kind=data
+        metric write_stall_ms_count 1 database=tempdb file=tempdev2 kind=data
+        metric size_bytes 8388608 database=tempdb file=tempdev2 kind=data
+        metric reads_count 9 database=tempdb file=tempdev3 kind=data
+        metric writes_count 11 database=tempdb file=tempdev3 kind=data
+        metric read_bytes_count 131072 database=tempdb file=tempdev3 kind=data
+        metric written_bytes_count 90112 database=tempdb file=tempdev3 kind=data
+        metric read_stall_ms_count 5 database=tempdb file=tempdev3 kind=data
+        metric write_stall_ms_count 2 database=tempdb file=tempdev3 kind=data
+        metric size_bytes 8388608 database=tempdb file=tempdev3 kind=data
+        metric reads_count 9 database=tempdb file=tempdev4 kind=data
+        metric writes_count 11 database=tempdb file=tempdev4 kind=data
+        metric read_bytes_count 131072 database=tempdb file=tempdev4 kind=data
+        metric written_bytes_count 90112 database=tempdb file=tempdev4 kind=data
+        metric read_stall_ms_count 4 database=tempdb file=tempdev4 kind=data
+        metric write_stall_ms_count 1 database=tempdb file=tempdev4 kind=data
+        metric size_bytes 8388608 database=tempdb file=tempdev4 kind=data
+        metric reads_count 93 database=vigil_it file=vigil_it kind=data
+        metric writes_count 90 database=vigil_it file=vigil_it kind=data
+        metric read_bytes_count 5857280 database=vigil_it file=vigil_it kind=data
+        metric written_bytes_count 942080 database=vigil_it file=vigil_it kind=data
+        metric read_stall_ms_count 139 database=vigil_it file=vigil_it kind=data
+        metric write_stall_ms_count 29 database=vigil_it file=vigil_it kind=data
+        metric size_bytes 8388608 database=vigil_it file=vigil_it kind=data
+        metric reads_count 9 database=vigil_it file=vigil_it_log kind=log
+        metric writes_count 78 database=vigil_it file=vigil_it_log kind=log
+        metric read_bytes_count 1044480 database=vigil_it file=vigil_it_log kind=log
+        metric written_bytes_count 532480 database=vigil_it file=vigil_it_log kind=log
+        metric read_stall_ms_count 11 database=vigil_it file=vigil_it_log kind=log
+        metric write_stall_ms_count 119 database=vigil_it file=vigil_it_log kind=log
+        metric size_bytes 8388608 database=vigil_it file=vigil_it_log kind=log
+        metric files_not_shown 0
+  PASS  mssql: memory runs
+        metric target_bytes 958963712
+        metric total_bytes 293609472
+        metric process_bytes 4294967296
+        metric process_low 0
+        metric system_total_bytes 1718616064
+        metric system_available_bytes 741769216
+        metric system_low 0
+        metric buffer_pool_bytes 44908544
+        metric memory_grants_bytes 0
+        metric plan_cache_bytes 45563904
+        metric single_use_plan_bytes 11345920
+        metric xtp_bytes 2351104
+        metric clerk_bytes 55746560 clerk=sosnode
+        metric clerk_bytes 45441024 clerk=sqlbufferpool
+        metric clerk_bytes 27377664 clerk=cachestore_phdr
+        metric clerk_bytes 16769024 clerk=cachestore_sqlcp
+        metric clerk_bytes 11468800 clerk=sqlstoreng
+  PASS  mssql: tempdb runs
+        metric size_bytes 33554432
+        metric free_bytes 29032448
+        metric free_pct 86.52
+        metric version_store_bytes 0
+        metric user_objects_bytes 2162688
+        metric internal_objects_bytes 393216
+        metric log_used_pct 2
+        metric data_files 4
+  PASS  mssql: connections runs
+        metric connections 8 encrypted=yes
+        metric connections 0 encrypted=no
+        metric connections_by_auth 0 auth=kerberos
+        metric connections_by_auth 4 auth=ntlm
+        metric connections_by_auth 4 auth=sql
+        metric sessions 3 database=msdb
+        metric sessions 3 database=vigil_it
+        metric sessions 1 database=master
+  PASS  mssql: databases runs
+        metric databases 5
+        metric databases_not_shown 0
+        metric online 1 database=master
+        metric state 0 database=master state=online
+        metric read_only 0 database=master
+        metric recovery 1 database=master model=simple
+        metric data_bytes 4915200 database=master
+        metric log_bytes 2088960 database=master
+        metric log_used_bytes 949248 database=master
+        metric log_used_pct 45 database=master
+        metric log_reuse_waiting 0 database=master reason=nothing
+        metric active_transactions 0 database=master
+        metric compatibility_level 160 database=master
+        metric compatibility_behind 0 database=master
+        metric online 1 database=model
+        metric state 0 database=model state=online
+        metric read_only 0 database=model
+        metric recovery 1 database=model model=full
+        metric data_bytes 8388608 database=model
+        metric log_bytes 8380416 database=model
+        metric log_used_bytes 988160 database=model
+        metric log_used_pct 11 database=model
+        metric log_reuse_waiting 0 database=model reason=nothing
+        metric active_transactions 0 database=model
+        metric compatibility_level 160 database=model
+        metric compatibility_behind 0 database=model
+        metric online 1 database=msdb
+        metric state 0 database=msdb state=online
+        metric read_only 0 database=msdb
+        metric recovery 1 database=msdb model=simple
+        metric data_bytes 15925248 database=msdb
+        metric log_bytes 1302528 database=msdb
+        metric log_used_bytes 672768 database=msdb
+        metric log_used_pct 51 database=msdb
+        metric log_reuse_waiting 0 database=msdb reason=nothing
+        metric active_transactions 0 database=msdb
+        metric compatibility_level 160 database=msdb
+        metric compatibility_behind 0 database=msdb
+        metric online 1 database=tempdb
+        metric state 0 database=tempdb state=online
+        metric read_only 0 database=tempdb
+        metric recovery 1 database=tempdb model=simple
+        metric data_bytes 33554432 database=tempdb
+        metric log_bytes 75489280 database=tempdb
+        metric log_used_bytes 2280448 database=tempdb
+        metric log_used_pct 3 database=tempdb
+        metric log_reuse_waiting 0 database=tempdb reason=nothing
+        metric active_transactions 0 database=tempdb
+        metric compatibility_level 160 database=tempdb
+        metric compatibility_behind 0 database=tempdb
+        metric online 1 database=vigil_it
+        metric state 0 database=vigil_it state=online
+        metric read_only 0 database=vigil_it
+        metric recovery 1 database=vigil_it model=full
+        metric data_bytes 8388608 database=vigil_it
+        metric log_bytes 8380416 database=vigil_it
+        metric log_used_bytes 1016832 database=vigil_it
+        metric log_used_pct 12 database=vigil_it
+        metric log_reuse_waiting 0 database=vigil_it reason=nothing
+        metric active_transactions 1 database=vigil_it
+        metric compatibility_level 160 database=vigil_it
+        metric compatibility_behind 0 database=vigil_it
+        metric query_store 0 database=msdb
+        metric query_store 2 database=vigil_it
+  PASS  mssql: health runs
+        metric checkdb_age_days -1 database=master
+        metric checkdb_age_days -1 database=model
+        metric checkdb_age_days -1 database=msdb
+        metric checkdb_age_days 0 database=vigil_it
+        metric vlfs 8 database=master
+        metric vlfs 3 database=model
+        metric vlfs 5 database=msdb
+        metric vlfs 4 database=vigil_it
+        metric pct_growth_files 2 database=master
+        metric pct_growth_files 2 database=msdb
+        metric max_size_used_pct 0 database=vigil_it file=vigil_it_log kind=log
+        metric max_size_used_pct 0 database=msdb file=MSDBLog kind=log
+        metric volume_total_bytes 117884059648 volume=unknown
+        metric volume_free_bytes 62316511232 volume=unknown
+        metric volume_free_pct 52.86 volume=unknown
+        metric suspect_pages 0
+  PASS  mssql: config runs
+        metric max_server_memory_mb 2147483647
+        metric max_server_memory_default 1
+        metric maxdop 0
+        metric cost_threshold 5
+        metric optimize_for_ad_hoc 0
+        metric xp_cmdshell 0
+        metric clr_enabled 0
+        metric ole_automation 0
+        metric remote_admin_connections 0
+        metric sa_enabled 1
+        metric sysadmins 1
+        metric locked_pages 0
+  PASS  mssql: backups runs
+        metric full_age_seconds -1 database=master
+        metric full_age_seconds -1 database=model
+        metric diff_age_seconds -1 database=model
+        metric log_age_seconds -1 database=model
+        metric full_age_seconds -1 database=msdb
+        metric diff_age_seconds -1 database=msdb
+        metric full_age_seconds 181 database=vigil_it
+        metric diff_age_seconds -1 database=vigil_it
+        metric log_age_seconds 181 database=vigil_it
+        metric never_backed_up 3
+  PASS  mssql: agent runs
+        metric readable 0
+  PASS  mssql: up
+  PASS  mssql: what it is
+  PASS  mssql: connections
+  PASS  mssql: requests counted
+  PASS  mssql: workers against the most
+  PASS  mssql: SQL Server CPU
+  PASS  mssql: reads, file by file
+  PASS  mssql: memory it aims for
+  PASS  mssql: tempdb free
+  PASS  mssql: our connections encrypted
+  PASS  mssql: master online
+  PASS  mssql: disk space
+  PASS  mssql: xp_cmdshell off
+  PASS  mssql: Agent jobs not readable without their grants
+  PASS  mssql: a request blocked
+  PASS  mssql: and its head blocker
+  PASS  mssql: asleep with a transaction open
+  PASS  mssql: the open transaction
+  PASS  mssql: checked today
+  PASS  mssql: its full backup just taken
+  PASS  mssql: and its log backup
+  PASS  mssql: agent runs with its grants
+  PASS  mssql: Agent jobs readable
+  PASS  mssql: a wrong password fails the run
+  PASS  mssql: and says why
+  PASS  mssql: a server that is down still runs
+  PASS  mssql: and reads as up 0
+  PASS  mssql: the other jobs succeed when it is down
+  PASS  mssql: and say nothing
+  PASS  mssql: metrics reach the backend
+  PASS  mssql: the password is written nowhere
+53 passed, 0 failed
+
+# Through Vigil on Windows: tests\integration\Service-Packs.ps1, on pwsh.
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+mssql at 127.0.0.1:11433
+  PASS  mssql: off until enabled
+  PASS  mssql: enabled
+        on: mssql_status
+        on: mssql_performance
+        on: mssql_activity
+        on: mssql_cpu
+        on: mssql_replication
+        on: mssql_waits
+        on: mssql_io
+        on: mssql_memory
+        on: mssql_tempdb
+        on: mssql_connections
+        on: mssql_databases
+        on: mssql_health
+        on: mssql_config
+        on: mssql_backups
+        on: mssql_agent
+        needs secret:MSSQL_MONITOR_PASSWORD: not set: vigil secret set MSSQL_MONITOR_PASSWORD, as the account Vigil runs as (an elevated prompt for a system install)
+        needs a read-only login, as an administrator: CREATE LOGIN vigil_monitor WITH PASSWORD = '...'; GRANT VIEW SERVER PERFORMANCE STATE, VIEW SERVER SECURITY STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE TO vigil_monitor (2019: VIEW SERVER STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE)
+        needs for mssql_agent, in msdb: CREATE USER vigil_monitor FOR LOGIN vigil_monitor; GRANT SELECT ON dbo.sysjobs TO vigil_monitor; GRANT SELECT ON dbo.sysjobhistory TO vigil_monitor; GRANT SELECT ON dbo.sysjobactivity TO vigil_monitor; GRANT SELECT ON dbo.syssessions TO vigil_monitor
+        settings in vigil.config: MSSQL_HOST=localhost MSSQL_PORT=1433 MSSQL_USER=vigil_monitor
+  PASS  mssql: its jobs are on
+  PASS  mssql: the password is a secret reference
+  PASS  mssql: precheck is happy
+  PASS  mssql: activity runs
+        metric sessions 1 state=running
+        metric sessions 6 state=sleeping
+        metric sessions 0 state=dormant
+        metric sessions 0 state=preconnect
+        metric requests 1
+        metric requests_blocked 1
+        metric head_blockers 1
+        metric longest_request_seconds 19
+        metric longest_wait_seconds 19.04 type=LCK_M_X
+        metric oldest_transaction_seconds 20
+        metric idle_in_transaction 1
+        metric idle_in_transaction_seconds 20
+        metric longest_snapshot_seconds 0
+  PASS  mssql: status runs
+        metric up 1
+        metric info 1 release=2022 version=16.0.4325.4 update=CU28 edition=developer os=linux
+        metric uptime_seconds 768
+        metric cpus 4
+        metric schedulers 4
+        metric connections 8
+        metric connections_max 32767
+        metric clustered 0
+        metric hadr_enabled 1
+        metric agent_running 1
+  PASS  mssql: performance runs
+        metric batch_requests_count 619
+        metric compilations_count 1403
+        metric recompilations_count 587
+        metric transactions_count 4412
+        metric logins_count 71
+        metric logouts_count 63
+        metric processes_blocked 1
+        metric errors_count 609
+        metric page_life_expectancy_seconds 779
+        metric lazy_writes_count 0
+        metric checkpoint_pages_count 363
+        metric page_reads_count 6708
+        metric page_writes_count 1227
+        metric lock_waits_count 20
+        metric lock_timeouts_count 5
+        metric deadlocks_count 0
+        metric page_splits_count 1735
+        metric full_scans_count 1381
+        metric memory_grants_pending 0
+        metric memory_grants_outstanding 0
+        metric buffer_cache_hit_pct 100
+        metric missing_indexes 0
+        metric missing_index_top_impact_pct 0
+  PASS  mssql: cpu runs
+        metric sql_pct 1
+        metric runnable_tasks 0
+        metric work_queued 0
+        metric pending_disk_io 0
+        metric workers 77
+        metric workers_max 256
+        metric workers_pct 30.08
+  PASS  mssql: replication runs
+  PASS  mssql: waits runs
+        metric wait_ms_count 410 kind=cpu
+        metric wait_ms_count 1589 kind=disk_read
+        metric wait_ms_count 5032 kind=external
+        metric wait_ms_count 38 kind=latch
+        metric wait_ms_count 161661 kind=lock
+        metric wait_ms_count 979 kind=log_write
+        metric wait_ms_count 0 kind=memory
+        metric wait_ms_count 77 kind=network
+        metric wait_ms_count 889 kind=other
+        metric wait_ms_count 0 kind=parallelism
+        metric wait_ms_count 0 kind=replication
+        metric top_wait_ms_count 150015 type=LCK_M_X
+        metric top_wait_ms_count 9605 type=LCK_M_U
+        metric top_wait_ms_count 2183 type=PREEMPTIVE_OS_CRYPTOPS
+        metric top_wait_ms_count 1941 type=LCK_M_S
+        metric top_wait_ms_count 1049 type=WRITELOG
+        metric top_wait_ms_count 835 type=PREEMPTIVE_OS_FILEOPS
+        metric top_wait_ms_count 802 type=ASYNC_IO_COMPLETION
+        metric top_wait_ms_count 439 type=PAGEIOLATCH_SH
+        metric top_wait_ms_count 433 type=PREEMPTIVE_OS_WRITEFILEGATHER
+        metric top_wait_ms_count 389 type=PREEMPTIVE_OS_WRITEFILE
+        metric top_waits_count 4 type=LCK_M_X
+        metric top_waits_count 12 type=LCK_M_U
+        metric top_waits_count 216 type=PREEMPTIVE_OS_CRYPTOPS
+        metric top_waits_count 4 type=LCK_M_S
+        metric top_waits_count 640 type=WRITELOG
+        metric top_waits_count 432 type=PREEMPTIVE_OS_FILEOPS
+        metric top_waits_count 17 type=ASYNC_IO_COMPLETION
+        metric top_waits_count 476 type=PAGEIOLATCH_SH
+        metric top_waits_count 27 type=PREEMPTIVE_OS_WRITEFILEGATHER
+        metric top_waits_count 44 type=PREEMPTIVE_OS_WRITEFILE
+  PASS  mssql: io runs
+        metric reads_count 74 database=master file=master kind=data
+        metric writes_count 167 database=master file=master kind=data
+        metric read_bytes_count 4030464 database=master file=master kind=data
+        metric written_bytes_count 2605056 database=master file=master kind=data
+        metric read_stall_ms_count 125 database=master file=master kind=data
+        metric write_stall_ms_count 36 database=master file=master kind=data
+        metric size_bytes 4915200 database=master file=master kind=data
+        metric reads_count 12 database=master file=mastlog kind=log
+        metric writes_count 213 database=master file=mastlog kind=log
+        metric read_bytes_count 229376 database=master file=mastlog kind=log
+        metric written_bytes_count 1908736 database=master file=mastlog kind=log
+        metric read_stall_ms_count 2 database=master file=mastlog kind=log
+        metric write_stall_ms_count 232 database=master file=mastlog kind=log
+        metric size_bytes 2097152 database=master file=mastlog kind=log
+        metric reads_count 70 database=model file=modeldev kind=data
+        metric writes_count 82 database=model file=modeldev kind=data
+        metric read_bytes_count 19030016 database=model file=modeldev kind=data
+        metric written_bytes_count 851968 database=model file=modeldev kind=data
+        metric read_stall_ms_count 216 database=model file=modeldev kind=data
+        metric write_stall_ms_count 259 database=model file=modeldev kind=data
+        metric size_bytes 8388608 database=model file=modeldev kind=data
+        metric reads_count 7 database=model file=modellog kind=log
+        metric writes_count 112 database=model file=modellog kind=log
+        metric read_bytes_count 253952 database=model file=modellog kind=log
+        metric written_bytes_count 970752 database=model file=modellog kind=log
+        metric read_stall_ms_count 1 database=model file=modellog kind=log
+        metric write_stall_ms_count 346 database=model file=modellog kind=log
+        metric size_bytes 8388608 database=model file=modellog kind=log
+        metric reads_count 128 database=msdb file=MSDBData kind=data
+        metric writes_count 113 database=msdb file=MSDBData kind=data
+        metric read_bytes_count 8151040 database=msdb file=MSDBData kind=data
+        metric written_bytes_count 1105920 database=msdb file=MSDBData kind=data
+        metric read_stall_ms_count 260 database=msdb file=MSDBData kind=data
+        metric write_stall_ms_count 179 database=msdb file=MSDBData kind=data
+        metric size_bytes 15925248 database=msdb file=MSDBData kind=data
+        metric reads_count 9 database=msdb file=MSDBLog kind=log
+        metric writes_count 160 database=msdb file=MSDBLog kind=log
+        metric read_bytes_count 520192 database=msdb file=MSDBLog kind=log
+        metric written_bytes_count 1253376 database=msdb file=MSDBLog kind=log
+        metric read_stall_ms_count 13 database=msdb file=MSDBLog kind=log
+        metric write_stall_ms_count 186 database=msdb file=MSDBLog kind=log
+        metric size_bytes 1310720 database=msdb file=MSDBLog kind=log
+        metric reads_count 36 database=tempdb file=tempdev kind=data
+        metric writes_count 7 database=tempdb file=tempdev kind=data
+        metric read_bytes_count 2179072 database=tempdb file=tempdev kind=data
+        metric written_bytes_count 73728 database=tempdb file=tempdev kind=data
+        metric read_stall_ms_count 196 database=tempdb file=tempdev kind=data
+        metric write_stall_ms_count 6 database=tempdb file=tempdev kind=data
+        metric size_bytes 8388608 database=tempdb file=tempdev kind=data
+        metric reads_count 11 database=tempdb file=templog kind=log
+        metric writes_count 239 database=tempdb file=templog kind=log
+        metric read_bytes_count 1024000 database=tempdb file=templog kind=log
+        metric written_bytes_count 13488128 database=tempdb file=templog kind=log
+        metric read_stall_ms_count 11 database=tempdb file=templog kind=log
+        metric write_stall_ms_count 919 database=tempdb file=templog kind=log
+        metric size_bytes 75497472 database=tempdb file=templog kind=log
+        metric reads_count 9 database=tempdb file=tempdev2 kind=data
+        metric writes_count 11 database=tempdb file=tempdev2 kind=data
+        metric read_bytes_count 131072 database=tempdb file=tempdev2 kind=data
+        metric written_bytes_count 90112 database=tempdb file=tempdev2 kind=data
+        metric read_stall_ms_count 4 database=tempdb file=tempdev2 kind=data
+        metric write_stall_ms_count 1 database=tempdb file=tempdev2 kind=data
+        metric size_bytes 8388608 database=tempdb file=tempdev2 kind=data
+        metric reads_count 9 database=tempdb file=tempdev3 kind=data
+        metric writes_count 11 database=tempdb file=tempdev3 kind=data
+        metric read_bytes_count 131072 database=tempdb file=tempdev3 kind=data
+        metric written_bytes_count 90112 database=tempdb file=tempdev3 kind=data
+        metric read_stall_ms_count 5 database=tempdb file=tempdev3 kind=data
+        metric write_stall_ms_count 2 database=tempdb file=tempdev3 kind=data
+        metric size_bytes 8388608 database=tempdb file=tempdev3 kind=data
+        metric reads_count 9 database=tempdb file=tempdev4 kind=data
+        metric writes_count 11 database=tempdb file=tempdev4 kind=data
+        metric read_bytes_count 131072 database=tempdb file=tempdev4 kind=data
+        metric written_bytes_count 90112 database=tempdb file=tempdev4 kind=data
+        metric read_stall_ms_count 4 database=tempdb file=tempdev4 kind=data
+        metric write_stall_ms_count 1 database=tempdb file=tempdev4 kind=data
+        metric size_bytes 8388608 database=tempdb file=tempdev4 kind=data
+        metric reads_count 154 database=vigil_it file=vigil_it kind=data
+        metric writes_count 148 database=vigil_it file=vigil_it kind=data
+        metric read_bytes_count 9854976 database=vigil_it file=vigil_it kind=data
+        metric written_bytes_count 1703936 database=vigil_it file=vigil_it kind=data
+        metric read_stall_ms_count 219 database=vigil_it file=vigil_it kind=data
+        metric write_stall_ms_count 40 database=vigil_it file=vigil_it kind=data
+        metric size_bytes 8388608 database=vigil_it file=vigil_it kind=data
+        metric reads_count 18 database=vigil_it file=vigil_it_log kind=log
+        metric writes_count 156 database=vigil_it file=vigil_it_log kind=log
+        metric read_bytes_count 1581056 database=vigil_it file=vigil_it_log kind=log
+        metric written_bytes_count 1024000 database=vigil_it file=vigil_it_log kind=log
+        metric read_stall_ms_count 35 database=vigil_it file=vigil_it_log kind=log
+        metric write_stall_ms_count 189 database=vigil_it file=vigil_it_log kind=log
+        metric size_bytes 8388608 database=vigil_it file=vigil_it_log kind=log
+        metric files_not_shown 0
+  PASS  mssql: memory runs
+        metric target_bytes 949436416
+        metric total_bytes 348037120
+        metric process_bytes 4294967296
+        metric process_low 0
+        metric system_total_bytes 1718616064
+        metric system_available_bytes 678592512
+        metric system_low 0
+        metric buffer_pool_bytes 51421184
+        metric memory_grants_bytes 0
+        metric plan_cache_bytes 67854336
+        metric single_use_plan_bytes 21987328
+        metric xtp_bytes 2416640
+        metric clerk_bytes 55820288 clerk=sosnode
+        metric clerk_bytes 51953664 clerk=sqlbufferpool
+        metric clerk_bytes 38174720 clerk=cachestore_phdr
+        metric clerk_bytes 29663232 clerk=cachestore_sqlcp
+        metric clerk_bytes 16080896 clerk=userstore_dbmetadata
+  PASS  mssql: tempdb runs
+        metric size_bytes 33554432
+        metric free_bytes 29032448
+        metric free_pct 86.52
+        metric version_store_bytes 0
+        metric user_objects_bytes 2162688
+        metric internal_objects_bytes 393216
+        metric log_used_pct 7
+        metric data_files 4
+  PASS  mssql: connections runs
+        metric connections 8 encrypted=yes
+        metric connections 0 encrypted=no
+        metric connections_by_auth 0 auth=kerberos
+        metric connections_by_auth 4 auth=ntlm
+        metric connections_by_auth 4 auth=sql
+        metric sessions 3 database=msdb
+        metric sessions 3 database=vigil_it
+        metric sessions 1 database=master
+  PASS  mssql: databases runs
+        metric databases 5
+        metric databases_not_shown 0
+        metric online 1 database=master
+        metric state 0 database=master state=online
+        metric read_only 0 database=master
+        metric recovery 1 database=master model=simple
+        metric data_bytes 4915200 database=master
+        metric log_bytes 2088960 database=master
+        metric log_used_bytes 965632 database=master
+        metric log_used_pct 46 database=master
+        metric log_reuse_waiting 0 database=master reason=nothing
+        metric active_transactions 0 database=master
+        metric compatibility_level 160 database=master
+        metric compatibility_behind 0 database=master
+        metric online 1 database=model
+        metric state 0 database=model state=online
+        metric read_only 0 database=model
+        metric recovery 1 database=model model=full
+        metric data_bytes 8388608 database=model
+        metric log_bytes 8380416 database=model
+        metric log_used_bytes 988160 database=model
+        metric log_used_pct 11 database=model
+        metric log_reuse_waiting 0 database=model reason=nothing
+        metric active_transactions 0 database=model
+        metric compatibility_level 160 database=model
+        metric compatibility_behind 0 database=model
+        metric online 1 database=msdb
+        metric state 0 database=msdb state=online
+        metric read_only 0 database=msdb
+        metric recovery 1 database=msdb model=simple
+        metric data_bytes 15925248 database=msdb
+        metric log_bytes 1302528 database=msdb
+        metric log_used_bytes 691200 database=msdb
+        metric log_used_pct 53 database=msdb
+        metric log_reuse_waiting 0 database=msdb reason=nothing
+        metric active_transactions 0 database=msdb
+        metric compatibility_level 160 database=msdb
+        metric compatibility_behind 0 database=msdb
+        metric online 1 database=tempdb
+        metric state 0 database=tempdb state=online
+        metric read_only 0 database=tempdb
+        metric recovery 1 database=tempdb model=simple
+        metric data_bytes 33554432 database=tempdb
+        metric log_bytes 75489280 database=tempdb
+        metric log_used_bytes 6466560 database=tempdb
+        metric log_used_pct 8 database=tempdb
+        metric log_reuse_waiting 0 database=tempdb reason=nothing
+        metric active_transactions 0 database=tempdb
+        metric compatibility_level 160 database=tempdb
+        metric compatibility_behind 0 database=tempdb
+        metric online 1 database=vigil_it
+        metric state 0 database=vigil_it state=online
+        metric read_only 0 database=vigil_it
+        metric recovery 1 database=vigil_it model=full
+        metric data_bytes 8388608 database=vigil_it
+        metric log_bytes 8380416 database=vigil_it
+        metric log_used_bytes 1232896 database=vigil_it
+        metric log_used_pct 14 database=vigil_it
+        metric log_reuse_waiting 0 database=vigil_it reason=nothing
+        metric active_transactions 1 database=vigil_it
+        metric compatibility_level 160 database=vigil_it
+        metric compatibility_behind 0 database=vigil_it
+        metric query_store 0 database=msdb
+        metric query_store 2 database=vigil_it
+  PASS  mssql: health runs
+        metric checkdb_age_days -1 database=master
+        metric checkdb_age_days -1 database=model
+        metric checkdb_age_days -1 database=msdb
+        metric checkdb_age_days 0 database=vigil_it
+        metric vlfs 8 database=master
+        metric vlfs 3 database=model
+        metric vlfs 5 database=msdb
+        metric vlfs 4 database=vigil_it
+        metric pct_growth_files 2 database=master
+        metric pct_growth_files 2 database=msdb
+        metric max_size_used_pct 0 database=vigil_it file=vigil_it_log kind=log
+        metric max_size_used_pct 0 database=msdb file=MSDBLog kind=log
+        metric volume_total_bytes 117884059648 volume=unknown
+        metric volume_free_bytes 62311694336 volume=unknown
+        metric volume_free_pct 52.86 volume=unknown
+        metric suspect_pages 0
+  PASS  mssql: config runs
+        metric max_server_memory_mb 2147483647
+        metric max_server_memory_default 1
+        metric maxdop 0
+        metric cost_threshold 5
+        metric optimize_for_ad_hoc 0
+        metric xp_cmdshell 0
+        metric clr_enabled 0
+        metric ole_automation 0
+        metric remote_admin_connections 0
+        metric sa_enabled 1
+        metric sysadmins 1
+        metric locked_pages 0
+  PASS  mssql: backups runs
+        metric full_age_seconds -1 database=master
+        metric full_age_seconds -1 database=model
+        metric diff_age_seconds -1 database=model
+        metric log_age_seconds -1 database=model
+        metric full_age_seconds -1 database=msdb
+        metric diff_age_seconds -1 database=msdb
+        metric full_age_seconds 176 database=vigil_it
+        metric diff_age_seconds -1 database=vigil_it
+        metric log_age_seconds 176 database=vigil_it
+        metric never_backed_up 3
+  PASS  mssql: agent runs
+        metric readable 0
+  PASS  mssql: up
+  PASS  mssql: what it is
+  PASS  mssql: connections
+  PASS  mssql: requests counted
+  PASS  mssql: workers against the most
+  PASS  mssql: SQL Server CPU
+  PASS  mssql: reads, file by file
+  PASS  mssql: memory it aims for
+  PASS  mssql: tempdb free
+  PASS  mssql: our connections encrypted
+  PASS  mssql: master online
+  PASS  mssql: disk space
+  PASS  mssql: xp_cmdshell off
+  PASS  mssql: Agent jobs not readable without their grants
+  PASS  mssql: a request blocked
+  PASS  mssql: and its head blocker
+  PASS  mssql: asleep with a transaction open
+  PASS  mssql: the open transaction
+  PASS  mssql: checked today
+  PASS  mssql: its full backup just taken
+  PASS  mssql: and its log backup
+  PASS  mssql: agent runs with its grants
+  PASS  mssql: Agent jobs readable
+  PASS  mssql: a wrong password fails the run
+  PASS  mssql: and says why
+  PASS  mssql: a server that is down still runs
+  PASS  mssql: and reads as up 0
+  PASS  mssql: the other jobs succeed when it is down
+  PASS  mssql: and say nothing
+  PASS  mssql: metrics reach the backend
+  PASS  mssql: the password is written nowhere
+53 passed, 0 failed
+

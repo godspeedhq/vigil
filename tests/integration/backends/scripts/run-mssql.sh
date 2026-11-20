@@ -70,7 +70,7 @@ mkdir -p "$tls"
         openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj '/CN=localhost' &&
         printf 'subjectAltName=DNS:localhost,DNS:mssql-primary,DNS:mssql-secondary,IP:127.0.0.1\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n' > server.ext &&
         openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 2 -extfile server.ext
-) > "$work/tls.out" 2>&1 || { cat "$work/tls.out"; die 'could not make the TLS certificates'; }
+) > "$work/tls.log" 2>&1 || { cat "$work/tls.log"; die 'could not make the TLS certificates'; }
 rm -f "$tls/ca.key"
 # SQL Server runs as its own account in the container: it reads them.
 chmod 755 "$tls"
@@ -105,7 +105,7 @@ as_sa() {
 ready() { as_sa "$1" 'SELECT 1' > /dev/null 2>&1; }
 # A setup step failed: what SQL Server said (never a password: it does not
 # repeat the statement).
-sa_failed() { die "$1: $(tr -s '\r\n' '  ' < "$work/sa.out")"; }
+sa_failed() { die "$1: $(tr -s '\r\n' '  ' < "$work/sa.log")"; }
 say() { printf '\n# %s\n' "$*"; }
 export MSSQL_HOST=localhost MSSQL_USER=vigil_monitor MSSQL_CACERT=$tls/ca.crt SQLCMDPASSWORD=$MSSQL_MONITOR_PASSWORD
 job() {
@@ -122,7 +122,7 @@ wait_synchronized() {
 servers='mssql-primary mssql-secondary'
 [ "$replica" = yes ] || servers=mssql-primary
 # shellcheck disable=SC2086
-dc up -d $servers > "$work/up.out" 2>&1 || { cat "$work/up.out"; die 'the servers would not start'; }
+dc up -d $servers > "$work/up.log" 2>&1 || { cat "$work/up.log"; die 'the servers would not start'; }
 for s in $servers; do
     for i in $(seq 1 90); do ready "$s" && break; sleep 2; done
     ready "$s" || { dc logs --tail 30 "$s"; die "$s never answered"; }
@@ -136,12 +136,12 @@ else
     grants='VIEW SERVER STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE'
 fi
 for s in $servers; do
-    as_sa "$s" "CREATE LOGIN vigil_monitor WITH PASSWORD = '$MSSQL_MONITOR_PASSWORD'; GRANT $grants TO vigil_monitor;" > "$work/sa.out" 2>&1 ||
+    as_sa "$s" "CREATE LOGIN vigil_monitor WITH PASSWORD = '$MSSQL_MONITOR_PASSWORD'; GRANT $grants TO vigil_monitor;" > "$work/sa.log" 2>&1 ||
         sa_failed "could not make the login on $s"
 done
 
 if [ "$replica" = no ]; then
-    as_sa mssql-primary "CREATE DATABASE vigil_it; ALTER DATABASE vigil_it SET RECOVERY FULL;" > "$work/sa.out" 2>&1 || sa_failed 'could not make the database'
+    as_sa mssql-primary "CREATE DATABASE vigil_it; ALTER DATABASE vigil_it SET RECOVERY FULL;" > "$work/sa.log" 2>&1 || sa_failed 'could not make the database'
     printf 'server   %s
 
 ' "$(job 11433 status 2> /dev/null | grep '^metric info ' | cut -d ' ' -f 4-)"
@@ -158,7 +158,7 @@ as_sa mssql-primary "CREATE LOGIN dbm_login WITH PASSWORD = '$agpw'; CREATE USER
     CREATE MASTER KEY ENCRYPTION BY PASSWORD = '$agpw';
     CREATE CERTIFICATE dbm_certificate WITH SUBJECT = 'dbm';
     BACKUP CERTIFICATE dbm_certificate TO FILE = '/var/opt/mssql/data/dbm_certificate.cer'
-        WITH PRIVATE KEY (FILE = '/var/opt/mssql/data/dbm_certificate.pvk', ENCRYPTION BY PASSWORD = '$agpw');" > "$work/sa.out" 2>&1 ||
+        WITH PRIVATE KEY (FILE = '/var/opt/mssql/data/dbm_certificate.pvk', ENCRYPTION BY PASSWORD = '$agpw');" > "$work/sa.log" 2>&1 ||
     sa_failed 'could not make the certificate'
 for f in dbm_certificate.cer dbm_certificate.pvk; do
     docker cp "vigil-mssql-mssql-primary-1:/var/opt/mssql/data/$f" "$work/$f" > /dev/null &&
@@ -169,13 +169,13 @@ done
 as_sa mssql-secondary "CREATE LOGIN dbm_login WITH PASSWORD = '$agpw'; CREATE USER dbm_user FOR LOGIN dbm_login;
     CREATE MASTER KEY ENCRYPTION BY PASSWORD = '$agpw';
     CREATE CERTIFICATE dbm_certificate AUTHORIZATION dbm_user FROM FILE = '/var/opt/mssql/data/dbm_certificate.cer'
-        WITH PRIVATE KEY (FILE = '/var/opt/mssql/data/dbm_certificate.pvk', DECRYPTION BY PASSWORD = '$agpw');" > "$work/sa.out" 2>&1 ||
+        WITH PRIVATE KEY (FILE = '/var/opt/mssql/data/dbm_certificate.pvk', DECRYPTION BY PASSWORD = '$agpw');" > "$work/sa.log" 2>&1 ||
     sa_failed 'could not load the certificate on the secondary'
 for s in mssql-primary mssql-secondary; do
     as_sa "$s" "CREATE ENDPOINT hadr_endpoint AS TCP (LISTENER_PORT = 5022)
         FOR DATABASE_MIRRORING (ROLE = ALL, AUTHENTICATION = CERTIFICATE dbm_certificate, ENCRYPTION = REQUIRED ALGORITHM AES);
     ALTER ENDPOINT hadr_endpoint STATE = STARTED;
-    GRANT CONNECT ON ENDPOINT::hadr_endpoint TO dbm_login;" > "$work/sa.out" 2>&1 || sa_failed "could not make the endpoint on $s"
+    GRANT CONNECT ON ENDPOINT::hadr_endpoint TO dbm_login;" > "$work/sa.log" 2>&1 || sa_failed "could not make the endpoint on $s"
 done
 replica() {
     printf "N'%s' WITH (ENDPOINT_URL = N'tcp://%s:5022', AVAILABILITY_MODE = SYNCHRONOUS_COMMIT, FAILOVER_MODE = MANUAL, SEEDING_MODE = AUTOMATIC, SECONDARY_ROLE (ALLOW_CONNECTIONS = ALL))" "$1" "$1"
@@ -183,13 +183,13 @@ replica() {
 as_sa mssql-primary "CREATE AVAILABILITY GROUP ag1 WITH (CLUSTER_TYPE = NONE) FOR REPLICA ON $(replica mssql-primary), $(replica mssql-secondary);
     ALTER AVAILABILITY GROUP ag1 GRANT CREATE ANY DATABASE;
     -- Its name, for the pack: without it, the group is tagged by its id.
-    GRANT VIEW DEFINITION ON AVAILABILITY GROUP::ag1 TO vigil_monitor;" > "$work/sa.out" 2>&1 || sa_failed 'could not make the availability group'
+    GRANT VIEW DEFINITION ON AVAILABILITY GROUP::ag1 TO vigil_monitor;" > "$work/sa.log" 2>&1 || sa_failed 'could not make the availability group'
 as_sa mssql-secondary "ALTER AVAILABILITY GROUP ag1 JOIN WITH (CLUSTER_TYPE = NONE); ALTER AVAILABILITY GROUP ag1 GRANT CREATE ANY DATABASE;
-    GRANT VIEW DEFINITION ON AVAILABILITY GROUP::ag1 TO vigil_monitor;" > "$work/sa.out" 2>&1 ||
+    GRANT VIEW DEFINITION ON AVAILABILITY GROUP::ag1 TO vigil_monitor;" > "$work/sa.log" 2>&1 ||
     sa_failed 'the secondary could not join'
 as_sa mssql-primary "CREATE DATABASE vigil_it; ALTER DATABASE vigil_it SET RECOVERY FULL;
     BACKUP DATABASE vigil_it TO DISK = N'/var/opt/mssql/data/vigil_it_seed.bak' WITH INIT;
-    ALTER AVAILABILITY GROUP ag1 ADD DATABASE vigil_it;" > "$work/sa.out" 2>&1 || sa_failed 'could not add the database'
+    ALTER AVAILABILITY GROUP ag1 ADD DATABASE vigil_it;" > "$work/sa.log" 2>&1 || sa_failed 'could not add the database'
 wait_synchronized || { dc logs --tail 30 mssql-secondary; die 'the secondary never synchronized'; }
 printf 'server   %s\n\n' "$(job 11433 status 2> /dev/null | grep '^metric info ' | cut -d ' ' -f 4-)"
 
