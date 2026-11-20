@@ -13,8 +13,11 @@
 # of its availability group, on this host, with its evidence kept like the
 # other runs'.
 #
-#   scripts/run-mssql.sh [image]     compose.mssql.yaml
+#   scripts/run-mssql.sh [image] [--no-replica]     compose.mssql.yaml
 #
+# --no-replica: the primary alone, with no availability group (SQL Server
+# 2022 CU28's secondary would not join one in Docker on the Fedora test
+# machine, where 2019 and 2025 did).
 # It makes a TLS certificate from a CA of its own, starts the pair (any SQL
 # Server image from 2019; default the one the Compose file pins), makes the
 # read-only login on both as packs/README.md says, joins them in a read-scale
@@ -33,7 +36,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck disable=SC1091
 . "$here/common.sh"
 
-[ -n "${1-}" ] && export MSSQL_IMAGE=$1
+[ -n "${1-}" ] && [ "$1" != --no-replica ] && export MSSQL_IMAGE=$1
+replica=yes
+case " $* " in *' --no-replica '*) replica=no ;; esac
 [ -n "${MSSQL_SA_PASSWORD-}" ] && [ -n "${MSSQL_MONITOR_PASSWORD-}" ] || die 'set MSSQL_SA_PASSWORD and MSSQL_MONITOR_PASSWORD in .env'
 file=compose.mssql.yaml
 dc() {
@@ -52,6 +57,7 @@ trap 'dc down -v > /dev/null 2>&1; evidence_save "$MSSQL_SA_PASSWORD" "$MSSQL_MO
 v=${MSSQL_IMAGE:-mcr.microsoft.com/mssql/server:2022-CU28-ubuntu-22.04}
 v=${v##*:}
 name=pack-mssql-${v%%-*}-replication
+[ "$replica" = yes ] || name=pack-mssql-${v%%-*}
 
 # The servers' certificate, from a CA of this run's own: the name the pack
 # connects by, each host, and 127.0.0.1.
@@ -113,8 +119,11 @@ wait_synchronized() {
     return 1
 }
 
-dc up -d > "$work/up.out" 2>&1 || { cat "$work/up.out"; die 'the pair would not start'; }
-for s in mssql-primary mssql-secondary; do
+servers='mssql-primary mssql-secondary'
+[ "$replica" = yes ] || servers=mssql-primary
+# shellcheck disable=SC2086
+dc up -d $servers > "$work/up.out" 2>&1 || { cat "$work/up.out"; die 'the servers would not start'; }
+for s in $servers; do
     for i in $(seq 1 90); do ready "$s" && break; sleep 2; done
     ready "$s" || { dc logs --tail 30 "$s"; die "$s never answered"; }
 done
@@ -126,10 +135,21 @@ if [ "${major:-0}" -ge 16 ]; then
 else
     grants='VIEW SERVER STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE'
 fi
-for s in mssql-primary mssql-secondary; do
+for s in $servers; do
     as_sa "$s" "CREATE LOGIN vigil_monitor WITH PASSWORD = '$MSSQL_MONITOR_PASSWORD'; GRANT $grants TO vigil_monitor;" > "$work/sa.out" 2>&1 ||
         sa_failed "could not make the login on $s"
 done
+
+if [ "$replica" = no ]; then
+    as_sa mssql-primary "CREATE DATABASE vigil_it; ALTER DATABASE vigil_it SET RECOVERY FULL;" > "$work/sa.out" 2>&1 || sa_failed 'could not make the database'
+    printf 'server   %s
+
+' "$(job 11433 status 2> /dev/null | grep '^metric info ' | cut -d ' ' -f 4-)"
+    say "The pack through Vigil, with no secondary."
+    export VIGIL_IT_MSSQL_HOST=localhost VIGIL_IT_MSSQL_PORT=11433 VIGIL_IT_MSSQL_PASSWORD=$MSSQL_MONITOR_PASSWORD         VIGIL_IT_MSSQL_SA_PASSWORD=$MSSQL_SA_PASSWORD VIGIL_IT_MSSQL_CACERT=$tls/ca.crt VIGIL_IT_MSSQL_DATABASE=vigil_it
+    bash "$bk_repo/tests/integration/service-packs.sh"
+    exit $?
+fi
 
 # The availability group: one certificate for both endpoints, made on the
 # primary and copied to the secondary, then the group, then its database,
@@ -161,8 +181,11 @@ replica() {
     printf "N'%s' WITH (ENDPOINT_URL = N'tcp://%s:5022', AVAILABILITY_MODE = SYNCHRONOUS_COMMIT, FAILOVER_MODE = MANUAL, SEEDING_MODE = AUTOMATIC, SECONDARY_ROLE (ALLOW_CONNECTIONS = ALL))" "$1" "$1"
 }
 as_sa mssql-primary "CREATE AVAILABILITY GROUP ag1 WITH (CLUSTER_TYPE = NONE) FOR REPLICA ON $(replica mssql-primary), $(replica mssql-secondary);
-    ALTER AVAILABILITY GROUP ag1 GRANT CREATE ANY DATABASE;" > "$work/sa.out" 2>&1 || sa_failed 'could not make the availability group'
-as_sa mssql-secondary "ALTER AVAILABILITY GROUP ag1 JOIN WITH (CLUSTER_TYPE = NONE); ALTER AVAILABILITY GROUP ag1 GRANT CREATE ANY DATABASE;" > "$work/sa.out" 2>&1 ||
+    ALTER AVAILABILITY GROUP ag1 GRANT CREATE ANY DATABASE;
+    -- Its name, for the pack: without it, the group is tagged by its id.
+    GRANT VIEW DEFINITION ON AVAILABILITY GROUP::ag1 TO vigil_monitor;" > "$work/sa.out" 2>&1 || sa_failed 'could not make the availability group'
+as_sa mssql-secondary "ALTER AVAILABILITY GROUP ag1 JOIN WITH (CLUSTER_TYPE = NONE); ALTER AVAILABILITY GROUP ag1 GRANT CREATE ANY DATABASE;
+    GRANT VIEW DEFINITION ON AVAILABILITY GROUP::ag1 TO vigil_monitor;" > "$work/sa.out" 2>&1 ||
     sa_failed 'the secondary could not join'
 as_sa mssql-primary "CREATE DATABASE vigil_it; ALTER DATABASE vigil_it SET RECOVERY FULL;
     BACKUP DATABASE vigil_it TO DISK = N'/var/opt/mssql/data/vigil_it_seed.bak' WITH INIT;
@@ -183,7 +206,9 @@ job 11434 replication
 
 say "The secondary stops."
 dc stop mssql-secondary > /dev/null 2>&1
-sleep 5
+# The primary notices once its session with the secondary times out (10
+# seconds by default).
+sleep 20
 job 11433 replication
 job 11434 status
 printf '(the secondary'"'"'s other jobs print nothing while it does not answer; status reports it)\n'

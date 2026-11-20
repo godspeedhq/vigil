@@ -29,7 +29,8 @@
     there is nothing to install.
 
     Metrics:
-      primary           1 for the primary replica, tagged group= and replica=
+      primary           1 for the primary replica, tagged group=<its name, where
+                        the login may see it; else its id> and replica=
       connected         1 when the replica is connected
       health            2 healthy, 1 partly, 0 not healthy
       local             1 for this server
@@ -94,13 +95,16 @@ DECLARE @pc TABLE (obj nvarchar(128) NOT NULL, counter nvarchar(128) NOT NULL, i
 INSERT @pc SELECT SUBSTRING(RTRIM(object_name), CHARINDEX(N':', object_name) + 1, 128), RTRIM(counter_name), RTRIM(instance_name), cntr_value
     FROM sys.dm_os_performance_counters;
 -- Always On availability groups, from this server: each replica it knows
--- of, and each database's queues. Nothing with no availability group.
+-- of, and each database's queues. Nothing with no availability group. A
+-- group is named where this login may see its name (VIEW DEFINITION on the
+-- group: sys.availability_groups shows nothing more without it); else by
+-- its id.
 -- A primary knows every replica; a secondary, itself.
 INSERT @m (name, v, k1, t1, k2, t2)
-SELECT x.name, x.v, 'group', g.name, 'replica', r.replica_server_name
+SELECT x.name, x.v, 'group', ISNULL(g.name, CONVERT(nvarchar(36), s.group_id)), 'replica', r.replica_server_name
 FROM sys.dm_hadr_availability_replica_states AS s
 JOIN sys.availability_replicas AS r ON r.replica_id = s.replica_id
-JOIN sys.availability_groups AS g ON g.group_id = s.group_id
+LEFT JOIN sys.availability_groups AS g ON g.group_id = s.group_id
 CROSS APPLY (VALUES
     ('primary', CASE WHEN s.role = 1 THEN 1 ELSE 0 END),
     ('connected', CASE WHEN s.connected_state = 1 THEN 1 ELSE 0 END),
@@ -108,12 +112,12 @@ CROSS APPLY (VALUES
     ('health', ISNULL(s.synchronization_health, 0)),
     ('local', s.is_local)
 ) AS x(name, v)
-ORDER BY g.name, r.replica_server_name;
+ORDER BY ISNULL(g.name, CONVERT(nvarchar(36), s.group_id)), r.replica_server_name;
 INSERT @m (name, v, k1, t1, k2, t2, k3, t3)
-SELECT x.name, x.v, 'group', g.name, 'replica', r.replica_server_name, 'database', DB_NAME(d.database_id)
+SELECT x.name, x.v, 'group', ISNULL(g.name, CONVERT(nvarchar(36), d.group_id)), 'replica', r.replica_server_name, 'database', DB_NAME(d.database_id)
 FROM sys.dm_hadr_database_replica_states AS d
 JOIN sys.availability_replicas AS r ON r.replica_id = d.replica_id
-JOIN sys.availability_groups AS g ON g.group_id = d.group_id
+LEFT JOIN sys.availability_groups AS g ON g.group_id = d.group_id
 CROSS APPLY (VALUES
     -- 2 synchronized, 1 synchronizing, 0 neither (or suspended).
     ('sync_state', CASE d.synchronization_state WHEN 2 THEN 2 WHEN 1 THEN 1 ELSE 0 END),
@@ -125,9 +129,10 @@ CROSS APPLY (VALUES
     ('lag_seconds', ISNULL(d.secondary_lag_seconds, 0))
 ) AS x(name, v)
 WHERE d.is_local = 0 OR NOT EXISTS (SELECT 1 FROM sys.dm_hadr_availability_replica_states WHERE role = 1 AND is_local = 1)
-ORDER BY g.name, r.replica_server_name, DB_NAME(d.database_id);
+ORDER BY ISNULL(g.name, CONVERT(nvarchar(36), d.group_id)), r.replica_server_name, DB_NAME(d.database_id);
 -- The readings as metric lines, in the order they were taken. A tag value
--- keeps A-Z, a-z, 0-9, _, . and -, and has anything else as _, one for each
+-- keeps A-Z, a-z, 0-9, _, . and - (first in the brackets: LIKE takes a - at
+-- the end as a range), and has anything else as _, one for each
 -- character, so every client prints the same line; an empty one is "none".
 -- At most 1000 lines: Vigil reads no more from one run.
 WITH n AS (SELECT TOP (256) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS i FROM sys.all_columns)
@@ -138,12 +143,12 @@ SELECT TOP (1000) CONVERT(varchar(1000), 'metric ' + m.name + ' '
     + ISNULL(' ' + m.k1 + '=' + s1.x, '') + ISNULL(' ' + m.k2 + '=' + s2.x, '') + ISNULL(' ' + m.k3 + '=' + s3.x, '')
     + ISNULL(' ' + m.k4 + '=' + s4.x, '') + ISNULL(' ' + m.k5 + '=' + s5.x, '') + ISNULL(' ' + m.k6 + '=' + s6.x, ''))
 FROM @m AS m
-CROSS APPLY (SELECT x = CASE WHEN m.t1 IS NULL THEN NULL WHEN LEN(m.t1) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t1, n.i, 1) COLLATE Latin1_General_BIN LIKE '[A-Za-z0-9_.-]' THEN SUBSTRING(m.t1, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t1 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s1
-CROSS APPLY (SELECT x = CASE WHEN m.t2 IS NULL THEN NULL WHEN LEN(m.t2) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t2, n.i, 1) COLLATE Latin1_General_BIN LIKE '[A-Za-z0-9_.-]' THEN SUBSTRING(m.t2, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t2 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s2
-CROSS APPLY (SELECT x = CASE WHEN m.t3 IS NULL THEN NULL WHEN LEN(m.t3) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t3, n.i, 1) COLLATE Latin1_General_BIN LIKE '[A-Za-z0-9_.-]' THEN SUBSTRING(m.t3, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t3 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s3
-CROSS APPLY (SELECT x = CASE WHEN m.t4 IS NULL THEN NULL WHEN LEN(m.t4) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t4, n.i, 1) COLLATE Latin1_General_BIN LIKE '[A-Za-z0-9_.-]' THEN SUBSTRING(m.t4, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t4 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s4
-CROSS APPLY (SELECT x = CASE WHEN m.t5 IS NULL THEN NULL WHEN LEN(m.t5) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t5, n.i, 1) COLLATE Latin1_General_BIN LIKE '[A-Za-z0-9_.-]' THEN SUBSTRING(m.t5, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t5 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s5
-CROSS APPLY (SELECT x = CASE WHEN m.t6 IS NULL THEN NULL WHEN LEN(m.t6) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t6, n.i, 1) COLLATE Latin1_General_BIN LIKE '[A-Za-z0-9_.-]' THEN SUBSTRING(m.t6, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t6 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s6
+CROSS APPLY (SELECT x = CASE WHEN m.t1 IS NULL THEN NULL WHEN LEN(m.t1) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t1, n.i, 1) COLLATE Latin1_General_BIN LIKE '[-A-Za-z0-9_.]' THEN SUBSTRING(m.t1, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t1 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s1
+CROSS APPLY (SELECT x = CASE WHEN m.t2 IS NULL THEN NULL WHEN LEN(m.t2) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t2, n.i, 1) COLLATE Latin1_General_BIN LIKE '[-A-Za-z0-9_.]' THEN SUBSTRING(m.t2, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t2 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s2
+CROSS APPLY (SELECT x = CASE WHEN m.t3 IS NULL THEN NULL WHEN LEN(m.t3) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t3, n.i, 1) COLLATE Latin1_General_BIN LIKE '[-A-Za-z0-9_.]' THEN SUBSTRING(m.t3, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t3 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s3
+CROSS APPLY (SELECT x = CASE WHEN m.t4 IS NULL THEN NULL WHEN LEN(m.t4) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t4, n.i, 1) COLLATE Latin1_General_BIN LIKE '[-A-Za-z0-9_.]' THEN SUBSTRING(m.t4, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t4 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s4
+CROSS APPLY (SELECT x = CASE WHEN m.t5 IS NULL THEN NULL WHEN LEN(m.t5) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t5, n.i, 1) COLLATE Latin1_General_BIN LIKE '[-A-Za-z0-9_.]' THEN SUBSTRING(m.t5, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t5 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s5
+CROSS APPLY (SELECT x = CASE WHEN m.t6 IS NULL THEN NULL WHEN LEN(m.t6) = 0 THEN 'none' ELSE (SELECT CASE WHEN SUBSTRING(m.t6, n.i, 1) COLLATE Latin1_General_BIN LIKE '[-A-Za-z0-9_.]' THEN SUBSTRING(m.t6, n.i, 1) ELSE '_' END FROM n WHERE n.i <= LEN(m.t6 + N'.') - 1 ORDER BY n.i FOR XML PATH(''), TYPE).value('.', 'varchar(256)') END) AS s6
 ORDER BY m.seq;
 '@
 

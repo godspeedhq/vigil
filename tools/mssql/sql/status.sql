@@ -7,7 +7,9 @@ SELECT 'info', 1,
     'release', CASE @major WHEN 15 THEN N'2019' WHEN 16 THEN N'2022' WHEN 17 THEN N'2025' ELSE CONVERT(nvarchar(10), @major) END,
     'version', CONVERT(nvarchar(128), SERVERPROPERTY('ProductVersion')),
     'update', ISNULL(CONVERT(nvarchar(128), SERVERPROPERTY('ProductUpdateLevel')), CONVERT(nvarchar(128), SERVERPROPERTY('ProductLevel'))),
-    'edition', LOWER(LEFT(@edition, CHARINDEX(N' ', @edition + N' ') - 1)),
+    -- 2025 names Developer "Enterprise Developer Edition": the kind first.
+    'edition', CASE WHEN @edition LIKE N'%Developer%' THEN N'developer' WHEN @edition LIKE N'%Express%' THEN N'express'
+        WHEN @edition LIKE N'%Evaluation%' THEN N'evaluation' ELSE LOWER(LEFT(@edition, CHARINDEX(N' ', @edition + N' ') - 1)) END,
     'os', LOWER((SELECT TOP (1) host_platform FROM sys.dm_os_host_info));
 INSERT @m (name, v) SELECT 'uptime_seconds', DATEDIFF_BIG(second, sqlserver_start_time, @now) FROM sys.dm_os_sys_info;
 INSERT @m (name, v) SELECT 'cpus', cpu_count FROM sys.dm_os_sys_info;

@@ -613,9 +613,9 @@ if [ -z "${VIGIL_IT_MSSQL_HOST-}" ] || [ -z "${VIGIL_IT_MSSQL_PASSWORD-}" ]; the
 elif ! command -v sqlcmd > /dev/null 2>&1 && [ ! -x /opt/mssql-tools18/bin/sqlcmd ]; then
     printf '  SKIP  mssql: sqlcmd is not installed here\n'
 else
-    # The jobs have their password from Vigil: never from this test's own
-    # environment.
-    unset SQLCMDPASSWORD
+    # The jobs have their password, server and CA from Vigil: never from
+    # this test's own environment.
+    unset SQLCMDPASSWORD MSSQL_HOST MSSQL_PORT MSSQL_USER MSSQL_CACERT MSSQL_CERT_NAME SSL_CERT_FILE
     mport=${VIGIL_IT_MSSQL_PORT:-1433}
     printf 'mssql at %s:%s\n' "$VIGIL_IT_MSSQL_HOST" "$mport"
     mclient=$(command -v sqlcmd || echo /opt/mssql-tools18/bin/sqlcmd)
@@ -693,6 +693,9 @@ else
     check 'mssql: page life' yes "$(between mssql_performance page_life_expectancy_seconds '' 0 1e10)"
     check 'mssql: the buffer cache hit ratio' yes "$(between mssql_performance buffer_cache_hit_pct '' 0 100)"
     check 'mssql: workers against the most' yes "$(between mssql_cpu workers_pct '' 0.01 100)"
+    # SQL Server records its CPU once a minute: none yet on a server just
+    # started.
+    for _ in $(seq 1 12); do [ -n "$(printed mssql_cpu sql_pct)" ] && break; sleep 10; runs mssql_cpu > /dev/null; done
     check 'mssql: SQL Server CPU' yes "$(between mssql_cpu sql_pct '' 0 100)"
     check 'mssql: waits by kind' yes "$(between mssql_waits wait_ms_count kind=disk_read 0 1e18)"
     check 'mssql: reads, file by file' yes "$(between mssql_io reads_count 'database=master file=master kind=data' 1 1e18)"
@@ -762,7 +765,10 @@ else
     check 'mssql: a wrong password fails the run' 2 "$(runs mssql_status)"
     check 'mssql: and says why' yes "$(said mssql_status 'Login failed')"
     printf '%s' "$VIGIL_IT_MSSQL_PASSWORD" | vigil secret set MSSQL_MONITOR_PASSWORD --stdin > /dev/null
-    check 'mssql: the password is written nowhere' 0 "$(grep -rlF -- "$VIGIL_IT_MSSQL_PASSWORD" "$root/config" "$root/logs" "$root/metrics" "$root/state" 2> /dev/null | wc -l | tr -d ' ')"
+    # Not config/: the secret store is there, and holds it by design.
+    leaks=$(grep -rlF -- "$VIGIL_IT_MSSQL_PASSWORD" "$root/logs" "$root/metrics" "$root/state" "$root/spool" 2> /dev/null)
+    check 'mssql: the password is written nowhere' '' "$(printf '%s' "$leaks" | sed "s#^$root/##" | tr '
+' ' ' | sed 's/ $//')"
 
     set_env MSSQL_PORT 1
     check 'mssql: a server that is down still runs' 0 "$(runs mssql_status)"

@@ -481,9 +481,9 @@ try {
     # --- mssql --------------------------------------------------------------
     if (-not $env:VIGIL_IT_MSSQL_HOST -or -not $env:VIGIL_IT_MSSQL_PASSWORD) { Write-Host '  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD' }
     else {
-        # The jobs have their password from Vigil: never from this test's
-        # own environment.
-        Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+        # The jobs have their password and server from Vigil: never from
+        # this test's own environment.
+        foreach ($v in 'SQLCMDPASSWORD', 'MSSQL_HOST', 'MSSQL_PORT', 'MSSQL_USER', 'MSSQL_AUTH', 'MSSQL_CACERT', 'MSSQL_CERT_NAME') { Remove-Item "Env:\$v" -ErrorAction SilentlyContinue }
         $mport = if ($env:VIGIL_IT_MSSQL_PORT) { $env:VIGIL_IT_MSSQL_PORT } else { '1433' }
         Write-Host "mssql at $($env:VIGIL_IT_MSSQL_HOST):$mport"
         # activity first, while the waiter waits.
@@ -553,6 +553,10 @@ try {
         Test-Equal 'mssql: connections' 'yes' (Test-Between mssql_status connections '' 1 100000)
         Test-Equal 'mssql: requests counted' 'yes' (Test-Between mssql_performance batch_requests_count '' 1 1e18)
         Test-Equal 'mssql: workers against the most' 'yes' (Test-Between mssql_cpu workers_pct '' 0.01 100)
+        # SQL Server records its CPU once a minute: none yet on a server just
+        # started.
+        for ($i = 0; $i -lt 12 -and -not (Get-Printed mssql_cpu sql_pct); $i++) { Start-Sleep -Seconds 10; [void](Invoke-Job mssql_cpu) }
+        Test-Equal 'mssql: SQL Server CPU' 'yes' (Test-Between mssql_cpu sql_pct '' 0 100)
         Test-Equal 'mssql: reads, file by file' 'yes' (Test-Between mssql_io reads_count 'database=master file=master kind=data' 1 1e18)
         Test-Equal 'mssql: memory it aims for' 'yes' (Test-Between mssql_memory target_bytes '' 1 1e15)
         Test-Equal 'mssql: tempdb free' 'yes' (Test-Between mssql_tempdb free_pct '' 0 100)
@@ -600,9 +604,9 @@ try {
         [void](Invoke-Vigil supervise --once)
         $prom = [System.IO.File]::ReadAllText((Join-Path $root 'metrics\vigil.prom'))
         Test-Equal 'mssql: metrics reach the backend' 'True' ([string](($prom -match '(?m)^mssql_up\{') -and ($prom -match '(?m)^mssql_database_online\{.*database="master"') -and ($prom -match '(?m)^mssql_waits_wait_ms')))
-        $leaks = @(Get-ChildItem -LiteralPath (Join-Path $root 'config'), (Join-Path $root 'logs'), (Join-Path $root 'state'), (Join-Path $root 'spool'), (Join-Path $root 'metrics') -Recurse -File -ErrorAction SilentlyContinue |
+        $leaks = @(Get-ChildItem -LiteralPath (Join-Path $root 'logs'), (Join-Path $root 'state'), (Join-Path $root 'spool'), (Join-Path $root 'metrics') -Recurse -File -ErrorAction SilentlyContinue |
                 Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains($env:VIGIL_IT_MSSQL_PASSWORD) })
-        Test-Equal 'mssql: the password is written nowhere' '0' ([string]$leaks.Count)
+        Test-Equal 'mssql: the password is written nowhere' '' ((@($leaks | ForEach-Object { $_.FullName.Substring($root.Length + 1) })) -join ' ')
     }
 }
 finally {

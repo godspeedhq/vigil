@@ -128,7 +128,7 @@ JOBS = [
               "of the machine's; tasks ready to run that wait for a CPU or a thread; disk I/O pending on its "
               "schedulers; and its worker threads against the most it may have.",
          metrics=[
-             ('sql_pct', 'CPU used by SQL Server, as a percent of the machine'),
+             ('sql_pct', "CPU used by SQL Server, as a percent of the machine; left out in its first minute, before it records any"),
              ('other_pct', "CPU used by everything else (Windows only: on Linux SQL Server cannot tell)"),
              ('runnable_tasks', 'tasks ready to run that wait for a CPU'),
              ('work_queued', 'tasks waiting for a worker thread'),
@@ -148,7 +148,7 @@ JOBS = [
               "and health, and each database's synchronization and the log waiting to be sent and redone. "
               "A primary sees every replica; a secondary, itself. With no availability group, it prints nothing.",
          metrics=[
-             ('primary', '1 for the primary replica, tagged group= and replica='),
+             ('primary', "1 for the primary replica, tagged group=<its name, where the login may see it; else its id> and replica="),
              ('connected', '1 when the replica is connected'),
              ('health', "2 healthy, 1 partly, 0 not healthy"),
              ('local', '1 for this server'),

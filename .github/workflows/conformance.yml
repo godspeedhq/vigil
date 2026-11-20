@@ -160,7 +160,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - name: PostgreSQL 18, MySQL 8.4, MariaDB 11.4, Valkey 9.2, Redis 8.10 and nginx
@@ -250,6 +250,53 @@ jobs:
           VIGIL_IT_REDIS_HOST: 127.0.0.1
           VIGIL_IT_REDIS_PORT: '16389'
         run: /bin/bash tests/integration/service-packs.sh
+      - name: SQL Server 2022, TLS only, its certificate from a CA of this run's own
+        run: |
+          ms_sa=$(openssl rand -hex 16)Aa1
+          ms_monitor=$(openssl rand -hex 16)Bb2
+          echo "::add-mask::$ms_sa"
+          echo "::add-mask::$ms_monitor"
+          echo "VIGIL_IT_MSSQL_SA_PASSWORD=$ms_sa" >> "$GITHUB_ENV"
+          echo "VIGIL_IT_MSSQL_PASSWORD=$ms_monitor" >> "$GITHUB_ENV"
+          tls=$RUNNER_TEMP/mssql-tls
+          mkdir -p "$tls" && cd "$tls"
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.crt -days 2 -subj '/CN=Vigil test CA' \
+            -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' 2> /dev/null
+          openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj '/CN=localhost' 2> /dev/null
+          printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n' > server.ext
+          openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 2 -extfile server.ext 2> /dev/null
+          rm -f ca.key && chmod 755 "$tls" && chmod 644 "$tls"/*
+          echo "VIGIL_IT_MSSQL_CACERT=$tls/ca.crt" >> "$GITHUB_ENV"
+          cd "$GITHUB_WORKSPACE"
+          # The password from the environment, never on a command line.
+          ACCEPT_EULA=Y MSSQL_PID=Developer MSSQL_SA_PASSWORD="$ms_sa" docker run -d --name mssql -p 127.0.0.1:1433:1433 \
+            -e ACCEPT_EULA -e MSSQL_PID -e MSSQL_SA_PASSWORD \
+            -v "$PWD/tests/integration/backends/configs/services/mssql/mssql.conf:/var/opt/mssql/mssql.conf:ro" -v "$tls:/tls:ro" \
+            mcr.microsoft.com/mssql/server:2022-CU28-ubuntu-22.04
+          # A sqlcmd for the pack: the runner's own, or the Go one.
+          if ! command -v sqlcmd > /dev/null 2>&1; then
+            curl -fsSL -o "$RUNNER_TEMP/sqlcmd.tar.bz2" https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-linux-amd64.tar.bz2
+            echo "92516d98c63d99b0994de5b61350c91f6915f9b76f139a59039fbcb225c2e987  $RUNNER_TEMP/sqlcmd.tar.bz2" | sha256sum -c -
+            mkdir -p "$RUNNER_TEMP/sqlcmd" && tar xjf "$RUNNER_TEMP/sqlcmd.tar.bz2" -C "$RUNNER_TEMP/sqlcmd"
+            echo "$RUNNER_TEMP/sqlcmd" >> "$GITHUB_PATH"
+          fi
+          sa() { docker exec -i mssql sh -c 'SQLCMDPASSWORD=$MSSQL_SA_PASSWORD SSL_CERT_FILE=/tls/ca.crt exec /opt/mssql-tools18/bin/sqlcmd -S tcp:localhost,1433 -U sa -Nm -l 10 -h -1 -W -b -i /dev/stdin' <<< "SET NOCOUNT ON; $1"; }
+          for i in $(seq 1 90); do sa 'SELECT 1' > /dev/null 2>&1 && break; sleep 2; done
+          sa 'SELECT 1' > /dev/null || { echo "SQL Server never became ready"; docker logs mssql; exit 1; }
+          # The login, as packs/README.md says.
+          sa "CREATE LOGIN vigil_monitor WITH PASSWORD = '$ms_monitor'; GRANT VIEW SERVER PERFORMANCE STATE, VIEW SERVER SECURITY STATE, VIEW ANY DATABASE, CONNECT ANY DATABASE TO vigil_monitor;"
+          sa 'SELECT @@VERSION' | head -n 1
+      - name: the mssql pack against SQL Server 2022 (/bin/bash)
+        env:
+          VIGIL_IT_PG_HOST: ''
+          VIGIL_IT_NGINX_URL: ''
+          VIGIL_IT_MYSQL_HOST: ''
+          VIGIL_IT_REDIS_HOST: ''
+          VIGIL_IT_MSSQL_HOST: localhost
+          VIGIL_IT_MSSQL_PORT: '1433'
+        run: |
+          (sqlcmd --version 2>&1 || true) | head -n 3
+          /bin/bash tests/integration/service-packs.sh
 
   # The .deb and .rpm (backlog 30, step 1), built as a release builds them,
   # for two versions: each installed, upgraded and removed in a clean
