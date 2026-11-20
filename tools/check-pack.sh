@@ -221,8 +221,11 @@ check_pack() {
             pack:version) version=$value ;;
             pack:vigil) vigil=$value ;;
             pack:description) about=$value ;;
-            pack:needs) [ -n "$value" ] || fail "pack.config line ${VIGIL_CFG_LINE[$i]}: needs is empty" ;;
-            pack:*) fail "pack.config line ${VIGIL_CFG_LINE[$i]}: [pack] has no key $key (version, vigil, description, needs)" ;;
+            pack:needs | pack:works_with | pack:programs_linux | pack:programs_macos | pack:programs_windows)
+                [ -n "$value" ] || fail "pack.config line ${VIGIL_CFG_LINE[$i]}: $key is empty"
+                ;;
+            pack:docs) [[ $value == https://* ]] || fail "pack.config line ${VIGIL_CFG_LINE[$i]}: docs must be an https:// link, not '$value'" ;;
+            pack:*) fail "pack.config line ${VIGIL_CFG_LINE[$i]}: [pack] has no key $key (version, vigil, description, works_with, programs_linux, programs_macos, programs_windows, docs, needs)" ;;
             job.*:file) fail "pack.config line ${VIGIL_CFG_LINE[$i]}: no file key: a job runs <job>.sh or <job>.ps1" ;;
         esac
         i=$((i + 1))

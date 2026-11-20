@@ -219,13 +219,38 @@ try {
     Test-Equal 'a dropped script goes once no job uses it' 'False' ([string](Test-Path -LiteralPath "$root\packs\base\disk.ps1"))
 
     Write-Host 'Searching'
-    Test-Equal 'by a word' 'web 1.0.0: A web server' (Invoke-Vigil pack search web).Text
-    Test-Equal 'every word, in any case' 'web 1.0.0: A web server' (Invoke-Vigil pack search SERVER a).Text
-    Test-Equal 'all, with none' 'base 1.2.0, installed 1.2.0: For the test|web 1.0.0: A web server' (Join-Lines (Invoke-Vigil pack search).Text)
+    $last = { param([string]$Text) @($Text.Split("`n"))[-1] }
+    Test-Equal 'by a word, as a table' 'Packs in packs-2026.01.03:||Name Version Here About|---- ------- ---- -----|web  1.0.0        A web server' (Join-Lines (Invoke-Vigil pack search web).Text)
+    Test-Equal 'every word, in any case' 'web  1.0.0        A web server' (& $last (Invoke-Vigil pack search SERVER a).Text)
+    Test-Equal 'all, with none' 'base 1.2.0   installed For the test|web  1.0.0             A web server' ((@((Invoke-Vigil pack search).Text.Split("`n")) | Select-Object -Last 2) -join '|')
     Test-Equal 'nothing found' 'no pack matches: nosuch' (Invoke-Vigil pack search nosuch).Text
-    Test-Equal 'what is not installed' 'web 1.0.0: A web server' (Invoke-Vigil pack list --available).Text
-    Test-Equal 'one pack' 'web: A web server|installed: no|versions, newest first:|  1.0.0      Vigil 0.0.1 or later; windows (packs-2026.01.02)' (Join-Lines (Invoke-Vigil pack info web).Text)
+    Test-Equal 'what is not installed' 'Packs in packs-2026.01.03 not installed here:||Name Version Here About|---- ------- ---- -----|web  1.0.0        A web server' (Join-Lines (Invoke-Vigil pack list --available).Text)
+    Test-Equal 'one pack' 'Name       : web|About      : A web server|Here       : not installed: vigil pack install web|Platforms  : Windows||Version Platforms Needs Vigil Release|------- --------- ----------- -------|1.0.0   Windows   0.0.1       packs-2026.01.02' (Join-Lines (Invoke-Vigil pack info web).Text)
     Test-Equal 'an unknown one' 'vigil: no pack called nosuch: vigil pack search' (Invoke-Vigil pack info nosuch).Text
+    # Released after the index here was saved: found, as search fetches the
+    # newest index rather than read the saved one.
+    Publish-Pack 'packs-2026.01.03.1' db '1.0.0' @('status') -About 'A database'
+    [System.IO.File]::AppendAllText("$work\entries", "info`tdb`t1.0.0`tworks_with`tDB 1 or later`ninfo`tdb`t1.0.0`tprograms_windows`tdbcli`ninfo`tdb`t1.0.0`tsecret`tDB_PW`ninfo`tdb`t1.0.0`tneeds`ta role, as an administrator: CREATE ROLE it`ninfo`tdb`t1.0.0`tneeds`tits log on`ninfo`tdb`t1.0.0`tsetting`tDB_HOST=localhost`ninfo`tdb`t1.0.0`tsetting`tDB_PORT=1`ninfo`tdb`t1.0.0`tdocs`thttps://example.com/packs/README.md#db`n")
+    # One with no scripts here, and what it needs on the platform it has.
+    [System.IO.File]::AppendAllText("$work\entries", "pack`telsewhere`t1.0.0`t0.0.1`tpacks-2026.01.03.1`tdigest`tElsewhere only`nfile`telsewhere`t1.0.0`tlinux`tvigil-pack-elsewhere-1.0.0-linux.tar.gz`t$('0' * 64)`ninfo`telsewhere`t1.0.0`tprograms_linux`tthat`n")
+    Publish-Index 'packs-2026.01.03.1'
+    Test-Equal 'a pack released since the index here was saved' 'db   1.0.0        A database' (& $last (Invoke-Vigil pack search database).Text)
+    Test-Equal 'and the new index is saved' 'True' ([string]((Get-Text "$root\packs\.index") -cmatch "(?m)^release`tpacks-2026\.01\.03\.1$"))
+    Test-Equal 'a pack with no scripts here' 'elsewhere 1.0.0   not for Windows Elsewhere only' (& $last (Invoke-Vigil pack search elsewhere).Text)
+    $card = @((Invoke-Vigil pack info db).Text.Split("`n"))
+    Test-Equal 'what a pack needs, from its info records' 'Name       : db|About      : A database|Here       : not installed: vigil pack install db|Platforms  : Windows|Works with : DB 1 or later|Programs   : dbcli|Secrets    : DB_PW|Needs      : a role, as an administrator:|             CREATE ROLE it|             its log on|Settings   : DB_HOST=localhost DB_PORT=1 (the env lines in vigil.config, once|             enabled)|Docs       : https://example.com/packs/README.md#db' (($card[0..($card.IndexOf('') - 1)]) -join '|')
+    Test-Equal 'and on a platform it has no scripts for' 'Here       : not for Windows|Platforms  : Linux|Programs   : that (on Linux)|Secrets    : none' ((@((Invoke-Vigil pack info elsewhere).Text.Split("`n"))[2..5]) -join '|')
+    $url = $env:VIGIL_TEST_RELEASE_URL
+    $env:VIGIL_TEST_RELEASE_URL = 'http://127.0.0.1:9'
+    $off = @((Invoke-Vigil pack search database).Text.Split("`n"))
+    $saved = "$root\packs\.index"
+    Move-Item -LiteralPath $saved -Destination "$work\keep.saved"
+    $none = (Invoke-Vigil pack info db).Text
+    Move-Item -LiteralPath "$work\keep.saved" -Destination $saved
+    $env:VIGIL_TEST_RELEASE_URL = $url
+    Test-Equal 'offline, from the index saved here' 'db   1.0.0        A database' $off[-1]
+    Test-Equal 'saying so' 'vigil: cannot find the latest packs release on GitHub: no network, or its API refused (it allows 60 requests an hour); showing the index saved here, of packs-2026.01.03.1' (@($off | Where-Object { $_ -clike 'vigil:*' }) -join '|')
+    Test-Equal 'offline, with none saved' 'vigil: cannot find the latest packs release on GitHub: no network, or its API refused (it allows 60 requests an hour)' $none
 
     Write-Host 'Installing'
     $was = Get-Text $cfg

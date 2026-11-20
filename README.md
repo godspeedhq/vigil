@@ -801,7 +801,7 @@ Vigil comes with one, the base pack, and `vigil init` turns it on: CPU, memory, 
 
 ```sh
 vigil pack search postgres     # the packs whose name or description has these words
-vigil pack info postgres       # its versions, platforms, and the Vigil each needs
+vigil pack info postgres       # what it needs (programs, secrets, setup), and its versions
 vigil pack install postgres    # puts it here; nothing runs yet
 vigil pack enable postgres     # turns its jobs on, and says what they need
 vigil pack list                # the packs here, and whether their jobs are on
