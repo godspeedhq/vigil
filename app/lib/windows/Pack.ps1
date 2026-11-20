@@ -189,13 +189,14 @@ function Open-VigilPackRepo {
         try { $r = Open-VigilPackRepo -Root $Root -App $App -From $From }
         finally { $held = $script:VigilPackHeld; $script:VigilPackHeld = $null }
         if ($r.Ok) { return $r }
-        $saved = Join-Path $Root 'packs\.index'
-        if ($r.Key -and (Test-VigilPackSigned -Key $r.Key -Path $saved)) {
-            $idx = Read-VigilPackIndex -Path $saved
+        # Not $saved: PowerShell's names ignore case, and that is -Saved.
+        $kept = Join-Path $Root 'packs\.index'
+        if ($r.Key -and (Test-VigilPackSigned -Key $r.Key -Path $kept)) {
+            $idx = Read-VigilPackIndex -Path $kept
             if ($idx) {
                 $why = if ($held.Count -gt 0) { $held[0] } else { 'cannot reach the pack repository' }
                 [Console]::Error.WriteLine("vigil: $why; showing the index saved here, of $($idx.Release)")
-                $r.Index = $idx; $r.IndexPath = $saved; $r.Ok = $true
+                $r.Index = $idx; $r.IndexPath = $kept; $r.Ok = $true
                 return $r
             }
         }
