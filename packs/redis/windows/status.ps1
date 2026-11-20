@@ -3,6 +3,15 @@
 <#
 .SYNOPSIS
     status.ps1 - a Redis or Valkey server's health, on Windows
+.NOTES
+    Copyright (c) Bankole Ogundero and the Vigil contributors
+    SPDX-License-Identifier: Apache-2.0
+
+    Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+    implied. Run it at your own risk: review it first, and test it before you
+    rely on it. In no event shall the authors or copyright holders be liable
+    for any claim, damages or other liability arising from its use. See the
+    LICENSE file for the full terms.
 .DESCRIPTION
     Asks the server for its INFO, as a user that may run nothing else, and
     reports whether it answers and what it is, its clients against the limit,
@@ -69,15 +78,6 @@
       run INFO (Redis 6 or Valkey on)
     Exit code: 0 on success, server up or down; 1 if the server refuses the
       login or INFO
-.NOTES
-    Copyright (c) Bankole Ogundero and the Vigil contributors
-    SPDX-License-Identifier: Apache-2.0
-
-    Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
-    implied. Run it at your own risk: review it first, and test it before you
-    rely on it. In no event shall the authors or copyright holders be liable
-    for any claim, damages or other liability arising from its use. See the
-    LICENSE file for the full terms.
 #>
 
 $ErrorActionPreference = 'Stop'

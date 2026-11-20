@@ -152,9 +152,10 @@ jobs:
   # The service packs against real servers: PostgreSQL, MySQL, MariaDB,
   # Valkey, Redis and nginx in Docker, as tests/integration/backends runs
   # them. The runner has psql and MySQL's client, which also talks to
-  # MariaDB here; Ubuntu's redis-tools gives redis-cli, older than either
-  # server. macOS runners have no Docker; the scripts are the same. Run with
-  # the suites only: a pack-only change brings its evidence instead.
+  # MariaDB here; the runner's redis-tools gives redis-cli (8.0 when this was
+  # written), older than either server. macOS runners have no Docker; the
+  # scripts are the same. Run with the suites only: a pack-only change
+  # brings its evidence instead.
   service-packs:
     needs: changes
     if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'

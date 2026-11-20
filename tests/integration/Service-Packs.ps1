@@ -295,26 +295,31 @@ try {
         $r = Invoke-Vigil precheck
         Test-Equal 'redis: precheck is happy' '0' ([string]$r.Code)
 
-        # With admin: more data than maxmemory allows, when there is a limit,
-        # so the server evicts; keys in two databases, some expiring; a
-        # lookup that hits and one that misses; a client blocked on a list
-        # no one writes; and a snapshot.
+        # With admin: a lookup that hits and one that misses; more data than
+        # maxmemory allows, when there is a limit, so the server evicts; keys
+        # in two databases, some expiring; a client blocked on a list no one
+        # writes; and a snapshot. The lookups come first, and the keys two
+        # seconds after the fill: the server's LRU clock ticks once a second,
+        # and a key written in the same second as the fill may be evicted
+        # with it.
         $maxmem = 0
         if ($env:VIGIL_IT_REDIS_ADMIN_PASSWORD) {
             $a = Connect-RedisAdmin
+            [void](Send-RedisCommand $a @('SET', 'vigil_it:key:1', '1'))
+            [void](Send-RedisCommand $a @('GET', 'vigil_it:key:1'))
+            [void](Send-RedisCommand $a @('GET', 'vigil_it:no-such-key'))
             $maxmem = [long](Send-RedisCommand $a @('CONFIG', 'GET', 'maxmemory'))[1]
             if ($maxmem -gt 0) {
                 $n = [long][Math]::Floor($maxmem / 4096 / 2000) + 1
                 for ($i = 1; $i -le $n * 2; $i++) {
                     [void](Send-RedisCommand $a @('EVAL', "for i = 1, 2000 do redis.call('SET', 'vigil_it:fill:' .. ARGV[1] .. ':' .. i, string.rep('x', 4096)) end", '0', "w$i"))
                 }
+                Start-Sleep -Seconds 2
             }
             for ($i = 1; $i -le 5; $i++) { [void](Send-RedisCommand $a @('SET', "vigil_it:key:$i", "$i")) }
             [void](Send-RedisCommand $a @('SELECT', '3'))
             [void](Send-RedisCommand $a @('SET', 'vigil_it:expiring', '1', 'EX', '600'))
             [void](Send-RedisCommand $a @('SELECT', '0'))
-            [void](Send-RedisCommand $a @('GET', 'vigil_it:key:1'))
-            [void](Send-RedisCommand $a @('GET', 'vigil_it:no-such-key'))
             $script:blocked = Connect-RedisAdmin
             Send-RedisCommand $script:blocked @('BLPOP', 'vigil_it:never', '60') -NoReply
             [void](Send-RedisCommand $a @('BGSAVE'))

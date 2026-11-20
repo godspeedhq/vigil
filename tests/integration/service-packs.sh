@@ -432,22 +432,26 @@ else
     set_env REDIS_PORT "$rport"
     check 'redis: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
 
-    # With admin: more data than maxmemory allows, when there is a limit, so
-    # the server evicts; then keys in two databases, some expiring; a lookup
-    # that hits and one that misses; a client blocked on a list no one
-    # writes; and a snapshot.
+    # With admin: a lookup that hits and one that misses; more data than
+    # maxmemory allows, when there is a limit, so the server evicts; then
+    # keys in two databases, some expiring; a client blocked on a list no one
+    # writes; and a snapshot. The lookups come first, and the keys two
+    # seconds after the fill: the server's LRU clock ticks once a second, and
+    # a key written in the same second as the fill may be evicted with it.
     if [ -n "${VIGIL_IT_REDIS_ADMIN_PASSWORD-}" ]; then
+        radmin SET vigil_it:key:1 1 > /dev/null
+        radmin GET vigil_it:key:1 > /dev/null
+        radmin GET vigil_it:no-such-key > /dev/null
         maxmem=$(radmin CONFIG GET maxmemory | tail -n 1 | tr -d '\r')
         if [ "${maxmem:-0}" -gt 0 ] 2> /dev/null; then
             n=$((maxmem / 4096 / 2000 + 1))
             for i in $(seq 1 $((n * 2))); do
                 radmin EVAL "for i = 1, 2000 do redis.call('SET', 'vigil_it:fill:' .. ARGV[1] .. ':' .. i, string.rep('x', 4096)) end" 0 "$i" > /dev/null
             done
+            sleep 2
         fi
         for i in 1 2 3 4 5; do radmin SET "vigil_it:key:$i" "$i" > /dev/null; done
         radmin -n 3 SET vigil_it:expiring 1 EX 600 > /dev/null
-        radmin GET vigil_it:key:1 > /dev/null
-        radmin GET vigil_it:no-such-key > /dev/null
         radmin BLPOP vigil_it:never 25 > /dev/null &
         hold=$!
         radmin BGSAVE > /dev/null

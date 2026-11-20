@@ -2,6 +2,15 @@
 #
 # persistence.sh - whether a Redis or Valkey server writes its data to disk
 #
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
 # Asks the server for its INFO, as a user that may run nothing else, and
 # reports whether its last snapshot (RDB) was written, how long ago, and the
 # changes since; and, with the append-only file (AOF) on, whether its
@@ -63,15 +72,6 @@
 #   (Redis 6 or Valkey on)
 # Exit code: 0 on success, or when the server does not answer; 1 if the
 #   client is missing or the server refuses the login or INFO
-#
-# Copyright (c) Bankole Ogundero and the Vigil contributors
-# SPDX-License-Identifier: Apache-2.0
-#
-# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
-# implied. Run it at your own risk: review it first, and test it before you
-# rely on it. In no event shall the authors or copyright holders be liable
-# for any claim, damages or other liability arising from its use. See the
-# LICENSE file for the full terms.
 
 set -u
 
