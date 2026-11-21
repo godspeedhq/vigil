@@ -33,8 +33,9 @@
 #     to the log directory), in _vl_rec, empty when the line is not forwarded.
 #     Must produce exactly what Logs.ps1 does - tests/conformance/logs holds
 #     the shared cases.
-#   vigil_logs_retention <log dir> <epoch>
-#     Deletes the log files older than their retention (13.1).
+#   vigil_logs_retention <log dir> <epoch> [<state dir>]
+#     Deletes the log files, and the output crashed runs left, older than
+#     their retention (13.1).
 #   vigil_logs_output_for <job id>
 #     Sets _vl_output: whether the job's stdout and stderr may be forwarded.
 #
@@ -205,9 +206,10 @@ _vigil_logs_keep() {
 
 # Deletes dated log files older than their retention (13.1), whole, and
 # never for the forwarder's sake (13.4.4). The status file has no date.
-# $1 is the log directory, $2 the time. The number deleted is in _vl_removed.
+# $1 is the log directory, $2 the time, $3 the state directory. The number
+# deleted is in _vl_removed.
 vigil_logs_retention() {
-    local today=$(($2 / 86400)) f job
+    local today=$(($2 / 86400)) f job rid
     _vl_removed=0
     for f in "$1"/supervisor/*.log "$1"/jobs/*/*.log; do
         [ -f "$f" ] || continue
@@ -220,6 +222,24 @@ vigil_logs_retention() {
         esac
         _vigil_logs_keep "$job"
         [[ ${f##*/} =~ $_vigil_logs_dated ]] || continue
+        _vigil_logs_days "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+        if [ $((today - _vl_days)) -gt "$_vl_keep" ] && rm -f "$f"; then
+            _vl_removed=$((_vl_removed + 1))
+        fi
+    done
+    # A run's output, left beside the job log when its worker did not live
+    # to copy it in (a crashed run, 13.1): kept as long as the job's log, by
+    # the date its run id starts with. Never a run that still holds its
+    # token ($3, the state directory).
+    for f in "$1"/jobs/*/*.out "$1"/jobs/*/*.err "$1"/jobs/*/*.out.raw "$1"/jobs/*/*.err.raw; do
+        [ -f "$f" ] || continue
+        job=${f#"$1"/jobs/}
+        job=${job%%/*}
+        rid=${f##*/}
+        rid=${rid%%.*}
+        [[ $rid =~ ^([0-9]{4})([0-9]{2})([0-9]{2})T[0-9]{6}Z- ]] || continue
+        [ -n "${3-}" ] && [ -e "$3/locks/$job.$rid.token" ] && continue
+        _vigil_logs_keep "$job"
         _vigil_logs_days "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
         if [ $((today - _vl_days)) -gt "$_vl_keep" ] && rm -f "$f"; then
             _vl_removed=$((_vl_removed + 1))

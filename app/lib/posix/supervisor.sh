@@ -287,6 +287,9 @@ _vigil_sup_record() {
     _vigil_wk_set job "$job"
     _vigil_wk_set run_id "$rid"
     _vigil_wk_set instance "$_su_instance"
+    # A run whose outcome the supervisor records was a run all the same: its
+    # worker, which would have counted it, never got that far (14.2).
+    [ "$conclusion" = finished ] || _vigil_sup_event "$job" runs 1 count
     if [ "$conclusion" = finished ]; then
         _vigil_wk_set status "$_su_spool_outcome"
         _vigil_wk_set reason 'reconciled from the spool file'
@@ -315,9 +318,11 @@ _vigil_sup_record() {
 # Accounts for job $1's latest run (11.3). Sets _su_active to running when a
 # run is alive or launching, an abandon could not be made, or an uncertain run
 # is held (on_uncertain wait or manual); else - (none, or replace).
+# _su_heldrun is set when the job is held (11.4).
 _vigil_sup_account() {
     local job=$1 f rid='' launch='' token='' lstate=none tstate=none boot=same epoch lboot proc=-
     _su_active=-
+    _su_heldrun=
     for f in "$_su_statedir/locks/$job".*.launch; do [ -e "$f" ] && { launch=$f; break; }; done
     for f in "$_su_statedir/locks/$job".*.token; do [ -e "$f" ] && { token=$f; break; }; done
     _vigil_sup_read_state "$_su_statedir/jobs/$job.state"
@@ -421,6 +426,7 @@ _vigil_sup_account() {
             _su_replacing="$_su_replacing $job"
         else
             _su_active=running
+            _su_heldrun=uncertain
         fi
         return 0
     fi
@@ -476,7 +482,10 @@ _vigil_sup_account() {
     if [ "$hold" -eq 1 ]; then
         case $VIGIL_RECOVERY in
             alive | launching) ;;
-            *) _vigil_sup_rec_write "$job" "$_rr_run_id" "$VIGIL_RECOVERY" "$_rr_reason" manual ;;
+            *)
+                _vigil_sup_rec_write "$job" "$_rr_run_id" "$VIGIL_RECOVERY" "$_rr_reason" manual
+                _su_heldrun=manual
+                ;;
         esac
         _su_active=running
         _su_uncertain="$_su_uncertain$job: run $_rr_run_id $VIGIL_RECOVERY; held until vigil resolve (on_uncertain = manual)"$'\n'
@@ -565,6 +574,13 @@ _vigil_sup_event() {
     if [ -n "$1" ]; then
         name=$(_vigil_sup_metric "$1").$2
         tags="$tags job=$1"
+        # A job's state gauges, raised this tick: lowered with a 0 once they
+        # are not (_vigil_sup_lower).
+        case $4:$2 in
+            gauge:running | gauge:uncertain | gauge:file_missing | gauge:invalid_config)
+                [ "$3" = 0 ] || _su_raised="$_su_raised $2:$1"
+                ;;
+        esac
     else
         name=vigil.supervisor.$2
     fi
@@ -575,6 +591,85 @@ _vigil_sup_event() {
 _vigil_sup_metric() {
     _vigil_wk_get "job.$1" metric_name "$1"
     printf '%s' "$_vw_value"
+}
+
+# A job's state gauges (running, uncertain, file_missing, invalid_config)
+# raised last tick and not this one are sent once as 0, so a backend that
+# keeps a gauge's last value, as the file does, does not keep the 1 (14.2).
+# Those raised are kept in state/gauges.raised, so a supervisor that
+# restarts still lowers them; with none kept, the first tick lowers every
+# configured job's.
+_vigil_sup_lower() {
+    local s w g f="$_su_statedir/gauges.raised"
+    if [ -z "${_su_lowered-}" ]; then
+        _su_lowered=1
+        _su_raised_last=''
+        if [ -f "$f" ]; then
+            read -r _su_raised_last < "$f" || :
+        else
+            s=0
+            while [ "$s" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
+                case ${VIGIL_CFG_SEC_NAME[$s]} in
+                    job.*) for g in running uncertain file_missing invalid_config; do _su_raised_last="$_su_raised_last $g:${VIGIL_CFG_SEC_NAME[$s]#job.}"; done ;;
+                esac
+                s=$((s + 1))
+            done
+        fi
+    fi
+    for w in $_su_raised_last; do
+        _vigil_sup_contains "$_su_raised" "$w" || _vigil_sup_event "${w#*:}" "${w%%:*}" 0 gauge
+    done
+    if [ "$_su_raised" != "$_su_raised_last" ] || [ ! -f "$f" ]; then
+        printf '%s\n' "$_su_raised" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+    fi
+    _su_raised_last=$_su_raised
+}
+
+# jobs.log's line (13.2) for job $1, its run accounted active: its PID, how
+# long it has run, and how long until max_runtime; a run whose worker has
+# not written its state yet is starting. A job held after its run ended,
+# for vigil resolve, is shown under UNCERTAIN only, and is not a worker.
+_vigil_sup_show_running() {
+    local sl i
+    [ -n "$_su_heldrun" ] && [ "$_ss" != running ] && return 0
+    _su_running=$((_su_running + 1))
+    sl="$1: starting"
+    if [ -n "$_ss_started" ] && [ "$_ss" = running ]; then
+        # The tick's time is read once, at its start, and a run
+        # launched by the last tick can start after it: never below 0.
+        i=$((_su_epoch - _ss_started))
+        [ "$i" -ge 0 ] || i=0
+        _vigil_sup_event "$1" running "$i" gauge
+        sl="$1:"
+        [ -n "$_ss_job_pid" ] && sl="$sl pid $_ss_job_pid,"
+        sl="$sl running for ${i}s"
+        if [ -n "$_ss_deadline" ]; then
+            i=$((_ss_deadline - _su_epoch))
+            if [ "$i" -gt 0 ]; then sl="$sl, max_runtime in ${i}s"; else sl="$sl, past max_runtime"; fi
+        fi
+    fi
+    _su_status_running="$_su_status_running$sl$2"$'\n'
+}
+
+# The jobs with a run Vigil still answers for, but which this tick did not
+# account for: removed from the configuration, or invalid in it, since the
+# run started. Each is accounted for until its run ends, so it is still held
+# to its max_runtime, and its outcome recorded. Vigil's own workers are
+# accounted for apart. Printed one to a line.
+_vigil_sup_leftover() {
+    local f j seen=" $1 "
+    for f in "$_su_statedir"/locks/*.launch "$_su_statedir"/locks/*.token "$_su_statedir"/recovery/*.recovery "$_su_statedir"/jobs/*.state; do
+        [ -e "$f" ] || continue
+        j=${f##*/}
+        j=${j%%.*}
+        case $j in vigil_* | '') continue ;; esac
+        case $seen in *" $j "*) continue ;; esac
+        case $f in
+            *.state) grep '^status *= *running *$' "$f" > /dev/null 2>&1 || continue ;;
+        esac
+        seen="$seen$j "
+        printf '%s\n' "$j"
+    done
 }
 
 # Loads the configuration when it changed. An invalid configuration is
@@ -721,17 +816,26 @@ _vigil_sup_queue_save() {
     esac
 }
 
-# A job's cached script, when its file comes from a source. Returns 1 when
-# it has none; sets _su_script (empty for a local file) otherwise.
+# A job's script: its cached copy when its file comes from a source, else
+# its local file, resolved against the root as the worker resolves it
+# (6.4). Returns 1 when it is missing (FILE MISSING, 16.3); sets
+# _su_script (empty for a local file) otherwise.
 _vigil_sup_script() {
     _su_script=''
-    [ "$_su_mode" = fetch ] || return 0
-    _vigil_wk_get "job.$1" source ''
-    [ -n "$_vw_value" ] || return 0
-    local src=$_vw_value
+    if [ "$_su_mode" = fetch ]; then
+        _vigil_wk_get "job.$1" source ''
+        if [ -n "$_vw_value" ]; then
+            local src=$_vw_value
+            _vigil_wk_get "job.$1" file ''
+            vigil_active_script "$src" "$_vw_value" && [ -f "$_va_path" ] || return 1
+            _su_script=$_va_path
+            return 0
+        fi
+    fi
     _vigil_wk_get "job.$1" file ''
-    vigil_active_script "$src" "$_vw_value" && [ -f "$_va_path" ] || return 1
-    _su_script=$_va_path
+    [ -n "$_vw_value" ] || return 0
+    _vigil_cmd_path "$_vw_value" posix "$_su_root"
+    [ -f "$_vc_path" ]
 }
 
 # Whether the fetcher should run: when no fetch has been made, when the
@@ -846,7 +950,7 @@ _vigil_sup_remove() {
 }
 
 _vigil_sup_tick() {
-    local s name job cursor cfile active next i ok sl
+    local s name job cursor cfile active next i ok sl accounted=''
     # Read once: every job in a tick is decided against the same moment.
     set -- $(date '+%s %Y-%m-%dT%H:%M:%S%z %Y-%m-%d')
     _su_epoch=$1
@@ -855,6 +959,7 @@ _vigil_sup_tick() {
     _su_logfile=''
     _su_iso=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
     _su_events=()
+    _su_raised=''
     _su_running=0
     _su_uncertain=''
     _su_replacing=''
@@ -887,28 +992,10 @@ _vigil_sup_tick() {
         fi
 
         _vigil_sup_account "$job"
+        accounted="$accounted $job"
         active=$_su_active
         if [ "$active" = running ]; then
-            _su_running=$((_su_running + 1))
-            # jobs.log (13.2): its PID, how long it has run, and how long
-            # until max_runtime; a run whose worker has not written its state
-            # yet is starting.
-            sl="$job: starting"
-            if [ -n "$_ss_started" ] && [ "$_ss" = running ]; then
-                # The tick's time is read once, at its start, and a run
-                # launched by the last tick can start after it: never below 0.
-                i=$((_su_epoch - _ss_started))
-                [ "$i" -ge 0 ] || i=0
-                _vigil_sup_event "$job" running "$i" gauge
-                sl="$job:"
-                [ -n "$_ss_job_pid" ] && sl="$sl pid $_ss_job_pid,"
-                sl="$sl running for ${i}s"
-                if [ -n "$_ss_deadline" ]; then
-                    i=$((_ss_deadline - _su_epoch))
-                    if [ "$i" -gt 0 ]; then sl="$sl, max_runtime in ${i}s"; else sl="$sl, past max_runtime"; fi
-                fi
-            fi
-            _su_status_running="$_su_status_running$sl"$'\n'
+            _vigil_sup_show_running "$job" ''
         else
             # A run held by queue_one is admitted once the active run ends.
             if _vigil_sup_contains "$_su_queued" "$job"; then
@@ -967,6 +1054,15 @@ _vigil_sup_tick() {
         [ "$VIGIL_SCHED_NEXT" != - ] && _su_status_waiting="$_su_status_waiting$job: next $VIGIL_SCHED_NEXT"$'\n'
     done
 
+    # Runs of jobs removed from the configuration, or now invalid in it, are
+    # still Vigil's: accounted for until they end (11.3), never started again.
+    if [ "$_su_waiting" = 0 ]; then
+        for job in $(_vigil_sup_leftover "$accounted"); do
+            _vigil_sup_account "$job"
+            [ "$_su_active" = running ] && _vigil_sup_show_running "$job" ' (no longer in the configuration, or invalid in it)'
+        done
+    fi
+
     _vigil_sup_queue_save
 
     # Admission (8): every due run starts now, oldest first. Vigil sets no
@@ -996,6 +1092,8 @@ _vigil_sup_tick() {
             _su_events[${#_su_events[@]}]="$_su_epoch vigil.source.check_age $((_su_epoch - ok)) gauge $_su_tags source=${name%.state}"
         done
     fi
+
+    [ "$_su_waiting" = 1 ] || _vigil_sup_lower
 
     # The supervisor's events for this tick (4.5).
     mkdir -p "$_su_spooldir/incoming"
@@ -1041,7 +1139,7 @@ _vigil_sup_tick() {
     # Retention (13.1): at the start, then once a day.
     if [ "$_su_waiting" = 0 ] && [ "${_su_retained-}" != $((_su_epoch / 86400)) ]; then
         _su_retained=$((_su_epoch / 86400))
-        vigil_logs_retention "$_su_logdir" "$_su_epoch"
+        vigil_logs_retention "$_su_logdir" "$_su_epoch" "$_su_statedir"
         [ "$_vl_removed" -eq 0 ] || _vigil_sup_log INFO "retention: deleted $_vl_removed old log files"
     fi
 
