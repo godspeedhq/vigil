@@ -870,6 +870,10 @@ else
     else
         check 'kafka: metadata.version named' yes "$(grep -h ' out metric metadata_version 1 version=' "$root"/logs/jobs/kafka_features/*.log | grep -q 'supported=' && echo yes || echo no)"
     fi
+    # run-kafka.sh holds a transaction open: it is seen as ongoing.
+    if [ -n "${VIGIL_IT_KAFKA_TXN-}" ]; then
+        check 'kafka: a transaction held open, seen' yes "$(kbetween kafka_transactions ongoing '' 1 1e9)"
+    fi
     check 'kafka: unclean leader election off' 0 "$(printed kafka_config unclean_leader_election)"
     check 'kafka: TLS on its listener' 1 "$(printed kafka_tls tls)"
     check 'kafka: its certificates trusted' 0 "$(grep -h ' out metric trusted ' "$root"/logs/jobs/kafka_tls/*.log | tail -n "$(printed kafka_tls endpoints)" | grep -c ' trusted 0 ')"
