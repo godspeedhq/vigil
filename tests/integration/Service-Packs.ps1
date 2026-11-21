@@ -648,7 +648,17 @@ try {
         Test-Equal 'kafka: its jobs are on' 'on=19' (Get-KafkaJobsOn)
         $cfg = Join-Path $root 'config\vigil.config'
         Test-Equal 'kafka: the password is a secret reference, in the jobs that log in' '14' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*KAFKA_PASSWORD=secret:KAFKA_MONITOR_PASSWORD')).Count)
+        # A logon with no password (SSH with a key) cannot use Vigil's secret
+        # store: Windows refuses it its data protection, and Vigil says so.
+        # Then the jobs take the password from this test's environment, by an
+        # env: reference, as such a logon would.
+        $kenv = $false
         Set-VigilSecret 'KAFKA_MONITOR_PASSWORD' $env:VIGIL_IT_KAFKA_PASSWORD
+        if ((Invoke-Vigil secret list).Text -notmatch 'KAFKA_MONITOR_PASSWORD') {
+            $kenv = $true
+            Write-Host '  note  kafka: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_KAFKA_PASSWORD'
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*KAFKA_PASSWORD=)secret:KAFKA_MONITOR_PASSWORD', '${1}env:VIGIL_IT_KAFKA_PASSWORD'))
+        }
         Set-Env 'KAFKA_BOOTSTRAP' $env:VIGIL_IT_KAFKA_BOOTSTRAP
         Set-Env 'KAFKA_HOME' $env:VIGIL_IT_KAFKA_HOME
         Set-Env 'KAFKA_CACERT' ([string]$env:VIGIL_IT_KAFKA_CACERT)
@@ -715,10 +725,11 @@ try {
             Test-Equal 'kafka: and reported untrusted' 'True' (Test-Said kafka_tls ' trusted 0 ')
             Set-Env 'KAFKA_CACERT' $env:VIGIL_IT_KAFKA_CACERT
         }
-        Set-VigilSecret 'KAFKA_MONITOR_PASSWORD' 'not-the-password'
+        $kpw = $env:VIGIL_IT_KAFKA_PASSWORD
+        if ($kenv) { $env:VIGIL_IT_KAFKA_PASSWORD = 'not-the-password' } else { Set-VigilSecret 'KAFKA_MONITOR_PASSWORD' 'not-the-password' }
         Test-Equal 'kafka: a wrong password fails the run' '2' (Invoke-KJob kafka_status)
         Test-Equal 'kafka: and says why' 'True' (Test-Said kafka_status 'refused the login')
-        Set-VigilSecret 'KAFKA_MONITOR_PASSWORD' $env:VIGIL_IT_KAFKA_PASSWORD
+        if ($kenv) { $env:VIGIL_IT_KAFKA_PASSWORD = $kpw } else { Set-VigilSecret 'KAFKA_MONITOR_PASSWORD' $kpw }
         $leaks = @(Get-ChildItem -LiteralPath (Join-Path $root 'logs'), (Join-Path $root 'state'), (Join-Path $root 'spool'), (Join-Path $root 'metrics') -Recurse -File -ErrorAction SilentlyContinue |
                 Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains($env:VIGIL_IT_KAFKA_PASSWORD) })
         Test-Equal 'kafka: the password is written nowhere' '' ((@($leaks | ForEach-Object { $_.FullName.Substring($root.Length + 1) })) -join ' ')

@@ -6,7 +6,12 @@
     Write-Output 'metric kraft 1'
     $names = @{ LeaderId = 'leader_id'; LeaderEpoch = 'leader_epoch'; HighWatermark = 'high_watermark'; MaxFollowerLag = 'max_follower_lag'; MaxFollowerLagTimeMs = 'max_follower_lag_ms' }
     foreach ($l in ($script:out -split "`r?`n")) {
-        if ($l -cmatch '^(\w+):\s*(-?\d+)\s*$' -and $names.ContainsKey($Matches[1])) { Write-Metric $names[$Matches[1]] $Matches[2] }
+        # MaxFollowerLagTimeMs is -1 while a follower has not fetched since
+        # the leader changed: not known.
+        if ($l -cmatch '^(\w+):\s*(-?\d+)\s*$' -and $names.ContainsKey($Matches[1])) {
+            if ($Matches[1] -ceq 'MaxFollowerLagTimeMs' -and [long]$Matches[2] -lt 0) { continue }
+            Write-Metric $names[$Matches[1]] $Matches[2]
+        }
         elseif ($l -cmatch '^CurrentVoters:') { Write-Output "metric voters $(([regex]::Matches($l, '"id":')).Count)" }
         elseif ($l -cmatch '^CurrentObservers:') { Write-Output "metric observers $(([regex]::Matches($l, '"id":')).Count)" }
     }

@@ -277,7 +277,8 @@ printf '%s\n' "$out" | awk '
     /^LeaderEpoch:/ { print "metric leader_epoch " $2 }
     /^HighWatermark:/ { print "metric high_watermark " $2 }
     /^MaxFollowerLag:/ { print "metric max_follower_lag " $2 }
-    /^MaxFollowerLagTimeMs:/ { print "metric max_follower_lag_ms " $2 }
+    # -1 while a follower has not fetched since the leader changed: not known.
+    /^MaxFollowerLagTimeMs:/ { if ($2 + 0 >= 0) print "metric max_follower_lag_ms " $2 }
     /^CurrentVoters:/ { print "metric voters " gsub(/"id":/, "") }
     /^CurrentObservers:/ { print "metric observers " gsub(/"id":/, "") }'
 
