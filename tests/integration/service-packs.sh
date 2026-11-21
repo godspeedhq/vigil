@@ -863,7 +863,13 @@ else
     check 'kafka: data on disk' yes "$(kbetween kafka_logdirs broker_size_bytes '' 1 1e18)"
     check 'kafka: ACLs are checked' 1 "$(printed kafka_security authorizer)"
     check 'kafka: SCRAM users, counted' yes "$(kbetween kafka_security scram_users '' 1 1e9)"
-    check 'kafka: metadata.version named' yes "$(grep -h ' out metric metadata_version 1 version=' "$root"/logs/jobs/kafka_features/*.log | grep -q 'supported=' && echo yes || echo no)"
+    # Finalized features, metadata.version among them, are KRaft's: a
+    # cluster on ZooKeeper has none.
+    if grep -qh ' out metric info 1 cluster_id=.* kraft=no$' "$root"/logs/jobs/kafka_status/*.log; then
+        check 'kafka: no finalized features on ZooKeeper' 0 "$(printed kafka_features features)"
+    else
+        check 'kafka: metadata.version named' yes "$(grep -h ' out metric metadata_version 1 version=' "$root"/logs/jobs/kafka_features/*.log | grep -q 'supported=' && echo yes || echo no)"
+    fi
     check 'kafka: unclean leader election off' 0 "$(printed kafka_config unclean_leader_election)"
     check 'kafka: TLS on its listener' 1 "$(printed kafka_tls tls)"
     check 'kafka: its certificates trusted' 0 "$(grep -h ' out metric trusted ' "$root"/logs/jobs/kafka_tls/*.log | tail -n "$(printed kafka_tls endpoints)" | grep -c ' trusted 0 ')"
