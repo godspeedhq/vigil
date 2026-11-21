@@ -150,7 +150,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres mysql redis mssql kafka nginx; do
+for p in postgres mysql redis mssql kafka jvm nginx; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -921,6 +921,145 @@ else
     kruns kafka_consumers > /dev/null
 fi
 
+# --- jvm --------------------------------------------------------------------
+if [ -z "${VIGIL_IT_JVM_TARGETS-}" ] || [ -z "${VIGIL_IT_JVM_PASSWORD-}" ]; then
+    printf '  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)\n'
+elif [ -z "${JAVA_HOME-}" ] && ! command -v java > /dev/null 2>&1; then
+    printf '  SKIP  jvm: java is not installed here\n'
+else
+    # The jobs have their JVMs, password and CA from Vigil: never from this
+    # test's own environment.
+    unset JVM_TARGETS JVM_JMX_USER JVM_JMX_PASSWORD JVM_CACERT JVM_MBEANS JVM_DUMP_DIRS
+    printf 'jvm: %s\n' "$VIGIL_IT_JVM_TARGETS"
+    jjobs_on() { vigil pack list | awk '$1 ~ /^jvm_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    # The value job jvm_$1's last run printed for metric $2 of JVM $3 (with
+    # text $4 in its line, if given).
+    jval() { grep -h " out metric $2 " "$root/logs/jobs/jvm_$1"/*.log 2> /dev/null | grep -E " jvm=$3( |\$)" | grep -- "${4-}" | tail -n 1 | awk '{ print $6 }'; }
+    jbetween() { local v; v=$(jval "$1" "$2" "$3" "${6-}"); awk -v v="$v" -v a="$4" -v b="$5" 'BEGIN { print (v ~ /^-?[0-9]+(\.[0-9]+)?$/ && v + 0 >= a && v + 0 <= b) ? "yes" : "no [" v "]" }'; }
+    jsaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/jvm_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    jrun() { vigil run "jvm_$1" > "$work/out" 2>&1; echo $?; }
+    check 'jvm: off until enabled' 'off=41' "$(jjobs_on)"
+    out=$(vigil pack enable jvm 2>&1)
+    check 'jvm: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'jvm: its jobs are on' 'on=41' "$(jjobs_on)"
+    check 'jvm: no secret line until JMX asks for one' 0 "$(grep -c '^secret *= JVM_JMX_PASSWORD=' "$root/config/vigil.config")"
+    # JMX with a password: a secret line on each job, as packs/README.md says.
+    awk '{ print } /^env *= JVM_CACERT=/ { print "secret      = JVM_JMX_PASSWORD=secret:JVM_JMX_PASSWORD" }' "$root/config/vigil.config" > "$work/cfg" &&
+        cat "$work/cfg" > "$root/config/vigil.config"
+    check 'jvm: the password is a secret reference, on every job' 41 "$(grep -c '^secret *= JVM_JMX_PASSWORD=secret:JVM_JMX_PASSWORD' "$root/config/vigil.config")"
+    printf '%s' "$VIGIL_IT_JVM_PASSWORD" | vigil secret set JVM_JMX_PASSWORD --stdin > /dev/null
+    set_env JVM_TARGETS "$VIGIL_IT_JVM_TARGETS"
+    set_env JVM_JMX_USER operator
+    set_env JVM_CACERT "${VIGIL_IT_JVM_CACERT-}"
+    set_env JVM_DUMP_DIRS "${VIGIL_IT_JVM_DUMPS-}"
+    check 'jvm: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+
+    jlist=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/jvm/pack.config")
+    failed=''
+    for j in $jlist; do
+        [ "$(jrun "$j")" = 0 ] || failed="$failed $j"
+    done
+    check 'jvm: every job runs' '' "$failed"
+    for j in $failed; do sed 's/^/        /' "$root/logs/jobs/jvm_$j"/*.log | tail -n 4; done
+
+    # Each tier reaches the JVMs it should.
+    for v in j8 j11 j17 j21 j25 nojmx host plain; do check "jvm: $v is up" 1 "$(jval status up "$v")"; done
+    for v in j8 j11 j17 j21 j25 host; do check "jvm: $v answers over JMX" 1 "$(jval status tier_jmx "$v")"; done
+    for v in j8 j11 j17 j21 j25 nojmx host plain; do check "jvm: $v's process is found" 1 "$(jval process running "$v")"; done
+    check "jvm: the counters of a JVM of this account are read" 1 "$(jval status tier_counters plain)"
+    check "jvm: and of one in a container, as this account" 1 "$(jval status tier_counters j21)"
+    check "jvm: a JVM run as root keeps its counters from this account" 0 "$(jval status tier_counters nojmx)"
+    check 'jvm: Java 8 says what it is' yes "$(grep -h ' out metric info 1 jvm=j8 ' "$root"/logs/jobs/jvm_status/*.log | tail -n 1 | grep -q 'version=1\.8\.' && echo yes || echo no)"
+    check 'jvm: its feature release' 8 "$(jval release_age feature_version j8)"
+    check 'jvm: Java 25 too' 25 "$(jval release_age feature_version j25)"
+
+    # Memory.
+    check 'jvm: the heap, over JMX' yes "$(jbetween heap used_percent j21 0.1 100)"
+    check 'jvm: and from the counters alone' yes "$(jbetween heap used_bytes plain 1 1e12)"
+    check 'jvm: old gen after a collection' yes "$(jbetween pools after_gc_bytes j21 1 1e12 G1_Old_Gen)"
+    check 'jvm: metaspace' yes "$(jbetween metaspace metaspace_used_bytes j17 1 1e12)"
+    check 'jvm: direct buffers leaking' yes "$(jbetween buffers used_bytes j11 50000000 1e12 pool=direct)"
+    check 'jvm: native memory, where it is tracked' 1 "$(jval native tracking j11)"
+    check 'jvm: and not where it is not' 0 "$(jval native tracking j21)"
+    check 'jvm: memory outside the heap' yes "$(jbetween native_overhead outside_heap_bytes j11 1 1e12)"
+
+    # Collection.
+    check 'jvm: collections, over JMX' yes "$(jbetween gc collections_total j8 1 1e12)"
+    check 'jvm: and from the counters' yes "$(jbetween gc collections_total plain 1 1e12)"
+    check "jvm: ZGC's concurrent cycles apart from its pauses" yes "$(jbetween gc_cycles concurrent_cycles j17 1 1e12)"
+    check 'jvm: the last collection' yes "$(jbetween gc_last duration_ms j21 0 1e9)"
+    check 'jvm: allocation, per second' yes "$(jbetween allocation allocation_bytes_per_second j17 1 1e13)"
+    check 'jvm: pauses in a Java 8 GC log' yes "$(jbetween gclog pauses j8 1 1e9)"
+    check 'jvm: in a ZGC log' yes "$(jbetween gclog pauses j17 1 1e9)"
+    check 'jvm: in a G1 log' yes "$(jbetween gclog pauses j21 1 1e9)"
+    check "jvm: G1's humongous allocations, from its log" yes "$(jbetween gclog_detail humongous_allocations_in_log j21 1 1e9)"
+    check 'jvm: promotion, from the counters' yes "$(jbetween promotion tenuring_threshold plain 0 100)"
+
+    # Threads.
+    check 'jvm: a deadlock, in a container' 2 "$(jval deadlocks deadlocked j21)"
+    check 'jvm: and on this machine' 2 "$(jval deadlocks deadlocked host)"
+    check 'jvm: and none where there is none' 0 "$(jval deadlocks deadlocked j17)"
+    check 'jvm: the deadlocked threads, named' yes "$(grep -h ' out metric thread 1 jvm=j21 thread=deadlock-a waits_on=java.lang.Object' "$root"/logs/jobs/jvm_deadlocks/*.log | grep -q 'held_by=deadlock-b' && echo yes || echo no)"
+    check 'jvm: leaked threads, over JMX' yes "$(jbetween threads live j8 40 1e6)"
+    check 'jvm: and from the counters' yes "$(jbetween threads live plain 40 1e6)"
+    check 'jvm: threads blocked on a lock' yes "$(jbetween contention blocked j17 1 100)"
+    check 'jvm: the busy thread, by name' yes "$(jbetween hot_threads cpu_percent j25 1 1000 thread=busy-loop)"
+    check "jvm: virtual threads' carriers" yes "$(jbetween virtual_threads carriers j21 1 1000)"
+
+    # The runtime.
+    check 'jvm: classloaders leaking' yes "$(jbetween classloaders loaders j11 10 1e6)"
+    check 'jvm: classes, from the counters' yes "$(jbetween classes loaded plain 100 1e7)"
+    check 'jvm: the JIT' yes "$(jbetween jit compile_seconds j21 0 1e6)"
+    check 'jvm: safepoints, from the counters' yes "$(jbetween safepoints safepoints plain 1 1e12)"
+    check 'jvm: Flight Recorder there' 1 "$(jval jfr available j17)"
+    check 'jvm: MBeans of your own' yes "$(jbetween mbeans value j21 1 1e6 attribute=ThreadCount)"
+
+    # Trouble, settings and security.
+    check 'jvm: a crash report' yes "$(jbetween crashes crash_reports_day j17 1 100)"
+    check 'jvm: a heap dump, after out-of-memory' yes "$(jbetween oom heap_dumps_day j21 1 100)"
+    check 'jvm: heap dump on out-of-memory, set' 1 "$(jval flags heap_dump_on_oom j21)"
+    check 'jvm: and not set' 0 "$(jval flags heap_dump_on_oom j17)"
+    check 'jvm: a debugger listening beyond this machine' 1 "$(jval security debug_agent_remote j25)"
+    check 'jvm: and none' 0 "$(jval security debug_agent j21)"
+    check 'jvm: JMX without TLS' 1 "$(jval security jmx_no_tls j8)"
+    check 'jvm: JMX with a password' 0 "$(jval security jmx_no_password j8)"
+    check 'jvm: the JVMs on this machine' yes "$(grep -h ' out metric jvms ' "$root"/logs/jobs/jvm_discovery/*.log | tail -n 1 | awk '{ print ($6 >= 8) ? "yes" : "no [" $6 "]" }')"
+
+    # A readonly JMX user reads attributes, and is told what it may not run.
+    set_env JVM_JMX_USER monitor
+    check 'jvm: a readonly user still runs' 0 "$(jrun deadlocks)"
+    check 'jvm: and is told an operation needs readwrite' yes "$(jsaid deadlocks 'needs readwrite access')"
+    check 'jvm: and reads attributes' yes "$(jbetween heap used_bytes j21 1 1e12)"
+    set_env JVM_JMX_USER operator
+
+    # A wrong password and a certificate it cannot trust fail the run, and say why.
+    printf 'not-the-password' | vigil secret set JVM_JMX_PASSWORD --stdin > /dev/null
+    check 'jvm: a wrong password fails the run' 1 "$(jrun heap)"
+    check 'jvm: and says why' yes "$(jsaid heap 'refused the login')"
+    printf '%s' "$VIGIL_IT_JVM_PASSWORD" | vigil secret set JVM_JMX_PASSWORD --stdin > /dev/null
+    if [ -n "${VIGIL_IT_JVM_CACERT-}" ]; then
+        set_env JVM_CACERT ''
+        check 'jvm: a certificate it cannot trust fails the run' 1 "$(jrun heap)"
+        check 'jvm: and says why' yes "$(jsaid heap 'certificate is not trusted')"
+        set_env JVM_CACERT "$VIGIL_IT_JVM_CACERT"
+    fi
+
+    # A JMX port that does not answer, and a JVM that is not running.
+    set_env JVM_TARGETS 'gone: jmx=127.0.0.1:1; absent: main=-Dvigil.it=nowhere'
+    check 'jvm: JMX that does not answer still runs' 0 "$(jrun status)"
+    check 'jvm: and reads as jmx_up 0' 0 "$(jval status jmx_up gone)"
+    check 'jvm: a JVM not running reads as running 0' 0 "$(printf '%s' "$(jrun process)" > /dev/null; jval process running absent)"
+    set_env JVM_TARGETS "$VIGIL_IT_JVM_TARGETS"
+    vigil run jvm_heap > /dev/null 2>&1
+    check 'jvm: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_JVM_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+fi
+
 # --- nginx ------------------------------------------------------------------
 if [ -z "${VIGIL_IT_NGINX_URL-}" ]; then
     printf '  SKIP  nginx: set VIGIL_IT_NGINX_URL\n'
@@ -965,6 +1104,9 @@ if [ -n "${VIGIL_IT_REDIS_HOST-}" ] && [ -n "${VIGIL_IT_REDIS_PASSWORD-}" ] && {
 fi
 if [ -n "${VIGIL_IT_KAFKA_BOOTSTRAP-}" ] && [ -n "${VIGIL_IT_KAFKA_PASSWORD-}" ] && [ -n "${VIGIL_IT_KAFKA_HOME-}" ]; then
     check 'kafka: metrics reach the backend' yes "$(grep -q '^kafka_up{' "$root/metrics/vigil.prom" && grep -q '^kafka_consumer_total_lag{' "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
+if [ -n "${VIGIL_IT_JVM_TARGETS-}" ] && [ -n "${VIGIL_IT_JVM_PASSWORD-}" ]; then
+    check 'jvm: metrics reach the backend' yes "$(grep -q '^jvm_heap_used_bytes{' "$root/metrics/vigil.prom" && grep -q '^jvm_deadlocks_deadlocked{' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
     check 'nginx: metrics reach the backend' yes "$(grep -q '^nginx_requests_count{' "$root/metrics/vigil.prom" && echo yes || echo no)"

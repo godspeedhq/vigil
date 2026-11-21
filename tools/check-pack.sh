@@ -294,10 +294,13 @@ check_pack() {
             [ -e "$f" ] || continue
             job=${f##*/}
             case $job in
+                # A file the scripts share, such as the jvm pack's client:
+                # named for no job, it is never run as one.
+                _*) ;;
                 *.$ext)
                     case " $jobs " in *" ${job%.$ext} "*) ;; *) fail "$f has no [job.${job%.$ext}] in pack.config" ;; esac
                     ;;
-                *) fail "$f: $os/ holds only <job>.$ext scripts" ;;
+                *) fail "$f: $os/ holds only <job>.$ext scripts, and files they share named _<name>" ;;
             esac
         done
     done
