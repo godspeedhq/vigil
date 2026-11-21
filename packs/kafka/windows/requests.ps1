@@ -198,8 +198,17 @@ try {
         # Both streams read at once, so neither fills and stops the tool.
         $o = $p.StandardOutput.ReadToEndAsync()
         $e = $p.StandardError.ReadToEndAsync()
+        # Stopped if it has not finished in 45 seconds, and said so. The
+        # client settings bound each request, but a tool can still hang:
+        # Kafka 3.9's kafka-broker-api-versions logs a failed TLS handshake,
+        # then waits forever.
+        if (-not $p.WaitForExit(45000)) {
+            try { $p.Kill() } catch { }
+            $p.WaitForExit()
+            return @{ Code = -1; Out = $o.Result; Err = $e.Result + "`nTimed out: no answer in 45 seconds, stopped"; Stopped = $true }
+        }
         $p.WaitForExit()
-        return @{ Code = $p.ExitCode; Out = $o.Result; Err = $e.Result }
+        return @{ Code = $p.ExitCode; Out = $o.Result; Err = $e.Result; Stopped = $false }
     }
 
     # The most telling line of a tool's error output.
@@ -237,6 +246,7 @@ try {
         }
         if ($r.Err -match $script:downPattern) { return 2 }
         if ($Soft) { return 1 }
+        if ($r.Stopped) { Stop-Run "$Tool did not finish in 45 seconds, and was stopped: $(Get-Why $r.Err)" }
         Stop-Run "$Tool failed (exit $($r.Code)): $(Get-Why $r.Err)"
     }
     # The options every admin tool takes, in the order most take them.

@@ -145,16 +145,45 @@ security=${KAFKA_SECURITY:-PLAINTEXT}
 # The tools' JVM: small, as they are.
 export KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xmx256m}
 
+# bounded <command...>: runs it, its output in $work/out and its errors in
+# $work/err, and stops it if it has not finished in 45 seconds, saying so in
+# $work/err. The client settings above bound each request, but a tool can
+# still hang: Kafka 3.9's kafka-broker-api-versions logs a failed TLS
+# handshake, then waits forever.
+bounded() {
+    local pid dog rc
+    "$@" > "$work/out" 2> "$work/err" &
+    pid=$!
+    # The watchdog ends its own sleep when it is ended, so none is left.
+    (
+        trap 'kill "$s" 2> /dev/null; exit 0' TERM
+        sleep 45 &
+        s=$!
+        wait "$s"
+        kill "$pid" 2> /dev/null && echo 'Timed out: no answer in 45 seconds, stopped' >> "$work/err"
+    ) > /dev/null 2>&1 &
+    dog=$!
+    wait "$pid" 2> /dev/null
+    rc=$?
+    # bash says "Terminated" of a job it reaps, on the stderr of its wait.
+    kill "$dog" 2> /dev/null
+    wait "$dog" 2> /dev/null
+    return "$rc"
+}
+
 # run <tool> <args...>: the tool's output in $out. On failure: a cluster that
 # cannot be reached returns 2 (the caller reports it, or nothing); anything
 # else, a login or certificate refused, a permission missing, says why and
-# exits 1.
+# exits 1. A tool that hangs is stopped (bounded), and judged by what it
+# said before it was.
 run() {
     local t rc
     t=$(kt "$1") || need "$1"
     shift
-    out=$("$t" "$@" 2> "$work/err") && return 0
+    bounded "$t" "$@"
     rc=$?
+    out=$(cat "$work/out")
+    [ "$rc" -eq 0 ] && return 0
     # lenient: any failure but an unreachable cluster returns 1, for a
     # caller with another way to go on.
     if [ -n "${lenient-}" ]; then
@@ -173,6 +202,10 @@ run() {
         return 2
     fi
     [ -n "${soft-}" ] && return 1
+    if grep -q '^Timed out: no answer in 45 seconds' "$work/err"; then
+        echo "brokers: $(kt_name "$t") did not finish in 45 seconds, and was stopped: $(why)" >&2
+        exit 1
+    fi
     echo "brokers: $(kt_name "$t") failed (exit $rc): $(why)" >&2
     exit 1
 }
@@ -222,14 +255,17 @@ tagv() {
 # includes Version, app-info's, which names the broker. A broker whose JMX
 # does not answer is reported as jmx_up 0; with no KAFKA_JMX, nothing is.
 jmx_each() {
-    local fn=$1 t ep
+    local fn=$1 t ep rc
     shift
     [ -n "${KAFKA_JMX-}" ] || return 0
     t=$(kt kafka-run-class) || need kafka-run-class
     for ep in ${KAFKA_JMX//,/ }; do
-        if ! out=$("$t" org.apache.kafka.tools.JmxTool --jmx-url "service:jmx:rmi:///jndi/rmi://$ep/jmxrmi" \
+        bounded "$t" org.apache.kafka.tools.JmxTool --jmx-url "service:jmx:rmi:///jndi/rmi://$ep/jmxrmi" \
             --object-name 'kafka.server:type=app-info,id=*' "$@" \
-            --one-time true --report-format tsv 2> "$work/err") || ! printf '%s\n' "$out" | grep -q 'app-info'; then
+            --one-time true --report-format tsv
+        rc=$?
+        out=$(cat "$work/out")
+        if [ "$rc" -ne 0 ] || ! printf '%s\n' "$out" | grep -q 'app-info'; then
             echo "metric jmx_up 0 broker=$(tagv "$ep")"
             continue
         fi
