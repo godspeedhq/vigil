@@ -124,16 +124,22 @@ inside() { dc exec -T -d kafka1 timeout 900 "$@"; }
 inside /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka1:9094 --topic orders --group shipping
 [ "$zk" = no ] && [ -x "$khome/bin/kafka-console-share-consumer.sh" ] &&
     inside /opt/kafka/bin/kafka-console-share-consumer.sh --bootstrap-server kafka1:9094 --topic payments --group fraud
+# Its transaction.timeout.ms is longer than the transaction, or the broker
+# aborts it at the default, a minute: 15 minutes, the most a broker allows
+# by default.
 inside /opt/kafka/bin/kafka-producer-perf-test.sh --topic orders --num-records 100000 --record-size 100 --throughput 20 \
-    --transactional-id vigil-it-txn --transaction-duration-ms 600000 --producer-props bootstrap.servers=kafka1:9094
+    --transactional-id vigil-it-txn --transaction-duration-ms 600000 \
+    --producer-props bootstrap.servers=kafka1:9094 transaction.timeout.ms=900000
 printf '{"version":1,"partitions":[{"topic":"audit","partition":0,"replicas":[2]}]}' > "$work/move.json"
 [ "$zk" = no ] && admin kafka-reassign-partitions --reassignment-json-file "$work/move.json" --execute --throttle 1 > /dev/null 2>&1
 sleep 20
 printf 'cluster  %s\n' "$(KAFKA_HOME=$khome KAFKA_BOOTSTRAP=127.0.0.1:29091 bash "$scripts/status.sh" 2> /dev/null | grep '^metric info ' | cut -d ' ' -f 4-)"
 
 say "The pack through Vigil."
+# VIGIL_IT_KAFKA_TXN: a transaction is held open, for the test to see.
 export VIGIL_IT_KAFKA_BOOTSTRAP=$bootstrap VIGIL_IT_KAFKA_PASSWORD=$pw VIGIL_IT_KAFKA_CACERT=$tls/ca.crt \
-    VIGIL_IT_KAFKA_HOME=$khome VIGIL_IT_KAFKA_JMX=$jmx VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP=127.0.0.1:29091
+    VIGIL_IT_KAFKA_HOME=$khome VIGIL_IT_KAFKA_JMX=$jmx VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP=127.0.0.1:29091 \
+    VIGIL_IT_KAFKA_TXN=1
 bash "$bk_repo/tests/integration/service-packs.sh"
 rc=$?
 

@@ -1,8 +1,8 @@
 == pack-kafka-4.4.0
-date     2026-11-21T16:52:37Z
+date     2026-11-21T18:30:59Z
 host     fedora
 os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
-vigil    db97a32 (deployed copy)
+vigil    03e5c31 (deployed copy)
 command  tests/integration/backends/scripts/run-kafka.sh
 bash     5.3.9(1)-release
 git      git version 2.56.0
@@ -58,79 +58,80 @@ kafka at localhost:19091,localhost:19092
         metric info 1 cluster_id=MkU3OEVBNTcwNTJENDM2Qg kraft=yes
         metric brokers 3
         metric brokers_fenced 0
-        metric controller_id 2
+        metric controller_id 1
   PASS  kafka: quorum runs
-        metric node_fetch_age_seconds 1 node=2 role=leader
-        metric node_caught_up_age_seconds 1 node=2 role=leader
-        metric node_lag 0 node=1 role=follower
-        metric node_fetch_age_seconds 1 node=1 role=follower
-        metric node_caught_up_age_seconds 1 node=1 role=follower
+        metric node_fetch_age_seconds 0 node=1 role=leader
+        metric node_caught_up_age_seconds 0 node=1 role=leader
+        metric node_lag 0 node=2 role=follower
+        metric node_fetch_age_seconds 0 node=2 role=follower
+        metric node_caught_up_age_seconds 0 node=2 role=follower
         metric node_lag 0 node=3 role=follower
-        metric node_fetch_age_seconds 1 node=3 role=follower
-        metric node_caught_up_age_seconds 1 node=3 role=follower
+        metric node_fetch_age_seconds 0 node=3 role=follower
+        metric node_caught_up_age_seconds 0 node=3 role=follower
   PASS  kafka: brokers runs
-        metric preferred_leaders 57 broker=2
+        metric preferred_leaders 59 broker=2
         metric online 1 broker=3 rack=none
         metric fenced 0 broker=3
-        metric leaders 57 broker=3
+        metric leaders 55 broker=3
         metric replicas 169 broker=3
         metric out_of_sync_replicas 0 broker=3
-        metric preferred_leaders 57 broker=3
+        metric preferred_leaders 54 broker=3
         metric brokers_not_shown 0
   PASS  kafka: replication runs
-        metric offline 0
         metric under_min_isr 4
         metric at_min_isr 0
-        metric not_preferred_leader 0
+        metric not_preferred_leader 1
         metric with_eligible_leaders 0
-        metric reassigning 0
+        metric reassigning 1
+        metric topic_under_replicated 1 topic=audit
+        metric topic_under_min_isr 1 topic=vigil_it_single_3886881
         metric topic_under_min_isr 3 topic=audit
-        metric topic_under_min_isr 1 topic=vigil_it_single_2622526
   PASS  kafka: reassignment runs
-        metric partitions 0
-        metric adding_replicas 0
-        metric removing_replicas 0
-        metric topics 0
+        metric partitions 1
+        metric adding_replicas 1
+        metric removing_replicas 1
+        metric topics 1
+        metric topic_partitions 1 topic=audit
   PASS  kafka: consumers runs
-        metric lag 16377 group=billing topic=orders
-        metric lag_max 3767 group=billing topic=orders
-        metric lag 700 group=vigil_it_billing_2622526 topic=vigil_it_orders_2622526
-        metric lag_max 296 group=vigil_it_billing_2622526 topic=vigil_it_orders_2622526
+        metric lag 17064 group=billing topic=orders
+        metric lag_max 3919 group=billing topic=orders
+        metric lag 700 group=vigil_it_billing_3886881 topic=vigil_it_orders_3886881
+        metric lag_max 475 group=vigil_it_billing_3886881 topic=vigil_it_orders_3886881
         metric pairs_not_shown 0
-        metric group_lag 700 group=vigil_it_billing_2622526
-        metric group_lag 0 group=shipping
-        metric group_lag 16377 group=billing
+        metric group_lag 700 group=vigil_it_billing_3886881
+        metric group_lag 30 group=shipping
+        metric group_lag 17064 group=billing
   PASS  kafka: groups runs
         metric groups 1 type=classic state=stable
         metric groups 1 type=share state=stable
         metric groups 2 type=classic state=empty
         metric members 1 group=fraud type=share
-        metric members 0 group=vigil_it_billing_2622526 type=classic
+        metric members 0 group=vigil_it_billing_3886881 type=classic
         metric members 1 group=shipping type=classic
         metric members 0 group=billing type=classic
         metric groups_not_shown 0
   PASS  kafka: topics runs
+        metric replication_factor 3 topic=__consumer_offsets
+        metric messages_count 199 topic=__consumer_offsets
+        metric retained_messages 199 topic=__consumer_offsets
+        metric partitions 3 topic=audit
         metric replication_factor 1 topic=audit
         metric messages_count 2000 topic=audit
         metric retained_messages 2000 topic=audit
-        metric partitions 1 topic=vigil_it_single_2622526
-        metric replication_factor 1 topic=vigil_it_single_2622526
-        metric messages_count 0 topic=vigil_it_single_2622526
-        metric retained_messages 0 topic=vigil_it_single_2622526
         metric topics_not_shown 0
   PASS  kafka: logdirs runs
-        metric topic_size_bytes 3621 topic=__transaction_state
-        metric topic_size_bytes 220024 topic=audit
-        metric topic_size_bytes 53361 topic=__consumer_offsets
-        metric topic_size_bytes 0 topic=vigil_it_single_2622526
+        metric topic_size_bytes 0 topic=customers
+        metric topic_size_bytes 3231 topic=__transaction_state
+        metric topic_size_bytes 219958 topic=audit
+        metric topic_size_bytes 56391 topic=__consumer_offsets
         metric topics_not_shown 0
         metric jmx_up 1 broker=1
         metric jmx_up 1 broker=2
         metric jmx_up 1 broker=3
   PASS  kafka: transactions runs
         metric all_transactions 1
-        metric transactions 1 state=completeabort
-        metric ongoing 0
+        metric transactions 1 state=ongoing
+        metric ongoing 1
         metric long_running 0
   PASS  kafka: config runs
         metric transactions_replication_factor 3
@@ -143,8 +144,8 @@ kafka at localhost:19091,localhost:19092
         metric topics_min_isr_1 0
   PASS  kafka: security runs
         metric all_operations_acls 0
-        metric acls 2 resource=topic permission=allow
         metric acls 1 resource=transactional_id permission=allow
+        metric acls 2 resource=topic permission=allow
         metric acls 1 resource=group permission=allow
         metric acls 2 resource=cluster permission=allow
         metric scram_users 1
@@ -162,44 +163,44 @@ kafka at localhost:19091,localhost:19092
   PASS  kafka: throughput runs
         metric invalid_crc_records_count 0 broker=3
         metric invalid_sequence_records_count 0 broker=3
-        metric messages_in_count 9018 broker=3
+        metric messages_in_count 11081 broker=3
         metric produce_conversions_count 0 broker=3
-        metric replication_bytes_in_count 3241287 broker=3
-        metric replication_bytes_out_count 3310332 broker=3
-        metric fetch_requests_count 124573 broker=3
-        metric produce_requests_count 914 broker=3
+        metric replication_bytes_in_count 3462713 broker=3
+        metric replication_bytes_out_count 3795358 broker=3
+        metric fetch_requests_count 183903 broker=3
+        metric produce_requests_count 1492 broker=3
   PASS  kafka: requests runs
-        metric total_ms_p99 511.71 broker=3 request=FetchFollower
-        metric requests_count 2500 broker=3 request=FetchFollower
-        metric total_ms_p99 78.22 broker=3 request=Produce
-        metric requests_count 825 broker=3 request=Produce
+        metric total_ms_p99 504 broker=3 request=FetchFollower
+        metric requests_count 3907 broker=3 request=FetchFollower
+        metric total_ms_p99 37.42 broker=3 request=Produce
+        metric requests_count 1606 broker=3 request=Produce
         metric network_idle_pct 100 broker=3
-        metric purgatory 21184 broker=3 operation=fetch
-        metric purgatory 1 broker=3 operation=produce
-        metric handler_idle_pct 99.81 broker=3
+        metric purgatory 24453 broker=3 operation=fetch
+        metric purgatory 0 broker=3 operation=produce
+        metric handler_idle_pct 99.67 broker=3
   PASS  kafka: jvm runs
         metric threads 115 broker=3
         metric cleaner_dead_threads 0 broker=3
         metric cleaner_max_dirty_pct 0 broker=3
-        metric cleaner_idle_seconds 3 broker=3
-        metric flush_ms_p99 48.1494 broker=3
-        metric flushes_count 583 broker=3
+        metric cleaner_idle_seconds 14 broker=3
+        metric flush_ms_p99 39.3922 broker=3
+        metric flushes_count 606 broker=3
         metric offline_log_dirs 0 broker=3
-        metric uptime_seconds 267 broker=3
+        metric uptime_seconds 279 broker=3
   PASS  kafka: controller runs
-        metric event_queue_ms_p99 6.71 broker=2
-        metric unclean_elections_count 0 broker=2
-        metric controller_changes 1 broker=2
-        metric brokers 3 broker=2
-        metric timed_out_heartbeats 0 broker=2
-        metric topics 9 broker=2
+        metric controller_changes 1 broker=1
+        metric brokers 3 broker=1
+        metric timed_out_heartbeats 0 broker=1
+        metric topics 9 broker=1
+        metric jmx_up 1 broker=2
+        metric active_controller 0 broker=2
         metric jmx_up 1 broker=3
         metric active_controller 0 broker=3
   PASS  kafka: connections runs
         metric logins_count 0 broker=3 listener=CONTROLLER
         metric failed_logins_count 0 broker=3 listener=CONTROLLER
         metric failed_relogins_count 0 broker=3 listener=CONTROLLER
-        metric connections 9 broker=3 listener=INTERNAL
+        metric connections 10 broker=3 listener=INTERNAL
         metric created_count 10 broker=3 listener=INTERNAL
         metric logins_count 0 broker=3 listener=INTERNAL
         metric failed_logins_count 0 broker=3 listener=INTERNAL
@@ -224,6 +225,7 @@ kafka at localhost:19091,localhost:19092
   PASS  kafka: ACLs are checked
   PASS  kafka: SCRAM users, counted
   PASS  kafka: metadata.version named
+  PASS  kafka: a transaction held open, seen
   PASS  kafka: unclean leader election off
   PASS  kafka: TLS on its listener
   PASS  kafka: its certificates trusted
@@ -251,7 +253,7 @@ kafka at localhost:19091,localhost:19092
   PASS  kafka: and say nothing
   SKIP  nginx: set VIGIL_IT_NGINX_URL
   PASS  kafka: metrics reach the backend
-63 passed, 0 failed
+64 passed, 0 failed
 
 # Every job, with the cluster busy.
 
@@ -260,80 +262,82 @@ metric up 1
 metric info 1 cluster_id=MkU3OEVBNTcwNTJENDM2Qg kraft=yes
 metric brokers 3
 metric brokers_fenced 0
-metric controller_id 2
+metric controller_id 1
 
 $ bash packs/kafka/quorum.sh
 metric kraft 1
-metric leader_id 2
-metric leader_epoch 2
-metric high_watermark 977
+metric leader_id 1
+metric leader_epoch 1
+metric high_watermark 1013
 metric max_follower_lag 0
-metric max_follower_lag_ms 229
+metric max_follower_lag_ms 0
 metric voters 3
 metric observers 0
-metric node_lag 0 node=2 role=leader
-metric node_fetch_age_seconds 0 node=2 role=leader
-metric node_caught_up_age_seconds 0 node=2 role=leader
-metric node_lag 0 node=1 role=follower
-metric node_fetch_age_seconds 1 node=1 role=follower
-metric node_caught_up_age_seconds 1 node=1 role=follower
+metric node_lag 0 node=1 role=leader
+metric node_fetch_age_seconds 0 node=1 role=leader
+metric node_caught_up_age_seconds 0 node=1 role=leader
+metric node_lag 0 node=2 role=follower
+metric node_fetch_age_seconds 0 node=2 role=follower
+metric node_caught_up_age_seconds 0 node=2 role=follower
 metric node_lag 0 node=3 role=follower
-metric node_fetch_age_seconds 1 node=3 role=follower
-metric node_caught_up_age_seconds 1 node=3 role=follower
+metric node_fetch_age_seconds 0 node=3 role=follower
+metric node_caught_up_age_seconds 0 node=3 role=follower
 
 $ bash packs/kafka/brokers.sh
 metric online 1 broker=1 rack=none
 metric fenced 0 broker=1
-metric leaders 58 broker=1
+metric leaders 59 broker=1
 metric replicas 170 broker=1
 metric out_of_sync_replicas 0 broker=1
-metric preferred_leaders 58 broker=1
+metric preferred_leaders 59 broker=1
 metric online 1 broker=2 rack=none
 metric fenced 0 broker=2
-metric leaders 57 broker=2
-metric replicas 169 broker=2
-metric out_of_sync_replicas 0 broker=2
-metric preferred_leaders 57 broker=2
+metric leaders 58 broker=2
+metric replicas 170 broker=2
+metric out_of_sync_replicas 1 broker=2
+metric preferred_leaders 59 broker=2
 metric online 1 broker=3 rack=none
 metric fenced 0 broker=3
-metric leaders 57 broker=3
+metric leaders 55 broker=3
 metric replicas 169 broker=3
 metric out_of_sync_replicas 0 broker=3
-metric preferred_leaders 57 broker=3
+metric preferred_leaders 54 broker=3
 metric brokers_not_shown 0
 
 $ bash packs/kafka/replication.sh
 metric topics 9
 metric partitions 172
-metric under_replicated 0
+metric under_replicated 1
 metric offline 0
 metric under_min_isr 4
 metric at_min_isr 0
-metric not_preferred_leader 0
+metric not_preferred_leader 1
 metric with_eligible_leaders 0
-metric reassigning 0
+metric reassigning 1
+metric topic_under_replicated 1 topic=audit
+metric topic_under_min_isr 1 topic=vigil_it_single_3886881
 metric topic_under_min_isr 3 topic=audit
-metric topic_under_min_isr 1 topic=vigil_it_single_2622526
 
 $ bash packs/kafka/reassignment.sh
-metric partitions 0
-metric adding_replicas 0
-metric removing_replicas 0
-metric topics 0
+metric partitions 1
+metric adding_replicas 1
+metric removing_replicas 1
+metric topics 1
+metric topic_partitions 1 topic=audit
 
 $ bash packs/kafka/consumers.sh
 metric groups 3
-metric total_lag 17077
-metric lag 0 group=shipping topic=orders
-metric lag_max 0 group=shipping topic=orders
-metric lag 16377 group=billing topic=orders
-metric lag_max 3767 group=billing topic=orders
-metric lag 700 group=vigil_it_billing_2622526 topic=vigil_it_orders_2622526
-metric lag_max 296 group=vigil_it_billing_2622526 topic=vigil_it_orders_2622526
+metric total_lag 22764
+metric lag 66 group=shipping topic=orders
+metric lag_max 56 group=shipping topic=orders
+metric lag 21998 group=billing topic=orders
+metric lag_max 4792 group=billing topic=orders
+metric lag 700 group=vigil_it_billing_3886881 topic=vigil_it_orders_3886881
+metric lag_max 475 group=vigil_it_billing_3886881 topic=vigil_it_orders_3886881
 metric pairs_not_shown 0
-metric group_lag 700 group=vigil_it_billing_2622526
-metric group_lag 0 group=shipping
-metric group_lag 16377 group=billing
+metric group_lag 700 group=vigil_it_billing_3886881
+metric group_lag 66 group=shipping
+metric group_lag 21998 group=billing
 
 $ bash packs/kafka/groups.sh
 metric all_groups 4
@@ -345,7 +349,7 @@ metric groups 1 type=classic state=stable
 metric groups 1 type=share state=stable
 metric groups 2 type=classic state=empty
 metric members 1 group=fraud type=share
-metric members 0 group=vigil_it_billing_2622526 type=classic
+metric members 0 group=vigil_it_billing_3886881 type=classic
 metric members 1 group=shipping type=classic
 metric members 0 group=billing type=classic
 metric groups_not_shown 0
@@ -361,12 +365,16 @@ metric messages_count 3 topic=__share_group_state
 metric retained_messages 3 topic=__share_group_state
 metric partitions 6 topic=orders
 metric replication_factor 3 topic=orders
-metric messages_count 21377 topic=orders
-metric retained_messages 21377 topic=orders
-metric partitions 6 topic=vigil_it_orders_2622526
-metric replication_factor 3 topic=vigil_it_orders_2622526
-metric messages_count 1000 topic=vigil_it_orders_2622526
-metric retained_messages 1000 topic=vigil_it_orders_2622526
+metric messages_count 27557 topic=orders
+metric retained_messages 27557 topic=orders
+metric partitions 1 topic=vigil_it_single_3886881
+metric replication_factor 1 topic=vigil_it_single_3886881
+metric messages_count 0 topic=vigil_it_single_3886881
+metric retained_messages 0 topic=vigil_it_single_3886881
+metric partitions 6 topic=vigil_it_orders_3886881
+metric replication_factor 3 topic=vigil_it_orders_3886881
+metric messages_count 1000 topic=vigil_it_orders_3886881
+metric retained_messages 1000 topic=vigil_it_orders_3886881
 metric partitions 3 topic=customers
 metric replication_factor 3 topic=customers
 metric messages_count 0 topic=customers
@@ -377,49 +385,45 @@ metric messages_count 3000 topic=payments
 metric retained_messages 3000 topic=payments
 metric partitions 50 topic=__transaction_state
 metric replication_factor 3 topic=__transaction_state
-metric messages_count 8 topic=__transaction_state
-metric retained_messages 8 topic=__transaction_state
+metric messages_count 7 topic=__transaction_state
+metric retained_messages 7 topic=__transaction_state
 metric partitions 50 topic=__consumer_offsets
 metric replication_factor 3 topic=__consumer_offsets
-metric messages_count 457 topic=__consumer_offsets
-metric retained_messages 457 topic=__consumer_offsets
+metric messages_count 487 topic=__consumer_offsets
+metric retained_messages 487 topic=__consumer_offsets
 metric partitions 3 topic=audit
 metric replication_factor 1 topic=audit
 metric messages_count 2000 topic=audit
 metric retained_messages 2000 topic=audit
-metric partitions 1 topic=vigil_it_single_2622526
-metric replication_factor 1 topic=vigil_it_single_2622526
-metric messages_count 0 topic=vigil_it_single_2622526
-metric retained_messages 0 topic=vigil_it_single_2622526
 metric topics_not_shown 0
 
 $ bash packs/kafka/logdirs.sh
-metric size_bytes 5041894 broker=1 dir=/var/lib/kafka/data
+metric size_bytes 6033939 broker=1 dir=/var/lib/kafka/data
 metric partitions 170 broker=1 dir=/var/lib/kafka/data
 metric offline 0 broker=1 dir=/var/lib/kafka/data
 metric future_replicas 0 broker=1 dir=/var/lib/kafka/data
-metric size_bytes 4972822 broker=2 dir=/var/lib/kafka/data
-metric partitions 169 broker=2 dir=/var/lib/kafka/data
+metric size_bytes 6101817 broker=2 dir=/var/lib/kafka/data
+metric partitions 170 broker=2 dir=/var/lib/kafka/data
 metric offline 0 broker=2 dir=/var/lib/kafka/data
 metric future_replicas 0 broker=2 dir=/var/lib/kafka/data
-metric size_bytes 4946177 broker=3 dir=/var/lib/kafka/data
+metric size_bytes 6092847 broker=3 dir=/var/lib/kafka/data
 metric partitions 169 broker=3 dir=/var/lib/kafka/data
 metric offline 0 broker=3 dir=/var/lib/kafka/data
 metric future_replicas 0 broker=3 dir=/var/lib/kafka/data
 metric dirs 3
 metric dirs_offline 0
-metric broker_size_bytes 5041894 broker=1
-metric broker_size_bytes 4972822 broker=2
-metric broker_size_bytes 4946177 broker=3
+metric broker_size_bytes 6033939 broker=1
+metric broker_size_bytes 6101817 broker=2
+metric broker_size_bytes 6092847 broker=3
 metric topic_size_bytes 1242 topic=__share_group_state
-metric topic_size_bytes 13294296 topic=orders
-metric topic_size_bytes 330255 topic=vigil_it_orders_2622526
-metric topic_size_bytes 989919 topic=payments
+metric topic_size_bytes 16555142 topic=orders
+metric topic_size_bytes 0 topic=vigil_it_single_3886881
+metric topic_size_bytes 330111 topic=vigil_it_orders_3886881
+metric topic_size_bytes 989808 topic=payments
 metric topic_size_bytes 0 topic=customers
-metric topic_size_bytes 3621 topic=__transaction_state
-metric topic_size_bytes 220024 topic=audit
-metric topic_size_bytes 121536 topic=__consumer_offsets
-metric topic_size_bytes 0 topic=vigil_it_single_2622526
+metric topic_size_bytes 3231 topic=__transaction_state
+metric topic_size_bytes 219958 topic=audit
+metric topic_size_bytes 129111 topic=__consumer_offsets
 metric topics_not_shown 0
 metric jmx_up 1 broker=1
 metric jmx_up 1 broker=2
@@ -427,9 +431,9 @@ metric jmx_up 1 broker=3
 
 $ bash packs/kafka/transactions.sh
 metric all_transactions 1
-metric transactions 1 state=completeabort
-metric ongoing 0
-metric long_running 0
+metric transactions 1 state=ongoing
+metric ongoing 1
+metric long_running 1
 
 $ bash packs/kafka/config.sh
 metric unclean_leader_election 0
@@ -453,8 +457,8 @@ metric authorizer 1
 metric all_acls 6
 metric any_principal_acls 0
 metric all_operations_acls 0
-metric acls 2 resource=topic permission=allow
 metric acls 1 resource=transactional_id permission=allow
+metric acls 2 resource=topic permission=allow
 metric acls 1 resource=group permission=allow
 metric acls 2 resource=cluster permission=allow
 metric scram_users 1
@@ -487,233 +491,233 @@ metric features_behind 1
 
 $ bash packs/kafka/throughput.sh
 metric jmx_up 1 broker=1
-metric bytes_in_count 1813148 broker=1
-metric bytes_out_count 1515129 broker=1
+metric bytes_in_count 2122813 broker=1
+metric bytes_out_count 1986579 broker=1
 metric bytes_rejected_count 0 broker=1
 metric failed_fetch_requests_count 0 broker=1
 metric failed_produce_requests_count 0 broker=1
 metric fetch_conversions_count 0 broker=1
 metric invalid_crc_records_count 0 broker=1
 metric invalid_sequence_records_count 0 broker=1
-metric messages_in_count 10159 broker=1
+metric messages_in_count 11557 broker=1
 metric produce_conversions_count 0 broker=1
-metric replication_bytes_in_count 3232786 broker=1
-metric replication_bytes_out_count 3369754 broker=1
-metric fetch_requests_count 104587 broker=1
-metric produce_requests_count 228 broker=1
+metric replication_bytes_in_count 4060777 broker=1
+metric replication_bytes_out_count 4182718 broker=1
+metric fetch_requests_count 441661 broker=1
+metric produce_requests_count 3377 broker=1
 metric jmx_up 1 broker=2
-metric bytes_in_count 1615609 broker=2
-metric bytes_out_count 1490523 broker=2
+metric bytes_in_count 1960828 broker=2
+metric bytes_out_count 1751422 broker=2
 metric bytes_rejected_count 0 broker=2
 metric failed_fetch_requests_count 0 broker=2
 metric failed_produce_requests_count 0 broker=2
 metric fetch_conversions_count 0 broker=2
 metric invalid_crc_records_count 0 broker=2
 metric invalid_sequence_records_count 0 broker=2
-metric messages_in_count 8476 broker=2
+metric messages_in_count 10787 broker=2
 metric produce_conversions_count 0 broker=2
-metric replication_bytes_in_count 3361253 broker=2
-metric replication_bytes_out_count 3112820 broker=2
-metric fetch_requests_count 143508 broker=2
-metric produce_requests_count 580 broker=2
+metric replication_bytes_in_count 4297950 broker=2
+metric replication_bytes_out_count 3724012 broker=2
+metric fetch_requests_count 330683 broker=2
+metric produce_requests_count 2351 broker=2
 metric jmx_up 1 broker=3
-metric bytes_in_count 1709435 broker=3
-metric bytes_out_count 1535865 broker=3
+metric bytes_in_count 2295933 broker=3
+metric bytes_out_count 2042096 broker=3
 metric bytes_rejected_count 0 broker=3
 metric failed_fetch_requests_count 0 broker=3
 metric failed_produce_requests_count 0 broker=3
 metric fetch_conversions_count 0 broker=3
 metric invalid_crc_records_count 0 broker=3
 metric invalid_sequence_records_count 0 broker=3
-metric messages_in_count 9276 broker=3
+metric messages_in_count 12896 broker=3
 metric produce_conversions_count 0 broker=3
-metric replication_bytes_in_count 3241287 broker=3
-metric replication_bytes_out_count 3353762 broker=3
-metric fetch_requests_count 173591 broker=3
-metric produce_requests_count 957 broker=3
+metric replication_bytes_in_count 3960845 broker=3
+metric replication_bytes_out_count 4412162 broker=3
+metric fetch_requests_count 414618 broker=3
+metric produce_requests_count 3300 broker=3
 
 $ bash packs/kafka/requests.sh
 metric jmx_up 1 broker=1
 metric request_queue 0 broker=1
 metric response_queue 0 broker=1
-metric remote_ms_p99 504 broker=1 request=FetchConsumer
-metric remote_ms_p99 503 broker=1 request=FetchFollower
-metric remote_ms_p99 72.45 broker=1 request=Produce
+metric remote_ms_p99 502 broker=1 request=FetchConsumer
+metric remote_ms_p99 501 broker=1 request=FetchFollower
+metric remote_ms_p99 14.42 broker=1 request=Produce
 metric queue_ms_p99 2 broker=1 request=FetchConsumer
-metric queue_ms_p99 2 broker=1 request=FetchFollower
-metric queue_ms_p99 5.62 broker=1 request=Produce
-metric total_ms_p99 507 broker=1 request=FetchConsumer
-metric requests_count 918 broker=1 request=FetchConsumer
-metric total_ms_p99 506 broker=1 request=FetchFollower
-metric requests_count 2113 broker=1 request=FetchFollower
-metric total_ms_p99 215.95 broker=1 request=Produce
-metric requests_count 168 broker=1 request=Produce
-metric network_idle_pct 100 broker=1
-metric purgatory 467 broker=1 operation=fetch
-metric purgatory 1 broker=1 operation=produce
-metric handler_idle_pct 99.92 broker=1
+metric queue_ms_p99 2.71 broker=1 request=FetchFollower
+metric queue_ms_p99 2 broker=1 request=Produce
+metric total_ms_p99 502 broker=1 request=FetchConsumer
+metric requests_count 3814 broker=1 request=FetchConsumer
+metric total_ms_p99 504 broker=1 request=FetchFollower
+metric requests_count 12049 broker=1 request=FetchFollower
+metric total_ms_p99 29.42 broker=1 request=Produce
+metric requests_count 3331 broker=1 request=Produce
+metric network_idle_pct 99.91 broker=1
+metric purgatory 23600 broker=1 operation=fetch
+metric purgatory 0 broker=1 operation=produce
+metric handler_idle_pct 99.76 broker=1
 metric jmx_up 1 broker=2
 metric request_queue 0 broker=2
 metric response_queue 0 broker=2
-metric remote_ms_p99 502 broker=2 request=FetchConsumer
+metric remote_ms_p99 501 broker=2 request=FetchConsumer
 metric remote_ms_p99 502 broker=2 request=FetchFollower
-metric remote_ms_p99 32.66 broker=2 request=Produce
-metric queue_ms_p99 2.71 broker=2 request=FetchConsumer
+metric remote_ms_p99 15.71 broker=2 request=Produce
+metric queue_ms_p99 2 broker=2 request=FetchConsumer
 metric queue_ms_p99 2 broker=2 request=FetchFollower
-metric queue_ms_p99 3 broker=2 request=Produce
-metric total_ms_p99 504.71 broker=2 request=FetchConsumer
-metric requests_count 1265 broker=2 request=FetchConsumer
-metric total_ms_p99 504 broker=2 request=FetchFollower
-metric requests_count 6751 broker=2 request=FetchFollower
-metric total_ms_p99 60.64 broker=2 request=Produce
-metric requests_count 533 broker=2 request=Produce
-metric network_idle_pct 99.94 broker=2
-metric purgatory 1026 broker=2 operation=fetch
-metric purgatory 1 broker=2 operation=produce
-metric handler_idle_pct 99.97 broker=2
+metric queue_ms_p99 2 broker=2 request=Produce
+metric total_ms_p99 503 broker=2 request=FetchConsumer
+metric requests_count 2918 broker=2 request=FetchConsumer
+metric total_ms_p99 505 broker=2 request=FetchFollower
+metric requests_count 6143 broker=2 request=FetchFollower
+metric total_ms_p99 21.42 broker=2 request=Produce
+metric requests_count 2323 broker=2 request=Produce
+metric network_idle_pct 100 broker=2
+metric purgatory 36465 broker=2 operation=fetch
+metric purgatory 0 broker=2 operation=produce
+metric handler_idle_pct 99.98 broker=2
 metric jmx_up 1 broker=3
 metric request_queue 0 broker=3
 metric response_queue 0 broker=3
-metric remote_ms_p99 502.71 broker=3 request=FetchConsumer
-metric remote_ms_p99 503 broker=3 request=FetchFollower
-metric remote_ms_p99 46.96 broker=3 request=Produce
+metric remote_ms_p99 502 broker=3 request=FetchConsumer
+metric remote_ms_p99 501 broker=3 request=FetchFollower
+metric remote_ms_p99 15.71 broker=3 request=Produce
 metric queue_ms_p99 2 broker=3 request=FetchConsumer
 metric queue_ms_p99 2 broker=3 request=FetchFollower
-metric queue_ms_p99 3 broker=3 request=Produce
-metric total_ms_p99 504 broker=3 request=FetchConsumer
-metric requests_count 1531 broker=3 request=FetchConsumer
-metric total_ms_p99 506 broker=3 request=FetchFollower
-metric requests_count 3358 broker=3 request=FetchFollower
-metric total_ms_p99 78.22 broker=3 request=Produce
-metric requests_count 825 broker=3 request=Produce
+metric queue_ms_p99 2 broker=3 request=Produce
+metric total_ms_p99 503 broker=3 request=FetchConsumer
+metric requests_count 3739 broker=3 request=FetchConsumer
+metric total_ms_p99 503 broker=3 request=FetchFollower
+metric requests_count 7752 broker=3 request=FetchFollower
+metric total_ms_p99 22.71 broker=3 request=Produce
+metric requests_count 3248 broker=3 request=Produce
 metric network_idle_pct 100 broker=3
-metric purgatory 31655 broker=3 operation=fetch
-metric purgatory 1 broker=3 operation=produce
-metric handler_idle_pct 99.96 broker=3
+metric purgatory 14763 broker=3 operation=fetch
+metric purgatory 0 broker=3 operation=produce
+metric handler_idle_pct 99.83 broker=3
 
 $ bash packs/kafka/jvm.sh
 metric jmx_up 1 broker=1
 metric gc_count 8 broker=1 gc=G1_Concurrent_GC
-metric gc_ms_count 115 broker=1 gc=G1_Concurrent_GC
+metric gc_ms_count 65 broker=1 gc=G1_Concurrent_GC
 metric gc_count 0 broker=1 gc=G1_Old_Generation
 metric gc_ms_count 0 broker=1 gc=G1_Old_Generation
-metric gc_count 40 broker=1 gc=G1_Young_Generation
-metric gc_ms_count 1143 broker=1 gc=G1_Young_Generation
-metric heap_used_bytes 228803680 broker=1
+metric gc_count 113 broker=1 gc=G1_Young_Generation
+metric gc_ms_count 2698 broker=1 gc=G1_Young_Generation
+metric heap_used_bytes 322214464 broker=1
 metric heap_max_bytes 402653184 broker=1
 metric max_files 524288 broker=1
-metric open_files 392 broker=1
-metric cpu_pct 17.02 broker=1
-metric threads 116 broker=1
+metric open_files 388 broker=1
+metric cpu_pct 11.43 broker=1
+metric threads 117 broker=1
 metric cleaner_dead_threads 0 broker=1
 metric cleaner_max_dirty_pct 0 broker=1
-metric cleaner_idle_seconds 14 broker=1
-metric flush_ms_p99 45.3249 broker=1
-metric flushes_count 1000 broker=1
+metric cleaner_idle_seconds 9 broker=1
+metric flush_ms_p99 45.8494 broker=1
+metric flushes_count 1048 broker=1
 metric offline_log_dirs 0 broker=1
-metric uptime_seconds 478 broker=1
+metric uptime_seconds 503 broker=1
 metric jmx_up 1 broker=2
 metric gc_count 8 broker=2 gc=G1_Concurrent_GC
-metric gc_ms_count 67 broker=2 gc=G1_Concurrent_GC
+metric gc_ms_count 126 broker=2 gc=G1_Concurrent_GC
 metric gc_count 0 broker=2 gc=G1_Old_Generation
 metric gc_ms_count 0 broker=2 gc=G1_Old_Generation
-metric gc_count 55 broker=2 gc=G1_Young_Generation
-metric gc_ms_count 1412 broker=2 gc=G1_Young_Generation
-metric heap_used_bytes 235450368 broker=2
+metric gc_count 77 broker=2 gc=G1_Young_Generation
+metric gc_ms_count 1762 broker=2 gc=G1_Young_Generation
+metric heap_used_bytes 263732480 broker=2
 metric heap_max_bytes 402653184 broker=2
 metric max_files 524288 broker=2
-metric open_files 392 broker=2
-metric cpu_pct 20.51 broker=2
-metric threads 119 broker=2
+metric open_files 379 broker=2
+metric cpu_pct 20.45 broker=2
+metric threads 117 broker=2
 metric cleaner_dead_threads 0 broker=2
 metric cleaner_max_dirty_pct 0 broker=2
-metric cleaner_idle_seconds 1 broker=2
-metric flush_ms_p99 49.0635 broker=2
-metric flushes_count 1004 broker=2
+metric cleaner_idle_seconds 12 broker=2
+metric flush_ms_p99 43.4477 broker=2
+metric flushes_count 1055 broker=2
 metric offline_log_dirs 0 broker=2
-metric uptime_seconds 478 broker=2
+metric uptime_seconds 503 broker=2
 metric jmx_up 1 broker=3
 metric gc_count 8 broker=3 gc=G1_Concurrent_GC
-metric gc_ms_count 81 broker=3 gc=G1_Concurrent_GC
+metric gc_ms_count 86 broker=3 gc=G1_Concurrent_GC
 metric gc_count 0 broker=3 gc=G1_Old_Generation
 metric gc_ms_count 0 broker=3 gc=G1_Old_Generation
-metric gc_count 54 broker=3 gc=G1_Young_Generation
-metric gc_ms_count 1280 broker=3 gc=G1_Young_Generation
-metric heap_used_bytes 237172272 broker=3
+metric gc_count 99 broker=3 gc=G1_Young_Generation
+metric gc_ms_count 2269 broker=3 gc=G1_Young_Generation
+metric heap_used_bytes 295825208 broker=3
 metric heap_max_bytes 402653184 broker=3
 metric max_files 524288 broker=3
-metric open_files 386 broker=3
-metric cpu_pct 15.56 broker=3
+metric open_files 381 broker=3
+metric cpu_pct 21.21 broker=3
 metric threads 116 broker=3
 metric cleaner_dead_threads 0 broker=3
 metric cleaner_max_dirty_pct 0 broker=3
-metric cleaner_idle_seconds 6 broker=3
-metric flush_ms_p99 42.8735 broker=3
-metric flushes_count 1008 broker=3
+metric cleaner_idle_seconds 2 broker=3
+metric flush_ms_p99 41.9775 broker=3
+metric flushes_count 1060 broker=3
 metric offline_log_dirs 0 broker=3
-metric uptime_seconds 480 broker=3
+metric uptime_seconds 504 broker=3
 
 $ bash packs/kafka/controller.sh
 metric jmx_up 1 broker=1
-metric active_controller 0 broker=1
+metric active_controller 1 broker=1
+metric partitions 172 broker=1
+metric offline_partitions 0 broker=1
+metric metadata_errors 0 broker=1
+metric metadata_lag_ms 41 broker=1
+metric fenced_brokers 0 broker=1
+metric eligible_leader_elections_count 0 broker=1
+metric preferred_imbalance 1 broker=1
+metric event_queue_ms_p99 2.71 broker=1
+metric unclean_elections_count 0 broker=1
+metric controller_changes 1 broker=1
+metric brokers 3 broker=1
+metric timed_out_heartbeats 0 broker=1
+metric topics 9 broker=1
 metric jmx_up 1 broker=2
-metric active_controller 1 broker=2
-metric partitions 172 broker=2
-metric offline_partitions 0 broker=2
-metric metadata_errors 0 broker=2
-metric metadata_lag_ms 243 broker=2
-metric fenced_brokers 0 broker=2
-metric eligible_leader_elections_count 0 broker=2
-metric preferred_imbalance 0 broker=2
-metric event_queue_ms_p99 2 broker=2
-metric unclean_elections_count 0 broker=2
-metric controller_changes 1 broker=2
-metric brokers 3 broker=2
-metric timed_out_heartbeats 0 broker=2
-metric topics 9 broker=2
+metric active_controller 0 broker=2
 metric jmx_up 1 broker=3
 metric active_controller 0 broker=3
 
 $ bash packs/kafka/connections.sh
 metric jmx_up 1 broker=1
 metric connections 0 broker=1 listener=PLAIN
-metric created_count 47 broker=1 listener=PLAIN
+metric created_count 45 broker=1 listener=PLAIN
 metric logins_count 0 broker=1 listener=PLAIN
 metric failed_logins_count 0 broker=1 listener=PLAIN
 metric failed_relogins_count 0 broker=1 listener=PLAIN
 metric connections 0 broker=1 listener=SECURE
 metric created_count 69 broker=1 listener=SECURE
-metric logins_count 67 broker=1 listener=SECURE
-metric failed_logins_count 0 broker=1 listener=SECURE
+metric logins_count 65 broker=1 listener=SECURE
+metric failed_logins_count 2 broker=1 listener=SECURE
 metric failed_relogins_count 0 broker=1 listener=SECURE
-metric connections 2 broker=1 listener=CONTROLLER
-metric created_count 4 broker=1 listener=CONTROLLER
+metric connections 11 broker=1 listener=CONTROLLER
+metric created_count 11 broker=1 listener=CONTROLLER
 metric logins_count 0 broker=1 listener=CONTROLLER
 metric failed_logins_count 0 broker=1 listener=CONTROLLER
 metric failed_relogins_count 0 broker=1 listener=CONTROLLER
-metric connections 14 broker=1 listener=INTERNAL
-metric created_count 15 broker=1 listener=INTERNAL
+metric connections 10 broker=1 listener=INTERNAL
+metric created_count 11 broker=1 listener=INTERNAL
 metric logins_count 0 broker=1 listener=INTERNAL
 metric failed_logins_count 0 broker=1 listener=INTERNAL
 metric failed_relogins_count 0 broker=1 listener=INTERNAL
 metric jmx_up 1 broker=2
 metric connections 0 broker=2 listener=PLAIN
-metric created_count 11 broker=2 listener=PLAIN
+metric created_count 10 broker=2 listener=PLAIN
 metric logins_count 0 broker=2 listener=PLAIN
 metric failed_logins_count 0 broker=2 listener=PLAIN
 metric failed_relogins_count 0 broker=2 listener=PLAIN
 metric connections 0 broker=2 listener=SECURE
-metric created_count 72 broker=2 listener=SECURE
-metric logins_count 67 broker=2 listener=SECURE
-metric failed_logins_count 3 broker=2 listener=SECURE
+metric created_count 74 broker=2 listener=SECURE
+metric logins_count 71 broker=2 listener=SECURE
+metric failed_logins_count 1 broker=2 listener=SECURE
 metric failed_relogins_count 0 broker=2 listener=SECURE
-metric connections 11 broker=2 listener=CONTROLLER
-metric created_count 11 broker=2 listener=CONTROLLER
+metric connections 0 broker=2 listener=CONTROLLER
+metric created_count 0 broker=2 listener=CONTROLLER
 metric logins_count 0 broker=2 listener=CONTROLLER
 metric failed_logins_count 0 broker=2 listener=CONTROLLER
 metric failed_relogins_count 0 broker=2 listener=CONTROLLER
-metric connections 7 broker=2 listener=INTERNAL
-metric created_count 7 broker=2 listener=INTERNAL
+metric connections 8 broker=2 listener=INTERNAL
+metric created_count 9 broker=2 listener=INTERNAL
 metric logins_count 0 broker=2 listener=INTERNAL
 metric failed_logins_count 0 broker=2 listener=INTERNAL
 metric failed_relogins_count 0 broker=2 listener=INTERNAL
@@ -733,7 +737,7 @@ metric created_count 3 broker=3 listener=CONTROLLER
 metric logins_count 0 broker=3 listener=CONTROLLER
 metric failed_logins_count 0 broker=3 listener=CONTROLLER
 metric failed_relogins_count 0 broker=3 listener=CONTROLLER
-metric connections 9 broker=3 listener=INTERNAL
+metric connections 10 broker=3 listener=INTERNAL
 metric created_count 10 broker=3 listener=INTERNAL
 metric logins_count 0 broker=3 listener=INTERNAL
 metric failed_logins_count 0 broker=3 listener=INTERNAL
@@ -759,26 +763,26 @@ metric up 1
 metric info 1 cluster_id=MkU3OEVBNTcwNTJENDM2Qg kraft=yes
 metric brokers 2
 metric brokers_fenced 0
-metric controller_id 2
+metric controller_id 1
 
 $ bash packs/kafka/brokers.sh
 metric online 1 broker=1 rack=none
 metric fenced 0 broker=1
-metric leaders 89 broker=1
+metric leaders 85 broker=1
 metric replicas 170 broker=1
 metric out_of_sync_replicas 0 broker=1
-metric preferred_leaders 58 broker=1
+metric preferred_leaders 59 broker=1
 metric online 1 broker=2 rack=none
 metric fenced 0 broker=2
-metric leaders 82 broker=2
-metric replicas 169 broker=2
-metric out_of_sync_replicas 0 broker=2
-metric preferred_leaders 57 broker=2
+metric leaders 86 broker=2
+metric replicas 170 broker=2
+metric out_of_sync_replicas 1 broker=2
+metric preferred_leaders 59 broker=2
 metric online 0 broker=3 rack=none
 metric leaders 0 broker=3
 metric replicas 169 broker=3
 metric out_of_sync_replicas 169 broker=3
-metric preferred_leaders 57 broker=3
+metric preferred_leaders 54 broker=3
 metric brokers_not_shown 0
 
 $ bash packs/kafka/replication.sh
@@ -788,59 +792,59 @@ metric under_replicated 169
 metric offline 1
 metric under_min_isr 7
 metric at_min_isr 165
-metric not_preferred_leader 56
+metric not_preferred_leader 54
 metric with_eligible_leaders 4
-metric reassigning 0
+metric reassigning 1
 metric topic_under_replicated 50 topic=__share_group_state
 metric topic_under_replicated 6 topic=orders
-metric topic_under_replicated 6 topic=vigil_it_orders_2622526
+metric topic_under_replicated 6 topic=vigil_it_orders_3886881
 metric topic_under_replicated 3 topic=customers
 metric topic_under_replicated 3 topic=payments
 metric topic_under_replicated 50 topic=__transaction_state
 metric topic_under_replicated 50 topic=__consumer_offsets
 metric topic_under_replicated 1 topic=audit
 metric topic_offline 1 topic=audit
+metric topic_under_min_isr 1 topic=vigil_it_single_3886881
 metric topic_under_min_isr 3 topic=payments
 metric topic_under_min_isr 3 topic=audit
-metric topic_under_min_isr 1 topic=vigil_it_single_2622526
 
 $ bash packs/kafka/quorum.sh
 metric kraft 1
-metric leader_id 2
-metric leader_epoch 2
-metric high_watermark 1525
+metric leader_id 1
+metric leader_epoch 1
+metric high_watermark 1582
 metric max_follower_lag 97
-metric max_follower_lag_ms 48219
+metric max_follower_lag_ms 48220
 metric voters 3
 metric observers 0
-metric node_lag 0 node=2 role=leader
-metric node_fetch_age_seconds 0 node=2 role=leader
-metric node_caught_up_age_seconds 0 node=2 role=leader
-metric node_lag 0 node=1 role=follower
-metric node_fetch_age_seconds 1 node=1 role=follower
-metric node_caught_up_age_seconds 1 node=1 role=follower
+metric node_lag 0 node=1 role=leader
+metric node_fetch_age_seconds 1 node=1 role=leader
+metric node_caught_up_age_seconds 1 node=1 role=leader
+metric node_lag 0 node=2 role=follower
+metric node_fetch_age_seconds 1 node=2 role=follower
+metric node_caught_up_age_seconds 1 node=2 role=follower
 metric node_lag 104 node=3 role=follower
 metric node_fetch_age_seconds 52 node=3 role=follower
-metric node_caught_up_age_seconds 52 node=3 role=follower
+metric node_caught_up_age_seconds 53 node=3 role=follower
 
 $ bash packs/kafka/controller.sh
 metric jmx_up 1 broker=1
-metric active_controller 0 broker=1
+metric active_controller 1 broker=1
+metric partitions 172 broker=1
+metric offline_partitions 1 broker=1
+metric metadata_errors 0 broker=1
+metric metadata_lag_ms 485 broker=1
+metric fenced_brokers 1 broker=1
+metric eligible_leader_elections_count 0 broker=1
+metric preferred_imbalance 55 broker=1
+metric event_queue_ms_p99 2 broker=1
+metric unclean_elections_count 0 broker=1
+metric controller_changes 1 broker=1
+metric brokers 2 broker=1
+metric timed_out_heartbeats 0 broker=1
+metric topics 9 broker=1
 metric jmx_up 1 broker=2
-metric active_controller 1 broker=2
-metric partitions 172 broker=2
-metric offline_partitions 1 broker=2
-metric metadata_errors 0 broker=2
-metric metadata_lag_ms 311 broker=2
-metric fenced_brokers 1 broker=2
-metric eligible_leader_elections_count 0 broker=2
-metric preferred_imbalance 57 broker=2
-metric event_queue_ms_p99 2 broker=2
-metric unclean_elections_count 0 broker=2
-metric controller_changes 1 broker=2
-metric brokers 2 broker=2
-metric timed_out_heartbeats 0 broker=2
-metric topics 9 broker=2
+metric active_controller 0 broker=2
 metric jmx_up 0 broker=127.0.0.1:19993
 
 # Broker 3 started again.
@@ -850,7 +854,7 @@ metric up 1
 metric info 1 cluster_id=MkU3OEVBNTcwNTJENDM2Qg kraft=yes
 metric brokers 3
 metric brokers_fenced 0
-metric controller_id 2
+metric controller_id 1
 
 $ bash packs/kafka/replication.sh
 metric topics 9
@@ -859,11 +863,9 @@ metric under_replicated 0
 metric offline 0
 metric under_min_isr 4
 metric at_min_isr 0
-metric not_preferred_leader 0
-metric with_eligible_leaders 0
+metric not_preferred_leader 54
+metric with_eligible_leaders 1
 metric reassigning 0
+metric topic_under_min_isr 1 topic=vigil_it_single_3886881
 metric topic_under_min_isr 3 topic=audit
-metric topic_under_min_isr 1 topic=vigil_it_single_2622526
-
-# Kept up for other machines' tests until /home/vigil-test/r109-hold is deleted.
 evidence: reports/runs/2026-11-21/fedora/pack-kafka-4.4.0
