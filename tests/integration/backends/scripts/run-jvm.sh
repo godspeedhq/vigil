@@ -40,8 +40,12 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-jvm-it.XXXXXX") || exit 1
 root=$work/none
 dumps=$work/dumps
 mkdir -p "$dumps"
-export JVM_UID JVM_GID JVM_DUMPS_DIR=$dumps JVM_TLS_DIR=$work/tls
+export JVM_UID JVM_GID JVM_DUMPS_DIR=$dumps JVM_TLS_DIR=$work/tls JVM_PASSWD=$work/passwd
 JVM_UID=$(id -u) JVM_GID=$(id -g)
+# The containers' accounts: root, and this one by its name. A JVM whose
+# account has no name keeps no counters, where a real one would.
+printf 'root:x:0:0:root:/root:/bin/sh\n%s:x:%s:%s::/tmp:/bin/sh\n' "$(id -un)" "$JVM_UID" "$JVM_GID" > "$JVM_PASSWD"
+chmod 644 "$JVM_PASSWD"
 dc() { docker compose -p vigil-jvm --project-directory "$bk_dir" -f "$bk_dir/$file" "$@"; }
 # The JMX password and the keystore's: this run's own.
 pw=$(openssl rand -hex 16)

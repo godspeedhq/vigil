@@ -260,7 +260,9 @@ class JvmClient {
     static String shortName(String main) {
         String s = main.replace('\\', '/');
         s = s.substring(s.lastIndexOf('/') + 1);
+        // A jar, or a source file run as it is (java Shop.java): its name.
         if (s.endsWith(".jar")) s = s.substring(0, s.length() - 4);
+        else if (s.endsWith(".java")) s = s.substring(0, s.length() - 5);
         else if (s.contains(".") && !s.endsWith(".")) s = s.substring(s.lastIndexOf('.') + 1);
         s = s.replaceAll("[^A-Za-z0-9_.-]", "_");
         return s.isEmpty() ? "jvm" : s;

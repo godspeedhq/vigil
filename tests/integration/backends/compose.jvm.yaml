@@ -40,6 +40,8 @@ x-jvm: &jvm
     - ./workloads/jvm/Trouble.java:/vigil/Trouble.java:ro,z
     - ${JVM_TLS_DIR:-./.jvm-tls}:/tls:ro,z
     - ${JVM_DUMPS_DIR:-./.jvm-dumps}:/dumps:z
+    # A name for JVM_UID: a JVM whose account has no name keeps no counters.
+    - ${JVM_PASSWD:-./.jvm-passwd}:/etc/passwd:ro,z
 
 x-env: &env
   JMX_PASSWORD: ${JVM_JMX_PASSWORD:-}
@@ -78,7 +80,7 @@ services:
       JMX_PORT: "19183"
       JMX_TLS: "yes"
       MODES: busy gcstorm contention
-      JAVA_OPTS: -Xmx256m -XX:+UseZGC -Xlog:gc:file=/dumps/j17-gc.log
+      JAVA_OPTS: -Xmx256m -XX:+UseZGC -Xlog:gc*:file=/dumps/j17-gc.log
     ports:
       - "127.0.0.1:19183:19183"
 

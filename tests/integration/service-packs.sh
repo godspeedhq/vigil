@@ -1037,15 +1037,16 @@ else
     check 'jvm: and is told an operation needs readwrite' yes "$(jsaid deadlocks 'needs readwrite access')"
     check 'jvm: and reads attributes' yes "$(jbetween heap used_bytes j21 1 1e12)"
     set_env JVM_JMX_USER operator
+    vigil run jvm_deadlocks > /dev/null 2>&1
 
     # A wrong password and a certificate it cannot trust fail the run, and say why.
     printf 'not-the-password' | vigil secret set JVM_JMX_PASSWORD --stdin > /dev/null
-    check 'jvm: a wrong password fails the run' 1 "$(jrun heap)"
+    check 'jvm: a wrong password fails the run' 2 "$(jrun heap)"
     check 'jvm: and says why' yes "$(jsaid heap 'refused the login')"
     printf '%s' "$VIGIL_IT_JVM_PASSWORD" | vigil secret set JVM_JMX_PASSWORD --stdin > /dev/null
     if [ -n "${VIGIL_IT_JVM_CACERT-}" ]; then
         set_env JVM_CACERT ''
-        check 'jvm: a certificate it cannot trust fails the run' 1 "$(jrun heap)"
+        check 'jvm: a certificate it cannot trust fails the run' 2 "$(jrun heap)"
         check 'jvm: and says why' yes "$(jsaid heap 'certificate is not trusted')"
         set_env JVM_CACERT "$VIGIL_IT_JVM_CACERT"
     fi

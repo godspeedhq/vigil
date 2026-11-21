@@ -510,7 +510,7 @@ Each script runs `_client.java`, beside it, with a JDK 11 or later: one client f
 So a JVM nobody set up is still watched: its process always, its counters when Vigil may read them. `jvm_status` says which tiers reach each JVM, and `jvm_discovery` lists the JVMs on the machine, and whether each is watched.
 
 1. `vigil pack enable jvm`. With `JVM_TARGETS` empty, every JVM on this machine is watched, each named by its main class.
-2. To name them, or to reach one over JMX, set `JVM_TARGETS` on the jobs' `env` lines: `name: key=value, ...; name: ...`, with `main=` (its main class or jar, or any text on its command line) or `pid=` (a pid file) to find it here, `jmx=host:port` or `jmxs=host:port` (JMX over TLS) for its JMX address, and `gclog=` for its GC log:
+2. To name them, or to reach one over JMX, set `JVM_TARGETS` on the jobs' `env` lines: `name: key=value, ...; name: ...`, with `main=` (its main class or jar, or any text on its command line) or `pid=` (a pid file) to find it here, `jmx=host:port` or `jmxs=host:port` (JMX over TLS) for its JMX address, and `gclog=` for its GC log (written with `-Xlog:gc*:file=<path>`: plain `-Xlog:gc` leaves out ZGC's and Shenandoah's pauses; on Java 8, `-XX:+PrintGCDetails -XX:+PrintGCTimeStamps`):
 
    ```ini
    env = JVM_TARGETS=shop: main=com.acme.Shop, jmxs=localhost:9010, gclog=/var/log/shop/gc.log; jenkins: main=jenkins.war

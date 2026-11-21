@@ -40,7 +40,8 @@ TIERS = {
             "JVM_JMX_USER with the password in JVM_JMX_PASSWORD (a secret line, never a command line). A JVM "
             "with an address that does not answer reports jmx_up 0."),
     'log': ("From the JVM's GC log, for each JVM given one in JVM_TARGETS (gclog=<path>): unified logging "
-            "(-Xlog:gc, Java 9 and later) or Java 8's -XX:+PrintGCDetails, readable by this account."),
+            "(Java 9 and later: -Xlog:gc*:file=<path>; -Xlog:gc alone leaves out ZGC's and Shenandoah's pauses) "
+            "or Java 8's -XX:+PrintGCDetails -XX:+PrintGCTimeStamps, readable by this account."),
 }
 TARGETS = ("JVM_TARGETS names the JVMs: name: key=value, ...; name: ... with main=<its main class or jar, or any "
            "text on its command line> or pid=<a pid file> to find it on this machine, and jmx= or jmxs= for its JMX address. Empty, it "
