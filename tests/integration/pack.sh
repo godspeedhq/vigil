@@ -213,6 +213,14 @@ printf 'pack\telsewhere\t1.0.0\t0.0.1\tpacks-2026.01.03.1\tdigest\tElsewhere onl
 resign packs-2026.01.03.1
 check 'a pack released since the index here was saved' 'db   1.0.0        A database' "$(vigil pack search database 2>&1 | tail -n 1)"
 check 'and the new index is saved' packs-2026.01.03.1 "$(awk -F '\t' '$1 == "release" { print $2 }' "$root/packs/.index")"
+# The newest release's index is the one saved here: not downloaded again
+# (backlog 65). Gone from the release, it still answers, and says nothing of
+# a repository it could not reach.
+rel=$work/mock/www/releases/download/packs-2026.01.03.1
+mv "$rel/packs.index" "$work/keep.rel.index"
+out=$(vigil pack search database 2> "$work/err")
+check 'the newest index, saved here, is not downloaded again' 'db   1.0.0        A database|' "$(printf '%s\n' "$out" | tail -n 1)|$(cat "$work/err")"
+mv "$work/keep.rel.index" "$rel/packs.index"
 check 'a pack with no scripts here' "elsewhere 1.0.0   not for $osname Elsewhere only" "$(vigil pack search elsewhere 2>&1 | tail -n 1)"
 check 'what a pack needs, from its info records' "Name       : db|About      : A database|Here       : not installed: vigil pack install db|Platforms  : $osname|Works with : DB 1 or later|Programs   : dbcli|Secrets    : DB_PW|Needs      : a role, as an administrator:|             CREATE ROLE it|             its log on|Settings   : DB_HOST=localhost DB_PORT=1 (the env lines in vigil.config, once|             enabled)|Docs       : https://example.com/packs/README.md#db" "$(vigil pack info db 2>&1 | sed '/^$/,$d' | lines)"
 check 'and on a platform it has no scripts for' "Here       : not for $osname|Platforms  : $otherh|Programs   : that (on $otherh)|Secrets    : none" "$(vigil pack info elsewhere 2>&1 | sed -n '3,4p;5,6p' | lines)"
