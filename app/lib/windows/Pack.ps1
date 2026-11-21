@@ -801,8 +801,20 @@ function Install-VigilPack {
 }
 
 function Update-VigilPack {
-    param([string]$Root, [string]$App, [bool]$Check)
+    param([string]$Root, [string]$App, [bool]$Check, [string[]]$Names = @())
     $packs = Join-Path $Root 'packs'
+    # The packs named, else every pack here. Each named must be installed,
+    # and is checked before anything is fetched. A version is install's to
+    # pick: update only ever moves a pack forward.
+    $dirs = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($s in @($Names | Where-Object { $_ })) {
+        $x = Split-VigilPackSpec $s
+        if (-not $x) { return 1 }
+        if ($x.At) { Stop-VigilPack "pack update takes the newest version; for another: vigil pack install $s"; return 1 }
+        $d = Join-Path $packs $x.Name
+        if (-not (Read-VigilPack -Dir $d -Name $x.Name)) { Stop-VigilPack "pack $($x.Name) is not installed: vigil pack install $($x.Name)"; return 1 }
+        $dirs.Add($d)
+    }
     if (-not (Test-VigilPackChangeable -Root $Root)) { return 1 }
     $repo = Open-VigilPackRepo -Root $Root -App $App
     $code = 0
@@ -810,7 +822,7 @@ function Update-VigilPack {
         if (-not $repo.Ok) { return 1 }
         $mine = Get-VigilPackMine -App $App
         $n = 0
-        $dirs = if ([System.IO.Directory]::Exists($packs)) { [System.IO.Directory]::GetDirectories($packs) | Sort-Object } else { @() }
+        if (-not $dirs.Count -and [System.IO.Directory]::Exists($packs)) { foreach ($d in ([System.IO.Directory]::GetDirectories($packs) | Sort-Object)) { $dirs.Add($d) } }
         foreach ($d in $dirs) {
             $name = [System.IO.Path]::GetFileName($d)
             $was = Read-VigilPack -Dir $d -Name $name

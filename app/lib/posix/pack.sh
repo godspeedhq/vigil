@@ -830,16 +830,28 @@ _vigil_pack_install() {
 }
 
 _vigil_pack_update() {
-    local root=$1 app=$2 check=$3 d name was rc=0 n=0
+    local root=$1 app=$2 check=$3 d name was rc=0 n=0 s
+    local -a dirs=()
+    shift 3
     if ! _vigil_pack_readable "$root"; then
         _vigil_pack_die "cannot read $root/packs from this account: run this as the account that installed Vigil (sudo for a system install)"
         return 1
     fi
+    # The packs named, else every pack here. Each named must be installed,
+    # and is checked before anything is fetched. A version is install's to
+    # pick: update only ever moves a pack forward.
+    for s in "$@"; do
+        _vigil_pack_spec "$s" || return 1
+        [ -z "$_vp_at" ] || { _vigil_pack_die "pack update takes the newest version; for another: vigil pack install $s"; return 1; }
+        _vigil_pack_read "$root/packs/$_vp_name" "$_vp_name" || { _vigil_pack_die "pack $_vp_name is not installed: vigil pack install $_vp_name"; return 1; }
+        dirs+=("$root/packs/$_vp_name/")
+    done
+    [ "${#dirs[@]}" -gt 0 ] || dirs=("$root"/packs/*/)
     [ "$check" = 1 ] || _vigil_pack_changeable "$root" || return 1
     _vigil_pack_begin "$root" "$app" '' || return 1
     _vigil_pack_os
     _vigil_pack_mine
-    for d in "$root"/packs/*/; do
+    for d in "${dirs[@]}"; do
         [ -f "$d/pack.config" ] || continue
         d=${d%/}
         name=${d##*/}

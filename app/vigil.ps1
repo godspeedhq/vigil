@@ -50,7 +50,7 @@
         2 seconds until Ctrl+C.
     vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name>
     vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove <name>...
-    vigil [-Root <dir>] pack enable <what> | disable <what> | update [--check]
+    vigil [-Root <dir>] pack enable <what> | disable <what> | update [--check] [<name>...]
     vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>
         The packs of scripts and jobs (18.10), from the pack repository:
         search it, install a pack, then enable its jobs. What is a pack or a
@@ -161,7 +161,7 @@ else {
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check]`n       vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove <name>...`n       vigil [-Root <dir>] pack enable <what> | disable <what>`n       vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]`n       vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove <name>...`n       vigil [-Root <dir>] pack enable <what> | disable <what>`n       vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -422,8 +422,9 @@ switch ($Command) {
         if ($Job -ceq 'list' -and $argv.Count -eq 0) { Get-VigilPackList -Root $Root | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
         elseif ($Job -ceq 'enable' -and $argv.Count -eq 1) { Enable-VigilPack -Root $Root -What $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
         elseif ($Job -ceq 'disable' -and $argv.Count -eq 1) { Disable-VigilPack -Root $Root -What $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } } }
-        elseif ($Job -ceq 'update' -and ($argv.Count -eq 0 -or ($argv.Count -eq 1 -and $argv[0] -ceq '--check'))) {
-            Update-VigilPack -Root $Root -App $app -Check ($argv.Count -eq 1) | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+        elseif ($Job -ceq 'update' -and -not ($argv | Where-Object { $_ -cne '--check' -and $_.StartsWith('-') })) {
+            # update [--check] [<name>...]: every pack here, or those named.
+            Update-VigilPack -Root $Root -App $app -Check ($argv -ccontains '--check') -Names @($argv | Where-Object { $_ -cne '--check' }) | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
         }
         elseif ($Job -ceq 'list' -and $argv.Count -eq 1 -and $argv[0] -ceq '--available') {
             Find-VigilPack -Root $Root -App $app -Words @() -Available | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }

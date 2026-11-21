@@ -247,7 +247,16 @@ MIN=99.0.0 DESC='A web server' publish packs-2026.01.04 web 2.0.0 status
 check 'one too new for this Vigil: asked for, refused' 'vigil: pack web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' "$(vigil pack install web@2.0.0 2>&1)"
 check 'and update says so, keeping what runs here' 'pack web 1.0.0 is here: nothing to do|  web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' "$(vigil pack update 2>&1 | grep web | tr '\n' '|' | sed 's/|$//')"
 check 'an older version, when asked' 'pack base went back from 1.2.0 to 1.1.0' "$(vigil pack install base@1.1.0 2>&1 | head -n 1)"
-check 'update takes it forward again' 'updated pack base 1.1.0 to 1.2.0' "$(vigil pack update 2>&1 | grep '^updated')"
+# One pack by name: the others are left as they are.
+check 'update by name: that pack only' 'pack web 1.0.0 is here: nothing to do|  web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' "$(vigil pack update web 2>&1 | tr '\n' '|' | sed 's/|$//')"
+check 'and the other pack is left behind' 1.1.0 "$(sed -n 's/^version = //p' "$root/packs/base/pack.config")"
+check 'the check, by name' 'pack base 1.1.0 is here; 1.2.0 is available: vigil pack update' "$(vigil pack update --check base 2>&1)"
+out=$(vigil pack update nosuch 2>&1)
+check 'a pack not installed, by name' 'vigil: pack nosuch is not installed: vigil pack install nosuch|1' "$out|$?"
+out=$(vigil pack update base@1.0.0 2>&1)
+check 'a version, by name' 'vigil: pack update takes the newest version; for another: vigil pack install base@1.0.0|1' "$out|$?"
+check 'an option it does not know' 64 "$(vigil pack update --all > /dev/null 2>&1; echo $?)"
+check 'update takes it forward again' 'updated pack base 1.1.0 to 1.2.0' "$(vigil pack update base 2>&1 | grep '^updated')"
 sed -i.bak 's/^version = 1.0.0$/version = 5.0.0/' "$root/packs/web/pack.config" && rm -f "$root/packs/web/pack.config.bak"
 check 'never back a version on its own' 'pack web 5.0.0 is here: nothing to do' "$(vigil pack update 2>&1 | grep '^pack web')"
 sed -i.bak 's/^version = 5.0.0$/version = 1.0.0/' "$root/packs/web/pack.config" && rm -f "$root/packs/web/pack.config.bak"
