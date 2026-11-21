@@ -276,7 +276,16 @@ try {
     Test-Equal 'one too new for this Vigil: asked for, refused' 'vigil: pack web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' (Invoke-Vigil pack install web@2.0.0).Text
     Test-Equal 'and update says so, keeping what runs here' 'pack web 1.0.0 is here: nothing to do|  web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' (@((Invoke-Vigil pack update).Text.Split("`n") | Where-Object { $_ -cmatch 'web' } | ForEach-Object { $_.TrimEnd() }) -join '|')
     Test-Equal 'an older version, when asked' 'pack base went back from 1.2.0 to 1.1.0' @((Invoke-Vigil pack install base@1.1.0).Text.Split("`n"))[0].TrimEnd()
-    Test-Equal 'update takes it forward again' 'updated pack base 1.1.0 to 1.2.0' (@((Invoke-Vigil pack update).Text.Split("`n") | Where-Object { $_.StartsWith('updated') }) -join '|').TrimEnd()
+    # One pack by name: the others are left as they are.
+    Test-Equal 'update by name: that pack only' 'pack web 1.0.0 is here: nothing to do|  web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' (@((Invoke-Vigil pack update web).Text.Split("`n") | ForEach-Object { $_.TrimEnd() } | Where-Object { $_ }) -join '|')
+    Test-Equal 'and the other pack is left behind' '1.1.0' (Get-PackVersion)
+    Test-Equal 'the check, by name' 'pack base 1.1.0 is here; 1.2.0 is available: vigil pack update' (Invoke-Vigil pack update --check base).Text.TrimEnd()
+    $r = Invoke-Vigil pack update nosuch
+    Test-Equal 'a pack not installed, by name' 'vigil: pack nosuch is not installed: vigil pack install nosuch|1' "$($r.Text.TrimEnd())|$($r.Code)"
+    $r = Invoke-Vigil pack update base@1.0.0
+    Test-Equal 'a version, by name' 'vigil: pack update takes the newest version; for another: vigil pack install base@1.0.0|1' "$($r.Text.TrimEnd())|$($r.Code)"
+    Test-Equal 'an option it does not know' '64' ([string](Invoke-Vigil pack update --all).Code)
+    Test-Equal 'update takes it forward again' 'updated pack base 1.1.0 to 1.2.0' (@((Invoke-Vigil pack update base).Text.Split("`n") | Where-Object { $_.StartsWith('updated') }) -join '|').TrimEnd()
     $wc = "$root\packs\web\pack.config"
     [System.IO.File]::WriteAllText($wc, (Get-Text $wc).Replace('version = 1.0.0', 'version = 5.0.0'))
     Test-Equal 'never back a version on its own' 'pack web 5.0.0 is here: nothing to do' (@((Invoke-Vigil pack update).Text.Split("`n") | Where-Object { $_.StartsWith('pack web') }) -join '|').TrimEnd()

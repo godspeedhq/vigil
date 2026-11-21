@@ -809,6 +809,7 @@ vigil pack install postgres    # puts it here; nothing runs yet
 vigil pack enable postgres     # turns its jobs on, and says what they need
 vigil pack list                # the packs here, and whether their jobs are on
 vigil pack update              # the packs here, to their newest versions
+vigil pack update postgres     # that pack only
 vigil pack disable postgres    # takes its jobs out of the configuration
 vigil pack remove postgres     # deletes its scripts, once its jobs are off
 ```
