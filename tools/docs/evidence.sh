@@ -33,7 +33,7 @@ if [ -z "$run" ]; then
     for id in $(gh run list --repo "$slug" --workflow conformance --branch main --status success --limit 30 \
         --json databaseId --jq '.[].databaseId' 2> /dev/null); do
         if gh api "repos/$slug/actions/runs/$id/jobs" --paginate \
-            --jq '.jobs[] | select(.name == "bash suite (ubuntu-latest)") | .conclusion' 2> /dev/null | grep -qx success; then
+            --jq '.jobs[] | select(.name == "bash suite (ubuntu-latest, sources)") | .conclusion' 2> /dev/null | grep -qx success; then
             run=$id
             break
         fi
@@ -64,27 +64,35 @@ step() {
     ' "$1"
 }
 
-# One operating system: job name $1, title $2, then "<heading>|<command>".
-section() {
-    local job=$1 title=$2 id item heading cmd
-    shift 2
+# The log of job $1 of the run, into $tmp/log, and its id into $id.
+job_log() {
+    local try
     # A job's id, a number: an error body from the API (a rate limit, for
     # one) is not one, and is asked again.
-    local try
     for try in 1 2 3; do
-        id=$(gh api "repos/$slug/actions/runs/$run/jobs" --paginate --jq ".jobs[] | select(.name == \"$job\") | .id" 2> /dev/null | head -n 1)
+        id=$(gh api "repos/$slug/actions/runs/$run/jobs" --paginate --jq ".jobs[] | select(.name == \"$1\") | .id" 2> /dev/null | head -n 1)
         case $id in '' | *[!0-9]*) id=''; sleep 5 ;; *) break ;; esac
     done
     [ -n "$id" ] || return 1
     curl -sfL -H "Authorization: Bearer $token" -H 'Accept: application/vnd.github+json' \
-        "https://api.github.com/repos/$slug/actions/jobs/$id/logs" > "$tmp/log" || return 1
-    printf '## %s\n\n[The full log of this job](%s/job/%s).\n\n' "$title" "$url" "$id"
+        "https://api.github.com/repos/$slug/actions/jobs/$id/logs" > "$tmp/log"
+}
+
+# One operating system: title $1, then "<heading>|<job>|<command>": CI runs
+# the suite in parts, so each test names the job it ran in.
+section() {
+    local title=$1 id item heading job cmd
+    shift
+    printf '## %s\n\n' "$title"
     for item in "$@"; do
         heading=${item%%|*}
-        cmd=${item#*|}
+        job=${item#*|}
+        cmd=${job#*|}
+        job=${job%%|*}
+        job_log "$job" || return 1
         step "$tmp/log" "$cmd" > "$tmp/out"
         grep -q ' passed, 0 failed$' "$tmp/out" || return 1
-        printf '### %s\n\n```text\n$ %s\n' "$heading" "$cmd"
+        printf '### %s\n\n[The full log of this job](%s/job/%s).\n\n```text\n$ %s\n' "$heading" "$url" "$id" "$cmd"
         cat "$tmp/out"
         printf '```\n\n'
     done
@@ -97,17 +105,17 @@ section() {
     printf '| | |\n| --- | --- |\n'
     printf '| Run | [%s](%s) |\n| Commit | [`%s`](https://github.com/%s/commit/%s) |\n| Finished | %s |\n\n' "$run" "$url" "${sha:0:7}" "$slug" "$sha" "$when"
     printf 'A `SKIP` line means that part did not run on that machine, and says why.\n\n'
-    section 'bash suite (ubuntu-latest)' 'Linux (Ubuntu)' \
-        'Self-update|/bin/bash tests/integration/self-update.sh' \
-        'Sources and the fetcher|/bin/bash tests/integration/fetch.sh' \
-        'Log forwarding|/bin/bash tests/integration/logs.sh' || exit 1
-    section 'bash suite (macos-latest)' 'macOS (bash 3.2)' \
-        'Self-update|/bin/bash tests/integration/self-update.sh' \
-        'Sources and the fetcher|/bin/bash tests/integration/fetch.sh' \
-        'Log forwarding|/bin/bash tests/integration/logs.sh' || exit 1
-    section 'windows (PowerShell 5.1, sources)' 'Windows (PowerShell 5.1)' \
-        'Self-update|./tests/integration/Self-Update.ps1' \
-        'Sources and the fetcher|./tests/integration/Fetch.ps1' \
-        'Log forwarding|./tests/integration/Logs.ps1' || exit 1
+    section 'Linux (Ubuntu)' \
+        'Self-update|bash suite (ubuntu-latest, sources)|/bin/bash tests/integration/self-update.sh' \
+        'Sources and the fetcher|bash suite (ubuntu-latest, sources)|/bin/bash tests/integration/fetch.sh' \
+        'Log forwarding|bash suite (ubuntu-latest, sources)|/bin/bash tests/integration/logs.sh' || exit 1
+    section 'macOS (bash 3.2)' \
+        'Self-update|bash suite (macos-latest, sources)|/bin/bash tests/integration/self-update.sh' \
+        'Sources and the fetcher|bash suite (macos-latest, sources)|/bin/bash tests/integration/fetch.sh' \
+        'Log forwarding|bash suite (macos-latest, sources)|/bin/bash tests/integration/logs.sh' || exit 1
+    section 'Windows (PowerShell 5.1)' \
+        'Self-update|windows (PowerShell 5.1, update)|./tests/integration/Self-Update.ps1' \
+        'Sources and the fetcher|windows (PowerShell 5.1, sources)|./tests/integration/Fetch.ps1' \
+        'Log forwarding|windows (PowerShell 5.1, sources)|./tests/integration/Logs.ps1' || exit 1
 } > "$tmp/page" || exit 1
 cat "$tmp/page"

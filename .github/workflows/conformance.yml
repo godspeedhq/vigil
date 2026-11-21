@@ -20,8 +20,9 @@ jobs:
   #   packaging/README.md. The suites below are skipped, and the checks main
   #   requires pass on that; the pages workflow still builds the site.
   # - packs only: the packs, besides documentation (packs/, the pack
-  #   checkers, the pack tests and the servers they run against in
-  #   tests/integration/backends). A pack is scripts beside Vigil and cannot
+  #   checkers, a pack's generator in a folder of its own in tools/ (not
+  #   tools/docs or tools/release), the pack tests and the servers they run
+  #   against in tests/integration/backends). A pack is scripts beside Vigil and cannot
   #   break it, and it comes with evidence of working against the real
   #   service (CONTRIBUTING.md). So one Linux job, packs, checks it in place
   #   of everything else, and the checks main requires pass when it has.
@@ -46,7 +47,9 @@ jobs:
         run: |
           docs_only=false packs_only=false
           docs='^([^/]+\.md|backlog/.*|packaging/README\.md)$'
-          packs='^(packs/.*|tools/(check-pack\.sh|Check-Pack\.ps1|new-pack\.sh)|tests/integration/(service-packs\.sh|Service-Packs\.ps1|base-pack\.sh|Base-Pack\.ps1|pack\.sh|Pack\.ps1)|tests/integration/backends/.*)$'
+          packs='^(packs/.*|tools/(check-pack\.sh|Check-Pack\.ps1|new-pack\.sh)|tools/[a-z0-9-]+/.*|tests/integration/(service-packs\.sh|Service-Packs\.ps1|base-pack\.sh|Base-Pack\.ps1|pack\.sh|Pack\.ps1)|tests/integration/backends/.*)$'
+          # tools/docs and tools/release are Vigil's own: never packs.
+          notpacks='^tools/(docs|release)/'
           case $GITHUB_EVENT_NAME in pull_request | push) ;; *) BASE='' ;; esac
           # No commit before (a new branch, or one this clone lacks): everything.
           case $BASE in '' | *[!0]* ) ;; *) BASE='' ;; esac
@@ -56,7 +59,8 @@ jobs:
               printf '%s\n' "$files"
               if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev "$docs" > /dev/null; then
                   docs_only=true
-              elif [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev "$docs" | grep -Ev "$packs" > /dev/null; then
+              elif [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev "$docs" | grep -Ev "$packs" > /dev/null &&
+                  ! printf '%s\n' "$files" | grep -E "$notpacks" > /dev/null; then
                   packs_only=true
               fi
           fi
@@ -64,91 +68,132 @@ jobs:
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
           echo "packs_only=$packs_only" >> "$GITHUB_OUTPUT"
 
+  # The suite in three parts on each runner, side by side: most of its time
+  # is waiting on the clock (a schedule, a max_runtime, a supervisor's next
+  # tick), so parts in parallel finish in a third of the time. Each part
+  # about ten minutes, by the steps' times on the runners. The docs' pages
+  # (tools/docs) read the sources part by its name.
   bash-suite:
-    name: bash suite (${{ matrix.os }})
+    name: bash suite (${{ matrix.os }}, ${{ matrix.part }})
     needs: changes
     if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.packs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        part: [engine, sources, install]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
-      - name: licence and disclaimer in every script
-        run: /bin/bash tools/check-headers.sh
       - name: bash version
         run: /bin/bash --version | head -1
+
+      # engine: conformance, runs, the supervisor, secrets, backends, packs.
+      - name: licence and disclaimer in every script
+        if: matrix.part == 'engine'
+        run: /bin/bash tools/check-headers.sh
       # Early, so a pull request with only a pack in it hears quickly what to
       # fix. pwsh, on both runners, parses the Windows scripts.
       - name: every pack, checked and run (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tools/check-pack.sh --run
       - name: conformance (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/run-conformance.sh
       - name: integration (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/run-job.sh
       - name: supervisor (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/supervise.sh
       - name: max_runtime (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/max-runtime.sh
       - name: uncertain runs (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/uncertain.sh
       - name: run accounting (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/run-accounting.sh
       - name: crash points (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/crash.sh
       - name: secrets (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/secrets.sh
       - name: precheck (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/precheck.sh
       - name: doctor (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/doctor.sh
       - name: what cannot be read is not missing (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/unreadable.sh
       - name: vigil config (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/config-edit.sh
       - name: a packaged program (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/packaged.sh
       - name: secret stores (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/stores.sh
       - name: metrics backends (/bin/bash)
+        if: matrix.part == 'engine'
         run: /bin/bash tests/integration/backends.sh
+      - name: packs (/bin/bash)
+        if: matrix.part == 'engine'
+        run: /bin/bash tests/integration/pack.sh
+      - name: the base pack (/bin/bash)
+        if: matrix.part == 'engine'
+        run: /bin/bash tests/integration/base-pack.sh
+
+      # sources: fetching, log forwarding, self update, the tour, upgrades.
       - name: OpenSSH server for the sftp source test
-        if: runner.os == 'Linux'
+        if: matrix.part == 'sources' && runner.os == 'Linux'
         run: test -x /usr/sbin/sshd || { sudo apt-get update -q && sudo apt-get install -y -q openssh-server; }
       - name: sources and the fetcher (/bin/bash)
+        if: matrix.part == 'sources'
         run: /bin/bash tests/integration/fetch.sh
         # sshd is here (macOS has it): the sftp test must run, never skip.
         env:
           VIGIL_IT_REQUIRE_SFTP: '1'
       - name: log forwarding (/bin/bash)
+        if: matrix.part == 'sources'
         run: /bin/bash tests/integration/logs.sh
       - name: self update (/bin/bash)
+        if: matrix.part == 'sources'
         run: /bin/bash tests/integration/self-update.sh
         timeout-minutes: 10
-      - name: packs (/bin/bash)
-        run: /bin/bash tests/integration/pack.sh
-      - name: the base pack (/bin/bash)
-        run: /bin/bash tests/integration/base-pack.sh
       # Not a test: its output becomes the Logs and output pages.
       - name: the tour for the documentation (/bin/bash)
+        if: matrix.part == 'sources'
         run: /bin/bash tools/docs/tour.sh
         timeout-minutes: 6
       - name: data format (/bin/bash)
+        if: matrix.part == 'sources'
         run: /bin/bash tests/integration/format.sh
         timeout-minutes: 5
       - name: upgrade from the latest release (/bin/bash)
+        if: matrix.part == 'sources'
         run: /bin/bash tests/integration/upgrade.sh
         timeout-minutes: 10
+
+      # install: the version in the configuration, the service, the installer.
       - name: the version in the configuration (/bin/bash)
+        if: matrix.part == 'install'
         run: /bin/bash tests/integration/version-config.sh
         timeout-minutes: 15
       - name: service registration (/bin/bash)
+        if: matrix.part == 'install'
         run: /bin/bash tests/integration/service.sh
         timeout-minutes: 15
       - name: init and uninstall (/bin/bash)
+        if: matrix.part == 'install'
         run: /bin/bash tests/integration/init-uninstall.sh
       - name: installer (/bin/bash)
+        if: matrix.part == 'install'
         run: /bin/bash tests/integration/install.sh
 
   # The service packs against real servers: PostgreSQL, MySQL, MariaDB,
@@ -414,10 +459,13 @@ jobs:
           }
           finally { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
 
-  # Windows in six jobs side by side: each PowerShell, in three parts of
-  # about 12 minutes (core, sources, install), where one job took 35. Git
+  # Windows in twelve jobs side by side: each PowerShell, in six parts of
+  # about ten minutes, by the steps' times on the runners; in three parts the
+  # longest took 28. Most of the time is waiting on the clock (a schedule, a
+  # max_runtime, a supervisor's next tick), so more parts finish sooner. Git
   # Bash and the command-line round trip need only one PowerShell, and run
-  # with 5.1.
+  # with 5.1. The docs' pages (tools/docs) read the sources, update and
+  # install parts by their names.
   windows-part:
     name: windows (${{ matrix.label }}, ${{ matrix.part }})
     needs: changes
@@ -426,7 +474,7 @@ jobs:
       fail-fast: false
       matrix:
         label: [PowerShell 5.1, PowerShell 7]
-        part: [core, sources, install]
+        part: [engine, crash, packs, sources, update, install]
         include:
           - label: PowerShell 5.1
             shell: powershell
@@ -439,89 +487,93 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # core: conformance, runs, the supervisor, secrets, backends, packs.
+      # engine: conformance, runs, the supervisor and what it answers for.
       - name: conformance
-        if: matrix.part == 'core'
+        if: matrix.part == 'engine'
         run: ./tests/Run-Conformance.ps1
       - name: conformance (Git Bash)
-        if: matrix.part == 'core' && matrix.shell == 'powershell'
+        if: matrix.part == 'engine' && matrix.shell == 'powershell'
         shell: bash
         run: bash tests/run-conformance.sh
       - name: command-line round trip (CommandLineToArgvW)
-        if: matrix.part == 'core' && matrix.shell == 'powershell'
+        if: matrix.part == 'engine' && matrix.shell == 'powershell'
         run: ./tests/Test-CommandLineRoundTrip.ps1
       - name: worker libraries (each kind loads what it can use)
-        if: matrix.part == 'core' && matrix.shell == 'powershell'
+        if: matrix.part == 'engine' && matrix.shell == 'powershell'
         run: ./tests/Test-WorkerLibraries.ps1
       - name: integration
-        if: matrix.part == 'core'
+        if: matrix.part == 'engine'
         run: ./tests/integration/Run-Job.ps1
       - name: supervisor
-        if: matrix.part == 'core'
+        if: matrix.part == 'engine'
         run: ./tests/integration/Supervise.ps1
       - name: max_runtime
-        if: matrix.part == 'core'
+        if: matrix.part == 'engine'
         run: ./tests/integration/Max-Runtime.ps1
       - name: uncertain runs
-        if: matrix.part == 'core'
+        if: matrix.part == 'engine'
         run: ./tests/integration/Uncertain.ps1
       - name: run accounting
-        if: matrix.part == 'core'
+        if: matrix.part == 'engine'
         run: ./tests/integration/Run-Accounting.ps1
-      - name: crash points
-        if: matrix.part == 'core'
-        run: ./tests/integration/Crash.ps1
       # As under a logon WMI refuses (SSH, a task without a stored password):
       # ownership is proven from the kernel instead.
       - name: max_runtime and uncertain runs, without WMI
-        if: matrix.part == 'core' && matrix.shell == 'powershell'
+        if: matrix.part == 'engine' && matrix.shell == 'powershell'
         env:
           VIGIL_TEST_NO_WMI: '1'
         run: |
           ./tests/integration/Max-Runtime.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./tests/integration/Uncertain.ps1
+
+      # crash: the crash points, secrets, precheck, doctor, the configuration.
+      - name: crash points
+        if: matrix.part == 'crash'
+        run: ./tests/integration/Crash.ps1
       - name: secrets
-        if: matrix.part == 'core'
+        if: matrix.part == 'crash'
         run: ./tests/integration/Secrets.ps1
       - name: secrets (Git Bash)
-        if: matrix.part == 'core' && matrix.shell == 'powershell'
+        if: matrix.part == 'crash' && matrix.shell == 'powershell'
         shell: bash
         run: bash tests/integration/secrets.sh
       - name: precheck
-        if: matrix.part == 'core'
+        if: matrix.part == 'crash'
         run: ./tests/integration/Precheck.ps1
       - name: doctor
-        if: matrix.part == 'core'
+        if: matrix.part == 'crash'
         run: ./tests/integration/Doctor.ps1
       - name: what cannot be read is not missing
-        if: matrix.part == 'core'
+        if: matrix.part == 'crash'
         run: ./tests/integration/Unreadable.ps1
       - name: vigil config
-        if: matrix.part == 'core'
+        if: matrix.part == 'crash'
         run: ./tests/integration/Config-Edit.ps1
       - name: a packaged program
-        if: matrix.part == 'core'
+        if: matrix.part == 'crash'
         run: ./tests/integration/Packaged.ps1
       - name: secret stores
-        if: matrix.part == 'core'
+        if: matrix.part == 'crash'
         run: ./tests/integration/Stores.ps1
+
+      # packs: the backends, the pack commands, every pack's scripts.
       - name: metrics backends
-        if: matrix.part == 'core'
+        if: matrix.part == 'packs'
         run: ./tests/integration/Backends.ps1
       - name: packs
-        if: matrix.part == 'core'
+        if: matrix.part == 'packs'
         run: ./tests/integration/Pack.ps1
       - name: the base pack
-        if: matrix.part == 'core'
+        if: matrix.part == 'packs'
         run: ./tests/integration/Base-Pack.ps1
       - name: every pack's Windows scripts, run
-        if: matrix.part == 'core'
+        if: matrix.part == 'packs'
         run: ./tools/Check-Pack.ps1
       # The runner image has PostgreSQL installed, its service stopped, with
       # the superuser's password in PGPASSWORD; the pack's role is made here.
       - name: the postgres pack
-        if: matrix.part == 'core'
+        if: matrix.part == 'packs'
         run: |
           $monitor = [guid]::NewGuid().ToString('N')
           Write-Output "::add-mask::$monitor"
@@ -534,7 +586,7 @@ jobs:
           $env:VIGIL_IT_PG_PASSWORD = $monitor
           ./tests/integration/Service-Packs.ps1
 
-      # sources: fetching, log forwarding, self update.
+      # sources: fetching and log forwarding.
       - name: OpenSSH server for the sftp source test
         if: matrix.part == 'sources'
         shell: powershell
@@ -549,13 +601,18 @@ jobs:
       - name: log forwarding
         if: matrix.part == 'sources'
         run: ./tests/integration/Logs.ps1
+
+      # update: self update, and the version in the configuration.
       - name: self update
-        if: matrix.part == 'sources'
+        if: matrix.part == 'update'
         run: ./tests/integration/Self-Update.ps1
         timeout-minutes: 15
+      - name: the version in the configuration
+        if: matrix.part == 'update'
+        run: ./tests/integration/Version-Config.ps1
+        timeout-minutes: 30
 
-      # install: data formats, upgrades, the version in the configuration,
-      # the service and the installer.
+      # install: data formats, upgrades, the service and the installer.
       # Not a test: its output becomes the Logs and output pages.
       - name: the tour for the documentation
         if: matrix.part == 'install' && matrix.shell == 'powershell'
@@ -569,10 +626,6 @@ jobs:
         if: matrix.part == 'install'
         run: ./tests/integration/Upgrade.ps1
         timeout-minutes: 15
-      - name: the version in the configuration
-        if: matrix.part == 'install'
-        run: ./tests/integration/Version-Config.ps1
-        timeout-minutes: 30
       - name: service registration
         if: matrix.part == 'install'
         run: ./tests/integration/Service.ps1
@@ -602,10 +655,12 @@ jobs:
         run: /bin/bash tools/check-pack.sh --run
 
   # The checks main requires are named for each PowerShell and for each
-  # bash runner. Each passes once its suite has passed (for Windows, all six
-  # parts), or when the suite was skipped because the change is
-  # documentation only, or packs only and the packs job passed. A gate of its own, because a skipped matrix job reports under
-  # its unexpanded name, which main would wait for forever.
+  # bash runner. Each passes once its suite has passed (every part: twelve
+  # for Windows, six for bash), or when the suite was skipped because the
+  # change is documentation only, or packs only and the packs job passed. A
+  # gate of its own, because a skipped matrix job reports under its
+  # unexpanded name, which main would wait for forever. So the parts can be
+  # split or renamed without changing the checks main requires.
   windows:
     name: windows (${{ matrix.label }})
     needs: [changes, windows-part, packs]
