@@ -1,3 +1,14 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# A fragment of the kafka pack: tools/kafka/gen.py writes packs/kafka from it.
+
 # The partition moves in progress, as the cluster lists them:
 #   orders-0: replicas: 2,1. adding: 2. removing: 1.
 # A topic's name may hold a "-": a partition's topic is all before its last.

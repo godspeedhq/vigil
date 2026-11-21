@@ -459,10 +459,24 @@ def doc(j, ps):
     return c
 
 
+def fragment(path):
+    """A fragment's text, without the licence header it carries for the header
+    check: its first lines that are comments, up to the first blank line, when
+    they hold the SPDX line. Each script written gets the notice of its own."""
+    text = open(path, encoding='utf-8').read()
+    lines = text.split('\n')
+    n = 0
+    while n < len(lines) and lines[n].startswith('#'):
+        n += 1
+    if n and any('SPDX-License-Identifier' in l for l in lines[:n]) and n < len(lines) and lines[n] == '':
+        return '\n'.join(lines[n + 1:])
+    return text
+
+
 def body(lang, job):
     d = 'ps' if lang == 'ps1' else lang
-    head = open(os.path.join(src, d, '_head.' + lang), encoding='utf-8').read()
-    b = open(os.path.join(src, d, job + '.' + lang), encoding='utf-8').read()
+    head = fragment(os.path.join(src, d, '_head.' + lang))
+    b = fragment(os.path.join(src, d, job + '.' + lang))
     s = head.rstrip('\n') + '\n\n' + b.rstrip('\n') + '\n'
     if lang == 'ps1':
         # The head opens a try: its folder goes, however the run ends.
