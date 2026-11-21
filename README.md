@@ -812,6 +812,7 @@ vigil pack update              # the packs here, to their newest versions
 vigil pack update postgres     # that pack only
 vigil pack disable postgres    # takes its jobs out of the configuration
 vigil pack remove postgres     # deletes its scripts, once its jobs are off
+vigil pack remove --disable postgres  # turns its jobs off, then deletes its scripts
 ```
 
 Vigil only runs what your configuration names, so installing or updating a pack changes scripts and never your configuration. A job that's on runs the new script at its next run, and the update lists what changed. A new script stays off until you enable it, and a script the pack dropped stays while a job uses it. Packs are released on their own, so a new pack doesn't wait for a Vigil release, and `vigil self update` leaves them alone.

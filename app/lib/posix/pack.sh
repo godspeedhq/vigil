@@ -870,7 +870,7 @@ _vigil_pack_update() {
         if ! _vigil_self_newer "$_vp_pick" "$was"; then
             printf 'pack %s %s is here: nothing to do\n' "$name" "$was"
         elif [ "$check" = 1 ]; then
-            printf 'pack %s %s is here; %s is available: vigil pack update\n' "$name" "$was" "$_vp_pick"
+            printf 'pack %s %s is here; %s is available: vigil pack update %s\n' "$name" "$was" "$_vp_pick" "$name"
         else
             _vigil_pack_put "$root" "$name" || rc=1
         fi
@@ -880,9 +880,25 @@ _vigil_pack_update() {
     return "$rc"
 }
 
+# The jobs of configuration $1 that run a script of pack $2, into _vp_users.
+_vigil_pack_users() {
+    local i=0 n=0
+    _vp_users=''
+    if [ -f "$1" ]; then
+        vigil_config_parse "$1" 2> /dev/null
+        n=${#VIGIL_CFG_KEY[@]}
+    fi
+    while [ "$i" -lt "$n" ]; do
+        case ${VIGIL_CFG_SECTION[$i]}:${VIGIL_CFG_KEY[$i]}:${VIGIL_CFG_VALUE[$i]} in
+            job.*:file:packs/"$2"/*) _vp_users="$_vp_users ${VIGIL_CFG_SECTION[$i]#job.}" ;;
+        esac
+        i=$((i + 1))
+    done
+}
+
 _vigil_pack_remove() {
-    local root=$1 s cfg=$1/config/vigil.config denied i n jobs dir rc=0
-    shift
+    local root=$1 off=$2 s cfg=$1/config/vigil.config denied i n jobs dir rc=0
+    shift 2
     for s in "$@"; do
         _vigil_pack_spec "$s" || return 1
         [ -z "$_vp_at" ] || { _vigil_pack_die "a pack is removed whole, any version: $_vp_name"; return 1; }
@@ -900,20 +916,29 @@ _vigil_pack_remove() {
             rc=1
             continue
         fi
-        # A job running one of its scripts would fail at its next run.
-        jobs='' i=0 n=0
-        if [ -f "$cfg" ]; then
-            vigil_config_parse "$cfg" 2> /dev/null
-            n=${#VIGIL_CFG_KEY[@]}
-        fi
-        while [ "$i" -lt "$n" ]; do
-            case ${VIGIL_CFG_SECTION[$i]}:${VIGIL_CFG_KEY[$i]}:${VIGIL_CFG_VALUE[$i]} in
-                job.*:file:packs/"$s"/*) jobs="$jobs ${VIGIL_CFG_SECTION[$i]#job.}" ;;
+        # A job running one of its scripts would fail at its next run. With
+        # --disable, the pack's own jobs are taken out first, as vigil pack
+        # disable takes them; a job of the configuration's own that runs one
+        # of its scripts still keeps it.
+        _vigil_pack_users "$cfg" "$s"
+        jobs=$_vp_users
+        if [ "$off" = 1 ]; then
+            case " $jobs " in
+                *" ${s}_"*)
+                    vigil_pack_disable "$root" "$s" || { rc=1; continue; }
+                    _vigil_pack_users "$cfg" "$s"
+                    jobs=$_vp_users
+                    _vigil_pack_read "$dir" "$s"
+                    ;;
             esac
-            i=$((i + 1))
-        done
+        fi
+        if [ -n "$jobs" ] && [ "$off" = 1 ]; then
+            _vigil_pack_die "pack $s is still used by jobs of your own:$jobs. Change them or take them out first"
+            rc=1
+            continue
+        fi
         if [ -n "$jobs" ]; then
-            _vigil_pack_die "pack $s is in use by:$jobs. Turn them off first: vigil pack disable $s"
+            _vigil_pack_die "pack $s is in use by:$jobs. Turn them off first: vigil pack disable $s, or vigil pack remove --disable $s"
             rc=1
             continue
         fi
@@ -1072,7 +1097,7 @@ _vigil_pack_info() {
     _vigil_pack_pick "$name" '' "$_vp_os" "$_vp_mine" || :
     if [ -n "$was" ]; then
         if [ -n "$_vp_pick" ] && _vigil_self_newer "$_vp_pick" "$was"; then
-            here="$was installed; $_vp_pick is available: vigil pack update"
+            here="$was installed; $_vp_pick is available: vigil pack update $name"
         elif [ -n "$_vp_newer" ] && _vigil_self_newer "$_vp_newer" "$was"; then
             here="$was installed; $_vp_newer needs Vigil $_vp_newer_vigil or later: vigil self update"
         elif [ "$was" = "$newest" ]; then

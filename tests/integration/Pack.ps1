@@ -187,7 +187,7 @@ try {
     [System.IO.File]::WriteAllText($cfg, $t)
     Publish-Pack 'packs-2026.01.02' base '1.1.0' @('cpu', 'load')
     Publish-Pack 'packs-2026.01.02' web '1.0.0' @('status') -About 'A web server'
-    Test-Equal 'the check says so' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' (Invoke-Vigil pack update --check).Text
+    Test-Equal 'the check says so' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update base' (Invoke-Vigil pack update --check).Text
     Test-Equal 'the check changes nothing' '1.0.0' (Get-PackVersion)
     $was = Get-Text $cfg
     $r = Invoke-Vigil pack update
@@ -279,7 +279,7 @@ try {
     # One pack by name: the others are left as they are.
     Test-Equal 'update by name: that pack only' 'pack web 1.0.0 is here: nothing to do|  web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' (@((Invoke-Vigil pack update web).Text.Split("`n") | ForEach-Object { $_.TrimEnd() } | Where-Object { $_ }) -join '|')
     Test-Equal 'and the other pack is left behind' '1.1.0' (Get-PackVersion)
-    Test-Equal 'the check, by name' 'pack base 1.1.0 is here; 1.2.0 is available: vigil pack update' (Invoke-Vigil pack update --check base).Text.TrimEnd()
+    Test-Equal 'the check, by name' 'pack base 1.1.0 is here; 1.2.0 is available: vigil pack update base' (Invoke-Vigil pack update --check base).Text.TrimEnd()
     $r = Invoke-Vigil pack update nosuch
     Test-Equal 'a pack not installed, by name' 'vigil: pack nosuch is not installed: vigil pack install nosuch|1' "$($r.Text.TrimEnd())|$($r.Code)"
     $r = Invoke-Vigil pack update base@1.0.0
@@ -293,13 +293,31 @@ try {
 
     Write-Host 'Removing'
     [void](Invoke-Vigil pack enable web)
-    Test-Equal 'refused while on' 'vigil: pack web is in use by: web_status. Turn them off first: vigil pack disable web' (Invoke-Vigil pack remove web).Text
+    Test-Equal 'refused while on' 'vigil: pack web is in use by: web_status. Turn them off first: vigil pack disable web, or vigil pack remove --disable web' (Invoke-Vigil pack remove web).Text
     Test-Equal 'and kept' 'True' ([string](Test-Path -LiteralPath "$root\packs\web\status.ps1"))
     [void](Invoke-Vigil pack disable web)
     Test-Equal 'removes once off' 'removed pack web 1.0.0' (Invoke-Vigil pack remove web).Text
     Test-Equal 'its scripts go' 'False' ([string](Test-Path -LiteralPath "$root\packs\web"))
     Test-Equal 'one not here' 'vigil: pack web is not installed: vigil pack list' (Invoke-Vigil pack remove web).Text
     Test-Equal 'precheck is happy after' '0' (Invoke-Precheck)
+    # --disable: the pack's jobs are taken out, then the pack.
+    [void](Invoke-Vigil pack install web)
+    [void](Invoke-Vigil pack enable web)
+    $r = Invoke-Vigil pack remove --disable web
+    Test-Equal 'remove --disable: off, then removed' 'off: web|removed pack web 1.0.0|0' "$(Join-Lines $r.Text)|$($r.Code)"
+    Test-Equal 'its jobs are out of the configuration' 'False' ([string]((Get-Text $cfg) -cmatch '(?m)^\[job\.web_'))
+    Test-Equal 'and its scripts are gone' 'False' ([string](Test-Path -LiteralPath "$root\packs\web"))
+    # A job of the configuration's own that runs one of its scripts keeps it.
+    [void](Invoke-Vigil pack install web)
+    $keep = Get-Text $cfg
+    [System.IO.File]::WriteAllText($cfg, $keep + "`n[job.webwatch]`nfile = packs/web/status.ps1`nrun_every = 1h`n")
+    $r = Invoke-Vigil pack remove --disable web
+    Test-Equal 'a job of your own keeps it' 'vigil: pack web is still used by jobs of your own: webwatch. Change them or take them out first|1' "$($r.Text.TrimEnd())|$($r.Code)"
+    Test-Equal 'and it is kept' 'True' ([string](Test-Path -LiteralPath "$root\packs\web\status.ps1"))
+    Test-Equal 'an option remove does not know' '64' ([string](Invoke-Vigil pack remove --force web).Code)
+    [System.IO.File]::WriteAllText($cfg, $keep)
+    [void](Invoke-Vigil pack remove web)
+    Test-Equal 'precheck is happy after --disable' '0' (Invoke-Precheck)
 
     Write-Host 'Offline'
     $usb = "$work\usb"

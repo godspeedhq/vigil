@@ -836,7 +836,7 @@ function Update-VigilPack {
             }
             # Never back a version: one newer than the repository's stays.
             if (-not (Test-VigilNewer $pick.Version $was.Version)) { Write-Output "pack $name $($was.Version) is here: nothing to do" }
-            elseif ($Check) { Write-Output "pack $name $($was.Version) is here; $($pick.Version) is available: vigil pack update" }
+            elseif ($Check) { Write-Output "pack $name $($was.Version) is here; $($pick.Version) is available: vigil pack update $name" }
             else {
                 Install-VigilPackPick -Root $Root -Repo $repo -Name $name -Pick $pick | ForEach-Object { if ($_ -is [int]) { if ($_ -ne 0) { $code = 1 } } else { $_ } }
             }
@@ -852,8 +852,21 @@ function Update-VigilPack {
     finally { Close-VigilPackRepo $repo }
 }
 
+# The jobs of configuration $Cfg that run a script of pack $Name.
+function Get-VigilPackUsers {
+    param([string]$Cfg, [string]$Name)
+    $jobs = @()
+    if (-not [System.IO.File]::Exists($Cfg)) { return , $jobs }
+    $p = ConvertFrom-VigilConfig -Path $Cfg
+    foreach ($e in $p.Entries) {
+        if ($e.Key -ceq 'file' -and $e.Section.StartsWith('job.', [System.StringComparison]::Ordinal) -and
+            $e.Value.Replace('\', '/').StartsWith("packs/$Name/", [System.StringComparison]::Ordinal)) { $jobs += $e.Section.Substring(4) }
+    }
+    return , $jobs
+}
+
 function Remove-VigilPack {
-    param([string]$Root, [string[]]$Names)
+    param([string]$Root, [string[]]$Names, [switch]$Disable)
     foreach ($s in $Names) {
         $x = Split-VigilPackSpec $s
         if (-not $x) { return 1 }
@@ -873,15 +886,21 @@ function Remove-VigilPack {
         $dir = Join-Path $Root "packs\$s"
         $was = Read-VigilPack -Dir $dir -Name $s
         if (-not $was) { Stop-VigilPack "pack $s is not installed: vigil pack list"; $code = 1; continue }
-        # A job running one of its scripts would fail at its next run.
-        $jobs = @()
-        if ($p) {
-            foreach ($e in $p.Entries) {
-                if ($e.Key -ceq 'file' -and $e.Section.StartsWith('job.', [System.StringComparison]::Ordinal) -and
-                    $e.Value.Replace('\', '/').StartsWith("packs/$s/", [System.StringComparison]::Ordinal)) { $jobs += $e.Section.Substring(4) }
+        # A job running one of its scripts would fail at its next run. With
+        # -Disable, the pack's own jobs are taken out first, as vigil pack
+        # disable takes them; a job of the configuration's own that runs one
+        # of its scripts still keeps it.
+        $jobs = Get-VigilPackUsers $cfg $s
+        if ($Disable) {
+            if (@($jobs | Where-Object { $_.StartsWith("${s}_", [System.StringComparison]::Ordinal) }).Count -gt 0) {
+                $failed = $false
+                Disable-VigilPack -Root $Root -What $s | ForEach-Object { if ($_ -is [int]) { if ($_ -ne 0) { $failed = $true } } else { $_ } }
+                if ($failed) { $code = 1; continue }
+                $jobs = Get-VigilPackUsers $cfg $s
             }
+            if ($jobs.Count -gt 0) { Stop-VigilPack "pack $s is still used by jobs of your own: $($jobs -join ' '). Change them or take them out first"; $code = 1; continue }
         }
-        if ($jobs.Count -gt 0) { Stop-VigilPack "pack $s is in use by: $($jobs -join ' '). Turn them off first: vigil pack disable $s"; $code = 1; continue }
+        if ($jobs.Count -gt 0) { Stop-VigilPack "pack $s is in use by: $($jobs -join ' '). Turn them off first: vigil pack disable $s, or vigil pack remove --disable $s"; $code = 1; continue }
         try {
             if (Test-Path -LiteralPath "$dir.old") { Remove-Item -LiteralPath "$dir.old" -Recurse -Force -ErrorAction Stop }
             Move-VigilPackFolder $dir "$dir.old"
@@ -1032,7 +1051,7 @@ function Get-VigilPackInfo {
         $was = Read-VigilPack -Dir (Join-Path $Root "packs\$Name") -Name $Name
         $pick = Select-VigilPackVersion -Repo $repo -Name $Name -Want '' -Os windows -Mine (Get-VigilPackMine -App $App)
         if ($was) {
-            if ($pick.Version -and (Test-VigilNewer $pick.Version $was.Version)) { $here = "$($was.Version) installed; $($pick.Version) is available: vigil pack update" }
+            if ($pick.Version -and (Test-VigilNewer $pick.Version $was.Version)) { $here = "$($was.Version) installed; $($pick.Version) is available: vigil pack update $name" }
             elseif ($pick.Newer -and (Test-VigilNewer $pick.Newer $was.Version)) { $here = "$($was.Version) installed; $($pick.Newer) needs Vigil $($pick.NewerVigil) or later: vigil self update" }
             elseif ($was.Version -ceq $newest.Version) { $here = "$($was.Version) installed, the newest" }
             else { $here = "$($was.Version) installed" }
