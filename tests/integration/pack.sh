@@ -278,13 +278,16 @@ rc=$?
 check 'remove --disable: off, then removed' 'off: web|removed pack web 1.0.0|0' "$(printf '%s' "$out" | tr '\n' '|')|$rc"
 check 'its jobs are out of the configuration' '' "$(grep '^\[job\.web_' "$cfg")"
 check 'and its scripts are gone' no "$(yes_no test -e "$root/packs/web")"
-# A job of the configuration's own that runs one of its scripts keeps it.
+# A job of the configuration's own that runs one of its scripts keeps it,
+# and then nothing is changed: the pack's own jobs stay on.
 vigil pack install web > /dev/null 2>&1
 cp "$cfg" "$work/cfg.keep"
+vigil pack enable web > /dev/null 2>&1
 printf '\n[job.webwatch]\nfile = packs/web/status.sh\nrun_every = 1h\n' >> "$cfg"
 out=$(vigil pack remove --disable web 2>&1)
 check 'a job of your own keeps it' 'vigil: pack web is still used by jobs of your own: webwatch. Change them or take them out first|1' "$out|$?"
 check 'and it is kept' yes "$(yes_no test -f "$root/packs/web/status.sh")"
+check 'and its own jobs stay on' 1 "$(grep -c '^\[job\.web_status\]' "$cfg")"
 check 'an option remove does not know' 64 "$(vigil pack remove --force web > /dev/null 2>&1; echo $?)"
 cp "$work/cfg.keep" "$cfg"
 vigil pack remove web > /dev/null 2>&1

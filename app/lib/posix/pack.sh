@@ -918,24 +918,29 @@ _vigil_pack_remove() {
         fi
         # A job running one of its scripts would fail at its next run. With
         # --disable, the pack's own jobs are taken out first, as vigil pack
-        # disable takes them; a job of the configuration's own that runs one
-        # of its scripts still keeps it.
+        # disable takes them. A job of the configuration's own that runs one
+        # of its scripts keeps the pack: that is found first, and then
+        # nothing is changed, not even the pack's jobs turned off.
         _vigil_pack_users "$cfg" "$s"
         jobs=$_vp_users
-        if [ "$off" = 1 ]; then
-            case " $jobs " in
-                *" ${s}_"*)
-                    vigil_pack_disable "$root" "$s" || { rc=1; continue; }
-                    _vigil_pack_users "$cfg" "$s"
-                    jobs=$_vp_users
-                    _vigil_pack_read "$dir" "$s"
-                    ;;
-            esac
-        fi
-        if [ -n "$jobs" ] && [ "$off" = 1 ]; then
-            _vigil_pack_die "pack $s is still used by jobs of your own:$jobs. Change them or take them out first"
-            rc=1
-            continue
+        if [ "$off" = 1 ] && [ -n "$jobs" ]; then
+            local own='' theirs='' pj=' ' j
+            for j in $_vp_jobs; do pj="$pj${s}_$j "; done
+            for j in $jobs; do
+                case $pj in
+                    *" $j "*) theirs="$theirs $j" ;;
+                    *) own="$own $j" ;;
+                esac
+            done
+            if [ -n "$own" ]; then
+                _vigil_pack_die "pack $s is still used by jobs of your own:$own. Change them or take them out first"
+                rc=1
+                continue
+            fi
+            vigil_pack_disable "$root" "$s" || { rc=1; continue; }
+            _vigil_pack_users "$cfg" "$s"
+            jobs=$_vp_users
+            _vigil_pack_read "$dir" "$s"
         fi
         if [ -n "$jobs" ]; then
             _vigil_pack_die "pack $s is in use by:$jobs. Turn them off first: vigil pack disable $s, or vigil pack remove --disable $s"

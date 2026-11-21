@@ -888,17 +888,18 @@ function Remove-VigilPack {
         if (-not $was) { Stop-VigilPack "pack $s is not installed: vigil pack list"; $code = 1; continue }
         # A job running one of its scripts would fail at its next run. With
         # -Disable, the pack's own jobs are taken out first, as vigil pack
-        # disable takes them; a job of the configuration's own that runs one
-        # of its scripts still keeps it.
+        # disable takes them. A job of the configuration's own that runs one
+        # of its scripts keeps the pack: that is found first, and then
+        # nothing is changed, not even the pack's jobs turned off.
         $jobs = Get-VigilPackUsers $cfg $s
-        if ($Disable) {
-            if (@($jobs | Where-Object { $_.StartsWith("${s}_", [System.StringComparison]::Ordinal) }).Count -gt 0) {
-                $failed = $false
-                Disable-VigilPack -Root $Root -What $s | ForEach-Object { if ($_ -is [int]) { if ($_ -ne 0) { $failed = $true } } else { $_ } }
-                if ($failed) { $code = 1; continue }
-                $jobs = Get-VigilPackUsers $cfg $s
-            }
-            if ($jobs.Count -gt 0) { Stop-VigilPack "pack $s is still used by jobs of your own: $($jobs -join ' '). Change them or take them out first"; $code = 1; continue }
+        if ($Disable -and $jobs.Count -gt 0) {
+            $theirs = @($was.Jobs | ForEach-Object { "${s}_$_" })
+            $own = @($jobs | Where-Object { $theirs -cnotcontains $_ })
+            if ($own.Count -gt 0) { Stop-VigilPack "pack $s is still used by jobs of your own: $($own -join ' '). Change them or take them out first"; $code = 1; continue }
+            $failed = $false
+            Disable-VigilPack -Root $Root -What $s | ForEach-Object { if ($_ -is [int]) { if ($_ -ne 0) { $failed = $true } } else { $_ } }
+            if ($failed) { $code = 1; continue }
+            $jobs = Get-VigilPackUsers $cfg $s
         }
         if ($jobs.Count -gt 0) { Stop-VigilPack "pack $s is in use by: $($jobs -join ' '). Turn them off first: vigil pack disable $s, or vigil pack remove --disable $s"; $code = 1; continue }
         try {
