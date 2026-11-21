@@ -24,9 +24,10 @@
 # it on (which validates its jobs as Vigil sees them), each job with a script
 # for this platform runs, and every metric it prints must be a number and
 # listed in pack.config. A job whose secret a throwaway Vigil does not have is
-# skipped, and says which; a job whose service this machine lacks reports it
-# as it would anywhere. Its test against the real service is the one that
-# counts.
+# skipped, and says which, as is a job whose program this machine lacks (it
+# says "<program> not found: ..."); a job whose service this machine lacks
+# reports it as it would anywhere. Its test against the real service is the
+# one that counts.
 #
 # Exit code: 0 all passed, 1 any failed.
 
@@ -168,6 +169,12 @@ run_pack() {
         # A secret is the operator's to give: this throwaway Vigil has none.
         if [ "$rc" -ne 0 ] && [[ $out =~ \(secret\ (secret:[A-Za-z0-9_]+)\ unavailable ]]; then
             printf '  skip  %s_%s: needs %s, which a throwaway Vigil does not have\n' "$name" "$j" "${BASH_REMATCH[1]}"
+            continue
+        fi
+        # So is a program: a job whose program this machine lacks says so
+        # ("<program> not found: ...") and is skipped.
+        if [ "$rc" -ne 0 ] && miss=$(cat "$root/logs/jobs/${name}_$j"/*.log 2> /dev/null | sed -n 's/^[^ ]* [^ ]* err //p' | grep -m 1 -E '^[A-Za-z0-9_]+: [^ ]+ not found: '); then
+            printf '  skip  %s_%s: %s\n' "$name" "$j" "${miss#*: }"
             continue
         fi
         if [ "$rc" -ne 0 ]; then

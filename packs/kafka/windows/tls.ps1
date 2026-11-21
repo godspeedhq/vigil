@@ -42,7 +42,11 @@
       trusted       1 when it is trusted and names the broker, tagged the same
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric tls 1
+      metric reachable 1 endpoint=localhost:19091
+      metric expires_days 1 endpoint=localhost:19091
+      metric trusted 1 endpoint=localhost:19091
+      metric endpoints 3
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  expires_days above 30 everywhere; trusted 1.

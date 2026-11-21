@@ -38,7 +38,11 @@
       controller_id   the node that is the active controller (KRaft)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric info 1 cluster_id=MkU3OEVBNTcwNTJENDM2Qg kraft=yes
+      metric brokers 3
+      metric brokers_fenced 0
+      metric controller_id 2
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  up 1; brokers steady at as many as you run; brokers_fenced 0.

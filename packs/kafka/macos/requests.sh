@@ -45,7 +45,11 @@
 #                     the same
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric total_ms_p99 502 broker=1 request=FetchConsumer
+#   metric queue_ms_p99 3 broker=1 request=Produce
+#   metric remote_ms_p99 43.23 broker=1 request=Produce
+#   metric request_queue 0 broker=1
+#   metric response_queue 0 broker=1
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  handler_idle_pct and network_idle_pct above 30; request_queue

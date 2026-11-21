@@ -52,7 +52,11 @@
 #                           tagged the same
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric partitions 165
+#   metric under_replicated 1
+#   metric offline 0
+#   metric under_min_isr 3
+#   metric topic_under_min_isr 3 topic=audit
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  under_replicated, offline and under_min_isr 0.

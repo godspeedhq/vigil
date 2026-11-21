@@ -49,7 +49,11 @@
 #   offline_log_dirs           log directories offline, tagged the same
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric heap_used_bytes 252168008 broker=1
+#   metric heap_max_bytes 402653184 broker=1
+#   metric gc_count 91 broker=1 gc=G1_Young_Generation
+#   metric open_files 365 broker=1
+#   metric cpu_pct 21.95 broker=1
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  heap_used_bytes well under heap_max_bytes after collections;

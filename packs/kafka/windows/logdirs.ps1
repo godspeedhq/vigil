@@ -59,7 +59,11 @@
       remote_copy_lag_bytes  data it has yet to copy there, tagged the same
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric size_bytes 4967681 broker=1 dir=/var/lib/kafka/data
+      metric partitions 163 broker=1 dir=/var/lib/kafka/data
+      metric offline 0 broker=1 dir=/var/lib/kafka/data
+      metric future_replicas 0 broker=1 dir=/var/lib/kafka/data
+      metric size_bytes 4907633 broker=2 dir=/var/lib/kafka/data
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  dirs_offline 0; sizes growing and shrinking with retention.

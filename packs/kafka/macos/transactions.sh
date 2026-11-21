@@ -37,7 +37,10 @@
 #   long_running      transactions open longer than KAFKA_TXN_LONG
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric all_transactions 1
+#   metric transactions 1 state=completeabort
+#   metric ongoing 0
+#   metric long_running 0
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  long_running 0.

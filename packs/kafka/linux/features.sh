@@ -39,7 +39,11 @@
 #   features_behind   of those, behind
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric metadata_version 1 version=4.4-IV2 supported=4.4-IV2
+#   metric level 1 feature=group.version
+#   metric supported_level 1 feature=group.version
+#   metric behind 0 feature=group.version
+#   metric behind 1 feature=kraft.version
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  features_behind 0, after an upgrade is finished.

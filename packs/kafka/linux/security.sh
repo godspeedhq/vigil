@@ -41,7 +41,11 @@
 #   quotas               quotas set, tagged entity=<user or client>
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric authorizer 1
+#   metric all_acls 6
+#   metric any_principal_acls 0
+#   metric acls 2 resource=cluster permission=allow
+#   metric scram_users 1
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  authorizer 1; all_acls and scram_users changing only when you

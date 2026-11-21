@@ -61,7 +61,11 @@
                                        only one copy
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric unclean_leader_election 0
+      metric auto_create_topics 1
+      metric min_insync_replicas 2
+      metric retention_hours 168
+      metric plaintext_listeners 2
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  unclean_leader_election 0; min_insync_replicas 2 with a

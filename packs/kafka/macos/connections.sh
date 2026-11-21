@@ -36,7 +36,11 @@
 #                          tagged the same
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric connections 0 broker=1 listener=PLAIN
+#   metric created_count 81 broker=1 listener=SECURE
+#   metric logins_count 81 broker=1 listener=SECURE
+#   metric failed_logins_count 0 broker=1 listener=SECURE
+#   metric failed_relogins_count 0 broker=1 listener=SECURE
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  failed_logins_count flat; connections steady.

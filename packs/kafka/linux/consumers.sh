@@ -42,7 +42,11 @@
 #                         (at most 150)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric groups 3
+#   metric total_lag 16393
+#   metric lag 16393 group=billing topic=orders
+#   metric lag_max 3880 group=billing topic=orders
+#   metric lag 0 group=ledger topic=payments
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  lag steady or falling: consumers keep up.

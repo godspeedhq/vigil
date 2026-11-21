@@ -37,7 +37,11 @@
 #                      (at most 100)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric partitions 1
+#   metric adding_replicas 1
+#   metric removing_replicas 1
+#   metric topics 1
+#   metric topic_partitions 1 topic=audit
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  partitions 0, except while you move partitions.

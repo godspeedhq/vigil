@@ -44,7 +44,11 @@
 #   groups_not_shown  groups past the first 150, left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric all_groups 4
+#   metric rebalancing 0
+#   metric empty 4
+#   metric groups 1 type=share state=empty
+#   metric groups 3 type=classic state=empty
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  rebalancing 0 most of the time; each group's members steady.

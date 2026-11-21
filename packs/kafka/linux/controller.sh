@@ -58,7 +58,11 @@
 #                                    tagged the same
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric active_controller 0 broker=1
+#   metric active_controller 1 broker=2
+#   metric offline_partitions 0 broker=2
+#   metric partitions 165 broker=2
+#   metric metadata_errors 0 broker=2
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  one node with active_controller 1; offline_partitions 0;

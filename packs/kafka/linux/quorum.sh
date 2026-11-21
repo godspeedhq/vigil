@@ -47,7 +47,11 @@
 #                               same
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric kraft 1
+#   metric leader_id 2
+#   metric max_follower_lag 0
+#   metric voters 3
+#   metric node_lag 0 node=1 role=follower
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  kraft 1; max_follower_lag near 0; every node's

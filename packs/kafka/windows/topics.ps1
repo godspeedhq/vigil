@@ -46,7 +46,11 @@
       topics_not_shown    topics past the first 100, left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric topics 7
+      metric rf1_topics 1
+      metric partitions 6 topic=orders
+      metric replication_factor 3 topic=orders
+      metric messages_count 21393 topic=orders
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  rf1_topics 0, unless on purpose; messages_count rising on every
