@@ -11,7 +11,7 @@
 
 <#
 .SYNOPSIS
-    Integration test: the postgres, redis and mssql service packs against
+    Integration test: the postgres, redis, mssql and kafka service packs against
     real servers, on Windows. The twin of service-packs.sh (nginx has no
     Windows script).
 .DESCRIPTION
@@ -40,8 +40,20 @@
         VIGIL_IT_MSSQL_SA_PASSWORD           optional: sa's, to make a database,
                                              backups, an integrity check and
                                              blocking
+        VIGIL_IT_KAFKA_BOOTSTRAP             a Kafka cluster's SASL_SSL listener
+                                             (host:port, comma-separated), SCRAM
+        VIGIL_IT_KAFKA_PASSWORD              its vigil_monitor user's password; the
+                                             user has the ACLs packs/README.md lists
+        VIGIL_IT_KAFKA_CACERT                the CA its certificates are from
+        VIGIL_IT_KAFKA_HOME                  Kafka's command-line tools (3.9 on);
+                                             Java on the PATH or in JAVA_HOME
+        VIGIL_IT_KAFKA_JMX                   optional: its brokers' JMX
+        VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP       optional: a PLAINTEXT listener that may
+                                             do anything, to make a topic, messages
+                                             and a group with lag
     psql is found as the pack finds it: on the PATH, or in PostgreSQL's own
-    folders under Program Files. The redis and mssql packs need no client.
+    folders under Program Files. The redis and mssql packs need no client;
+    the kafka pack needs Kafka's tools and Java.
 
     The pack is off until enabled; vigil pack enable puts its jobs in the
     configuration; each job runs and reports what the server says; a long
@@ -215,6 +227,10 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $mk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\mssql\pack.config') -Destination $mk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\mssql\windows') | Copy-Item -Destination $mk
+    $kk = Join-Path $root 'packs\kafka'
+    [void](New-Item -ItemType Directory -Force -Path $kk)
+    Copy-Item -LiteralPath (Join-Path $repo 'packs\kafka\pack.config') -Destination $kk
+    Get-ChildItem -LiteralPath (Join-Path $repo 'packs\kafka\windows') | Copy-Item -Destination $kk
     $list = (Invoke-Vigil pack list).Text
     # pack list indents each job under its pack.
     Test-Equal 'the pack is off until enabled' 'off off' ((@($list.Split("`n") | Where-Object { $_ -match '^\s*postgres_(status|size)\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })) -join ' ')
@@ -607,6 +623,117 @@ try {
         $leaks = @(Get-ChildItem -LiteralPath (Join-Path $root 'logs'), (Join-Path $root 'state'), (Join-Path $root 'spool'), (Join-Path $root 'metrics') -Recurse -File -ErrorAction SilentlyContinue |
                 Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains($env:VIGIL_IT_MSSQL_PASSWORD) })
         Test-Equal 'mssql: the password is written nowhere' '' ((@($leaks | ForEach-Object { $_.FullName.Substring($root.Length + 1) })) -join ' ')
+    }
+
+    # --- kafka --------------------------------------------------------------
+    if (-not $env:VIGIL_IT_KAFKA_BOOTSTRAP -or -not $env:VIGIL_IT_KAFKA_PASSWORD -or -not $env:VIGIL_IT_KAFKA_HOME) { Write-Host '  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME' }
+    elseif (-not $env:JAVA_HOME -and -not (Get-Command java.exe -ErrorAction SilentlyContinue)) { Write-Host '  SKIP  kafka: java is not installed here' }
+    else {
+        # The jobs have their cluster, password and CA from Vigil: never from
+        # this test's own environment.
+        foreach ($v in 'KAFKA_BOOTSTRAP', 'KAFKA_SECURITY', 'KAFKA_SASL_MECHANISM', 'KAFKA_USER', 'KAFKA_PASSWORD', 'KAFKA_CACERT', 'KAFKA_CERT', 'KAFKA_KEY', 'KAFKA_CLIENT_CONFIG', 'KAFKA_JMX', 'KAFKA_TLS_ENDPOINTS') { Remove-Item "Env:\$v" -ErrorAction SilentlyContinue }
+        Write-Host "kafka at $($env:VIGIL_IT_KAFKA_BOOTSTRAP)"
+        $kjobs = 'status', 'quorum', 'brokers', 'replication', 'reassignment', 'consumers', 'groups', 'topics', 'logdirs', 'transactions', 'config', 'security', 'features', 'throughput', 'requests', 'jvm', 'controller', 'connections', 'tls'
+        function Get-KafkaJobsOn {
+            $list = (Invoke-Vigil pack list).Text
+            $s = @($list.Split("`n") | Where-Object { $_ -match '^\s*kafka_\w+\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            return (@($s | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        function Invoke-KJob { param([string]$Job) return [string](Invoke-Vigil run $Job).Code }
+        $kroot = Join-Path $root 'logs\jobs'
+        Test-Equal 'kafka: off until enabled' 'off=19' (Get-KafkaJobsOn)
+        $r = Invoke-Vigil pack enable kafka
+        Test-Equal 'kafka: enabled' '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal 'kafka: its jobs are on' 'on=19' (Get-KafkaJobsOn)
+        $cfg = Join-Path $root 'config\vigil.config'
+        Test-Equal 'kafka: the password is a secret reference, in the jobs that log in' '14' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*KAFKA_PASSWORD=secret:KAFKA_MONITOR_PASSWORD')).Count)
+        Set-VigilSecret 'KAFKA_MONITOR_PASSWORD' $env:VIGIL_IT_KAFKA_PASSWORD
+        Set-Env 'KAFKA_BOOTSTRAP' $env:VIGIL_IT_KAFKA_BOOTSTRAP
+        Set-Env 'KAFKA_HOME' $env:VIGIL_IT_KAFKA_HOME
+        Set-Env 'KAFKA_CACERT' ([string]$env:VIGIL_IT_KAFKA_CACERT)
+        if ($env:VIGIL_IT_KAFKA_JMX) { Set-Env 'KAFKA_JMX' $env:VIGIL_IT_KAFKA_JMX }
+        $r = Invoke-Vigil precheck
+        Test-Equal 'kafka: precheck is happy' '0' ([string]$r.Code)
+
+        # Through the admin listener: a topic with messages, part of them read
+        # by a group that then stops (lag), and a topic with a single replica.
+        # The tools run as the pack runs them: Java, each tool's class read
+        # from its .bat. Names of this run's own.
+        $kid = $PID
+        $kworkload = $false
+        if ($env:VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP) {
+            function Invoke-KafkaAdmin {
+                param([string]$Tool, [string[]]$Arguments)
+                $bat = Join-Path $env:VIGIL_IT_KAFKA_HOME "bin\windows\$Tool.bat"
+                if ([System.IO.File]::ReadAllText($bat) -cnotmatch 'kafka-run-class\.bat"?\s+([\w.$]+)') { return }
+                $java = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { (Get-Command java.exe).Source }
+                [void](& $java -Xmx256m -cp (Join-Path $env:VIGIL_IT_KAFKA_HOME 'libs\*') $Matches[1] @Arguments 2>&1)
+            }
+            $ab = $env:VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP
+            Invoke-KafkaAdmin 'kafka-topics' @('--bootstrap-server', $ab, '--create', '--if-not-exists', '--topic', "vigil_it_orders_$kid", '--partitions', '6')
+            Invoke-KafkaAdmin 'kafka-topics' @('--bootstrap-server', $ab, '--create', '--if-not-exists', '--topic', "vigil_it_single_$kid", '--partitions', '1', '--replication-factor', '1')
+            Invoke-KafkaAdmin 'kafka-producer-perf-test' @('--topic', "vigil_it_orders_$kid", '--num-records', '1000', '--record-size', '100', '--throughput', '-1', '--producer-props', "bootstrap.servers=$ab", 'acks=all')
+            Invoke-KafkaAdmin 'kafka-console-consumer' @('--bootstrap-server', $ab, '--topic', "vigil_it_orders_$kid", '--group', "vigil_it_billing_$kid", '--from-beginning', '--max-messages', '300')
+            $kworkload = $true
+        }
+        else { Write-Host '  SKIP  kafka: a topic, messages and a group with lag: set VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP' }
+        foreach ($j in $kjobs) {
+            Test-Equal "kafka: $j runs" '0' (Invoke-KJob "kafka_$j")
+            Show-LastRun "kafka_$j"
+        }
+        Test-Equal 'kafka: up' '1' (Get-Printed kafka_status up)
+        Test-Equal 'kafka: what it is' 'True' ([string](@(Get-ChildItem -LiteralPath (Join-Path $kroot 'kafka_status') -Filter '*.log' | ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) } |
+                        Where-Object { $_ -cmatch ' out metric info 1 cluster_id=[A-Za-z0-9_-]+ kraft=(yes|no)$' }).Count -gt 0))
+        Test-Equal 'kafka: its brokers' 'yes' (Test-Between kafka_status brokers '' 1 10000)
+        Test-Equal 'kafka: none fenced' '0' (Get-Printed kafka_status brokers_fenced)
+        Test-Equal 'kafka: every partition has a leader' '0' (Get-Printed kafka_replication offline)
+        Test-Equal 'kafka: the topics it sees' 'yes' (Test-Between kafka_replication topics '' 1 1e9)
+        Test-Equal 'kafka: data on disk' 'yes' (Test-Between kafka_logdirs broker_size_bytes '' 1 1e18)
+        Test-Equal 'kafka: ACLs are checked' '1' (Get-Printed kafka_security authorizer)
+        Test-Equal 'kafka: unclean leader election off' '0' (Get-Printed kafka_config unclean_leader_election)
+        Test-Equal 'kafka: TLS on its listener' '1' (Get-Printed kafka_tls tls)
+        Test-Equal 'kafka: its certificate trusted' '1' (Get-Printed kafka_tls trusted)
+        if ($kworkload) {
+            Test-Equal 'kafka: a group behind on a topic' '700' (Get-Printed kafka_consumers lag "group=vigil_it_billing_$kid topic=vigil_it_orders_$kid")
+            Test-Equal 'kafka: messages written, counted' '1000' (Get-Printed kafka_topics messages_count "topic=vigil_it_orders_$kid")
+            Test-Equal 'kafka: the topic has 6 partitions' '6' (Get-Printed kafka_topics partitions "topic=vigil_it_orders_$kid")
+        }
+        if ($env:VIGIL_IT_KAFKA_JMX) {
+            Test-Equal 'kafka: JMX answers' '1' (Get-Printed kafka_throughput jmx_up)
+            Test-Equal 'kafka: messages in, counted' 'yes' (Test-Between kafka_throughput messages_in_count '' 1 1e18)
+            Test-Equal 'kafka: heap read' 'yes' (Test-Between kafka_jvm heap_used_bytes '' 1 1e15)
+        }
+
+        # Failures: a certificate it cannot trust and a wrong password fail the
+        # run and say why; a cluster that is down reads as up 0.
+        if ($env:VIGIL_IT_KAFKA_CACERT) {
+            Set-Env 'KAFKA_CACERT' ''
+            Test-Equal 'kafka: a certificate it cannot trust fails the run' '2' (Invoke-KJob kafka_status)
+            Test-Equal 'kafka: and says why' 'True' (Test-Said kafka_status 'certificate')
+            Test-Equal 'kafka: the certificate is still read' '0' (Invoke-KJob kafka_tls)
+            Test-Equal 'kafka: and reported untrusted' 'True' (Test-Said kafka_tls ' trusted 0 ')
+            Set-Env 'KAFKA_CACERT' $env:VIGIL_IT_KAFKA_CACERT
+        }
+        Set-VigilSecret 'KAFKA_MONITOR_PASSWORD' 'not-the-password'
+        Test-Equal 'kafka: a wrong password fails the run' '2' (Invoke-KJob kafka_status)
+        Test-Equal 'kafka: and says why' 'True' (Test-Said kafka_status 'refused the login')
+        Set-VigilSecret 'KAFKA_MONITOR_PASSWORD' $env:VIGIL_IT_KAFKA_PASSWORD
+        $leaks = @(Get-ChildItem -LiteralPath (Join-Path $root 'logs'), (Join-Path $root 'state'), (Join-Path $root 'spool'), (Join-Path $root 'metrics') -Recurse -File -ErrorAction SilentlyContinue |
+                Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains($env:VIGIL_IT_KAFKA_PASSWORD) })
+        Test-Equal 'kafka: the password is written nowhere' '' ((@($leaks | ForEach-Object { $_.FullName.Substring($root.Length + 1) })) -join ' ')
+        Test-Equal 'kafka: no client configuration is left behind' '0' ([string]@(Get-ChildItem ([System.IO.Path]::GetTempPath()) -Directory -Filter 'vigil-kafka.*' -ErrorAction SilentlyContinue).Count)
+        Set-Env 'KAFKA_BOOTSTRAP' 'localhost:1'
+        Test-Equal 'kafka: a cluster that is down still runs' '0' (Invoke-KJob kafka_status)
+        Test-Equal 'kafka: and reads as up 0' '0' (Get-Printed kafka_status up)
+        Set-Env 'KAFKA_BOOTSTRAP' $env:VIGIL_IT_KAFKA_BOOTSTRAP
+        [void](Invoke-KJob kafka_status)
+
+        [void](Invoke-Vigil supervise --once)
+        Start-Sleep -Seconds 3
+        [void](Invoke-Vigil supervise --once)
+        $prom = [System.IO.File]::ReadAllText((Join-Path $root 'metrics\vigil.prom'))
+        Test-Equal 'kafka: metrics reach the backend' 'True' ([string](($prom -match '(?m)^kafka_up\{') -and ($prom -match '(?m)^kafka_replication_partitions\{')))
     }
 }
 finally {
