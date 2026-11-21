@@ -28,9 +28,18 @@ set -u
 slug=godspeedhq/vigil
 dir=${1:?usage: tour-page.sh <dir> [<run id>]}
 run=${2-}
+# The newest passing run on main whose suites ran, as in evidence.sh: a
+# change of packs or of documentation alone passes without them, and has no
+# tour to show.
 if [ -z "$run" ]; then
-    run=$(gh run list --repo "$slug" --workflow conformance --branch main --status success --limit 1 \
-        --json databaseId --jq '.[0].databaseId' 2> /dev/null)
+    for id in $(gh run list --repo "$slug" --workflow conformance --branch main --status success --limit 30 \
+        --json databaseId --jq '.[].databaseId' 2> /dev/null); do
+        if gh api "repos/$slug/actions/runs/$id/jobs" --paginate \
+            --jq '.jobs[] | select(.name == "bash suite (ubuntu-latest, sources)") | .conclusion' 2> /dev/null | grep -qx success; then
+            run=$id
+            break
+        fi
+    done
 fi
 [ -n "$run" ] || exit 1
 info=$(gh run view "$run" --repo "$slug" --json headSha,updatedAt,url,conclusion \
@@ -89,7 +98,9 @@ tour() {
     } > "$tmp/$file"
 }
 
-tour 'bash (ubuntu-latest)' '/bin/bash tools/docs/tour.sh' 'Linux (Ubuntu)' linux.md &&
-    tour 'bash (macos-latest)' '/bin/bash tools/docs/tour.sh' 'macOS' macos.md &&
-    tour 'windows (PowerShell 5.1)' './tools/docs/Tour.ps1' 'Windows (PowerShell 5.1)' windows.md || exit 1
+# The jobs that run the tours: conformance.yml's sources part for bash, its
+# install part for Windows.
+tour 'bash suite (ubuntu-latest, sources)' '/bin/bash tools/docs/tour.sh' 'Linux (Ubuntu)' linux.md &&
+    tour 'bash suite (macos-latest, sources)' '/bin/bash tools/docs/tour.sh' 'macOS' macos.md &&
+    tour 'windows (PowerShell 5.1, install)' './tools/docs/Tour.ps1' 'Windows (PowerShell 5.1)' windows.md || exit 1
 mkdir -p "$dir" && cp "$tmp/linux.md" "$tmp/macos.md" "$tmp/windows.md" "$dir/"
