@@ -1008,6 +1008,9 @@ else
     check 'jvm: the deadlocked threads, named' yes "$(grep -h ' out metric thread 1 jvm=j21 thread=deadlock-a waits_on=java.lang.Object' "$root"/logs/jobs/jvm_deadlocks/*.log | grep -q 'held_by=deadlock-b' && echo yes || echo no)"
     check 'jvm: leaked threads, over JMX' yes "$(jbetween threads live j8 40 1e6)"
     check 'jvm: and from the counters' yes "$(jbetween threads live plain 40 1e6)"
+    # A thread dump is a moment: the contenders queue for the lock nearly
+    # always, so a moment with none is taken again, twice at most.
+    for _ in 1 2; do [ "$(jbetween contention blocked j17 1 100)" = yes ] && break; vigil run jvm_contention > /dev/null 2>&1; done
     check 'jvm: threads blocked on a lock' yes "$(jbetween contention blocked j17 1 100)"
     check 'jvm: the busy thread, by name' yes "$(jbetween hot_threads cpu_percent j25 1 1000 thread=busy-loop)"
     check "jvm: virtual threads' carriers" yes "$(jbetween virtual_threads carriers j21 1 1000)"
@@ -1107,6 +1110,9 @@ if [ -n "${VIGIL_IT_KAFKA_BOOTSTRAP-}" ] && [ -n "${VIGIL_IT_KAFKA_PASSWORD-}" ]
     check 'kafka: metrics reach the backend' yes "$(grep -q '^kafka_up{' "$root/metrics/vigil.prom" && grep -q '^kafka_consumer_total_lag{' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
 if [ -n "${VIGIL_IT_JVM_TARGETS-}" ] && [ -n "${VIGIL_IT_JVM_PASSWORD-}" ]; then
+    # Forty-one jobs for eight JVMs are a lot of events: the sender may still be
+    # merging them, in the background.
+    for _ in $(seq 1 40); do grep -q '^jvm_deadlocks_deadlocked{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
     check 'jvm: metrics reach the backend' yes "$(grep -q '^jvm_heap_used_bytes{' "$root/metrics/vigil.prom" && grep -q '^jvm_deadlocks_deadlocked{' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then

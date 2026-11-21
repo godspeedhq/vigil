@@ -1477,6 +1477,16 @@ class JvmClient {
                 if ((gcNs == null || gcNs < 0) && pf != null) {
                     Long v = pf.l("sun.threads.cpu_time.gc_total");
                     if (v == null) v = pf.l("sun.threads.total_gc_cpu_time");
+                    if (v == null) {
+                        // Before a total: the GC's threads by kind, added up.
+                        long sum = 0;
+                        boolean any = false;
+                        for (String k : pf.under("sun.threads.cpu_time.gc_")) {
+                            Long p = pf.l(k);
+                            if (p != null && p >= 0) { sum += p; any = true; }
+                        }
+                        if (any) v = sum;
+                    }
                     if (v != null) gcNs = v;
                 }
                 Long procNs = m == null ? null : attrL(m, OS, "ProcessCpuTime");
@@ -1887,7 +1897,7 @@ class JvmClient {
                     Long ms = attrL(m, "java.lang:type=Compilation", "TotalCompilationTime");
                     metric("compile_seconds", ms == null ? null : ms / 1000.0, t);
                 } else if (pf != null) {
-                    metric("compile_seconds", pf.sec("sun.ci.totalTime"), t);
+                    metric("compile_seconds", pf.sec("java.ci.totalTime"), t);
                 }
                 if (pf != null) {
                     metric("compiles", pf.l("sun.ci.totalCompiles"), t);
@@ -1914,10 +1924,18 @@ class JvmClient {
                 Perf pf = t.perf();
                 if (pf == null) return;
                 metric("safepoints", pf.l("sun.rt.safepoints"), t);
-                metric("stopped_seconds", pf.sec("sun.rt.safepointTime"), t);
-                metric("sync_seconds", pf.sec("sun.rt.safepointSyncTime"), t);
-                Double app = pf.sec("sun.rt.applicationTime"), stop = pf.sec("sun.rt.safepointTime");
-                if (app != null && stop != null && app + stop > 0) metric("stopped_percent_lifetime", 100.0 * stop / (app + stop), t);
+                // Newer JVMs keep these in nanoseconds, older ones in the
+                // timer's ticks: the same on Linux, not on Windows (a 10 MHz
+                // timer). Ticks that add up to more time than the JVM has run
+                // are nanoseconds.
+                Long stopT = pf.l("sun.rt.safepointTime"), syncT = pf.l("sun.rt.safepointSyncTime"), appT = pf.l("sun.rt.applicationTime");
+                Long up = pf.l("sun.os.hrt.ticks");
+                double per = pf.hz;
+                if (stopT != null && appT != null && up != null && up > 0 && (stopT + appT) / pf.hz > 1.5 * up / pf.hz) per = 1e9;
+                if (stopT != null) metric("stopped_seconds", stopT / per, t);
+                if (syncT != null) metric("sync_seconds", syncT / per, t);
+                // Against its uptime, which the timer gives surely.
+                if (stopT != null && up != null && up > 0) metric("stopped_percent_lifetime", 100.0 * (stopT / per) / (up / pf.hz), t);
             });
         }
 
