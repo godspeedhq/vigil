@@ -893,13 +893,16 @@ Every run also posts its own metrics, whatever the job prints:
 | Metric | Type | When |
 | --- | --- | --- |
 | `<m>.duration_seconds` | gauge | every completed run |
-| `<m>.runs` | count | every run |
+| `<m>.runs` | count | every run, crashed ones too |
 | `<m>.succeeded` / `.warnings` / `.failures` | count | by outcome (`.failures` tagged `exit_code`) |
 | `<m>.timeouts` | count | stopped for `max_runtime` |
 | `<m>.crashes` | count | the worker vanished without an outcome |
 | `<m>.skipped` / `.missed` | count | overlap skip, or missed while Vigil was down |
 | `<m>.running` | gauge | elapsed seconds, every tick while running |
-| `<m>.uncertain` | gauge | `1` every tick while a run is uncertain |
+| `<m>.uncertain` | gauge | `1` every tick while a run is uncertain, or the job held |
+| `<m>.file_missing` / `.invalid_config` | gauge | `1` every tick while the job's file is missing, or its section invalid |
+
+Each of the last four goes to `0` once its condition ends, so the `file` backend never keeps a stale `1`.
 
 Every metric carries `host`, `os` and `instance` tags plus your `[tags]`. A job's metrics also carry `job` and the job's own `tag` lines.
 

@@ -93,6 +93,8 @@ jobs:
         run: /bin/bash tests/integration/max-runtime.sh
       - name: uncertain runs (/bin/bash)
         run: /bin/bash tests/integration/uncertain.sh
+      - name: run accounting (/bin/bash)
+        run: /bin/bash tests/integration/run-accounting.sh
       - name: crash points (/bin/bash)
         run: /bin/bash tests/integration/crash.sh
       - name: secrets (/bin/bash)
@@ -463,6 +465,9 @@ jobs:
       - name: uncertain runs
         if: matrix.part == 'core'
         run: ./tests/integration/Uncertain.ps1
+      - name: run accounting
+        if: matrix.part == 'core'
+        run: ./tests/integration/Run-Accounting.ps1
       - name: crash points
         if: matrix.part == 'core'
         run: ./tests/integration/Crash.ps1

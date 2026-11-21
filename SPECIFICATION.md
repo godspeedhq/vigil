@@ -995,7 +995,7 @@ A worker that loses exits without running the job. A supervisor that loses treat
 
 ### 11.3 Recovery Decisions
 
-Each tick, for each job, the supervisor gathers the evidence and reaches exactly one of five conclusions:
+Each tick, for each job, the supervisor gathers the evidence and reaches exactly one of five conclusions. That includes a job removed from the configuration, or made invalid in it, while a run of it was active or held: its run is still accounted for each tick, held to the `max_runtime` it started with, and its outcome recorded, until it ends. It is never started again, and `jobs.log` lists it under `RUNNING` with `(no longer in the configuration, or invalid in it)`.
 
 | Conclusion | Established by | Action |
 | --- | --- | --- |
@@ -1139,6 +1139,7 @@ Everything lives under one install root (§18.6 gives the root per platform). A 
     sources/<name>.state          each source's last check: when, what it found, and its last error
     fetch.next                    when the fetcher is next due, and the local file it last read
     supervisor.lock               held open by the live supervisor
+    gauges.raised                 the jobs' state gauges the supervisor last posted as raised (§14.2)
     jobs/<job id>.state
     jobs/vigil_sender.state
     jobs/vigil_fetch.state
@@ -1246,10 +1247,12 @@ The supervisor holds `state/supervisor.lock` open for its whole life, the same w
   2026-10-30T15:07:35Z 20261030T150733Z-16052 run end succeeded in 1s, cpu 0.84s
   ```
 
+  While a run is active, its output so far is in two files of its own beside the job log, `<run id>.out` and `<run id>.err` (on Windows, `<run id>.out.raw` and `<run id>.err.raw` while the job writes them). When the run ends, its worker copies them into the job log and deletes them. A run whose worker did not live to do so (`crashed`) leaves them there: what the job printed before the crash.
+
   `run` lines are Vigil's own (`start`, then `end <outcome> [(<reason>)] in <n>s, cpu <cpu_seconds>s`, the CPU being the run's `cpu_seconds`, §12.2, and the last thing on the line, so a reason never hides it); `out` and `err` lines are the job's stdout and stderr, one line each, unchanged except that a trailing carriage return is removed.
 - **stdout mirroring:** optional, so service managers (NSSM, journald, launchd) capture the supervisor's output.
 
-Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014). A job may keep its own log for a different number of days with `log_retain_days` (§6.6); the size cap is global. The cap defaults to 50 MB, and is checked when a run starts and at each tick, so a file can pass it by one run's output. A file that reaches the cap is never truncated or renamed: writing continues in a new file with the next sequence number, `yyyy-MM-dd.1.log`, `yyyy-MM-dd.2.log` and so on. Log files are therefore append-only and their names are never reused; retention deletes whole files only. The supervisor applies it when it starts and once a day: a file goes when the date in its name is more than `retain_days` before today. The log of a job the configuration no longer names follows `[log] retain_days`.
+Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every log file (VIGIL-014). A job may keep its own log for a different number of days with `log_retain_days` (§6.6); the size cap is global. The cap defaults to 50 MB, and is checked when a run starts and at each tick, so a file can pass it by one run's output. A file that reaches the cap is never truncated or renamed: writing continues in a new file with the next sequence number, `yyyy-MM-dd.1.log`, `yyyy-MM-dd.2.log` and so on. Log files are therefore append-only and their names are never reused; retention deletes whole files only. The supervisor applies it when it starts and once a day: a file goes when the date in its name is more than `retain_days` before today. A crashed run's `.out` and `.err` files go the same way, by the date their run id starts with, unless the run still holds its token. The log of a job the configuration no longer names follows `[log] retain_days`.
 
 ### 13.2 Status File
 
@@ -1259,7 +1262,7 @@ Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every
 - `UNCERTAIN` (with the reason; §11.4)
 - `CRASHED` / `ORPHANED`
 - `INVALID` (with the validation reason)
-- `RUNNING` (PID, elapsed, time to `max_runtime`)
+- `RUNNING` (PID, elapsed, time to `max_runtime`; `starting` until the worker has written the run's state). A job held after its run ended, until `vigil resolve` (§11.4), is listed under `UNCERTAIN` only.
 - `WAITING` (next scheduled time)
 - `DISABLED`
 - `LAST RUN` (outcome, end time, duration)
@@ -1411,23 +1414,25 @@ Posted for each job under its `metric_name`:
 | Metric | Type | When |
 | --- | --- | --- |
 | `<m>.duration_seconds` | gauge | Every completed run. |
-| `<m>.runs` | count | Every run started. |
+| `<m>.runs` | count | Every run started, counted when it ends: by its worker, or by the supervisor when it records the outcome itself (`crashed`, or `timed_out` after the worker went). |
 | `<m>.succeeded` | count | Run succeeded. |
 | `<m>.warnings` | count | Nagios warning. |
 | `<m>.failures` | count | Run failed or unknown. Tagged `exit_code`. |
 | `<m>.timeouts` | count | `max_runtime` exceeded. |
 | `<m>.crashes` | count | Worker vanished without a final state. |
 | `<m>.abandoned_launches` | count | A launched worker never claimed its run; the job did not run (§11.3). |
-| `<m>.uncertain` | gauge | `1` every tick while a run's liveness cannot be established (§11.4). |
+| `<m>.uncertain` | gauge | `1` every tick while a run's liveness cannot be established, or the job is held (§11.4); `0` once. |
 | `<m>.possible_duplicates` | count | A run started under `on_uncertain = replace`. |
 | `<m>.state_corrupt` | count | The job's state file was unreadable. |
 | `<m>.skipped` | count | A slot skipped because the job's previous run was still active (§9). |
 | `<m>.missed` | count | Missed while the supervisor was down. |
-| `<m>.running` | gauge | Elapsed seconds, every tick while running. |
-| `<m>.invalid_config` | gauge | `1` every tick while the job fails validation. |
-| `<m>.file_missing` | gauge | `1` every tick while the job's file is missing. |
+| `<m>.running` | gauge | Elapsed seconds, every tick while running; `0` once. |
+| `<m>.invalid_config` | gauge | `1` every tick while the job fails validation; `0` once. |
+| `<m>.file_missing` | gauge | `1` every tick while the job's file is missing; `0` once. |
 | `<m>.invalid_metric_lines` | count | A run printed metric lines or perfdata items that did not parse (§14.3). |
 | `<m>.dropped_metric_lines` | count | A run printed more metric lines and perfdata items than the cap (§14.3). |
+
+The four state gauges, `running`, `uncertain`, `invalid_config` and `file_missing`, are posted while their condition holds, then once as `0`, the first tick it no longer does, so a backend that keeps a gauge's last value, as the `file` backend does, does not keep the old one. The supervisor keeps the ones it raised in `state/gauges.raised`, so one that restarts still lowers them; without that file, its first tick posts `0` once for each of every configured job's that it does not raise.
 
 ### 14.3 Job-Emitted Metrics
 

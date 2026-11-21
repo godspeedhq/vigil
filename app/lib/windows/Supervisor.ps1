@@ -219,6 +219,7 @@ function Invoke-VigilSupervisor {
         Queued = New-Object 'System.Collections.Generic.HashSet[string]'; Seq = 0; Sum = ''
         ReloadFailed = 0; Valid = ''; ValidSha = ''; ActiveSha = ''; Parsed = $null; Records = $null; Index = $null; Report = @()
         HostName = $env:COMPUTERNAME.ToLowerInvariant(); Boot = Get-VigilBootId
+        Raised = New-Object 'System.Collections.Generic.HashSet[string]'; RaisedLast = $null
     }
     $shell = (Get-Process -Id $PID).Path
 
@@ -350,16 +351,24 @@ function Invoke-VigilSupervisor {
         return $true
     }
 
-    # A job's cached script, when its file comes from a source: @{ Ok;
-    # Path }, Path empty for a local file.
+    # A job's script: its cached copy when its file comes from a source, else
+    # its local file. @{ Ok; Path }: Ok false when it is missing, Path empty
+    # for a local file.
     $scriptOf = {
         param([string]$Job)
-        if ($sv.Mode -cne 'fetch') { return @{ Ok = $true; Path = '' } }
-        $src = Get-VigilConfigValue $sv.Parsed "job.$Job" 'source' ''
-        if (-not $src) { return @{ Ok = $true; Path = '' } }
-        $p = Get-VigilActiveScript -Root $sv.Root -Active $sv.Active -Source $src -File (Get-VigilConfigValue $sv.Parsed "job.$Job" 'file' '')
-        if ($p -and [System.IO.File]::Exists($p)) { return @{ Ok = $true; Path = $p } }
-        return @{ Ok = $false; Path = '' }
+        $file = Get-VigilConfigValue $sv.Parsed "job.$Job" 'file' ''
+        if ($sv.Mode -ceq 'fetch') {
+            $src = Get-VigilConfigValue $sv.Parsed "job.$Job" 'source' ''
+            if ($src) {
+                $p = Get-VigilActiveScript -Root $sv.Root -Active $sv.Active -Source $src -File $file
+                if ($p -and [System.IO.File]::Exists($p)) { return @{ Ok = $true; Path = $p } }
+                return @{ Ok = $false; Path = '' }
+            }
+        }
+        # A local file, resolved against the root as the worker resolves it
+        # (6.4): missing, the job is FILE MISSING until it returns (16.3).
+        if ($file -and -not [System.IO.File]::Exists((Resolve-VigilPath -Path $file -Platform 'windows' -Root $sv.Root))) { return @{ Ok = $false; Path = '' } }
+        return @{ Ok = $true; Path = '' }
     }
 
     # Whether the fetcher should run: when no fetch has been made, when the
@@ -399,6 +408,9 @@ function Invoke-VigilSupervisor {
             $m = (Get-VigilIndexValue -Index $sv.Index -Section "job.$Job" -Key 'metric_name').Value
             if (-not $m) { $m = $Job }
             $sv.Events.Add("$($sv.Epoch) $m.$Name $Value $Type $($sv.Tags) job=$Job")
+            # A job's state gauges, raised this tick: lowered with a 0 once
+            # they are not ($lower).
+            if ($Type -ceq 'gauge' -and $Value -cne '0' -and $Name -cmatch '^(running|uncertain|file_missing|invalid_config)$') { [void]$sv.Raised.Add("${Name}:$Job") }
         }
         else { $sv.Events.Add("$($sv.Epoch) vigil.supervisor.$Name $Value $Type $($sv.Tags)") }
     }
@@ -415,6 +427,9 @@ function Invoke-VigilSupervisor {
             & $log 'WARN' "job ${Job}: unreadable state file quarantined"
         }
         $fields = [ordered]@{ schema_version = 1; job = $Job; run_id = $RunId; instance = $sv.Instance }
+        # A run whose outcome the supervisor records was a run all the same:
+        # its worker, which would have counted it, never got that far (14.2).
+        if ($Conclusion -cne 'finished') { & $event $Job 'runs' '1' 'count' }
         if ($Conclusion -ceq 'finished') {
             $fields.status = $Spool.Outcome
             $fields.reason = 'reconciled from the spool file'
@@ -442,7 +457,8 @@ function Invoke-VigilSupervisor {
         Write-VigilStateFile -Path $path -Fields $fields
     }
 
-    # Accounts for a job's latest run (11.3). Returns @{ Active; State }.
+    # Accounts for a job's latest run (11.3). Returns @{ Active; State; Held },
+    # Held when the job is held (11.4).
     $account = {
         param([string]$Job)
         $locks = Join-Path $sv.State 'locks'
@@ -555,7 +571,7 @@ function Invoke-VigilSupervisor {
             $sv.Uncertain.Add("${Job}: $reason")
             & $event $Job 'uncertain' '1' 'gauge'
             if ($policy -ceq 'replace') { [void]$sv.Replacing.Add($Job) } else { $active = 'running' }
-            return @{ Active = $active; State = $st }
+            return @{ Active = $active; State = $st; Held = ($policy -cne 'replace') }
         }
         if ($rec.RunId) {
             if ($rec.Policy -ceq 'manual' -and -not $rec.ResolvedAt) {
@@ -601,15 +617,17 @@ function Invoke-VigilSupervisor {
                 if ([System.IO.File]::Exists($marker)) { try { [System.IO.File]::Delete($marker) } catch { } }
             }
         }
+        $held = $false
         if ($hold) {
             if ($c -cne 'alive' -and $c -cne 'launching') {
                 Write-VigilRecoveryRecord $sv.State $Job $rec.RunId $c $rec.Reason 'manual' $rec $sv.Epoch
+                $held = $true
             }
             $active = 'running'
             $sv.Uncertain.Add("${Job}: run $($rec.RunId) $c; held until vigil resolve (on_uncertain = manual)")
             & $event $Job 'uncertain' '1' 'gauge'
         }
-        return @{ Active = $active; State = $st }
+        return @{ Active = $active; State = $st; Held = $held }
     }
 
     # Stops a run past its deadline (10.3, 11.5, 11.6), only once its job
@@ -755,6 +773,93 @@ function Invoke-VigilSupervisor {
         }
     }
 
+    # jobs.log's line (13.2) for a job whose run is accounted active ($Acc):
+    # its PID, how long it has run, and how long until max_runtime; a run
+    # whose worker has not written its state yet is starting. A job held
+    # after its run ended, for vigil resolve, is shown under UNCERTAIN only,
+    # and is not a worker.
+    $showRunning = {
+        param([string]$Job, $Acc, $Status, [string]$Note)
+        if ($Acc.Held -and $Acc.State.Kind -cne 'running') { return }
+        $sv.Running++
+        $line = "${Job}: starting"
+        if ($Acc.State.Kind -ceq 'running' -and $Acc.State.Started) {
+            # The tick's time is read once, at its start, and a run
+            # launched by the last tick can start after it: never below 0.
+            $for = [Math]::Max([long]0, $sv.Epoch - [long]$Acc.State.Started)
+            & $event $Job 'running' "$for" 'gauge'
+            $line = "${Job}:"
+            if ($Acc.State.JobPid) { $line += " pid $($Acc.State.JobPid)," }
+            $line += " running for ${for}s"
+            if ($Acc.State.Deadline) {
+                $left = [long]$Acc.State.Deadline - $sv.Epoch
+                $line += $(if ($left -gt 0) { ", max_runtime in ${left}s" } else { ', past max_runtime' })
+            }
+        }
+        $Status.Running += "$line$Note"
+    }
+
+    # The jobs with a run Vigil still answers for, but which this tick did
+    # not account for ($Accounted): removed from the configuration, or
+    # invalid in it, since the run started. Each is accounted for until its
+    # run ends, so it is still held to its max_runtime, and its outcome
+    # recorded. Vigil's own workers are accounted for apart.
+    $leftover = {
+        param($Accounted)
+        $found = New-Object 'System.Collections.Generic.List[string]'
+        $seen = New-Object 'System.Collections.Generic.HashSet[string]'
+        foreach ($d in @(@('locks', '*.launch'), @('locks', '*.token'), @('recovery', '*.recovery'), @('jobs', '*.state'))) {
+            $dir = Join-Path $sv.State $d[0]
+            if (-not [System.IO.Directory]::Exists($dir)) { continue }
+            foreach ($f in [System.IO.Directory]::GetFiles($dir, $d[1])) {
+                $j = [System.IO.Path]::GetFileName($f).Split('.')[0]
+                if (-not $j -or $j.StartsWith('vigil_', [System.StringComparison]::Ordinal) -or $Accounted.Contains($j) -or $seen.Contains($j)) { continue }
+                if ($d[0] -ceq 'jobs') {
+                    $isRunning = $false
+                    try { $isRunning = @([System.IO.File]::ReadAllLines($f) | Where-Object { $_ -cmatch '^status *= *running *$' }).Count -gt 0 } catch { }
+                    if (-not $isRunning) { continue }
+                }
+                [void]$seen.Add($j)
+                $found.Add($j)
+            }
+        }
+        return , $found
+    }
+
+    # A job's state gauges (running, uncertain, file_missing, invalid_config)
+    # raised last tick and not this one are sent once as 0, so a backend that
+    # keeps a gauge's last value, as the file does, does not keep the 1
+    # (14.2). Those raised are kept in state\gauges.raised, so a supervisor
+    # that restarts still lowers them; with none kept, the first tick lowers
+    # every configured job's.
+    $lower = {
+        $f = Join-Path $sv.State 'gauges.raised'
+        if ($null -eq $sv.RaisedLast) {
+            $sv.RaisedLast = New-Object 'System.Collections.Generic.HashSet[string]'
+            if ([System.IO.File]::Exists($f)) {
+                # -split, not String.Split: its overloads differ between
+                # Windows PowerShell and PowerShell 7.
+                foreach ($w in ([System.IO.File]::ReadAllText($f) -split '\s+')) { if ($w.Contains(':')) { [void]$sv.RaisedLast.Add($w) } }
+            }
+            else {
+                foreach ($sec in $sv.Parsed.Sections) {
+                    if (-not $sec.Name.StartsWith('job.', [System.StringComparison]::Ordinal)) { continue }
+                    foreach ($g in 'running', 'uncertain', 'file_missing', 'invalid_config') { [void]$sv.RaisedLast.Add("${g}:$($sec.Name.Substring(4))") }
+                }
+            }
+        }
+        foreach ($w in @($sv.RaisedLast | Sort-Object)) {
+            if ($sv.Raised.Contains($w)) { continue }
+            $i = $w.IndexOf(':')
+            & $event $w.Substring($i + 1) $w.Substring(0, $i) '0' 'gauge'
+        }
+        if (-not $sv.RaisedLast.SetEquals($sv.Raised) -or -not [System.IO.File]::Exists($f)) {
+            Write-VigilFileAtomic -Path $f -Text ((@($sv.Raised | Sort-Object) -join ' ') + "`n")
+        }
+        $sv.RaisedLast = New-Object 'System.Collections.Generic.HashSet[string]'
+        foreach ($w in $sv.Raised) { [void]$sv.RaisedLast.Add($w) }
+    }
+
     $tick = {
         $now = [DateTimeOffset]::Now
         $sv.Epoch = $now.ToUnixTimeSeconds()
@@ -763,12 +868,14 @@ function Invoke-VigilSupervisor {
         $sv.LogFile = ''
         $sv.Iso = $now.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture)
         $sv.Events = New-Object 'System.Collections.Generic.List[string]'
+        $sv.Raised = New-Object 'System.Collections.Generic.HashSet[string]'
         $sv.Running = 0
         $sv.Uncertain = New-Object 'System.Collections.Generic.List[string]'
         $sv.Replacing = New-Object 'System.Collections.Generic.HashSet[string]'
         $sv.Crashed = New-Object 'System.Collections.Generic.List[string]'
         $sv.Orphaned = New-Object 'System.Collections.Generic.List[string]'
         $status = @{ Running = @(); Waiting = @(); Disabled = @(); Invalid = @(); Last = @(); Missing = @() }
+        $accounted = New-Object 'System.Collections.Generic.HashSet[string]'
 
         [void](& $loadConfig)
         $sv.LogFile = Get-VigilLogFile -Parsed $sv.Parsed -Dir (Join-Path $sv.Logs 'supervisor') -Day $sv.Date
@@ -804,28 +911,9 @@ function Invoke-VigilSupervisor {
             }
 
             $acc = & $account $job
+            [void]$accounted.Add($job)
             $active = $acc.Active
-            if ($active -ceq 'running') {
-                $sv.Running++
-                # jobs.log (13.2): its PID, how long it has run, and how long
-                # until max_runtime; a run whose worker has not written its
-                # state yet is starting.
-                $line = "${job}: starting"
-                if ($acc.State.Kind -ceq 'running' -and $acc.State.Started) {
-                    # The tick's time is read once, at its start, and a run
-                    # launched by the last tick can start after it: never below 0.
-                    $for = [Math]::Max([long]0, $sv.Epoch - [long]$acc.State.Started)
-                    & $event $job 'running' "$for" 'gauge'
-                    $line = "${job}:"
-                    if ($acc.State.JobPid) { $line += " pid $($acc.State.JobPid)," }
-                    $line += " running for ${for}s"
-                    if ($acc.State.Deadline) {
-                        $left = [long]$acc.State.Deadline - $sv.Epoch
-                        $line += $(if ($left -gt 0) { ", max_runtime in ${left}s" } else { ', past max_runtime' })
-                    }
-                }
-                $status.Running += $line
-            }
+            if ($active -ceq 'running') { & $showRunning $job $acc $status '' }
             else {
                 # A run held by queue_one is admitted once the active run ends.
                 if ($sv.Queued.Remove($job)) { $sv.Pending.Add($job) }
@@ -883,6 +971,16 @@ function Invoke-VigilSupervisor {
             if ($d.Next -cne '-') { $status.Waiting += "${job}: next $($d.Next)" }
         }
 
+        # Runs of jobs removed from the configuration, or now invalid in it,
+        # are still Vigil's: accounted for until they end (11.3), never
+        # started again.
+        if (-not $sv.Waiting) {
+            foreach ($job in (& $leftover $accounted)) {
+                $acc = & $account $job
+                if ($acc.Active -ceq 'running') { & $showRunning $job $acc $status ' (no longer in the configuration, or invalid in it)' }
+            }
+        }
+
         # Saved before this tick's runs start, so it never names one of them:
         # a crash after a launch then cannot start a held run a second time
         # (backlog 58). The runs about to start are not saved: one a crash
@@ -919,6 +1017,7 @@ function Invoke-VigilSupervisor {
                 if ($okAt) { $sv.Events.Add("$($sv.Epoch) vigil.source.check_age $($sv.Epoch - [long]$okAt) gauge $($sv.Tags) source=$([System.IO.Path]::GetFileNameWithoutExtension($p))") }
             }
         }
+        if (-not $sv.Waiting) { & $lower }
         $incoming = Join-Path $sv.Spool 'incoming'
         [void](New-Item -ItemType Directory -Force -Path $incoming)
         Write-VigilFileAtomic -Path (Join-Path $incoming "$($sv.Epoch)-vigil_supervisor.events") -Text (($sv.Events | ForEach-Object { "$_`n" }) -join '')
@@ -966,7 +1065,7 @@ function Invoke-VigilSupervisor {
         $day = [long][Math]::Floor($sv.Epoch / 86400)
         if (-not $sv.Waiting -and $sv.Retained -ne $day) {
             $sv.Retained = $day
-            $n = Remove-VigilOldLogs -Parsed $sv.Parsed -LogDir $sv.Logs -Epoch $sv.Epoch
+            $n = Remove-VigilOldLogs -Parsed $sv.Parsed -LogDir $sv.Logs -Epoch $sv.Epoch -StateDir $sv.State
             if ($n -gt 0) { & $log 'INFO' "retention: deleted $n old log files" }
         }
 

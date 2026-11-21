@@ -419,7 +419,7 @@ started_epoch    = 1795194305
 ended_epoch      = 1795194315
 ```
 
-It's a shorter record: no exit code or duration, because nobody saw the run end. `<metric>.crashes` counts it. A crashed run is never treated as a success, and the job is **not** restarted straight away: it runs again at its next scheduled time, so a job that keeps crashing can't turn into a tight restart loop.
+It's a shorter record: no exit code or duration, because nobody saw the run end. `<metric>.crashes` counts it, and so does `<metric>.runs`: it was a run, even if nobody saw it end. A crashed run is never treated as a success, and the job is **not** restarted straight away: it runs again at its next scheduled time, so a job that keeps crashing can't turn into a tight restart loop.
 
 **The output is still there.** The job log has only `run start` for a crashed run, because the worker died before it could copy the output in. What the script printed is in the run's own file, beside the job log:
 
@@ -466,7 +466,7 @@ loaded
 metric rows_loaded 1200
 ```
 
-So **a crashed run is one whose outcome nobody saw, not necessarily one that did nothing.** Before you rerun a crashed job, read its `.out` and `.err` files, and check what it was supposed to change.
+So **a crashed run is one whose outcome nobody saw, not necessarily one that did nothing.** Before you rerun a crashed job, read its `.out` and `.err` files, and check what it was supposed to change. They're kept as long as the job's log (`retain_days`), then retention deletes them.
 
 ### The supervisor stops or restarts
 
@@ -497,7 +497,7 @@ While the supervisor is down:
 
 - **`max_runtime` isn't enforced.** The first tick after it returns enforces it.
 - **`jobs.log` stops changing.** `vigil status` on a machine without the service shows the last one written, so check the time on its first line. An installed Vigil's `vigil status` says first whether the service is running.
-- **Metrics stop being delivered.** Runs that end meanwhile leave their events in `spool/incoming/`, and they're sent when the supervisor returns. The `vigil.supervisor.up` heartbeat stops, which is how a backend sees that Vigil itself is down. One catch with the `file` backend: the file keeps every gauge's last value, so it still said `vigil_supervisor_up ... 1` here after the supervisor had stopped. Watch the file's age instead: node_exporter's textfile collector reports it as `node_textfile_mtime_seconds`. (The same goes for a job's `.running` and `.uncertain` gauges: in the file they keep their last value after the run, or the hold, is over.)
+- **Metrics stop being delivered.** Runs that end meanwhile leave their events in `spool/incoming/`, and they're sent when the supervisor returns. The `vigil.supervisor.up` heartbeat stops, which is how a backend sees that Vigil itself is down. One catch with the `file` backend: the file keeps every gauge's last value, so it still said `vigil_supervisor_up ... 1` here after the supervisor had stopped. Nothing is left running to set it to 0, so watch the file's age instead: node_exporter's textfile collector reports it as `node_textfile_mtime_seconds`. A job's state gauges (`.running`, `.uncertain`, `.file_missing`, `.invalid_config`) don't have this problem: the supervisor sets each one to 0 when its condition ends, even across a restart.
 
 ### The machine reboots
 
@@ -588,7 +588,7 @@ UNCERTAIN
   db_dump: run 20261120T170905Z-1068780-44 idle; held until vigil resolve (on_uncertain = manual)
 ```
 
-(`idle` means no process of the run is left. In the same `jobs.log`, `db_dump` was also listed under `RUNNING` as `starting`, though nothing started: that's how a held job is listed, and the supervisor log, which shows no new run, is the one to trust.)
+(`idle` means no process of the run is left.)
 
 Once you've checked the dump, release the job:
 
@@ -639,18 +639,27 @@ counted in `<metric>.skipped`. A skip isn't a failure. With `overlap = queue_one
 shop_orders_export_abandoned_launches_total{host="fedora",instance="db-01",job="orders_export",os="linux"} 1
 ```
 
-**A script that isn't there: `failed`, with the reason.** `invoice_sync` was added to the configuration before its script was copied in. Each run fails without starting anything, until the file arrives:
+**A script that isn't there: `FILE MISSING`.** `invoice_sync` was added to the configuration before its script was copied in. Vigil doesn't start it. It lists it in `jobs.log`, and sets `<metric>.file_missing` to `1`:
 
 ```text
-2026-11-20T17:13:07Z 20261120T171306Z-1068780-81 run start
-2026-11-20T17:13:07Z 20261120T171306Z-1068780-81 run end failed (file not found: /home/vigil-test/docfail/root/scripts/invoice_sync.sh) in 0s, cpu 0.24s
-2026-11-20T17:15:02Z 20261120T171502Z-1167118-10 run start
-2026-11-20T17:15:02Z 20261120T171502Z-1167118-10 out 3 invoices synced
-2026-11-20T17:15:02Z 20261120T171502Z-1167118-10 out metric invoices_synced 3
-2026-11-20T17:15:02Z 20261120T171502Z-1167118-10 run end succeeded in 0s, cpu 0.24s
+FILE MISSING
+  invoice_sync
 ```
 
-The failure has no exit code, since nothing ran, so `failures` has no `exit_code` tag. `vigil precheck` reports a missing file before the first run does. (A script fetched from a [source](README.md#sources) is different: until it's fetched, the job is listed under `FILE MISSING` and doesn't run at all.)
+```text
+invoice_sync_file_missing{host="fedora",instance="shop",job="invoice_sync",os="linux"} 1
+```
+
+No run starts, so the job log stays empty and nothing counts as a failure. Once the file arrives, the job runs at its next scheduled time, with no restart:
+
+```text
+2026-11-21T08:48:01Z 20261121T084801Z-1691909-1 run start
+2026-11-21T08:48:01Z 20261121T084801Z-1691909-1 out 3 invoices synced
+2026-11-21T08:48:01Z 20261121T084801Z-1691909-1 out metric invoices_synced 3
+2026-11-21T08:48:01Z 20261121T084801Z-1691909-1 run end succeeded in 0s, cpu 0.13s
+```
+
+and `file_missing` goes back to `0`. `vigil precheck` reports a missing file before the supervisor does. A script fetched from a [source](README.md#sources) behaves the same way until it's fetched.
 
 **A job that isn't valid.** A mistake in one job's section sets that job aside: it's listed under `INVALID` with the reason, `<metric>.invalid_config` is `1`, and it doesn't run until the section is fixed. The other jobs carry on. A mistake outside any job rejects the whole edit, and the last good configuration keeps running.
 
@@ -668,6 +677,8 @@ The failure has no exit code, since nothing ran, so `failures` has no `exit_code
 | The machine reboots | Concludes every run from before the boot; schedules as normal | Nothing, usually |
 | A run is uncertain | Holds the job, reports it every tick, kills nothing; under `wait` releases it when the evidence settles | Under `manual`, check the run's work, then `vigil resolve <job>` |
 | A slot is skipped, missed or abandoned | Logs it and counts it | Nothing, unless it keeps happening |
+| A job's script is missing | Lists it under `FILE MISSING`, sets `file_missing`, starts nothing; runs it once the file is back | Put the file back |
+| A job is removed while it runs | Still holds the run to its `max_runtime` and records how it ended; never starts it again | Nothing |
 | A metrics backend is down | Keeps the events in the spool and retries, backing off; drops events only once the spool reaches `[spool] max_mb`, and counts every drop | Fix the backend |
 
 ---

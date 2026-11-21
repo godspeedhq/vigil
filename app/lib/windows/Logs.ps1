@@ -30,8 +30,9 @@
         The categories to forward.
     Test-VigilLogsOutput -Parsed <parsed> -Job <id>
         Whether a job's stdout and stderr may be forwarded.
-    Remove-VigilOldLogs -Parsed <parsed> -LogDir <dir> -Epoch <time>
-        Deletes the log files older than their retention (13.1).
+    Remove-VigilOldLogs -Parsed <parsed> -LogDir <dir> -Epoch <time> [-StateDir <dir>]
+        Deletes the log files, and the output crashed runs left, older than
+        their retention (13.1).
     ConvertTo-VigilLogRecord -File <file> -Line <line> -Include <list> -Output <bool> -Type <type> -Shared <text>
         Pure: the destination's record of one line of a log file (relative
         to the log directory, with / separators), or '' when it is not
@@ -178,10 +179,12 @@ function ConvertFrom-VigilLogTime {
 }
 
 # Deletes dated log files older than their retention (13.1), whole, and
-# never for the forwarder's sake (13.4.4). The status file has no date.
-# Returns the number deleted.
+# never for the forwarder's sake (13.4.4). The status file has no date. So
+# is the output a run left beside its job log when its worker did not live
+# to copy it in (a crashed run), by the date its run id starts with: never
+# a run's whose token is still in $StateDir. Returns the number deleted.
 function Remove-VigilOldLogs {
-    param($Parsed, [string]$LogDir, [long]$Epoch)
+    param($Parsed, [string]$LogDir, [long]$Epoch, [string]$StateDir = '')
     $today = [long][Math]::Floor($Epoch / 86400)
     $removed = 0
     $base = Get-VigilConfigValue $Parsed 'log' 'retain_days' '7'
@@ -199,6 +202,18 @@ function Remove-VigilOldLogs {
         foreach ($f in [System.IO.Directory]::GetFiles($x.Dir, '*.log')) {
             if ([System.IO.Path]::GetFileName($f) -cnotmatch '^([0-9]{4})-([0-9]{2})-([0-9]{2})([.][0-9]+)?[.]log$') { continue }
             if ($today - (Get-VigilLogDays $Matches[1] $Matches[2] $Matches[3]) -gt $x.Keep) {
+                try { [System.IO.File]::Delete($f); $removed++ } catch { }
+            }
+        }
+        if ($x.Dir -ceq $sup) { continue }
+        $job = [System.IO.Path]::GetFileName($x.Dir)
+        foreach ($f in [System.IO.Directory]::GetFiles($x.Dir)) {
+            $name = [System.IO.Path]::GetFileName($f)
+            if ($name -cnotmatch '^(([0-9]{4})([0-9]{2})([0-9]{2})T[0-9]{6}Z-[^.]*)[.](out|err)([.]raw)?$') { continue }
+            $rid = $Matches[1]
+            $days = Get-VigilLogDays $Matches[2] $Matches[3] $Matches[4]
+            if ($StateDir -and [System.IO.File]::Exists((Join-Path $StateDir "locks\$job.$rid.token"))) { continue }
+            if ($today - $days -gt $x.Keep) {
                 try { [System.IO.File]::Delete($f); $removed++ } catch { }
             }
         }
