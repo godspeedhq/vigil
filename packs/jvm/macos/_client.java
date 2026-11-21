@@ -243,7 +243,16 @@ class JvmClient {
                 Object name = t.mbs.getAttribute(new ObjectName("java.lang:type=Runtime"), "Name");
                 String s = String.valueOf(name);
                 long pid = Long.parseLong(s.substring(0, s.indexOf('@')));
-                for (Proc p : Procs.list()) if (p.pid == pid) t.proc = p;
+                // The same pid and the same options: a JVM in a container,
+                // its port published here, has a pid of its own container's,
+                // which may be another JVM's here.
+                Object in = t.mbs.getAttribute(new ObjectName("java.lang:type=Runtime"), "InputArguments");
+                for (Proc p : Procs.list()) {
+                    if (p.pid != pid) continue;
+                    boolean same = true;
+                    if (in instanceof String[]) for (String a : (String[]) in) if (!p.matches(a)) same = false;
+                    if (same) t.proc = p;
+                }
             } catch (Exception e) { /* not here */ }
         }
 
