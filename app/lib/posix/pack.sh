@@ -870,7 +870,7 @@ _vigil_pack_update() {
         if ! _vigil_self_newer "$_vp_pick" "$was"; then
             printf 'pack %s %s is here: nothing to do\n' "$name" "$was"
         elif [ "$check" = 1 ]; then
-            printf 'pack %s %s is here; %s is available: vigil pack update\n' "$name" "$was" "$_vp_pick"
+            printf 'pack %s %s is here; %s is available: vigil pack update %s\n' "$name" "$was" "$_vp_pick" "$name"
         else
             _vigil_pack_put "$root" "$name" || rc=1
         fi
@@ -1097,7 +1097,7 @@ _vigil_pack_info() {
     _vigil_pack_pick "$name" '' "$_vp_os" "$_vp_mine" || :
     if [ -n "$was" ]; then
         if [ -n "$_vp_pick" ] && _vigil_self_newer "$_vp_pick" "$was"; then
-            here="$was installed; $_vp_pick is available: vigil pack update"
+            here="$was installed; $_vp_pick is available: vigil pack update $name"
         elif [ -n "$_vp_newer" ] && _vigil_self_newer "$_vp_newer" "$was"; then
             here="$was installed; $_vp_newer needs Vigil $_vp_newer_vigil or later: vigil self update"
         elif [ "$was" = "$newest" ]; then

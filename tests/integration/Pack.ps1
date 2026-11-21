@@ -187,7 +187,7 @@ try {
     [System.IO.File]::WriteAllText($cfg, $t)
     Publish-Pack 'packs-2026.01.02' base '1.1.0' @('cpu', 'load')
     Publish-Pack 'packs-2026.01.02' web '1.0.0' @('status') -About 'A web server'
-    Test-Equal 'the check says so' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' (Invoke-Vigil pack update --check).Text
+    Test-Equal 'the check says so' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update base' (Invoke-Vigil pack update --check).Text
     Test-Equal 'the check changes nothing' '1.0.0' (Get-PackVersion)
     $was = Get-Text $cfg
     $r = Invoke-Vigil pack update
@@ -279,7 +279,7 @@ try {
     # One pack by name: the others are left as they are.
     Test-Equal 'update by name: that pack only' 'pack web 1.0.0 is here: nothing to do|  web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' (@((Invoke-Vigil pack update web).Text.Split("`n") | ForEach-Object { $_.TrimEnd() } | Where-Object { $_ }) -join '|')
     Test-Equal 'and the other pack is left behind' '1.1.0' (Get-PackVersion)
-    Test-Equal 'the check, by name' 'pack base 1.1.0 is here; 1.2.0 is available: vigil pack update' (Invoke-Vigil pack update --check base).Text.TrimEnd()
+    Test-Equal 'the check, by name' 'pack base 1.1.0 is here; 1.2.0 is available: vigil pack update base' (Invoke-Vigil pack update --check base).Text.TrimEnd()
     $r = Invoke-Vigil pack update nosuch
     Test-Equal 'a pack not installed, by name' 'vigil: pack nosuch is not installed: vigil pack install nosuch|1' "$($r.Text.TrimEnd())|$($r.Code)"
     $r = Invoke-Vigil pack update base@1.0.0

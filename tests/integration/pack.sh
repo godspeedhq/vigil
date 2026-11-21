@@ -161,7 +161,7 @@ check 'nothing to do' 'pack base 1.0.0 is here: nothing to do' "$(vigil pack upd
 sed -i.bak '/job.base_cpu/,/job.base_disk/s/^run_every = 1h$/run_every = 5m/' "$cfg" && rm -f "$cfg.bak"
 publish packs-2026.01.02 base 1.1.0 cpu load
 DESC='A web server' publish packs-2026.01.02 web 1.0.0 status
-check 'the check says so' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update' "$(vigil pack update --check)"
+check 'the check says so' 'pack base 1.0.0 is here; 1.1.0 is available: vigil pack update base' "$(vigil pack update --check)"
 check 'the check changes nothing' 1.0.0 "$(sed -n 's/^version = //p' "$root/packs/base/pack.config")"
 was=$(cksum < "$cfg")
 out=$(vigil pack update 2>&1)
@@ -250,7 +250,7 @@ check 'an older version, when asked' 'pack base went back from 1.2.0 to 1.1.0' "
 # One pack by name: the others are left as they are.
 check 'update by name: that pack only' 'pack web 1.0.0 is here: nothing to do|  web 2.0.0 needs Vigil 99.0.0 or later: vigil self update' "$(vigil pack update web 2>&1 | tr '\n' '|' | sed 's/|$//')"
 check 'and the other pack is left behind' 1.1.0 "$(sed -n 's/^version = //p' "$root/packs/base/pack.config")"
-check 'the check, by name' 'pack base 1.1.0 is here; 1.2.0 is available: vigil pack update' "$(vigil pack update --check base 2>&1)"
+check 'the check, by name' 'pack base 1.1.0 is here; 1.2.0 is available: vigil pack update base' "$(vigil pack update --check base 2>&1)"
 out=$(vigil pack update nosuch 2>&1)
 check 'a pack not installed, by name' 'vigil: pack nosuch is not installed: vigil pack install nosuch|1' "$out|$?"
 out=$(vigil pack update base@1.0.0 2>&1)

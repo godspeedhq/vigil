@@ -836,7 +836,7 @@ function Update-VigilPack {
             }
             # Never back a version: one newer than the repository's stays.
             if (-not (Test-VigilNewer $pick.Version $was.Version)) { Write-Output "pack $name $($was.Version) is here: nothing to do" }
-            elseif ($Check) { Write-Output "pack $name $($was.Version) is here; $($pick.Version) is available: vigil pack update" }
+            elseif ($Check) { Write-Output "pack $name $($was.Version) is here; $($pick.Version) is available: vigil pack update $name" }
             else {
                 Install-VigilPackPick -Root $Root -Repo $repo -Name $name -Pick $pick | ForEach-Object { if ($_ -is [int]) { if ($_ -ne 0) { $code = 1 } } else { $_ } }
             }
@@ -1051,7 +1051,7 @@ function Get-VigilPackInfo {
         $was = Read-VigilPack -Dir (Join-Path $Root "packs\$Name") -Name $Name
         $pick = Select-VigilPackVersion -Repo $repo -Name $Name -Want '' -Os windows -Mine (Get-VigilPackMine -App $App)
         if ($was) {
-            if ($pick.Version -and (Test-VigilNewer $pick.Version $was.Version)) { $here = "$($was.Version) installed; $($pick.Version) is available: vigil pack update" }
+            if ($pick.Version -and (Test-VigilNewer $pick.Version $was.Version)) { $here = "$($was.Version) installed; $($pick.Version) is available: vigil pack update $name" }
             elseif ($pick.Newer -and (Test-VigilNewer $pick.Newer $was.Version)) { $here = "$($was.Version) installed; $($pick.Newer) needs Vigil $($pick.NewerVigil) or later: vigil self update" }
             elseif ($was.Version -ceq $newest.Version) { $here = "$($was.Version) installed, the newest" }
             else { $here = "$($was.Version) installed" }

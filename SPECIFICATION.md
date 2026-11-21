@@ -2157,7 +2157,7 @@ $ vigil pack info postgres
 Name       : postgres
 About      : PostgreSQL: up, connections, sessions and locks, replication,
              wraparound, vacuum, checkpoints and WAL, database sizes
-Here       : 1.2.0 installed; 1.2.1 is available: vigil pack update
+Here       : 1.2.0 installed; 1.2.1 is available: vigil pack update postgres
 Platforms  : Linux, macOS, Windows
 Works with : PostgreSQL 14 or later (status and size: any supported version);
              tested with 14 and 18
