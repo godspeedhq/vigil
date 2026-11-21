@@ -1,0 +1,69 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Apache Kafka for the kafka pack (scripts/run-kafka.sh): three nodes in
+# KRaft mode, each a broker and a controller, one version at a time:
+# KAFKA_IMAGE, any apache/kafka image from 3.9 (default: the one pinned
+# here). Not somewhere Vigil sends: what its pack reads.
+#
+#   kafka1, kafka2, kafka3, each with three listeners for the host:
+#     SECURE  on 19091-19093: SASL_SSL, SCRAM-SHA-512, the certificate from
+#                             KAFKA_TLS_DIR (server.pem, a key and its
+#                             certificate, naming localhost and 127.0.0.1)
+#     PLAIN   on 29091-29093: PLAINTEXT, no login
+#     JMX     on 19991-19993: no password, no TLS, as the pack's JMX jobs
+#                             read it
+#
+# The brokers talk among themselves on a PLAINTEXT listener of their own,
+# INTERNAL, which only the Compose network reaches. ACLs are on (the
+# StandardAuthorizer): a SCRAM user may do only what it was granted, and
+# PLAINTEXT clients, ANONYMOUS, may do anything, as scripts/run-kafka.sh
+# sets things up through them. Each node takes 768 MB, its JVM 384 MB.
+
+x-kafka: &kafka
+  image: ${KAFKA_IMAGE:-apache/kafka:4.4.0}
+  mem_limit: 768m
+  entrypoint: ["/bin/bash", "/vigil/start.sh"]
+  volumes:
+    - ./configs/services/kafka/start.sh:/vigil/start.sh:ro,z
+    - ${KAFKA_TLS_DIR:-./.kafka-tls}:/tls:ro,z
+
+services:
+  kafka1:
+    <<: *kafka
+    hostname: kafka1
+    environment:
+      NODE_ID: "1"
+      KAFKA_HEAP_OPTS: -Xmx384m -Xms384m
+    ports:
+      - "127.0.0.1:19091:19091"
+      - "127.0.0.1:29091:29091"
+      - "127.0.0.1:19991:19991"
+
+  kafka2:
+    <<: *kafka
+    hostname: kafka2
+    environment:
+      NODE_ID: "2"
+      KAFKA_HEAP_OPTS: -Xmx384m -Xms384m
+    ports:
+      - "127.0.0.1:19092:19092"
+      - "127.0.0.1:29092:29092"
+      - "127.0.0.1:19992:19992"
+
+  kafka3:
+    <<: *kafka
+    hostname: kafka3
+    environment:
+      NODE_ID: "3"
+      KAFKA_HEAP_OPTS: -Xmx384m -Xms384m
+    ports:
+      - "127.0.0.1:19093:19093"
+      - "127.0.0.1:29093:29093"
+      - "127.0.0.1:19993:19993"

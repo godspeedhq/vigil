@@ -1,0 +1,46 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Apache Kafka on ZooKeeper, as Kafka 3 still runs it, for the kafka pack
+# (scripts/run-kafka.sh --zookeeper): ZooKeeper and one broker, from an
+# apache/kafka image of 3.x (default 3.9.2: Kafka 4 has no ZooKeeper). Not
+# somewhere Vigil sends: what its pack reads.
+#
+#   zookeeper    on the Compose network only
+#   kafka1       a broker, with the same three listeners for the host as
+#                compose.kafka.yaml's first node: SECURE on 19091 (SASL_SSL,
+#                SCRAM-SHA-512, the certificate from KAFKA_TLS_DIR), PLAIN on
+#                29091 (PLAINTEXT, may do anything), JMX on 19991
+#
+# ACLs are on (AclAuthorizer). Each takes 512 to 768 MB.
+
+services:
+  zookeeper:
+    image: ${KAFKA_IMAGE:-apache/kafka:3.9.2}
+    hostname: zookeeper
+    mem_limit: 512m
+    environment:
+      KAFKA_HEAP_OPTS: -Xmx256m -Xms256m
+    entrypoint: ["/opt/kafka/bin/zookeeper-server-start.sh", "/opt/kafka/config/zookeeper.properties"]
+
+  kafka1:
+    image: ${KAFKA_IMAGE:-apache/kafka:3.9.2}
+    hostname: kafka1
+    mem_limit: 768m
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_HEAP_OPTS: -Xmx384m -Xms384m
+    entrypoint: ["/bin/bash", "/vigil/start-zk.sh"]
+    volumes:
+      - ./configs/services/kafka/start-zk.sh:/vigil/start-zk.sh:ro,z
+      - ${KAFKA_TLS_DIR:-./.kafka-tls}:/tls:ro,z
+    ports:
+      - "127.0.0.1:19091:19091"
+      - "127.0.0.1:29091:29091"
+      - "127.0.0.1:19991:19991"

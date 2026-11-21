@@ -1,0 +1,117 @@
+# Each job's example output, for its script's header: real lines from the
+# test cluster of tests/integration/backends/scripts/run-kafka.sh (three
+# nodes, Kafka 4.4.0; a group behind on orders, audit with one replica and a
+# partition of it being moved), 2026-11-21. tools/kafka/gen.py reads it.
+== status
+metric up 1
+metric info 1 cluster_id=MkU3OEVBNTcwNTJENDM2Qg kraft=yes
+metric brokers 3
+metric brokers_fenced 0
+metric controller_id 2
+== quorum
+metric kraft 1
+metric leader_id 2
+metric max_follower_lag 0
+metric voters 3
+metric node_lag 0 node=1 role=follower
+== brokers
+metric online 1 broker=2 rack=none
+metric leaders 56 broker=2
+metric replicas 164 broker=2
+metric out_of_sync_replicas 1 broker=2
+metric preferred_leaders 57 broker=2
+== replication
+metric partitions 165
+metric under_replicated 1
+metric offline 0
+metric under_min_isr 3
+metric topic_under_min_isr 3 topic=audit
+== reassignment
+metric partitions 1
+metric adding_replicas 1
+metric removing_replicas 1
+metric topics 1
+metric topic_partitions 1 topic=audit
+== consumers
+metric groups 3
+metric total_lag 16393
+metric lag 16393 group=billing topic=orders
+metric lag_max 3880 group=billing topic=orders
+metric lag 0 group=ledger topic=payments
+== groups
+metric all_groups 4
+metric rebalancing 0
+metric empty 4
+metric groups 1 type=share state=empty
+metric groups 3 type=classic state=empty
+== topics
+metric topics 7
+metric rf1_topics 1
+metric partitions 6 topic=orders
+metric replication_factor 3 topic=orders
+metric messages_count 21393 topic=orders
+== logdirs
+metric size_bytes 4967681 broker=1 dir=/var/lib/kafka/data
+metric partitions 163 broker=1 dir=/var/lib/kafka/data
+metric offline 0 broker=1 dir=/var/lib/kafka/data
+metric future_replicas 0 broker=1 dir=/var/lib/kafka/data
+metric size_bytes 4907633 broker=2 dir=/var/lib/kafka/data
+== transactions
+metric all_transactions 1
+metric transactions 1 state=completeabort
+metric ongoing 0
+metric long_running 0
+== config
+metric unclean_leader_election 0
+metric auto_create_topics 1
+metric min_insync_replicas 2
+metric retention_hours 168
+metric plaintext_listeners 2
+== security
+metric authorizer 1
+metric all_acls 6
+metric any_principal_acls 0
+metric acls 2 resource=cluster permission=allow
+metric scram_users 1
+== features
+metric metadata_version 1 version=4.4-IV2 supported=4.4-IV2
+metric level 1 feature=group.version
+metric supported_level 1 feature=group.version
+metric behind 0 feature=group.version
+metric behind 1 feature=kraft.version
+== throughput
+metric jmx_up 1 broker=1
+metric messages_in_count 10628 broker=1
+metric bytes_in_count 1857522 broker=1
+metric bytes_out_count 1657669 broker=1
+metric failed_produce_requests_count 0 broker=1
+== requests
+metric total_ms_p99 502 broker=1 request=FetchConsumer
+metric queue_ms_p99 3 broker=1 request=Produce
+metric remote_ms_p99 43.23 broker=1 request=Produce
+metric request_queue 0 broker=1
+metric response_queue 0 broker=1
+== jvm
+metric heap_used_bytes 252168008 broker=1
+metric heap_max_bytes 402653184 broker=1
+metric gc_count 91 broker=1 gc=G1_Young_Generation
+metric open_files 365 broker=1
+metric cpu_pct 21.95 broker=1
+== controller
+metric active_controller 0 broker=1
+metric active_controller 1 broker=2
+metric offline_partitions 0 broker=2
+metric partitions 165 broker=2
+metric metadata_errors 0 broker=2
+== connections
+metric connections 0 broker=1 listener=PLAIN
+metric created_count 81 broker=1 listener=SECURE
+metric logins_count 81 broker=1 listener=SECURE
+metric failed_logins_count 0 broker=1 listener=SECURE
+metric failed_relogins_count 0 broker=1 listener=SECURE
+== tls
+metric tls 1
+metric reachable 1 endpoint=localhost:19091
+metric expires_days 1 endpoint=localhost:19091
+metric trusted 1 endpoint=localhost:19091
+metric endpoints 3

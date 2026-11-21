@@ -19,8 +19,9 @@
     enable turns it on (which validates its jobs as Vigil sees them), each job
     with a .ps1 runs, and every metric it prints must be a number and listed
     in pack.config. A job whose secret a throwaway Vigil does not have is
-    skipped, and says which. The rest of a pack's checks are check-pack.sh's,
-    which runs in Git Bash too.
+    skipped, and says which, as is a job whose program this machine lacks
+    (it says "<program> not found: ..."). The rest of a pack's checks are
+    check-pack.sh's, which runs in Git Bash too.
 
     Exit code: 0 all passed, 1 any failed.
 #>
@@ -87,6 +88,13 @@ foreach ($name in $names) {
             $logs = "$root\logs\jobs\${name}_$j"
             if (Test-Path -LiteralPath $logs) {
                 $lines = @(Get-ChildItem -LiteralPath $logs -Filter '*.log' | ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) })
+            }
+            # So is a program: a job whose program this machine lacks says so
+            # ("<program> not found: ...") and is skipped.
+            $miss = @($lines | ForEach-Object { if ($_ -match '^\S+ \S+ err (\w+: \S+ not found: .*)$') { $Matches[1] } }) | Select-Object -First 1
+            if ($rc -ne 0 -and $miss) {
+                Write-Host "  skip  ${name}_${j}: $($miss -replace '^\w+: ', '')"
+                continue
             }
             if ($rc -ne 0) {
                 $err = (@($lines | Where-Object { $_ -match ' err ' } | Select-Object -Last 2 | ForEach-Object { $_ -replace '^\S+ \S+ err ', '' }) -join ' ')

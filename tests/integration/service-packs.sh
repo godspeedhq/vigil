@@ -10,7 +10,7 @@
 # LICENSE file for the full terms.
 #
 # Integration test: the service packs (packs/postgres, packs/mysql,
-# packs/redis, packs/mssql, packs/nginx) against real servers, on Linux and
+# packs/redis, packs/mssql, packs/kafka, packs/nginx) against real servers, on Linux and
 # macOS. The
 # twin of Service-Packs.ps1, which tests them on Windows (nginx has no
 # Windows script).
@@ -60,6 +60,20 @@
 #                                        availability group (compose.mssql.yaml
 #                                        has both, scripts/run-mssql.sh sets
 #                                        them up)
+#   VIGIL_IT_KAFKA_BOOTSTRAP             a Kafka cluster's SASL_SSL listener
+#                                        (host:port, comma-separated), SCRAM
+#   VIGIL_IT_KAFKA_PASSWORD              its vigil_monitor user's password; the
+#                                        user has the ACLs packs/README.md lists,
+#                                        and nothing more
+#   VIGIL_IT_KAFKA_CACERT                the CA its certificates are from
+#   VIGIL_IT_KAFKA_HOME                  Kafka's command-line tools (3.9 on)
+#   VIGIL_IT_KAFKA_JMX                   optional: its brokers' JMX, host:port
+#                                        each, comma-separated
+#   VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP       optional: a PLAINTEXT listener that may
+#                                        do anything, to make topics, messages
+#                                        and a consumer group with lag
+#                                        (compose.kafka.yaml has all of these;
+#                                        scripts/run-kafka.sh sets them up)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
@@ -84,7 +98,12 @@
 # and another blocked behind it, backups and an integrity check just done,
 # Agent's jobs unreadable without their grants and then a failed one seen; an
 # availability group from both sides; a certificate it cannot trust and a
-# wrong password, which fail the run; and a server that is down.
+# wrong password, which fail the run; and a server that is down. For kafka
+# also: through an admin listener, a topic with messages, a group behind on
+# it and a topic with one replica; the brokers' JMX; a certificate it cannot
+# trust, which fails the run but is still read and reported untrusted; a
+# wrong password; a cluster that is down; and no client configuration, with
+# its password, left behind.
 #
 # Exit code: 0 all passed or skipped, 1 any failed.
 
@@ -131,7 +150,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres mysql redis mssql nginx; do
+for p in postgres mysql redis mssql kafka nginx; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -780,6 +799,124 @@ else
     runs mssql_status > /dev/null
 fi
 
+# --- kafka ------------------------------------------------------------------
+if [ -z "${VIGIL_IT_KAFKA_BOOTSTRAP-}" ] || [ -z "${VIGIL_IT_KAFKA_PASSWORD-}" ] || [ -z "${VIGIL_IT_KAFKA_HOME-}" ]; then
+    printf '  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME\n'
+elif [ -z "${JAVA_HOME-}" ] && ! command -v java > /dev/null 2>&1; then
+    printf '  SKIP  kafka: java is not installed here\n'
+else
+    # The jobs have their cluster, password and CA from Vigil: never from this
+    # test's own environment.
+    unset KAFKA_BOOTSTRAP KAFKA_SECURITY KAFKA_SASL_MECHANISM KAFKA_USER KAFKA_PASSWORD KAFKA_CACERT KAFKA_CERT KAFKA_KEY KAFKA_CLIENT_CONFIG KAFKA_JMX KAFKA_TLS_ENDPOINTS
+    printf 'kafka at %s\n' "$VIGIL_IT_KAFKA_BOOTSTRAP"
+    kjobs='status quorum brokers replication reassignment consumers groups topics logdirs transactions config security features throughput requests jvm controller connections tls'
+    kjobs_on() { vigil pack list | awk '$1 ~ /^kafka_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    kbetween() { local v; v=$(printed "$1" "$2" "${3-}"); awk -v v="$v" -v a="$4" -v b="$5" 'BEGIN { print (v ~ /^-?[0-9]+(\.[0-9]+)?$/ && v + 0 >= a && v + 0 <= b) ? "yes" : "no [" v "]" }'; }
+    ksaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    kruns() { vigil run "$1" > "$work/out" 2>&1; echo $?; }
+    check 'kafka: off until enabled' 'off=19' "$(kjobs_on)"
+    out=$(vigil pack enable kafka 2>&1)
+    check 'kafka: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'kafka: its jobs are on' 'on=19' "$(kjobs_on)"
+    check 'kafka: the password is a secret reference, in the jobs that log in' 14 "$(grep -c '^secret *= KAFKA_PASSWORD=secret:KAFKA_MONITOR_PASSWORD' "$root/config/vigil.config")"
+    printf '%s' "$VIGIL_IT_KAFKA_PASSWORD" | vigil secret set KAFKA_MONITOR_PASSWORD --stdin > /dev/null
+    set_env KAFKA_BOOTSTRAP "$VIGIL_IT_KAFKA_BOOTSTRAP"
+    set_env KAFKA_HOME "$VIGIL_IT_KAFKA_HOME"
+    set_env KAFKA_CACERT "${VIGIL_IT_KAFKA_CACERT-}"
+    [ -n "${VIGIL_IT_KAFKA_JMX-}" ] && set_env KAFKA_JMX "$VIGIL_IT_KAFKA_JMX"
+    check 'kafka: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+
+    # Through the admin listener: a topic with messages, part of them read by a
+    # group that then stops (lag), and a topic with a single replica.
+    if [ -n "${VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP-}" ]; then
+        # Names of this run's own, so a run after another on the same cluster
+        # finds its own counts.
+        kid=$$
+        kadmin() { local t=$1; shift; "$VIGIL_IT_KAFKA_HOME/bin/$t.sh" --bootstrap-server "$VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP" "$@"; }
+        kadmin kafka-topics --create --if-not-exists --topic vigil_it_orders_$kid --partitions 6 > /dev/null 2>&1
+        kadmin kafka-topics --create --if-not-exists --topic vigil_it_single_$kid --partitions 1 --replication-factor 1 > /dev/null 2>&1
+        "$VIGIL_IT_KAFKA_HOME/bin/kafka-producer-perf-test.sh" --topic vigil_it_orders_$kid --num-records 1000 --record-size 100 --throughput -1 \
+            --producer-props "bootstrap.servers=$VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP" acks=all > /dev/null 2>&1
+        kadmin kafka-console-consumer --topic vigil_it_orders_$kid --group vigil_it_billing_$kid --from-beginning --max-messages 300 > /dev/null 2>&1
+        kworkload=yes
+    else
+        printf '  SKIP  kafka: a topic, messages and a group with lag: set VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP\n'
+        kworkload=''
+    fi
+    for j in $kjobs; do
+        check "kafka: $j runs" 0 "$(kruns "kafka_$j")"
+        grep -h ' out metric ' "$root/logs/jobs/kafka_$j"/*.log | tail -n 8 | sed 's/^[^ ]* [^ ]* out /        /'
+    done
+    check 'kafka: up' 1 "$(printed kafka_status up)"
+    check 'kafka: what it is' yes "$(grep -h ' out metric info 1 cluster_id=' "$root"/logs/jobs/kafka_status/*.log | grep -qE 'cluster_id=[A-Za-z0-9_-]+ kraft=(yes|no)$' && echo yes || echo no)"
+    check 'kafka: its brokers' yes "$(kbetween kafka_status brokers '' 1 10000)"
+    check 'kafka: none fenced' 0 "$(printed kafka_status brokers_fenced)"
+    check 'kafka: every partition has a leader' 0 "$(printed kafka_replication offline)"
+    check 'kafka: the topics it sees' yes "$(kbetween kafka_replication topics '' 1 1e9)"
+    check 'kafka: the brokers it reads from' yes "$(kbetween kafka_logdirs dirs '' 1 1e6)"
+    check 'kafka: data on disk' yes "$(kbetween kafka_logdirs broker_size_bytes '' 1 1e18)"
+    check 'kafka: ACLs are checked' 1 "$(printed kafka_security authorizer)"
+    check 'kafka: SCRAM users, counted' yes "$(kbetween kafka_security scram_users '' 1 1e9)"
+    # Finalized features, metadata.version among them, are KRaft's: a
+    # cluster on ZooKeeper has none.
+    if grep -qh ' out metric info 1 cluster_id=.* kraft=no$' "$root"/logs/jobs/kafka_status/*.log; then
+        check 'kafka: no finalized features on ZooKeeper' 0 "$(printed kafka_features features)"
+    else
+        check 'kafka: metadata.version named' yes "$(grep -h ' out metric metadata_version 1 version=' "$root"/logs/jobs/kafka_features/*.log | grep -q 'supported=' && echo yes || echo no)"
+    fi
+    check 'kafka: unclean leader election off' 0 "$(printed kafka_config unclean_leader_election)"
+    check 'kafka: TLS on its listener' 1 "$(printed kafka_tls tls)"
+    check 'kafka: its certificates trusted' 0 "$(grep -h ' out metric trusted ' "$root"/logs/jobs/kafka_tls/*.log | tail -n "$(printed kafka_tls endpoints)" | grep -c ' trusted 0 ')"
+    if [ -n "$kworkload" ]; then
+        check 'kafka: a group behind on a topic' 700 "$(printed kafka_consumers lag "group=vigil_it_billing_$kid topic=vigil_it_orders_$kid")"
+        check 'kafka: messages written, counted' 1000 "$(printed kafka_topics messages_count topic=vigil_it_orders_$kid)"
+        check 'kafka: the topic has 6 partitions' 6 "$(printed kafka_topics partitions topic=vigil_it_orders_$kid)"
+        check 'kafka: a topic with one replica, seen' yes "$(kbetween kafka_topics rf1_topics '' 1 1e6)"
+        check 'kafka: the group, empty now' yes "$(grep -h " out metric members 0 group=vigil_it_billing_$kid " "$root"/logs/jobs/kafka_groups/*.log > /dev/null && echo yes || echo no)"
+    fi
+    if [ -n "${VIGIL_IT_KAFKA_JMX-}" ]; then
+        check 'kafka: JMX answers' yes "$(grep -h ' out metric jmx_up ' "$root"/logs/jobs/kafka_throughput/*.log | grep -q ' jmx_up 1 ' && ! grep -h ' out metric jmx_up 0 ' "$root"/logs/jobs/kafka_throughput/*.log | grep -q . && echo yes || echo no)"
+        check 'kafka: messages in, counted' yes "$(grep -h ' out metric messages_in_count ' "$root"/logs/jobs/kafka_throughput/*.log | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
+        check 'kafka: one active controller' 1 "$(grep -h ' out metric active_controller ' "$root"/logs/jobs/kafka_controller/*.log | tail -n 20 | awk '{ s += $6 } END { print s }')"
+        check 'kafka: heap read' yes "$(grep -h ' out metric heap_used_bytes ' "$root"/logs/jobs/kafka_jvm/*.log | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
+        check 'kafka: logins counted' yes "$(grep -h ' out metric logins_count ' "$root"/logs/jobs/kafka_connections/*.log | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
+    fi
+
+    # Failures: a certificate it cannot trust and a wrong password fail the run
+    # and say why; a cluster that is down reads as up 0.
+    if [ -n "${VIGIL_IT_KAFKA_CACERT-}" ]; then
+        set_env KAFKA_CACERT ''
+        check 'kafka: a certificate it cannot trust fails the run' 2 "$(kruns kafka_status)"
+        check 'kafka: and says why' yes "$(ksaid kafka_status 'certificate')"
+        check 'kafka: the certificate is still read' 0 "$(kruns kafka_tls)"
+        check 'kafka: and reported untrusted' yes "$(ksaid kafka_tls ' trusted 0 ')"
+        set_env KAFKA_CACERT "$VIGIL_IT_KAFKA_CACERT"
+    fi
+    printf 'not-the-password' | vigil secret set KAFKA_MONITOR_PASSWORD --stdin > /dev/null
+    check 'kafka: a wrong password fails the run' 2 "$(kruns kafka_status)"
+    check 'kafka: and says why' yes "$(ksaid kafka_status 'refused the login')"
+    printf '%s' "$VIGIL_IT_KAFKA_PASSWORD" | vigil secret set KAFKA_MONITOR_PASSWORD --stdin > /dev/null
+    # Not config/: the secret store is there, and holds it by design.
+    leaks=$(grep -rlF -- "$VIGIL_IT_KAFKA_PASSWORD" "$root/logs" "$root/metrics" "$root/state" "$root/spool" 2> /dev/null)
+    check 'kafka: the password is written nowhere' '' "$(printf '%s' "$leaks" | sed "s#^$root/##" | tr '\n' ' ' | sed 's/ $//')"
+    check 'kafka: no client configuration is left behind' '' "$(ls -d "${TMPDIR:-/tmp}"/vigil-kafka.* 2> /dev/null)"
+    set_env KAFKA_BOOTSTRAP 'localhost:1'
+    check 'kafka: a cluster that is down still runs' 0 "$(kruns kafka_status)"
+    check 'kafka: and reads as up 0' 0 "$(printed kafka_status up)"
+    before=$(grep -c ' out metric ' "$root"/logs/jobs/kafka_replication/*.log)
+    check 'kafka: the other jobs succeed when it is down' 0 "$(kruns kafka_replication)"
+    check 'kafka: and say nothing' "$before" "$(grep -c ' out metric ' "$root"/logs/jobs/kafka_replication/*.log)"
+    set_env KAFKA_BOOTSTRAP "$VIGIL_IT_KAFKA_BOOTSTRAP"
+    kruns kafka_status > /dev/null
+    kruns kafka_consumers > /dev/null
+fi
+
 # --- nginx ------------------------------------------------------------------
 if [ -z "${VIGIL_IT_NGINX_URL-}" ]; then
     printf '  SKIP  nginx: set VIGIL_IT_NGINX_URL\n'
@@ -821,6 +958,9 @@ fi
 if [ -n "${VIGIL_IT_REDIS_HOST-}" ] && [ -n "${VIGIL_IT_REDIS_PASSWORD-}" ] && { command -v redis-cli || command -v valkey-cli; } > /dev/null 2>&1; then
     check 'redis: metrics reach the backend' yes "$(grep -q '^redis_up{' "$root/metrics/vigil.prom" && grep -q '^redis_memory_used_bytes{' "$root/metrics/vigil.prom" && grep -q '^redis_keyspace_keys{.*db="db0"' "$root/metrics/vigil.prom" && echo yes || echo no)"
     check 'redis: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_REDIS_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+fi
+if [ -n "${VIGIL_IT_KAFKA_BOOTSTRAP-}" ] && [ -n "${VIGIL_IT_KAFKA_PASSWORD-}" ] && [ -n "${VIGIL_IT_KAFKA_HOME-}" ]; then
+    check 'kafka: metrics reach the backend' yes "$(grep -q '^kafka_up{' "$root/metrics/vigil.prom" && grep -q '^kafka_consumer_total_lag{' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
     check 'nginx: metrics reach the backend' yes "$(grep -q '^nginx_requests_count{' "$root/metrics/vigil.prom" && echo yes || echo no)"
