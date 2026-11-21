@@ -307,13 +307,16 @@ try {
     Test-Equal 'remove --disable: off, then removed' 'off: web|removed pack web 1.0.0|0' "$(Join-Lines $r.Text)|$($r.Code)"
     Test-Equal 'its jobs are out of the configuration' 'False' ([string]((Get-Text $cfg) -cmatch '(?m)^\[job\.web_'))
     Test-Equal 'and its scripts are gone' 'False' ([string](Test-Path -LiteralPath "$root\packs\web"))
-    # A job of the configuration's own that runs one of its scripts keeps it.
+    # A job of the configuration's own that runs one of its scripts keeps it,
+    # and then nothing is changed: the pack's own jobs stay on.
     [void](Invoke-Vigil pack install web)
     $keep = Get-Text $cfg
-    [System.IO.File]::WriteAllText($cfg, $keep + "`n[job.webwatch]`nfile = packs/web/status.ps1`nrun_every = 1h`n")
+    [void](Invoke-Vigil pack enable web)
+    [System.IO.File]::WriteAllText($cfg, (Get-Text $cfg) + "`n[job.webwatch]`nfile = packs/web/status.ps1`nrun_every = 1h`n")
     $r = Invoke-Vigil pack remove --disable web
     Test-Equal 'a job of your own keeps it' 'vigil: pack web is still used by jobs of your own: webwatch. Change them or take them out first|1' "$($r.Text.TrimEnd())|$($r.Code)"
     Test-Equal 'and it is kept' 'True' ([string](Test-Path -LiteralPath "$root\packs\web\status.ps1"))
+    Test-Equal 'and its own jobs stay on' 'True' ([string]((Get-Text $cfg) -cmatch '(?m)^\[job\.web_status\]'))
     Test-Equal 'an option remove does not know' '64' ([string](Invoke-Vigil pack remove --force web).Code)
     [System.IO.File]::WriteAllText($cfg, $keep)
     [void](Invoke-Vigil pack remove web)
