@@ -49,7 +49,7 @@
         The service's state, then jobs.log. --watch prints it again every
         2 seconds until Ctrl+C.
     vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name>
-    vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove <name>...
+    vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...
     vigil [-Root <dir>] pack enable <what> | disable <what> | update [--check] [<name>...]
     vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>
         The packs of scripts and jobs (18.10), from the pack repository:
@@ -161,7 +161,7 @@ else {
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]`n       vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove <name>...`n       vigil [-Root <dir>] pack enable <what> | disable <what>`n       vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]`n       vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...`n       vigil [-Root <dir>] pack enable <what> | disable <what>`n       vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -435,8 +435,9 @@ switch ($Command) {
         elseif ($Job -ceq 'info' -and $argv.Count -eq 1) {
             Get-VigilPackInfo -Root $Root -App $app -Name $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
         }
-        elseif ($Job -ceq 'remove' -and $argv.Count -ge 1) {
-            Remove-VigilPack -Root $Root -Names $argv | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+        elseif ($Job -ceq 'remove' -and @($argv | Where-Object { $_ -cne '--disable' }).Count -ge 1 -and -not ($argv | Where-Object { $_ -cne '--disable' -and $_.StartsWith('-') })) {
+            # remove [--disable] <name>...: --disable turns the pack's jobs off first.
+            Remove-VigilPack -Root $Root -Names @($argv | Where-Object { $_ -cne '--disable' }) -Disable:($argv -ccontains '--disable') | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
         }
         elseif ($Job -ceq 'install' -or $Job -ceq 'download') {
             $from = ''; $os = 'windows'; $to = ''

@@ -293,13 +293,31 @@ try {
 
     Write-Host 'Removing'
     [void](Invoke-Vigil pack enable web)
-    Test-Equal 'refused while on' 'vigil: pack web is in use by: web_status. Turn them off first: vigil pack disable web' (Invoke-Vigil pack remove web).Text
+    Test-Equal 'refused while on' 'vigil: pack web is in use by: web_status. Turn them off first: vigil pack disable web, or vigil pack remove --disable web' (Invoke-Vigil pack remove web).Text
     Test-Equal 'and kept' 'True' ([string](Test-Path -LiteralPath "$root\packs\web\status.ps1"))
     [void](Invoke-Vigil pack disable web)
     Test-Equal 'removes once off' 'removed pack web 1.0.0' (Invoke-Vigil pack remove web).Text
     Test-Equal 'its scripts go' 'False' ([string](Test-Path -LiteralPath "$root\packs\web"))
     Test-Equal 'one not here' 'vigil: pack web is not installed: vigil pack list' (Invoke-Vigil pack remove web).Text
     Test-Equal 'precheck is happy after' '0' (Invoke-Precheck)
+    # --disable: the pack's jobs are taken out, then the pack.
+    [void](Invoke-Vigil pack install web)
+    [void](Invoke-Vigil pack enable web)
+    $r = Invoke-Vigil pack remove --disable web
+    Test-Equal 'remove --disable: off, then removed' 'off: web|removed pack web 1.0.0|0' "$(Join-Lines $r.Text)|$($r.Code)"
+    Test-Equal 'its jobs are out of the configuration' 'False' ([string]((Get-Text $cfg) -cmatch '(?m)^\[job\.web_'))
+    Test-Equal 'and its scripts are gone' 'False' ([string](Test-Path -LiteralPath "$root\packs\web"))
+    # A job of the configuration's own that runs one of its scripts keeps it.
+    [void](Invoke-Vigil pack install web)
+    $keep = Get-Text $cfg
+    [System.IO.File]::WriteAllText($cfg, $keep + "`n[job.webwatch]`nfile = packs/web/status.ps1`nrun_every = 1h`n")
+    $r = Invoke-Vigil pack remove --disable web
+    Test-Equal 'a job of your own keeps it' 'vigil: pack web is still used by jobs of your own: webwatch. Change them or take them out first|1' "$($r.Text.TrimEnd())|$($r.Code)"
+    Test-Equal 'and it is kept' 'True' ([string](Test-Path -LiteralPath "$root\packs\web\status.ps1"))
+    Test-Equal 'an option remove does not know' '64' ([string](Invoke-Vigil pack remove --force web).Code)
+    [System.IO.File]::WriteAllText($cfg, $keep)
+    [void](Invoke-Vigil pack remove web)
+    Test-Equal 'precheck is happy after --disable' '0' (Invoke-Precheck)
 
     Write-Host 'Offline'
     $usb = "$work\usb"

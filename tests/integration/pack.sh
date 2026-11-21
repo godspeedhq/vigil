@@ -263,13 +263,32 @@ sed -i.bak 's/^version = 5.0.0$/version = 1.0.0/' "$root/packs/web/pack.config" 
 
 printf 'Removing\n'
 vigil pack enable web > /dev/null 2>&1
-check 'refused while on' 'vigil: pack web is in use by: web_status. Turn them off first: vigil pack disable web' "$(vigil pack remove web 2>&1)"
+check 'refused while on' 'vigil: pack web is in use by: web_status. Turn them off first: vigil pack disable web, or vigil pack remove --disable web' "$(vigil pack remove web 2>&1)"
 check 'and kept' yes "$(yes_no test -f "$root/packs/web/status.sh")"
 vigil pack disable web > /dev/null 2>&1
 check 'removes once off' 'removed pack web 1.0.0' "$(vigil pack remove web 2>&1)"
 check 'its scripts go' no "$(yes_no test -e "$root/packs/web")"
 check 'one not here' 'vigil: pack web is not installed: vigil pack list' "$(vigil pack remove web 2>&1)"
 check 'precheck is happy after' 0 "$(precheck)"
+# --disable: the pack's jobs are taken out, then the pack.
+vigil pack install web > /dev/null 2>&1
+vigil pack enable web > /dev/null 2>&1
+out=$(vigil pack remove --disable web 2>&1)
+rc=$?
+check 'remove --disable: off, then removed' 'off: web|removed pack web 1.0.0|0' "$(printf '%s' "$out" | tr '\n' '|')|$rc"
+check 'its jobs are out of the configuration' '' "$(grep '^\[job\.web_' "$cfg")"
+check 'and its scripts are gone' no "$(yes_no test -e "$root/packs/web")"
+# A job of the configuration's own that runs one of its scripts keeps it.
+vigil pack install web > /dev/null 2>&1
+cp "$cfg" "$work/cfg.keep"
+printf '\n[job.webwatch]\nfile = packs/web/status.sh\nrun_every = 1h\n' >> "$cfg"
+out=$(vigil pack remove --disable web 2>&1)
+check 'a job of your own keeps it' 'vigil: pack web is still used by jobs of your own: webwatch. Change them or take them out first|1' "$out|$?"
+check 'and it is kept' yes "$(yes_no test -f "$root/packs/web/status.sh")"
+check 'an option remove does not know' 64 "$(vigil pack remove --force web > /dev/null 2>&1; echo $?)"
+cp "$work/cfg.keep" "$cfg"
+vigil pack remove web > /dev/null 2>&1
+check 'precheck is happy after --disable' 0 "$(precheck)"
 
 printf 'Offline\n'
 usb=$work/usb
