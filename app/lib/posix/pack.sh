@@ -238,6 +238,15 @@ _vigil_pack_fetch_index() {
             esac
             return 1
         fi
+        # The newest release's index is the one saved here: no need to
+        # download it again (backlog 65). Checked as one downloaded is; a
+        # published release does not change.
+        if [ -f "$root/packs/.index" ] && [ "$(_vigil_pack_release "$root/packs/.index")" = "$rel" ] &&
+            _vigil_pack_signed "$root/packs/.index" && [ "$(_vigil_pack_format "$root/packs/.index")" = 1 ] &&
+            cp "$root/packs/.index" "$_vp_work/packs.index" 2> /dev/null && cp "$root/packs/.index.sig" "$_vp_work/packs.index.sig" 2> /dev/null; then
+            _vp_index=$_vp_work/packs.index
+            return 0
+        fi
     fi
     _vigil_pack_file "$rel" packs.index "$_vp_work/packs.index" || return 1
     _vigil_pack_file "$rel" packs.index.sig "$_vp_work/packs.index.sig" || return 1

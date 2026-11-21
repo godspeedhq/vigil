@@ -237,6 +237,22 @@ function Open-VigilPackRepo {
             else { Stop-VigilPack "cannot find the latest packs release on $($r.Src.From): no network, or its API refused (it allows 60 requests an hour)" }
             return $r
         }
+        # The newest release's index is the one saved here: no need to
+        # download it again (backlog 65). Checked as one downloaded is; a
+        # published release does not change.
+        if ([System.IO.File]::Exists($cache) -and (Test-VigilPackSigned -Key $key -Path $cache)) {
+            $here = Read-VigilPackIndex -Path $cache
+            if ($here -and $here.Release -ceq $rel) {
+                $idx = Join-Path $work 'packs.index'
+                try {
+                    [System.IO.File]::Copy($cache, $idx, $true)
+                    [System.IO.File]::Copy("$cache.sig", "$idx.sig", $true)
+                    $r.Index = $here; $r.IndexPath = $idx; $r.Ok = $true
+                    return $r
+                }
+                catch { }
+            }
+        }
     }
     $idx = Join-Path $work 'packs.index'
     if (-not (Get-VigilPackFile -Repo $r -Rel $rel -Name 'packs.index' -OutFile $idx)) { return $r }

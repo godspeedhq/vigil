@@ -115,8 +115,35 @@ $workerLibs = @{
     vigil_logs   = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Secrets', 'Stores', 'Worker', 'Backends', 'Fetch', 'Logs')
     vigil_update = @('Config', 'Validate', 'Effective', 'Command', 'Schedule', 'Outcome', 'Metrics', 'Events', 'Secrets', 'Stores', 'Worker', 'Fetch', 'SelfUpdate')
 }
+# A command loads only the libraries it can use too (backlog 65): with an
+# antivirus that scans every script as it loads (AMSI), loading all of them
+# took 7.5 seconds a command. The same test checks these; a command not
+# here loads them all.
+$commandLibs = @{
+    'about'          = @('Command', 'Config', 'Fetch', 'SelfUpdate', 'Worker')
+    'config'         = @('Config', 'ConfigEdit', 'Precheck', 'Schedule', 'SelfUpdate', 'Validate', 'Worker')
+    'doctor'         = @('Command', 'Config', 'Doctor', 'Effective', 'Fetch', 'SelfUpdate', 'Worker')
+    'format-migrate' = @('Config', 'Format', 'SelfUpdate', 'Worker')
+    'init'           = @('Config', 'Init', 'Pack', 'Schedule', 'SelfUpdate', 'Validate', 'Worker')
+    'pack'           = @('Command', 'Config', 'Fetch', 'Pack', 'Schedule', 'Secrets', 'SelfUpdate', 'Stores', 'Validate', 'Worker')
+    'precheck'       = @('Command', 'Config', 'Doctor', 'Effective', 'Fetch', 'Format', 'Precheck', 'Schedule', 'Secrets', 'SelfUpdate', 'Stores', 'Validate', 'Worker')
+    'resolve'        = @('Config', 'Fetch', 'Schedule', 'SelfUpdate', 'Supervisor', 'Validate', 'Worker')
+    'restart'        = @('Command', 'Config', 'Fetch', 'Schedule', 'SelfUpdate', 'Service', 'Validate', 'Worker')
+    'run'            = @('Backends', 'Command', 'Config', 'Effective', 'Events', 'Fetch', 'Logs', 'Metrics', 'Outcome', 'Precheck', 'Prom', 'Schedule', 'Secrets', 'SelfUpdate', 'Sender', 'Stores', 'Validate', 'Worker')
+    'secret'         = @('Config', 'Secrets', 'SelfUpdate')
+    'self'           = @('Command', 'Config', 'Fetch', 'Secrets', 'SelfUpdate', 'Service', 'Stores', 'Worker')
+    'service'        = @('Command', 'Config', 'Doctor', 'Effective', 'Fetch', 'Format', 'Precheck', 'Schedule', 'Secrets', 'SelfUpdate', 'Service', 'Stores', 'Validate', 'Worker')
+    'start'          = @('Command', 'Config', 'Fetch', 'Schedule', 'SelfUpdate', 'Service', 'Validate', 'Worker')
+    'status'         = @('Command', 'Config', 'Fetch', 'Schedule', 'SelfUpdate', 'Service', 'Validate', 'Worker')
+    'stop'           = @('Command', 'Config', 'Fetch', 'Schedule', 'SelfUpdate', 'Service', 'Validate', 'Worker')
+    'supervise'      = @('Command', 'Config', 'Effective', 'Fetch', 'Format', 'Logs', 'Precheck', 'Recovery', 'Schedule', 'SelfUpdate', 'Supervisor', 'Validate', 'Worker')
+    'uninstall'      = @('Command', 'Config', 'Fetch', 'Schedule', 'SelfUpdate', 'Service', 'Supervisor', 'Validate', 'Worker')
+    'version'        = @('Command', 'Config', 'SelfUpdate', 'Worker')
+}
 $worker = $Command -ceq 'worker' -and $Root
 if ($worker) { $libs = if ($workerLibs.ContainsKey($Job)) { $workerLibs[$Job] } else { $workerLibs['*'] } }
+# In the order above: a list says which, not in what order.
+elseif ($Command -and $commandLibs.ContainsKey($Command)) { $want = $commandLibs[$Command]; $libs = @($libs | Where-Object { $want -contains $_ }) }
 foreach ($lib in $libs) {
     . (Join-Path $app "lib\windows\$lib.ps1")
 }

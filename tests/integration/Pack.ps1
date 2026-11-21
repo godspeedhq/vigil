@@ -236,6 +236,14 @@ try {
     Publish-Index 'packs-2026.01.03.1'
     Test-Equal 'a pack released since the index here was saved' 'db   1.0.0        A database' (& $last (Invoke-Vigil pack search database).Text)
     Test-Equal 'and the new index is saved' 'True' ([string]((Get-Text "$root\packs\.index") -cmatch "(?m)^release`tpacks-2026\.01\.03\.1$"))
+    # The newest release's index is the one saved here: not downloaded again
+    # (backlog 65). Gone from the release, it still answers, and says nothing
+    # of a repository it could not reach.
+    $relIndex = "$www\releases\download\packs-2026.01.03.1\packs.index"
+    Move-Item -LiteralPath $relIndex -Destination "$work\keep.rel.index"
+    $o = @((Invoke-Vigil pack search database).Text.Split("`n"))
+    Test-Equal 'the newest index, saved here, is not downloaded again' 'db   1.0.0        A database|' ($o[-1] + '|' + (@($o | Where-Object { $_ -clike 'vigil:*' }) -join ' '))
+    Move-Item -LiteralPath "$work\keep.rel.index" -Destination $relIndex
     Test-Equal 'a pack with no scripts here' 'elsewhere 1.0.0   not for Windows Elsewhere only' (& $last (Invoke-Vigil pack search elsewhere).Text)
     $card = @((Invoke-Vigil pack info db).Text.Split("`n"))
     Test-Equal 'what a pack needs, from its info records' 'Name       : db|About      : A database|Here       : not installed: vigil pack install db|Platforms  : Windows|Works with : DB 1 or later|Programs   : dbcli|Secrets    : DB_PW|Needs      : a role, as an administrator:|             CREATE ROLE it|             its log on|Settings   : DB_HOST=localhost DB_PORT=1 (the env lines in vigil.config, once|             enabled)|Docs       : https://example.com/packs/README.md#db' (($card[0..($card.IndexOf('') - 1)]) -join '|')
