@@ -23,8 +23,10 @@ listener.security.protocol.map=INTERNAL:PLAINTEXT,SECURE:SASL_SSL,PLAIN:PLAINTEX
 inter.broker.listener.name=INTERNAL
 sasl.enabled.mechanisms=SCRAM-SHA-512
 listener.name.secure.scram-sha-512.sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required;
-ssl.keystore.type=PEM
-ssl.keystore.location=/tls/server.pem
+# PKCS#12, which every Kafka reads: 2.8 reads a PEM key only when it is encrypted.
+ssl.keystore.type=PKCS12
+ssl.keystore.location=/tls/server.p12
+ssl.keystore.password=$KS_PASSWORD
 authorizer.class.name=kafka.security.authorizer.AclAuthorizer
 super.users=User:ANONYMOUS
 allow.everyone.if.no.acl.found=false
