@@ -139,7 +139,17 @@ The schedules here are a starting point: the real cost of each job is measured b
 
 ## The client
 
-One Java source file, `_client.java`, which speaks JMX and reads `hsperfdata` for tier 2. A JDK runs it from source (`java _client.java`). A JRE cannot: compiling needs the `jdk.compiler` module, which a JRE leaves out. So from version 1.1.0 the pack also carries the client compiled, as `_client.jar` (next section). The machine that watches needs Java 11 or later, a JDK or a JRE. The JVMs watched may be Java 8 or later.
+One Java source file, `_client.java`, which reads processes, `hsperfdata` for tier 2, GC logs, and JMX. A JDK runs it from source (`java _client.java`). A JRE cannot: compiling needs the `jdk.compiler` module, which a JRE leaves out. So from version 1.1.0 the pack also carries the client compiled, as `_client.jar` (next section). The machine that watches needs Java 11 or later, a JDK or a JRE. The JVMs watched may be Java 8 or later.
+
+## On the probe's engine (1.2.0)
+
+Decided 2026-11-22, after the kafka pack 2.0 brought the generic probe (`tools/probe/DESIGN.md`). Until 1.1, the client had its own copy of what every pack that reads JMX needs: the connection, the login, TLS, and the check of the certificate's chain and name. The probe has the same, as its engine (`tools/probe/Jmx.java`). Two copies of the code that must never be wrong is one too many.
+
+- **The client runs on the engine.** It connects through `Jmx.connect`, and prints, says and fails through the engine's output and exit code, as the kafka pack's client does. What it reads over the connection is its own, as before: the same jobs, metrics and tags. It still runs the read-only operations it always has (finding deadlocks, threads' CPU time, `DiagnosticCommand`'s reports).
+- **Two jars.** Each platform carries `_client.java`, `_probe.java` (the probe as every pack ships it, `tools/check-pack.sh` checking it is the same) and their jars. Every script checks both against the digests it carries, then runs `java -cp _client.jar:_probe.jar JvmClient <job>`.
+- **No source fallback.** Java 11 to 21 runs one source file, not two, so a copy of the pack without its jars (the repository's) no longer runs from source: its scripts say to install the pack from a packs release, or to build the jars (`tools/release/client-jar.sh`), as the kafka pack's do. A release always has both.
+- **What changes for the user:** the engine's messages name the JMX address, not the JVM (`JMX at localhost:9010 refused the login`), as the kafka pack's do; and a `jmxs=` address whose server does not speak TLS now says so (`does not speak TLS`) instead of blaming the certificate. Both still fail the run.
+- **The engine is left as it is**, so the kafka pack, which carries the same probe, does not change.
 
 ## On a JRE: the compiled client (1.1.0)
 
@@ -149,7 +159,7 @@ Many servers have only a JRE (a distribution's `-jre-headless` package, a vendor
 
 - **Both, side by side.** Each platform's archive carries `_client.java` and `_client.jar`. The jar is Java bytecode, not a native binary: one jar for Linux, macOS and Windows.
 - **Java 11 bytecode** (`javac --release 11`), so any Java 11 or later runs it. Java 8 alone cannot; the JVMs watched may still be Java 8.
-- **The jar when the pack has one, the source otherwise.** A pack from a packs release has the jar, and every script runs it, `java -cp _client.jar JvmClient <job>`, with a JDK or a JRE, once it matches the digest the script carries. A copy of the pack without one (from the repository) runs the source, which needs a JDK.
+- **The jar when the pack has one, the source otherwise.** A pack from a packs release has the jar, and every script runs it, `java -cp _client.jar JvmClient <job>`, with a JDK or a JRE, once it matches the digest the script carries. A copy of the pack without one (from the repository) runs the source, which needs a JDK. (Until 1.2.0, which needs both jars: see "On the probe's engine".)
 - **Why not the source whenever Java can run it.** That was the first idea, and the test machines ruled it out: whether a Java can run a source file cannot be told from outside it. Fedora's `java-25-openjdk` package runs source files with no `javac` beside its `java`; Temurin's JRE 11 cannot, though its `release` file names `jdk.compiler`. Only asking the JVM tells, at the cost of starting one more each run. The jar has no such question, and a run from it takes about half a second, where the source takes two or three.
 - **Never committed.** The repository holds the source only. The jar is built when a packs release is built.
 

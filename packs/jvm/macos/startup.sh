@@ -53,19 +53,20 @@
 #            crash-looping.
 #
 # Requires: bash, Java 11 or later, a JDK or a JRE (JAVA_HOME, or java on the
-#   PATH), to run _client.jar, beside this script, once it matches its digest;
-#   a copy of the pack without the jar runs _client.java, which needs a JDK
-# Exit code: 0 on success, JVMs up or down; 1 if java is missing, _client.jar
-#   does not match its digest, JVM_TARGETS is wrong, or a JVM refuses the JMX
-#   login or its certificate
+#   PATH), to run _client.jar and _probe.jar, beside this script, once they
+#   match their digests
+# Exit code: 0 on success, JVMs up or down; 1 if java is missing, a jar is
+#   missing or does not match its digest, JVM_TARGETS is wrong, or a JVM
+#   refuses the JMX login or its certificate
 
 set -u
 
-# _client.jar's SHA-256, written when the pack was released: built from
-# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
-jar_sha256=@CLIENT_JAR_SHA256@
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+probe_sha256=@PROBE_JAR_SHA256@
+client_sha256=@CLIENT_JAR_SHA256@
 
-# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
 # the PATH's.
 here=$(cd "$(dirname "$0")" && pwd)
 if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
@@ -77,25 +78,27 @@ else
     exit 1
 fi
 
-# The jar, the client compiled, once it matches the digest above: any Java
-# 11 or later runs it. A copy of the pack without one (from the repository,
-# not a release) runs the source, which needs a JDK.
-if [ ! -f "$here/_client.jar" ]; then
-    set -- "$here/_client.java"
-else
-    if command -v sha256sum > /dev/null 2>&1; then
-        sum=$(sha256sum < "$here/_client.jar")
-    elif command -v shasum > /dev/null 2>&1; then
-        sum=$(shasum -a 256 < "$here/_client.jar")
-    else
-        sum=$(openssl dgst -sha256 -r < "$here/_client.jar")
-    fi
-    if [ "${sum%% *}" != "$jar_sha256" ]; then
-        echo "jvm_startup: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs" >&2
+# A jar is run only once it matches the digest above: $1 the jar, $2 its digest.
+checked() {
+    if [ ! -f "$1" ]; then
+        echo "jvm_startup: ${1##*/} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install jvm), or build it (tools/release/client-jar.sh)" >&2
         exit 1
     fi
-    set -- -cp "$here/_client.jar" JvmClient
-fi
+    if command -v sha256sum > /dev/null 2>&1; then
+        sum=$(sha256sum < "$1")
+    elif command -v shasum > /dev/null 2>&1; then
+        sum=$(shasum -a 256 < "$1")
+    else
+        sum=$(openssl dgst -sha256 -r < "$1")
+    fi
+    if [ "${sum%% *}" != "$2" ]; then
+        echo "jvm_startup: ${1##*/} does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs" >&2
+        exit 1
+    fi
+}
+checked "$here/_probe.jar" "$probe_sha256"
+checked "$here/_client.jar" "$client_sha256"
+set -- -cp "$here/_client.jar:$here/_probe.jar" JvmClient
 
 # A folder of this run's own, readable by this account only, for what Java
 # writes while it runs: gone when the run ends.

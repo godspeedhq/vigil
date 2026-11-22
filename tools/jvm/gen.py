@@ -631,22 +631,22 @@ def doc(j, ps):
     c += wrap(j['act'], 76, first='  Act      ', rest=' ' * 11)
     c += ['']
     c += wrap(('Requires: Windows PowerShell 5.1 or PowerShell 7, ' if ps else 'Requires: bash, ') +
-              'Java 11 or later, a JDK or a JRE (JAVA_HOME, or java on the PATH), to run _client.jar, beside '
-              'this script, once it matches its digest; a copy of the pack without the jar runs '
-              '_client.java, which needs a JDK', 76, rest='  ')
-    c += wrap('Exit code: 0 on success, JVMs up or down; 1 if java is missing, _client.jar does not match its '
-              'digest, JVM_TARGETS is wrong, or a JVM '
+              'Java 11 or later, a JDK or a JRE (JAVA_HOME, or java on the PATH), to run _client.jar and '
+              '_probe.jar, beside this script, once they match their digests', 76, rest='  ')
+    c += wrap('Exit code: 0 on success, JVMs up or down; 1 if java is missing, a jar is missing or does not '
+              'match its digest, JVM_TARGETS is wrong, or a JVM '
               'refuses the JMX login or its certificate', 76, rest='  ')
     return c
 
 
 SH_BODY = r'''set -u
 
-# _client.jar's SHA-256, written when the pack was released: built from
-# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
-jar_sha256=@CLIENT_JAR_SHA256@
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+probe_sha256=@PROBE_JAR_SHA256@
+client_sha256=@CLIENT_JAR_SHA256@
 
-# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
 # the PATH's.
 here=$(cd "$(dirname "$0")" && pwd)
 if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
@@ -658,25 +658,27 @@ else
     exit 1
 fi
 
-# The jar, the client compiled, once it matches the digest above: any Java
-# 11 or later runs it. A copy of the pack without one (from the repository,
-# not a release) runs the source, which needs a JDK.
-if [ ! -f "$here/_client.jar" ]; then
-    set -- "$here/_client.java"
-else
-    if command -v sha256sum > /dev/null 2>&1; then
-        sum=$(sha256sum < "$here/_client.jar")
-    elif command -v shasum > /dev/null 2>&1; then
-        sum=$(shasum -a 256 < "$here/_client.jar")
-    else
-        sum=$(openssl dgst -sha256 -r < "$here/_client.jar")
-    fi
-    if [ "${sum%% *}" != "$jar_sha256" ]; then
-        echo "@JOB@: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs" >&2
+# A jar is run only once it matches the digest above: $1 the jar, $2 its digest.
+checked() {
+    if [ ! -f "$1" ]; then
+        echo "@JOB@: ${1##*/} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install jvm), or build it (tools/release/client-jar.sh)" >&2
         exit 1
     fi
-    set -- -cp "$here/_client.jar" JvmClient
-fi
+    if command -v sha256sum > /dev/null 2>&1; then
+        sum=$(sha256sum < "$1")
+    elif command -v shasum > /dev/null 2>&1; then
+        sum=$(shasum -a 256 < "$1")
+    else
+        sum=$(openssl dgst -sha256 -r < "$1")
+    fi
+    if [ "${sum%% *}" != "$2" ]; then
+        echo "@JOB@: ${1##*/} does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs" >&2
+        exit 1
+    fi
+}
+checked "$here/_probe.jar" "$probe_sha256"
+checked "$here/_client.jar" "$client_sha256"
+set -- -cp "$here/_client.jar:$here/_probe.jar" JvmClient
 
 # A folder of this run's own, readable by this account only, for what Java
 # writes while it runs: gone when the run ends.
@@ -693,11 +695,12 @@ exit $?
 PS_BODY = r'''$ErrorActionPreference = 'Stop'
 $job = '@JOB@'
 
-# _client.jar's SHA-256, written when the pack was released: built from
-# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
-$jarSha256 = '@CLIENT_JAR_SHA256@'
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+$probeSha256 = '@PROBE_JAR_SHA256@'
+$clientSha256 = '@CLIENT_JAR_SHA256@'
 
-# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
 # the PATH's.
 $java = $null
 if ($env:JAVA_HOME -and [System.IO.File]::Exists((Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
@@ -712,24 +715,28 @@ if (-not $java) {
     exit 1
 }
 
-# The jar, the client compiled, once it matches the digest above: any Java
-# 11 or later runs it. A copy of the pack without one (from the repository,
-# not a release) runs the source, which needs a JDK.
-$jar = Join-Path $PSScriptRoot '_client.jar'
-if (-not [System.IO.File]::Exists($jar)) {
-    $client = @((Join-Path $PSScriptRoot '_client.java'))
-}
-else {
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    $f = [System.IO.File]::OpenRead($jar)
-    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
-    finally { $f.Dispose(); $sha.Dispose() }
-    if ($sum -ne $jarSha256) {
-        [Console]::Error.WriteLine("${job}: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs")
+# A jar is run only once it matches its digest.
+function Test-Jar {
+    param([string]$Jar, [string]$Want)
+    $n = [System.IO.Path]::GetFileName($Jar)
+    if (-not [System.IO.File]::Exists($Jar)) {
+        [Console]::Error.WriteLine("${job}: ${n} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install jvm), or build it (tools/release/client-jar.sh)")
         exit 1
     }
-    $client = @('-cp', $jar, 'JvmClient')
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $f = [System.IO.File]::OpenRead($Jar)
+    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
+    finally { $f.Dispose(); $sha.Dispose() }
+    if ($sum -ne $Want) {
+        [Console]::Error.WriteLine("${job}: $n does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs")
+        exit 1
+    }
 }
+$probe = Join-Path $PSScriptRoot '_probe.jar'
+Test-Jar $probe $probeSha256
+$jar = Join-Path $PSScriptRoot '_client.jar'
+Test-Jar $jar $clientSha256
+$client = @('-cp', ($jar + ';' + $probe), 'JvmClient')
 
 # A folder of this run's own, for the process table and what Java writes
 # while it runs: gone when the run ends.
@@ -807,11 +814,11 @@ def pack_config():
          '# Three tiers, each used where it reaches: the process (nothing to set',
          '# up); the JVM\'s own counters (this machine, and root, an administrator',
          '# or the JVM\'s own account); JMX, at an address given in JVM_TARGETS.',
-         '# Every script runs _client.jar, beside it, with Java 11 or later (a JDK',
-         '# or a JRE), once it matches the digest the script carries: the client,',
-         '# compiled from _client.java when the pack was released. A copy without',
-         '# the jar runs the source, which needs a JDK and takes two or three',
-         '# seconds a run. The jobs every minute are the cheap ones; the rest run',
+         '# Every script runs _client.jar, with _probe.jar beside it, with Java 11',
+         '# or later (a JDK or a JRE), once both match the digests the script',
+         '# carries: compiled from _client.java and _probe.java when the pack was',
+         '# released. The probe (tools/probe) is the JMX engine every pack that',
+         '# reads JMX shares. The jobs every minute are the cheap ones; the rest run',
          '# every 2, 5 or 15 minutes, or each hour, each on minutes of its own',
          '# (cron, local time).',
          '#',
@@ -826,7 +833,7 @@ def pack_config():
     p += [('# ' + n).rstrip() for n in NOTICE]
     p += ['',
           '[pack]',
-          'version     = 1.1.0',
+          'version     = 1.2.0',
           '# vigil: the oldest Vigil this pack runs on. vigil pack update refuses the',
           '# pack on an older one.',
           'vigil       = 0.3.0',
@@ -861,9 +868,12 @@ def pack_config():
 
 
 client = open(os.path.join(src, '_client.java'), encoding='utf-8').read()
+# The probe, as every pack that carries it ships it (tools/probe/_probe.java).
+probe = open(os.path.join(src, '..', 'probe', '_probe.java'), encoding='utf-8').read()
 for d in ('linux', 'macos', 'windows'):
     os.makedirs(os.path.join(out, d), exist_ok=True)
     open(os.path.join(out, d, '_client.java'), 'w', encoding='utf-8', newline='\n').write(client)
+    open(os.path.join(out, d, '_probe.java'), 'w', encoding='utf-8', newline='\n').write(probe)
 open(os.path.join(out, 'pack.config'), 'w', encoding='utf-8', newline='\n').write(pack_config())
 for j in JOBS:
     s = sh_script(j)
