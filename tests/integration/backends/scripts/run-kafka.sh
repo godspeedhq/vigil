@@ -29,8 +29,18 @@
 # cluster is busy, stops one broker and shows what the pack sees, and
 # starts it again. The cluster is taken down, with its data, at the end.
 #
-# The pack runs Kafka's own command-line tools: VIGIL_IT_KAFKA_HOME is
-# where they are (default ~/clis/kafka-4.4.0), and Java must be here.
+# VIGIL_IT_KAFKA_HOME is a Kafka download (default ~/clis/kafka-4.4.0): its
+# tools set the cluster up, and its libs/ are the pack's library. Java must
+# be here. VIGIL_IT_KAFKA_LIBS2 (default ~/clis/kafka-3.9.2/libs, when it is
+# there) is a second library: every job is run again with it, on
+# VIGIL_IT_KAFKA_JRE when that is set. The test builds the pack's jars as a
+# release does, with VIGIL_IT_KAFKA_JDK's javac (a JDK 17 or later).
+#
+# VIGIL_IT_KAFKA_DIST=<a Kafka download>, with --zookeeper: the cluster runs
+# that Kafka (2.8, which has no image), in eclipse-temurin:11-jre.
+#
+# The brokers' JMX has a user that may only read (monitor), a password of
+# the run's own and TLS, as the pack asks for it.
 #
 # VIGIL_IT_KAFKA_HOLD=<file>: at the end, the cluster is kept up, with its
 # monitoring user's password and its CA in <file>.d/ (this account's
@@ -44,20 +54,32 @@ here=$(cd "$(dirname "$0")" && pwd)
 zk=no
 if [ "${1-}" = --zookeeper ]; then zk=yes; shift; fi
 [ -n "${1-}" ] && export KAFKA_IMAGE=$1
+dist=${VIGIL_IT_KAFKA_DIST-}
+if [ -n "$dist" ]; then
+    [ "$zk" = yes ] || die 'VIGIL_IT_KAFKA_DIST is for --zookeeper'
+    [ -x "$dist/bin/kafka-server-start.sh" ] || die "no Kafka in $dist"
+    export KAFKA_IMAGE=eclipse-temurin:11-jre KAFKA_DIST=$dist
+fi
 khome=${VIGIL_IT_KAFKA_HOME:-$HOME/clis/kafka-4.4.0}
 [ -x "$khome/bin/kafka-topics.sh" ] || die "no Kafka tools in $khome: set VIGIL_IT_KAFKA_HOME"
-file=compose.kafka.yaml nodes=3 bootstrap=localhost:19091,localhost:19092 jmx=127.0.0.1:19991,127.0.0.1:19992,127.0.0.1:19993
-[ "$zk" = yes ] && file=compose.kafka-zk.yaml nodes=1 bootstrap=localhost:19091 jmx=127.0.0.1:19991
+file=compose.kafka.yaml nodes=3 bootstrap=localhost:19091,localhost:19092 jmx='jmxs=127.0.0.1:19991; jmxs=127.0.0.1:19992; jmxs=127.0.0.1:19993'
+[ "$zk" = yes ] && file=compose.kafka-zk.yaml nodes=1 bootstrap=localhost:19091 jmx='jmxs=127.0.0.1:19991'
+libs2=${VIGIL_IT_KAFKA_LIBS2-}
+[ -z "$libs2" ] && [ -d "$HOME/clis/kafka-3.9.2/libs" ] && libs2=$HOME/clis/kafka-3.9.2/libs
 dc() { docker compose -p vigil-kafka --project-directory "$bk_dir" -f "$bk_dir/$file" "$@"; }
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-kafka-it.XXXXXX") || exit 1
 root=$work/none
-# The monitoring user's password: this run's own.
-pw=$(openssl rand -hex 16)
-trap 'dc down -v > /dev/null 2>&1; evidence_save "$pw"; rm -rf "$work"' EXIT
+# The monitoring user's password, JMX's and the keystore's: this run's own.
+pw=$(openssl rand -hex 16) jpw=$(openssl rand -hex 16) kspw=$(openssl rand -hex 16)
+export KAFKA_JMX_PASSWORD=$jpw KAFKA_KS_PASSWORD=$kspw
+# The Compose file mounts a Kafka download; but for 2.8, an empty folder.
+[ -n "${KAFKA_DIST-}" ] || { mkdir -p "$work/nodist" && export KAFKA_DIST=$work/nodist; }
+trap 'dc down -v > /dev/null 2>&1; evidence_save "$pw" "$jpw" "$kspw"; rm -rf "$work"' EXIT
 
 # Each release's run is kept apart: pack-kafka-4.4.0.
 v=${KAFKA_IMAGE:-$(sed -n 's/^ *image: \${KAFKA_IMAGE:-apache\/kafka:\(.*\)}$/\1/p' "$bk_dir/$file" | head -n 1)}
 v=${v##*:}
+[ -n "$dist" ] && v=$(basename "$dist" | sed 's/^kafka_[0-9.]*-//; s/^kafka-//')
 name=pack-kafka-$v
 [ "$zk" = yes ] && name=pack-kafka-$v-zookeeper
 
@@ -73,7 +95,8 @@ mkdir -p "$tls"
         openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj '/CN=localhost' &&
         printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n' > server.ext &&
         openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 2 -extfile server.ext &&
-        cat server.key server.crt > server.pem
+        cat server.key server.crt > server.pem &&
+        KSPW=$kspw openssl pkcs12 -export -in server.crt -inkey server.key -name server -out server.p12 -passout env:KSPW
 ) > "$work/tls.log" 2>&1 || { cat "$work/tls.log"; die 'could not make the TLS certificates'; }
 rm -f "$tls/ca.key" "$tls/server.csr"
 # Kafka runs as its own account in the container: it reads them.
@@ -82,9 +105,20 @@ chmod 644 "$tls"/*
 export KAFKA_TLS_DIR=$tls
 
 evidence_start "$name" "$bk_dir/$file" "$0" "$@"
-scripts=$bk_repo/packs/kafka/linux
-[ "$(uname -s)" = Darwin ] && scripts=$bk_repo/packs/kafka/macos
-printf 'tools    Kafka %s, %s\n' "$("$khome/bin/kafka-topics.sh" --version 2> /dev/null | tail -n 1)" "$(java -version 2>&1 | head -n 1)"
+# The pack as a release builds it: its jars compiled against this Kafka's
+# library, with a JDK 17 or later (VIGIL_IT_KAFKA_JDK, else JAVA_HOME's or
+# the PATH's), and their digests in its scripts.
+os=linux
+[ "$(uname -s)" = Darwin ] && os=macos
+scripts=$work/pack
+mkdir -p "$scripts" && cp "$bk_repo/packs/kafka/pack.config" "$bk_repo/packs/kafka/$os"/* "$scripts/" || die 'cannot copy the pack'
+JAVA_HOME=${VIGIL_IT_KAFKA_JDK:-${JAVA_HOME-}} bash "$bk_repo/tools/release/client-jar.sh" "$scripts" "$(ls "$khome"/libs/kafka-clients-*.jar | head -n 1)" > "$work/jars.log" 2>&1 ||
+    { cat "$work/jars.log"; die 'cannot build the pack'"'"'s jars'; }
+sed 's/^client-jar: [^ ]*\/\(_[a-z]*\.jar\)/jars     \1/' "$work/jars.log"
+printf 'tools    Kafka %s (the setup, and the library), %s\n' "$("$khome/bin/kafka-topics.sh" --version 2> /dev/null | tail -n 1)" "$(java -version 2>&1 | head -n 1)"
+[ -z "$libs2" ] || printf 'library2 %s\n' "$(ls "$libs2"/kafka-clients-*.jar | head -n 1)"
+[ -z "${VIGIL_IT_KAFKA_JRE-}" ] || printf 'jre      %s (%s)\n' "$("$VIGIL_IT_KAFKA_JRE/bin/java" -version 2>&1 | head -n 1)" "$VIGIL_IT_KAFKA_JRE"
+[ -z "$dist" ] || printf 'cluster  the Kafka download %s, in %s\n' "$dist" "$KAFKA_IMAGE"
 say() { printf '\n# %s\n' "$*"; }
 # Setup, through the PLAINTEXT listener, which may do anything and only this
 # host reaches.
@@ -95,10 +129,13 @@ dc up -d > "$work/up.log" 2>&1 || { cat "$work/up.log"; die 'the cluster would n
 for _ in $(seq 1 60); do [ "$(brokers)" = "$nodes" ] && break; sleep 3; done
 [ "$(brokers)" = "$nodes" ] || { dc logs --tail 30; die "the cluster never had its $nodes brokers"; }
 
-# The user, as packs/README.md says: SCRAM, its password from this run's
-# environment into the container's, never on the host's command line.
-dc exec -T -e PW="$pw" kafka1 sh -c '/opt/kafka/bin/kafka-configs.sh --bootstrap-server kafka1:9094 --alter --entity-type users --entity-name vigil_monitor --add-config "SCRAM-SHA-512=[iterations=8192,password=$PW]"' > "$work/user.log" 2>&1 ||
+# The user, as packs/README.md says: SCRAM, its password from a file of this
+# run's own, never on a command line.
+# In a file, as a property: the value without kafka-configs' brackets.
+(umask 077 && printf 'SCRAM-SHA-512=iterations=8192,password=%s\n' "$pw" > "$work/user.properties")
+admin kafka-configs --alter --entity-type users --entity-name vigil_monitor --add-config-file "$work/user.properties" > "$work/user.log" 2>&1 ||
     die "could not make the user: $(grep -v password "$work/user.log" | tail -n 1)"
+rm -f "$work/user.properties"
 admin kafka-acls --add --allow-principal User:vigil_monitor --operation Describe --operation DescribeConfigs --cluster --topic '*' > /dev/null &&
     admin kafka-acls --add --allow-principal User:vigil_monitor --operation Describe --group '*' --transactional-id '*' > /dev/null ||
     die 'could not grant the ACLs'
@@ -121,13 +158,16 @@ admin kafka-topics --create --topic customers --partitions 3 --config cleanup.po
 "$khome/bin/kafka-producer-perf-test.sh" --topic audit --num-records 2000 --record-size 100 --throughput -1 --producer-props bootstrap.servers=127.0.0.1:29091 > /dev/null 2>&1
 admin kafka-console-consumer --topic orders --group billing --from-beginning --max-messages 5000 > /dev/null 2>&1
 inside() { dc exec -T -d kafka1 timeout 900 "$@"; }
-inside /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka1:9094 --topic orders --group shipping
+# The tools inside the broker's container: the image's, or 2.8's download.
+kb=/opt/kafka/bin
+[ -n "$dist" ] && kb=/opt/kafka-dist/bin
+inside $kb/kafka-console-consumer.sh --bootstrap-server kafka1:9094 --topic orders --group shipping
 [ "$zk" = no ] && [ -x "$khome/bin/kafka-console-share-consumer.sh" ] &&
-    inside /opt/kafka/bin/kafka-console-share-consumer.sh --bootstrap-server kafka1:9094 --topic payments --group fraud
+    inside $kb/kafka-console-share-consumer.sh --bootstrap-server kafka1:9094 --topic payments --group fraud
 # Its transaction.timeout.ms is longer than the transaction, or the broker
 # aborts it at the default, a minute: 15 minutes, the most a broker allows
 # by default.
-inside /opt/kafka/bin/kafka-producer-perf-test.sh --topic orders --num-records 100000 --record-size 100 --throughput 20 \
+inside $kb/kafka-producer-perf-test.sh --topic orders --num-records 100000 --record-size 100 --throughput 20 \
     --transactional-id vigil-it-txn --transaction-duration-ms 600000 \
     --producer-props bootstrap.servers=kafka1:9094 transaction.timeout.ms=900000
 printf '{"version":1,"partitions":[{"topic":"audit","partition":0,"replicas":[2]}]}' > "$work/move.json"
@@ -139,20 +179,20 @@ say "The pack through Vigil."
 # VIGIL_IT_KAFKA_TXN: a transaction is held open, for the test to see.
 export VIGIL_IT_KAFKA_BOOTSTRAP=$bootstrap VIGIL_IT_KAFKA_PASSWORD=$pw VIGIL_IT_KAFKA_CACERT=$tls/ca.crt \
     VIGIL_IT_KAFKA_HOME=$khome VIGIL_IT_KAFKA_JMX=$jmx VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP=127.0.0.1:29091 \
-    VIGIL_IT_KAFKA_TXN=1
+    VIGIL_IT_KAFKA_TXN=1 VIGIL_IT_KAFKA_JMX_PASSWORD=$jpw VIGIL_IT_KAFKA_LIBS2=$libs2 VIGIL_IT_KAFKA_PACK=$scripts
 bash "$bk_repo/tests/integration/service-packs.sh"
 rc=$?
 
 # Each job as the busy cluster has it, then with a broker gone, as the
 # pack's scripts print it. The password reaches them in their environment.
 export KAFKA_HOME=$khome KAFKA_BOOTSTRAP=$bootstrap KAFKA_SECURITY=SASL_SSL KAFKA_SASL_MECHANISM=SCRAM-SHA-512 \
-    KAFKA_USER=vigil_monitor KAFKA_CACERT=$tls/ca.crt KAFKA_PASSWORD=$pw KAFKA_JMX=$jmx
+    KAFKA_USER=vigil_monitor KAFKA_CACERT=$tls/ca.crt KAFKA_PASSWORD=$pw KAFKA_JMX=$jmx KAFKA_JMX_USER=monitor KAFKA_JMX_PASSWORD=$jpw
 job() {
     printf '\n$ bash packs/kafka/%s.sh\n' "$1"
     bash "$scripts/$1.sh" 2>&1 | head -n "${2:-200}"
 }
 say "Every job, with the cluster busy."
-for j in status quorum brokers replication reassignment consumers groups topics logdirs transactions config security features throughput requests jvm controller connections tls; do
+for j in status quorum brokers replication reassignment consumers groups topics logdirs transactions config security features throughput requests controller connections tls; do
     job "$j"
 done
 [ "$zk" = yes ] && exit $rc
@@ -168,7 +208,7 @@ for j in status replication; do job "$j"; done
 
 if [ -n "${VIGIL_IT_KAFKA_HOLD-}" ]; then
     hd=$VIGIL_IT_KAFKA_HOLD.d
-    rm -rf "$hd" && (umask 077 && mkdir -p "$hd" && printf '%s' "$pw" > "$hd/pw") && cp "$tls/ca.crt" "$hd/ca.crt"
+    rm -rf "$hd" && (umask 077 && mkdir -p "$hd" && printf '%s' "$pw" > "$hd/pw" && printf '%s' "$jpw" > "$hd/jmxpw") && cp "$tls/ca.crt" "$hd/ca.crt"
     : > "$VIGIL_IT_KAFKA_HOLD"
     say "Kept up for other machines' tests until $VIGIL_IT_KAFKA_HOLD is deleted."
     while [ -e "$VIGIL_IT_KAFKA_HOLD" ]; do sleep 5; done

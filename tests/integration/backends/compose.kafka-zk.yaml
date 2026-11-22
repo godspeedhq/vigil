@@ -27,7 +27,12 @@ services:
     mem_limit: 512m
     environment:
       KAFKA_HEAP_OPTS: -Xmx256m -Xms256m
-    entrypoint: ["/opt/kafka/bin/zookeeper-server-start.sh", "/opt/kafka/config/zookeeper.properties"]
+      LOG_DIR: /tmp/kafka-logs
+    # A Kafka download mounted at /opt/kafka-dist (KAFKA_DIST: 2.8, which has
+    # no image of its own), else the image's own.
+    entrypoint: ["/bin/sh", "-c", "K=/opt/kafka; [ -x /opt/kafka-dist/bin/zookeeper-server-start.sh ] && K=/opt/kafka-dist; exec $$K/bin/zookeeper-server-start.sh $$K/config/zookeeper.properties"]
+    volumes:
+      - ${KAFKA_DIST:-./.kafka-dist}:/opt/kafka-dist:ro,z
 
   kafka1:
     image: ${KAFKA_IMAGE:-apache/kafka:3.9.2}
@@ -36,8 +41,13 @@ services:
     depends_on: [zookeeper]
     environment:
       KAFKA_HEAP_OPTS: -Xmx384m -Xms384m
+      # Kafka's scripts log under its own folder, read-only when mounted.
+      LOG_DIR: /tmp/kafka-logs
+      JMX_PASSWORD: ${KAFKA_JMX_PASSWORD:-}
+      KS_PASSWORD: ${KAFKA_KS_PASSWORD:-}
     entrypoint: ["/bin/bash", "/vigil/start-zk.sh"]
     volumes:
+      - ${KAFKA_DIST:-./.kafka-dist}:/opt/kafka-dist:ro,z
       - ./configs/services/kafka/start-zk.sh:/vigil/start-zk.sh:ro,z
       - ${KAFKA_TLS_DIR:-./.kafka-tls}:/tls:ro,z
     ports:

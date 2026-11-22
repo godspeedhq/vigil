@@ -1,0 +1,87 @@
+# _probe.tables - the kafka pack's JMX jobs, as tables the probe reads
+# (tools/probe/DESIGN.md): each broker's own figures, never its JVM's (the
+# jvm pack's). A row: metric, MBean, attribute, then tags from the MBean's
+# name, +tag=value, *scale, >=floor, sum. An MBean a broker does not have
+# (ZooKeeper's on Kafka 4, KRaft's on ZooKeeper) prints nothing.
+#
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+
+targets   KAFKA_JMX
+user      KAFKA_JMX_USER
+password  KAFKA_JMX_PASSWORD
+cacert    KAFKA_CACERT
+# Each broker, by its id.
+name      broker  kafka.server:type=app-info,id=*  id
+
+[throughput]
+messages_in_count               kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec                      Count
+bytes_in_count                  kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec                         Count
+bytes_out_count                 kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec                        Count
+bytes_rejected_count            kafka.server:type=BrokerTopicMetrics,name=BytesRejectedPerSec                   Count
+replication_bytes_in_count      kafka.server:type=BrokerTopicMetrics,name=ReplicationBytesInPerSec              Count
+replication_bytes_out_count     kafka.server:type=BrokerTopicMetrics,name=ReplicationBytesOutPerSec             Count
+produce_requests_count          kafka.server:type=BrokerTopicMetrics,name=TotalProduceRequestsPerSec            Count
+fetch_requests_count            kafka.server:type=BrokerTopicMetrics,name=TotalFetchRequestsPerSec              Count
+failed_produce_requests_count   kafka.server:type=BrokerTopicMetrics,name=FailedProduceRequestsPerSec           Count
+failed_fetch_requests_count     kafka.server:type=BrokerTopicMetrics,name=FailedFetchRequestsPerSec             Count
+produce_conversions_count       kafka.server:type=BrokerTopicMetrics,name=ProduceMessageConversionsPerSec       Count
+fetch_conversions_count         kafka.server:type=BrokerTopicMetrics,name=FetchMessageConversionsPerSec         Count
+invalid_crc_records_count       kafka.server:type=BrokerTopicMetrics,name=InvalidMessageCrcRecordsPerSec        Count
+invalid_sequence_records_count  kafka.server:type=BrokerTopicMetrics,name=InvalidOffsetOrSequenceRecordsPerSec  Count
+
+[requests]
+total_ms_p99      kafka.network:type=RequestMetrics,name=TotalTimeMs,request=Produce          99thPercentile  request
+queue_ms_p99      kafka.network:type=RequestMetrics,name=RequestQueueTimeMs,request=Produce   99thPercentile  request
+remote_ms_p99     kafka.network:type=RequestMetrics,name=RemoteTimeMs,request=Produce         99thPercentile  request
+requests_count    kafka.network:type=RequestMetrics,name=TotalTimeMs,request=Produce          Count           request
+total_ms_p99      kafka.network:type=RequestMetrics,name=TotalTimeMs,request=FetchConsumer    99thPercentile  request
+queue_ms_p99      kafka.network:type=RequestMetrics,name=RequestQueueTimeMs,request=FetchConsumer  99thPercentile  request
+remote_ms_p99     kafka.network:type=RequestMetrics,name=RemoteTimeMs,request=FetchConsumer   99thPercentile  request
+requests_count    kafka.network:type=RequestMetrics,name=TotalTimeMs,request=FetchConsumer    Count           request
+total_ms_p99      kafka.network:type=RequestMetrics,name=TotalTimeMs,request=FetchFollower    99thPercentile  request
+queue_ms_p99      kafka.network:type=RequestMetrics,name=RequestQueueTimeMs,request=FetchFollower  99thPercentile  request
+remote_ms_p99     kafka.network:type=RequestMetrics,name=RemoteTimeMs,request=FetchFollower   99thPercentile  request
+requests_count    kafka.network:type=RequestMetrics,name=TotalTimeMs,request=FetchFollower    Count           request
+request_queue     kafka.network:type=RequestChannel,name=RequestQueueSize                     Value
+response_queue    kafka.network:type=RequestChannel,name=ResponseQueueSize                    Value
+purgatory         kafka.server:type=DelayedOperationPurgatory,name=PurgatorySize,delayedOperation=Produce  Value  +operation=produce
+purgatory         kafka.server:type=DelayedOperationPurgatory,name=PurgatorySize,delayedOperation=Fetch    Value  +operation=fetch
+# The idle shares are fractions, 0 to 1: as percents.
+handler_idle_pct  kafka.server:type=KafkaRequestHandlerPool,name=RequestHandlerAvgIdlePercent  OneMinuteRate  *100
+network_idle_pct  kafka.network:type=SocketServer,name=NetworkProcessorAvgIdlePercent          Value          *100
+
+[controller]
+# On every node, whether it is the active controller; the rest from the
+# active one only.
+active_controller                kafka.controller:type=KafkaController,name=ActiveControllerCount           Value
+when                             kafka.controller:type=KafkaController,name=ActiveControllerCount           Value
+brokers                          kafka.controller:type=KafkaController,name=ActiveBrokerCount               Value
+fenced_brokers                   kafka.controller:type=KafkaController,name=FencedBrokerCount               Value
+topics                           kafka.controller:type=KafkaController,name=GlobalTopicCount                Value
+partitions                       kafka.controller:type=KafkaController,name=GlobalPartitionCount            Value
+offline_partitions               kafka.controller:type=KafkaController,name=OfflinePartitionsCount          Value
+preferred_imbalance              kafka.controller:type=KafkaController,name=PreferredReplicaImbalanceCount  Value
+metadata_errors                  kafka.controller:type=KafkaController,name=MetadataErrorCount              Value
+metadata_lag_ms                  kafka.controller:type=KafkaController,name=LastAppliedRecordLagMs          Value
+timed_out_heartbeats             kafka.controller:type=KafkaController,name=TimedOutBrokerHeartbeatCount    Value
+controller_changes               kafka.controller:type=KafkaController,name=NewActiveControllersCount       Value
+elections_count                  kafka.controller:type=ControllerStats,name=LeaderElectionRateAndTimeMs     Count
+unclean_elections_count          kafka.controller:type=ControllerStats,name=UncleanLeaderElectionsPerSec    Count
+eligible_leader_elections_count  kafka.controller:type=ControllerStats,name=ElectionFromEligibleLeaderReplicasPerSec  Count
+event_queue                      kafka.controller:type=ControllerEventManager,name=EventQueueSize           Value
+event_queue_ms_p99               kafka.controller:type=ControllerEventManager,name=EventQueueTimeMs         99thPercentile
+
+[connections]
+# Each listener's network processors, added up.
+connections            kafka.server:type=socket-server-metrics,listener=*,networkProcessor=*  connection-count                listener  sum
+created_count          kafka.server:type=socket-server-metrics,listener=*,networkProcessor=*  connection-creation-total       listener  sum
+logins_count           kafka.server:type=socket-server-metrics,listener=*,networkProcessor=*  successful-authentication-total  listener  sum
+failed_logins_count    kafka.server:type=socket-server-metrics,listener=*,networkProcessor=*  failed-authentication-total      listener  sum
+failed_relogins_count  kafka.server:type=socket-server-metrics,listener=*,networkProcessor=*  failed-reauthentication-total    listener  sum

@@ -6,9 +6,12 @@
 # rely on it. In no event shall the authors or copyright holders be liable
 # for any claim, damages or other liability arising from its use. See the
 # LICENSE file for the full terms.
-"""Writes packs/kafka: pack.config, and each job's script for Linux and macOS
-(bash) and Windows (PowerShell), from the job bodies in tools/kafka/sh and
-tools/kafka/ps, each after its platform's _head, and the documentation
+"""Writes packs/kafka (2.0, tools/kafka/DESIGN.md): pack.config; for each
+platform, _client.java (tools/kafka/_client.java: the jobs that ask the
+cluster), _probe.java (tools/probe/_probe.java: the generic probe, as every
+pack carries it) and _probe.tables (tools/kafka/_probe.tables: the JMX
+jobs); and each job's script for Linux and macOS (bash) and Windows
+(PowerShell), which runs the probe or the client, with the documentation
 below. Run from the repository: python tools/kafka/gen.py ."""
 import os
 import sys
@@ -30,25 +33,32 @@ NOTICE = [
 ]
 
 ADMIN = (
-    "Connects to KAFKA_BOOTSTRAP (host:port, comma-separated) with Kafka's own "
-    "command-line tools, as KAFKA_USER with the password in KAFKA_PASSWORD, "
-    "set by the job; never on a command line: it goes in a client "
-    "configuration of the run's own, in a folder only this account can read, "
-    "deleted at the end. KAFKA_SECURITY is PLAINTEXT, SSL, SASL_PLAINTEXT or "
-    "SASL_SSL; KAFKA_SASL_MECHANISM SCRAM-SHA-512, SCRAM-SHA-256 or PLAIN. "
-    "With TLS, the brokers' certificates are checked against KAFKA_CACERT, a "
-    "PEM file of CAs, or Java's own, and against their names; KAFKA_CERT and "
-    "KAFKA_KEY give a client certificate. KAFKA_CLIENT_CONFIG, a client "
-    "properties file of your own, replaces all of these, for a login this "
-    "pack does not build (Kerberos, OAuth). KAFKA_HOME is where Kafka is "
-    "unpacked, when its tools are not on the PATH.")
+    "Connects to KAFKA_BOOTSTRAP (host:port, comma-separated) through Kafka's "
+    "admin API, as KAFKA_USER with the password in KAFKA_PASSWORD, set by the "
+    "job: never on a command line, never in a file. KAFKA_SECURITY is "
+    "PLAINTEXT, SSL, SASL_PLAINTEXT or SASL_SSL; KAFKA_SASL_MECHANISM "
+    "SCRAM-SHA-512, SCRAM-SHA-256 or PLAIN. With TLS, the brokers' "
+    "certificates are checked against KAFKA_CACERT, a PEM file of CAs, or "
+    "Java's own, and against their names; KAFKA_CERT and KAFKA_KEY give a "
+    "client certificate. KAFKA_CLIENT_CONFIG, a client properties file of "
+    "your own, comes first, for a login this pack does not build (Kerberos, "
+    "OAuth).")
 JMX = (
-    "Reads each broker's JMX, at KAFKA_JMX: host:port, comma-separated, one "
-    "per broker, through Kafka's own JmxTool (KAFKA_HOME, when its tools are "
-    "not on the PATH). JMX without a password, as Kafka's start scripts set it "
-    "up with JMX_PORT: JmxTool takes a password only on its command line, "
-    "where this pack never puts one. Each broker is named by its id. With no "
-    "KAFKA_JMX, it prints nothing.")
+    "Reads each broker's JMX, at KAFKA_JMX: jmx=host:port, or jmxs=host:port "
+    "over TLS, separated by ; or , one per broker, with KAFKA_JMX_USER and "
+    "the password in KAFKA_JMX_PASSWORD when JMX asks for them; a "
+    "certificate is checked against KAFKA_CACERT, or Java's own CAs, and "
+    "against the broker's name. Each broker is named by its id. With no "
+    "KAFKA_JMX, it prints nothing of the brokers' own. The broker's JVM "
+    "(heap, garbage collection, threads, CPU, open files) is the jvm pack's, "
+    "not this one's.")
+PROBE = (
+    "The probe (_probe.jar, tools/probe) reads it, from this pack's "
+    "_probe.tables, beside this script: no Kafka library is needed.")
+LIBRARY = (
+    "Kafka's library is not in the pack: KAFKA_HOME, a Kafka download (its "
+    "libs/), or KAFKA_LIBS, a folder of its jars, any kafka-clients from 3.x "
+    "or 4.x.")
 READONLY = "Read-only: it changes nothing in the cluster."
 
 M = lambda *pairs: list(pairs)
@@ -91,7 +101,7 @@ JOBS = [
          what="Reports each broker: whether it is listed and fenced, its rack, and what it holds: partitions it "
               "leads, replicas, replicas it has let fall out of sync, and partitions that prefer it as leader. A "
               "broker that holds replicas but is not listed is down, and is shown so.",
-         metrics=M(('online', '1 when the broker is listed, 0 when it holds replicas but is not, tagged broker=<id> and rack=<its rack, or none>'),
+         metrics=M(('online', '1 when the broker is listed and not fenced, 0 when it holds replicas but is not, or is fenced, tagged broker=<id> and rack=<its rack, or none>'),
                    ('fenced', '1 when it is fenced, tagged broker=<id>'),
                    ('leaders', 'partitions it leads, tagged the same'),
                    ('replicas', 'replicas it holds, tagged the same'),
@@ -152,8 +162,8 @@ JOBS = [
              "consumers are about to lose messages they never read."),
     dict(job='groups', metric_name='kafka.group', when='cron        = 3/5 * * * *', kind='admin', title='Kafka groups by state',
          what="Reports every group by type and state, and each group's members: consumer groups, classic or "
-              "new protocol, and with Kafka 4's tools, share groups and Streams groups. A tool this Kafka does not "
-              "have, or a group type the cluster has not turned on, is left out.",
+              "new protocol, and with Kafka 4's library, share groups and Streams groups. A group type the library "
+              "or the cluster does not have is left out.",
          metrics=M(('all_groups', 'groups'),
                    ('all_members', "all groups' members"),
                    ('rebalancing', 'groups rebalancing now'),
@@ -184,8 +194,8 @@ JOBS = [
     dict(job='logdirs', metric_name='kafka.logdir', when='cron        = 0/5 * * * *', kind='both', title="Kafka's data on disk",
          what="Reports every broker's log directories: their size, partitions, errors (an offline directory) and "
               "replicas being moved between directories; each broker's and each topic's size, every replica "
-              "counted; and, with tiered storage and KAFKA_JMX, what each broker has copied to remote storage "
-              "and still has to.",
+              "counted. With KAFKA_JMX, from each broker: what it has copied to remote storage (tiered storage) "
+              "and still has to, how long a flush to disk takes, and the log cleaner (compaction).",
          metrics=M(('size_bytes', 'a directory\'s size, tagged broker=<id> and dir=<its path>'),
                    ('partitions', 'its partitions, tagged the same'),
                    ('offline', '1 when the broker reports an error for it, tagged the same'),
@@ -197,11 +207,18 @@ JOBS = [
                    ('topics_not_shown', 'topics past the first 100, left out'),
                    ('jmx_up', "with KAFKA_JMX: 1 when a broker's JMX answers, tagged broker=<id, or its JMX host:port>"),
                    ('remote_size_bytes', "a broker's data in remote storage (tiered storage), tagged broker=<id>"),
-                   ('remote_copy_lag_bytes', 'data it has yet to copy there, tagged the same')),
-         healthy="dirs_offline 0; sizes growing and shrinking with retention.",
+                   ('remote_copy_lag_bytes', 'data it has yet to copy there, tagged the same'),
+                   ('flush_ms_p99', 'the time a log flush takes, in ms, 99th percentile, tagged broker=<id>'),
+                   ('flushes_count', 'log flushes, a running total, tagged the same'),
+                   ('cleaner_max_dirty_pct', 'the most of a compacted log not yet compacted, as a percent, tagged the same'),
+                   ('cleaner_idle_seconds', 'since the log cleaner last ran, tagged the same; left out before it first has'),
+                   ('cleaner_dead_threads', 'log cleaner threads that died, tagged the same'),
+                   ('cleaner_max_clean_seconds', 'the longest a clean took, tagged the same; left out before the first')),
+         healthy="dirs_offline 0; sizes growing and shrinking with retention; cleaner_dead_threads 0.",
          watch="a broker's broker_size_bytes far above the others': partitions are unbalanced; remote_copy_lag_bytes "
-               "growing.",
-         act="offline 1: a disk failed, and its partitions moved away or went offline."),
+               "growing; flush_ms_p99 rising: the disk is slow.",
+         act="offline 1: a disk failed, and its partitions moved away or went offline; cleaner_dead_threads above 0: "
+             "compacted topics grow without bound."),
     dict(job='transactions', metric_name='kafka.transaction', when='cron        = 1/5 * * * *', kind='admin', title='Kafka transactions',
          what="Reports the cluster's transactions by state, those ongoing, and those open longer than "
               "KAFKA_TXN_LONG seconds (default 300). Counts only: a transactional id names an application.",
@@ -252,8 +269,8 @@ JOBS = [
              "changed them."),
     dict(job='features', metric_name='kafka.feature', when='cron        = 10/15 * * * *', kind='admin', title="a Kafka cluster's finalized features",
          what="Reports the cluster's finalized features against the most its brokers support: metadata.version "
-              "by name, the others by level. A feature behind is an upgrade not finalized yet (kafka-features "
-              "upgrade).",
+              "by name (by level, when Kafka's server library is not in KAFKA_HOME), the others by level. A feature "
+              "behind is an upgrade not finalized yet (kafka-features upgrade).",
          metrics=M(('metadata_version', 'always 1, tagged version=<finalized> and supported=<the most supported>'),
                    ('level', "a feature's finalized level, tagged feature=<name>"),
                    ('supported_level', 'the most the brokers support, tagged the same'),
@@ -308,33 +325,6 @@ JOBS = [
          watch="handler_idle_pct below 30: the broker is busy; queue_ms_p99 rising: requests wait for threads.",
          act="handler_idle_pct or network_idle_pct below 10: the broker is saturated; Produce total_ms_p99 "
              "climbing with remote_ms_p99: followers are slow to replicate."),
-    dict(job='jvm', metric_name='kafka.jvm', when='cron        = 2/5 * * * *', kind='jmx', title="each Kafka broker's JVM and logs",
-         what="Reports each broker's JVM: heap used against the most it may use, garbage collection, open files "
-              "against the limit, CPU, threads and uptime; and its logs: how long a flush to disk takes, the log "
-              "cleaner (compaction), and log directories offline.",
-         metrics=M(('jmx_up', "1 when a broker's JMX answers, tagged broker=<id, or its JMX host:port>"),
-                   ('heap_used_bytes', 'heap in use, tagged broker=<id>'),
-                   ('heap_max_bytes', 'the most heap it may use, tagged the same'),
-                   ('gc_count', 'garbage collections, a running total, tagged broker=<id> and gc=<the collector>'),
-                   ('gc_ms_count', 'time spent collecting, in ms, a running total, tagged the same'),
-                   ('open_files', 'files and sockets open, tagged broker=<id>'),
-                   ('max_files', 'the most it may open, tagged the same'),
-                   ('cpu_pct', "the broker's CPU, as a percent of the machine, tagged the same"),
-                   ('threads', 'its threads, tagged the same'),
-                   ('uptime_seconds', 'how long it has run, tagged the same'),
-                   ('flush_ms_p99', 'the time a log flush takes, in ms, 99th percentile, tagged the same'),
-                   ('flushes_count', 'log flushes, a running total, tagged the same'),
-                   ('cleaner_max_dirty_pct', 'the most of a compacted log not yet compacted, as a percent, tagged the same'),
-                   ('cleaner_idle_seconds', 'since the log cleaner last ran, tagged the same'),
-                   ('cleaner_dead_threads', 'log cleaner threads that died, tagged the same'),
-                   ('cleaner_max_clean_seconds', 'the longest a clean took, tagged the same'),
-                   ('offline_log_dirs', 'log directories offline, tagged the same')),
-         healthy="heap_used_bytes well under heap_max_bytes after collections; open_files well under max_files; "
-                 "cleaner_dead_threads 0.",
-         watch="gc_ms_count rising fast: the broker pauses to collect; flush_ms_p99 rising: the disk is slow; "
-               "uptime_seconds back near 0: it restarted.",
-         act="open_files near max_files: it will fail to open a file or a connection; cleaner_dead_threads above "
-             "0: compacted topics grow without bound; offline_log_dirs above 0."),
     dict(job='controller', metric_name='kafka.controller', when='run_every   = 2m', kind='jmx', title="the Kafka controller's view",
          what="Reports which node is the active controller, and from it the cluster as it sees it: brokers active "
               "and fenced, topics and partitions, offline partitions, leaders not where they prefer, metadata "
@@ -430,6 +420,7 @@ def doc(j, ps):
         c += ['']
     if j['kind'] in ('jmx', 'both'):
         c += wrap(JMX, 76)
+    c += [''] + wrap(PROBE if j['kind'] == 'jmx' else LIBRARY, 76)
     c += ['', 'Metrics:']
     c += metrics_doc(j['metrics'])
     ex = EXAMPLES.get(j['job'])
@@ -445,50 +436,206 @@ def doc(j, ps):
     c += wrap(j['watch'], 76, first='  Watch    ', rest=' ' * 11)
     c += wrap(j['act'], 76, first='  Act      ', rest=' ' * 11)
     c += ['']
-    tools = ("Kafka's command-line tools (any from 3.9, the Kafka download), Java 17 or later" +
-             (", openssl" if j['job'] == 'tls' and not ps else ''))
-    if j['kind'] != 'jmx':
-        tools += ', and a user with the ACLs packs/README.md lists'
+    if j['kind'] == 'jmx':
+        tools = ("Java 11 or later (JAVA_HOME, or java on the PATH), a JDK or a JRE, to run _probe.jar, beside this "
+                 "script, once it matches its digest; the brokers' JMX")
+    else:
+        tools = ("Java 11 or later (JAVA_HOME, or java on the PATH), a JDK or a JRE, to run _client.jar and _probe.jar, "
+                 "beside this script, once they match their digests; Kafka's library (KAFKA_HOME or KAFKA_LIBS); a "
+                 "user with the ACLs packs/README.md lists")
     c += wrap(('Requires: Windows PowerShell 5.1 or PowerShell 7, ' if ps else 'Requires: bash, ') + tools, 76, rest='  ')
     if j['job'] == 'status':
-        c += wrap('Exit code: 0 on success, cluster up or down; 1 if the tools are missing, or the cluster '
-                  'refuses the login, its certificate or a request', 76, rest='  ')
+        c += wrap('Exit code: 0 on success, cluster up or down; 1 if Java or Kafka\'s library is missing, _client.jar '
+                  'does not match its digest, or the cluster refuses the login or its certificate', 76, rest='  ')
     else:
-        c += wrap('Exit code: 0 on success, or when the cluster does not answer; 1 if the tools are missing, or '
-                  'the cluster refuses the login, its certificate or a request', 76, rest='  ')
+        c += wrap('Exit code: 0 on success, or when the cluster does not answer; 1 if Java or Kafka\'s library is '
+                  'missing, _client.jar does not match its digest, or the cluster refuses the login or its '
+                  'certificate', 76, rest='  ')
     return c
 
 
-def fragment(path):
-    """A fragment's text, without the licence header it carries for the header
-    check: its first lines that are comments, up to the first blank line, when
-    they hold the SPDX line. Each script written gets the notice of its own."""
-    text = open(path, encoding='utf-8').read()
-    lines = text.split('\n')
-    n = 0
-    while n < len(lines) and lines[n].startswith('#'):
-        n += 1
-    if n and any('SPDX-License-Identifier' in l for l in lines[:n]) and n < len(lines) and lines[n] == '':
-        return '\n'.join(lines[n + 1:])
-    return text
+SH_HEAD = r"""set -u
+
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+probe_sha256=@PROBE_JAR_SHA256@
+@CLIENT_SHA@
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# the PATH's.
+here=$(cd "$(dirname "$0")" && pwd)
+if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    java=$JAVA_HOME/bin/java
+elif command -v java > /dev/null 2>&1; then
+    java=$(command -v java)
+else
+    echo "@JOB@: java not found: the kafka pack runs with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME" >&2
+    exit 1
+fi
+
+# A jar is run only once it matches the digest above: $1 the jar, $2 its digest.
+checked() {
+    if [ ! -f "$1" ]; then
+        echo "@JOB@: ${1##*/} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install kafka), or build it (tools/release/client-jar.sh)" >&2
+        exit 1
+    fi
+    if command -v sha256sum > /dev/null 2>&1; then
+        sum=$(sha256sum < "$1")
+    elif command -v shasum > /dev/null 2>&1; then
+        sum=$(shasum -a 256 < "$1")
+    else
+        sum=$(openssl dgst -sha256 -r < "$1")
+    fi
+    if [ "${sum%% *}" != "$2" ]; then
+        echo "@JOB@: ${1##*/} does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs" >&2
+        exit 1
+    fi
+}
+checked "$here/_probe.jar" "$probe_sha256"
+"""
+
+SH_PROBE = r"""
+# The probe reads this job's table: the brokers' JMX only, no Kafka library.
+set -- -cp "$here/_probe.jar" Probe "$here/_probe.tables"
+"""
+
+SH_CLIENT = r"""checked "$here/_client.jar" "$client_sha256"
+
+# Kafka's library, the user's: KAFKA_LIBS, else a Kafka download's libs/.
+libs=${KAFKA_LIBS-}
+if [ -z "$libs" ] && [ -n "${KAFKA_HOME-}" ]; then
+    libs=$KAFKA_HOME/libs
+fi
+if [ -z "$libs" ]; then
+    echo "@JOB@: no Kafka library: set KAFKA_HOME to a Kafka download, or KAFKA_LIBS to a folder of its jars" >&2
+    exit 1
+fi
+found=no
+for f in "$libs"/kafka-clients-*.jar; do [ -f "$f" ] && found=yes; done
+if [ "$found" = no ]; then
+    echo "@JOB@: no kafka-clients-*.jar in $libs: KAFKA_HOME is a Kafka download (its libs/), KAFKA_LIBS a folder of its jars" >&2
+    exit 1
+fi
+set -- -cp "$here/_client.jar:$here/_probe.jar:$libs/*" KafkaClient
+"""
+
+SH_TAIL = r"""
+# A folder of this run's own, readable by this account only, for what Java
+# writes while it runs: gone when the run ends.
+work=$(umask 077 && mktemp -d "${TMPDIR:-/tmp}/vigil-kafka.XXXXXX") || exit 1
+trap 'rm -rf "$work"' EXIT
+
+# A small JVM, quick to start, that keeps no counters of its own (the jvm
+# pack would find it among the JVMs it watches).
+"$java" -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx256m \
+    -Djava.io.tmpdir="$work" "$@" @JOB@
+exit $?
+"""
+
+PS_HEAD = r"""$ErrorActionPreference = 'Stop'
+$job = '@JOB@'
+
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+$probeSha256 = '@PROBE_JAR_SHA256@'
+@CLIENT_SHA@
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# the PATH's.
+$java = $null
+if ($env:JAVA_HOME -and [System.IO.File]::Exists((Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
+    $java = Join-Path $env:JAVA_HOME 'bin\java.exe'
+}
+else {
+    $c = Get-Command java.exe -ErrorAction SilentlyContinue
+    if ($c) { $java = $c.Source }
+}
+if (-not $java) {
+    [Console]::Error.WriteLine("${job}: java not found: the kafka pack runs with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME")
+    exit 1
+}
+
+# A jar is run only once it matches its digest.
+function Test-Jar {
+    param([string]$Jar, [string]$Want)
+    $n = [System.IO.Path]::GetFileName($Jar)
+    if (-not [System.IO.File]::Exists($Jar)) {
+        [Console]::Error.WriteLine("${job}: ${n} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install kafka), or build it (tools/release/client-jar.sh)")
+        exit 1
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $f = [System.IO.File]::OpenRead($Jar)
+    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
+    finally { $f.Dispose(); $sha.Dispose() }
+    if ($sum -ne $Want) {
+        [Console]::Error.WriteLine("${job}: $n does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs")
+        exit 1
+    }
+}
+$probe = Join-Path $PSScriptRoot '_probe.jar'
+Test-Jar $probe $probeSha256
+"""
+
+PS_PROBE = r"""
+# The probe reads this job's table: the brokers' JMX only, no Kafka library.
+$run = @('-cp', $probe, 'Probe', (Join-Path $PSScriptRoot '_probe.tables'))
+"""
+
+PS_CLIENT = r"""$client = Join-Path $PSScriptRoot '_client.jar'
+Test-Jar $client $clientSha256
+
+# Kafka's library, the user's: KAFKA_LIBS, else a Kafka download's libs\.
+$libs = $env:KAFKA_LIBS
+if (-not $libs -and $env:KAFKA_HOME) { $libs = Join-Path $env:KAFKA_HOME 'libs' }
+if (-not $libs) {
+    [Console]::Error.WriteLine("${job}: no Kafka library: set KAFKA_HOME to a Kafka download, or KAFKA_LIBS to a folder of its jars")
+    exit 1
+}
+if (-not [System.IO.Directory]::Exists($libs) -or @([System.IO.Directory]::GetFiles($libs, 'kafka-clients-*.jar')).Count -eq 0) {
+    [Console]::Error.WriteLine("${job}: no kafka-clients-*.jar in ${libs}: KAFKA_HOME is a Kafka download (its libs\), KAFKA_LIBS a folder of its jars")
+    exit 1
+}
+$run = @('-cp', ($client + ';' + $probe + ';' + (Join-Path $libs '*')), 'KafkaClient')
+"""
+
+PS_TAIL = r"""
+# A folder of this run's own, for what Java writes while it runs: gone when
+# the run ends.
+$work = Join-Path ([System.IO.Path]::GetTempPath()) ('vigil-kafka.' + [guid]::NewGuid().ToString('N'))
+[void](New-Item -ItemType Directory -Path $work)
+$code = 1
+try {
+    # A small JVM, quick to start, that keeps no counters of its own (the
+    # jvm pack would find it among the JVMs it watches).
+    & $java -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx256m "-Djava.io.tmpdir=$work" @run $job
+    $code = $LASTEXITCODE
+}
+finally {
+    Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+}
+exit $code
+"""
 
 
-def body(lang, job):
-    d = 'ps' if lang == 'ps1' else lang
-    head = fragment(os.path.join(src, d, '_head.' + lang))
-    b = fragment(os.path.join(src, d, job + '.' + lang))
-    s = head.rstrip('\n') + '\n\n' + b.rstrip('\n') + '\n'
-    if lang == 'ps1':
-        # The head opens a try: its folder goes, however the run ends.
-        s += '}\nfinally {\n    Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue\n}\nexit 0\n'
-    return s.replace('@JOB@', job)
+def sh_body(j):
+    if j['kind'] == 'jmx':
+        b = SH_HEAD.replace('@CLIENT_SHA@\n', '') + SH_PROBE + SH_TAIL
+    else:
+        b = SH_HEAD.replace('@CLIENT_SHA@', 'client_sha256=@CLIENT_JAR_SHA256@') + SH_CLIENT + SH_TAIL
+    return b.replace('@JOB@', 'kafka_' + j['job'])
+
+
+def ps_body(j):
+    if j['kind'] == 'jmx':
+        b = PS_HEAD.replace('@CLIENT_SHA@\n', '') + PS_PROBE + PS_TAIL
+    else:
+        b = PS_HEAD.replace('@CLIENT_SHA@', "$clientSha256 = '@CLIENT_JAR_SHA256@'") + PS_CLIENT + PS_TAIL
+    return b.replace('@JOB@', 'kafka_' + j['job'])
 
 
 def sh_script(j):
     head = ['#!/usr/bin/env bash', '#', '# %s.sh - %s' % (j['job'], j['title']), '#']
     head += [('# ' + n).rstrip() for n in NOTICE] + ['#']
     head += [('# ' + l).rstrip() for l in doc(j, False)]
-    return '\n'.join(head) + '\n\n' + body('sh', j['job'])
+    return '\n'.join(head) + '\n\n' + sh_body(j)
 
 
 def ps_script(j):
@@ -497,7 +644,11 @@ def ps_script(j):
     head += ['.DESCRIPTION']
     head += [('    ' + l).rstrip() for l in doc(j, True)]
     head += ['#>']
-    return '\n'.join(head) + '\n\n' + body('ps1', j['job'])
+    return '\n'.join(head) + '\n\n' + ps_body(j)
+
+
+def copy(path):
+    return open(path, encoding='utf-8').read()
 
 
 ACLS = ("kafka-acls --add --allow-principal User:vigil_monitor --operation Describe --operation DescribeConfigs "
@@ -506,19 +657,21 @@ ACLS = ("kafka-acls --add --allow-principal User:vigil_monitor --operation Descr
 
 
 def pack_config():
-    p = ['# kafka - Apache Kafka 3.9 and 4.x, KRaft or ZooKeeper, on this machine or',
-         '# any it can reach, through Kafka\'s own command-line tools: its brokers and',
-         '# controller quorum, replication, partition moves, consumer lag, groups,',
-         '# topics, data on disk, transactions, risky settings, ACLs, features and',
-         '# certificates; and from the brokers\' JMX, their traffic, requests, JVM,',
-         '# controller and connections. Linux, macOS and Windows. See',
-         '# SPECIFICATION.md section 18.10 for this format.',
+    p = ['# kafka - Apache Kafka, on this machine or any it can reach, through Kafka\'s',
+         '# admin API and the brokers\' JMX: brokers and the KRaft controller quorum,',
+         '# replication, partition moves, consumer lag, groups, topics, data on disk,',
+         '# transactions, risky settings, ACLs, features and certificates; traffic,',
+         '# requests, the controller and connections. Never the brokers\' JVM: that is',
+         '# the jvm pack\'s. Linux, macOS and Windows. See SPECIFICATION.md section',
+         '# 18.10 for this format, and tools/kafka/DESIGN.md for the design.',
          '#',
-         '# The jobs that run every 5 or 15 minutes, or each hour, have minutes of',
-         '# their own (cron, local time), so few runs start together. Each tool a',
-         '# job runs starts Java with Kafka\'s libraries: about 4 seconds on Linux,',
-         '# 10 or more on Windows. So only status, replication and consumers run',
-         '# every minute; the rest every 2, 5 or 15 minutes, or each hour.',
+         '# Every script runs _client.jar, beside it, with Java 11 or later (a JDK',
+         '# or a JRE), once it matches the digest the script carries: the client,',
+         '# compiled from _client.java when the pack was released. Kafka\'s library',
+         '# is yours, not the pack\'s: KAFKA_HOME, a Kafka download, or KAFKA_LIBS,',
+         '# a folder of its jars; any kafka-clients from 3.x or 4.x. The jobs that',
+         '# run every 5 or 15 minutes, or each hour, have minutes of their own',
+         '# (cron, local time), so few runs start together.',
          '#',
          '# Off until enabled: vigil pack enable kafka. It logs in as a user that may',
          '# only describe; create one once, as an administrator (packs/README.md has',
@@ -537,21 +690,23 @@ def pack_config():
     p += [('# ' + n).rstrip() for n in NOTICE]
     p += ['',
           '[pack]',
-          'version     = 1.0.0',
+          'version     = 2.0.0',
           '# vigil: the oldest Vigil this pack runs on. vigil pack update refuses the',
           '# pack on an older one.',
           'vigil       = 0.3.0',
-          'description = Apache Kafka: brokers, KRaft quorum, replication, consumer lag, groups, topics, disk, transactions, settings, ACLs, features, certificates; traffic, requests, JVM, controller and connections from JMX',
+          'description = Apache Kafka: brokers, KRaft quorum, replication, consumer lag, groups, topics, disk, transactions, settings, ACLs, features, certificates; traffic, requests, controller and connections from JMX',
           '# What vigil pack info shows besides: the servers it is meant for, the',
           '# programs its scripts need on each platform, and where it is explained.',
-          'works_with  = Apache Kafka 3.9 and 4.x, KRaft or ZooKeeper, and the clusters built on it',
-          "programs_linux = Kafka's command-line tools (3.9 or later), Java 17 or later, openssl",
-          "programs_macos = Kafka's command-line tools (3.9 or later), Java 17 or later, openssl",
-          "programs_windows = Kafka's command-line tools (3.9 or later), Java 17 or later",
+          'works_with  = Apache Kafka 2.8 to 4.x, KRaft or ZooKeeper (tested: 2.8, 3.9 and 4.4); any kafka-clients 3.x or 4.x as the library',
+          "programs_linux = Java 11 or later, a JDK or a JRE; Kafka's library (a Kafka download, or its jars)",
+          "programs_macos = Java 11 or later, a JDK or a JRE; Kafka's library (a Kafka download, or its jars)",
+          "programs_windows = Java 11 or later, a JDK or a JRE; Kafka's library (a Kafka download, or its jars)",
           'docs        = https://github.com/godspeedhq/vigil/blob/main/packs/README.md#kafka',
           "needs       = a user that may only describe, as an administrator: kafka-configs --alter --entity-type users --entity-name vigil_monitor --add-config 'SCRAM-SHA-512=[password=...]'",
           'needs       = its ACLs: ' + ACLS,
-          "needs       = for the JMX jobs (throughput, requests, jvm, controller, connections): each broker's JMX port, without a password, in KAFKA_JMX",
+          "needs       = Kafka's library: KAFKA_HOME, a Kafka download (its libs/), or KAFKA_LIBS, a folder of its jars",
+          "needs       = for the brokers' own figures (throughput, requests, controller, connections, flushes and the log cleaner): each broker's JMX in KAFKA_JMX (jmxs=host:port for TLS), with KAFKA_JMX_USER, and for a password a secret line: secret = KAFKA_JMX_PASSWORD=secret:KAFKA_JMX_PASSWORD, then vigil secret set KAFKA_JMX_PASSWORD",
+          "needs       = for the brokers' JVMs (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: vigil pack install jvm, with each broker in JVM_TARGETS named as Kafka names it (kafka-1: jmxs=host:port)",
           '']
     admin_env = ['env         = KAFKA_BOOTSTRAP=localhost:9092',
                  'env         = KAFKA_SECURITY=SASL_SSL',
@@ -560,32 +715,43 @@ def pack_config():
                  'env         = KAFKA_CACERT=',
                  'env         = KAFKA_HOME=',
                  'secret      = KAFKA_PASSWORD=secret:KAFKA_MONITOR_PASSWORD']
+    jmx_env = ['env         = KAFKA_JMX=',
+               'env         = KAFKA_JMX_USER=']
     for j in JOBS:
         names = [n for n, _ in j['metrics']]
         p += ['[job.%s]' % j['job'],
               'metric_name = %s' % j['metric_name'],
               'metrics     = %s' % ', '.join(names),
               j['when'],
-              'max_runtime = %s' % ('3m' if j['job'] in ('tls', 'groups', 'topics', 'security') else '2m')]
+              'max_runtime = %s' % ('3m' if j['job'] in ('tls', 'groups', 'topics', 'security', 'consumers') else '2m')]
         if j['kind'] == 'jmx':
-            p += ['env         = KAFKA_JMX=localhost:9999', 'env         = KAFKA_HOME=']
+            p += jmx_env + ['env         = KAFKA_CACERT=']
         else:
-            p += admin_env
+            p += admin_env[:-1]
             if j['kind'] == 'both':
-                p.insert(len(p) - 1, 'env         = KAFKA_JMX=')
+                p += jmx_env
             if j['job'] == 'transactions':
-                p.insert(len(p) - 1, 'env         = KAFKA_TXN_LONG=300')
+                p += ['env         = KAFKA_TXN_LONG=300']
+            p += admin_env[-1:]
         p += ['']
     return '\n'.join(p).rstrip('\n') + '\n'
 
 
+FILES = {'_client.java': copy(os.path.join(src, '_client.java')),
+         '_probe.java': copy(os.path.join(repo, 'tools', 'probe', '_probe.java')),
+         '_probe.tables': copy(os.path.join(src, '_probe.tables'))}
 for d in ('linux', 'macos', 'windows'):
     os.makedirs(os.path.join(out, d), exist_ok=True)
+    # 1.0's scripts and jobs that 2.0 no longer has.
+    for f in os.listdir(os.path.join(out, d)):
+        if f.endswith(('.sh', '.ps1')) and f.rsplit('.', 1)[0] not in [j['job'] for j in JOBS]:
+            os.remove(os.path.join(out, d, f))
+    for f, text in FILES.items():
+        open(os.path.join(out, d, f), 'w', encoding='utf-8', newline='\n').write(text)
 open(os.path.join(out, 'pack.config'), 'w', encoding='utf-8', newline='\n').write(pack_config())
 for j in JOBS:
     s = sh_script(j)
     for d in ('linux', 'macos'):
         open(os.path.join(out, d, j['job'] + '.sh'), 'w', encoding='utf-8', newline='\n').write(s)
-    if os.path.exists(os.path.join(src, 'ps', j['job'] + '.ps1')):
-        open(os.path.join(out, 'windows', j['job'] + '.ps1'), 'w', encoding='utf-8', newline='\n').write(ps_script(j))
+    open(os.path.join(out, 'windows', j['job'] + '.ps1'), 'w', encoding='utf-8', newline='\n').write(ps_script(j))
 print('wrote', len(JOBS), 'jobs')

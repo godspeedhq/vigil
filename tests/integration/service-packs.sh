@@ -804,12 +804,17 @@ if [ -z "${VIGIL_IT_KAFKA_BOOTSTRAP-}" ] || [ -z "${VIGIL_IT_KAFKA_PASSWORD-}" ]
     printf '  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME\n'
 elif [ -z "${JAVA_HOME-}" ] && ! command -v java > /dev/null 2>&1; then
     printf '  SKIP  kafka: java is not installed here\n'
+elif [ -z "${VIGIL_IT_KAFKA_PACK-}" ]; then
+    printf '  SKIP  kafka: set VIGIL_IT_KAFKA_PACK to the pack with its jars built (scripts/run-kafka.sh builds it)\n'
 else
-    # The jobs have their cluster, password and CA from Vigil: never from this
-    # test's own environment.
-    unset KAFKA_BOOTSTRAP KAFKA_SECURITY KAFKA_SASL_MECHANISM KAFKA_USER KAFKA_PASSWORD KAFKA_CACERT KAFKA_CERT KAFKA_KEY KAFKA_CLIENT_CONFIG KAFKA_JMX KAFKA_TLS_ENDPOINTS
+    # The jobs have their cluster, passwords and CA from Vigil: never from
+    # this test's own environment.
+    unset KAFKA_BOOTSTRAP KAFKA_SECURITY KAFKA_SASL_MECHANISM KAFKA_USER KAFKA_PASSWORD KAFKA_CACERT KAFKA_CERT KAFKA_KEY KAFKA_CLIENT_CONFIG \
+        KAFKA_JMX KAFKA_JMX_USER KAFKA_JMX_PASSWORD KAFKA_HOME KAFKA_LIBS
     printf 'kafka at %s\n' "$VIGIL_IT_KAFKA_BOOTSTRAP"
-    kjobs='status quorum brokers replication reassignment consumers groups topics logdirs transactions config security features throughput requests jvm controller connections tls'
+    # The pack as a release builds it: with its jars.
+    rm -rf "$root/packs/kafka" && mkdir -p "$root/packs/kafka" && cp "$VIGIL_IT_KAFKA_PACK"/* "$root/packs/kafka/"
+    kjobs='status quorum brokers replication reassignment consumers groups topics logdirs transactions config security features throughput requests controller connections tls'
     kjobs_on() { vigil pack list | awk '$1 ~ /^kafka_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
     kbetween() { local v; v=$(printed "$1" "$2" "${3-}"); awk -v v="$v" -v a="$4" -v b="$5" 'BEGIN { print (v ~ /^-?[0-9]+(\.[0-9]+)?$/ && v + 0 >= a && v + 0 <= b) ? "yes" : "no [" v "]" }'; }
     ksaid() {
@@ -819,17 +824,28 @@ else
         grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
     }
     kruns() { vigil run "$1" > "$work/out" 2>&1; echo $?; }
-    check 'kafka: off until enabled' 'off=19' "$(kjobs_on)"
+    check 'kafka: off until enabled' 'off=18' "$(kjobs_on)"
+    check 'kafka: its JVM is the jvm pack'"'"'s: no kafka_jvm' 0 "$(vigil pack list | grep -c '^ *kafka_jvm ')"
     out=$(vigil pack enable kafka 2>&1)
     check 'kafka: enabled' 0 "$?"
     printf '%s\n' "$out" | sed 's/^/        /'
-    check 'kafka: its jobs are on' 'on=19' "$(kjobs_on)"
+    check 'kafka: and it says so' yes "$(printf '%s\n' "$out" | grep -q "needs for the brokers' JVMs .*the jvm pack" && echo yes || echo no)"
+    check 'kafka: its jobs are on' 'on=18' "$(kjobs_on)"
     check 'kafka: the password is a secret reference, in the jobs that log in' 14 "$(grep -c '^secret *= KAFKA_PASSWORD=secret:KAFKA_MONITOR_PASSWORD' "$root/config/vigil.config")"
     printf '%s' "$VIGIL_IT_KAFKA_PASSWORD" | vigil secret set KAFKA_MONITOR_PASSWORD --stdin > /dev/null
     set_env KAFKA_BOOTSTRAP "$VIGIL_IT_KAFKA_BOOTSTRAP"
     set_env KAFKA_HOME "$VIGIL_IT_KAFKA_HOME"
     set_env KAFKA_CACERT "${VIGIL_IT_KAFKA_CACERT-}"
-    [ -n "${VIGIL_IT_KAFKA_JMX-}" ] && set_env KAFKA_JMX "$VIGIL_IT_KAFKA_JMX"
+    if [ -n "${VIGIL_IT_KAFKA_JMX-}" ]; then
+        set_env KAFKA_JMX "$VIGIL_IT_KAFKA_JMX"
+        set_env KAFKA_JMX_USER monitor
+        # JMX with a password: a secret line on the jobs that read JMX, as
+        # packs/README.md says.
+        awk '{ print } /^env *= KAFKA_JMX_USER=/ { print "secret      = KAFKA_JMX_PASSWORD=secret:KAFKA_JMX_PASSWORD" }' "$root/config/vigil.config" > "$work/cfg" &&
+            cat "$work/cfg" > "$root/config/vigil.config"
+        check 'kafka: the JMX password is a secret reference, in the jobs that read JMX' 5 "$(grep -c '^secret *= KAFKA_JMX_PASSWORD=secret:KAFKA_JMX_PASSWORD' "$root/config/vigil.config")"
+        printf '%s' "$VIGIL_IT_KAFKA_JMX_PASSWORD" | vigil secret set KAFKA_JMX_PASSWORD --stdin > /dev/null
+    fi
     check 'kafka: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
 
     # Through the admin listener: a topic with messages, part of them read by a
@@ -856,7 +872,6 @@ else
     check 'kafka: up' 1 "$(printed kafka_status up)"
     check 'kafka: what it is' yes "$(grep -h ' out metric info 1 cluster_id=' "$root"/logs/jobs/kafka_status/*.log | grep -qE 'cluster_id=[A-Za-z0-9_-]+ kraft=(yes|no)$' && echo yes || echo no)"
     check 'kafka: its brokers' yes "$(kbetween kafka_status brokers '' 1 10000)"
-    check 'kafka: none fenced' 0 "$(printed kafka_status brokers_fenced)"
     check 'kafka: every partition has a leader' 0 "$(printed kafka_replication offline)"
     check 'kafka: the topics it sees' yes "$(kbetween kafka_replication topics '' 1 1e9)"
     check 'kafka: the brokers it reads from' yes "$(kbetween kafka_logdirs dirs '' 1 1e6)"
@@ -866,13 +881,19 @@ else
     # Finalized features, metadata.version among them, are KRaft's: a
     # cluster on ZooKeeper has none.
     if grep -qh ' out metric info 1 cluster_id=.* kraft=no$' "$root"/logs/jobs/kafka_status/*.log; then
-        check 'kafka: no finalized features on ZooKeeper' 0 "$(printed kafka_features features)"
+        check 'kafka: no KRaft quorum on ZooKeeper' 0 "$(printed kafka_quorum kraft)"
     else
-        check 'kafka: metadata.version named' yes "$(grep -h ' out metric metadata_version 1 version=' "$root"/logs/jobs/kafka_features/*.log | grep -q 'supported=' && echo yes || echo no)"
+        check 'kafka: the KRaft quorum, with its voters' yes "$(kbetween kafka_quorum voters '' 1 100)"
+        check 'kafka: metadata.version, finalized' yes "$(grep -h ' out metric metadata_version 1 version=' "$root"/logs/jobs/kafka_features/*.log | grep -q 'supported=' && echo yes || echo no)"
     fi
-    # run-kafka.sh holds a transaction open: it is seen as ongoing.
+    # run-kafka.sh holds a transaction open: it is seen as ongoing, where the
+    # cluster can list transactions (3.0 and later); before, the job says so.
     if [ -n "${VIGIL_IT_KAFKA_TXN-}" ]; then
-        check 'kafka: a transaction held open, seen' yes "$(kbetween kafka_transactions ongoing '' 1 1e9)"
+        if [ "$(ksaid kafka_transactions 'not supported by this cluster')" = yes ]; then
+            check 'kafka: transactions, said to be beyond this cluster (before 3.0)' 0 "$(kruns kafka_transactions)"
+        else
+            check 'kafka: a transaction held open, seen' yes "$(kbetween kafka_transactions ongoing '' 1 1e9)"
+        fi
     fi
     check 'kafka: unclean leader election off' 0 "$(printed kafka_config unclean_leader_election)"
     check 'kafka: TLS on its listener' 1 "$(printed kafka_tls tls)"
@@ -885,12 +906,35 @@ else
         check 'kafka: the group, empty now' yes "$(grep -h " out metric members 0 group=vigil_it_billing_$kid " "$root"/logs/jobs/kafka_groups/*.log > /dev/null && echo yes || echo no)"
     fi
     if [ -n "${VIGIL_IT_KAFKA_JMX-}" ]; then
-        check 'kafka: JMX answers' yes "$(grep -h ' out metric jmx_up ' "$root"/logs/jobs/kafka_throughput/*.log | grep -q ' jmx_up 1 ' && ! grep -h ' out metric jmx_up 0 ' "$root"/logs/jobs/kafka_throughput/*.log | grep -q . && echo yes || echo no)"
+        check 'kafka: JMX over TLS with a password answers, every broker' yes "$(grep -h ' out metric jmx_up ' "$root"/logs/jobs/kafka_throughput/*.log | grep -q ' jmx_up 1 ' && ! grep -h ' out metric jmx_up 0 ' "$root"/logs/jobs/kafka_throughput/*.log | grep -q . && echo yes || echo no)"
         check 'kafka: messages in, counted' yes "$(grep -h ' out metric messages_in_count ' "$root"/logs/jobs/kafka_throughput/*.log | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
         check 'kafka: one active controller' 1 "$(grep -h ' out metric active_controller ' "$root"/logs/jobs/kafka_controller/*.log | tail -n 20 | awk '{ s += $6 } END { print s }')"
-        check 'kafka: heap read' yes "$(grep -h ' out metric heap_used_bytes ' "$root"/logs/jobs/kafka_jvm/*.log | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
-        check 'kafka: logins counted' yes "$(grep -h ' out metric logins_count ' "$root"/logs/jobs/kafka_connections/*.log | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
+        check 'kafka: logins counted, by listener' yes "$(grep -h ' out metric logins_count ' "$root"/logs/jobs/kafka_connections/*.log | grep ' listener=' | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
+        # Every Kafka has the log cleaner's figures; the flushes' only once a
+        # broker has flushed (Kafka 2.8 registers them then).
+        check 'kafka: the log cleaner, read from JMX' yes "$(grep -h ' out metric cleaner_dead_threads ' "$root"/logs/jobs/kafka_logdirs/*.log | awk '$6 >= 0 { f = 1 } END { print f ? "yes" : "no" }')"
+        printf '        flushes: %s\n' "$(grep -h ' out metric flushes_count ' "$root"/logs/jobs/kafka_logdirs/*.log | tail -n 1 | sed 's/^[^ ]* [^ ]* out //')"
+        check 'kafka: no heap, GC or threads: the jvm pack'"'"'s' 0 "$(cat "$root"/logs/jobs/kafka_*/*.log | grep -cE ' out metric (heap_|gc_|threads |cpu_pct |open_files )')"
+        # JMX's failures: a wrong password and a certificate it cannot trust
+        # fail the run, and say why.
+        printf 'not-the-password' | vigil secret set KAFKA_JMX_PASSWORD --stdin > /dev/null
+        check 'kafka: a wrong JMX password fails the run' 2 "$(kruns kafka_throughput)"
+        check 'kafka: and says why' yes "$(ksaid kafka_throughput 'refused the login')"
+        printf '%s' "$VIGIL_IT_KAFKA_JMX_PASSWORD" | vigil secret set KAFKA_JMX_PASSWORD --stdin > /dev/null
+        if [ -n "${VIGIL_IT_KAFKA_CACERT-}" ]; then
+            set_env KAFKA_CACERT ''
+            check 'kafka: a JMX certificate it cannot trust fails the run' 2 "$(kruns kafka_controller)"
+            check 'kafka: and says why' yes "$(ksaid kafka_controller 'certificate is not trusted')"
+            set_env KAFKA_CACERT "$VIGIL_IT_KAFKA_CACERT"
+        fi
     fi
+
+    # The jars: one changed by a byte is not run.
+    cp "$root/packs/kafka/_probe.jar" "$work/probe.keep"
+    printf '\377' | dd of="$root/packs/kafka/_probe.jar" bs=1 seek=900 count=1 conv=notrunc 2> /dev/null
+    check 'kafka: a jar changed by one byte is not run' 2 "$(kruns kafka_throughput)"
+    check 'kafka: and says why' yes "$(ksaid kafka_throughput 'does not match the digest')"
+    cp "$work/probe.keep" "$root/packs/kafka/_probe.jar"
 
     # Failures: a certificate it cannot trust and a wrong password fail the run
     # and say why; a cluster that is down reads as up 0.
@@ -906,10 +950,10 @@ else
     check 'kafka: a wrong password fails the run' 2 "$(kruns kafka_status)"
     check 'kafka: and says why' yes "$(ksaid kafka_status 'refused the login')"
     printf '%s' "$VIGIL_IT_KAFKA_PASSWORD" | vigil secret set KAFKA_MONITOR_PASSWORD --stdin > /dev/null
-    # Not config/: the secret store is there, and holds it by design.
-    leaks=$(grep -rlF -- "$VIGIL_IT_KAFKA_PASSWORD" "$root/logs" "$root/metrics" "$root/state" "$root/spool" 2> /dev/null)
-    check 'kafka: the password is written nowhere' '' "$(printf '%s' "$leaks" | sed "s#^$root/##" | tr '\n' ' ' | sed 's/ $//')"
-    check 'kafka: no client configuration is left behind' '' "$(ls -d "${TMPDIR:-/tmp}"/vigil-kafka.* 2> /dev/null)"
+    # Not config/: the secret store is there, and holds them by design.
+    leaks=$(grep -rlF -e "$VIGIL_IT_KAFKA_PASSWORD" ${VIGIL_IT_KAFKA_JMX_PASSWORD:+-e "$VIGIL_IT_KAFKA_JMX_PASSWORD"} "$root/logs" "$root/metrics" "$root/state" "$root/spool" 2> /dev/null)
+    check 'kafka: the passwords are written nowhere' '' "$(printf '%s' "$leaks" | sed "s#^$root/##" | tr '\n' ' ' | sed 's/ $//')"
+    check 'kafka: nothing is left behind' '' "$(ls -d "${TMPDIR:-/tmp}"/vigil-kafka.* 2> /dev/null)"
     set_env KAFKA_BOOTSTRAP 'localhost:1'
     check 'kafka: a cluster that is down still runs' 0 "$(kruns kafka_status)"
     check 'kafka: and reads as up 0' 0 "$(printed kafka_status up)"
@@ -919,6 +963,47 @@ else
     set_env KAFKA_BOOTSTRAP "$VIGIL_IT_KAFKA_BOOTSTRAP"
     kruns kafka_status > /dev/null
     kruns kafka_consumers > /dev/null
+
+    # Every job again, with a second Kafka library (VIGIL_IT_KAFKA_LIBS2),
+    # on a JRE when one is given (VIGIL_IT_KAFKA_JRE): run directly, as the
+    # jobs run them. The same lines as through Vigil, values apart.
+    if [ -z "${VIGIL_IT_KAFKA_LIBS2-}" ]; then
+        printf '  SKIP  kafka with a second library: set VIGIL_IT_KAFKA_LIBS2\n'
+    else
+        printf 'kafka with the library %s%s\n' "$(ls "$VIGIL_IT_KAFKA_LIBS2"/kafka-clients-*.jar | head -n 1 | sed 's#.*/##')" \
+            "${VIGIL_IT_KAFKA_JRE:+, on $("$VIGIL_IT_KAFKA_JRE/bin/java" -version 2>&1 | head -n 1)}"
+        kdirect() {
+            JAVA_HOME=${VIGIL_IT_KAFKA_JRE:-${JAVA_HOME-}} KAFKA_LIBS=$VIGIL_IT_KAFKA_LIBS2 KAFKA_BOOTSTRAP=$VIGIL_IT_KAFKA_BOOTSTRAP \
+                KAFKA_SECURITY=SASL_SSL KAFKA_SASL_MECHANISM=SCRAM-SHA-512 KAFKA_USER=vigil_monitor KAFKA_PASSWORD=$VIGIL_IT_KAFKA_PASSWORD \
+                KAFKA_CACERT=${VIGIL_IT_KAFKA_CACERT-} KAFKA_JMX=${VIGIL_IT_KAFKA_JMX-} KAFKA_JMX_USER=monitor KAFKA_JMX_PASSWORD=${VIGIL_IT_KAFKA_JMX_PASSWORD-} \
+                bash "$root/packs/kafka/$1.sh" > "$work/k2.$1" 2>&1
+            echo $?
+        }
+        # Metric lines, values apart, without those only Kafka 4's library
+        # gives (fenced brokers, eligible leader replicas), and metadata.version
+        # by its level alone (a library names only the versions it knows): the same from
+        # either library, then.
+        knames() { awk '$1 == "metric" && $2 == "metadata_version" { print "metric metadata_version"; next } $1 == "metric" && $2 !~ /^(fenced|brokers_fenced|with_eligible_leaders)$/ { $3 = ""; print }' | sort; }
+        # Those of job $1's last run through Vigil.
+        klast() {
+            local f rid
+            f=$(ls "$root/logs/jobs/$1"/*.log | tail -n 1)
+            rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+            grep " $rid out metric " "$f" | sed 's/^[^ ]* [^ ]* out //' | knames
+        }
+        failed='' same=''
+        for j in $kjobs; do [ "$(kdirect "$j")" = 0 ] || failed="$failed $j"; done
+        check 'kafka: every job runs with the second library' '' "$failed"
+        for j in $failed; do tail -n 3 "$work/k2.$j" | sed 's/^/        /'; done
+        for j in status brokers replication topics config security features throughput controller; do
+            kruns "kafka_$j" > /dev/null
+            kdirect "$j" > /dev/null
+            knames < "$work/k2.$j" > "$work/k2.names"
+            klast "kafka_$j" > "$work/k1.names"
+            cmp -s "$work/k1.names" "$work/k2.names" || { same="$same $j"; diff "$work/k1.names" "$work/k2.names" | head -n 6 | sed 's/^/        /'; }
+        done
+        check 'kafka: the same lines as with the first library' '' "$same"
+    fi
 fi
 
 # --- jvm --------------------------------------------------------------------

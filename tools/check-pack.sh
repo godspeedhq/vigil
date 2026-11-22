@@ -294,6 +294,12 @@ check_pack() {
             [ -e "$f" ] || continue
             job=${f##*/}
             case $job in
+                # The probe, tools/probe: every pack carries the same, as it
+                # is there now (tools/probe/DESIGN.md).
+                _probe.java)
+                    cmp -s "$f" tools/probe/_probe.java ||
+                        fail "$f is not tools/probe/_probe.java as it is now: py tools/probe/gen.py ., then the pack's own gen.py"
+                    ;;
                 # A file the scripts share, such as the jvm pack's client:
                 # named for no job, it is never run as one.
                 _*) ;;

@@ -47,7 +47,13 @@
         VIGIL_IT_KAFKA_CACERT                the CA its certificates are from
         VIGIL_IT_KAFKA_HOME                  Kafka's command-line tools (3.9 on);
                                              Java on the PATH or in JAVA_HOME
-        VIGIL_IT_KAFKA_JMX                   optional: its brokers' JMX
+        VIGIL_IT_KAFKA_JMX                   optional: its brokers' JMX, jmxs=host:port; ...
+        VIGIL_IT_KAFKA_JMX_PASSWORD          JMX's password, for its user monitor
+        VIGIL_IT_KAFKA_RELEASE               a folder of packs.sh's archives: the
+                                             kafka pack, with its jars
+        VIGIL_IT_KAFKA_LIBS2                 optional: a second Kafka library, to
+                                             run every job again with
+        VIGIL_IT_KAFKA_JRE                   optional: a JRE to run those on
         VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP       optional: a PLAINTEXT listener that may
                                              do anything, to make a topic, messages
                                              and a group with lag
@@ -640,12 +646,22 @@ try {
     # --- kafka --------------------------------------------------------------
     if (-not $env:VIGIL_IT_KAFKA_BOOTSTRAP -or -not $env:VIGIL_IT_KAFKA_PASSWORD -or -not $env:VIGIL_IT_KAFKA_HOME) { Write-Host '  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME' }
     elseif (-not $env:JAVA_HOME -and -not (Get-Command java.exe -ErrorAction SilentlyContinue)) { Write-Host '  SKIP  kafka: java is not installed here' }
+    elseif (-not $env:VIGIL_IT_KAFKA_RELEASE) { Write-Host '  SKIP  kafka: set VIGIL_IT_KAFKA_RELEASE to a folder of packs.sh''s archives, the kafka pack''s among them' }
     else {
-        # The jobs have their cluster, password and CA from Vigil: never from
+        # The jobs have their cluster, passwords and CA from Vigil: never from
         # this test's own environment.
-        foreach ($v in 'KAFKA_BOOTSTRAP', 'KAFKA_SECURITY', 'KAFKA_SASL_MECHANISM', 'KAFKA_USER', 'KAFKA_PASSWORD', 'KAFKA_CACERT', 'KAFKA_CERT', 'KAFKA_KEY', 'KAFKA_CLIENT_CONFIG', 'KAFKA_JMX', 'KAFKA_TLS_ENDPOINTS') { Remove-Item "Env:\$v" -ErrorAction SilentlyContinue }
+        foreach ($v in 'KAFKA_BOOTSTRAP', 'KAFKA_SECURITY', 'KAFKA_SASL_MECHANISM', 'KAFKA_USER', 'KAFKA_PASSWORD', 'KAFKA_CACERT', 'KAFKA_CERT', 'KAFKA_KEY', 'KAFKA_CLIENT_CONFIG',
+            'KAFKA_JMX', 'KAFKA_JMX_USER', 'KAFKA_JMX_PASSWORD', 'KAFKA_HOME', 'KAFKA_LIBS') { Remove-Item "Env:\$v" -ErrorAction SilentlyContinue }
         Write-Host "kafka at $($env:VIGIL_IT_KAFKA_BOOTSTRAP)"
-        $kjobs = 'status', 'quorum', 'brokers', 'replication', 'reassignment', 'consumers', 'groups', 'topics', 'logdirs', 'transactions', 'config', 'security', 'features', 'throughput', 'requests', 'jvm', 'controller', 'connections', 'tls'
+        # The pack as a release builds it, with its jars: from packs.sh's zip.
+        $kzip = @(Get-ChildItem -LiteralPath $env:VIGIL_IT_KAFKA_RELEASE -Filter 'vigil-pack-kafka-*-windows.zip' | Sort-Object Name)[-1]
+        $kx = Join-Path $work 'kafka-pack'
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($kzip.FullName, $kx)
+        $kdir = Join-Path $root 'packs\kafka'
+        Remove-Item -LiteralPath $kdir -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item -LiteralPath (Join-Path $kx 'kafka') -Destination $kdir -Recurse
+        $kjobs = 'status', 'quorum', 'brokers', 'replication', 'reassignment', 'consumers', 'groups', 'topics', 'logdirs', 'transactions', 'config', 'security', 'features', 'throughput', 'requests', 'controller', 'connections', 'tls'
         function Get-KafkaJobsOn {
             $list = (Invoke-Vigil pack list).Text
             $s = @($list.Split("`n") | Where-Object { $_ -match '^\s*kafka_\w+\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
@@ -653,35 +669,43 @@ try {
         }
         function Invoke-KJob { param([string]$Job) return [string](Invoke-Vigil run $Job).Code }
         $kroot = Join-Path $root 'logs\jobs'
-        Test-Equal 'kafka: off until enabled' 'off=19' (Get-KafkaJobsOn)
+        Test-Equal 'kafka: off until enabled' 'off=18' (Get-KafkaJobsOn)
+        Test-Equal 'kafka: its JVM is the jvm pack''s: no kafka_jvm' '0' ([string]@((Invoke-Vigil pack list).Text.Split("`n") | Where-Object { $_ -match '^\s*kafka_jvm\s' }).Count)
         $r = Invoke-Vigil pack enable kafka
         Test-Equal 'kafka: enabled' '0' ([string]$r.Code)
         Write-Host ($r.Text -replace '(?m)^', '        ')
-        Test-Equal 'kafka: its jobs are on' 'on=19' (Get-KafkaJobsOn)
+        Test-Equal 'kafka: and it says so' 'True' ([string]($r.Text -match "needs for the brokers' JVMs .*the jvm pack"))
+        Test-Equal 'kafka: its jobs are on' 'on=18' (Get-KafkaJobsOn)
         $cfg = Join-Path $root 'config\vigil.config'
         Test-Equal 'kafka: the password is a secret reference, in the jobs that log in' '14' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*KAFKA_PASSWORD=secret:KAFKA_MONITOR_PASSWORD')).Count)
+        # JMX with a password: a secret line on the jobs that read JMX.
+        if ($env:VIGIL_IT_KAFKA_JMX) {
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(env\s*=\s*KAFKA_JMX_USER=[^\r\n]*)(\r?\n)', '$1$2secret      = KAFKA_JMX_PASSWORD=secret:KAFKA_JMX_PASSWORD$2'))
+            Test-Equal 'kafka: the JMX password is a secret reference, in the jobs that read JMX' '5' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*KAFKA_JMX_PASSWORD=secret:KAFKA_JMX_PASSWORD')).Count)
+        }
         # A logon with no password (SSH with a key) cannot use Vigil's secret
         # store: Windows refuses it its data protection, and Vigil says so.
-        # Then the jobs take the password from this test's environment, by an
-        # env: reference, as such a logon would.
+        # Then the jobs take the passwords from this test's environment, by
+        # env: references, as such a logon would.
         $kenv = $false
         Set-VigilSecret 'KAFKA_MONITOR_PASSWORD' $env:VIGIL_IT_KAFKA_PASSWORD
         if ((Invoke-Vigil secret list).Text -notmatch 'KAFKA_MONITOR_PASSWORD') {
             $kenv = $true
-            Write-Host '  note  kafka: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_KAFKA_PASSWORD'
-            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*KAFKA_PASSWORD=)secret:KAFKA_MONITOR_PASSWORD', '${1}env:VIGIL_IT_KAFKA_PASSWORD'))
+            Write-Host '  note  kafka: this logon cannot use the secret store (it has no password): the jobs take them by env:VIGIL_IT_KAFKA_PASSWORD and env:VIGIL_IT_KAFKA_JMX_PASSWORD'
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*KAFKA_PASSWORD=)secret:KAFKA_MONITOR_PASSWORD', '${1}env:VIGIL_IT_KAFKA_PASSWORD' -replace '(?m)^(secret\s*=\s*KAFKA_JMX_PASSWORD=)secret:KAFKA_JMX_PASSWORD', '${1}env:VIGIL_IT_KAFKA_JMX_PASSWORD'))
         }
+        elseif ($env:VIGIL_IT_KAFKA_JMX) { Set-VigilSecret 'KAFKA_JMX_PASSWORD' $env:VIGIL_IT_KAFKA_JMX_PASSWORD }
         Set-Env 'KAFKA_BOOTSTRAP' $env:VIGIL_IT_KAFKA_BOOTSTRAP
         Set-Env 'KAFKA_HOME' $env:VIGIL_IT_KAFKA_HOME
         Set-Env 'KAFKA_CACERT' ([string]$env:VIGIL_IT_KAFKA_CACERT)
-        if ($env:VIGIL_IT_KAFKA_JMX) { Set-Env 'KAFKA_JMX' $env:VIGIL_IT_KAFKA_JMX }
+        if ($env:VIGIL_IT_KAFKA_JMX) { Set-Env 'KAFKA_JMX' $env:VIGIL_IT_KAFKA_JMX; Set-Env 'KAFKA_JMX_USER' 'monitor' }
         $r = Invoke-Vigil precheck
         Test-Equal 'kafka: precheck is happy' '0' ([string]$r.Code)
 
         # Through the admin listener: a topic with messages, part of them read
         # by a group that then stops (lag), and a topic with a single replica.
-        # The tools run as the pack runs them: Java, each tool's class read
-        # from its .bat. Names of this run's own.
+        # The tools run as Java, each tool's class read from its .bat. Names
+        # of this run's own.
         $kid = $PID
         $kworkload = $false
         if ($env:VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP) {
@@ -708,7 +732,6 @@ try {
         Test-Equal 'kafka: what it is' 'True' ([string](@(Get-ChildItem -LiteralPath (Join-Path $kroot 'kafka_status') -Filter '*.log' | ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) } |
                         Where-Object { $_ -cmatch ' out metric info 1 cluster_id=[A-Za-z0-9_-]+ kraft=(yes|no)$' }).Count -gt 0))
         Test-Equal 'kafka: its brokers' 'yes' (Test-Between kafka_status brokers '' 1 10000)
-        Test-Equal 'kafka: none fenced' '0' (Get-Printed kafka_status brokers_fenced)
         Test-Equal 'kafka: every partition has a leader' '0' (Get-Printed kafka_replication offline)
         Test-Equal 'kafka: the topics it sees' 'yes' (Test-Between kafka_replication topics '' 1 1e9)
         Test-Equal 'kafka: data on disk' 'yes' (Test-Between kafka_logdirs broker_size_bytes '' 1 1e18)
@@ -722,10 +745,34 @@ try {
             Test-Equal 'kafka: the topic has 6 partitions' '6' (Get-Printed kafka_topics partitions "topic=vigil_it_orders_$kid")
         }
         if ($env:VIGIL_IT_KAFKA_JMX) {
-            Test-Equal 'kafka: JMX answers' '1' (Get-Printed kafka_throughput jmx_up)
+            Test-Equal 'kafka: JMX over TLS with a password answers' '1' (Get-Printed kafka_throughput jmx_up)
             Test-Equal 'kafka: messages in, counted' 'yes' (Test-Between kafka_throughput messages_in_count '' 1 1e18)
-            Test-Equal 'kafka: heap read' 'yes' (Test-Between kafka_jvm heap_used_bytes '' 1 1e15)
+            Test-Equal 'kafka: the log cleaner, read from JMX' 'yes' (Test-Between kafka_logdirs cleaner_dead_threads '' 0 1e9)
+            $jvmish = @(Get-ChildItem -LiteralPath $kroot -Directory -Filter 'kafka_*' | ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -Filter '*.log' } |
+                    ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) } | Where-Object { $_ -cmatch ' out metric (heap_|gc_|threads |cpu_pct |open_files )' }).Count
+            Test-Equal 'kafka: no heap, GC or threads: the jvm pack''s' '0' ([string]$jvmish)
+            # JMX's failures: a wrong password and a certificate it cannot
+            # trust fail the run, and say why.
+            $kjpw = $env:VIGIL_IT_KAFKA_JMX_PASSWORD
+            if ($kenv) { $env:VIGIL_IT_KAFKA_JMX_PASSWORD = 'not-the-password' } else { Set-VigilSecret 'KAFKA_JMX_PASSWORD' 'not-the-password' }
+            Test-Equal 'kafka: a wrong JMX password fails the run' '2' (Invoke-KJob kafka_throughput)
+            Test-Equal 'kafka: and says why' 'True' (Test-Said kafka_throughput 'refused the login')
+            if ($kenv) { $env:VIGIL_IT_KAFKA_JMX_PASSWORD = $kjpw } else { Set-VigilSecret 'KAFKA_JMX_PASSWORD' $kjpw }
+            if ($env:VIGIL_IT_KAFKA_CACERT) {
+                Set-Env 'KAFKA_CACERT' ''
+                Test-Equal 'kafka: a JMX certificate it cannot trust fails the run' '2' (Invoke-KJob kafka_controller)
+                Test-Equal 'kafka: and says why' 'True' (Test-Said kafka_controller 'certificate is not trusted')
+                Set-Env 'KAFKA_CACERT' $env:VIGIL_IT_KAFKA_CACERT
+            }
         }
+
+        # The jars: one changed by a byte is not run.
+        $kpj = Join-Path $kdir '_probe.jar'
+        Copy-Item -LiteralPath $kpj -Destination (Join-Path $work 'probe.keep')
+        $b = [System.IO.File]::ReadAllBytes($kpj); $b[900] = $b[900] -bxor 0xFF; [System.IO.File]::WriteAllBytes($kpj, $b)
+        Test-Equal 'kafka: a jar changed by one byte is not run' '2' (Invoke-KJob kafka_throughput)
+        Test-Equal 'kafka: and says why' 'True' (Test-Said kafka_throughput 'does not match the digest')
+        Copy-Item -LiteralPath (Join-Path $work 'probe.keep') -Destination $kpj -Force
 
         # Failures: a certificate it cannot trust and a wrong password fail the
         # run and say why; a cluster that is down reads as up 0.
@@ -743,14 +790,45 @@ try {
         Test-Equal 'kafka: and says why' 'True' (Test-Said kafka_status 'refused the login')
         if ($kenv) { $env:VIGIL_IT_KAFKA_PASSWORD = $kpw } else { Set-VigilSecret 'KAFKA_MONITOR_PASSWORD' $kpw }
         $leaks = @(Get-ChildItem -LiteralPath (Join-Path $root 'logs'), (Join-Path $root 'state'), (Join-Path $root 'spool'), (Join-Path $root 'metrics') -Recurse -File -ErrorAction SilentlyContinue |
-                Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains($env:VIGIL_IT_KAFKA_PASSWORD) })
-        Test-Equal 'kafka: the password is written nowhere' '' ((@($leaks | ForEach-Object { $_.FullName.Substring($root.Length + 1) })) -join ' ')
-        Test-Equal 'kafka: no client configuration is left behind' '0' ([string]@(Get-ChildItem ([System.IO.Path]::GetTempPath()) -Directory -Filter 'vigil-kafka.*' -ErrorAction SilentlyContinue).Count)
+                Where-Object { $t = [System.IO.File]::ReadAllText($_.FullName); $t.Contains($env:VIGIL_IT_KAFKA_PASSWORD) -or ($env:VIGIL_IT_KAFKA_JMX_PASSWORD -and $t.Contains($env:VIGIL_IT_KAFKA_JMX_PASSWORD)) })
+        Test-Equal 'kafka: the passwords are written nowhere' '' ((@($leaks | ForEach-Object { $_.FullName.Substring($root.Length + 1) })) -join ' ')
+        Test-Equal 'kafka: nothing is left behind' '0' ([string]@(Get-ChildItem ([System.IO.Path]::GetTempPath()) -Directory -Filter 'vigil-kafka.*' -ErrorAction SilentlyContinue).Count)
         Set-Env 'KAFKA_BOOTSTRAP' 'localhost:1'
         Test-Equal 'kafka: a cluster that is down still runs' '0' (Invoke-KJob kafka_status)
         Test-Equal 'kafka: and reads as up 0' '0' (Get-Printed kafka_status up)
         Set-Env 'KAFKA_BOOTSTRAP' $env:VIGIL_IT_KAFKA_BOOTSTRAP
         [void](Invoke-KJob kafka_status)
+
+        # Every job again, with a second Kafka library (VIGIL_IT_KAFKA_LIBS2),
+        # on a JRE when one is given (VIGIL_IT_KAFKA_JRE): run directly, as the
+        # jobs run them.
+        if (-not $env:VIGIL_IT_KAFKA_LIBS2) { Write-Host '  SKIP  kafka with a second library: set VIGIL_IT_KAFKA_LIBS2' }
+        else {
+            $k2java = if ($env:VIGIL_IT_KAFKA_JRE) { $env:VIGIL_IT_KAFKA_JRE } else { $env:JAVA_HOME }
+            Write-Host "kafka with the library $(@(Get-ChildItem -LiteralPath $env:VIGIL_IT_KAFKA_LIBS2 -Filter 'kafka-clients-*.jar')[0].Name), on $([string](& (Join-Path $k2java 'bin\java.exe') -version 2>&1 | Select-Object -First 1))"
+            function Invoke-KDirect {
+                param([string]$Job)
+                $was = $env:JAVA_HOME
+                $set = @{ JAVA_HOME = $k2java; KAFKA_LIBS = $env:VIGIL_IT_KAFKA_LIBS2; KAFKA_BOOTSTRAP = $env:VIGIL_IT_KAFKA_BOOTSTRAP; KAFKA_SECURITY = 'SASL_SSL'
+                    KAFKA_SASL_MECHANISM = 'SCRAM-SHA-512'; KAFKA_USER = 'vigil_monitor'; KAFKA_PASSWORD = $env:VIGIL_IT_KAFKA_PASSWORD; KAFKA_CACERT = [string]$env:VIGIL_IT_KAFKA_CACERT
+                    KAFKA_JMX = [string]$env:VIGIL_IT_KAFKA_JMX; KAFKA_JMX_USER = 'monitor'; KAFKA_JMX_PASSWORD = [string]$env:VIGIL_IT_KAFKA_JMX_PASSWORD }
+                foreach ($k in $set.Keys) { [Environment]::SetEnvironmentVariable($k, $set[$k]) }
+                try {
+                    $out = & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $kdir "$Job.ps1") 2>&1
+                    $code = $LASTEXITCODE
+                }
+                finally {
+                    foreach ($k in $set.Keys) { if ($k -ne 'JAVA_HOME') { [Environment]::SetEnvironmentVariable($k, $null) } }
+                    $env:JAVA_HOME = $was
+                }
+                [System.IO.File]::WriteAllText((Join-Path $work "k2.$Job"), ((@($out | ForEach-Object { "$_" })) -join "`n"))
+                return [string]$code
+            }
+            $failed = @()
+            foreach ($j in $kjobs) { if ((Invoke-KDirect $j) -ne '0') { $failed += $j } }
+            Test-Equal 'kafka: every job runs with the second library' '' ($failed -join ' ')
+            foreach ($j in $failed) { Get-Content -LiteralPath (Join-Path $work "k2.$j") -Tail 3 | ForEach-Object { Write-Host "        $_" } }
+        }
 
         [void](Invoke-Vigil supervise --once)
         Start-Sleep -Seconds 3
