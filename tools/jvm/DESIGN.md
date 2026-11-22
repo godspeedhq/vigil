@@ -149,7 +149,8 @@ Many servers have only a JRE (a distribution's `-jre-headless` package, a vendor
 
 - **Both, side by side.** Each platform's archive carries `_client.java` and `_client.jar`. The jar is Java bytecode, not a native binary: one jar for Linux, macOS and Windows.
 - **Java 11 bytecode** (`javac --release 11`), so any Java 11 or later runs it. Java 8 alone cannot; the JVMs watched may still be Java 8.
-- **Source first, the jar only where it is needed.** A script runs the source when the Java it uses has the compiler beside it (`javac` next to `java`, after following links; on macOS, the JDK `/usr/libexec/java_home` names). Otherwise it runs the jar, `java -cp _client.jar JvmClient <job>`. On a JDK, what runs is exactly the source you can read; the jar is the fallback for a JRE.
+- **The jar when the pack has one, the source otherwise.** A pack from a packs release has the jar, and every script runs it, `java -cp _client.jar JvmClient <job>`, with a JDK or a JRE, once it matches the digest the script carries. A copy of the pack without one (from the repository) runs the source, which needs a JDK.
+- **Why not the source whenever Java can run it.** That was the first idea, and the test machines ruled it out: whether a Java can run a source file cannot be told from outside it. Fedora's `java-25-openjdk` package runs source files with no `javac` beside its `java`; Temurin's JRE 11 cannot, though its `release` file names `jdk.compiler`. Only asking the JVM tells, at the cost of starting one more each run. The jar has no such question, and a run from it takes about half a second, where the source takes two or three.
 - **Never committed.** The repository holds the source only. The jar is built when a packs release is built.
 
 ### Built so anyone can check it
@@ -162,7 +163,7 @@ Many servers have only a JRE (a distribution's `-jre-headless` package, a vendor
 
 - **The script checks the jar against the digest it carries** before running it, with `sha256sum`, `shasum -a 256` or `openssl` (`Get-FileHash` on Windows). A jar that does not match fails the run: `_client.jar does not match this script's digest: reinstall the pack (vigil pack install jvm)`. So does a script with no digest stamped (one copied from the repository, which has no jar).
 - **What that guards against, and what it does not.** It catches a jar replaced on its own, or damaged. It does not stop someone who can also rewrite the script. Nothing in a pack can: what stops them is who may write to `packs/`, which `vigil doctor` checks (below).
-- **No JDK and no jar** fails the run with what to do: a JDK 11 or later, or the pack from a packs release.
+- **No jar and no JDK** (a copy from the repository, on a JRE) fails the run, with Java's own reason.
 
 ### Vigil's part (Vigil 1.4.0, in SPECIFICATION.md when built)
 
@@ -184,8 +185,8 @@ These help every pack, not just this one: a `.sh` or `.ps1` swapped on disk is a
 ### Tested
 
 - **On a JRE**, on Linux, macOS and Windows: the jobs run from the jar, with the same lines as from the source.
-- **On a JDK**: the source runs, not the jar.
-- **A jar changed by one byte** fails the run, and says why. **No JDK and no jar** fails, and says what to do.
+- **The same lines** from the jar on a JRE as from the source on a JDK.
+- **A jar changed by one byte** fails the run, on a JRE and on a JDK, and says why. A script with no digest runs no jar. **No jar on a JRE** fails, and Java says why.
 - **Built twice, the jar is the same**, byte for byte; the release refuses one built differently from its scripts' digest.
 - **`vigil pack verify`** against a test packs release: all match; a script changed, a file missing, a file added, each found; a kept script a note; a pack of your own skipped; `--from` offline.
 - **`vigil doctor`**: a group-writable script in `packs/` (Linux, macOS), and Users given write to `packs\` (Windows), each a `WARN`; a fresh install, none.

@@ -1099,26 +1099,27 @@ else
         for j in $failed; do tail -n 3 "$work/jre.$j" | sed 's/^/        /'; done
         printf '        41 jobs from the jar in %d s\n' $((t1 - t0))
         check 'jvm: and every JVM is up' 8 "$(grep -c '^metric up 1 ' "$work/jre.status")"
-        # The same lines as the source gives on a JDK, values apart.
+        # The same lines as the source gives on a JDK (the repository's copy,
+        # which has no jar), values apart.
         same=''
         for j in status heap gc threads classes jit metaspace codecache flags security; do
             awk '{ $3 = ""; print }' "$work/jre.$j" | sort > "$work/jre.names"
-            jdirect "$jdk_home" "$jp" "$j" > /dev/null
+            jdirect "$jdk_home" "$repo/packs/jvm/$os" "$j" > /dev/null
             awk '{ $3 = ""; print }' "$work/jre.$j" | sort | cmp -s - "$work/jre.names" || same="$same $j"
         done
         check 'jvm: the same lines as from the source' '' "$same"
-        # A JDK runs the source, whatever the jar: even a changed one.
+        # A jar changed by one byte is not run, by any Java.
         cp "$jp/_client.jar" "$work/keep.jar"
         printf '\377' | dd of="$jp/_client.jar" bs=1 seek=1000 count=1 conv=notrunc 2> /dev/null
-        check 'jvm: a JDK runs the source, not the jar' 0 "$(jdirect "$jdk_home" "$jp" heap)"
         check 'jvm: a jar changed by one byte is not run' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" heap)"
         check 'jvm: and says why' yes "$(grep -q 'does not match the digest in this script' "$work/jre.heap" && echo yes || echo no)"
+        check 'jvm: nor by a JDK' 1 "$(jdirect "$jdk_home" "$jp" heap)"
         cp "$work/keep.jar" "$jp/_client.jar"
         cp "$repo/packs/jvm/$os/heap.sh" "$jp/heap.sh"
         check 'jvm: a script with no digest runs no jar' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" heap)"
         rm -f "$jp/_client.jar"
-        check 'jvm: no JDK and no jar fails' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" status)"
-        check 'jvm: and says what to do' yes "$(grep -q 'is not a JDK, and this pack has no _client.jar' "$work/jre.status" && echo yes || echo no)"
+        check 'jvm: no jar, and a JRE cannot run the source' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" status)"
+        check 'jvm: and Java says why' yes "$(grep -q 'jdk.compiler' "$work/jre.status" && echo yes || echo no)"
     fi
 fi
 

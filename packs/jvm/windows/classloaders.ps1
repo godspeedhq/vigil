@@ -56,10 +56,10 @@
       Act      loaders rising with each redeploy: restart, and look for what
                keeps the old loader.
 
-    Requires: Windows PowerShell 5.1 or PowerShell 7, Java 11 or later
-      (JAVA_HOME, or java on the PATH): a JDK runs _client.java, beside this
-      script; any other runs _client.jar, built from it, once it matches its
-      digest
+    Requires: Windows PowerShell 5.1 or PowerShell 7, Java 11 or later, a JDK or
+      a JRE (JAVA_HOME, or java on the PATH), to run _client.jar, beside this
+      script, once it matches its digest; a copy of the pack without the jar
+      runs _client.java, which needs a JDK
     Exit code: 0 on success, JVMs up or down; 1 if java is missing, _client.jar
       does not match its digest, JVM_TARGETS is wrong, or a JVM refuses the JMX
       login or its certificate
@@ -87,15 +87,12 @@ if (-not $java) {
     exit 1
 }
 
-# A JDK, with javac.exe beside its java.exe, runs the source. Any other Java
-# runs the jar, once it matches the digest above.
+# The jar, the client compiled, once it matches the digest above: any Java
+# 11 or later runs it. A copy of the pack without one (from the repository,
+# not a release) runs the source, which needs a JDK.
 $jar = Join-Path $PSScriptRoot '_client.jar'
-if ([System.IO.File]::Exists((Join-Path (Split-Path -Parent $java) 'javac.exe'))) {
+if (-not [System.IO.File]::Exists($jar)) {
     $client = @((Join-Path $PSScriptRoot '_client.java'))
-}
-elseif (-not [System.IO.File]::Exists($jar)) {
-    [Console]::Error.WriteLine("${job}: $java is not a JDK, and this pack has no _client.jar to run instead: install the pack from a packs release (vigil pack install jvm), or use a JDK 11 or later")
-    exit 1
 }
 else {
     $sha = [System.Security.Cryptography.SHA256]::Create()

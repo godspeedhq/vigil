@@ -56,9 +56,9 @@
 #   Act      to_space_exhausted_in_log or evacuation_failures_in_log rising:
 #            G1 is out of room, and its pauses grow.
 #
-# Requires: bash, Java 11 or later (JAVA_HOME, or java on the PATH): a JDK
-#   runs _client.java, beside this script; any other runs _client.jar, built
-#   from it, once it matches its digest
+# Requires: bash, Java 11 or later, a JDK or a JRE (JAVA_HOME, or java on the
+#   PATH), to run _client.jar, beside this script, once it matches its digest;
+#   a copy of the pack without the jar runs _client.java, which needs a JDK
 # Exit code: 0 on success, JVMs up or down; 1 if java is missing, _client.jar
 #   does not match its digest, JVM_TARGETS is wrong, or a JVM refuses the JMX
 #   login or its certificate
@@ -81,25 +81,11 @@ else
     exit 1
 fi
 
-# A JDK, with javac beside its java (links followed; on macOS, /usr/bin/java
-# runs the JDK java_home names), runs the source. Any other Java runs the
-# jar, once it matches the digest above.
-bin=$java
-n=0
-while [ -L "$bin" ] && [ "$n" -lt 20 ]; do
-    l=$(readlink "$bin")
-    case $l in /*) bin=$l ;; *) bin=$(dirname "$bin")/$l ;; esac
-    n=$((n + 1))
-done
-bin=$(dirname "$bin")
-if [ "$bin" = /usr/bin ] && [ -x /usr/libexec/java_home ]; then
-    bin=$(/usr/libexec/java_home 2> /dev/null)/bin
-fi
-if [ -x "$bin/javac" ]; then
+# The jar, the client compiled, once it matches the digest above: any Java
+# 11 or later runs it. A copy of the pack without one (from the repository,
+# not a release) runs the source, which needs a JDK.
+if [ ! -f "$here/_client.jar" ]; then
     set -- "$here/_client.java"
-elif [ ! -f "$here/_client.jar" ]; then
-    echo "jvm_gclog_detail: $java is not a JDK, and this pack has no _client.jar to run instead: install the pack from a packs release (vigil pack install jvm), or use a JDK 11 or later" >&2
-    exit 1
 else
     if command -v sha256sum > /dev/null 2>&1; then
         sum=$(sha256sum < "$here/_client.jar")

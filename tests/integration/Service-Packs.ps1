@@ -890,12 +890,12 @@ try {
             Test-Equal 'jvm: the JRE has no compiler' 'False' ([string](Test-Path -LiteralPath (Join-Path $jreHome 'bin\javac.exe')))
             # $JavaHome's Java runs job $Job, its output in jre.<job>; the exit code.
             function Invoke-Direct {
-                param([string]$JavaHome, [string]$Job)
+                param([string]$JavaHome, [string]$Job, [string]$Dir = $jp)
                 $was = $env:JAVA_HOME
                 $env:JAVA_HOME = $JavaHome; $env:JVM_TARGETS = $jtargets; $env:JVM_JMX_USER = 'operator'
                 $env:JVM_JMX_PASSWORD = $env:VIGIL_IT_JVM_PASSWORD; $env:JVM_CACERT = [string]$env:VIGIL_IT_JVM_CACERT
                 try {
-                    $out = & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $jp "$Job.ps1") 2>&1
+                    $out = & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Dir "$Job.ps1") 2>&1
                     $code = $LASTEXITCODE
                 }
                 finally {
@@ -913,26 +913,27 @@ try {
             foreach ($j in $failed) { Get-Content -LiteralPath (Join-Path $work "jre.$j") -Tail 3 | ForEach-Object { Write-Host "        $_" } }
             Write-Host ('        41 jobs from the jar in {0} s' -f [int]$t.Elapsed.TotalSeconds)
             Test-Equal 'jvm: and every JVM is up' ([string]@($jtargets.Split(';') | Where-Object { $_.Trim() }).Count) ([string]@([System.IO.File]::ReadAllLines((Join-Path $work 'jre.status')) | Where-Object { $_ -like 'metric up 1 *' }).Count)
-            # The same lines as the source gives on a JDK, values apart.
+            # The same lines as the source gives on a JDK (the repository's
+            # copy, which has no jar), values apart.
             $differ = @()
             foreach ($j in 'status', 'heap', 'gc', 'threads', 'classes', 'jit', 'metaspace', 'codecache', 'flags', 'security') {
                 $a = Get-Names $j
-                [void](Invoke-Direct $jdkHome $j)
+                [void](Invoke-Direct $jdkHome $j (Join-Path $repo 'packs\jvm\windows'))
                 if ((Get-Names $j) -cne $a) { $differ += $j }
             }
             Test-Equal 'jvm: the same lines as from the source' '' ($differ -join ' ')
-            # A JDK runs the source, whatever the jar: even a changed one.
+            # A jar changed by one byte is not run, by any Java.
             Copy-Item -LiteralPath $jar -Destination (Join-Path $work 'keep.jar')
             $b = [System.IO.File]::ReadAllBytes($jar); $b[1000] = $b[1000] -bxor 0xFF; [System.IO.File]::WriteAllBytes($jar, $b)
-            Test-Equal 'jvm: a JDK runs the source, not the jar' '0' (Invoke-Direct $jdkHome heap)
             Test-Equal 'jvm: a jar changed by one byte is not run' '1' (Invoke-Direct $jreHome heap)
             Test-Equal 'jvm: and says why' 'True' ([string]([System.IO.File]::ReadAllText((Join-Path $work 'jre.heap')).Contains('does not match the digest in this script')))
+            Test-Equal 'jvm: nor by a JDK' '1' (Invoke-Direct $jdkHome heap)
             Copy-Item -LiteralPath (Join-Path $work 'keep.jar') -Destination $jar -Force
             Copy-Item -LiteralPath (Join-Path $repo 'packs\jvm\windows\heap.ps1') -Destination (Join-Path $jp 'heap.ps1') -Force
             Test-Equal 'jvm: a script with no digest runs no jar' '1' (Invoke-Direct $jreHome heap)
             Remove-Item -LiteralPath $jar
-            Test-Equal 'jvm: no JDK and no jar fails' '1' (Invoke-Direct $jreHome status)
-            Test-Equal 'jvm: and says what to do' 'True' ([string]([System.IO.File]::ReadAllText((Join-Path $work 'jre.status')).Contains('is not a JDK, and this pack has no _client.jar')))
+            Test-Equal 'jvm: no jar, and a JRE cannot run the source' '1' (Invoke-Direct $jreHome status)
+            Test-Equal 'jvm: and Java says why' 'True' ([string]([System.IO.File]::ReadAllText((Join-Path $work 'jre.status')).Contains('jdk.compiler')))
         }
 
         # Forty-one jobs are a lot of events: the sender merges them in the
