@@ -28,6 +28,8 @@
 //   KAFKA_USER             the user, one that may only describe
 //   KAFKA_PASSWORD         its password (a secret line: never on a command line)
 //   KAFKA_CACERT           a PEM file of CAs, for the brokers' TLS and JMX's
+//   KAFKA_CERT, KAFKA_KEY  a client certificate and its key (PEM, PKCS#8), for
+//                          brokers that ask for one
 //   KAFKA_CLIENT_CONFIG    a client properties file of your own (Kerberos,
 //                          OAuth): its settings come first
 //   KAFKA_JMX              the brokers' JMX: jmx=host:port or jmxs=host:port, ;-separated
@@ -169,6 +171,18 @@ class KafkaClient {
                 p.setProperty("ssl.truststore.certificates", new String(Files.readAllBytes(Paths.get(env("KAFKA_CACERT"))), StandardCharsets.US_ASCII));
             } catch (IOException e) {
                 throw new IllegalArgumentException("KAFKA_CACERT: cannot read " + env("KAFKA_CACERT") + ": " + e.getMessage());
+            }
+        }
+        // A client certificate, for brokers that ask for one (ssl.client.auth):
+        // its key PKCS#8, as Kafka reads PEM.
+        if (proto.endsWith("SSL") && !env("KAFKA_CERT").isEmpty() && !p.containsKey("ssl.keystore.location")) {
+            if (env("KAFKA_KEY").isEmpty()) throw new IllegalArgumentException("KAFKA_CERT is set but KAFKA_KEY is not: the certificate's private key, PEM (PKCS#8)");
+            try {
+                p.setProperty("ssl.keystore.type", "PEM");
+                p.setProperty("ssl.keystore.certificate.chain", new String(Files.readAllBytes(Paths.get(env("KAFKA_CERT"))), StandardCharsets.US_ASCII));
+                p.setProperty("ssl.keystore.key", new String(Files.readAllBytes(Paths.get(env("KAFKA_KEY"))), StandardCharsets.US_ASCII));
+            } catch (IOException e) {
+                throw new IllegalArgumentException("KAFKA_CERT, KAFKA_KEY: " + e.getMessage());
             }
         }
         // The broker's name is always checked: no setting turns it off.

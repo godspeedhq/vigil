@@ -64,6 +64,17 @@ What a table cannot say (a figure worked out from several MBeans, a choice betwe
 
 The engine prints as every client does: `metric <name> <value> <tag>=<value>...`, plain ASCII, tag values without spaces or quotes. Its messages go to stderr, prefixed with the job's name, and `Jmx.fail` sets the run's exit code to 1 after what could be printed.
 
+## One generic jar, for packs that are only MBeans (decided 2026-11-22)
+
+Most packs for a Java application (ActiveMQ, Tomcat, Jetty) only read MBeans. They need no Java of their own: the engine, with a small `main`, reads a **table** (a text file in the pack: metric, MBean pattern, attribute, tags, scale) and prints its metrics. So:
+
+- **One jar, `_jmx.jar`, built once by the release from `tools/jmx/`**, the same bytes and SHA-256 in every pack that carries it. Each pack carries its own copy, so none depends on another; there is one Java program to review and trust, its digest the same everywhere. The scripts check it before every run, as now; `vigil pack verify` covers it.
+- **A pack of this kind ships no Java of its own:** scripts, its table, its README. A new one needs no change to the jar.
+- **A pack whose application speaks something other than JMX keeps a client of its own.** Kafka's admin API needs Kafka's library and code: the kafka pack has its own client, with the engine built in, and its JMX jobs are tables already.
+- **Before the jar, the application's own HTTP.** ActiveMQ (Classic and Artemis) serves its MBeans as JSON over HTTP (Jolokia, in its web console; to be confirmed per version). Where an application does, its pack asks with `curl` or PowerShell and ships no Java at all; the jar is for what HTTP does not reach.
+
+The generic `main` and the table format are built with the first pack that needs them.
+
 ## Tested
 
 With the kafka pack 2.0, and every pack after it that copies the engine:

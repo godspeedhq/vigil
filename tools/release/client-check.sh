@@ -32,11 +32,11 @@ sha() {
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-client-check.XXXXXX") || exit 1
 trap 'rm -rf "$work"' EXIT
 
-[ "$#" -gt 0 ] || set -- $(cd "$repo/packs" && for d in */; do [ -f "$d/client.lib" ] && printf '%s ' "${d%/}"; done)
+[ "$#" -gt 0 ] || set -- $(cd "$repo/tools" && for d in */; do [ -f "$d/client.lib" ] && printf '%s ' "${d%/}"; done)
 rc=0
 for name in "$@"; do
-    d=$repo/packs/$name
-    src=$(ls "$d"/*/_client.java 2> /dev/null | head -n 1)
+    d=$repo/tools/$name
+    src=$(ls "$repo/packs/$name"/*/_client.java 2> /dev/null | head -n 1)
     [ -f "$d/client.lib" ] && [ -n "$src" ] || { printf 'client-check: %s has no client.lib and _client.java\n' "$name" >&2; rc=1; continue; }
     while read -r use f url sum; do
         case $use in build | check) ;; *) continue ;; esac

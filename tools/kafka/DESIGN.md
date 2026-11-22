@@ -43,7 +43,7 @@ Like the jvm pack: one Java source file, `_client.java`, and the release compile
 
 A script runs `java -cp <_client.jar><sep><libs>/* KafkaClient <job>`. No `kafka-clients-*.jar` there is a clear error naming the setting, never a Java stack trace. The README advises the newest Kafka download, whatever the cluster runs.
 
-**Compiled against Kafka's API, never shipping it.** The release downloads the `kafka-clients` jar the client is compiled against from Maven Central, checks it against a SHA-256 pinned in the repository (`packs/kafka/client.lib`), and compiles with it on the class path: like compiling against the JDK. That jar never enters the archive. `client-jar.sh` gains this: a pack may name the libraries its client compiles against.
+**Compiled against Kafka's API, never shipping it.** The release downloads the `kafka-clients` jar the client is compiled against from Maven Central, checks it against a SHA-256 pinned in the repository (`tools/kafka/client.lib`), and compiles with it on the class path: like compiling against the JDK. That jar never enters the archive. `client-jar.sh` gains this: a pack may name the libraries its client compiles against.
 
 ## Versions
 

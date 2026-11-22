@@ -198,7 +198,7 @@ final class Jmx {
             Future<JMXConnector> f = ex.submit(() -> JMXConnectorFactory.connect(new JMXServiceURL(url), envm));
             t.conn = f.get(30, TimeUnit.SECONDS);
             return t.conn.getMBeanServerConnection();
-        } catch (TimeoutException e) {
+        } catch (java.util.concurrent.TimeoutException e) {
             say("JMX at " + t.address + " did not answer in 30 seconds");
         } catch (IOException e) {
             say("JMX at " + t.address + " does not answer: " + rootMessage(e));
