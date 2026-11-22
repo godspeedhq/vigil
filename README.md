@@ -102,7 +102,7 @@ Vigil's guiding rules:
 | Backend: `datadog` (Series API v2) | Done | The suites, against a mock only: never run against Datadog itself |
 | Backends: the rest | Planned, not built | |
 | `vigil precheck`: every configuration problem, pre-flight checks, effective settings | Done | The suites |
-| `vigil doctor`: what Vigil's runs cost here, how fast a shell starts, and on Windows .NET's native images, Defender and PowerShell's logging policies | Done | The suites; real machines: Fedora 44, Intel macOS 12, Windows 11 |
+| `vigil doctor`: what Vigil's runs cost here, how fast a shell starts, who besides their owners can change what it runs, and on Windows .NET's native images, Defender and PowerShell's logging policies | Done | The suites; real machines: Fedora 44, Intel macOS 12, Windows 11 |
 | `vigil config`: edit the configuration like `crontab -e`, saved only when valid | Done | The suites |
 | Service registration: systemd, launchd, NSSM (system mode) and user mode; `start`, `stop`, `status` | Done | The suites; real machines: Fedora 44, Intel macOS 12, Windows 11, Windows Server 2016 |
 | `vigil init` (a starting configuration) and `vigil uninstall` | Done | The suites |
@@ -810,6 +810,7 @@ vigil pack enable postgres     # turns its jobs on, and says what they need
 vigil pack list                # the packs here, and whether their jobs are on
 vigil pack update              # the packs here, to their newest versions
 vigil pack update postgres     # that pack only
+vigil pack verify              # the packs here, file by file, against their release
 vigil pack disable postgres    # takes its jobs out of the configuration
 vigil pack remove postgres     # deletes its scripts, once its jobs are off
 vigil pack remove --disable postgres  # turns its jobs off, then deletes its scripts
@@ -818,6 +819,8 @@ vigil pack remove --disable postgres  # turns its jobs off, then deletes its scr
 Vigil only runs what your configuration names, so installing or updating a pack changes scripts and never your configuration. A job that's on runs the new script at its next run, and the update lists what changed. A new script stays off until you enable it, and a script the pack dropped stays while a job uses it. Packs are released on their own, so a new pack doesn't wait for a Vigil release, and `vigil self update` leaves them alone.
 
 Every pack is checked before it's installed: the index of packs is signed with the release key your Vigil already has, and each pack must match its SHA-256 in that index. `vigil pack install <name>@<version>` installs a particular version, an older one too; `vigil pack update` never goes back on its own.
+
+And after it's installed: `vigil pack verify` fetches the release each pack here came from, checks it the same way, and compares every file, so a script changed, added or deleted since shows up. `vigil pack install <name>` of the version you have puts back what differs. `vigil doctor` says whether anyone but their owners can write to the folders Vigil runs from, since whoever can is one edit away from changing what Vigil runs.
 
 **A machine that can't reach GitHub.** Download the packs on one that can, for the other's platform, and carry the folder over:
 

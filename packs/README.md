@@ -644,6 +644,7 @@ Then `vigil pack enable nginx`, which reminds you of the page. The job reads `ht
 - Print metrics as `metric <name> <value> [key=value ...]`, and use plain ASCII.
 - Exit 0 when the script worked. A high reading is not a failure.
 - Read data; never change the machine.
+- Ship text you can read: scripts, and the source of anything they run. Nothing compiled goes in the repository. The one exception is a Java client (`_client.java`), since a JRE cannot run source: the release compiles it into `_client.jar` (`tools/release/client-jar.sh`), writes its digest into the scripts, and they check it before running it, as the jvm pack's do.
 - Start with the same header as the other scripts: what it does, its metrics, an example of its output, what healthy and unhealthy look like, what it needs, its exit codes and the disclaimer.
 - In `pack.config`, say what `vigil pack info` shows before anyone installs it: `works_with`, the servers it is meant for and tested with; `programs_linux`, `programs_macos` and `programs_windows`, the programs its scripts need on each; `docs`, its section here; and `needs`, what an administrator sets up first.
 

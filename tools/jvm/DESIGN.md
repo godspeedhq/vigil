@@ -165,22 +165,23 @@ Many servers have only a JRE (a distribution's `-jre-headless` package, a vendor
 - **What that guards against, and what it does not.** It catches a jar replaced on its own, or damaged. It does not stop someone who can also rewrite the script. Nothing in a pack can: what stops them is who may write to `packs/`, which `vigil doctor` checks (below).
 - **No jar and no JDK** (a copy from the repository, on a JRE) fails the run, with Java's own reason.
 
-### Vigil's part (Vigil 1.4.0, in SPECIFICATION.md when built)
+### Vigil's part (Vigil 1.4.0; SPECIFICATION.md 16.7 and 18.10)
 
 These help every pack, not just this one: a `.sh` or `.ps1` swapped on disk is as dangerous as a swapped jar, only easier to spot.
 
 - **`vigil pack verify [<name>...] [--from <folder>]`**: checks the packs installed here against the packs release they came from. For each pack, it fetches the archive of the installed version for this platform (or reads it from a folder `vigil pack download` wrote), checks it against the signed index as `install` does, and compares every file, byte for byte:
-  - `pack jvm 1.1.0: 44 files match packs-2026.11.23`
-  - a file that differs (`changed`), one the archive has and this machine does not (`missing`), one here that is not in the archive (`not in the pack`) each fail it;
-  - a script kept from an older version because a job still runs it (`vigil pack update` keeps such scripts) is a `note`, not a failure;
-  - a pack that is not in the repository (one of your own) is `not from the repository: not checked`.
-  
+  - `pack jvm 1.1.0: its 44 files match packs-2026.11.23`;
+  - otherwise `pack jvm 1.1.0: differs from packs-2026.11.23`, with a line for each file `changed`, `missing` (in the release, not here) or `added` (here, not in the release), and the command that puts it back;
+  - a script kept from an older version because a job still runs it (`vigil pack update` keeps such scripts) is a `kept` line, not a difference;
+  - a pack the repository does not have at that version (one of your own) is `not in the repository, not checked`.
+
   It reads only and changes nothing. Exit code 0 when every pack checked matches, 1 otherwise.
-- **`vigil doctor`: who can change what Vigil runs.** A new section. It warns (`WARN`) when anyone but the owner, root or the administrators can write to `app/`, `packs/` or `config/`, or to anything in them:
-  - **Linux, macOS:** group- or world-writable files and folders;
-  - **Windows:** an access rule that lets Everyone, Authenticated Users, Users or Interactive write, modify or create files.
-  
-  The installers already set this up; this finds it changed since. Like the rest of `doctor`, it reads only, and names the paths (the first few, and how many more).
+- **`vigil pack install <name>` of the version already here puts it back as released**: what `verify` would call changed, missing or added is replaced, restored or removed (`restored pack jvm 1.1.0 as released`), a kept script stays, and the configuration is not touched. When everything matches: `is here: nothing to do`, as before. Without this, a pack found changed could only be fixed by removing it, which takes its jobs out of the configuration.
+- **`vigil doctor`: who can change what Vigil runs.** A new section. It warns (`WARN`) when anyone but their owner can write the root's own folder, or `app/`, `vendor/`, `packs/`, `scripts/` or `config/`, or anything in them:
+  - **Linux, macOS:** files and folders writable by anyone, or by a group other than the owner's own (a group named as its owner, which Fedora gives each user and whose files its umask leaves group-writable, is the owner's);
+  - **Windows:** an access rule that lets Everyone, Authenticated Users, Users, Interactive, Guests or Domain Users write, modify or create in it.
+
+  The installers already set this up; this finds it changed since. Like the rest of `doctor`, it reads only, and names the paths (the first five, and how many more). A folder it cannot look into is a `note`, not taken for one that is fine.
 
 ### Tested
 
