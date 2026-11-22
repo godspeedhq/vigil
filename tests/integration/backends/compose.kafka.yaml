@@ -17,7 +17,7 @@
 #                             KAFKA_TLS_DIR (server.pem, a key and its
 #                             certificate, naming localhost and 127.0.0.1)
 #     PLAIN   on 29091-29093: PLAINTEXT, no login
-#     JMX     on 19991-19993: no password, no TLS, as the pack's JMX jobs
+#     JMX     on 19991-19993: user monitor (readonly), password and TLS
 #                             read it
 #
 # The brokers talk among themselves on a PLAINTEXT listener of their own,
@@ -41,6 +41,8 @@ services:
     environment:
       NODE_ID: "1"
       KAFKA_HEAP_OPTS: -Xmx384m -Xms384m
+      JMX_PASSWORD: ${KAFKA_JMX_PASSWORD:-}
+      KS_PASSWORD: ${KAFKA_KS_PASSWORD:-}
     ports:
       - "127.0.0.1:19091:19091"
       - "127.0.0.1:29091:29091"
@@ -52,6 +54,8 @@ services:
     environment:
       NODE_ID: "2"
       KAFKA_HEAP_OPTS: -Xmx384m -Xms384m
+      JMX_PASSWORD: ${KAFKA_JMX_PASSWORD:-}
+      KS_PASSWORD: ${KAFKA_KS_PASSWORD:-}
     ports:
       - "127.0.0.1:19092:19092"
       - "127.0.0.1:29092:29092"
@@ -63,6 +67,8 @@ services:
     environment:
       NODE_ID: "3"
       KAFKA_HEAP_OPTS: -Xmx384m -Xms384m
+      JMX_PASSWORD: ${KAFKA_JMX_PASSWORD:-}
+      KS_PASSWORD: ${KAFKA_KS_PASSWORD:-}
     ports:
       - "127.0.0.1:19093:19093"
       - "127.0.0.1:29093:29093"
