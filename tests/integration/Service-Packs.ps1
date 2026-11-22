@@ -747,7 +747,7 @@ try {
         if ($env:VIGIL_IT_KAFKA_JMX) {
             Test-Equal 'kafka: JMX over TLS with a password answers' '1' (Get-Printed kafka_throughput jmx_up)
             Test-Equal 'kafka: messages in, counted' 'yes' (Test-Between kafka_throughput messages_in_count '' 1 1e18)
-            Test-Equal 'kafka: flushes to disk, from JMX' 'yes' (Test-Between kafka_logdirs flushes_count '' 1 1e18)
+            Test-Equal 'kafka: flushes to disk, read from JMX (a broker on ZooKeeper may have none yet)' 'yes' (Test-Between kafka_logdirs flushes_count '' 0 1e18)
             $jvmish = @(Get-ChildItem -LiteralPath $kroot -Directory -Filter 'kafka_*' | ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -Filter '*.log' } |
                     ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) } | Where-Object { $_ -cmatch ' out metric (heap_|gc_|threads |cpu_pct |open_files )' }).Count
             Test-Equal 'kafka: no heap, GC or threads: the jvm pack''s' '0' ([string]$jvmish)

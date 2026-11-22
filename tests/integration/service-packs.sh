@@ -905,7 +905,7 @@ else
         check 'kafka: messages in, counted' yes "$(grep -h ' out metric messages_in_count ' "$root"/logs/jobs/kafka_throughput/*.log | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
         check 'kafka: one active controller' 1 "$(grep -h ' out metric active_controller ' "$root"/logs/jobs/kafka_controller/*.log | tail -n 20 | awk '{ s += $6 } END { print s }')"
         check 'kafka: logins counted, by listener' yes "$(grep -h ' out metric logins_count ' "$root"/logs/jobs/kafka_connections/*.log | grep ' listener=' | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
-        check 'kafka: flushes to disk, from JMX' yes "$(grep -h ' out metric flushes_count ' "$root"/logs/jobs/kafka_logdirs/*.log | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
+        check 'kafka: flushes to disk, read from JMX (a broker on ZooKeeper may have none yet)' yes "$(grep -h ' out metric flushes_count ' "$root"/logs/jobs/kafka_logdirs/*.log | awk '$6 >= 0 { f = 1 } END { print f ? "yes" : "no" }')"
         check 'kafka: no heap, GC or threads: the jvm pack'"'"'s' 0 "$(cat "$root"/logs/jobs/kafka_*/*.log | grep -cE ' out metric (heap_|gc_|threads |cpu_pct |open_files )')"
         # JMX's failures: a wrong password and a certificate it cannot trust
         # fail the run, and say why.
