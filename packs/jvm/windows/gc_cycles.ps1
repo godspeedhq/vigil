@@ -54,16 +54,24 @@
       Act      pause_avg_ms in the hundreds for G1, or above 10 for ZGC: the
                collector is behind.
 
-    Requires: Windows PowerShell 5.1 or PowerShell 7, a JDK 11 or later
-      (JAVA_HOME, or java on the PATH) to run _client.java, beside this script
-    Exit code: 0 on success, JVMs up or down; 1 if java is missing, JVM_TARGETS
-      is wrong, or a JVM refuses the JMX login or its certificate
+    Requires: Windows PowerShell 5.1 or PowerShell 7, Java 11 or later
+      (JAVA_HOME, or java on the PATH): a JDK runs _client.java, beside this
+      script; any other runs _client.jar, built from it, once it matches its
+      digest
+    Exit code: 0 on success, JVMs up or down; 1 if java is missing, _client.jar
+      does not match its digest, JVM_TARGETS is wrong, or a JVM refuses the JMX
+      login or its certificate
 #>
 
 $ErrorActionPreference = 'Stop'
 $job = 'jvm_gc_cycles'
 
-# The client, beside this script, run by a JDK: JAVA_HOME's, else the PATH's.
+# _client.jar's SHA-256, written when the pack was released: built from
+# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
+$jarSha256 = '@CLIENT_JAR_SHA256@'
+
+# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# the PATH's.
 $java = $null
 if ($env:JAVA_HOME -and [System.IO.File]::Exists((Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
     $java = Join-Path $env:JAVA_HOME 'bin\java.exe'
@@ -73,8 +81,30 @@ else {
     if ($c) { $java = $c.Source }
 }
 if (-not $java) {
-    [Console]::Error.WriteLine("${job}: java not found: the jvm pack runs its client with a JDK 11 or later, on the PATH or in JAVA_HOME")
+    [Console]::Error.WriteLine("${job}: java not found: the jvm pack runs its client with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME")
     exit 1
+}
+
+# A JDK, with javac.exe beside its java.exe, runs the source. Any other Java
+# runs the jar, once it matches the digest above.
+$jar = Join-Path $PSScriptRoot '_client.jar'
+if ([System.IO.File]::Exists((Join-Path (Split-Path -Parent $java) 'javac.exe'))) {
+    $client = @((Join-Path $PSScriptRoot '_client.java'))
+}
+elseif (-not [System.IO.File]::Exists($jar)) {
+    [Console]::Error.WriteLine("${job}: $java is not a JDK, and this pack has no _client.jar to run instead: install the pack from a packs release (vigil pack install jvm), or use a JDK 11 or later")
+    exit 1
+}
+else {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $f = [System.IO.File]::OpenRead($jar)
+    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
+    finally { $f.Dispose(); $sha.Dispose() }
+    if ($sum -ne $jarSha256) {
+        [Console]::Error.WriteLine("${job}: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs")
+        exit 1
+    }
+    $client = @('-cp', $jar, 'JvmClient')
 }
 
 # A folder of this run's own, for the process table and what Java writes
@@ -117,7 +147,7 @@ try {
 
     # A small JVM, quick to start, that keeps no counters of its own (it
     # would find itself among the JVMs it watches).
-    & $java -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx128m "-Djava.io.tmpdir=$work" (Join-Path $PSScriptRoot '_client.java') $job
+    & $java -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx128m "-Djava.io.tmpdir=$work" @client $job
     $code = $LASTEXITCODE
 }
 finally {

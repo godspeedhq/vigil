@@ -24,6 +24,9 @@
 #
 # The pack's client runs with this machine's java (JDK 11 or later).
 #
+# VIGIL_IT_JVM_JRE=<folder>: a JRE (11 or later, no compiler) to run every
+# job on as well, from the client compiled as a packs release compiles it.
+#
 # VIGIL_IT_JVM_HOLD=<file>: at the end, the JVMs are kept up, with the JMX
 # password and the CA in <file>.d/ (this account's only), for the tests of
 # other machines (macOS, Windows), until <file> is deleted.
@@ -70,6 +73,7 @@ mkdir -p "$tls"
 
 evidence_start pack-jvm "$bk_dir/$file" "$0" "$@"
 printf 'java     %s\n' "$(java -version 2>&1 | head -n 1)"
+[ -z "${VIGIL_IT_JVM_JRE-}" ] || printf 'jre      %s (%s)\n' "$("$VIGIL_IT_JVM_JRE/bin/java" -version 2>&1 | head -n 1)" "$VIGIL_IT_JVM_JRE"
 say() { printf '\n# %s\n' "$*"; }
 
 dc up -d > "$work/up.log" 2>&1 || { cat "$work/up.log"; die 'the JVMs would not start'; }

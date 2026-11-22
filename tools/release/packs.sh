@@ -19,7 +19,9 @@
 #   vigil-pack-<name>-<version>-linux.tar.gz, -macos.tar.gz, -windows.zip
 #       a pack as packs/<name>/ holds it on that platform: pack.config and
 #       that platform's scripts, in a folder <name>/. A platform the pack has
-#       no scripts for has no archive.
+#       no scripts for has no archive. A pack with a _client.java there also
+#       gets _client.jar, compiled from it, and its digest written into the
+#       scripts (client-jar.sh).
 #   packs.index
 #       every version of every pack, the release its archives are in, and
 #       each archive's SHA-256. Versions in <previous packs.index> are carried
@@ -41,7 +43,7 @@
 # once (setting). A Vigil skips records it does not know.
 #
 # Needs tar, gzip, openssl, and for the .zip: zip, python3 or (Git Bash)
-# PowerShell.
+# PowerShell. For a pack with a _client.java: a JDK 17 or later.
 # Exit code: 0 built; 1 a pack refused, or a failure; 64 a usage error.
 
 set -u
@@ -147,6 +149,14 @@ for d in "$repo"/packs/*/; do
         ls "$d/$os"/*."$ext" > /dev/null 2>&1 || continue
         rm -rf "${stage:?}/$os" && mkdir -p "$stage/$os/$name" || exit 1
         cp "$d/pack.config" "$d/$os"/* "$stage/$os/$name/" || exit 1
+        # A client in Java, compiled for a JRE, and its digest in the scripts.
+        if [ -f "$stage/$os/$name/_client.java" ]; then
+            bash "$here/client-jar.sh" "$stage/$os/$name" > /dev/null || { printf 'packs: cannot build the client of %s for %s\n' "$name" "$os" >&2; exit 1; }
+        fi
+        if grep -l '@CLIENT_JAR_' "$stage/$os/$name"/* > /dev/null 2>&1; then
+            printf 'packs: %s for %s names a compiled client it has no _client.java for\n' "$name" "$os" >&2
+            exit 1
+        fi
         arch=vigil-pack-$name-$version-$os
         if [ "$os" = windows ]; then
             arch=$arch.zip
