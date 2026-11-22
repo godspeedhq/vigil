@@ -1,0 +1,27 @@
+when     2026-11-22T15:38:21Z
+machine  Linux 7.1.5-200.fc44.x86_64, 4 CPUs
+java     openjdk version "21.0.13.1" 2026-11-17 LTS
+cluster  Kafka 4.4.0, three nodes, SASL_SSL, held by run-kafka.sh
+
+job               1.0 CPU   1.0 time    2.0 CPU   2.0 time
+status            15.83 s     9.28 s     2.76 s     2.06 s
+quorum            15.18 s     8.72 s     2.99 s     2.28 s
+brokers           16.51 s     9.46 s     2.90 s     2.20 s
+replication        8.84 s     5.27 s     3.51 s     2.85 s
+reassignment       7.63 s     4.35 s     2.94 s     2.20 s
+consumers         10.09 s     6.28 s     4.01 s     3.48 s
+groups            35.24 s    20.91 s     3.32 s     3.10 s
+topics            25.49 s    15.06 s     3.24 s     2.47 s
+logdirs            8.25 s     4.74 s     3.28 s     2.65 s
+transactions      15.77 s     9.27 s     3.65 s     3.00 s
+config            16.72 s     9.57 s     3.66 s     3.14 s
+security          26.68 s    13.80 s     3.08 s     2.32 s
+features           8.91 s     4.57 s     2.95 s     2.41 s
+tls                9.51 s     4.82 s     3.08 s     2.54 s
+all 14           220.67 s   126.10 s    45.38 s    36.70 s
+
+2.0's four JMX jobs (the probe, JMX over TLS with a password, which 1.0's JmxTool cannot reach):
+throughput                               1.15 s     0.89 s
+requests                                 1.49 s     1.48 s
+controller                               1.08 s     0.77 s
+connections                              1.15 s     0.82 s

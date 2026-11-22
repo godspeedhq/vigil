@@ -42,11 +42,14 @@
                              tagged the same
 
     Example output (the rest are in the same form):
-      metric connections 0 broker=1 listener=PLAIN
-      metric created_count 81 broker=1 listener=SECURE
-      metric logins_count 81 broker=1 listener=SECURE
-      metric failed_logins_count 0 broker=1 listener=SECURE
-      metric failed_relogins_count 0 broker=1 listener=SECURE
+      metric jmx_up 1 broker=1 jmx=127.0.0.1:19991
+      metric connections 2 broker=1 jmx=127.0.0.1:19991 listener=CONTROLLER
+      metric connections 14 broker=1 jmx=127.0.0.1:19991 listener=INTERNAL
+      metric connections 0 broker=1 jmx=127.0.0.1:19991 listener=PLAIN
+      metric connections 0 broker=1 jmx=127.0.0.1:19991 listener=SECURE
+      metric created_count 2 broker=1 jmx=127.0.0.1:19991 listener=CONTROLLER
+      metric created_count 14 broker=1 jmx=127.0.0.1:19991 listener=INTERNAL
+      metric created_count 33 broker=1 jmx=127.0.0.1:19991 listener=PLAIN
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  failed_logins_count flat; connections steady.

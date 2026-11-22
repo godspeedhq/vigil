@@ -64,11 +64,14 @@
                                        tagged the same
 
     Example output (the rest are in the same form):
-      metric active_controller 0 broker=1
-      metric active_controller 1 broker=2
-      metric offline_partitions 0 broker=2
-      metric partitions 165 broker=2
-      metric metadata_errors 0 broker=2
+      metric jmx_up 1 broker=1 jmx=127.0.0.1:19991
+      metric active_controller 0 broker=1 jmx=127.0.0.1:19991
+      metric jmx_up 1 broker=2 jmx=127.0.0.1:19992
+      metric active_controller 0 broker=2 jmx=127.0.0.1:19992
+      metric jmx_up 1 broker=3 jmx=127.0.0.1:19993
+      metric active_controller 1 broker=3 jmx=127.0.0.1:19993
+      metric brokers 3 broker=3 jmx=127.0.0.1:19993
+      metric fenced_brokers 0 broker=3 jmx=127.0.0.1:19993
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  one node with active_controller 1; offline_partitions 0;

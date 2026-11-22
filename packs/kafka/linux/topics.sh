@@ -45,11 +45,14 @@
 #   topics_not_shown    topics past the first 100, left out
 #
 # Example output (the rest are in the same form):
-#   metric topics 7
+#   metric topics 9
+#   metric internal_topics 3
 #   metric rf1_topics 1
-#   metric partitions 6 topic=orders
-#   metric replication_factor 3 topic=orders
-#   metric messages_count 21393 topic=orders
+#   metric compacted_topics 3
+#   metric partitions 50 topic=__consumer_offsets
+#   metric replication_factor 3 topic=__consumer_offsets
+#   metric messages_count 421 topic=__consumer_offsets
+#   metric retained_messages 421 topic=__consumer_offsets
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  rf1_topics 0, unless on purpose; messages_count rising on every

@@ -62,9 +62,12 @@
 # Example output (the rest are in the same form):
 #   metric unclean_leader_election 0
 #   metric auto_create_topics 1
+#   metric auto_leader_rebalance 1
+#   metric authorizer 1
 #   metric min_insync_replicas 2
-#   metric retention_hours 168
-#   metric plaintext_listeners 2
+#   metric default_replication_factor 3
+#   metric offsets_replication_factor 3
+#   metric transactions_replication_factor 3
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  unclean_leader_election 0; min_insync_replicas 2 with a

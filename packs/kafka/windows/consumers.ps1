@@ -46,10 +46,13 @@
 
     Example output (the rest are in the same form):
       metric groups 3
-      metric total_lag 16393
-      metric lag 16393 group=billing topic=orders
-      metric lag_max 3880 group=billing topic=orders
-      metric lag 0 group=ledger topic=payments
+      metric lag 21387 group=billing topic=orders
+      metric lag_max 4732 group=billing topic=orders
+      metric lag 64 group=shipping topic=orders
+      metric lag_max 64 group=shipping topic=orders
+      metric lag 700 group=vigil_it_billing_684283 topic=vigil_it_orders_684283
+      metric lag_max 294 group=vigil_it_billing_684283 topic=vigil_it_orders_684283
+      metric total_lag 22151
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  lag steady or falling: consumers keep up.

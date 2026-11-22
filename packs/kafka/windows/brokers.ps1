@@ -46,11 +46,14 @@
       brokers_not_shown     brokers past the first 150, left out
 
     Example output (the rest are in the same form):
+      metric online 1 broker=1 rack=none
+      metric fenced 0 broker=1
+      metric leaders 56 broker=1
+      metric replicas 169 broker=1
+      metric out_of_sync_replicas 0 broker=1
+      metric preferred_leaders 55 broker=1
       metric online 1 broker=2 rack=none
-      metric leaders 56 broker=2
-      metric replicas 164 broker=2
-      metric out_of_sync_replicas 1 broker=2
-      metric preferred_leaders 57 broker=2
+      metric fenced 0 broker=2
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  online 1 for every broker; out_of_sync_replicas 0; leaders close

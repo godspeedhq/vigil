@@ -59,11 +59,14 @@
                                       out of order, tagged the same
 
     Example output (the rest are in the same form):
-      metric jmx_up 1 broker=1
-      metric messages_in_count 10628 broker=1
-      metric bytes_in_count 1857522 broker=1
-      metric bytes_out_count 1657669 broker=1
-      metric failed_produce_requests_count 0 broker=1
+      metric jmx_up 1 broker=1 jmx=127.0.0.1:19991
+      metric messages_in_count 10546 broker=1 jmx=127.0.0.1:19991
+      metric bytes_in_count 1967560 broker=1 jmx=127.0.0.1:19991
+      metric bytes_out_count 1821713 broker=1 jmx=127.0.0.1:19991
+      metric bytes_rejected_count 0 broker=1 jmx=127.0.0.1:19991
+      metric replication_bytes_in_count 3924053 broker=1 jmx=127.0.0.1:19991
+      metric replication_bytes_out_count 3804904 broker=1 jmx=127.0.0.1:19991
+      metric produce_requests_count 2393 broker=1 jmx=127.0.0.1:19991
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  jmx_up 1; traffic spread evenly between brokers; the failed

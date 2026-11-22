@@ -45,10 +45,13 @@
 #
 # Example output (the rest are in the same form):
 #   metric all_groups 4
+#   metric all_members 1
 #   metric rebalancing 0
-#   metric empty 4
-#   metric groups 1 type=share state=empty
-#   metric groups 3 type=classic state=empty
+#   metric empty 2
+#   metric dead 0
+#   metric groups 2 type=classic state=empty
+#   metric groups 1 type=classic state=stable
+#   metric groups 1 type=share state=stable
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  rebalancing 0 most of the time; each group's members steady.

@@ -72,11 +72,14 @@
                                  out before the first
 
     Example output (the rest are in the same form):
-      metric size_bytes 4967681 broker=1 dir=/var/lib/kafka/data
-      metric partitions 163 broker=1 dir=/var/lib/kafka/data
+      metric size_bytes 5854964 broker=1 dir=/var/lib/kafka/data
+      metric partitions 169 broker=1 dir=/var/lib/kafka/data
       metric offline 0 broker=1 dir=/var/lib/kafka/data
       metric future_replicas 0 broker=1 dir=/var/lib/kafka/data
-      metric size_bytes 4907633 broker=2 dir=/var/lib/kafka/data
+      metric broker_size_bytes 5854964 broker=1
+      metric size_bytes 5854624 broker=2 dir=/var/lib/kafka/data
+      metric partitions 170 broker=2 dir=/var/lib/kafka/data
+      metric offline 0 broker=2 dir=/var/lib/kafka/data
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  dirs_offline 0; sizes growing and shrinking with retention;

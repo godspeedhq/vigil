@@ -41,9 +41,9 @@
 
     Example output (the rest are in the same form):
       metric all_transactions 1
-      metric transactions 1 state=completeabort
-      metric ongoing 0
-      metric long_running 0
+      metric transactions 1 state=ongoing
+      metric ongoing 1
+      metric long_running 1
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  long_running 0.

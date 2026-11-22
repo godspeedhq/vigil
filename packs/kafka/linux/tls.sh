@@ -42,10 +42,13 @@
 #
 # Example output (the rest are in the same form):
 #   metric tls 1
+#   metric endpoints 3
 #   metric reachable 1 endpoint=localhost:19091
 #   metric expires_days 1 endpoint=localhost:19091
 #   metric trusted 1 endpoint=localhost:19091
-#   metric endpoints 3
+#   metric reachable 1 endpoint=localhost:19092
+#   metric expires_days 1 endpoint=localhost:19092
+#   metric trusted 1 endpoint=localhost:19092
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  expires_days above 30 everywhere; trusted 1.

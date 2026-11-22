@@ -51,10 +51,13 @@
 
     Example output (the rest are in the same form):
       metric kraft 1
-      metric leader_id 2
-      metric max_follower_lag 0
+      metric leader_id 3
+      metric leader_epoch 1
+      metric high_watermark 1012
       metric voters 3
+      metric observers 0
       metric node_lag 0 node=1 role=follower
+      metric node_fetch_age_seconds 0.103 node=1 role=follower
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  kraft 1; max_follower_lag near 0; every node's

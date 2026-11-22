@@ -45,8 +45,11 @@
 #   metric authorizer 1
 #   metric all_acls 6
 #   metric any_principal_acls 0
+#   metric all_operations_acls 0
 #   metric acls 2 resource=cluster permission=allow
-#   metric scram_users 1
+#   metric acls 1 resource=group permission=allow
+#   metric acls 2 resource=topic permission=allow
+#   metric acls 1 resource=transactional_id permission=allow
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  authorizer 1; all_acls and scram_users changing only when you
