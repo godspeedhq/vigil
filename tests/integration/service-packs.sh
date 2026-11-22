@@ -1011,11 +1011,15 @@ if [ -z "${VIGIL_IT_JVM_TARGETS-}" ] || [ -z "${VIGIL_IT_JVM_PASSWORD-}" ]; then
     printf '  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)\n'
 elif [ -z "${JAVA_HOME-}" ] && ! command -v java > /dev/null 2>&1; then
     printf '  SKIP  jvm: java is not installed here\n'
+elif [ -z "${VIGIL_IT_JVM_PACK-}" ]; then
+    printf '  SKIP  jvm: set VIGIL_IT_JVM_PACK to the pack with its jars built (scripts/run-jvm.sh builds it)\n'
 else
     # The jobs have their JVMs, password and CA from Vigil: never from this
     # test's own environment.
     unset JVM_TARGETS JVM_JMX_USER JVM_JMX_PASSWORD JVM_CACERT JVM_MBEANS JVM_DUMP_DIRS
     printf 'jvm: %s\n' "$VIGIL_IT_JVM_TARGETS"
+    # The pack as a release builds it: with its jars.
+    rm -rf "$root/packs/jvm" && mkdir -p "$root/packs/jvm" && cp "$VIGIL_IT_JVM_PACK"/* "$root/packs/jvm/"
     jjobs_on() { vigil pack list | awk '$1 ~ /^jvm_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
     # The value job jvm_$1's last run printed for metric $2 of JVM $3 (with
     # text $4 in its line, if given).
@@ -1166,9 +1170,12 @@ else
             rm -rf "$d" && mkdir -p "$d" && cp "$repo/packs/jvm/$os"/* "$d/" &&
                 JAVA_HOME=${VIGIL_IT_JVM_JDK:-${JAVA_HOME-}} bash "$repo/tools/release/client-jar.sh" "$d" > "$work/jar.out" 2>&1 || { sed 's/^/        /' "$work/jar.out"; break; }
         done
-        check 'jvm: its client compiles to a jar' yes "$([ -f "$jp/_client.jar" ] && [ -f "$jp.2/_client.jar" ] && echo yes || echo no)"
-        check 'jvm: built twice, the same jar, byte for byte' yes "$(cmp -s "$jp/_client.jar" "$jp.2/_client.jar" && echo yes || echo no)"
-        check 'jvm: its digest is in every script' 41 "$(grep -l "^jar_sha256=$(jsum "$jp/_client.jar")\$" "$jp"/*.sh | wc -l | tr -d ' ')"
+        check 'jvm: its client and the probe compile to jars' yes "$([ -f "$jp/_client.jar" ] && [ -f "$jp/_probe.jar" ] && [ -f "$jp.2/_client.jar" ] && [ -f "$jp.2/_probe.jar" ] && echo yes || echo no)"
+        check 'jvm: built twice, the same jars, byte for byte' yes "$(cmp -s "$jp/_client.jar" "$jp.2/_client.jar" && cmp -s "$jp/_probe.jar" "$jp.2/_probe.jar" && echo yes || echo no)"
+        check "jvm: the client's digest is in every script" 41 "$(grep -l "^client_sha256=$(jsum "$jp/_client.jar")\$" "$jp"/*.sh | wc -l | tr -d ' ')"
+        check "jvm: and the probe's" 41 "$(grep -l "^probe_sha256=$(jsum "$jp/_probe.jar")\$" "$jp"/*.sh | wc -l | tr -d ' ')"
+        # The probe is the one every pack carries: the same source as tools/probe.
+        check 'jvm: its probe is the shared one' yes "$(cmp -s "$jp/_probe.java" "$repo/tools/probe/_probe.java" && echo yes || echo no)"
         check 'jvm: the JRE has no compiler' no "$([ -e "$VIGIL_IT_JVM_JRE/bin/javac" ] && echo yes || echo no)"
         # $1 the Java, $2 the folder, $3 the job, into $work/jre.<job>; the exit code.
         jdirect() {
@@ -1184,15 +1191,14 @@ else
         for j in $failed; do tail -n 3 "$work/jre.$j" | sed 's/^/        /'; done
         printf '        41 jobs from the jar in %d s\n' $((t1 - t0))
         check 'jvm: and every JVM is up' 8 "$(grep -c '^metric up 1 ' "$work/jre.status")"
-        # The same lines as the source gives on a JDK (the repository's copy,
-        # which has no jar), values apart.
+        # The same lines as the same jars give on a JDK, values apart.
         same=''
         for j in status heap gc threads classes jit metaspace codecache flags security; do
             awk '{ $3 = ""; print }' "$work/jre.$j" | sort > "$work/jre.names"
-            jdirect "$jdk_home" "$repo/packs/jvm/$os" "$j" > /dev/null
+            jdirect "$jdk_home" "$jp" "$j" > /dev/null
             awk '{ $3 = ""; print }' "$work/jre.$j" | sort | cmp -s - "$work/jre.names" || same="$same $j"
         done
-        check 'jvm: the same lines as from the source' '' "$same"
+        check 'jvm: the same lines as on a JDK' '' "$same"
         # A jar changed by one byte is not run, by any Java.
         cp "$jp/_client.jar" "$work/keep.jar"
         printf '\377' | dd of="$jp/_client.jar" bs=1 seek=1000 count=1 conv=notrunc 2> /dev/null
@@ -1200,11 +1206,17 @@ else
         check 'jvm: and says why' yes "$(grep -q 'does not match the digest in this script' "$work/jre.heap" && echo yes || echo no)"
         check 'jvm: nor by a JDK' 1 "$(jdirect "$jdk_home" "$jp" heap)"
         cp "$work/keep.jar" "$jp/_client.jar"
+        # The probe too: the client runs on its engine.
+        cp "$jp/_probe.jar" "$work/keep.jar"
+        printf '\377' | dd of="$jp/_probe.jar" bs=1 seek=1000 count=1 conv=notrunc 2> /dev/null
+        check 'jvm: a probe changed by one byte is not run' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" heap)"
+        check 'jvm: and says which' yes "$(grep -q '_probe.jar does not match the digest in this script' "$work/jre.heap" && echo yes || echo no)"
+        cp "$work/keep.jar" "$jp/_probe.jar"
         cp "$repo/packs/jvm/$os/heap.sh" "$jp/heap.sh"
         check 'jvm: a script with no digest runs no jar' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" heap)"
-        rm -f "$jp/_client.jar"
-        check 'jvm: no jar, and a JRE cannot run the source' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" status)"
-        check 'jvm: and Java says why' yes "$(grep -q 'jdk.compiler' "$work/jre.status" && echo yes || echo no)"
+        rm -f "$jp/_probe.jar"
+        check 'jvm: no probe, and nothing runs' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" status)"
+        check 'jvm: and says so' yes "$(grep -q '_probe.jar not found' "$work/jre.status" && echo yes || echo no)"
     fi
 fi
 

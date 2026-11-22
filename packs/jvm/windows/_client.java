@@ -8,10 +8,12 @@
 // LICENSE file for the full terms.
 //
 // _client.java - the jvm pack's client: every job of the pack, on every
-// platform, run with the JDK's source launcher (java _client.java <job>), so
-// each prints the same lines on Linux, macOS and Windows. Readable, nothing
-// compiled to ship. JDK 11 or later runs it; the JVMs it watches may be any
-// from Java 8.
+// platform, so each prints the same lines on Linux, macOS and Windows.
+// Compiled into _client.jar when the pack is released, with the probe
+// (_probe.jar, tools/probe) on its class path: its output, and every JMX
+// connection (the login, TLS, the certificate's chain and name), are the
+// probe's engine (Jmx), the same in every pack that reads JMX. Java 11 or
+// later runs it, a JDK or a JRE; the JVMs it watches may be any from Java 8.
 //
 // It reaches each JVM in up to three tiers, and uses each that reaches it:
 //   1. the operating system: the process (no setup)
@@ -42,8 +44,6 @@ import java.nio.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.*;
-import java.security.KeyStore;
-import java.security.cert.*;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -51,24 +51,22 @@ import java.util.regex.*;
 import javax.management.*;
 import javax.management.openmbean.*;
 import javax.management.remote.*;
-import javax.net.ssl.*;
-import javax.rmi.ssl.SslRMIClientSocketFactory;
 
 class JvmClient {
 
     static String job = "jvm";
-    static final PrintStream OUT = new PrintStream(new FileOutputStream(FileDescriptor.out), false);
-    static int exitCode = 0;
+    /** The probe's: one output, one exit code, for this client and the engine. */
+    static final PrintStream OUT = Jmx.OUT;
     static final int LIST_CAP = 50;
     static final long DAY = 86400;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 1) { System.err.println("usage: java _client.java <job>"); System.exit(2); }
         job = args[0];
-        // Every remote call gives up in time: the run is not left hanging.
-        System.setProperty("sun.rmi.transport.connectionTimeout", "10000");
-        System.setProperty("sun.rmi.transport.tcp.responseTimeout", "20000");
-        System.setProperty("sun.rmi.transport.tcp.handshakeTimeout", "10000");
+        // The engine says what it says as this job, and names this pack's
+        // settings in its messages.
+        Jmx.job = job;
+        Jmx.settings("JVM_JMX_USER", "JVM_JMX_PASSWORD", "JVM_CACERT");
         List<Target> targets;
         try {
             targets = Targets.resolve();
@@ -87,7 +85,7 @@ class JvmClient {
             for (Target t : targets) t.close();
             OUT.flush();
         }
-        System.exit(exitCode);
+        System.exit(Jmx.exitCode);
     }
 
     // ---- output ---------------------------------------------------------
@@ -121,13 +119,10 @@ class JvmClient {
 
     static void metric(String name, boolean v, Target t, String... tags) { metric(name, v ? 1 : 0, t, tags); }
 
-    static void say(String msg) { System.err.println(job + ": " + msg); }
+    static void say(String msg) { Jmx.say(msg); }
 
     /** Says why, and makes the run fail (exit 1), after what could be printed. */
-    static void fail(String msg) {
-        say(msg);
-        exitCode = 1;
-    }
+    static void fail(String msg) { Jmx.fail(msg); }
 
     // ---- targets --------------------------------------------------------
 
@@ -156,7 +151,7 @@ class JvmClient {
             if (jmxTried) return mbs;
             jmxTried = true;
             if (jmx == null) return null;
-            mbs = Jmx.connect(this);
+            mbs = connect(this);
             metric("jmx_up", mbs != null, this);
             return mbs;
         }
@@ -690,141 +685,22 @@ class JvmClient {
         }
     }
 
-    // ---- tier 3: JMX ------------------------------------------------------
+    // ---- tier 3: JMX, through the probe's engine ----------------------------
 
-    static final class Jmx {
-        static boolean tlsReady;
-
-        static MBeanServerConnection connect(Target t) {
-            String url = "service:jmx:rmi:///jndi/rmi://" + t.jmx + "/jmxrmi";
-            Map<String, Object> envm = new HashMap<>();
-            String user = env("JVM_JMX_USER"), pw = env("JVM_JMX_PASSWORD");
-            if (!user.isEmpty() || !pw.isEmpty()) envm.put(JMXConnector.CREDENTIALS, new String[]{ user, pw });
-            if (t.tls) {
-                try { tls(); } catch (Exception e) { fail("JVM_CACERT: " + e.getMessage()); return null; }
-                envm.put("com.sun.jndi.rmi.factory.socket", new SslRMIClientSocketFactory());
-            }
-            ExecutorService ex = Executors.newSingleThreadExecutor(r -> { Thread th = new Thread(r); th.setDaemon(true); return th; });
-            try {
-                Future<JMXConnector> f = ex.submit(() -> JMXConnectorFactory.connect(new JMXServiceURL(url), envm));
-                t.conn = f.get(30, TimeUnit.SECONDS);
-                MBeanServerConnection m = t.conn.getMBeanServerConnection();
-                t.mbs = m;
-                Targets.linkByJmx(t);
-                return m;
-            } catch (TimeoutException e) {
-                say(t.name + ": JMX at " + t.jmx + " did not answer in 30 seconds");
-            } catch (IOException e) {
-                say(t.name + ": JMX at " + t.jmx + " does not answer: " + rootMessage(e));
-            } catch (ExecutionException e) {
-                Throwable c = e.getCause();
-                String why = rootMessage(c);
-                if (c instanceof SecurityException || why.contains("Authentication failed") || why.contains("Invalid credentials")
-                        || why.contains("Credentials required")) {
-                    fail(t.name + ": JMX at " + t.jmx + " refused the login: " + why + " (JVM_JMX_USER, and the secret behind JVM_JMX_PASSWORD)");
-                } else if (hasCause(c, SSLHandshakeException.class) || hasCause(c, CertificateException.class)
-                        || why.contains("PKIX") || why.contains("certificate")) {
-                    fail(t.name + ": JMX at " + t.jmx + ": its certificate is not trusted, or does not name it: " + why + " (JVM_CACERT)");
-                } else {
-                    say(t.name + ": JMX at " + t.jmx + " does not answer: " + why);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } finally {
-                ex.shutdownNow();
-            }
-            return null;
-        }
-
-        static boolean hasCause(Throwable t, Class<?> c) {
-            for (; t != null; t = t.getCause()) if (c.isInstance(t)) return true;
-            return false;
-        }
-
-        static String rootMessage(Throwable t) {
-            String m = String.valueOf(t);
-            for (; t != null; t = t.getCause()) if (t.getMessage() != null) m = t.getClass().getSimpleName() + ": " + t.getMessage();
-            m = m.replaceAll("[\\r\\n]+", " ");
-            return m.length() > 300 ? m.substring(0, 300) : m;
-        }
-
-        /** TLS that checks the chain and the name: JVM_CACERT's CAs, or Java's own. */
-        static void tls() throws Exception {
-            if (tlsReady) return;
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            String ca = env("JVM_CACERT");
-            if (ca.isEmpty()) {
-                tmf.init((KeyStore) null);
-            } else {
-                KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-                ks.load(null, null);
-                CertificateFactory cf = CertificateFactory.getInstance("X.509");
-                int i = 0;
-                try (InputStream in = new FileInputStream(ca)) {
-                    for (java.security.cert.Certificate c : cf.generateCertificates(in)) ks.setCertificateEntry("ca" + i++, c);
-                }
-                if (i == 0) throw new IOException(ca + " holds no certificate");
-                tmf.init(ks);
-            }
-            X509TrustManager inner = null;
-            for (TrustManager m : tmf.getTrustManagers()) if (m instanceof X509TrustManager) inner = (X509TrustManager) m;
-            final X509TrustManager chain = inner;
-            X509ExtendedTrustManager named = new X509ExtendedTrustManager() {
-                public void checkServerTrusted(X509Certificate[] c, String a, Socket s) throws CertificateException {
-                    chain.checkServerTrusted(c, a);
-                    String host = s.getInetAddress() == null ? null : hostOf(s);
-                    if (host != null) checkName(c[0], host);
-                }
-                public void checkServerTrusted(X509Certificate[] c, String a, SSLEngine e) throws CertificateException {
-                    chain.checkServerTrusted(c, a);
-                    if (e.getPeerHost() != null) checkName(c[0], e.getPeerHost());
-                }
-                public void checkServerTrusted(X509Certificate[] c, String a) throws CertificateException {
-                    // No socket, no name to check: refused.
-                    throw new CertificateException("no host to check the certificate's name against");
-                }
-                public void checkClientTrusted(X509Certificate[] c, String a, Socket s) throws CertificateException { throw new CertificateException("not a server"); }
-                public void checkClientTrusted(X509Certificate[] c, String a, SSLEngine e) throws CertificateException { throw new CertificateException("not a server"); }
-                public void checkClientTrusted(X509Certificate[] c, String a) throws CertificateException { throw new CertificateException("not a server"); }
-                public X509Certificate[] getAcceptedIssuers() { return chain.getAcceptedIssuers(); }
-            };
-            SSLContext ctx = SSLContext.getInstance("TLS");
-            ctx.init(null, new TrustManager[]{ named }, null);
-            SSLContext.setDefault(ctx);
-            tlsReady = true;
-        }
-
-        /** The name the socket was opened to, else its address. */
-        static String hostOf(Socket s) {
-            if (s instanceof SSLSocket) {
-                SSLSession hs = ((SSLSocket) s).getHandshakeSession();
-                if (hs != null && hs.getPeerHost() != null) return hs.getPeerHost();
-            }
-            InetAddress a = s.getInetAddress();
-            return a.getHostAddress();
-        }
-
-        /** The certificate names host, as a DNS name (a wildcard for one label) or an IP address. */
-        static void checkName(X509Certificate c, String host) throws CertificateException {
-            String h = host.toLowerCase(Locale.ROOT).replace("[", "").replace("]", "");
-            boolean ip = h.matches("[0-9.]+") || h.contains(":");
-            Collection<List<?>> sans = c.getSubjectAlternativeNames();
-            if (sans != null) {
-                for (List<?> san : sans) {
-                    int kind = (Integer) san.get(0);
-                    String v = String.valueOf(san.get(1)).toLowerCase(Locale.ROOT);
-                    if (ip && kind == 7) {
-                        try {
-                            if (InetAddress.getByName(v).equals(InetAddress.getByName(h))) return;
-                        } catch (UnknownHostException e) { /* not this one */ }
-                    } else if (!ip && kind == 2) {
-                        if (v.equals(h)) return;
-                        if (v.startsWith("*.") && h.indexOf('.') > 0 && h.substring(h.indexOf('.')).equals(v.substring(1))) return;
-                    }
-                }
-            }
-            throw new CertificateException("the certificate does not name " + host);
-        }
+    /**
+     * Connects to t's JMX with the probe's engine (tools/probe/Jmx.java): its
+     * MBean server, or null, the engine saying why, and failing the run for a
+     * refused login, a certificate it cannot trust, or a server that does not
+     * speak TLS where jmxs= says it does.
+     */
+    static MBeanServerConnection connect(Target t) {
+        Jmx.Target p = new Jmx.Target(t.jmx, t.tls);
+        MBeanServerConnection m = Jmx.connect(p);
+        if (m == null) return null;
+        t.conn = p.conn;
+        t.mbs = m;
+        Targets.linkByJmx(t);
+        return m;
     }
 
     // ---- JMX helpers ------------------------------------------------------

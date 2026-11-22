@@ -63,14 +63,14 @@
                                              own here, without JMX
         VIGIL_IT_JVM_PASSWORD                their JMX operator user's password
         VIGIL_IT_JVM_CACERT                  the CA their certificates are from
+        VIGIL_IT_JVM_RELEASE                 a folder of packs.sh's archives, the
+                                             jvm pack's among them (its jars)
         VIGIL_IT_JVM_JRE                     optional: a JRE 11 or later, to run
-                                             every job on from the compiled client
-        VIGIL_IT_JVM_RELEASE                 with it: a folder of packs.sh's
-                                             archives, the jvm pack's among them
+                                             every job on from the jars too
     psql is found as the pack finds it: on the PATH, or in PostgreSQL's own
     folders under Program Files. The redis and mssql packs need no client;
-    the kafka pack needs Kafka's tools and Java, the jvm pack a JDK 11 or
-    later (and to test it on a JRE, a JRE too).
+    the kafka pack needs Kafka's tools and Java, the jvm pack Java 11 or
+    later and its release zip (and to test it on a JRE, a JRE too).
 
     The pack is off until enabled; vigil pack enable puts its jobs in the
     configuration; each job runs and reports what the server says; a long
@@ -844,6 +844,7 @@ try {
     $jjava = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { [string](Get-Command java.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source) }
     if (-not $env:VIGIL_IT_JVM_TARGETS -or -not $env:VIGIL_IT_JVM_PASSWORD) { Write-Host '  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)' }
     elseif (-not $jjava -or -not (Test-Path -LiteralPath $jjava)) { Write-Host '  SKIP  jvm: java is not installed here' }
+    elseif (-not $env:VIGIL_IT_JVM_RELEASE) { Write-Host '  SKIP  jvm: set VIGIL_IT_JVM_RELEASE to a folder of packs.sh''s archives, the jvm pack''s among them' }
     else {
         # The jobs have their JVMs, password and CA from Vigil: never from
         # this test's own environment.
@@ -853,10 +854,14 @@ try {
         $script:jvmProc = Start-Process -FilePath $jjava -PassThru -NoNewWindow -WorkingDirectory $work `
             -RedirectStandardOutput (Join-Path $work 'winplain.out') -RedirectStandardError (Join-Path $work 'winplain.err') `
             -ArgumentList @('-Dvigil.it=winplain', '-Xmx128m', '-XX:+UseSerialGC', "`"$(Join-Path $repo 'tests\integration\backends\workloads\jvm\Trouble.java')`"", 'busy', 'leak', 'threadleak')
+        # The pack as a release builds it, with its jars: from packs.sh's zip.
+        $jzip = @(Get-ChildItem -LiteralPath $env:VIGIL_IT_JVM_RELEASE -Filter 'vigil-pack-jvm-*-windows.zip' | Sort-Object Name)[-1]
+        $jkx = Join-Path $work 'jvm-pack'
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($jzip.FullName, $jkx)
         $jk = Join-Path $root 'packs\jvm'
-        [void](New-Item -ItemType Directory -Force -Path $jk)
-        Copy-Item -LiteralPath (Join-Path $repo 'packs\jvm\pack.config') -Destination $jk
-        Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jvm\windows') | Copy-Item -Destination $jk
+        Remove-Item -LiteralPath $jk -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item -LiteralPath (Join-Path $jkx 'jvm') -Destination $jk -Recurse
         function Get-JvmJobsOn {
             $list = (Invoke-Vigil pack list).Text
             $s = @($list.Split("`n") | Where-Object { $_ -match '^\s*jvm_\w+\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
@@ -946,7 +951,7 @@ try {
         # tools/release/packs.sh built (VIGIL_IT_JVM_RELEASE, its folder), and
         # checked before it runs. Each script run directly, as the jobs run
         # them.
-        if (-not $env:VIGIL_IT_JVM_JRE -or -not $env:VIGIL_IT_JVM_RELEASE) { Write-Host '  SKIP  jvm on a JRE: set VIGIL_IT_JVM_JRE (a JRE 11 or later) and VIGIL_IT_JVM_RELEASE' }
+        if (-not $env:VIGIL_IT_JVM_JRE) { Write-Host '  SKIP  jvm on a JRE: set VIGIL_IT_JVM_JRE (a JRE 11 or later)' }
         else {
             $jreHome = $env:VIGIL_IT_JVM_JRE
             $jdkHome = Split-Path -Parent (Split-Path -Parent $jjava)
@@ -957,14 +962,19 @@ try {
             [System.IO.Compression.ZipFile]::ExtractToDirectory($zip.FullName, $jx)
             $jp = Join-Path $jx 'jvm'
             $jar = Join-Path $jp '_client.jar'
+            $pjar = Join-Path $jp '_probe.jar'
             function Get-JarSum {
+                param([string]$Path)
                 $sha = [System.Security.Cryptography.SHA256]::Create()
-                $f = [System.IO.File]::OpenRead($jar)
+                $f = [System.IO.File]::OpenRead($Path)
                 try { return -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) } finally { $f.Dispose(); $sha.Dispose() }
             }
-            Test-Equal 'jvm: the release has its client compiled' 'True' ([string](Test-Path -LiteralPath $jar))
-            $sum = Get-JarSum
-            Test-Equal 'jvm: its digest is in every script' '41' ([string]@(Get-ChildItem -LiteralPath $jp -Filter '*.ps1' | Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains("`$jarSha256 = '$sum'") }).Count)
+            Test-Equal 'jvm: the release has its client and the probe compiled' 'True' ([string]((Test-Path -LiteralPath $jar) -and (Test-Path -LiteralPath $pjar)))
+            $sum = Get-JarSum $jar
+            $psum = Get-JarSum $pjar
+            Test-Equal "jvm: the client's digest is in every script" '41' ([string]@(Get-ChildItem -LiteralPath $jp -Filter '*.ps1' | Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains("`$clientSha256 = '$sum'") }).Count)
+            Test-Equal "jvm: and the probe's" '41' ([string]@(Get-ChildItem -LiteralPath $jp -Filter '*.ps1' | Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains("`$probeSha256 = '$psum'") }).Count)
+            Test-Equal 'jvm: its probe is the shared one' 'True' ([string]([System.IO.File]::ReadAllText((Join-Path $jp '_probe.java')) -ceq [System.IO.File]::ReadAllText((Join-Path $repo 'tools\probe\_probe.java'))))
             Test-Equal 'jvm: the JRE has no compiler' 'False' ([string](Test-Path -LiteralPath (Join-Path $jreHome 'bin\javac.exe')))
             # $JavaHome's Java runs job $Job, its output in jre.<job>; the exit code.
             function Invoke-Direct {
@@ -991,15 +1001,14 @@ try {
             foreach ($j in $failed) { Get-Content -LiteralPath (Join-Path $work "jre.$j") -Tail 3 | ForEach-Object { Write-Host "        $_" } }
             Write-Host ('        41 jobs from the jar in {0} s' -f [int]$t.Elapsed.TotalSeconds)
             Test-Equal 'jvm: and every JVM is up' ([string]@($jtargets.Split(';') | Where-Object { $_.Trim() }).Count) ([string]@([System.IO.File]::ReadAllLines((Join-Path $work 'jre.status')) | Where-Object { $_ -like 'metric up 1 *' }).Count)
-            # The same lines as the source gives on a JDK (the repository's
-            # copy, which has no jar), values apart.
+            # The same lines as the same jars give on a JDK, values apart.
             $differ = @()
             foreach ($j in 'status', 'heap', 'gc', 'threads', 'classes', 'jit', 'metaspace', 'codecache', 'flags', 'security') {
                 $a = Get-Names $j
-                [void](Invoke-Direct $jdkHome $j (Join-Path $repo 'packs\jvm\windows'))
+                [void](Invoke-Direct $jdkHome $j)
                 if ((Get-Names $j) -cne $a) { $differ += $j }
             }
-            Test-Equal 'jvm: the same lines as from the source' '' ($differ -join ' ')
+            Test-Equal 'jvm: the same lines as on a JDK' '' ($differ -join ' ')
             # A jar changed by one byte is not run, by any Java.
             Copy-Item -LiteralPath $jar -Destination (Join-Path $work 'keep.jar')
             $b = [System.IO.File]::ReadAllBytes($jar); $b[1000] = $b[1000] -bxor 0xFF; [System.IO.File]::WriteAllBytes($jar, $b)
@@ -1007,11 +1016,17 @@ try {
             Test-Equal 'jvm: and says why' 'True' ([string]([System.IO.File]::ReadAllText((Join-Path $work 'jre.heap')).Contains('does not match the digest in this script')))
             Test-Equal 'jvm: nor by a JDK' '1' (Invoke-Direct $jdkHome heap)
             Copy-Item -LiteralPath (Join-Path $work 'keep.jar') -Destination $jar -Force
+            # The probe too: the client runs on its engine.
+            Copy-Item -LiteralPath $pjar -Destination (Join-Path $work 'keep.jar') -Force
+            $b = [System.IO.File]::ReadAllBytes($pjar); $b[1000] = $b[1000] -bxor 0xFF; [System.IO.File]::WriteAllBytes($pjar, $b)
+            Test-Equal 'jvm: a probe changed by one byte is not run' '1' (Invoke-Direct $jreHome heap)
+            Test-Equal 'jvm: and says which' 'True' ([string]([System.IO.File]::ReadAllText((Join-Path $work 'jre.heap')).Contains('_probe.jar does not match the digest in this script')))
+            Copy-Item -LiteralPath (Join-Path $work 'keep.jar') -Destination $pjar -Force
             Copy-Item -LiteralPath (Join-Path $repo 'packs\jvm\windows\heap.ps1') -Destination (Join-Path $jp 'heap.ps1') -Force
             Test-Equal 'jvm: a script with no digest runs no jar' '1' (Invoke-Direct $jreHome heap)
-            Remove-Item -LiteralPath $jar
-            Test-Equal 'jvm: no jar, and a JRE cannot run the source' '1' (Invoke-Direct $jreHome status)
-            Test-Equal 'jvm: and Java says why' 'True' ([string]([System.IO.File]::ReadAllText((Join-Path $work 'jre.status')).Contains('jdk.compiler')))
+            Remove-Item -LiteralPath $pjar
+            Test-Equal 'jvm: no probe, and nothing runs' '1' (Invoke-Direct $jreHome status)
+            Test-Equal 'jvm: and says so' 'True' ([string]([System.IO.File]::ReadAllText((Join-Path $work 'jre.status')).Contains('_probe.jar not found')))
         }
 
         # Forty-one jobs are a lot of events: the sender merges them in the

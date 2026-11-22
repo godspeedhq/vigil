@@ -17,7 +17,7 @@ It reads only: attributes and pages, never an operation or a write.
 - **In a pack, `_probe.java`**: the generator writes the sources merged into one file, imports at the top, so the source a pack ships beside its jar is one file anyone can read.
 - **`_probe.jar`**, built by the release from `_probe.java` (`tools/release/client-jar.sh`), never committed: Java 11 bytecode, the same bytes from the same source and `javac`. Its SHA-256 is written into every script that runs it, and checked before each run, as the jvm pack's client is; `vigil pack verify` covers it.
 - **Every pack's `_probe.java` is the same**: `tools/check-pack.sh` checks each against `tools/probe/` as it is now, so none is left behind. A change to the probe gives every pack that carries it a new version.
-- **A pack with code of its own** (Kafka's admin API, which needs Kafka's library) has its own `_client.jar` as well, compiled with `_probe.jar` on its class path and run with it, so it uses the engine without a copy of it.
+- **A pack with code of its own** has its own `_client.jar` as well, compiled with `_probe.jar` on its class path and run with it, so it uses the engine without a copy of it: the kafka pack's (Kafka's admin API, which needs Kafka's library), and from 1.2.0 the jvm pack's (processes, the JVM's own counters, GC logs, and JMX through the engine). Such a client uses the engine's connection, output and exit code; what it reads over that connection is its own, so the jvm pack's client still runs the read-only operations it always has (finding deadlocks, a thread's CPU time, `DiagnosticCommand`'s reports), which the probe's tables never do.
 
 ## Running it
 

@@ -49,22 +49,22 @@
       Act      As your application defines it.
 
     Requires: Windows PowerShell 5.1 or PowerShell 7, Java 11 or later, a JDK or
-      a JRE (JAVA_HOME, or java on the PATH), to run _client.jar, beside this
-      script, once it matches its digest; a copy of the pack without the jar
-      runs _client.java, which needs a JDK
-    Exit code: 0 on success, JVMs up or down; 1 if java is missing, _client.jar
-      does not match its digest, JVM_TARGETS is wrong, or a JVM refuses the JMX
-      login or its certificate
+      a JRE (JAVA_HOME, or java on the PATH), to run _client.jar and _probe.jar,
+      beside this script, once they match their digests
+    Exit code: 0 on success, JVMs up or down; 1 if java is missing, a jar is
+      missing or does not match its digest, JVM_TARGETS is wrong, or a JVM
+      refuses the JMX login or its certificate
 #>
 
 $ErrorActionPreference = 'Stop'
 $job = 'jvm_mbeans'
 
-# _client.jar's SHA-256, written when the pack was released: built from
-# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
-$jarSha256 = '@CLIENT_JAR_SHA256@'
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+$probeSha256 = '@PROBE_JAR_SHA256@'
+$clientSha256 = '@CLIENT_JAR_SHA256@'
 
-# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
 # the PATH's.
 $java = $null
 if ($env:JAVA_HOME -and [System.IO.File]::Exists((Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
@@ -79,24 +79,28 @@ if (-not $java) {
     exit 1
 }
 
-# The jar, the client compiled, once it matches the digest above: any Java
-# 11 or later runs it. A copy of the pack without one (from the repository,
-# not a release) runs the source, which needs a JDK.
-$jar = Join-Path $PSScriptRoot '_client.jar'
-if (-not [System.IO.File]::Exists($jar)) {
-    $client = @((Join-Path $PSScriptRoot '_client.java'))
-}
-else {
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    $f = [System.IO.File]::OpenRead($jar)
-    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
-    finally { $f.Dispose(); $sha.Dispose() }
-    if ($sum -ne $jarSha256) {
-        [Console]::Error.WriteLine("${job}: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs")
+# A jar is run only once it matches its digest.
+function Test-Jar {
+    param([string]$Jar, [string]$Want)
+    $n = [System.IO.Path]::GetFileName($Jar)
+    if (-not [System.IO.File]::Exists($Jar)) {
+        [Console]::Error.WriteLine("${job}: ${n} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install jvm), or build it (tools/release/client-jar.sh)")
         exit 1
     }
-    $client = @('-cp', $jar, 'JvmClient')
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $f = [System.IO.File]::OpenRead($Jar)
+    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
+    finally { $f.Dispose(); $sha.Dispose() }
+    if ($sum -ne $Want) {
+        [Console]::Error.WriteLine("${job}: $n does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs")
+        exit 1
+    }
 }
+$probe = Join-Path $PSScriptRoot '_probe.jar'
+Test-Jar $probe $probeSha256
+$jar = Join-Path $PSScriptRoot '_client.jar'
+Test-Jar $jar $clientSha256
+$client = @('-cp', ($jar + ';' + $probe), 'JvmClient')
 
 # A folder of this run's own, for the process table and what Java writes
 # while it runs: gone when the run ends.

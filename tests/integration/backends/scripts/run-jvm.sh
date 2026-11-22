@@ -22,7 +22,9 @@
 # that sees this machine's processes, as Vigil running as root would). The
 # JVMs are taken down at the end.
 #
-# The pack's client runs with this machine's java (JDK 11 or later).
+# The pack is built as a release builds it: its jars (the client and the
+# probe) compiled by tools/release/client-jar.sh, with a JDK 17 or later,
+# and run with this machine's java (11 or later).
 #
 # VIGIL_IT_JVM_JRE=<folder>: a JRE (11 or later, no compiler) to run every
 # job on as well, from the client compiled as a packs release compiles it.
@@ -74,6 +76,15 @@ mkdir -p "$tls"
 ) || die 'cannot make the test certificate'
 
 evidence_start pack-jvm "$bk_dir/$file" "$0" "$@"
+# The pack as a release builds it: its jars compiled (VIGIL_IT_JVM_JDK, else
+# JAVA_HOME's or the PATH's javac) and their digests in its scripts.
+os=linux
+[ "$(uname -s)" = Darwin ] && os=macos
+scripts=$work/pack
+mkdir -p "$scripts" && cp "$bk_repo/packs/jvm/pack.config" "$bk_repo/packs/jvm/$os"/* "$scripts/" || die 'cannot copy the pack'
+JAVA_HOME=${VIGIL_IT_JVM_JDK:-${JAVA_HOME-}} bash "$bk_repo/tools/release/client-jar.sh" "$scripts" > "$work/jars.log" 2>&1 ||
+    { cat "$work/jars.log"; die 'cannot build the pack'"'"'s jars'; }
+sed 's/^client-jar: [^ ]*\/\(_[a-z]*\.jar\)/jars     \1/' "$work/jars.log"
 printf 'java     %s\n' "$(java -version 2>&1 | head -n 1)"
 [ -z "${VIGIL_IT_JVM_JRE-}" ] || printf 'jre      %s (%s)\n' "$("$VIGIL_IT_JVM_JRE/bin/java" -version 2>&1 | head -n 1)" "$VIGIL_IT_JVM_JRE"
 [ -z "${VIGIL_IT_JVM_JDK-}" ] || printf 'jdk      %s (%s), to compile the client\n' "$("$VIGIL_IT_JVM_JDK/bin/javac" -version 2>&1 | head -n 1)" "$VIGIL_IT_JVM_JDK"
@@ -119,14 +130,12 @@ targets="$targets host: main=-Dvigil.it=hostjmx, jmxs=localhost:19190;"
 targets="$targets plain: main=-Dvigil.it=hostplain"
 
 say "The pack through Vigil."
-export VIGIL_IT_JVM_TARGETS=$targets VIGIL_IT_JVM_PASSWORD=$pw VIGIL_IT_JVM_CACERT=$tls/ca.crt VIGIL_IT_JVM_DUMPS=$dumps
+export VIGIL_IT_JVM_TARGETS=$targets VIGIL_IT_JVM_PASSWORD=$pw VIGIL_IT_JVM_CACERT=$tls/ca.crt VIGIL_IT_JVM_DUMPS=$dumps VIGIL_IT_JVM_PACK=$scripts
 bash "$bk_repo/tests/integration/service-packs.sh"
 rc=$?
 
 # Each job, as the pack's scripts print it, the password in their
 # environment as a secret line would put it.
-scripts=$bk_repo/packs/jvm/linux
-[ "$(uname -s)" = Darwin ] && scripts=$bk_repo/packs/jvm/macos
 export JVM_TARGETS=$targets JVM_JMX_USER=operator JVM_JMX_PASSWORD=$pw JVM_CACERT=$tls/ca.crt JVM_DUMP_DIRS=$dumps \
     JVM_MBEANS='java.lang:type=Threading/ThreadCount; java.lang:type=Memory/HeapMemoryUsage.used'
 say "Every job."
@@ -138,7 +147,7 @@ done
 say "As root: a container that sees this machine's processes, as Vigil running as root would."
 unset JVM_TARGETS
 docker run --rm --pid=host --cap-add SYS_PTRACE --user 0:0 -v "$scripts:/pack:ro,z" eclipse-temurin:21-jdk \
-    sh -c 'for j in jvm_discovery jvm_heap; do echo "\$ java /pack/_client.java $j"; java -XX:-UsePerfData -XX:+UseSerialGC /pack/_client.java $j; done' 2>&1
+    sh -c 'for j in jvm_discovery jvm_heap; do echo "\$ java -cp /pack/_client.jar:/pack/_probe.jar JvmClient $j"; java -XX:-UsePerfData -XX:+UseSerialGC -cp /pack/_client.jar:/pack/_probe.jar JvmClient $j; done' 2>&1
 
 if [ -n "${VIGIL_IT_JVM_HOLD-}" ]; then
     hd=$VIGIL_IT_JVM_HOLD.d
