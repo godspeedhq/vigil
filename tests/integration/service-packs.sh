@@ -886,9 +886,14 @@ else
         check 'kafka: the KRaft quorum, with its voters' yes "$(kbetween kafka_quorum voters '' 1 100)"
         check 'kafka: metadata.version, finalized' yes "$(grep -h ' out metric metadata_version 1 version=' "$root"/logs/jobs/kafka_features/*.log | grep -q 'supported=' && echo yes || echo no)"
     fi
-    # run-kafka.sh holds a transaction open: it is seen as ongoing.
+    # run-kafka.sh holds a transaction open: it is seen as ongoing, where the
+    # cluster can list transactions (3.0 and later); before, the job says so.
     if [ -n "${VIGIL_IT_KAFKA_TXN-}" ]; then
-        check 'kafka: a transaction held open, seen' yes "$(kbetween kafka_transactions ongoing '' 1 1e9)"
+        if [ "$(ksaid kafka_transactions 'not supported by this cluster')" = yes ]; then
+            check 'kafka: transactions, said to be beyond this cluster (before 3.0)' 0 "$(kruns kafka_transactions)"
+        else
+            check 'kafka: a transaction held open, seen' yes "$(kbetween kafka_transactions ongoing '' 1 1e9)"
+        fi
     fi
     check 'kafka: unclean leader election off' 0 "$(printed kafka_config unclean_leader_election)"
     check 'kafka: TLS on its listener' 1 "$(printed kafka_tls tls)"
@@ -905,7 +910,10 @@ else
         check 'kafka: messages in, counted' yes "$(grep -h ' out metric messages_in_count ' "$root"/logs/jobs/kafka_throughput/*.log | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
         check 'kafka: one active controller' 1 "$(grep -h ' out metric active_controller ' "$root"/logs/jobs/kafka_controller/*.log | tail -n 20 | awk '{ s += $6 } END { print s }')"
         check 'kafka: logins counted, by listener' yes "$(grep -h ' out metric logins_count ' "$root"/logs/jobs/kafka_connections/*.log | grep ' listener=' | awk '$6 > 0 { f = 1 } END { print f ? "yes" : "no" }')"
-        check 'kafka: flushes to disk, read from JMX (a broker on ZooKeeper may have none yet)' yes "$(grep -h ' out metric flushes_count ' "$root"/logs/jobs/kafka_logdirs/*.log | awk '$6 >= 0 { f = 1 } END { print f ? "yes" : "no" }')"
+        # Every Kafka has the log cleaner's figures; the flushes' only once a
+        # broker has flushed (Kafka 2.8 registers them then).
+        check 'kafka: the log cleaner, read from JMX' yes "$(grep -h ' out metric cleaner_dead_threads ' "$root"/logs/jobs/kafka_logdirs/*.log | awk '$6 >= 0 { f = 1 } END { print f ? "yes" : "no" }')"
+        printf '        flushes: %s\n' "$(grep -h ' out metric flushes_count ' "$root"/logs/jobs/kafka_logdirs/*.log | tail -n 1 | sed 's/^[^ ]* [^ ]* out //')"
         check 'kafka: no heap, GC or threads: the jvm pack'"'"'s' 0 "$(cat "$root"/logs/jobs/kafka_*/*.log | grep -cE ' out metric (heap_|gc_|threads |cpu_pct |open_files )')"
         # JMX's failures: a wrong password and a certificate it cannot trust
         # fail the run, and say why.
