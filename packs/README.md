@@ -804,6 +804,18 @@ A JVM that is not running reports `running 0` (`jvm_process`) and `up 0` (`jvm_s
   - Windows 11, on Windows PowerShell 5.1 and PowerShell 7: [the console output](../tests/integration/backends/reports/runs/2026-11-22/windows/pack-jvm-1.1.0-windows/console.txt).
   - Windows Server 2025, on Windows PowerShell 5.1: [the console output](../tests/integration/backends/reports/runs/2026-11-22/windows-server-2025/pack-jvm-1.1.0-windows/console.txt).
 
+**Version 1.2.0, on the probe's engine**, tested on 2026-11-22 the same way, against the same eight JVMs, with the pack built as a release builds it: both jars compiled by `tools/release/client-jar.sh` with `javac` 21, and their digests in every script.
+- **On Fedora**: `service-packs.sh` through Vigil, then every job on Temurin's JRE 11: **110 passed, 0 failed**.
+  - The probe built there was `_probe.jar` `debab93f…`, byte for byte the one in the kafka pack 2.0's release, and the pack's `_probe.java` the shared one.
+  - Both jars built twice were the same, byte for byte, and both digests were in every script.
+  - All 41 jobs ran from the jars on the JRE, and ten printed the same lines, values apart, as the same jars on a JDK.
+  - A client or a probe changed by one byte was refused, saying which. Without the probe, nothing ran, and the script said so.
+  - [The console output](../tests/integration/backends/reports/runs/2026-11-22/fedora/pack-jvm-1.2.0/console.txt).
+- **On macOS**, on the Intel Mac test machine, with the jars built there (the same bytes as on Fedora), every job on Java 21, then on Temurin's JRE 21: **83 passed, 0 failed**. [The console output](../tests/integration/backends/reports/runs/2026-11-22/macos/pack-jvm-1.2.0-macos/console.txt).
+- **On Windows**, from a packs release built by `tools/release/packs.sh`: `Service-Packs.ps1` through Vigil, then every job on Temurin's JRE 21, **90 passed, 0 failed** on each run.
+  - Windows 11, on Windows PowerShell 5.1 and PowerShell 7: [the console output](../tests/integration/backends/reports/runs/2026-11-22/windows/pack-jvm-1.2.0-windows/console.txt).
+  - Windows Server 2025, on Windows PowerShell 5.1: [the console output](../tests/integration/backends/reports/runs/2026-11-22/windows-server-2025/pack-jvm-1.2.0-windows/console.txt).
+
 ### nginx
 
 An nginx server on this machine, from its `stub_status` page, which you turn on once, reachable from this machine only:
