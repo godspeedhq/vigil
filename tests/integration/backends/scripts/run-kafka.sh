@@ -131,7 +131,8 @@ for _ in $(seq 1 60); do [ "$(brokers)" = "$nodes" ] && break; sleep 3; done
 
 # The user, as packs/README.md says: SCRAM, its password from a file of this
 # run's own, never on a command line.
-(umask 077 && printf 'SCRAM-SHA-512=[iterations=8192,password=%s]\n' "$pw" > "$work/user.properties")
+# In a file, as a property: the value without kafka-configs' brackets.
+(umask 077 && printf 'SCRAM-SHA-512=iterations=8192,password=%s\n' "$pw" > "$work/user.properties")
 admin kafka-configs --alter --entity-type users --entity-name vigil_monitor --add-config-file "$work/user.properties" > "$work/user.log" 2>&1 ||
     die "could not make the user: $(grep -v password "$work/user.log" | tail -n 1)"
 rm -f "$work/user.properties"

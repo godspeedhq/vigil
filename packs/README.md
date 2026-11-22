@@ -425,7 +425,13 @@ metric lag_seconds 0 group=ag1 replica=mssql-secondary database=vigil_it
 
 ### kafka
 
-An Apache Kafka cluster, 3.9 or 4.x, in KRaft mode or on ZooKeeper, on this machine or any it can reach, through Kafka's own command-line tools: they ask the cluster what any Kafka admin would, as a user that may only describe. And, when the brokers' JMX is reachable, from the brokers themselves: their traffic, requests, JVM, controller and connections. Never a message's content, a principal's or a client's name, or a transactional id. Linux, macOS and Windows.
+An Apache Kafka cluster, from 2.8 to 4.x, in KRaft mode or on ZooKeeper, on this machine or any it can reach. Through Kafka's admin API, the pack asks the cluster what any Kafka admin would, as a user that may only describe; through each broker's JMX, with a password and TLS, it reads the broker's own figures. It reports Kafka's, never the broker's JVM: heap, garbage collection, threads, CPU and open files are the [jvm pack](#jvm)'s. Linux, macOS and Windows. Its design: [`tools/kafka/DESIGN.md`](../tools/kafka/DESIGN.md).
+
+**Two jars, both ours, and your Kafka library.** The pack runs Java, 11 or later, a JDK or a JRE:
+
+- `_probe.jar`, the generic probe ([`tools/probe/DESIGN.md`](../tools/probe/DESIGN.md)), the same file every application pack carries, runs the four jobs that only read the brokers' JMX, from the pack's `_probe.tables`. They need no Kafka library.
+- `_client.jar`, the pack's own, asks the admin API for the other fourteen. It needs Kafka's library, which is yours, not the pack's: `KAFKA_HOME`, a Kafka download (its `libs/`), or `KAFKA_LIBS`, a folder of its jars. Any `kafka-clients` from 3.x or 4.x; the newest Kafka download is best, whatever the cluster runs, since a newer library speaks to older brokers.
+- Both are built when the pack is released, from the sources beside them (`_probe.java`, `_client.java`), the same bytes from the same source and `javac`, and each script checks the jars it runs against the SHA-256 it carries before running them, as the [jvm pack](#jvm) does. A copy of the pack straight from the repository has no jars, and its scripts say so.
 
 1. Create the user once, as an administrator. With SCRAM:
 
@@ -444,56 +450,74 @@ An Apache Kafka cluster, 3.9 or 4.x, in KRaft mode or on ZooKeeper, on this mach
    ```
 
    Not `Read`: that would let it read messages. Kafka hides from a user the topics it may not describe, so a user without these sees no topics at all, and the jobs say so in their log. Without an authorizer (no ACLs), any login will do.
-2. Give Vigil its password: `vigil secret set KAFKA_MONITOR_PASSWORD`, as the account Vigil runs as. The jobs write it into a client configuration of the run's own, in a folder only that account can read, deleted when the run ends: never on a command line.
-3. `vigil pack enable kafka`. The jobs connect to `localhost:9092` over `SASL_SSL` with SCRAM-SHA-512, as `vigil_monitor`. For anything else, edit their `env` lines in `vigil.config`: `KAFKA_BOOTSTRAP` (host:port, comma-separated), `KAFKA_SECURITY` (`PLAINTEXT`, `SSL`, `SASL_PLAINTEXT` or `SASL_SSL`), `KAFKA_SASL_MECHANISM` (`SCRAM-SHA-512`, `SCRAM-SHA-256` or `PLAIN`), `KAFKA_USER`, `KAFKA_CACERT` (a PEM file of the CAs the brokers' certificates are from, when Java does not trust them), `KAFKA_HOME` (where Kafka is unpacked, when its tools are not on the PATH). For a cluster without a login, `KAFKA_SECURITY=PLAINTEXT` and delete the jobs' `secret` lines. For a login this pack does not build (Kerberos, OAuth, a client certificate), give `KAFKA_CLIENT_CONFIG`: a client properties file of your own, used as it is.
-4. For the JMX jobs (`kafka_throughput`, `kafka_requests`, `kafka_jvm`, `kafka_controller`, `kafka_connections`), give each broker's JMX port in their `KAFKA_JMX` line, `host:port`, comma-separated: Kafka's start scripts open it when `JMX_PORT` is set. Without a password: Kafka's JmxTool takes one only on its command line, where this pack never puts one, so keep that port on a network only your monitoring reaches. `kafka_logdirs` reads tiered storage from it too, when its `KAFKA_JMX` is set.
+2. Give Vigil its password: `vigil secret set KAFKA_MONITOR_PASSWORD`, as the account Vigil runs as. The client builds its configuration in memory: the password is never in a file or on a command line.
+3. `vigil pack enable kafka`. The jobs connect to `localhost:9092` over `SASL_SSL` with SCRAM-SHA-512, as `vigil_monitor`. For anything else, edit their `env` lines in `vigil.config`: `KAFKA_BOOTSTRAP` (host:port, comma-separated), `KAFKA_SECURITY` (`PLAINTEXT`, `SSL`, `SASL_PLAINTEXT` or `SASL_SSL`), `KAFKA_SASL_MECHANISM` (`SCRAM-SHA-512`, `SCRAM-SHA-256` or `PLAIN`), `KAFKA_USER`, `KAFKA_CACERT` (a PEM file of the CAs that signed the brokers' certificates), `KAFKA_CERT` and `KAFKA_KEY` (a client certificate and its PKCS#8 key, for brokers that ask for one), `KAFKA_HOME` or `KAFKA_LIBS`. For Kerberos or OAuth, `KAFKA_CLIENT_CONFIG` names a client properties file of your own, whose settings come first.
+4. For the brokers' own figures (`kafka_throughput`, `kafka_requests`, `kafka_controller`, `kafka_connections`, and the flushes and log cleaner of `kafka_logdirs`), give each broker's JMX in their `KAFKA_JMX` line: `jmxs=host:port` over TLS, `jmx=host:port` without, separated by `;`. With a JMX user (`KAFKA_JMX_USER`) and its password, add a secret line to those jobs, under their `env` lines, and give Vigil the password:
 
-**The certificate is always checked**, against `KAFKA_CACERT` or Java's own CAs, and against the broker's name: connect by the name on its certificate. There is no setting that trusts a certificate unchecked. `kafka_tls` reads each broker's certificate whether it is trusted or not, to say how long it has left, and reports `trusted 0` when it is not.
+   ```ini
+   secret = KAFKA_JMX_PASSWORD=secret:KAFKA_JMX_PASSWORD
+   ```
+
+   ```sh
+   vigil secret set KAFKA_JMX_PASSWORD
+   ```
+
+   On the brokers, a JMX user that may only read is enough (`monitor readonly` in the access file): the jobs read attributes and run nothing. Kafka's start scripts take the JMX options from `KAFKA_JMX_OPTS` and the port from `JMX_PORT`, as the [jvm pack](#jvm) shows for any JVM: a password file, an access file, and TLS with `com.sun.management.jmxremote.ssl=true` and `registry.ssl=true`.
+
+**The brokers' JVMs: the jvm pack.** Heap, garbage collection, threads, CPU and open files against the limit are any JVM's, and the [jvm pack](#jvm) reports them, so this one does not. Install it beside this one, and name each broker in `JVM_TARGETS` as Kafka names it, so a broker's Kafka metrics and its JVM's line up on one dashboard:
+
+```ini
+env = JVM_TARGETS=kafka-1: jmxs=broker1:9999; kafka-2: jmxs=broker2:9999; kafka-3: jmxs=broker3:9999
+```
+
+Open files near the limit stop a broker taking connections and writing segments: watch `jvm_process` `open_files` against `open_files_max` for each.
+
+**The certificate is always checked**, against `KAFKA_CACERT` or Java's own CAs, and against the broker's name: connect by the name on its certificate. There is no setting that trusts a certificate unchecked. `kafka_tls` reads each broker's certificate whether it is trusted or not, to say how long it has, and reports `trusted 0` for one that is not.
 
 **What it needs:**
 
 | | Linux | macOS | Windows |
 | --- | --- | --- | --- |
-| On the Vigil machine | Kafka's command-line tools, any from 3.9 (the Kafka download: `bin/`), Java 17 or later, `openssl` | The same | The same: the scripts run the tools' Java classes directly, so Kafka need not be in a short folder |
-| The cluster | Apache Kafka 3.9 or 4.x, KRaft or ZooKeeper | | |
+| On the Vigil machine | Java 11 or later, a JDK or a JRE (`JAVA_HOME` or `java` on the PATH); for all but the four JMX jobs, Kafka's library (`KAFKA_HOME` or `KAFKA_LIBS`) | The same | The same |
+| The cluster | Apache Kafka 2.8 to 4.x, KRaft or ZooKeeper | | |
 | A user | `vigil_monitor`, with the ACLs step 1 grants | | |
 | A secret | `KAFKA_MONITOR_PASSWORD`, set with `vigil secret set` as the account Vigil runs as (step 2) | | |
-| For the JMX jobs | Each broker's JMX port, without a password, in `KAFKA_JMX` (step 4) | | |
+| For the JMX jobs | Each broker's JMX in `KAFKA_JMX`, and with a password, `KAFKA_JMX_PASSWORD` (step 4) | | |
 
-| Job | Every | Reports | Linux | macOS | Windows |
-| --- | --- | --- | --- | --- | --- |
-| `kafka_status` | 1m | Up, the cluster's id, KRaft or ZooKeeper, brokers and brokers fenced, the active controller | Yes | Yes | Yes |
-| `kafka_replication` | 1m | Partitions under-replicated, offline, under and at `min.insync.replicas`, not led by their preferred leader, with eligible leader replicas, being moved; by name, the topics with such partitions | Yes | Yes | Yes |
-| `kafka_consumers` | 1m | Each consumer group's lag on each topic, and its worst partition; partitions with no committed offset; each group's total | Yes | Yes | Yes |
-| `kafka_quorum` | 2m | KRaft's controller quorum: its leader and epoch, high watermark, voters and observers, and for each node how far behind it is and how long since it last fetched and caught up | Yes | Yes | Yes |
-| `kafka_brokers` | 5m | Each broker: listed or down, fenced, its rack, partitions it leads, replicas, replicas out of sync, partitions that prefer it as leader | Yes | Yes | Yes |
-| `kafka_reassignment` | 5m | Partition moves in progress: partitions, replicas being added and removed, each topic's | Yes | Yes | Yes |
-| `kafka_groups` | 5m | Every group by type (classic, consumer, share, streams) and state, each group's members, groups rebalancing, empty or dead | Yes | Yes | Yes |
-| `kafka_topics` | 5m | Topics, internal, with a single replica, compacted; each topic's partitions, replication factor, messages ever written (a running total) and messages it still holds | Yes | Yes | Yes |
-| `kafka_logdirs` | 5m | Each broker's log directories: size, partitions, offline, replicas being moved in; each broker's and topic's size on disk; tiered storage, with JMX | Yes | Yes | Yes |
-| `kafka_transactions` | 5m | Transactions by state, those ongoing, those open longer than `KAFKA_TXN_LONG` (default 300 seconds): counts only | Yes | Yes | Yes |
-| `kafka_config` | 15m | Settings at risk: unclean leader election, topics created on demand, `min.insync.replicas`, replication factors (default, offsets, transactions), retention, listeners without TLS or a login, settings that differ between brokers, and topics that allow unclean election or whose `min.insync.replicas` is at or above their replication factor, or 1 | Yes | Yes | Yes |
-| `kafka_security` | 15m | ACLs by resource and permission, ACLs for every principal or every operation, users with SCRAM credentials, quotas: counts only | Yes | Yes | Yes |
-| `kafka_features` | 15m | The finalized features (`metadata.version` by name) against what the brokers support: an upgrade not finalized | Yes | Yes | Yes |
-| `kafka_tls` | 1h | Each broker's certificate: days until it expires, trusted and naming the broker | Yes | Yes | Yes |
-| `kafka_throughput` | 2m | JMX: each broker's messages and bytes in and out, replication, produce and fetch requests and those that failed, bytes rejected, conversions, invalid records | Yes | Yes | Yes |
-| `kafka_requests` | 2m | JMX: produce, consumer fetch and follower fetch time (99th percentile), queue and remote time, requests served; request and response queues, purgatory; how idle the request handler and network threads are | Yes | Yes | Yes |
-| `kafka_controller` | 2m | JMX: the active controller, and from it brokers, topics, partitions, offline partitions, leaders not where they prefer, metadata errors and lag, heartbeats timed out, leader elections (unclean too), its event queue | Yes | Yes | Yes |
-| `kafka_jvm` | 5m | JMX: each broker's heap, garbage collection, open files against the limit, CPU, threads, uptime; log flush time, the log cleaner, offline log directories | Yes | Yes | Yes |
-| `kafka_connections` | 5m | JMX: each broker's connections per listener, and logins that succeeded and failed | Yes | Yes | Yes |
+| Job | Every | From | Reports |
+| --- | --- | --- | --- |
+| `kafka_status` | 1m | admin | Up, the cluster's id, KRaft or ZooKeeper, brokers and brokers fenced, the active controller |
+| `kafka_replication` | 1m | admin | Partitions under-replicated, offline, under and at `min.insync.replicas`, not led by their preferred leader, with eligible leader replicas, being moved; by name, the topics with such partitions |
+| `kafka_consumers` | 1m | admin | Each consumer group's lag on each topic, and its worst partition; partitions with no committed offset; each group's total |
+| `kafka_quorum` | 2m | admin | KRaft's controller quorum: its leader and epoch, high watermark, voters and observers, and for each node how far behind it is and how long since it last fetched and caught up |
+| `kafka_brokers` | 5m | admin | Each broker: listed or down, fenced, its rack, partitions it leads, replicas, replicas out of sync, partitions that prefer it as leader |
+| `kafka_reassignment` | 5m | admin | Partition moves in progress: partitions, replicas being added and removed, each topic's |
+| `kafka_groups` | 5m | admin | Every group by type (classic, consumer, share, streams) and state, each group's members, groups rebalancing, empty or dead |
+| `kafka_topics` | 5m | admin | Topics, internal, with a single replica, compacted; each topic's partitions, replication factor, messages ever written (a running total) and messages it still holds |
+| `kafka_logdirs` | 5m | admin, JMX | Each broker's log directories: size, partitions, offline, replicas being moved in; each broker's and topic's size on disk; with JMX, tiered storage, flush times and the log cleaner |
+| `kafka_transactions` | 5m | admin | Transactions by state, those ongoing, those open longer than `KAFKA_TXN_LONG` (default 300 seconds): counts only |
+| `kafka_config` | 15m | admin | Settings at risk: unclean leader election, topics created on demand, `min.insync.replicas`, replication factors (default, offsets, transactions), retention, listeners without TLS or a login, settings that differ between brokers, topics at risk |
+| `kafka_security` | 15m | admin | ACLs by resource and permission, ACLs for every principal or every operation, users with SCRAM credentials, quotas: counts only |
+| `kafka_features` | 15m | admin | The finalized features (`metadata.version` by name, when Kafka's server library is in `KAFKA_HOME`) against what the brokers support: an upgrade not finalized |
+| `kafka_tls` | 1h | TLS | Each broker's certificate: days until it expires, trusted and naming the broker |
+| `kafka_throughput` | 2m | JMX | Each broker's messages and bytes in and out, replication, produce and fetch requests and those that failed, bytes rejected, conversions, invalid records |
+| `kafka_requests` | 2m | JMX | Produce, consumer fetch and follower fetch time (99th percentile), queue and remote time, requests served; request and response queues, purgatory; how idle the request handler and network threads are |
+| `kafka_controller` | 2m | JMX | The active controller, and from it brokers, topics, partitions, offline partitions, leaders not where they prefer, metadata errors and lag, heartbeats timed out, leader elections (unclean ones too), its event queue |
+| `kafka_connections` | 5m | JMX | Each broker's connections per listener, and logins that succeeded and failed |
 
 Each script's header says what its metrics mean and how to read them. Worth knowing:
 
-- **Each tool a job runs starts Java** with Kafka's libraries. Measured on the test machines: about 3 seconds just to start on Linux and macOS, under 1 on Windows (where the scripts run Java directly), and a call that asks the cluster about 4 seconds on Linux beside it, and about 10 on the Windows test machines, which reached it through SSH tunnels. So only `status`, `replication` and `consumers` run every minute.
-- **A tool that does not finish in 45 seconds is stopped**, and judged by what it said: Kafka 3.9's `kafka-broker-api-versions`, for one, reports a certificate it cannot trust and then waits forever.
+- **One JVM a run.** A job starts Java once, asks what it needs, and ends: no command-line tools, no text to parse.
+- **What the library or the cluster does not have is left out, never a failure.** The KRaft quorum on ZooKeeper, transactions before 3.0, share and Streams groups before Kafka 4's library: the job says so in its log and prints the rest.
 - The `_count` metrics are running totals: graph them as rates. `messages_count` is every message ever written to a topic, so its rate is the topic's write rate.
 - Lists are capped (150 brokers, 150 group and topic pairs, 150 groups, 100 topics) so a big cluster stays under the 1000 lines Vigil takes from a run; the `_not_shown` metrics count the rest.
 - `kraft.version` shows as behind on a cluster whose controllers are a fixed list (`controller.quorum.voters`): such a quorum cannot move to version 1, by design.
-- On Windows, the scripts read each tool's Java class from its `.bat` and run it with Java directly: the `.bat` files themselves fail, with "The input line is too long", when Kafka is in a folder deeper than one like `C:\kafka`.
 
-A cluster that cannot be reached reports `kafka.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed. A refused login, a certificate that cannot be trusted, a missing permission and a tool that fails fail the run, and its log says why.
+A cluster that cannot be reached reports `kafka.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed. A refused login, a certificate that cannot be trusted, or a jar that does not match its digest fails the run, and its log says why; so does a JMX login refused, or a JMX certificate not trusted, for the jobs that read JMX.
 
-**Tested** on 2026-11-21 on the Fedora 44 test machine by `tests/integration/backends/scripts/run-kafka.sh`, against clusters in Docker with SASL_SSL, SCRAM-SHA-512, a certificate from a test CA and the brokers' JMX open, made busy: a group that read part of a topic and stopped, one that keeps reading, a transaction held open, and a partition move held back by a throttle. `service-packs.sh` through Vigil, then every job as the busy cluster has it, with a broker stopped, and with it started again: **64 passed, 0 failed** against **Kafka 4.4.0**, three nodes in KRaft mode, with the 4.4.0 tools, the open transaction seen as `ongoing`, and later as `long_running`; **63 passed, 0 failed** against **Kafka 3.9.2**, three nodes in KRaft mode, with its own 3.9.2 tools; and **63 passed, 0 failed** against **Kafka 3.9.2 on ZooKeeper**, one broker (`--zookeeper`), so with no partition move and no broker stopped, with the 4.4.0 tools. In the 3.9.2 runs, and those of macOS and Windows below, the transaction did not stay open: the test then held it at Kafka's default timeout, a minute, and the broker ended it, so there `kafka_transactions` was seen to run and count, not to see one open. The full console output: [4.4.0](../tests/integration/backends/reports/runs/2026-11-21/fedora/pack-kafka-4.4.0/console.txt), [3.9.2](../tests/integration/backends/reports/runs/2026-11-21/fedora/pack-kafka-3.9.2/console.txt), [3.9.2 on ZooKeeper](../tests/integration/backends/reports/runs/2026-11-21/fedora/pack-kafka-3.9.2-zookeeper/console.txt). **On macOS**, on the Intel Mac test machine under its bash 3.2, with the 4.4.0 tools, against the 4.4.0 cluster on the Fedora machine through SSH tunnels: `service-packs.sh` through Vigil, **63 passed, 0 failed**: [the console output](../tests/integration/backends/reports/runs/2026-11-21/macos/pack-kafka-macos/console.txt). **On Windows**, against the same cluster the same way: every job directly, then `Service-Packs.ps1` through Vigil, **54 passed, 0 failed**, on Windows PowerShell 5.1 and PowerShell 7 on Windows 11 ([the console output](../tests/integration/backends/reports/runs/2026-11-21/windows/pack-kafka-windows/console.txt)), and on Windows PowerShell 5.1 on Windows Server 2025 ([the console output](../tests/integration/backends/reports/runs/2026-11-21/windows-server-2025/pack-kafka-windows/console.txt)). On Windows the password came from an `env:` reference: Windows refuses its data protection to a logon by SSH key, as the test machines' were.
+**From 1.0.** `kafka_jvm` is gone: its JVM half is the jvm pack's, and its Kafka half (flush times, the log cleaner) is in `kafka_logdirs`. Where a job still runs it, `vigil pack update` keeps its script and says so (`dropped from the pack, still running: kafka_jvm`); `vigil pack disable kafka_jvm` stops it. Kafka's command-line tools are no longer run; `KAFKA_HOME` still names the Kafka download, now for its library. JMX takes a password and TLS, and `KAFKA_JMX` its targets as `jmxs=host:port` or `jmx=host:port` (a bare `host:port` still works, as `jmx=`). Java 11 or later, where 1.0 needed 17.
+
+**Version 1.0, tested** on 2026-11-21 on the Fedora 44 test machine by `tests/integration/backends/scripts/run-kafka.sh`, against clusters in Docker with SASL_SSL, SCRAM-SHA-512, a certificate from a test CA and the brokers' JMX open, made busy: a group that read part of a topic and stopped, one that keeps reading, a transaction held open, and a partition move held back by a throttle. `service-packs.sh` through Vigil, then every job as the busy cluster has it, with a broker stopped, and with it started again: **64 passed, 0 failed** against **Kafka 4.4.0**, three nodes in KRaft mode, with the 4.4.0 tools, the open transaction seen as `ongoing`, and later as `long_running`; **63 passed, 0 failed** against **Kafka 3.9.2**, three nodes in KRaft mode, with its own 3.9.2 tools; and **63 passed, 0 failed** against **Kafka 3.9.2 on ZooKeeper**, one broker (`--zookeeper`), so with no partition move and no broker stopped, with the 4.4.0 tools. In the 3.9.2 runs, and those of macOS and Windows below, the transaction did not stay open: the test then held it at Kafka's default timeout, a minute, and the broker ended it, so there `kafka_transactions` was seen to run and count, not to see one open. The full console output: [4.4.0](../tests/integration/backends/reports/runs/2026-11-21/fedora/pack-kafka-4.4.0/console.txt), [3.9.2](../tests/integration/backends/reports/runs/2026-11-21/fedora/pack-kafka-3.9.2/console.txt), [3.9.2 on ZooKeeper](../tests/integration/backends/reports/runs/2026-11-21/fedora/pack-kafka-3.9.2-zookeeper/console.txt). **On macOS**, on the Intel Mac test machine under its bash 3.2, with the 4.4.0 tools, against the 4.4.0 cluster on the Fedora machine through SSH tunnels: `service-packs.sh` through Vigil, **63 passed, 0 failed**: [the console output](../tests/integration/backends/reports/runs/2026-11-21/macos/pack-kafka-macos/console.txt). **On Windows**, against the same cluster the same way: every job directly, then `Service-Packs.ps1` through Vigil, **54 passed, 0 failed**, on Windows PowerShell 5.1 and PowerShell 7 on Windows 11 ([the console output](../tests/integration/backends/reports/runs/2026-11-21/windows/pack-kafka-windows/console.txt)), and on Windows PowerShell 5.1 on Windows Server 2025 ([the console output](../tests/integration/backends/reports/runs/2026-11-21/windows-server-2025/pack-kafka-windows/console.txt)). On Windows the password came from an `env:` reference: Windows refuses its data protection to a logon by SSH key, as the test machines' were.
 
 ### jvm
 
