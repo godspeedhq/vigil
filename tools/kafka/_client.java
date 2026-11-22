@@ -614,8 +614,10 @@ class KafkaClient {
                 if (++k > BROKER_CAP) break;
                 String id = Integer.toString(e.getKey());
                 Node n = byId.get(e.getKey());
-                metric("online", n != null, "broker", id, "rack", n == null || n.rack() == null ? "none" : n.rack());
+                // Online: listed and serving. A fenced broker (stopped, or not
+                // yet caught up) is listed by Kafka 4's library, but not online.
                 Boolean f = n == null ? null : fenced(n);
+                metric("online", n != null && !Boolean.TRUE.equals(f), "broker", id, "rack", n == null || n.rack() == null ? "none" : n.rack());
                 if (f != null) metric("fenced", f, "broker", id);
                 metric("leaders", e.getValue()[0], "broker", id);
                 metric("replicas", e.getValue()[1], "broker", id);

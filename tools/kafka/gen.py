@@ -101,7 +101,7 @@ JOBS = [
          what="Reports each broker: whether it is listed and fenced, its rack, and what it holds: partitions it "
               "leads, replicas, replicas it has let fall out of sync, and partitions that prefer it as leader. A "
               "broker that holds replicas but is not listed is down, and is shown so.",
-         metrics=M(('online', '1 when the broker is listed, 0 when it holds replicas but is not, tagged broker=<id> and rack=<its rack, or none>'),
+         metrics=M(('online', '1 when the broker is listed and not fenced, 0 when it holds replicas but is not, or is fenced, tagged broker=<id> and rack=<its rack, or none>'),
                    ('fenced', '1 when it is fenced, tagged broker=<id>'),
                    ('leaders', 'partitions it leads, tagged the same'),
                    ('replicas', 'replicas it holds, tagged the same'),

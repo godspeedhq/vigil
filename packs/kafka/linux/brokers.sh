@@ -32,9 +32,9 @@
 # 4.x.
 #
 # Metrics:
-#   online                1 when the broker is listed, 0 when it holds
-#                         replicas but is not, tagged broker=<id> and
-#                         rack=<its rack, or none>
+#   online                1 when the broker is listed and not fenced, 0 when
+#                         it holds replicas but is not, or is fenced, tagged
+#                         broker=<id> and rack=<its rack, or none>
 #   fenced                1 when it is fenced, tagged broker=<id>
 #   leaders               partitions it leads, tagged the same
 #   replicas              replicas it holds, tagged the same
