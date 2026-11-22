@@ -826,9 +826,9 @@ class KafkaClient {
                     Jmx.row("flush_ms_p99", "kafka.log:type=LogFlushStats,name=LogFlushRateAndTimeMs", "99thPercentile"),
                     Jmx.row("flushes_count", "kafka.log:type=LogFlushStats,name=LogFlushRateAndTimeMs", "Count"),
                     Jmx.row("cleaner_max_dirty_pct", "kafka.log:type=LogCleanerManager,name=max-dirty-percent", "Value"),
-                    Jmx.row("cleaner_idle_seconds", "kafka.log:type=LogCleaner,name=time-since-last-run-ms", "Value").scale(0.001),
+                    Jmx.row("cleaner_idle_seconds", "kafka.log:type=LogCleaner,name=time-since-last-run-ms", "Value").scale(0.001).atLeast(0),
                     Jmx.row("cleaner_dead_threads", "kafka.log:type=LogCleaner,name=DeadThreadCount", "Value"),
-                    Jmx.row("cleaner_max_clean_seconds", "kafka.log:type=LogCleaner,name=max-clean-time-secs", "Value"));
+                    Jmx.row("cleaner_max_clean_seconds", "kafka.log:type=LogCleaner,name=max-clean-time-secs", "Value").atLeast(0));
             jmxTable(rows);
         }
 

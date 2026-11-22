@@ -350,10 +350,18 @@ final class Jmx {
 
         /** Fixed tags, after the MBean's own: name, value, ... */
         String[] fixed = new String[0];
+        /** A value below this is no reading (a figure not yet measured): not printed. */
+        double floor = Double.NEGATIVE_INFINITY;
 
         /** Its value times s: 0.001 for ns to µs, 100 for a fraction to a percent. */
         Row scale(double s) {
             scale = s;
+            return this;
+        }
+
+        /** Values below f are not printed: -1 for "never", or worse. */
+        Row atLeast(double f) {
+            floor = f;
             return this;
         }
 
@@ -410,7 +418,7 @@ final class Jmx {
             for (ObjectName o : names) {
                 if (++n > LIST_CAP) break;
                 Number v = number(values.getOrDefault(o, Collections.emptyMap()).get(r.attribute), r.key);
-                if (v == null) continue;
+                if (v == null || v.doubleValue() < r.floor) continue;
                 String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length + r.fixed.length);
                 for (int i = 0; i < r.tags.length; i++) {
                     all[tags.length + 2 * i] = r.tags[i];
