@@ -43,7 +43,8 @@
 # once (setting). A Vigil skips records it does not know.
 #
 # Needs tar, gzip, openssl, and for the .zip: zip, python3 or (Git Bash)
-# PowerShell. For a pack with a _client.java: a JDK 17 or later, unless
+# PowerShell. For a pack with a _client.java: a JDK 17 or later, and curl
+# for the libraries its client.lib names, unless
 # VIGIL_TEST_PACKS_NO_CLIENT is set (a test's release, never a real one:
 # the packs workflow refuses it), which builds such a pack without its jar.
 # Exit code: 0 built; 1 a pack refused, or a failure; 64 a usage error.
@@ -112,6 +113,25 @@ info() {
             if ("docs" in one) put("docs", one["docs"])
         }' "$1"
 }
+# The libraries pack folder $1's client compiles against, from its
+# client.lib (lines "build <file> <url> <sha256>"; "check" lines are for
+# client-check.sh), downloaded once and checked, into libs. Never shipped.
+client_libs() {
+    local use f url sum
+    libs=()
+    [ -f "$1/client.lib" ] || return 0
+    mkdir -p "$stage/lib" || return 1
+    while read -r use f url sum; do
+        [ "$use" = build ] || continue
+        if [ ! -f "$stage/lib/$f" ]; then
+            curl -fsSL --proto '=https' -o "$stage/lib/$f.part" "$url" && mv "$stage/lib/$f.part" "$stage/lib/$f" ||
+                { printf 'packs: cannot download %s\n' "$url" >&2; return 1; }
+        fi
+        [ "$(sha "$stage/lib/$f")" = "$sum" ] || { printf 'packs: %s does not match its SHA-256 in %s/client.lib\n' "$f" "$1" >&2; return 1; }
+        libs+=("$stage/lib/$f")
+    done < "$1/client.lib"
+}
+
 # The digest of a pack's source: every file's name and content, in order.
 digest() {
     local d=$1 f
@@ -155,7 +175,8 @@ for d in "$repo"/packs/*/; do
         # A test's release (VIGIL_TEST_PACKS_NO_CLIENT) leaves it out: its
         # scripts run the source, as a copy from the repository does.
         if [ -f "$stage/$os/$name/_client.java" ] && [ -z "${VIGIL_TEST_PACKS_NO_CLIENT-}" ]; then
-            bash "$here/client-jar.sh" "$stage/$os/$name" > /dev/null || { printf 'packs: cannot build the client of %s for %s\n' "$name" "$os" >&2; exit 1; }
+            client_libs "$d" || exit 1
+            bash "$here/client-jar.sh" "$stage/$os/$name" ${libs[@]+"${libs[@]}"} > /dev/null || { printf 'packs: cannot build the client of %s for %s\n' "$name" "$os" >&2; exit 1; }
         fi
         if [ -z "${VIGIL_TEST_PACKS_NO_CLIENT-}" ] && grep -l '@CLIENT_JAR_' "$stage/$os/$name"/* > /dev/null 2>&1; then
             printf 'packs: %s for %s names a compiled client it has no _client.java for\n' "$name" "$os" >&2

@@ -1,0 +1,16 @@
+# The libraries the kafka pack's client compiles against: never shipped. The
+# release downloads them, checks each against its SHA-256 here, and compiles
+# _client.java with them on javac's class path (tools/release/packs.sh,
+# client-jar.sh). Whoever installs the pack supplies Kafka's library at run
+# time: KAFKA_HOME (a Kafka download) or KAFKA_LIBS.
+#
+#   build <file> <url> <sha256>   what the release compiles against: the
+#                                 oldest kafka-clients the pack accepts
+#   check <file> <url> <sha256>   compiled against too, by client-check.sh in
+#                                 CI, never released: the newest, so a method
+#                                 it removed fails the check, not a user's run
+#
+# Each SHA-256 was taken from the jar as Maven Central serves it, after its
+# SHA-1 matched Central's own (2026-11-22).
+build kafka-clients-3.9.2.jar https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.9.2/kafka-clients-3.9.2.jar 014b4ef36884478a932641818b080c36a8f8e2e92dc771e800c9d2694f4f83d8
+check kafka-clients-4.4.0.jar https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/4.4.0/kafka-clients-4.4.0.jar 1ab07317eb6633241392449d329dbdc5d9251e6ffc4926860f42dd966e88bdf9

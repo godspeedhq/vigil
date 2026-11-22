@@ -348,9 +348,18 @@ final class Jmx {
             this.tags = tags;
         }
 
+        /** Fixed tags, after the MBean's own: name, value, ... */
+        String[] fixed = new String[0];
+
         /** Its value times s: 0.001 for ns to µs, 100 for a fraction to a percent. */
         Row scale(double s) {
             scale = s;
+            return this;
+        }
+
+        /** Tags of its own, the same for every MBean it reads: name, value, ... */
+        Row with(String... tags) {
+            fixed = tags;
             return this;
         }
     }
@@ -402,11 +411,12 @@ final class Jmx {
                 if (++n > LIST_CAP) break;
                 Number v = number(values.getOrDefault(o, Collections.emptyMap()).get(r.attribute), r.key);
                 if (v == null) continue;
-                String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length);
+                String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length + r.fixed.length);
                 for (int i = 0; i < r.tags.length; i++) {
                     all[tags.length + 2 * i] = r.tags[i];
                     all[tags.length + 2 * i + 1] = o.getKeyProperty(r.tags[i]);
                 }
+                System.arraycopy(r.fixed, 0, all, tags.length + 2 * r.tags.length, r.fixed.length);
                 metric(r.metric, r.scale == 1 ? v : v.doubleValue() * r.scale, all);
             }
             if (names.size() > LIST_CAP) metric(r.metric + "_not_shown", names.size() - LIST_CAP, tags);

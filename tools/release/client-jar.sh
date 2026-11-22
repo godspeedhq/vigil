@@ -17,7 +17,11 @@
 # before it runs it. packs.sh runs this on each platform's copy of a pack it
 # releases; the repository holds the source only.
 #
-#   client-jar.sh <dir>
+#   client-jar.sh <dir> [<jar>...]
+#
+# The jars after <dir> are what the client compiles against (a pack's
+# client.lib: Kafka's library, for the kafka pack): on javac's class path,
+# never in the jar. Whoever installs the pack supplies them at run time.
 #
 # The same source and the same javac give the same jar, byte for byte: Java
 # 11 bytecode (javac --release 11), the classes in sorted order, no
@@ -30,8 +34,17 @@
 set -u
 umask 022
 
-[ "$#" -eq 1 ] && [ -f "$1/_client.java" ] || { printf 'usage: client-jar.sh <folder holding _client.java>\n' >&2; exit 64; }
+[ "$#" -ge 1 ] && [ -f "$1/_client.java" ] || { printf 'usage: client-jar.sh <folder holding _client.java> [<jar>...]\n' >&2; exit 64; }
 dir=$(cd "$1" && pwd)
+shift
+# The class path to compile against: ; on Windows (Git Bash), : elsewhere.
+cp='' sep=:
+command -v cygpath > /dev/null 2>&1 && sep=';'
+for j in "$@"; do
+    [ -f "$j" ] || { printf 'client-jar: no such jar: %s\n' "$j" >&2; exit 1; }
+    command -v cygpath > /dev/null 2>&1 && j=$(cygpath -w "$j")
+    cp=$cp${cp:+$sep}$j
+done
 bin=
 [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/javac" ] && bin=$JAVA_HOME/bin/
 command -v "${bin}javac" > /dev/null 2>&1 && command -v "${bin}jar" > /dev/null 2>&1 ||
@@ -44,7 +57,7 @@ sha() {
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-client-jar.XXXXXX") || exit 1
 trap 'rm -rf "$work"' EXIT
 mkdir "$work/classes" || exit 1
-"${bin}javac" --release 11 -encoding UTF-8 -nowarn -d "$work/classes" "$dir/_client.java" || exit 1
+"${bin}javac" --release 11 -encoding UTF-8 -nowarn ${cp:+-cp "$cp"} -d "$work/classes" "$dir/_client.java" || exit 1
 javac=$("${bin}javac" -version 2>&1 | awk '{ print $2; exit }')
 case $javac in '' | *[!0-9A-Za-z.+_-]*) printf 'client-jar: cannot tell the javac version: %s\n' "$javac" >&2; exit 1 ;; esac
 
