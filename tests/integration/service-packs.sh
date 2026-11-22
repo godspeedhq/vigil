@@ -1065,6 +1065,62 @@ else
     set_env JVM_TARGETS "$VIGIL_IT_JVM_TARGETS"
     vigil run jvm_heap > /dev/null 2>&1
     check 'jvm: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_JVM_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+
+    # On a JRE: the client compiled, as a packs release builds it
+    # (tools/release/client-jar.sh), and checked before it runs. Each script
+    # run directly, as the jobs run them.
+    if [ -z "${VIGIL_IT_JVM_JRE-}" ]; then
+        printf '  SKIP  jvm on a JRE: set VIGIL_IT_JVM_JRE to a JRE 11 or later\n'
+    else
+        printf 'jvm on a JRE: %s\n' "$("$VIGIL_IT_JVM_JRE/bin/java" -version 2>&1 | head -n 1)"
+        # The JDK the jobs above ran on.
+        jdk_home=$(java -XshowSettings:properties -version 2>&1 | awk '$1 == "java.home" { print $3; exit }')
+        jsum() { if command -v sha256sum > /dev/null 2>&1; then sha256sum < "$1"; else shasum -a 256 < "$1"; fi | cut -c1-64; }
+        jp=$work/jvm-jar
+        for d in "$jp" "$jp.2"; do
+            rm -rf "$d" && mkdir -p "$d" && cp "$repo/packs/jvm/$os"/* "$d/" &&
+                JAVA_HOME=${VIGIL_IT_JVM_JDK:-${JAVA_HOME-}} bash "$repo/tools/release/client-jar.sh" "$d" > "$work/jar.out" 2>&1 || { sed 's/^/        /' "$work/jar.out"; break; }
+        done
+        check 'jvm: its client compiles to a jar' yes "$([ -f "$jp/_client.jar" ] && [ -f "$jp.2/_client.jar" ] && echo yes || echo no)"
+        check 'jvm: built twice, the same jar, byte for byte' yes "$(cmp -s "$jp/_client.jar" "$jp.2/_client.jar" && echo yes || echo no)"
+        check 'jvm: its digest is in every script' 41 "$(grep -l "^jar_sha256=$(jsum "$jp/_client.jar")\$" "$jp"/*.sh | wc -l | tr -d ' ')"
+        check 'jvm: the JRE has no compiler' no "$([ -e "$VIGIL_IT_JVM_JRE/bin/javac" ] && echo yes || echo no)"
+        # $1 the Java, $2 the folder, $3 the job, into $work/jre.<job>; the exit code.
+        jdirect() {
+            JAVA_HOME=$1 JVM_TARGETS=$VIGIL_IT_JVM_TARGETS JVM_JMX_USER=operator JVM_JMX_PASSWORD=$VIGIL_IT_JVM_PASSWORD \
+                JVM_CACERT=${VIGIL_IT_JVM_CACERT-} JVM_DUMP_DIRS=${VIGIL_IT_JVM_DUMPS-} \
+                bash "$2/$3.sh" > "$work/jre.$3" 2>&1
+            echo $?
+        }
+        failed='' t0=$(date +%s)
+        for j in $jlist; do [ "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" "$j")" = 0 ] || failed="$failed $j"; done
+        t1=$(date +%s)
+        check 'jvm: every job runs on the JRE, from the jar' '' "$failed"
+        for j in $failed; do tail -n 3 "$work/jre.$j" | sed 's/^/        /'; done
+        printf '        41 jobs from the jar in %d s\n' $((t1 - t0))
+        check 'jvm: and every JVM is up' 8 "$(grep -c '^metric up 1 ' "$work/jre.status")"
+        # The same lines as the source gives on a JDK (the repository's copy,
+        # which has no jar), values apart.
+        same=''
+        for j in status heap gc threads classes jit metaspace codecache flags security; do
+            awk '{ $3 = ""; print }' "$work/jre.$j" | sort > "$work/jre.names"
+            jdirect "$jdk_home" "$repo/packs/jvm/$os" "$j" > /dev/null
+            awk '{ $3 = ""; print }' "$work/jre.$j" | sort | cmp -s - "$work/jre.names" || same="$same $j"
+        done
+        check 'jvm: the same lines as from the source' '' "$same"
+        # A jar changed by one byte is not run, by any Java.
+        cp "$jp/_client.jar" "$work/keep.jar"
+        printf '\377' | dd of="$jp/_client.jar" bs=1 seek=1000 count=1 conv=notrunc 2> /dev/null
+        check 'jvm: a jar changed by one byte is not run' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" heap)"
+        check 'jvm: and says why' yes "$(grep -q 'does not match the digest in this script' "$work/jre.heap" && echo yes || echo no)"
+        check 'jvm: nor by a JDK' 1 "$(jdirect "$jdk_home" "$jp" heap)"
+        cp "$work/keep.jar" "$jp/_client.jar"
+        cp "$repo/packs/jvm/$os/heap.sh" "$jp/heap.sh"
+        check 'jvm: a script with no digest runs no jar' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" heap)"
+        rm -f "$jp/_client.jar"
+        check 'jvm: no jar, and a JRE cannot run the source' 1 "$(jdirect "$VIGIL_IT_JVM_JRE" "$jp" status)"
+        check 'jvm: and Java says why' yes "$(grep -q 'jdk.compiler' "$work/jre.status" && echo yes || echo no)"
+    fi
 fi
 
 # --- nginx ------------------------------------------------------------------

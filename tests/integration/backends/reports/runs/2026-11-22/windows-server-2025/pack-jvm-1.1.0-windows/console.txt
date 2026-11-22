@@ -1,0 +1,1082 @@
+when     2026-11-22
+machine  WIN-R50M4Q63SR9, Windows Server 2025 Datacenter Evaluation 24H2, build 26100
+shells   powershell.exe 5.1.26100.7462
+java     openjdk version "21.0.13.1" 2026-11-17 LTS, a JDK: the source, and the JVM watched
+jre      openjdk version "21.0.13.1" 2026-11-17 LTS (Temurin JRE, no compiler): the jar
+pack     jvm 1.1.0, Vigil commit 03a49d6 (a copy); the jar from a packs release built by tools/release/packs.sh
+account  vigil-test, not an administrator, by SSH key: CIM refused it, and the secret store too
+jvms     one of its own on the machine without JMX, and over JMX
+         the JVMs of scripts/run-jvm.sh on the Fedora test machine (Java 8, 11, 17, 21 and 25, with troubles of their own), through SSH tunnels
+
+######## tests\integration\Service-Packs.ps1, through Vigil, powershell.exe
+
+host     WIN-R50M4Q63SR9, Windows Server 2025 Datacenter Evaluation 24H2 build 26100
+java     openjdk version "21.0.13.1" 2026-11-17 LTS
+jre      openjdk version "21.0.13.1" 2026-11-17 LTS
+PowerShell 5.1.26100.7462
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+jvm: j8: jmx=localhost:19181; j17: jmxs=localhost:19183; j21: jmxs=localhost:19184; j25: jmxs=localhost:19185; win: main=-Dvigil.it=winplain
+  PASS  jvm: off until enabled
+  PASS  jvm: enabled
+        on: jvm_process
+        on: jvm_discovery
+        on: jvm_status
+        on: jvm_flags
+        on: jvm_container
+        on: jvm_release_age
+        on: jvm_security
+        on: jvm_startup
+        on: jvm_heap
+        on: jvm_pools
+        on: jvm_metaspace
+        on: jvm_codecache
+        on: jvm_buffers
+        on: jvm_native
+        on: jvm_native_overhead
+        on: jvm_gc
+        on: jvm_gc_cycles
+        on: jvm_gc_last
+        on: jvm_gc_cpu
+        on: jvm_allocation
+        on: jvm_promotion
+        on: jvm_tlab
+        on: jvm_gclog
+        on: jvm_gclog_detail
+        on: jvm_threads
+        on: jvm_deadlocks
+        on: jvm_contention
+        on: jvm_hot_threads
+        on: jvm_virtual_threads
+        on: jvm_classes
+        on: jvm_classloaders
+        on: jvm_jit
+        on: jvm_deopt
+        on: jvm_safepoints
+        on: jvm_finalization
+        on: jvm_os
+        on: jvm_io
+        on: jvm_crashes
+        on: jvm_oom
+        on: jvm_jfr
+        on: jvm_mbeans
+        needs for the JVM's own counters (heap, GC, threads without JMX): Vigil running as root or an administrator, or as the JVM's own account
+        needs for everything else: each JVM's JMX address in JVM_TARGETS (jmx=host:port), with -Dcom.sun.management.jmxremote.port and a password and TLS (packs/README.md shows how)
+        needs for JMX with a password: a secret line on the jobs: secret = JVM_JMX_PASSWORD=secret:JVM_JMX_PASSWORD, then vigil secret set JVM_JMX_PASSWORD
+        settings in vigil.config: JVM_TARGETS= JVM_JMX_USER= JVM_CACERT= JVM_DUMP_DIRS= JVM_MBEANS=java.lang:type=Threading/ThreadCount; java.lang:type=Memory/HeapMemoryUsage.used
+  PASS  jvm: its jobs are on
+  PASS  jvm: no secret line until JMX asks for one
+  PASS  jvm: the password is a secret reference, on every job
+  note  jvm: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_JVM_PASSWORD
+  PASS  jvm: precheck is happy
+  PASS  jvm: process runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric running 1 jvm=win
+        metric rss_bytes 152256512 jvm=win
+        metric virtual_bytes 6301966336 jvm=win
+        metric cpu_seconds 8.1563 jvm=win
+        metric threads 151 jvm=win
+        metric open_files 975 jvm=win
+        metric uptime_seconds 163 jvm=win
+  PASS  jvm: discovery runs
+        metric jvms 1
+        metric found 1 main=Trouble user=none watched=yes counters=yes
+        metric jvms_not_shown 0
+  PASS  jvm: status runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric up 1 jvm=j8
+        metric tier_os 0 jvm=j8
+        metric tier_counters 0 jvm=j8
+        metric tier_jmx 1 jvm=j8
+        metric info 1 jvm=j8 version=1.8.0_512 vendor=Temurin vm=OpenJDK_64-Bit_Server_VM gc=PS_MarkSweep+PS_Scavenge
+        metric uptime_seconds 7033 jvm=j8
+        metric heap_max_bytes 239075328 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric up 1 jvm=j17
+        metric tier_os 0 jvm=j17
+        metric tier_counters 0 jvm=j17
+        metric tier_jmx 1 jvm=j17
+        metric info 1 jvm=j17 version=17.0.21.1 vendor=Eclipse_Adoptium vm=OpenJDK_64-Bit_Server_VM gc=ZGC_Cycles+ZGC_Pauses
+        metric uptime_seconds 7040 jvm=j17
+        metric heap_max_bytes 268435456 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric up 1 jvm=j21
+        metric tier_os 0 jvm=j21
+        metric tier_counters 0 jvm=j21
+        metric tier_jmx 1 jvm=j21
+        metric info 1 jvm=j21 version=21.0.13.1 vendor=Eclipse_Adoptium vm=OpenJDK_64-Bit_Server_VM gc=G1_Concurrent_GC+G1_Old_Generation+G1_Young_Generation
+        metric uptime_seconds 7026 jvm=j21
+        metric heap_max_bytes 268435456 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric up 1 jvm=j25
+        metric tier_os 0 jvm=j25
+        metric tier_counters 0 jvm=j25
+        metric tier_jmx 1 jvm=j25
+        metric info 1 jvm=j25 version=25.0.5.1 vendor=Eclipse_Adoptium vm=OpenJDK_64-Bit_Server_VM gc=Shenandoah_Cycles+Shenandoah_Pauses
+        metric uptime_seconds 7033 jvm=j25
+        metric heap_max_bytes 268435456 jvm=j25
+        metric up 1 jvm=win
+        metric tier_os 1 jvm=win
+        metric tier_counters 1 jvm=win
+        metric tier_jmx 0 jvm=win
+        metric info 1 jvm=win version=21.0.13.1 vendor=Eclipse_Adoptium vm=OpenJDK_64-Bit_Server_VM gc=Serial_young_collection_pauses+Serial_full_collection_pauses
+        metric uptime_seconds 223 jvm=win
+        metric heap_max_bytes 134217728 jvm=win
+  PASS  jvm: flags runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric heap_max_set 1 jvm=j8
+        metric heap_dump_on_oom 0 jvm=j8
+        metric exit_on_oom 0 jvm=j8
+        metric deprecated_gc 0 jvm=j8
+        metric heap_over_memory 0 jvm=j8
+        metric explicit_gc_disabled 0 jvm=j8
+        metric risks 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric heap_max_set 1 jvm=j17
+        metric heap_dump_on_oom 0 jvm=j17
+        metric exit_on_oom 0 jvm=j17
+        metric deprecated_gc 0 jvm=j17
+        metric heap_over_memory 0 jvm=j17
+        metric explicit_gc_disabled 0 jvm=j17
+        metric risks 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric heap_max_set 1 jvm=j21
+        metric heap_dump_on_oom 1 jvm=j21
+        metric exit_on_oom 0 jvm=j21
+        metric deprecated_gc 0 jvm=j21
+        metric heap_over_memory 0 jvm=j21
+        metric explicit_gc_disabled 0 jvm=j21
+        metric risks 0 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric heap_max_set 1 jvm=j25
+        metric heap_dump_on_oom 0 jvm=j25
+        metric exit_on_oom 0 jvm=j25
+        metric deprecated_gc 0 jvm=j25
+        metric heap_over_memory 0 jvm=j25
+        metric explicit_gc_disabled 0 jvm=j25
+        metric risks 1 jvm=j25
+        metric heap_max_set 1 jvm=win
+        metric heap_dump_on_oom 0 jvm=win
+        metric exit_on_oom 0 jvm=win
+        metric deprecated_gc 0 jvm=win
+        metric heap_over_memory 0 jvm=win
+        metric explicit_gc_disabled 0 jvm=win
+        metric risks 1 jvm=win
+  PASS  jvm: container runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric cpus 4 jvm=j8
+        metric memory_bytes 536870912 jvm=j8
+        metric cpus_host 4 jvm=j8
+        metric memory_host_bytes 8375672832 jvm=j8
+        metric cpus_limited 0 jvm=j8
+        metric memory_limited 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric cpus 4 jvm=j17
+        metric memory_bytes 536870912 jvm=j17
+        metric cpus_host 4 jvm=j17
+        metric memory_host_bytes 8375672832 jvm=j17
+        metric cpus_limited 0 jvm=j17
+        metric memory_limited 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric cpus 4 jvm=j21
+        metric memory_bytes 536870912 jvm=j21
+        metric cpus_host 4 jvm=j21
+        metric memory_host_bytes 8375672832 jvm=j21
+        metric cpus_limited 0 jvm=j21
+        metric memory_limited 1 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric cpus 4 jvm=j25
+        metric memory_bytes 536870912 jvm=j25
+        metric cpus_host 4 jvm=j25
+        metric memory_host_bytes 8375672832 jvm=j25
+        metric cpus_limited 0 jvm=j25
+        metric memory_limited 1 jvm=j25
+  PASS  jvm: release_age runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric feature_version 8 jvm=j8
+        metric lts 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric feature_version 17 jvm=j17
+        metric lts 1 jvm=j17
+        metric release_age_days 5 jvm=j17 version=17.0.21.1
+        metric jmx_up 1 jvm=j21
+        metric feature_version 21 jvm=j21
+        metric lts 1 jvm=j21
+        metric release_age_days 5 jvm=j21 version=21.0.13.1
+        metric jmx_up 1 jvm=j25
+        metric feature_version 25 jvm=j25
+        metric lts 1 jvm=j25
+        metric release_age_days 5 jvm=j25 version=25.0.5.1
+        metric feature_version 21 jvm=win
+        metric lts 1 jvm=win
+  PASS  jvm: security runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric debug_agent 0 jvm=j8
+        metric debug_agent_remote 0 jvm=j8
+        metric jmx_remote 1 jvm=j8
+        metric jmx_no_password 0 jvm=j8
+        metric jmx_no_tls 1 jvm=j8
+        metric verify_off 0 jvm=j8
+        metric risks 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric debug_agent 0 jvm=j17
+        metric debug_agent_remote 0 jvm=j17
+        metric jmx_remote 1 jvm=j17
+        metric jmx_no_password 0 jvm=j17
+        metric jmx_no_tls 0 jvm=j17
+        metric verify_off 0 jvm=j17
+        metric risks 0 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric debug_agent 0 jvm=j21
+        metric debug_agent_remote 0 jvm=j21
+        metric jmx_remote 1 jvm=j21
+        metric jmx_no_password 0 jvm=j21
+        metric jmx_no_tls 0 jvm=j21
+        metric verify_off 0 jvm=j21
+        metric risks 0 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric debug_agent 1 jvm=j25
+        metric debug_agent_remote 1 jvm=j25
+        metric jmx_remote 1 jvm=j25
+        metric jmx_no_password 0 jvm=j25
+        metric jmx_no_tls 0 jvm=j25
+        metric verify_off 0 jvm=j25
+        metric risks 1 jvm=j25
+        metric debug_agent 0 jvm=win
+        metric debug_agent_remote 0 jvm=win
+        metric jmx_remote 0 jvm=win
+        metric jmx_no_password 0 jvm=win
+        metric jmx_no_tls 0 jvm=win
+        metric verify_off 0 jvm=win
+        metric risks 0 jvm=win
+  PASS  jvm: startup runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric started_epoch_seconds 1795338184 jvm=j8
+        metric uptime_seconds 7217 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric started_epoch_seconds 1795338179 jvm=j17
+        metric uptime_seconds 7223 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric started_epoch_seconds 1795338195 jvm=j21
+        metric uptime_seconds 7209 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric started_epoch_seconds 1795338189 jvm=j25
+        metric uptime_seconds 7216 jvm=j25
+        metric startup_seconds 0.743 jvm=win
+        metric init_seconds 0.198 jvm=win
+        metric started_epoch_seconds 1795344999 jvm=win
+        metric uptime_seconds 406 jvm=win
+  PASS  jvm: heap runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric used_bytes 85137600 jvm=j8
+        metric committed_bytes 174063616 jvm=j8
+        metric max_bytes 239075328 jvm=j8
+        metric used_percent 35.6112 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric used_bytes 268435456 jvm=j17
+        metric committed_bytes 268435456 jvm=j17
+        metric max_bytes 268435456 jvm=j17
+        metric used_percent 100 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric used_bytes 240625640 jvm=j21
+        metric committed_bytes 268435456 jvm=j21
+        metric max_bytes 268435456 jvm=j21
+        metric used_percent 89.64 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric used_bytes 204561248 jvm=j25
+        metric committed_bytes 225705984 jvm=j25
+        metric max_bytes 268435456 jvm=j25
+        metric used_percent 76.205 jvm=j25
+        metric used_bytes 8050960 jvm=win
+        metric committed_bytes 134217728 jvm=win
+        metric max_bytes 134217728 jvm=win
+        metric used_percent 5.9984 jvm=win
+  PASS  jvm: pools runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric used_bytes 7911552 jvm=j8 pool=Code_Cache type=non_heap
+        metric committed_bytes 8126464 jvm=j8 pool=Code_Cache type=non_heap
+        metric max_bytes 251658240 jvm=j8 pool=Code_Cache type=non_heap
+        metric used_bytes 1200864 jvm=j8 pool=Compressed_Class_Space type=non_heap
+        metric committed_bytes 1441792 jvm=j8 pool=Compressed_Class_Space type=non_heap
+        metric max_bytes 1073741824 jvm=j8 pool=Compressed_Class_Space type=non_heap
+        metric used_bytes 10793960 jvm=j8 pool=Metaspace type=non_heap
+        metric committed_bytes 11665408 jvm=j8 pool=Metaspace type=non_heap
+        metric used_bytes 4336272 jvm=j8 pool=PS_Eden_Space type=heap
+        metric committed_bytes 85983232 jvm=j8 pool=PS_Eden_Space type=heap
+        metric max_bytes 85983232 jvm=j8 pool=PS_Eden_Space type=heap
+        metric after_gc_bytes 0 jvm=j8 pool=PS_Eden_Space type=heap
+        metric after_gc_percent 0 jvm=j8 pool=PS_Eden_Space type=heap
+        metric used_bytes 83357192 jvm=j8 pool=PS_Old_Gen type=heap
+        metric committed_bytes 86507520 jvm=j8 pool=PS_Old_Gen type=heap
+        metric max_bytes 179306496 jvm=j8 pool=PS_Old_Gen type=heap
+        metric after_gc_bytes 43883720 jvm=j8 pool=PS_Old_Gen type=heap
+        metric after_gc_percent 24.4741 jvm=j8 pool=PS_Old_Gen type=heap
+        metric used_bytes 721056 jvm=j8 pool=PS_Survivor_Space type=heap
+        metric committed_bytes 1572864 jvm=j8 pool=PS_Survivor_Space type=heap
+        metric max_bytes 1572864 jvm=j8 pool=PS_Survivor_Space type=heap
+        metric after_gc_bytes 491712 jvm=j8 pool=PS_Survivor_Space type=heap
+        metric after_gc_percent 31.2622 jvm=j8 pool=PS_Survivor_Space type=heap
+        metric jmx_up 1 jvm=j17
+        metric used_bytes 1309312 jvm=j17 pool=CodeHeap_non-nmethods type=non_heap
+        metric committed_bytes 2555904 jvm=j17 pool=CodeHeap_non-nmethods type=non_heap
+        metric max_bytes 5836800 jvm=j17 pool=CodeHeap_non-nmethods type=non_heap
+        metric used_bytes 4087936 jvm=j17 pool=CodeHeap_non-profiled_nmethods type=non_heap
+        metric committed_bytes 4128768 jvm=j17 pool=CodeHeap_non-profiled_nmethods type=non_heap
+        metric max_bytes 122912768 jvm=j17 pool=CodeHeap_non-profiled_nmethods type=non_heap
+        metric used_bytes 8074240 jvm=j17 pool=CodeHeap_profiled_nmethods type=non_heap
+        metric committed_bytes 10092544 jvm=j17 pool=CodeHeap_profiled_nmethods type=non_heap
+        metric max_bytes 122908672 jvm=j17 pool=CodeHeap_profiled_nmethods type=non_heap
+        metric used_bytes 1420304 jvm=j17 pool=Compressed_Class_Space type=non_heap
+        metric committed_bytes 1572864 jvm=j17 pool=Compressed_Class_Space type=non_heap
+        metric max_bytes 1073741824 jvm=j17 pool=Compressed_Class_Space type=non_heap
+        metric used_bytes 14255144 jvm=j17 pool=Metaspace type=non_heap
+        metric committed_bytes 14614528 jvm=j17 pool=Metaspace type=non_heap
+        metric used_bytes 268435456 jvm=j17 pool=ZHeap type=heap
+        metric committed_bytes 268435456 jvm=j17 pool=ZHeap type=heap
+        metric max_bytes 268435456 jvm=j17 pool=ZHeap type=heap
+        metric after_gc_bytes 77594624 jvm=j17 pool=ZHeap type=heap
+        metric after_gc_percent 28.9063 jvm=j17 pool=ZHeap type=heap
+        metric jmx_up 1 jvm=j21
+        metric used_bytes 1496576 jvm=j21 pool=CodeHeap_non-nmethods type=non_heap
+        metric committed_bytes 2555904 jvm=j21 pool=CodeHeap_non-nmethods type=non_heap
+        metric max_bytes 5836800 jvm=j21 pool=CodeHeap_non-nmethods type=non_heap
+        metric used_bytes 2313728 jvm=j21 pool=CodeHeap_non-profiled_nmethods type=non_heap
+        metric committed_bytes 2686976 jvm=j21 pool=CodeHeap_non-profiled_nmethods type=non_heap
+        metric max_bytes 122912768 jvm=j21 pool=CodeHeap_non-profiled_nmethods type=non_heap
+        metric used_bytes 4152704 jvm=j21 pool=CodeHeap_profiled_nmethods type=non_heap
+        metric committed_bytes 6029312 jvm=j21 pool=CodeHeap_profiled_nmethods type=non_heap
+        metric max_bytes 122908672 jvm=j21 pool=CodeHeap_profiled_nmethods type=non_heap
+        metric used_bytes 1536720 jvm=j21 pool=Compressed_Class_Space type=non_heap
+        metric committed_bytes 1703936 jvm=j21 pool=Compressed_Class_Space type=non_heap
+        metric max_bytes 1073741824 jvm=j21 pool=Compressed_Class_Space type=non_heap
+        metric used_bytes 0 jvm=j21 pool=G1_Eden_Space type=heap
+        metric committed_bytes 14680064 jvm=j21 pool=G1_Eden_Space type=heap
+        metric after_gc_bytes 0 jvm=j21 pool=G1_Eden_Space type=heap
+        metric used_bytes 241863984 jvm=j21 pool=G1_Old_Gen type=heap
+        metric committed_bytes 246415360 jvm=j21 pool=G1_Old_Gen type=heap
+        metric max_bytes 268435456 jvm=j21 pool=G1_Old_Gen type=heap
+        metric after_gc_bytes 250973168 jvm=j21 pool=G1_Old_Gen type=heap
+        metric after_gc_percent 93.4948 jvm=j21 pool=G1_Old_Gen type=heap
+        metric used_bytes 1720976 jvm=j21 pool=G1_Survivor_Space type=heap
+        metric committed_bytes 2097152 jvm=j21 pool=G1_Survivor_Space type=heap
+        metric after_gc_bytes 1720976 jvm=j21 pool=G1_Survivor_Space type=heap
+        metric used_bytes 15805032 jvm=j21 pool=Metaspace type=non_heap
+        metric committed_bytes 16187392 jvm=j21 pool=Metaspace type=non_heap
+        metric jmx_up 1 jvm=j25
+        metric used_bytes 1776256 jvm=j25 pool=CodeHeap_non-nmethods type=non_heap
+        metric committed_bytes 2555904 jvm=j25 pool=CodeHeap_non-nmethods type=non_heap
+        metric max_bytes 5836800 jvm=j25 pool=CodeHeap_non-nmethods type=non_heap
+        metric used_bytes 2875648 jvm=j25 pool=CodeHeap_non-profiled_nmethods type=non_heap
+        metric committed_bytes 2949120 jvm=j25 pool=CodeHeap_non-profiled_nmethods type=non_heap
+        metric max_bytes 122912768 jvm=j25 pool=CodeHeap_non-profiled_nmethods type=non_heap
+        metric used_bytes 3919616 jvm=j25 pool=CodeHeap_profiled_nmethods type=non_heap
+        metric committed_bytes 5111808 jvm=j25 pool=CodeHeap_profiled_nmethods type=non_heap
+        metric max_bytes 122912768 jvm=j25 pool=CodeHeap_profiled_nmethods type=non_heap
+        metric used_bytes 1457360 jvm=j25 pool=Compressed_Class_Space type=non_heap
+        metric committed_bytes 1638400 jvm=j25 pool=Compressed_Class_Space type=non_heap
+        metric max_bytes 1073741824 jvm=j25 pool=Compressed_Class_Space type=non_heap
+        metric used_bytes 14664712 jvm=j25 pool=Metaspace type=non_heap
+        metric committed_bytes 15073280 jvm=j25 pool=Metaspace type=non_heap
+        metric used_bytes 209813192 jvm=j25 pool=Shenandoah type=heap
+        metric committed_bytes 240910336 jvm=j25 pool=Shenandoah type=heap
+        metric max_bytes 268435456 jvm=j25 pool=Shenandoah type=heap
+        metric after_gc_bytes 180868872 jvm=j25 pool=Shenandoah type=heap
+        metric after_gc_percent 67.3789 jvm=j25 pool=Shenandoah type=heap
+        metric used_bytes 12395928 jvm=win pool=eden type=heap
+        metric committed_bytes 35782656 jvm=win pool=eden type=heap
+        metric max_bytes 35782656 jvm=win pool=eden type=heap
+        metric used_bytes 0 jvm=win pool=s0 type=heap
+        metric committed_bytes 4456448 jvm=win pool=s0 type=heap
+        metric max_bytes 4456448 jvm=win pool=s0 type=heap
+        metric used_bytes 0 jvm=win pool=s1 type=heap
+        metric committed_bytes 4456448 jvm=win pool=s1 type=heap
+        metric max_bytes 4456448 jvm=win pool=s1 type=heap
+        metric used_bytes 7100584 jvm=win pool=old type=heap
+        metric committed_bytes 89522176 jvm=win pool=old type=heap
+        metric max_bytes 89522176 jvm=win pool=old type=heap
+  PASS  jvm: metaspace runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric metaspace_used_bytes 10753840 jvm=j8
+        metric metaspace_committed_bytes 11665408 jvm=j8
+        metric class_space_used_bytes 1198592 jvm=j8
+        metric class_space_committed_bytes 1441792 jvm=j8
+        metric class_space_max_bytes 1073741824 jvm=j8
+        metric class_space_used_percent 0.1116 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric metaspace_used_bytes 14256584 jvm=j17
+        metric metaspace_committed_bytes 14614528 jvm=j17
+        metric class_space_used_bytes 1424168 jvm=j17
+        metric class_space_committed_bytes 1572864 jvm=j17
+        metric class_space_max_bytes 1073741824 jvm=j17
+        metric class_space_used_percent 0.1326 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric metaspace_used_bytes 15769936 jvm=j21
+        metric metaspace_committed_bytes 16187392 jvm=j21
+        metric class_space_used_bytes 1534576 jvm=j21
+        metric class_space_committed_bytes 1703936 jvm=j21
+        metric class_space_max_bytes 1073741824 jvm=j21
+        metric class_space_used_percent 0.1429 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric metaspace_used_bytes 14659008 jvm=j25
+        metric metaspace_committed_bytes 15073280 jvm=j25
+        metric class_space_used_bytes 1457360 jvm=j25
+        metric class_space_committed_bytes 1638400 jvm=j25
+        metric class_space_max_bytes 1073741824 jvm=j25
+        metric class_space_used_percent 0.1357 jvm=j25
+        metric metaspace_used_bytes 11392576 jvm=win
+        metric metaspace_committed_bytes 11730944 jvm=win
+        metric metaspace_max_bytes 1140850688 jvm=win
+        metric metaspace_used_percent 0.9986 jvm=win
+        metric class_space_used_bytes 1311608 jvm=win
+        metric class_space_committed_bytes 1441792 jvm=win
+        metric class_space_max_bytes 1073741824 jvm=win
+        metric class_space_used_percent 0.1222 jvm=win
+  PASS  jvm: codecache runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric used_bytes 7911552 jvm=j8 segment=Code_Cache
+        metric max_bytes 251658240 jvm=j8 segment=Code_Cache
+        metric used_percent 3.1438 jvm=j8 segment=Code_Cache
+        metric jmx_up 1 jvm=j17
+        metric used_bytes 1309312 jvm=j17 segment=non-nmethods
+        metric max_bytes 5836800 jvm=j17 segment=non-nmethods
+        metric used_percent 22.432 jvm=j17 segment=non-nmethods
+        metric used_bytes 4089344 jvm=j17 segment=non-profiled_nmethods
+        metric max_bytes 122912768 jvm=j17 segment=non-profiled_nmethods
+        metric used_percent 3.327 jvm=j17 segment=non-profiled_nmethods
+        metric used_bytes 8074240 jvm=j17 segment=profiled_nmethods
+        metric max_bytes 122908672 jvm=j17 segment=profiled_nmethods
+        metric used_percent 6.5693 jvm=j17 segment=profiled_nmethods
+        metric jmx_up 1 jvm=j21
+        metric used_bytes 1496576 jvm=j21 segment=non-nmethods
+        metric max_bytes 5836800 jvm=j21 segment=non-nmethods
+        metric used_percent 25.6404 jvm=j21 segment=non-nmethods
+        metric used_bytes 2523520 jvm=j21 segment=non-profiled_nmethods
+        metric max_bytes 122912768 jvm=j21 segment=non-profiled_nmethods
+        metric used_percent 2.0531 jvm=j21 segment=non-profiled_nmethods
+        metric used_bytes 4453632 jvm=j21 segment=profiled_nmethods
+        metric max_bytes 122908672 jvm=j21 segment=profiled_nmethods
+        metric used_percent 3.6235 jvm=j21 segment=profiled_nmethods
+        metric jmx_up 1 jvm=j25
+        metric used_bytes 1776256 jvm=j25 segment=non-nmethods
+        metric max_bytes 5836800 jvm=j25 segment=non-nmethods
+        metric used_percent 30.432 jvm=j25 segment=non-nmethods
+        metric used_bytes 2910592 jvm=j25 segment=non-profiled_nmethods
+        metric max_bytes 122912768 jvm=j25 segment=non-profiled_nmethods
+        metric used_percent 2.368 jvm=j25 segment=non-profiled_nmethods
+        metric used_bytes 3899008 jvm=j25 segment=profiled_nmethods
+        metric max_bytes 122912768 jvm=j25 segment=profiled_nmethods
+        metric used_percent 3.1722 jvm=j25 segment=profiled_nmethods
+        metric nmethod_code_bytes 2518752 jvm=win
+  PASS  jvm: buffers runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric count 2 jvm=j8 pool=direct
+        metric used_bytes 16384 jvm=j8 pool=direct
+        metric capacity_bytes 16384 jvm=j8 pool=direct
+        metric count 0 jvm=j8 pool=mapped
+        metric used_bytes 0 jvm=j8 pool=mapped
+        metric capacity_bytes 0 jvm=j8 pool=mapped
+        metric jmx_up 1 jvm=j17
+        metric count 2 jvm=j17 pool=direct
+        metric used_bytes 16384 jvm=j17 pool=direct
+        metric capacity_bytes 16384 jvm=j17 pool=direct
+        metric count 0 jvm=j17 pool=mapped_non_volatile_memory
+        metric used_bytes 0 jvm=j17 pool=mapped_non_volatile_memory
+        metric capacity_bytes 0 jvm=j17 pool=mapped_non_volatile_memory
+        metric count 0 jvm=j17 pool=mapped
+        metric used_bytes 0 jvm=j17 pool=mapped
+        metric capacity_bytes 0 jvm=j17 pool=mapped
+        metric jmx_up 1 jvm=j21
+        metric count 2 jvm=j21 pool=direct
+        metric used_bytes 40959 jvm=j21 pool=direct
+        metric capacity_bytes 40959 jvm=j21 pool=direct
+        metric count 0 jvm=j21 pool=mapped_non_volatile_memory
+        metric used_bytes 0 jvm=j21 pool=mapped_non_volatile_memory
+        metric capacity_bytes 0 jvm=j21 pool=mapped_non_volatile_memory
+        metric count 0 jvm=j21 pool=mapped
+        metric used_bytes 0 jvm=j21 pool=mapped
+        metric capacity_bytes 0 jvm=j21 pool=mapped
+        metric jmx_up 1 jvm=j25
+        metric count 0 jvm=j25 pool=direct
+        metric used_bytes 0 jvm=j25 pool=direct
+        metric capacity_bytes 0 jvm=j25 pool=direct
+        metric count 0 jvm=j25 pool=mapped_non_volatile_memory
+        metric used_bytes 0 jvm=j25 pool=mapped_non_volatile_memory
+        metric capacity_bytes 0 jvm=j25 pool=mapped_non_volatile_memory
+        metric count 0 jvm=j25 pool=mapped
+        metric used_bytes 0 jvm=j25 pool=mapped
+        metric capacity_bytes 0 jvm=j25 pool=mapped
+  PASS  jvm: native runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric tracking 0 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric tracking 0 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric tracking 0 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric tracking 0 jvm=j25
+  PASS  jvm: native_overhead runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric rss_bytes 227147776 jvm=win
+        metric heap_committed_bytes 134217728 jvm=win
+        metric outside_heap_bytes 92930048 jvm=win
+        metric outside_heap_percent 40.9117 jvm=win
+  PASS  jvm: gc runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric collections 38516 jvm=j8 collector=PS_MarkSweep
+        metric time_seconds 2297.194 jvm=j8 collector=PS_MarkSweep
+        metric collections 117818 jvm=j8 collector=PS_Scavenge
+        metric time_seconds 900.058 jvm=j8 collector=PS_Scavenge
+        metric time_percent_lifetime 42.6539 jvm=j8
+        metric collections_total 156334 jvm=j8
+        metric time_seconds_total 3197.252 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric collections 35318 jvm=j17 collector=ZGC_Cycles
+        metric time_seconds 6027.307 jvm=j17 collector=ZGC_Cycles
+        metric collections 105954 jvm=j17 collector=ZGC_Pauses
+        metric time_seconds 1.108 jvm=j17 collector=ZGC_Pauses
+        metric time_percent_lifetime 80.3488 jvm=j17
+        metric collections_total 141272 jvm=j17
+        metric time_seconds_total 6028.415 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric collections 21710 jvm=j21 collector=G1_Concurrent_GC
+        metric time_seconds 243.026 jvm=j21 collector=G1_Concurrent_GC
+        metric collections 673 jvm=j21 collector=G1_Old_Generation
+        metric time_seconds 72.645 jvm=j21 collector=G1_Old_Generation
+        metric collections 17807 jvm=j21 collector=G1_Young_Generation
+        metric time_seconds 228.849 jvm=j21 collector=G1_Young_Generation
+        metric time_percent_lifetime 7.2727 jvm=j21
+        metric collections_total 40190 jvm=j21
+        metric time_seconds_total 544.52 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric collections 9591 jvm=j25 collector=Shenandoah_Cycles
+        metric time_seconds 1402.528 jvm=j25 collector=Shenandoah_Cycles
+        metric collections 29282 jvm=j25 collector=Shenandoah_Pauses
+        metric time_seconds 200.559 jvm=j25 collector=Shenandoah_Pauses
+        metric time_percent_lifetime 21.3882 jvm=j25
+        metric collections_total 38873 jvm=j25
+        metric time_seconds_total 1603.087 jvm=j25
+        metric collections 16 jvm=win collector=Serial_young_collection_pauses
+        metric time_seconds 0.1928 jvm=win collector=Serial_young_collection_pauses
+        metric collections 7 jvm=win collector=Serial_full_collection_pauses
+        metric time_seconds 0.2468 jvm=win collector=Serial_full_collection_pauses
+        metric time_percent_lifetime 0.0642 jvm=win
+        metric last_cause 1 jvm=win cause=Allocation_Failure
+        metric collections_total 23 jvm=win
+        metric time_seconds_total 0.4396 jvm=win
+  PASS  jvm: gc_cycles runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric pauses 157334 jvm=j8
+        metric pause_seconds 3206.05 jvm=j8
+        metric pause_avg_ms 20.3774 jvm=j8
+        metric concurrent_cycles 0 jvm=j8
+        metric concurrent_seconds 0 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric pauses 106449 jvm=j17
+        metric pause_seconds 1.114 jvm=j17
+        metric pause_avg_ms 0.0105 jvm=j17
+        metric concurrent_cycles 35483 jvm=j17
+        metric concurrent_seconds 6058.324 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric pauses 18500 jvm=j21
+        metric pause_seconds 301.923 jvm=j21
+        metric pause_avg_ms 16.3202 jvm=j21
+        metric concurrent_cycles 21710 jvm=j21
+        metric concurrent_seconds 243.026 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric pauses 29511 jvm=j25
+        metric pause_seconds 211.437 jvm=j25
+        metric pause_avg_ms 7.1647 jvm=j25
+        metric concurrent_cycles 9759 jvm=j25
+        metric concurrent_seconds 1421.968 jvm=j25
+  PASS  jvm: gc_last runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric duration_ms 61 jvm=j8 collector=PS_MarkSweep
+        metric seconds_ago 133.703 jvm=j8 collector=PS_MarkSweep
+        metric freed_bytes 2587392 jvm=j8 collector=PS_MarkSweep
+        metric after_bytes 145262584 jvm=j8 collector=PS_MarkSweep
+        metric duration_ms 12 jvm=j8 collector=PS_Scavenge
+        metric seconds_ago 0.248 jvm=j8 collector=PS_Scavenge
+        metric freed_bytes 86114272 jvm=j8 collector=PS_Scavenge
+        metric after_bytes 187722520 jvm=j8 collector=PS_Scavenge
+        metric jmx_up 1 jvm=j17
+        metric duration_ms 192 jvm=j17 collector=ZGC_Cycles
+        metric seconds_ago 0.169 jvm=j17 collector=ZGC_Cycles
+        metric freed_bytes 44016408 jvm=j17 collector=ZGC_Cycles
+        metric after_bytes 157167808 jvm=j17 collector=ZGC_Cycles
+        metric duration_ms 0 jvm=j17 collector=ZGC_Pauses
+        metric seconds_ago 0 jvm=j17 collector=ZGC_Pauses
+        metric freed_bytes 0 jvm=j17 collector=ZGC_Pauses
+        metric after_bytes 0 jvm=j17 collector=ZGC_Pauses
+        metric jmx_up 1 jvm=j21
+        metric duration_ms 6 jvm=j21 collector=G1_Concurrent_GC
+        metric seconds_ago 179.03 jvm=j21 collector=G1_Concurrent_GC
+        metric freed_bytes 0 jvm=j21 collector=G1_Concurrent_GC
+        metric after_bytes 50183296 jvm=j21 collector=G1_Concurrent_GC
+        metric duration_ms 134 jvm=j21 collector=G1_Old_Generation
+        metric seconds_ago 179.822 jvm=j21 collector=G1_Old_Generation
+        metric freed_bytes 249957448 jvm=j21 collector=G1_Old_Generation
+        metric after_bytes 31112248 jvm=j21 collector=G1_Old_Generation
+        metric duration_ms 6 jvm=j21 collector=G1_Young_Generation
+        metric seconds_ago 0.817 jvm=j21 collector=G1_Young_Generation
+        metric freed_bytes 65584688 jvm=j21 collector=G1_Young_Generation
+        metric after_bytes 89246552 jvm=j21 collector=G1_Young_Generation
+        metric jmx_up 1 jvm=j25
+        metric duration_ms 83 jvm=j25 collector=Shenandoah_Cycles
+        metric seconds_ago 1.593 jvm=j25 collector=Shenandoah_Cycles
+        metric freed_bytes 160728704 jvm=j25 collector=Shenandoah_Cycles
+        metric after_bytes 63229408 jvm=j25 collector=Shenandoah_Cycles
+        metric duration_ms 80 jvm=j25 collector=Shenandoah_Pauses
+        metric seconds_ago 1.593 jvm=j25 collector=Shenandoah_Pauses
+        metric freed_bytes 0 jvm=j25 collector=Shenandoah_Pauses
+        metric after_bytes 0 jvm=j25 collector=Shenandoah_Pauses
+  PASS  jvm: gc_cpu runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric jmx_up 1 jvm=j25
+  PASS  jvm: allocation runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric allocated_bytes 23263792456 jvm=j8
+        metric allocation_bytes_per_second 616719223.7449 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric allocated_bytes 7381724752872 jvm=j17
+        metric allocation_bytes_per_second 960958112.65 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric allocated_bytes 296568478648 jvm=j21
+        metric allocation_bytes_per_second 37197064.8772 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric allocated_bytes 175868380672 jvm=j25
+        metric allocation_bytes_per_second 25147182.5772 jvm=j25
+  PASS  jvm: promotion runs
+        metric jvms 5
+        metric tenuring_threshold 1 jvm=win
+        metric tenuring_threshold_max 15 jvm=win
+        metric survivor_desired_bytes 2228224 jvm=win
+  PASS  jvm: tlab runs
+        metric jvms 5
+        metric allocated_words 1914432 jvm=win
+        metric threads 2 jvm=win
+        metric refills 25 jvm=win
+        metric refills_max 24 jvm=win
+        metric slow_allocations 25 jvm=win
+        metric slow_allocations_max 25 jvm=win
+        metric waste_gc_words 2192 jvm=win
+        metric waste_refill_words 20086 jvm=win
+  PASS  jvm: gclog runs
+        metric jvms 5
+  PASS  jvm: gclog_detail runs
+        metric jvms 5
+  PASS  jvm: threads runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric live 414 jvm=j8
+        metric daemon 413 jvm=j8
+        metric peak 424 jvm=j8
+        metric started 791 jvm=j8
+        metric state 0 jvm=j8 state=blocked
+        metric state 0 jvm=j8 state=new
+        metric state 6 jvm=j8 state=runnable
+        metric state 406 jvm=j8 state=timed_waiting
+        metric state 2 jvm=j8 state=waiting
+        metric jmx_up 1 jvm=j17
+        metric live 22 jvm=j17
+        metric daemon 21 jvm=j17
+        metric peak 32 jvm=j17
+        metric started 396 jvm=j17
+        metric state 7 jvm=j17 state=blocked
+        metric state 0 jvm=j17 state=new
+        metric state 9 jvm=j17 state=runnable
+        metric state 5 jvm=j17 state=timed_waiting
+        metric state 1 jvm=j17 state=waiting
+        metric jmx_up 1 jvm=j21
+        metric live 22 jvm=j21
+        metric daemon 21 jvm=j21
+        metric peak 32 jvm=j21
+        metric started 397 jvm=j21
+        metric state 2 jvm=j21 state=blocked
+        metric state 0 jvm=j21 state=new
+        metric state 6 jvm=j21 state=runnable
+        metric state 9 jvm=j21 state=timed_waiting
+        metric state 5 jvm=j21 state=waiting
+        metric jmx_up 1 jvm=j25
+        metric live 15 jvm=j25
+        metric daemon 14 jvm=j25
+        metric peak 22 jvm=j25
+        metric started 389 jvm=j25
+        metric state 0 jvm=j25 state=blocked
+        metric state 0 jvm=j25 state=new
+        metric state 8 jvm=j25 state=runnable
+        metric state 6 jvm=j25 state=timed_waiting
+        metric state 1 jvm=j25 state=waiting
+        metric live 410 jvm=win
+        metric daemon 409 jvm=win
+        metric peak 410 jvm=win
+        metric started 410 jvm=win
+  PASS  jvm: deadlocks runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric deadlocked 0 jvm=j8
+        metric monitor_deadlocked 0 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric deadlocked 0 jvm=j17
+        metric monitor_deadlocked 0 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric deadlocked 2 jvm=j21
+        metric monitor_deadlocked 2 jvm=j21
+        metric thread 1 jvm=j21 thread=deadlock-a waits_on=java.lang.Object held_by=deadlock-b
+        metric thread 1 jvm=j21 thread=deadlock-b waits_on=java.lang.Object held_by=deadlock-a
+        metric jmx_up 1 jvm=j25
+        metric deadlocked 0 jvm=j25
+        metric monitor_deadlocked 0 jvm=j25
+  PASS  jvm: contention runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric blocked 0 jvm=j8
+        metric waiting 408 jvm=j8
+        metric blocked_times_total 9114 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric blocked 7 jvm=j17
+        metric waiting 6 jvm=j17
+        metric blocked_times_total 147450 jvm=j17
+        metric lock_waiters 7 jvm=j17 lock=java.lang.Object held_by=contender-1
+        metric jmx_up 1 jvm=j21
+        metric blocked 2 jvm=j21
+        metric waiting 14 jvm=j21
+        metric blocked_times_total 6 jvm=j21
+        metric lock_waiters 1 jvm=j21 lock=java.lang.Object held_by=deadlock-b
+        metric lock_waiters 1 jvm=j21 lock=java.lang.Object held_by=deadlock-a
+        metric jmx_up 1 jvm=j25
+        metric blocked 0 jvm=j25
+        metric waiting 7 jvm=j25
+        metric blocked_times_total 4 jvm=j25
+  PASS  jvm: hot_threads runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric cpu_percent_total 8.4483 jvm=j8
+        metric cpu_percent 3.9452 jvm=j8 thread=gcstorm-1
+        metric cpu_percent 3.8512 jvm=j8 thread=gcstorm-0
+        metric busy_threads_shown 2 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric cpu_percent_total 47.8802 jvm=j17
+        metric cpu_percent 8.9393 jvm=j17 thread=gcstorm-1
+        metric cpu_percent 8.4596 jvm=j17 thread=gcstorm-0
+        metric cpu_percent 4.676 jvm=j17 thread=contender-6
+        metric cpu_percent 4.5072 jvm=j17 thread=contender-1
+        metric cpu_percent 4.3248 jvm=j17 thread=contender-2
+        metric cpu_percent 4.3201 jvm=j17 thread=contender-5
+        metric cpu_percent 3.8323 jvm=j17 thread=contender-7
+        metric cpu_percent 2.9497 jvm=j17 thread=contender-4
+        metric cpu_percent 2.7161 jvm=j17 thread=contender-3
+        metric cpu_percent 2.0376 jvm=j17 thread=contender-0
+        metric busy_threads_shown 10 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric cpu_percent_total 64.2177 jvm=j21
+        metric cpu_percent 15.916 jvm=j21 thread=ForkJoinPool-1-worker-1
+        metric cpu_percent 15.5016 jvm=j21 thread=ForkJoinPool-1-worker-2
+        metric cpu_percent 15.3545 jvm=j21 thread=ForkJoinPool-1-worker-3
+        metric cpu_percent 15.1793 jvm=j21 thread=ForkJoinPool-1-worker-4
+        metric cpu_percent 1.0465 jvm=j21 thread=VirtualThread-unparker
+        metric cpu_percent 0.6309 jvm=j21 thread=busy
+        metric busy_threads_shown 6 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric cpu_percent_total 69.9236 jvm=j25
+        metric cpu_percent 64.0322 jvm=j25 thread=busy-loop
+        metric cpu_percent 5.5419 jvm=j25 thread=busy
+        metric busy_threads_shown 2 jvm=j25
+  PASS  jvm: virtual_threads runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric carriers 4 jvm=j21
+        metric carriers_runnable 0 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric scheduler_parallelism 4 jvm=j25
+        metric carriers 0 jvm=j25
+        metric mounted 0 jvm=j25
+        metric queued 0 jvm=j25
+  PASS  jvm: classes runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric loaded 1774 jvm=j8
+        metric loaded_total 8018 jvm=j8
+        metric unloaded 6247 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric loaded 3220 jvm=j17
+        metric loaded_total 11308 jvm=j17
+        metric unloaded 8086 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric loaded 3535 jvm=j21
+        metric loaded_total 5366 jvm=j21
+        metric unloaded 1831 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric loaded 3507 jvm=j25
+        metric loaded_total 7152 jvm=j25
+        metric unloaded 3645 jvm=j25
+        metric loaded 2661 jvm=win
+        metric loaded_total 2676 jvm=win
+        metric unloaded 15 jvm=win
+        metric load_seconds 1.4331 jvm=win
+  PASS  jvm: classloaders runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric loaders 63 jvm=j8
+        metric loaders_of_type 57 jvm=j8 type=sun.reflect.DelegatingClassLoader
+        metric classes_of_type 57 jvm=j8 type=sun.reflect.DelegatingClassLoader
+        metric loaders_of_type 2 jvm=j8 type=javax.management.remote.rmi.NoCallStackClassLoader
+        metric classes_of_type 2 jvm=j8 type=javax.management.remote.rmi.NoCallStackClassLoader
+        metric loaders_of_type 1 jvm=j8 type=<boot_class_loader>
+        metric classes_of_type 1783 jvm=j8 type=<boot_class_loader>
+        metric loaders_of_type 1 jvm=j8 type=sun.misc.Launcher$AppClassLoader
+        metric classes_of_type 2 jvm=j8 type=sun.misc.Launcher$AppClassLoader
+        metric loaders_of_type 1 jvm=j8 type=sun.misc.Launcher$ExtClassLoader
+        metric classes_of_type 0 jvm=j8 type=sun.misc.Launcher$ExtClassLoader
+        metric loaders_of_type 1 jvm=j8 type=sun.reflect.misc.MethodUtil
+        metric classes_of_type 1 jvm=j8 type=sun.reflect.misc.MethodUtil
+        metric types_not_shown 0 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric loaders 73 jvm=j17
+        metric loaders_of_type 69 jvm=j17 type=jdk.internal.reflect.DelegatingClassLoader
+        metric classes_of_type 69 jvm=j17 type=jdk.internal.reflect.DelegatingClassLoader
+        metric loaders_of_type 1 jvm=j17 type=<boot_class_loader>
+        metric classes_of_type 3304 jvm=j17 type=<boot_class_loader>
+        metric loaders_of_type 1 jvm=j17 type=jdk.internal.loader.ClassLoaders$AppClassLoader
+        metric classes_of_type 6 jvm=j17 type=jdk.internal.loader.ClassLoaders$AppClassLoader
+        metric loaders_of_type 1 jvm=j17 type=jdk.internal.loader.ClassLoaders$PlatformClassLoader
+        metric classes_of_type 78 jvm=j17 type=jdk.internal.loader.ClassLoaders$PlatformClassLoader
+        metric loaders_of_type 1 jvm=j17 type=sun.reflect.misc.MethodUtil
+        metric classes_of_type 1 jvm=j17 type=sun.reflect.misc.MethodUtil
+        metric types_not_shown 0 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric loaders 19 jvm=j21
+        metric loaders_of_type 15 jvm=j21 type=jdk.internal.reflect.DelegatingClassLoader
+        metric classes_of_type 15 jvm=j21 type=jdk.internal.reflect.DelegatingClassLoader
+        metric loaders_of_type 1 jvm=j21 type=<boot_class_loader>
+        metric classes_of_type 3545 jvm=j21 type=<boot_class_loader>
+        metric loaders_of_type 1 jvm=j21 type=jdk.internal.loader.ClassLoaders$AppClassLoader
+        metric classes_of_type 10 jvm=j21 type=jdk.internal.loader.ClassLoaders$AppClassLoader
+        metric loaders_of_type 1 jvm=j21 type=jdk.internal.loader.ClassLoaders$PlatformClassLoader
+        metric classes_of_type 80 jvm=j21 type=jdk.internal.loader.ClassLoaders$PlatformClassLoader
+        metric loaders_of_type 1 jvm=j21 type=sun.reflect.misc.MethodUtil
+        metric classes_of_type 1 jvm=j21 type=sun.reflect.misc.MethodUtil
+        metric types_not_shown 0 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric loaders 4 jvm=j25
+        metric loaders_of_type 1 jvm=j25 type=<boot_class_loader>
+        metric classes_of_type 3691 jvm=j25 type=<boot_class_loader>
+        metric loaders_of_type 1 jvm=j25 type=jdk.internal.loader.ClassLoaders$AppClassLoader
+        metric classes_of_type 6 jvm=j25 type=jdk.internal.loader.ClassLoaders$AppClassLoader
+        metric loaders_of_type 1 jvm=j25 type=jdk.internal.loader.ClassLoaders$PlatformClassLoader
+        metric classes_of_type 24 jvm=j25 type=jdk.internal.loader.ClassLoaders$PlatformClassLoader
+        metric loaders_of_type 1 jvm=j25 type=sun.reflect.misc.MethodUtil
+        metric classes_of_type 1 jvm=j25 type=sun.reflect.misc.MethodUtil
+        metric types_not_shown 0 jvm=j25
+  PASS  jvm: jit runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric compile_seconds 120.036 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric compile_seconds 152.016 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric compile_seconds 480.675 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric compile_seconds 201.309 jvm=j25
+        metric compile_seconds 4.5602 jvm=win
+        metric compiles 1914 jvm=win
+        metric osr_compiles 4 jvm=win
+        metric compiled_code_bytes 2518752 jvm=win
+  PASS  jvm: deopt runs
+        metric jvms 5
+        metric invalidated 0 jvm=win
+        metric bailouts 0 jvm=win
+        metric compiles 1914 jvm=win
+        metric invalidated_percent 0 jvm=win
+  PASS  jvm: safepoints runs
+        metric jvms 5
+        metric safepoints 37 jvm=win
+        metric stopped_seconds 0.7174 jvm=win
+        metric sync_seconds 0.0017 jvm=win
+        metric stopped_percent_lifetime 0.0569 jvm=win
+  PASS  jvm: finalization runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric pending 0 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric pending 0 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric pending 0 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric pending 0 jvm=j25
+  PASS  jvm: os runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric process_cpu_percent 14.8397 jvm=j8
+        metric system_cpu_percent 99.999 jvm=j8
+        metric process_cpu_seconds 4644.85 jvm=j8
+        metric load_average 17.7368 jvm=j8
+        metric cpus 4 jvm=j8
+        metric memory_bytes 536870912 jvm=j8
+        metric memory_free_bytes 225525760 jvm=j8
+        metric swap_bytes 536870912 jvm=j8
+        metric swap_free_bytes 536870912 jvm=j8
+        metric open_files 23 jvm=j8
+        metric open_files_max 524288 jvm=j8
+        metric open_files_percent 0.0044 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric process_cpu_percent 16.3787 jvm=j17
+        metric system_cpu_percent 99.999 jvm=j17
+        metric process_cpu_seconds 5083.91 jvm=j17
+        metric load_average 17.7368 jvm=j17
+        metric cpus 4 jvm=j17
+        metric memory_bytes 536870912 jvm=j17
+        metric memory_free_bytes 8224768 jvm=j17
+        metric swap_bytes 536870912 jvm=j17
+        metric swap_free_bytes 536870912 jvm=j17
+        metric open_files 12 jvm=j17
+        metric open_files_max 524288 jvm=j17
+        metric open_files_percent 0.0023 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric process_cpu_percent 19.7007 jvm=j21
+        metric system_cpu_percent 99.999 jvm=j21
+        metric process_cpu_seconds 6014.54 jvm=j21
+        metric load_average 17.7368 jvm=j21
+        metric cpus 4 jvm=j21
+        metric memory_bytes 536870912 jvm=j21
+        metric memory_free_bytes 58789888 jvm=j21
+        metric swap_bytes 536870912 jvm=j21
+        metric swap_free_bytes 358227968 jvm=j21
+        metric open_files 11 jvm=j21
+        metric open_files_max 524288 jvm=j21
+        metric open_files_percent 0.0021 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric process_cpu_percent 15.7689 jvm=j25
+        metric system_cpu_percent 99.999 jvm=j25
+        metric process_cpu_seconds 4862.19 jvm=j25
+        metric load_average 17.5176 jvm=j25
+        metric cpus 4 jvm=j25
+        metric memory_bytes 536870912 jvm=j25
+        metric memory_free_bytes 116948992 jvm=j25
+        metric swap_bytes 536870912 jvm=j25
+        metric swap_free_bytes 536870912 jvm=j25
+        metric open_files 11 jvm=j25
+        metric open_files_max 524288 jvm=j25
+        metric open_files_percent 0.0021 jvm=j25
+  PASS  jvm: io runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric jmx_up 1 jvm=j25
+  PASS  jvm: crashes runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric jmx_up 1 jvm=j25
+  PASS  jvm: oom runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric jmx_up 1 jvm=j25
+  PASS  jvm: jfr runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric available 1 jvm=j8
+        metric recordings 0 jvm=j8
+        metric recordings_running 0 jvm=j8
+        metric jmx_up 1 jvm=j17
+        metric available 1 jvm=j17
+        metric recordings 0 jvm=j17
+        metric recordings_running 0 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric available 1 jvm=j21
+        metric recordings 0 jvm=j21
+        metric recordings_running 0 jvm=j21
+        metric jmx_up 1 jvm=j25
+        metric available 1 jvm=j25
+        metric recordings 0 jvm=j25
+        metric recordings_running 0 jvm=j25
+  PASS  jvm: mbeans runs
+        metric jvms 5
+        metric jmx_up 1 jvm=j8
+        metric value 414 jvm=j8 mbean=java.lang:type=Threading attribute=ThreadCount
+        metric value 162826544 jvm=j8 mbean=java.lang:type=Memory attribute=HeapMemoryUsage.used
+        metric jmx_up 1 jvm=j17
+        metric value 22 jvm=j17 mbean=java.lang:type=Threading attribute=ThreadCount
+        metric value 161480704 jvm=j17 mbean=java.lang:type=Memory attribute=HeapMemoryUsage.used
+        metric jmx_up 1 jvm=j21
+        metric value 22 jvm=j21 mbean=java.lang:type=Threading attribute=ThreadCount
+        metric value 50414016 jvm=j21 mbean=java.lang:type=Memory attribute=HeapMemoryUsage.used
+        metric jmx_up 1 jvm=j25
+        metric value 15 jvm=j25 mbean=java.lang:type=Threading attribute=ThreadCount
+        metric value 88675328 jvm=j25 mbean=java.lang:type=Memory attribute=HeapMemoryUsage.used
+  PASS  jvm: found here
+  PASS  jvm: its memory
+  PASS  jvm: its CPU time
+  PASS  jvm: its handles
+  PASS  jvm: from the process
+  PASS  jvm: and its counters
+  PASS  jvm: and no JMX
+  PASS  jvm: the heap, from the counters
+  PASS  jvm: collections, counted
+  PASS  jvm: leaked threads
+  PASS  jvm: the JIT
+  PASS  jvm: safepoints, a share of its time
+  PASS  jvm: every JVM here, found
+  PASS  jvm: JMX with TLS and a password
+  PASS  jvm: a deadlock, named
+  PASS  jvm: the heap, over JMX
+  PASS  jvm: a wrong password fails the run
+  PASS  jvm: and says why
+  PASS  jvm: a certificate it cannot trust fails the run
+  PASS  jvm: and says why
+  PASS  jvm: JMX that does not answer still runs
+  PASS  jvm: and reads as jmx_up 0
+  PASS  jvm: a JVM not running reads as running 0
+  PASS  jvm: the password is written nowhere
+jvm on a JRE: openjdk version "21.0.13.1" 2026-11-17 LTS
+  PASS  jvm: the release has its client compiled
+  PASS  jvm: its digest is in every script
+  PASS  jvm: the JRE has no compiler
+  PASS  jvm: every job runs on the JRE, from the jar
+        41 jobs from the jar in 779 s
+  PASS  jvm: and every JVM is up
+  PASS  jvm: the same lines as from the source
+  PASS  jvm: a jar changed by one byte is not run
+  PASS  jvm: and says why
+  PASS  jvm: nor by a JDK
+  PASS  jvm: a script with no digest runs no jar
+  PASS  jvm: no jar, and a JRE cannot run the source
+  PASS  jvm: and Java says why
+  PASS  jvm: metrics reach the backend
+86 passed, 0 failed

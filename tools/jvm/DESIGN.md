@@ -139,7 +139,58 @@ The schedules here are a starting point: the real cost of each job is measured b
 
 ## The client
 
-One Java source file, run with the JDK's source launcher (`java Client.java`): readable, nothing compiled to ship. It speaks JMX, and reads `hsperfdata` for tier 2. The machine that watches needs JDK 11 or later (a JRE cannot run a source file). The JVMs watched may be Java 8 or later.
+One Java source file, `_client.java`, which speaks JMX and reads `hsperfdata` for tier 2. A JDK runs it from source (`java _client.java`). A JRE cannot: compiling needs the `jdk.compiler` module, which a JRE leaves out. So from version 1.1.0 the pack also carries the client compiled, as `_client.jar` (next section). The machine that watches needs Java 11 or later, a JDK or a JRE. The JVMs watched may be Java 8 or later.
+
+## On a JRE: the compiled client (1.1.0)
+
+Many servers have only a JRE (a distribution's `-jre-headless` package, a vendor's JRE download), and Vigil should watch their JVMs without a JDK installed for it. That means shipping the client compiled, which every other pack avoids: a pack is meant to be text you can read before you run it. So the jar is held to rules that keep it as trustworthy as the source beside it.
+
+### What ships
+
+- **Both, side by side.** Each platform's archive carries `_client.java` and `_client.jar`. The jar is Java bytecode, not a native binary: one jar for Linux, macOS and Windows.
+- **Java 11 bytecode** (`javac --release 11`), so any Java 11 or later runs it. Java 8 alone cannot; the JVMs watched may still be Java 8.
+- **The jar when the pack has one, the source otherwise.** A pack from a packs release has the jar, and every script runs it, `java -cp _client.jar JvmClient <job>`, with a JDK or a JRE, once it matches the digest the script carries. A copy of the pack without one (from the repository) runs the source, which needs a JDK.
+- **Why not the source whenever Java can run it.** That was the first idea, and the test machines ruled it out: whether a Java can run a source file cannot be told from outside it. Fedora's `java-25-openjdk` package runs source files with no `javac` beside its `java`; Temurin's JRE 11 cannot, though its `release` file names `jdk.compiler`. Only asking the JVM tells, at the cost of starting one more each run. The jar has no such question, and a run from it takes about half a second, where the source takes two or three.
+- **Never committed.** The repository holds the source only. The jar is built when a packs release is built.
+
+### Built so anyone can check it
+
+- **Built by the release workflow, never by hand**: `tools/release/packs.sh` compiles every `_client.java` in a pack being released, from the tagged commit.
+- **The same bytes every time** from the same source and the same `javac`: classes added in sorted order, no manifest (`jar --no-manifest`), and every entry dated 1980-01-01 (`jar --date`). The `javac` version that built it goes in each script's header, so anyone can compile the source with that version and compare digests.
+- **Its SHA-256 written into each script** of that platform at release (`@CLIENT_JAR_SHA256@` in the repository's scripts). It is also covered as every file of a pack is: the archive's SHA-256 is in the signed `packs.index`.
+
+### Checked before it runs
+
+- **The script checks the jar against the digest it carries** before running it, with `sha256sum`, `shasum -a 256` or `openssl` (`Get-FileHash` on Windows). A jar that does not match fails the run: `_client.jar does not match this script's digest: reinstall the pack (vigil pack install jvm)`. So does a script with no digest stamped (one copied from the repository, which has no jar).
+- **What that guards against, and what it does not.** It catches a jar replaced on its own, or damaged. It does not stop someone who can also rewrite the script. Nothing in a pack can: what stops them is who may write to `packs/`, which `vigil doctor` checks (below).
+- **No jar and no JDK** (a copy from the repository, on a JRE) fails the run, with Java's own reason.
+
+### Vigil's part (Vigil 1.4.0; SPECIFICATION.md 16.7 and 18.10)
+
+These help every pack, not just this one: a `.sh` or `.ps1` swapped on disk is as dangerous as a swapped jar, only easier to spot.
+
+- **`vigil pack verify [<name>...] [--from <folder>]`**: checks the packs installed here against the packs release they came from. For each pack, it fetches the archive of the installed version for this platform (or reads it from a folder `vigil pack download` wrote), checks it against the signed index as `install` does, and compares every file, byte for byte:
+  - `pack jvm 1.1.0: its 44 files match packs-2026.11.23`;
+  - otherwise `pack jvm 1.1.0: differs from packs-2026.11.23`, with a line for each file `changed`, `missing` (in the release, not here) or `added` (here, not in the release), and the command that puts it back;
+  - a script kept from an older version because a job still runs it (`vigil pack update` keeps such scripts) is a `kept` line, not a difference;
+  - a pack the repository does not have at that version (one of your own) is `not in the repository, not checked`.
+
+  It reads only and changes nothing. Exit code 0 when every pack checked matches, 1 otherwise.
+- **`vigil pack install <name>` of the version already here puts it back as released**: what `verify` would call changed, missing or added is replaced, restored or removed (`restored pack jvm 1.1.0 as released`), a kept script stays, and the configuration is not touched. When everything matches: `is here: nothing to do`, as before. Without this, a pack found changed could only be fixed by removing it, which takes its jobs out of the configuration.
+- **`vigil doctor`: who can change what Vigil runs.** A new section. It warns (`WARN`) when anyone but their owner can write the root's own folder, or `app/`, `vendor/`, `packs/`, `scripts/` or `config/`, or anything in them:
+  - **Linux, macOS:** files and folders writable by anyone, or by a group other than the owner's own (a group named as its owner, which Fedora gives each user and whose files its umask leaves group-writable, is the owner's);
+  - **Windows:** an access rule that lets Everyone, Authenticated Users, Users, Interactive, Guests or Domain Users write, modify or create in it.
+
+  The installers already set this up; this finds it changed since. Like the rest of `doctor`, it reads only, and names the paths (the first five, and how many more). A folder it cannot look into is a `note`, not taken for one that is fine.
+
+### Tested
+
+- **On a JRE**, on Linux, macOS and Windows: the jobs run from the jar, with the same lines as from the source.
+- **The same lines** from the jar on a JRE as from the source on a JDK.
+- **A jar changed by one byte** fails the run, on a JRE and on a JDK, and says why. A script with no digest runs no jar. **No jar on a JRE** fails, and Java says why.
+- **Built twice, the jar is the same**, byte for byte; the release refuses one built differently from its scripts' digest.
+- **`vigil pack verify`** against a test packs release: all match; a script changed, a file missing, a file added, each found; a kept script a note; a pack of your own skipped; `--from` offline.
+- **`vigil doctor`**: a group-writable script in `packs/` (Linux, macOS), and Users given write to `packs\` (Windows), each a `WARN`; a fresh install, none.
 
 ## Verified before it is relied on
 

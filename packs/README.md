@@ -499,7 +499,7 @@ A cluster that cannot be reached reports `kafka.up` 0, and the run succeeds: tha
 
 Java virtual machines: any Java application (Jenkins, Spring Boot, Elasticsearch, Keycloak, one of your own) through the JVM it runs on. The JVM, not the application: its process, memory, garbage collection, threads, JIT, classes, crashes, settings and security. Application servers and libraries (Tomcat, Jetty, connection pools) are for packs of their own, which report what is theirs and leave the JVM to this one. Linux, macOS and Windows; JVMs from Java 8.
 
-Each script runs `_client.java`, beside it, with a JDK 11 or later: one client for every platform, so each prints the same lines. It reaches each JVM in three tiers, and uses every one that reaches it:
+Each script runs the pack's client, beside it, with Java 11 or later, a JDK or a JRE: one client for every platform, so each prints the same lines. It reaches each JVM in three tiers, and uses every one that reaches it:
 
 | Tier | Needs | Reads |
 | --- | --- | --- |
@@ -547,7 +547,7 @@ The password file holds `vigil <password>` and must be readable by the JVM's acc
 
 | | Linux | macOS | Windows |
 | --- | --- | --- | --- |
-| On the Vigil machine | A JDK 11 or later, `JAVA_HOME` or `java` on the PATH (a JRE cannot run a source file) | The same | The same |
+| On the Vigil machine | Java 11 or later, a JDK or a JRE, `JAVA_HOME` or `java` on the PATH | The same | The same |
 | For tier 2 | Vigil as root, or the JVM's account | Vigil as root, or the JVM's account | Vigil as an administrator, or the JVM's account |
 | For tier 3 | Each JVM's JMX address in `JVM_TARGETS`, and with a password, a `secret` line and `vigil secret set JVM_JMX_PASSWORD` (step 3) | | |
 
@@ -599,13 +599,26 @@ Each script's header says what its metrics mean and how to read them. Worth know
 
 - **Nothing here pauses a JVM.** No heap dump, class histogram or thread dump with stacks: the jobs read counters, and make calls that are cheap on any heap.
 - **A command line is read, never reported**: it can hold a password. The pack reads only the options it knows.
-- **A run takes two or three seconds**: Java compiles the client from its source each time. So only the cheap jobs run every minute; the rest every 2, 5 or 15 minutes, or each hour.
+- **The client, compiled, and checked before it runs.** The client is one Java source file, `_client.java`. A JRE cannot run a source file, so the pack also carries it compiled, `_client.jar`, built from that source when the pack is released, and every script runs the jar. Before it does, it checks the jar against the SHA-256 the script carries, and a jar that does not match is not run: `_client.jar does not match the digest in this script`. The archive the jar comes in is checked against the signed pack index when the pack is installed. The jar is Java 11 bytecode, built so the same source gives the same bytes: each script names the `javac` that built it, so you can compile `_client.java` with that version (`tools/release/client-jar.sh`) and compare. A copy of the pack without the jar, straight from the repository, runs the source instead, which needs a JDK.
+- **How long a run takes.** The client starts in about half a second from the jar, and in two or three seconds from the source, as Java compiles it each time; on Windows, PowerShell starts first. Then each JVM it reaches over JMX adds its own connection, more with TLS: on the Fedora test machine, the 41 jobs one after another against eight JVMs, six over JMX, took about three minutes in all. So only the cheap jobs run every minute; the rest every 2, 5 or 15 minutes, or each hour.
 - **On Windows, an account CIM refuses** (one that is not an administrator, logged on over the network) still finds its own JVMs: Windows lists them without their command lines, and the pack reads each one's options and main class from its counters instead. Such a JVM has no disk reads and writes in `jvm_io`.
 - `JVM_DUMP_DIRS` adds folders to look in for crash reports and heap dumps, for every JVM: the JVM's own `-XX:ErrorFile` and `-XX:HeapDumpPath`, and its working folder on Linux, are looked in already.
 
 A JVM that is not running reports `running 0` (`jvm_process`) and `up 0` (`jvm_status`), and the run succeeds: that is a reading. A JMX login refused, or a certificate that cannot be trusted, fails the run, and its log says why.
 
 **Tested** on 2026-11-22 on the Fedora 44 test machine by `tests/integration/backends/scripts/run-jvm.sh`, with the client on Java 25.0.4, against eight JVMs made to misbehave (`Trouble.java`: a deadlock, leaked threads, a busy thread, blocked threads, leaking direct buffers and classloaders, an out-of-memory heap dump). Six were in Docker: **Java 8** with Parallel GC and JMX with a password but no TLS; **Java 11** tracking its native memory, **Java 17** with ZGC, **Java 21** with G1 and **Java 25** with Shenandoah and a debugger listening, each with JMX over TLS and a password; and a Java 21 with no JMX, run as root. Two ran on the machine itself on Java 25, one with JMX and one without. Beside them, a Java 17 crashed once, on purpose, for its crash report. `service-packs.sh` through Vigil, then every job: **93 passed, 0 failed**. That covers each tier alone and together, GC logs from Java 8, G1 and ZGC, a `readonly` JMX user, a wrong password, a certificate it cannot trust, JMX that does not answer and a JVM not running. Then from a container that sees the machine's processes as root, as Vigil running as root would, `jvm_discovery` and `jvm_heap` read the counters of all eight: [the console output](../tests/integration/backends/reports/runs/2026-11-22/fedora/pack-jvm/console.txt). **On macOS**, on the Intel Mac test machine (macOS 12.7.6, bash 3.2, Java 21), against a JVM of its own without JMX and the Fedora JVMs over JMX through SSH tunnels: every job directly, then `service-packs.sh` through Vigil, **64 passed, 0 failed**: [the console output](../tests/integration/backends/reports/runs/2026-11-22/macos/pack-jvm-macos/console.txt). **On Windows**, the same way with Java 21, `Service-Packs.ps1` through Vigil, **74 passed, 0 failed**: on Windows PowerShell 5.1 and PowerShell 7 on Windows 11 ([the console output](../tests/integration/backends/reports/runs/2026-11-22/windows/pack-jvm-windows/console.txt)), and on Windows PowerShell 5.1 on Windows Server 2025 ([the console output](../tests/integration/backends/reports/runs/2026-11-22/windows-server-2025/pack-jvm-windows/console.txt)). Both Windows machines ran it as an account that is not an administrator, logged on by SSH key. CIM refused that account, so the JVMs were found as above, without CIM. Windows also refuses its data protection to such a logon, so the password came from an `env:` reference.
+
+**Version 1.1.0, on a JRE**, tested on 2026-11-22 the same way, against the same JVMs, then every job again on a JRE, from `_client.jar`.
+- **On Fedora**, on Temurin's JRE 11, the oldest Java the client runs on, with the jar compiled by `tools/release/client-jar.sh` with `javac` 21: **106 passed, 0 failed**.
+  - The jar built twice was the same, byte for byte, and its digest was in every script.
+  - All 41 jobs ran from the jar, about three minutes in all, and every JVM was up.
+  - Ten of the jobs printed the same lines, values apart, as the source does on a JDK.
+  - A jar changed by one byte was refused, on the JRE and on a JDK, saying why. A script with no digest ran no jar. Without the jar, the JRE could not run the source, and Java said so.
+  - [The console output](../tests/integration/backends/reports/runs/2026-11-22/fedora/pack-jvm-1.1.0/console.txt).
+- **On macOS**, on the Intel Mac test machine, on Temurin's JRE 21: **77 passed, 0 failed**. [The console output](../tests/integration/backends/reports/runs/2026-11-22/macos/pack-jvm-1.1.0-macos/console.txt).
+- **On Windows**, from a packs release built by `tools/release/packs.sh`, on Temurin's JRE 21: **86 passed, 0 failed** on each run.
+  - Windows 11, on Windows PowerShell 5.1 and PowerShell 7: [the console output](../tests/integration/backends/reports/runs/2026-11-22/windows/pack-jvm-1.1.0-windows/console.txt).
+  - Windows Server 2025, on Windows PowerShell 5.1: [the console output](../tests/integration/backends/reports/runs/2026-11-22/windows-server-2025/pack-jvm-1.1.0-windows/console.txt).
 
 ### nginx
 
@@ -643,6 +656,7 @@ Then `vigil pack enable nginx`, which reminds you of the page. The job reads `ht
 - Print metrics as `metric <name> <value> [key=value ...]`, and use plain ASCII.
 - Exit 0 when the script worked. A high reading is not a failure.
 - Read data; never change the machine.
+- Ship text you can read: scripts, and the source of anything they run. Nothing compiled goes in the repository. The one exception is a Java client (`_client.java`), since a JRE cannot run source: the release compiles it into `_client.jar` (`tools/release/client-jar.sh`), writes its digest into the scripts, and they check it before running it, as the jvm pack's do.
 - Start with the same header as the other scripts: what it does, its metrics, an example of its output, what healthy and unhealthy look like, what it needs, its exit codes and the disclaimer.
 - In `pack.config`, say what `vigil pack info` shows before anyone installs it: `works_with`, the servers it is meant for and tested with; `programs_linux`, `programs_macos` and `programs_windows`, the programs its scripts need on each; `docs`, its section here; and `needs`, what an administrator sets up first.
 

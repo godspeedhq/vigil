@@ -61,22 +61,49 @@
 #   Act      up 0: the JVM is gone; tier_jmx 0 with an address: JMX stopped
 #            answering (jmx_up says the same).
 #
-# Requires: bash, a JDK 11 or later (JAVA_HOME, or java on the PATH) to run
-#   _client.java, beside this script
-# Exit code: 0 on success, JVMs up or down; 1 if java is missing, JVM_TARGETS
-#   is wrong, or a JVM refuses the JMX login or its certificate
+# Requires: bash, Java 11 or later, a JDK or a JRE (JAVA_HOME, or java on the
+#   PATH), to run _client.jar, beside this script, once it matches its digest;
+#   a copy of the pack without the jar runs _client.java, which needs a JDK
+# Exit code: 0 on success, JVMs up or down; 1 if java is missing, _client.jar
+#   does not match its digest, JVM_TARGETS is wrong, or a JVM refuses the JMX
+#   login or its certificate
 
 set -u
 
-# The client, beside this script, run by a JDK: JAVA_HOME's, else the PATH's.
+# _client.jar's SHA-256, written when the pack was released: built from
+# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
+jar_sha256=@CLIENT_JAR_SHA256@
+
+# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# the PATH's.
 here=$(cd "$(dirname "$0")" && pwd)
 if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
     java=$JAVA_HOME/bin/java
 elif command -v java > /dev/null 2>&1; then
     java=$(command -v java)
 else
-    echo "jvm_status: java not found: the jvm pack runs its client with a JDK 11 or later, on the PATH or in JAVA_HOME" >&2
+    echo "jvm_status: java not found: the jvm pack runs its client with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME" >&2
     exit 1
+fi
+
+# The jar, the client compiled, once it matches the digest above: any Java
+# 11 or later runs it. A copy of the pack without one (from the repository,
+# not a release) runs the source, which needs a JDK.
+if [ ! -f "$here/_client.jar" ]; then
+    set -- "$here/_client.java"
+else
+    if command -v sha256sum > /dev/null 2>&1; then
+        sum=$(sha256sum < "$here/_client.jar")
+    elif command -v shasum > /dev/null 2>&1; then
+        sum=$(shasum -a 256 < "$here/_client.jar")
+    else
+        sum=$(openssl dgst -sha256 -r < "$here/_client.jar")
+    fi
+    if [ "${sum%% *}" != "$jar_sha256" ]; then
+        echo "jvm_status: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs" >&2
+        exit 1
+    fi
+    set -- -cp "$here/_client.jar" JvmClient
 fi
 
 # A folder of this run's own, readable by this account only, for what Java
@@ -87,5 +114,5 @@ trap 'rm -rf "$work"' EXIT
 # A small JVM, quick to start, that keeps no counters of its own (it would
 # find itself among the JVMs it watches).
 "$java" -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx128m \
-    -Djava.io.tmpdir="$work" "$here/_client.java" jvm_status
+    -Djava.io.tmpdir="$work" "$@" jvm_status
 exit $?

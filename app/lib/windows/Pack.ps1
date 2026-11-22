@@ -40,6 +40,10 @@
     Update-VigilPack -Root <dir> -App <app dir> -Check <bool>
         Updates the packs installed here to the repository's newest, never
         back a version.
+    Test-VigilPack -Root <dir> -App <app dir> -From <folder, or ''> -Names <name>...
+        vigil pack verify: the packs installed here, or those named, file by
+        file against the release of the version installed. Changes nothing.
+        Install of the version installed puts back what differs.
     Copy-VigilPackSeed -Root <dir> -App <app dir>
         A packaged program only: copies in the packs the package keeps beside
         app\, those not here yet.
@@ -353,6 +357,44 @@ function Expand-VigilPackPick {
     return $src
 }
 
+# Pack $Name's folder here, $Here, against its release's, $Rel, byte for
+# byte: @{ Count, the release's files; Changed, those that differ here;
+# Missing, those not here; Added, those here the release does not have;
+# Kept }. A script the release does not have that a job of configuration
+# $Cfg runs, kept by vigil pack update when the pack dropped it, is not
+# Added: it is in Kept, as '<file>:<job>'.
+function Compare-VigilPackFiles {
+    param([string]$Cfg, [string]$Name, [string]$Here, [string]$Rel)
+    $r = @{ Count = 0; Changed = @(); Missing = @(); Added = @(); Kept = @() }
+    # Files in byte order, as pack.sh lists them.
+    $theirs = [System.IO.Directory]::GetFiles($Rel)
+    [Array]::Sort($theirs, [StringComparer]::Ordinal)
+    foreach ($f in $theirs) {
+        $b = [System.IO.Path]::GetFileName($f)
+        $r.Count++
+        $o = Join-Path $Here $b
+        if (-not [System.IO.File]::Exists($o)) { $r.Missing += $b }
+        elseif ((Get-FileHash -Algorithm SHA256 -LiteralPath $f).Hash -cne (Get-FileHash -Algorithm SHA256 -LiteralPath $o).Hash) { $r.Changed += $b }
+    }
+    $runs = @{}
+    if ([System.IO.File]::Exists($Cfg)) {
+        foreach ($e in (ConvertFrom-VigilConfig -Path $Cfg).Entries) {
+            if ($e.Key -cne 'file' -or -not $e.Section.StartsWith('job.', [System.StringComparison]::Ordinal)) { continue }
+            $v = $e.Value.Replace('\', '/')
+            if ($v.StartsWith("packs/$Name/", [System.StringComparison]::Ordinal)) { $runs[$v.Substring(7 + $Name.Length)] = $e.Section.Substring(4) }
+        }
+    }
+    $ours = [System.IO.Directory]::GetFileSystemEntries($Here)
+    [Array]::Sort($ours, [StringComparer]::Ordinal)
+    foreach ($f in $ours) {
+        $b = [System.IO.Path]::GetFileName($f)
+        $t = Join-Path $Rel $b
+        if ([System.IO.File]::Exists($t) -or [System.IO.Directory]::Exists($t)) { continue }
+        if ($runs.ContainsKey($b)) { $r.Kept += "${b}:$($runs[$b])" } else { $r.Added += $b }
+    }
+    return $r
+}
+
 # What may stop an edit of the configuration.
 function Test-VigilPackWritable {
     param([string]$Root)
@@ -647,7 +689,7 @@ function Move-VigilPackFolder {
 # Replaces a pack's scripts with the release's, and says what changed. Returns
 # an exit code.
 function Set-VigilPackScripts {
-    param([string]$Root, [string]$App, [string]$Name, [string]$Src, $Was)
+    param([string]$Root, [string]$App, [string]$Name, [string]$Src, $Was, $Diff = $null)
     $dir = Join-Path $Root "packs\$Name"
     $new = Read-VigilPack -Dir $Src -Name $Name
     if (-not $new) { return 1 }
@@ -704,6 +746,13 @@ function Set-VigilPackScripts {
         Write-Output "installed pack $Name $($new.Version)"
         return 0
     }
+    if ($Was.Version -ceq $new.Version) {
+        # The same version, put back as released ($Diff, what differed).
+        Write-Output "restored pack $Name $($new.Version) as released"
+        foreach ($b in @($Diff.Changed) + @($Diff.Missing)) { Write-Output "  put back  $b" }
+        foreach ($b in @($Diff.Added)) { Write-Output "  removed   $b" }
+        return 0
+    }
     if (Test-VigilNewer $Was.Version $new.Version) { Write-Output "pack $Name went back from $($Was.Version) to $($new.Version)" }
     else { Write-Output "updated pack $Name $($Was.Version) to $($new.Version)" }
     if ($changed.Count -gt 0) { Write-Output "changed: $($changed -join ' ')" }
@@ -753,11 +802,16 @@ function Install-VigilPackPick {
     param([string]$Root, $Repo, [string]$Name, $Pick)
     $dir = Join-Path $Root "packs\$Name"
     $was = Read-VigilPack -Dir $dir -Name $Name
-    if ($was -and $was.Version -ceq $Pick.Version) { Write-Output "pack $Name $($was.Version) is here: nothing to do"; return 0 }
     $src = Expand-VigilPackPick -Repo $Repo -Name $Name -Pick $Pick
     if (-not $src) { return 1 }
+    $diff = $null
+    if ($was -and $was.Version -ceq $Pick.Version) {
+        # The version here: its files put back as released, where they differ.
+        $diff = Compare-VigilPackFiles -Cfg (Join-Path $Root 'config\vigil.config') -Name $Name -Here $dir -Rel $src
+        if ($diff.Changed.Count + $diff.Missing.Count + $diff.Added.Count -eq 0) { Write-Output "pack $Name $($was.Version) is here: nothing to do"; return 0 }
+    }
     $code = 0
-    Set-VigilPackScripts -Root $Root -App $Repo.App -Name $Name -Src $src -Was $was | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+    Set-VigilPackScripts -Root $Root -App $Repo.App -Name $Name -Src $src -Was $was -Diff $diff | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
     if ($code -ne 0 -or $was) { return $code }
     # Installed, and off: what it has and what it needs, so it is never
     # turned on blind.
@@ -848,6 +902,71 @@ function Update-VigilPack {
     catch {
         Stop-VigilPack "$packs is not writable: run this from an elevated prompt for a system install"
         return 1
+    }
+    finally { Close-VigilPackRepo $repo }
+}
+
+# Checks the packs installed here against the packs release each version
+# came from, every file byte for byte, its archive checked against the
+# signed index as install checks it. Reads only. Returns an exit code.
+function Test-VigilPack {
+    param([string]$Root, [string]$App, [string]$From, [string[]]$Names = @())
+    $packs = Join-Path $Root 'packs'
+    if (-not (Test-VigilPackReadable -Root $Root)) {
+        Stop-VigilPack "cannot read $packs from this account: run this from an elevated prompt for a system install"
+        return 1
+    }
+    $dirs = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($s in @($Names | Where-Object { $_ })) {
+        $x = Split-VigilPackSpec $s
+        if (-not $x) { return 1 }
+        if ($x.At) { Stop-VigilPack "pack verify checks the version installed here: vigil pack verify $($x.Name)"; return 1 }
+        $d = Join-Path $packs $x.Name
+        if (-not (Read-VigilPack -Dir $d -Name $x.Name)) { Stop-VigilPack "pack $($x.Name) is not installed: vigil pack list"; return 1 }
+        $dirs.Add($d)
+    }
+    $repo = Open-VigilPackRepo -Root $Root -App $App -From $From
+    try {
+        if (-not $repo.Ok) { return 1 }
+        if (-not $dirs.Count -and [System.IO.Directory]::Exists($packs)) {
+            $all = [System.IO.Directory]::GetDirectories($packs)
+            [Array]::Sort($all, [StringComparer]::Ordinal)
+            foreach ($d in $all) { $dirs.Add($d) }
+        }
+        $cfg = Join-Path $Root 'config\vigil.config'
+        $code = 0
+        $n = 0
+        foreach ($d in $dirs) {
+            if (-not [System.IO.File]::Exists((Join-Path $d 'pack.config'))) { continue }
+            $name = [System.IO.Path]::GetFileName($d)
+            $was = Read-VigilPack -Dir $d -Name $name
+            if (-not $was) { Write-Output "pack ${name}: cannot read its pack.config"; $code = 1; continue }
+            $n++
+            # A pack of your own, or a version no release has: nothing to check against.
+            if (-not @($repo.Index.Packs | Where-Object { $_.Name -ceq $name -and $_.Version -ceq $was.Version }).Count) {
+                Write-Output "pack $name $($was.Version): not in the repository, not checked"
+                continue
+            }
+            $pick = Select-VigilPackVersion -Repo $repo -Name $name -Want $was.Version -Os windows -Mine ''
+            if (-not $pick.Version) { Write-Output "pack $name $($was.Version): cannot check it: $($pick.Why)"; $code = 1; continue }
+            # Why it cannot be had, or does not match the index, is on stderr.
+            $src = Expand-VigilPackPick -Repo $repo -Name $name -Pick $pick
+            if (-not $src) { Write-Output "pack $name $($pick.Version): cannot check it"; $code = 1; continue }
+            $r = Compare-VigilPackFiles -Cfg $cfg -Name $name -Here $d -Rel $src
+            $bad = $r.Changed.Count + $r.Missing.Count + $r.Added.Count
+            if ($bad -eq 0) { Write-Output "pack $name $($pick.Version): its $($r.Count) files match $($pick.Release)" }
+            else {
+                Write-Output "pack $name $($pick.Version): differs from $($pick.Release)"
+                $code = 1
+            }
+            foreach ($b in $r.Changed) { Write-Output "  changed  $b" }
+            foreach ($b in $r.Missing) { Write-Output "  missing  $b" }
+            foreach ($b in $r.Added) { Write-Output "  added    $b" }
+            foreach ($b in $r.Kept) { $i = $b.IndexOf(':'); Write-Output "  kept     $($b.Substring(0, $i)): dropped from the pack, still run by $($b.Substring($i + 1))" }
+            if ($bad -gt 0) { Write-Output "  To put it back as released: vigil pack install $name@$($pick.Version)" }
+        }
+        if ($n -eq 0) { Write-Output 'no packs here: vigil pack search, then vigil pack install <name>' }
+        return $code
     }
     finally { Close-VigilPackRepo $repo }
 }

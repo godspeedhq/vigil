@@ -291,6 +291,53 @@ try {
     Test-Equal 'never back a version on its own' 'pack web 5.0.0 is here: nothing to do' (@((Invoke-Vigil pack update).Text.Split("`n") | Where-Object { $_.StartsWith('pack web') }) -join '|').TrimEnd()
     [System.IO.File]::WriteAllText($wc, (Get-Text $wc).Replace('version = 5.0.0', 'version = 1.0.0'))
 
+    Write-Host 'Verifying'
+    $r = Invoke-Vigil pack verify
+    Test-Equal 'every pack here, against its release' 'pack base 1.2.0: its 3 files match packs-2026.01.03|pack web 1.0.0: its 2 files match packs-2026.01.02|0' "$(Join-Lines $r.Text)|$($r.Code)"
+    $ws = "$root\packs\web\status.ps1"
+    [System.IO.File]::AppendAllText($ws, "# more`n")
+    $r = Invoke-Vigil pack verify web
+    Test-Equal 'a changed script' 'pack web 1.0.0: differs from packs-2026.01.02|  changed  status.ps1|  To put it back as released: vigil pack install web@1.0.0|1' "$(Join-Lines $r.Text)|$($r.Code)"
+    Copy-Item -LiteralPath $wc -Destination "$work\web.config"
+    Remove-Item -LiteralPath $wc
+    Test-Equal 'one gone is not a pack here' 'vigil: pack web is not installed: vigil pack list' (Invoke-Vigil pack verify web).Text
+    Copy-Item -LiteralPath "$work\web.config" -Destination $wc
+    [System.IO.File]::WriteAllText("$root\packs\web\extra.ps1", "'hi'`n")
+    $r = Invoke-Vigil pack verify web
+    Test-Equal 'and a file added' 'pack web 1.0.0: differs from packs-2026.01.02|  changed  status.ps1|  added    extra.ps1|  To put it back as released: vigil pack install web@1.0.0|1' "$(Join-Lines $r.Text)|$($r.Code)"
+    $was = Get-Text $cfg
+    $r = Invoke-Vigil pack install web
+    Test-Equal 'install puts it back' 'restored pack web 1.0.0 as released|  put back  status.ps1|  removed   extra.ps1|0' "$(Join-Lines $r.Text)|$($r.Code)"
+    Test-Equal 'and changes no configuration' $was (Get-Text $cfg)
+    Test-Equal 'then it matches' 'pack web 1.0.0: its 2 files match packs-2026.01.02' (Invoke-Vigil pack verify web).Text.TrimEnd()
+    Remove-Item -LiteralPath $ws
+    Test-Equal 'a missing script' 'pack web 1.0.0: differs from packs-2026.01.02|  missing  status.ps1|  To put it back as released: vigil pack install web@1.0.0' (Join-Lines (Invoke-Vigil pack verify web).Text)
+    Test-Equal 'put back too' 'restored pack web 1.0.0 as released|  put back  status.ps1' (Join-Lines (Invoke-Vigil pack install web).Text)
+    # A script the release does not have, that a job runs (vigil pack update
+    # keeps those): a note, not a difference.
+    Copy-Item -LiteralPath $cfg -Destination "$work\cfg.keep"
+    [System.IO.File]::WriteAllText("$root\packs\web\old.ps1", "'metric up 1'`n")
+    [System.IO.File]::AppendAllText($cfg, "`n[job.webold]`nfile = packs/web/old.ps1`nrun_every = 1h`n")
+    $r = Invoke-Vigil pack verify web
+    Test-Equal 'a script a job still runs, a note' 'pack web 1.0.0: its 2 files match packs-2026.01.02|  kept     old.ps1: dropped from the pack, still run by webold|0' "$(Join-Lines $r.Text)|$($r.Code)"
+    Test-Equal 'and install leaves it' 'pack web 1.0.0 is here: nothing to do|True' "$((Invoke-Vigil pack install web).Text.TrimEnd())|$(Test-Path -LiteralPath "$root\packs\web\old.ps1")"
+    Copy-Item -LiteralPath "$work\cfg.keep" -Destination $cfg -Force
+    Remove-Item -LiteralPath "$root\packs\web\old.ps1"
+    [void](New-Item -ItemType Directory -Force -Path "$root\packs\own")
+    [System.IO.File]::WriteAllText("$root\packs\own\pack.config", "[pack]`nversion = 0.1.0`nvigil = 0.0.1`ndescription = Mine`n")
+    $r = Invoke-Vigil pack verify own
+    Test-Equal 'a pack of your own is not checked' 'pack own 0.1.0: not in the repository, not checked|0' "$($r.Text.TrimEnd())|$($r.Code)"
+    Remove-Item -LiteralPath "$root\packs\own" -Recurse -Force
+    $r = Invoke-Vigil pack verify nosuch
+    Test-Equal 'one not installed' 'vigil: pack nosuch is not installed: vigil pack list|1' "$($r.Text.TrimEnd())|$($r.Code)"
+    $r = Invoke-Vigil pack verify web@1.0.0
+    Test-Equal 'a version is not asked for' 'vigil: pack verify checks the version installed here: vigil pack verify web|1' "$($r.Text.TrimEnd())|$($r.Code)"
+    Test-Equal 'an option it does not know' '64' ([string](Invoke-Vigil pack verify --all).Code)
+    # What it read, it did not change.
+    $before = Get-Text $ws
+    [void](Invoke-Vigil pack verify)
+    Test-Equal 'verify changes nothing' $before (Get-Text $ws)
+
     Write-Host 'Removing'
     [void](Invoke-Vigil pack enable web)
     Test-Equal 'refused while on' 'vigil: pack web is in use by: web_status. Turn them off first: vigil pack disable web, or vigil pack remove --disable web' (Invoke-Vigil pack remove web).Text
@@ -334,6 +381,7 @@ try {
     $env:VIGIL_TEST_RELEASE_URL = 'http://127.0.0.1:9'
     try {
         Test-Equal 'installs from the folder, with no network' 'installed pack web 1.0.0' @((Invoke-Vigil pack install web --from $usb).Text.Split("`n"))[0].TrimEnd()
+        Test-Equal 'verified from the folder, with no network' 'pack web 1.0.0: its 2 files match packs-2026.01.02' (Invoke-Vigil pack verify web --from $usb).Text.TrimEnd()
         [void](Invoke-Vigil pack remove web)
         Test-Equal 'a pack not in the folder' "vigil: vigil-pack-base-1.2.0-windows.zip is not in ${usb}: vigil pack download base@1.2.0 there" (Invoke-Vigil pack install base@1.2.0 --from $usb).Text
         $z = "$usb\vigil-pack-web-1.0.0-windows.zip"

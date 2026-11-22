@@ -631,23 +631,51 @@ def doc(j, ps):
     c += wrap(j['act'], 76, first='  Act      ', rest=' ' * 11)
     c += ['']
     c += wrap(('Requires: Windows PowerShell 5.1 or PowerShell 7, ' if ps else 'Requires: bash, ') +
-              'a JDK 11 or later (JAVA_HOME, or java on the PATH) to run _client.java, beside this script', 76, rest='  ')
-    c += wrap('Exit code: 0 on success, JVMs up or down; 1 if java is missing, JVM_TARGETS is wrong, or a JVM '
+              'Java 11 or later, a JDK or a JRE (JAVA_HOME, or java on the PATH), to run _client.jar, beside '
+              'this script, once it matches its digest; a copy of the pack without the jar runs '
+              '_client.java, which needs a JDK', 76, rest='  ')
+    c += wrap('Exit code: 0 on success, JVMs up or down; 1 if java is missing, _client.jar does not match its '
+              'digest, JVM_TARGETS is wrong, or a JVM '
               'refuses the JMX login or its certificate', 76, rest='  ')
     return c
 
 
 SH_BODY = r'''set -u
 
-# The client, beside this script, run by a JDK: JAVA_HOME's, else the PATH's.
+# _client.jar's SHA-256, written when the pack was released: built from
+# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
+jar_sha256=@CLIENT_JAR_SHA256@
+
+# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# the PATH's.
 here=$(cd "$(dirname "$0")" && pwd)
 if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
     java=$JAVA_HOME/bin/java
 elif command -v java > /dev/null 2>&1; then
     java=$(command -v java)
 else
-    echo "@JOB@: java not found: the jvm pack runs its client with a JDK 11 or later, on the PATH or in JAVA_HOME" >&2
+    echo "@JOB@: java not found: the jvm pack runs its client with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME" >&2
     exit 1
+fi
+
+# The jar, the client compiled, once it matches the digest above: any Java
+# 11 or later runs it. A copy of the pack without one (from the repository,
+# not a release) runs the source, which needs a JDK.
+if [ ! -f "$here/_client.jar" ]; then
+    set -- "$here/_client.java"
+else
+    if command -v sha256sum > /dev/null 2>&1; then
+        sum=$(sha256sum < "$here/_client.jar")
+    elif command -v shasum > /dev/null 2>&1; then
+        sum=$(shasum -a 256 < "$here/_client.jar")
+    else
+        sum=$(openssl dgst -sha256 -r < "$here/_client.jar")
+    fi
+    if [ "${sum%% *}" != "$jar_sha256" ]; then
+        echo "@JOB@: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs" >&2
+        exit 1
+    fi
+    set -- -cp "$here/_client.jar" JvmClient
 fi
 
 # A folder of this run's own, readable by this account only, for what Java
@@ -658,14 +686,19 @@ trap 'rm -rf "$work"' EXIT
 # A small JVM, quick to start, that keeps no counters of its own (it would
 # find itself among the JVMs it watches).
 "$java" -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx128m \
-    -Djava.io.tmpdir="$work" "$here/_client.java" @JOB@
+    -Djava.io.tmpdir="$work" "$@" @JOB@
 exit $?
 '''
 
 PS_BODY = r'''$ErrorActionPreference = 'Stop'
 $job = '@JOB@'
 
-# The client, beside this script, run by a JDK: JAVA_HOME's, else the PATH's.
+# _client.jar's SHA-256, written when the pack was released: built from
+# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
+$jarSha256 = '@CLIENT_JAR_SHA256@'
+
+# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# the PATH's.
 $java = $null
 if ($env:JAVA_HOME -and [System.IO.File]::Exists((Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
     $java = Join-Path $env:JAVA_HOME 'bin\java.exe'
@@ -675,8 +708,27 @@ else {
     if ($c) { $java = $c.Source }
 }
 if (-not $java) {
-    [Console]::Error.WriteLine("${job}: java not found: the jvm pack runs its client with a JDK 11 or later, on the PATH or in JAVA_HOME")
+    [Console]::Error.WriteLine("${job}: java not found: the jvm pack runs its client with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME")
     exit 1
+}
+
+# The jar, the client compiled, once it matches the digest above: any Java
+# 11 or later runs it. A copy of the pack without one (from the repository,
+# not a release) runs the source, which needs a JDK.
+$jar = Join-Path $PSScriptRoot '_client.jar'
+if (-not [System.IO.File]::Exists($jar)) {
+    $client = @((Join-Path $PSScriptRoot '_client.java'))
+}
+else {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $f = [System.IO.File]::OpenRead($jar)
+    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
+    finally { $f.Dispose(); $sha.Dispose() }
+    if ($sum -ne $jarSha256) {
+        [Console]::Error.WriteLine("${job}: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify jvm says what differs")
+        exit 1
+    }
+    $client = @('-cp', $jar, 'JvmClient')
 }
 
 # A folder of this run's own, for the process table and what Java writes
@@ -719,7 +771,7 @@ try {
 
     # A small JVM, quick to start, that keeps no counters of its own (it
     # would find itself among the JVMs it watches).
-    & $java -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx128m "-Djava.io.tmpdir=$work" (Join-Path $PSScriptRoot '_client.java') $job
+    & $java -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx128m "-Djava.io.tmpdir=$work" @client $job
     $code = $LASTEXITCODE
 }
 finally {
@@ -755,10 +807,13 @@ def pack_config():
          '# Three tiers, each used where it reaches: the process (nothing to set',
          '# up); the JVM\'s own counters (this machine, and root, an administrator',
          '# or the JVM\'s own account); JMX, at an address given in JVM_TARGETS.',
-         '# Every script runs _client.java, beside it, with a JDK 11 or later: it',
-         '# takes two or three seconds (Java compiles it from source each run), so',
-         '# the jobs every minute are the cheap ones, and the rest run every 2, 5',
-         '# or 15 minutes, or each hour, each on minutes of its own (cron, local time).',
+         '# Every script runs _client.jar, beside it, with Java 11 or later (a JDK',
+         '# or a JRE), once it matches the digest the script carries: the client,',
+         '# compiled from _client.java when the pack was released. A copy without',
+         '# the jar runs the source, which needs a JDK and takes two or three',
+         '# seconds a run. The jobs every minute are the cheap ones; the rest run',
+         '# every 2, 5 or 15 minutes, or each hour, each on minutes of its own',
+         '# (cron, local time).',
          '#',
          '# Off until enabled: vigil pack enable jvm. With JVM_TARGETS empty, every',
          '# JVM on this machine is watched, named by its main class. To name them,',
@@ -771,7 +826,7 @@ def pack_config():
     p += [('# ' + n).rstrip() for n in NOTICE]
     p += ['',
           '[pack]',
-          'version     = 1.0.0',
+          'version     = 1.1.0',
           '# vigil: the oldest Vigil this pack runs on. vigil pack update refuses the',
           '# pack on an older one.',
           'vigil       = 0.3.0',
@@ -779,9 +834,9 @@ def pack_config():
           '# What vigil pack info shows besides: the JVMs it is meant for, the',
           '# programs its scripts need on each platform, and where it is explained.',
           'works_with  = Java 8 and later (HotSpot for the counters: OpenJDK, Oracle, Temurin, Corretto, Zulu...); any Java application',
-          'programs_linux = a JDK 11 or later, to run _client.java',
-          'programs_macos = a JDK 11 or later, to run _client.java',
-          'programs_windows = a JDK 11 or later, to run _client.java',
+          'programs_linux = Java 11 or later, a JDK or a JRE, to run its client',
+          'programs_macos = Java 11 or later, a JDK or a JRE, to run its client',
+          'programs_windows = Java 11 or later, a JDK or a JRE, to run its client',
           'docs        = https://github.com/godspeedhq/vigil/blob/main/packs/README.md#jvm',
           'needs       = for the JVM\'s own counters (heap, GC, threads without JMX): Vigil running as root or an administrator, or as the JVM\'s own account',
           'needs       = for everything else: each JVM\'s JMX address in JVM_TARGETS (jmx=host:port), with -Dcom.sun.management.jmxremote.port and a password and TLS (packs/README.md shows how)',

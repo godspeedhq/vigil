@@ -66,10 +66,13 @@
 #   vigil [--root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...
 #   vigil [--root <dir>] pack enable <what> | disable <what> | update [--check] [<name>...]
 #   vigil [--root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>
+#   vigil [--root <dir>] pack verify [<name>...] [--from <folder>]
 #       The packs of scripts and jobs (18.10), from the pack repository:
 #       search it, install a pack, then enable its jobs. What is a pack or a
 #       pack_job. download writes packs for a machine offline, which installs
-#       them --from the folder.
+#       them --from the folder. verify checks the packs installed here, file by
+#       file, against their release; install of the version here puts back
+#       what differs.
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
@@ -400,6 +403,18 @@ case ${1-} in
                     esac
                 done
                 vigil_pack_update "$root" "$app" "$check" ${names[@]+"${names[@]}"}
+                ;;
+            verify:*)
+                # verify [<name>...] [--from <folder>]: every pack here, or those named.
+                from='' names=()
+                while [ "$#" -gt 0 ]; do
+                    case $1 in
+                        --from) [ "$#" -ge 2 ] || usage; from=$2; shift 2 ;;
+                        -*) usage ;;
+                        *) names+=("$1"); shift ;;
+                    esac
+                done
+                vigil_pack_verify "$root" "$app" "$from" ${names[@]+"${names[@]}"}
                 ;;
             info:1:*) vigil_pack_info "$root" "$app" "$1" ;;
             search:*) vigil_pack_search "$root" "$app" "$@" ;;

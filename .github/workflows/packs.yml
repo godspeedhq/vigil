@@ -23,6 +23,13 @@ jobs:
           fetch-depth: 0
       - name: only what is on main
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      # A pack's compiled client (tools/release/client-jar.sh) needs javac
+      # and jar 17 or later. The javac that built it is named in its scripts.
+      - name: a JDK, for compiled clients
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - name: the last packs release's index
         env:
           GH_TOKEN: ${{ github.token }}
@@ -42,6 +49,7 @@ jobs:
         run: |
           test -f app/release-key.pem
           test -n "$VIGIL_RELEASE_KEY"
+          test -z "${VIGIL_TEST_PACKS_NO_CLIENT-}"
           (umask 077 && printf '%s\n' "$VIGIL_RELEASE_KEY" > "$RUNNER_TEMP/release.key")
           index=''
           [ -z "$prev" ] || index=$RUNNER_TEMP/prev/packs.index

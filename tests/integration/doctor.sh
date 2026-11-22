@@ -107,6 +107,17 @@ has 'doctor: idle ran once' "$out" '^  idle +1 '
 has 'doctor: the cores, ok' "$out" "^  ok    Vigil's runs keep 0\.[0-9]{2} of a core busy\$"
 has 'doctor: the runner shell' "$out" '^  ok    /bin/sh: '
 has 'doctor: the summary' "$out" '^doctor: no warnings$'
+has 'doctor: who can change what Vigil runs, only its owners' "$out" '^  ok    only their owners can change app, vendor, packs, scripts and config$'
+
+echo '== a script anyone may change (16.7)'
+mkdir -p "$root/packs/x"
+printf 'echo x\n' > "$root/packs/x/a.sh"
+chmod 666 "$root/packs/x/a.sh"
+out=$(vigil doctor 2>&1); code=$?
+check 'open: exit code' 1 "$code"
+has 'open: WARN' "$out" '^  WARN  1 of its files and folders can be written by others than their owner, who can then change what Vigil runs: chmod go-w each$'
+has 'open: names it, and who' "$out" "^        $root/packs/x/a.sh: anyone\$"
+rm -rf "$root/packs"
 
 echo '== above half a core'
 mkdir -p "$root/logs/jobs/heavy"

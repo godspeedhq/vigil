@@ -65,7 +65,7 @@ function Publish-Release {
     param([string]$Version)
     $d = Join-Path $www "releases\download\v$Version"
     [void](New-Item -ItemType Directory -Force -Path $d, "$www\releases\tag")
-    & $bash -c "VIGIL_SIGN_KEY='$(ConvertTo-BashPath "$work\release.key")' bash '$(ConvertTo-BashPath "$repo\tools\release\package.sh")' '$Version' '$(ConvertTo-BashPath $d)'" | Out-Null
+    & $bash -c "VIGIL_TEST_PACKS_NO_CLIENT=1 VIGIL_SIGN_KEY='$(ConvertTo-BashPath "$work\release.key")' bash '$(ConvertTo-BashPath "$repo\tools\release\package.sh")' '$Version' '$(ConvertTo-BashPath $d)'" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'packaging failed' }
     [System.IO.File]::WriteAllText("$www\releases\tag\v$Version", '')
     Set-Latest $Version
@@ -165,7 +165,7 @@ try {
     Publish-Release '0.0.2-it'
     # A packs release (18.10), which the copies below carry for vigil pack update.
     $pd = Join-Path $www 'releases\download\packs-2026.01.01'
-    & $bash -c "VIGIL_SIGN_KEY='$(ConvertTo-BashPath "$work\release.key")' bash '$(ConvertTo-BashPath "$repo\tools\release\packs.sh")' packs-2026.01.01 '$(ConvertTo-BashPath $pd)'" | Out-Null
+    & $bash -c "VIGIL_TEST_PACKS_NO_CLIENT=1 VIGIL_SIGN_KEY='$(ConvertTo-BashPath "$work\release.key")' bash '$(ConvertTo-BashPath "$repo\tools\release\packs.sh")' packs-2026.01.01 '$(ConvertTo-BashPath $pd)'" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'packs release failed' }
     $r = Invoke-Vigil self update --check
     Test-Equal '--check: succeeds' '0' ([string]$r.Code)

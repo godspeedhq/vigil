@@ -19,6 +19,9 @@
 
     Invoke-VigilDoctor -Root <dir>
         Returns @{ Code; Lines }: Code is 1 when any line is WARN, else 0.
+    Get-VigilDoctorOpen -Root <dir>
+        The files and folders Vigil runs or reads its jobs from that a group
+        of everyone may write: @{ Open; Hidden }.
     Test-VigilNativeImages
         Whether Windows PowerShell starts with .NET's native images (NGEN).
         Returns @{ Ok; Text }. Used by doctor and by precheck.
@@ -31,6 +34,46 @@
 #>
 
 $Script:VigilDoctorShells = @('powershell', 'pwsh', 'cmd', 'bash', 'sh')
+
+# Who may change what Vigil runs (16.7): the root's own folder, and app\,
+# vendor\, packs\, scripts\ and config\ with all they hold, with an access
+# rule that lets a group of everyone write: Everyone, Authenticated Users,
+# Users, Interactive, Guests or Domain Users. @{ Open, "<path>: <who>" each;
+# Hidden, the folders this account could not look into }.
+function Get-VigilDoctorOpen {
+    param([string]$Root)
+    $r = @{ Open = (New-Object 'System.Collections.Generic.List[string]'); Hidden = (New-Object 'System.Collections.Generic.List[string]') }
+    $broad = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4', 'S-1-5-32-546')
+    $rights = [System.Security.AccessControl.FileSystemRights]
+    $write = [int]($rights::WriteData -bor $rights::AppendData -bor $rights::WriteExtendedAttributes -bor $rights::WriteAttributes -bor
+        $rights::Delete -bor $rights::DeleteSubdirectoriesAndFiles -bor $rights::ChangePermissions -bor $rights::TakeOwnership)
+    $items = New-Object 'System.Collections.Generic.List[string]'
+    if ([System.IO.Directory]::Exists($Root)) { $items.Add($Root) }
+    foreach ($d in 'app', 'vendor', 'packs', 'scripts', 'config') {
+        $p = Join-Path $Root $d
+        if (-not [System.IO.Directory]::Exists($p)) { continue }
+        $items.Add($p)
+        try { foreach ($e in [System.IO.Directory]::GetFileSystemEntries($p, '*', 'AllDirectories')) { $items.Add($e) } }
+        catch { $r.Hidden.Add($p) }
+    }
+    foreach ($i in $items) {
+        try { $acl = Get-Acl -LiteralPath $i -ErrorAction Stop }
+        catch { continue }
+        $who = @()
+        foreach ($a in $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])) {
+            if ($a.AccessControlType -ne 'Allow' -or -not ([int]$a.FileSystemRights -band $write)) { continue }
+            # A folder's rule for what it holds only says nothing of the folder itself.
+            if ($a.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly) { continue }
+            $sid = $a.IdentityReference.Value
+            if ($broad -notcontains $sid -and $sid -notmatch '^S-1-5-21-.+-513$') { continue }
+            $name = $sid
+            try { $name = $a.IdentityReference.Translate([System.Security.Principal.NTAccount]).Value } catch { }
+            if ($who -notcontains $name) { $who += $name }
+        }
+        if ($who.Count) { $r.Open.Add("${i}: $($who -join ', ')") }
+    }
+    return $r
+}
 
 function Test-VigilNativeImages {
     $fix = 'every start compiles .NET itself; from an elevated prompt run ngen.exe executeQueuedItems in %WINDIR%\Microsoft.NET\Framework64\v4.0.30319 and Framework\v4.0.30319'
@@ -232,6 +275,19 @@ function Invoke-VigilDoctor {
         $text = "${label}: $($cpu.ToString('0.00', $inv)) CPU s, $($wall.ToString('0.00', $inv)) s"
         if ($wall -gt 1) { & $warn "$text, above 1 s: every run starts it" } else { & $ok $text }
     }
+
+    # Who can change what Vigil runs: whoever can write its folders can
+    # change what it runs, as the account it runs as.
+    $out.Add('')
+    $out.Add('Who can change what Vigil runs')
+    $o = Get-VigilDoctorOpen -Root $Root
+    if ($o.Open.Count) {
+        & $warn "$($o.Open.Count) of its files and folders can be written by others than their owner, SYSTEM and Administrators, who can then change what Vigil runs: take those rights away"
+        foreach ($l in @($o.Open | Select-Object -First 5)) { $out.Add("        $l") }
+        if ($o.Open.Count -gt 5) { $out.Add("        and $($o.Open.Count - 5) more") }
+    }
+    elseif (-not $o.Hidden.Count) { & $ok 'only their owners, SYSTEM and Administrators can change app, vendor, packs, scripts and config' }
+    foreach ($h in $o.Hidden) { & $note "cannot look into $h from this account: run this as the account Vigil runs as, or elevated, to check it" }
 
     $out.Add('')
     $out.Add('Windows')
