@@ -971,12 +971,17 @@ else
                 bash "$root/packs/kafka/$1.sh" > "$work/k2.$1" 2>&1
             echo $?
         }
-        # The metric lines of job $1's last run through Vigil, values apart.
+        # Metric lines, values apart, without those only Kafka 4's library
+        # gives (fenced brokers, eligible leader replicas), and metadata.version
+        # by its level alone (a library names only the versions it knows): the same from
+        # either library, then.
+        knames() { awk '$1 == "metric" && $2 == "metadata_version" { print "metric metadata_version"; next } $1 == "metric" && $2 !~ /^(fenced|brokers_fenced|with_eligible_leaders)$/ { $3 = ""; print }' | sort; }
+        # Those of job $1's last run through Vigil.
         klast() {
             local f rid
             f=$(ls "$root/logs/jobs/$1"/*.log | tail -n 1)
             rid=$(tail -n 1 "$f" | awk '{ print $2 }')
-            grep " $rid out metric " "$f" | sed 's/^[^ ]* [^ ]* out //' | awk '{ $3 = ""; print }' | sort
+            grep " $rid out metric " "$f" | sed 's/^[^ ]* [^ ]* out //' | knames
         }
         failed='' same=''
         for j in $kjobs; do [ "$(kdirect "$j")" = 0 ] || failed="$failed $j"; done
@@ -985,7 +990,7 @@ else
         for j in status brokers replication topics config security features throughput controller; do
             kruns "kafka_$j" > /dev/null
             kdirect "$j" > /dev/null
-            awk '$1 == "metric" { $3 = ""; print }' "$work/k2.$j" | sort > "$work/k2.names"
+            knames < "$work/k2.$j" > "$work/k2.names"
             klast "kafka_$j" > "$work/k1.names"
             cmp -s "$work/k1.names" "$work/k2.names" || { same="$same $j"; diff "$work/k1.names" "$work/k2.names" | head -n 6 | sed 's/^/        /'; }
         done
