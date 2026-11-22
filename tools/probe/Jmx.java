@@ -7,10 +7,10 @@
 // for any claim, damages or other liability arising from its use. See the
 // LICENSE file for the full terms.
 //
-// Jmx.java - the shared JMX engine (tools/jmx/DESIGN.md): what every pack for
-// a Java application needs of JMX. A pack's generator copies it into the
-// pack's _client.java, after the pack's own client, so each pack stands
-// alone. It connects over RMI, plain or TLS, with a login; checks every
+// Jmx.java - the probe's JMX engine (tools/probe/DESIGN.md): what every pack
+// for a Java application needs of JMX. tools/probe/gen.py merges it with
+// Probe.java into _probe.java, which packs carry and their release builds
+// into _probe.jar. It connects over RMI, plain or TLS, with a login; checks every
 // certificate, its chain and its name; gives up in time; reads MBeans by
 // tables of rows; and prints Vigil's metric lines. It reads only.
 
@@ -352,6 +352,8 @@ final class Jmx {
         String[] fixed = new String[0];
         /** A value below this is no reading (a figure not yet measured): not printed. */
         double floor = Double.NEGATIVE_INFINITY;
+        /** The MBeans that match, added up by their tags: one line for each. */
+        boolean sum;
 
         /** Its value times s: 0.001 for ns to µs, 100 for a fraction to a percent. */
         Row scale(double s) {
@@ -362,6 +364,12 @@ final class Jmx {
         /** Values below f are not printed: -1 for "never", or worse. */
         Row atLeast(double f) {
             floor = f;
+            return this;
+        }
+
+        /** The MBeans that match added up, one line for each set of tags. */
+        Row sum() {
+            sum = true;
             return this;
         }
 
@@ -397,7 +405,7 @@ final class Jmx {
             SortedSet<ObjectName> names = found.computeIfAbsent(r.pattern, p -> on(p).isPattern() ? query(m, p) : exists(m, p));
             int n = 0;
             for (ObjectName o : names) {
-                if (++n > LIST_CAP) break;
+                if (++n > LIST_CAP && !r.sum) break;
                 wanted.computeIfAbsent(o, x -> new LinkedHashSet<>()).add(r.attribute);
             }
         }
@@ -414,6 +422,10 @@ final class Jmx {
         }
         for (Row r : rows) {
             SortedSet<ObjectName> names = found.get(r.pattern);
+            if (r.sum) {
+                sum(r, names, values, tags);
+                continue;
+            }
             int n = 0;
             for (ObjectName o : names) {
                 if (++n > LIST_CAP) break;
@@ -429,6 +441,32 @@ final class Jmx {
             }
             if (names.size() > LIST_CAP) metric(r.metric + "_not_shown", names.size() - LIST_CAP, tags);
         }
+    }
+
+    /** Row r's MBeans, added up by the tags they print with: one line each, up to LIST_CAP. */
+    static void sum(Row r, SortedSet<ObjectName> names, Map<ObjectName, Map<String, Object>> values, String[] tags) {
+        Map<List<String>, double[]> by = new TreeMap<>(Comparator.comparing(Object::toString));
+        for (ObjectName o : names) {
+            Number v = number(values.getOrDefault(o, Collections.emptyMap()).get(r.attribute), r.key);
+            if (v == null) continue;
+            List<String> k = new ArrayList<>();
+            for (String t : r.tags) k.add(o.getKeyProperty(t));
+            by.computeIfAbsent(k, x -> new double[1])[0] += v.doubleValue();
+        }
+        int n = 0;
+        for (Map.Entry<List<String>, double[]> e : by.entrySet()) {
+            if (++n > LIST_CAP) break;
+            double v = e.getValue()[0] * r.scale;
+            if (v < r.floor) continue;
+            String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length + r.fixed.length);
+            for (int i = 0; i < r.tags.length; i++) {
+                all[tags.length + 2 * i] = r.tags[i];
+                all[tags.length + 2 * i + 1] = e.getKey().get(i);
+            }
+            System.arraycopy(r.fixed, 0, all, tags.length + 2 * r.tags.length, r.fixed.length);
+            metric(r.metric, v, all);
+        }
+        if (by.size() > LIST_CAP) metric(r.metric + "_not_shown", by.size() - LIST_CAP, tags);
     }
 
     /** The one MBean named, or none. */

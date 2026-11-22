@@ -27,13 +27,13 @@ So `kafka_jvm` goes. Its JVM half is the jvm pack's. Its Kafka half (log flush t
 
 Two things that look like duplicates and are not: "is it up" asked of the service (does Kafka answer?) and of the process (is the JVM running?) are different questions, since a JVM can run while Kafka does not answer. And a Kafka-specific reading of a JVM figure (open files near the limit kills a broker) is said in the kafka pack's docs, pointing at `jvm_process open_files`, never reported again.
 
-## One client, ours
+## Two jars, both ours: the probe, and a client for the admin API
 
-Like the jvm pack: one Java source file, `_client.java`, and the release compiles it into `_client.jar` (`tools/release/client-jar.sh`):
-
-- **Ours only.** The jar holds the classes we write, and nothing of Kafka's or anyone's. No third-party jar is ever shipped.
-- **Built by the release**, never committed; Java 11 bytecode; the same bytes from the same source and `javac`; its SHA-256 and `javac` written into every script; checked before every run; covered by `vigil pack verify` and `vigil doctor`. A copy of the pack from the repository, with no jar, runs the source on a JDK.
-- **One JVM a run.** A job starts Java once: the admin API for the cluster's view, JMX for each broker's own figures, then it prints its lines and ends.
+- **`_probe.jar`, the generic tool** (`tools/probe/DESIGN.md`), the same file every application pack carries. The four jobs that only read the brokers' JMX (`kafka_throughput`, `kafka_requests`, `kafka_controller`, `kafka_connections`) are tables in the pack's `_probe.tables`, run by it. They need no Kafka library: Java and the brokers' JMX.
+- **`_client.jar`, Kafka's admin API**: one Java source file, `_client.java`, the jobs that ask the cluster (the other 14). It is compiled with `_probe.jar` on its class path and run with it, so `kafka_logdirs` reads the brokers' flushes and log cleaner through the probe's engine without a copy of it.
+- **Ours only.** The jars hold the classes we write, and nothing of Kafka's or anyone's. No third-party jar is ever shipped.
+- **Built by the release**, never committed; Java 11 bytecode; the same bytes from the same source and `javac`; each jar's SHA-256 and `javac` written into the scripts that run it; checked before every run; covered by `vigil pack verify` and `vigil doctor`. A copy of the pack from the repository has no jars and does not run: its scripts say so.
+- **One JVM a run.** A job starts Java once, prints its lines and ends.
 - **Structured answers.** Kafka's admin API returns objects, not text.
 
 **Kafka's library is the user's.** The admin API needs `kafka-clients` and what it uses (lz4, snappy, zstd, slf4j). The person installing the pack supplies them and says where:
@@ -41,7 +41,7 @@ Like the jvm pack: one Java source file, `_client.java`, and the release compile
 - `KAFKA_HOME`: a Kafka download; its `libs/` has them all;
 - or `KAFKA_LIBS`: a folder of just those jars.
 
-A script runs `java -cp <_client.jar><sep><libs>/* KafkaClient <job>`. No `kafka-clients-*.jar` there is a clear error naming the setting, never a Java stack trace. The README advises the newest Kafka download, whatever the cluster runs.
+An admin job's script runs `java -cp <_client.jar><sep><_probe.jar><sep><libs>/* KafkaClient <job>`; a JMX job's, `java -cp <_probe.jar> Probe _probe.tables <job>`, with no library. No `kafka-clients-*.jar` where an admin job looks is a clear error naming the setting, never a Java stack trace. The README advises the newest Kafka download, whatever the cluster runs.
 
 **Compiled against Kafka's API, never shipping it.** The release downloads the `kafka-clients` jar the client is compiled against from Maven Central, checks it against a SHA-256 pinned in the repository (`tools/kafka/client.lib`), and compiles with it on the class path: like compiling against the JDK. That jar never enters the archive. `client-jar.sh` gains this: a pack may name the libraries its client compiles against.
 
@@ -108,7 +108,7 @@ Worked out again from what someone running Kafka asks, not from what the tools p
 | | `kafka_features` | 15m | admin |
 | | `kafka_tls` | 1h | TLS handshake |
 
-The JMX jobs are tables run by the shared JMX engine (`tools/jmx/DESIGN.md`): an MBean pattern, its attributes, the metric names, the tags. A row whose MBean a broker does not have (ZooKeeper's metrics on Kafka 4, KRaft's on ZooKeeper) is simply not reported. Each broker is named by its id, read from its own MBeans, and each JMX metric also carries `jmx=<host:port>`.
+The JMX jobs are tables run by the probe (`tools/probe/DESIGN.md`): an MBean pattern, its attributes, the metric names, the tags. A row whose MBean a broker does not have (ZooKeeper's metrics on Kafka 4, KRaft's on ZooKeeper) is simply not reported. Each broker is named by its id, read from its own MBeans, and each JMX metric also carries `jmx=<host:port>`.
 
 ## Rules every job keeps
 
@@ -130,9 +130,9 @@ On the Fedora test machine, in Docker, as for 1.0 and the jvm pack: the four clu
 
 ## Order of work
 
-1. The shared JMX engine, `tools/jmx/` (its own design).
-2. `client-jar.sh`: libraries a client compiles against, pinned by SHA-256.
+1. The probe, `tools/probe/` (its own design): the JMX engine, its `main`, and tables.
+2. `client-jar.sh`: libraries a client compiles against, pinned by SHA-256; every `_*.java` in a folder built into its jar, the probe first.
 3. The kafka client: settings, connection and the admin jobs.
-4. The JMX jobs, as tables.
+4. The JMX jobs, as `_probe.tables`.
 5. The generator, scripts and `pack.config`; the README section.
 6. The test clusters (2.8 and 3.9 on ZooKeeper, 3.9 and 4.x in KRaft mode), then the tests on every platform.

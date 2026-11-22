@@ -7,13 +7,15 @@
 // for any claim, damages or other liability arising from its use. See the
 // LICENSE file for the full terms.
 //
-// _client.java - the kafka pack's client (tools/kafka/DESIGN.md): every job
-// of the pack, on every platform, so each prints the same lines on Linux,
-// macOS and Windows. It asks Kafka's admin API what any Kafka admin would, as
-// a user that may only describe, and reads each broker's own figures over JMX
-// through the shared engine (tools/jmx), which follows it in this file. It
-// reports Kafka's, never the JVM's: the broker's heap, garbage collection,
-// threads, CPU and open files are the jvm pack's.
+// _client.java - the kafka pack's client (tools/kafka/DESIGN.md): the jobs
+// that ask the cluster, on every platform, so each prints the same lines on
+// Linux, macOS and Windows. It asks Kafka's admin API what any Kafka admin
+// would, as a user that may only describe; kafka_logdirs reads each broker's
+// flushes and log cleaner over JMX too, through the probe's engine
+// (_probe.jar, on the class path: tools/probe). The jobs that only read the
+// brokers' JMX are the probe's own, from _probe.tables. It reports Kafka's,
+// never the JVM's: the broker's heap, garbage collection, threads, CPU and
+// open files are the jvm pack's.
 //
 // Kafka's library is not in the pack: the script puts the user's on the
 // class path (KAFKA_HOME/libs, or KAFKA_LIBS), any kafka-clients from 3.x or
@@ -48,10 +50,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import javax.management.*;
-import javax.management.openmbean.*;
-import javax.management.remote.*;
 import javax.net.ssl.*;
-import javax.rmi.ssl.SslRMIClientSocketFactory;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.*;
@@ -141,7 +140,15 @@ class KafkaClient {
 
     /** Kafka's admin client, configured in memory: the password never touches a file. */
     static Admin admin() {
-        if (admin != null) return admin;
+        if (admin == null) admin = Admin.create(props());
+        return admin;
+    }
+
+    static Properties props;
+
+    /** The admin client's configuration, from the settings, in memory. */
+    static Properties props() {
+        if (props != null) return props;
         Properties p = new Properties();
         String own = env("KAFKA_CLIENT_CONFIG");
         if (!own.isEmpty()) {
@@ -194,8 +201,8 @@ class KafkaClient {
         p.putIfAbsent("request.timeout.ms", "15000");
         p.putIfAbsent("default.api.timeout.ms", "30000");
         p.putIfAbsent("retry.backoff.ms", "500");
-        admin = Admin.create(p);
-        return admin;
+        props = p;
+        return p;
     }
 
     /** A value inside a JAAS line's quotes. */
@@ -443,10 +450,6 @@ class KafkaClient {
         JOBS.put("security", Jobs::security);
         JOBS.put("features", Jobs::features);
         JOBS.put("tls", Jobs::tls);
-        JOBS.put("throughput", Jobs::throughput);
-        JOBS.put("requests", Jobs::requests);
-        JOBS.put("controller", Jobs::controller);
-        JOBS.put("connections", Jobs::connections);
     }
 
     static void metric(String name, Number v, String... tags) { Jmx.metric(name, v, tags); }
@@ -516,34 +519,6 @@ class KafkaClient {
             }
             metric("max_follower_lag", maxLag);
             metric("max_follower_lag_ms", maxLagMs);
-        }
-
-        static void controller() {
-            List<Jmx.Row> rows = Arrays.asList(
-                    Jmx.row("brokers", "kafka.controller:type=KafkaController,name=ActiveBrokerCount", "Value"),
-                    Jmx.row("fenced_brokers", "kafka.controller:type=KafkaController,name=FencedBrokerCount", "Value"),
-                    Jmx.row("topics", "kafka.controller:type=KafkaController,name=GlobalTopicCount", "Value"),
-                    Jmx.row("partitions", "kafka.controller:type=KafkaController,name=GlobalPartitionCount", "Value"),
-                    Jmx.row("offline_partitions", "kafka.controller:type=KafkaController,name=OfflinePartitionsCount", "Value"),
-                    Jmx.row("preferred_imbalance", "kafka.controller:type=KafkaController,name=PreferredReplicaImbalanceCount", "Value"),
-                    Jmx.row("metadata_errors", "kafka.controller:type=KafkaController,name=MetadataErrorCount", "Value"),
-                    Jmx.row("metadata_lag_ms", "kafka.controller:type=KafkaController,name=LastAppliedRecordLagMs", "Value"),
-                    Jmx.row("timed_out_heartbeats", "kafka.controller:type=KafkaController,name=TimedOutBrokerHeartbeatCount", "Value"),
-                    Jmx.row("controller_changes", "kafka.controller:type=KafkaController,name=NewActiveControllersCount", "Value"),
-                    Jmx.row("elections_count", "kafka.controller:type=ControllerStats,name=LeaderElectionRateAndTimeMs", "Count"),
-                    Jmx.row("unclean_elections_count", "kafka.controller:type=ControllerStats,name=UncleanLeaderElectionsPerSec", "Count"),
-                    Jmx.row("eligible_leader_elections_count", "kafka.controller:type=ControllerStats,name=ElectionFromEligibleLeaderReplicasPerSec", "Count"),
-                    Jmx.row("event_queue", "kafka.controller:type=ControllerEventManager,name=EventQueueSize", "Value"),
-                    Jmx.row("event_queue_ms_p99", "kafka.controller:type=ControllerEventManager,name=EventQueueTimeMs", "99thPercentile"));
-            for (Jmx.Target t : jmx()) {
-                if (t.mbs() == null) continue;
-                Object a = Jmx.attr(t.mbs(), "kafka.controller:type=KafkaController,name=ActiveControllerCount", "Value");
-                Number n = Jmx.number(a, null);
-                if (n == null) continue;
-                boolean active = n.doubleValue() > 0;
-                metric("active_controller", active, broker(t));
-                if (active) Jmx.table(t, rows, broker(t));
-            }
         }
 
         // Is the data safe?
@@ -849,68 +824,6 @@ class KafkaClient {
             jmxTable(rows);
         }
 
-        // Is it fast, or saturated?
-
-        static void throughput() {
-            String[][] m = {
-                    { "messages_in_count", "MessagesInPerSec" }, { "bytes_in_count", "BytesInPerSec" },
-                    { "bytes_out_count", "BytesOutPerSec" }, { "bytes_rejected_count", "BytesRejectedPerSec" },
-                    { "replication_bytes_in_count", "ReplicationBytesInPerSec" }, { "replication_bytes_out_count", "ReplicationBytesOutPerSec" },
-                    { "produce_requests_count", "TotalProduceRequestsPerSec" }, { "fetch_requests_count", "TotalFetchRequestsPerSec" },
-                    { "failed_produce_requests_count", "FailedProduceRequestsPerSec" }, { "failed_fetch_requests_count", "FailedFetchRequestsPerSec" },
-                    { "produce_conversions_count", "ProduceMessageConversionsPerSec" }, { "fetch_conversions_count", "FetchMessageConversionsPerSec" },
-                    { "invalid_crc_records_count", "InvalidMessageCrcRecordsPerSec" }, { "invalid_sequence_records_count", "InvalidOffsetOrSequenceRecordsPerSec" } };
-            List<Jmx.Row> rows = new ArrayList<>();
-            for (String[] x : m) rows.add(Jmx.row(x[0], "kafka.server:type=BrokerTopicMetrics,name=" + x[1], "Count"));
-            jmxTable(rows);
-        }
-
-        static void requests() {
-            List<Jmx.Row> rows = new ArrayList<>();
-            for (String r : new String[]{ "Produce", "FetchConsumer", "FetchFollower" }) {
-                String base = "kafka.network:type=RequestMetrics,name=";
-                rows.add(Jmx.row("total_ms_p99", base + "TotalTimeMs,request=" + r, "99thPercentile", "request"));
-                rows.add(Jmx.row("queue_ms_p99", base + "RequestQueueTimeMs,request=" + r, "99thPercentile", "request"));
-                rows.add(Jmx.row("remote_ms_p99", base + "RemoteTimeMs,request=" + r, "99thPercentile", "request"));
-                rows.add(Jmx.row("requests_count", base + "TotalTimeMs,request=" + r, "Count", "request"));
-            }
-            rows.add(Jmx.row("request_queue", "kafka.network:type=RequestChannel,name=RequestQueueSize", "Value"));
-            rows.add(Jmx.row("response_queue", "kafka.network:type=RequestChannel,name=ResponseQueueSize", "Value"));
-            rows.add(Jmx.row("purgatory", "kafka.server:type=DelayedOperationPurgatory,name=PurgatorySize,delayedOperation=Produce", "Value").with("operation", "produce"));
-            rows.add(Jmx.row("purgatory", "kafka.server:type=DelayedOperationPurgatory,name=PurgatorySize,delayedOperation=Fetch", "Value").with("operation", "fetch"));
-            // The idle shares are fractions, 0 to 1: as percents.
-            rows.add(Jmx.row("handler_idle_pct", "kafka.server:type=KafkaRequestHandlerPool,name=RequestHandlerAvgIdlePercent", "OneMinuteRate").scale(100));
-            rows.add(Jmx.row("network_idle_pct", "kafka.network:type=SocketServer,name=NetworkProcessorAvgIdlePercent", "Value").scale(100));
-            jmxTable(rows);
-        }
-
-        static void connections() {
-            String[][] m = { { "connections", "connection-count" }, { "created_count", "connection-creation-total" },
-                    { "logins_count", "successful-authentication-total" }, { "failed_logins_count", "failed-authentication-total" },
-                    { "failed_relogins_count", "failed-reauthentication-total" } };
-            for (Jmx.Target t : jmx()) {
-                if (t.mbs() == null) continue;
-                // Each listener's network processors, added up.
-                Map<String, double[]> byListener = new TreeMap<>();
-                for (ObjectName o : Jmx.query(t.mbs(), "kafka.server:type=socket-server-metrics,listener=*,networkProcessor=*")) {
-                    double[] sum = byListener.computeIfAbsent(o.getKeyProperty("listener"), k -> new double[m.length]);
-                    for (int i = 0; i < m.length; i++) {
-                        Number v = Jmx.number(Jmx.attr(t.mbs(), o.toString(), m[i][1]), null);
-                        if (v != null) sum[i] += v.doubleValue();
-                    }
-                }
-                for (Map.Entry<String, double[]> e : byListener.entrySet()) {
-                    for (int i = 0; i < m.length; i++) {
-                        String[] tags = broker(t);
-                        String[] all = Arrays.copyOf(tags, tags.length + 2);
-                        all[tags.length] = "listener";
-                        all[tags.length + 1] = e.getKey();
-                        metric(m[i][0], e.getValue()[i], all);
-                    }
-                }
-            }
-        }
-
         // What is stuck?
 
         static void reassignment() {
@@ -1107,13 +1020,22 @@ class KafkaClient {
          * against KAFKA_CACERT or Java's CAs, and its name. Nothing is sent.
          */
         static void tls() {
-            Collection<Node> ns = nodes();
+            props();
             boolean tls = protocol.endsWith("SSL");
             metric("tls", tls);
             if (!tls) return;
-            List<String> eps = new ArrayList<>();
-            for (Node n : ns) eps.add(n.host() + ":" + n.port());
-            Collections.sort(eps);
+            // The brokers it was given, and those the cluster lists when it
+            // answers. One it will not trust still gives its certificate, to
+            // be reported untrusted: that is no reason to fail the run.
+            Set<String> found = new TreeSet<>();
+            for (String b : props().getProperty("bootstrap.servers", "").split(",")) if (!b.trim().isEmpty()) found.add(b.trim());
+            try {
+                DescribeClusterOptions o = new DescribeClusterOptions().timeoutMs(15000);
+                for (Node n : admin().describeCluster(o).nodes().get(20, TimeUnit.SECONDS)) found.add(n.host() + ":" + n.port());
+            } catch (Exception e) {
+                Jmx.say("the brokers' list: " + Jmx.rootMessage(e) + "; their certificates are read from KAFKA_BOOTSTRAP's");
+            }
+            List<String> eps = new ArrayList<>(found);
             metric("endpoints", eps.size());
             X509TrustManager trust;
             try { trust = trustManager(); } catch (Exception e) { Jmx.fail("KAFKA_CACERT: " + Jmx.rootMessage(e)); return; }
@@ -1205,420 +1127,5 @@ class KafkaClient {
 
     static void jmxTable(List<Jmx.Row> rows) {
         for (Jmx.Target t : jmx()) Jmx.table(t, rows, broker(t));
-    }
-}
-
-// ---- the shared JMX engine, tools/jmx/Jmx.java (tools/jmx/DESIGN.md), as
-// it is in the repository: every Java application pack carries the same copy.
-final class Jmx {
-
-    private Jmx() { }
-
-    // ---- the run: output, messages, exit code -------------------------------
-
-    /** The job, for messages. */
-    static String job = "jmx";
-    static final PrintStream OUT = new PrintStream(new FileOutputStream(FileDescriptor.out), false);
-    /** 0, or 1 once fail was called. */
-    static int exitCode = 0;
-    /** The most of one list a run prints; the rest are counted. */
-    static final int LIST_CAP = 100;
-
-    /** A tag's value: no spaces, control characters or quotes, never empty. */
-    static String tag(String v) {
-        if (v == null) return "none";
-        String s = v.replaceAll("['\"`]", "").replaceAll("[\\s\\p{Cntrl}]", "_");
-        if (s.length() > 120) s = s.substring(0, 120);
-        return s.isEmpty() ? "none" : s;
-    }
-
-    /** A number as a metric value: no exponent, at most 4 decimals; null when it is none. */
-    static String num(double v) {
-        if (Double.isNaN(v) || Double.isInfinite(v)) return null;
-        if (v == Math.rint(v) && Math.abs(v) < 1e15) return Long.toString((long) v);
-        String s = String.format(Locale.ROOT, "%.4f", v);
-        s = s.replaceAll("0+$", "");
-        return s.endsWith(".") ? s.substring(0, s.length() - 1) : s;
-    }
-
-    /** metric <name> <value> <tag>=<value>...; nothing when v is not a number. */
-    static void metric(String name, Number v, String... tags) {
-        if (v == null) return;
-        String n = num(v.doubleValue());
-        if (n == null) return;
-        StringBuilder b = new StringBuilder("metric ").append(name).append(' ').append(n);
-        for (int i = 0; i + 1 < tags.length; i += 2) b.append(' ').append(tags[i]).append('=').append(tag(tags[i + 1]));
-        OUT.println(b);
-    }
-
-    static void metric(String name, boolean v, String... tags) { metric(name, v ? 1 : 0, tags); }
-
-    static void say(String msg) {
-        OUT.flush();
-        System.err.println(job + ": " + msg);
-    }
-
-    /** Says why, and makes the run fail (exit 1), after what could be printed. */
-    static void fail(String msg) {
-        say(msg);
-        exitCode = 1;
-    }
-
-    static String env(String k) {
-        String v = System.getenv(k);
-        return v == null ? "" : v.trim();
-    }
-
-    /** The innermost message of t and its causes, on one line. */
-    static String rootMessage(Throwable t) {
-        String m = String.valueOf(t);
-        for (; t != null; t = t.getCause()) if (t.getMessage() != null) m = t.getClass().getSimpleName() + ": " + t.getMessage();
-        m = m.replaceAll("[\\r\\n]+", " ");
-        return m.length() > 300 ? m.substring(0, 300) : m;
-    }
-
-    static boolean hasCause(Throwable t, Class<?> c) {
-        for (; t != null; t = t.getCause()) if (c.isInstance(t)) return true;
-        return false;
-    }
-
-    // ---- settings, named by the pack ------------------------------------------
-
-    static String userVar = "JMX_USER", passwordVar = "JMX_PASSWORD", cacertVar = "JMX_CACERT";
-
-    /** The names of the pack's settings: the JMX user, its password (a secret), the CA file. */
-    static void settings(String user, String password, String cacert) {
-        userVar = user;
-        passwordVar = password;
-        cacertVar = cacert;
-    }
-
-    // ---- targets ----------------------------------------------------------------
-
-    static final class Target {
-        /** host:port. */
-        final String address;
-        final boolean tls;
-        /** What the application says it is, once known; else its address. */
-        String name;
-        JMXConnector conn;
-        MBeanServerConnection mbs;
-        boolean tried;
-
-        Target(String address, boolean tls) {
-            this.address = address;
-            this.tls = tls;
-            this.name = address;
-        }
-
-        /** Its MBean server, connecting the first time; null when it cannot be had (said why). */
-        MBeanServerConnection mbs() {
-            if (!tried) {
-                tried = true;
-                mbs = connect(this);
-            }
-            return mbs;
-        }
-
-        void close() {
-            if (conn != null) try { conn.close(); } catch (Exception e) { /* gone already */ }
-            conn = null;
-            mbs = null;
-        }
-    }
-
-    /**
-     * The targets in setting var: jmx=host:port or jmxs=host:port (TLS),
-     * separated by ; or , and a bare host:port as jmx=. Empty: none.
-     */
-    static List<Target> targets(String var) {
-        List<Target> ts = new ArrayList<>();
-        for (String part : env(var).split("[;,]")) {
-            String p = part.trim();
-            if (p.isEmpty()) continue;
-            boolean tls = false;
-            if (p.startsWith("jmxs=")) { tls = true; p = p.substring(5).trim(); }
-            else if (p.startsWith("jmx=")) p = p.substring(4).trim();
-            if (!p.matches("[^\\s:=]+:[0-9]{1,5}") && !p.matches("\\[[0-9A-Fa-f:.]+\\]:[0-9]{1,5}")) {
-                throw new IllegalArgumentException(var + ": not jmx=host:port or jmxs=host:port: " + part.trim());
-            }
-            ts.add(new Target(p, tls));
-        }
-        return ts;
-    }
-
-    static void closeAll(List<Target> ts) {
-        for (Target t : ts) t.close();
-    }
-
-    /** jmx_up 1 or 0 for t, with its tags. */
-    static void up(Target t, String... tags) {
-        metric("jmx_up", t.mbs() != null, tags);
-    }
-
-    // ---- connecting ---------------------------------------------------------------
-
-    static boolean timeoutsSet;
-
-    /** Connects to t: its MBean server, or null, saying why (and failing the run for a refused login or certificate). */
-    static MBeanServerConnection connect(Target t) {
-        if (!timeoutsSet) {
-            // Every remote call gives up in time: the run is not left hanging.
-            System.setProperty("sun.rmi.transport.connectionTimeout", "10000");
-            System.setProperty("sun.rmi.transport.tcp.responseTimeout", "20000");
-            System.setProperty("sun.rmi.transport.tcp.handshakeTimeout", "10000");
-            timeoutsSet = true;
-        }
-        String url = "service:jmx:rmi:///jndi/rmi://" + t.address + "/jmxrmi";
-        Map<String, Object> envm = new HashMap<>();
-        String user = env(userVar), pw = env(passwordVar);
-        if (!user.isEmpty() || !pw.isEmpty()) envm.put(JMXConnector.CREDENTIALS, new String[]{ user, pw });
-        if (t.tls) {
-            try { tls(); } catch (Exception e) { fail(cacertVar + ": " + e.getMessage()); return null; }
-            envm.put("com.sun.jndi.rmi.factory.socket", new SslRMIClientSocketFactory());
-        }
-        ExecutorService ex = Executors.newSingleThreadExecutor(r -> { Thread th = new Thread(r); th.setDaemon(true); return th; });
-        try {
-            Future<JMXConnector> f = ex.submit(() -> JMXConnectorFactory.connect(new JMXServiceURL(url), envm));
-            t.conn = f.get(30, TimeUnit.SECONDS);
-            return t.conn.getMBeanServerConnection();
-        } catch (java.util.concurrent.TimeoutException e) {
-            say("JMX at " + t.address + " did not answer in 30 seconds");
-        } catch (IOException e) {
-            say("JMX at " + t.address + " does not answer: " + rootMessage(e));
-        } catch (ExecutionException e) {
-            Throwable c = e.getCause();
-            String why = rootMessage(c);
-            if (c instanceof SecurityException || why.contains("Authentication failed") || why.contains("Invalid credentials")
-                    || why.contains("Credentials required")) {
-                fail("JMX at " + t.address + " refused the login: " + why + " (" + userVar + ", and the secret behind " + passwordVar + ")");
-            } else if (hasCause(c, CertificateException.class) || why.contains("PKIX") || why.contains("certificate")) {
-                fail("JMX at " + t.address + ": its certificate is not trusted, or does not name it: " + why + " (" + cacertVar + ")");
-            } else if (t.tls && hasCause(c, SSLException.class)) {
-                fail("JMX at " + t.address + " does not speak TLS: " + why + " (jmxs= is for JMX over TLS, jmx= for plain)");
-            } else {
-                say("JMX at " + t.address + " does not answer: " + why);
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } finally {
-            ex.shutdownNow();
-        }
-        return null;
-    }
-
-    static boolean tlsReady;
-
-    /** TLS that checks the chain and the name: the pack's CAs, or Java's own. */
-    static void tls() throws Exception {
-        if (tlsReady) return;
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        String ca = env(cacertVar);
-        if (ca.isEmpty()) {
-            tmf.init((KeyStore) null);
-        } else {
-            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-            ks.load(null, null);
-            CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            int i = 0;
-            try (InputStream in = new FileInputStream(ca)) {
-                for (java.security.cert.Certificate c : cf.generateCertificates(in)) ks.setCertificateEntry("ca" + i++, c);
-            }
-            if (i == 0) throw new IOException(ca + " holds no certificate");
-            tmf.init(ks);
-        }
-        X509TrustManager inner = null;
-        for (TrustManager m : tmf.getTrustManagers()) if (m instanceof X509TrustManager) inner = (X509TrustManager) m;
-        final X509TrustManager chain = inner;
-        X509ExtendedTrustManager named = new X509ExtendedTrustManager() {
-            public void checkServerTrusted(X509Certificate[] c, String a, Socket s) throws CertificateException {
-                chain.checkServerTrusted(c, a);
-                String host = s.getInetAddress() == null ? null : hostOf(s);
-                if (host != null) checkName(c[0], host);
-            }
-            public void checkServerTrusted(X509Certificate[] c, String a, SSLEngine e) throws CertificateException {
-                chain.checkServerTrusted(c, a);
-                if (e.getPeerHost() != null) checkName(c[0], e.getPeerHost());
-            }
-            public void checkServerTrusted(X509Certificate[] c, String a) throws CertificateException {
-                // No socket, no name to check: refused.
-                throw new CertificateException("no host to check the certificate's name against");
-            }
-            public void checkClientTrusted(X509Certificate[] c, String a, Socket s) throws CertificateException { throw new CertificateException("not a server"); }
-            public void checkClientTrusted(X509Certificate[] c, String a, SSLEngine e) throws CertificateException { throw new CertificateException("not a server"); }
-            public void checkClientTrusted(X509Certificate[] c, String a) throws CertificateException { throw new CertificateException("not a server"); }
-            public X509Certificate[] getAcceptedIssuers() { return chain.getAcceptedIssuers(); }
-        };
-        SSLContext ctx = SSLContext.getInstance("TLS");
-        ctx.init(null, new TrustManager[]{ named }, null);
-        SSLContext.setDefault(ctx);
-        tlsReady = true;
-    }
-
-    /** The name the socket was opened to, else its address. */
-    static String hostOf(Socket s) {
-        if (s instanceof SSLSocket) {
-            SSLSession hs = ((SSLSocket) s).getHandshakeSession();
-            if (hs != null && hs.getPeerHost() != null) return hs.getPeerHost();
-        }
-        return s.getInetAddress().getHostAddress();
-    }
-
-    /** The certificate names host, as a DNS name (a wildcard for one label) or an IP address. */
-    static void checkName(X509Certificate c, String host) throws CertificateException {
-        String h = host.toLowerCase(Locale.ROOT).replace("[", "").replace("]", "");
-        boolean ip = h.matches("[0-9.]+") || h.contains(":");
-        Collection<List<?>> sans = c.getSubjectAlternativeNames();
-        if (sans != null) {
-            for (List<?> san : sans) {
-                int kind = (Integer) san.get(0);
-                String v = String.valueOf(san.get(1)).toLowerCase(Locale.ROOT);
-                if (ip && kind == 7) {
-                    try {
-                        if (InetAddress.getByName(v).equals(InetAddress.getByName(h))) return;
-                    } catch (UnknownHostException e) { /* not this one */ }
-                } else if (!ip && kind == 2) {
-                    if (v.equals(h)) return;
-                    if (v.startsWith("*.") && h.indexOf('.') > 0 && h.substring(h.indexOf('.')).equals(v.substring(1))) return;
-                }
-            }
-        }
-        throw new CertificateException("the certificate does not name " + host);
-    }
-
-    // ---- reading ------------------------------------------------------------------
-
-    static ObjectName on(String s) {
-        try { return new ObjectName(s); } catch (MalformedObjectNameException e) { throw new IllegalArgumentException(e); }
-    }
-
-    /** An attribute, or null when the MBean or the attribute is not there. */
-    static Object attr(MBeanServerConnection m, String name, String a) {
-        try { return m.getAttribute(on(name), a); } catch (Exception e) { return null; }
-    }
-
-    /** The MBeans matching a pattern, in order; none when there are none. */
-    static SortedSet<ObjectName> query(MBeanServerConnection m, String pattern) {
-        try { return new TreeSet<>(m.queryNames(on(pattern), null)); } catch (Exception e) { return new TreeSet<>(); }
-    }
-
-    /** A number from an attribute's value: itself, or key k of a composite one. */
-    static Number number(Object v, String k) {
-        if (k != null) {
-            if (!(v instanceof CompositeData)) return null;
-            CompositeData c = (CompositeData) v;
-            if (!c.containsKey(k)) return null;
-            v = c.get(k);
-        }
-        if (v instanceof Number) return (Number) v;
-        if (v instanceof Boolean) return ((Boolean) v) ? 1 : 0;
-        return null;
-    }
-
-    // ---- tables -------------------------------------------------------------------
-
-    /** One row of a table: an MBean's attribute as a metric. */
-    static final class Row {
-        final String metric, pattern, attribute, key;
-        final String[] tags;
-        double scale = 1;
-
-        Row(String metric, String pattern, String attribute, String[] tags) {
-            this.metric = metric;
-            this.pattern = pattern;
-            int dot = attribute.indexOf('.');
-            this.attribute = dot < 0 ? attribute : attribute.substring(0, dot);
-            this.key = dot < 0 ? null : attribute.substring(dot + 1);
-            this.tags = tags;
-        }
-
-        /** Fixed tags, after the MBean's own: name, value, ... */
-        String[] fixed = new String[0];
-        /** A value below this is no reading (a figure not yet measured): not printed. */
-        double floor = Double.NEGATIVE_INFINITY;
-
-        /** Its value times s: 0.001 for ns to µs, 100 for a fraction to a percent. */
-        Row scale(double s) {
-            scale = s;
-            return this;
-        }
-
-        /** Values below f are not printed: -1 for "never", or worse. */
-        Row atLeast(double f) {
-            floor = f;
-            return this;
-        }
-
-        /** Tags of its own, the same for every MBean it reads: name, value, ... */
-        Row with(String... tags) {
-            fixed = tags;
-            return this;
-        }
-    }
-
-    /**
-     * A row: metric, from the MBeans matching pattern, attribute (or
-     * attribute.key of a composite one), tagged with the MBean's own keys
-     * named in tags.
-     */
-    static Row row(String metric, String pattern, String attribute, String... tags) {
-        return new Row(metric, pattern, attribute, tags);
-    }
-
-    /**
-     * Prints the rows for target t: every MBean each matches, its value,
-     * tagged with tags first and then the MBean's own keys. An MBean that is
-     * not there prints nothing; one pattern's MBeans past LIST_CAP are
-     * counted in <metric>_not_shown. One round trip for each MBean, every
-     * attribute its rows want at once.
-     */
-    static void table(Target t, List<Row> rows, String... tags) {
-        MBeanServerConnection m = t.mbs();
-        if (m == null) return;
-        Map<String, SortedSet<ObjectName>> found = new HashMap<>();
-        Map<ObjectName, Set<String>> wanted = new LinkedHashMap<>();
-        for (Row r : rows) {
-            SortedSet<ObjectName> names = found.computeIfAbsent(r.pattern, p -> on(p).isPattern() ? query(m, p) : exists(m, p));
-            int n = 0;
-            for (ObjectName o : names) {
-                if (++n > LIST_CAP) break;
-                wanted.computeIfAbsent(o, x -> new LinkedHashSet<>()).add(r.attribute);
-            }
-        }
-        Map<ObjectName, Map<String, Object>> values = new HashMap<>();
-        for (Map.Entry<ObjectName, Set<String>> e : wanted.entrySet()) {
-            Map<String, Object> got = new HashMap<>();
-            try {
-                for (Object o : m.getAttributes(e.getKey(), e.getValue().toArray(new String[0]))) {
-                    javax.management.Attribute a = (javax.management.Attribute) o;
-                    got.put(a.getName(), a.getValue());
-                }
-            } catch (Exception x) { /* gone since the query: nothing */ }
-            values.put(e.getKey(), got);
-        }
-        for (Row r : rows) {
-            SortedSet<ObjectName> names = found.get(r.pattern);
-            int n = 0;
-            for (ObjectName o : names) {
-                if (++n > LIST_CAP) break;
-                Number v = number(values.getOrDefault(o, Collections.emptyMap()).get(r.attribute), r.key);
-                if (v == null || v.doubleValue() < r.floor) continue;
-                String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length + r.fixed.length);
-                for (int i = 0; i < r.tags.length; i++) {
-                    all[tags.length + 2 * i] = r.tags[i];
-                    all[tags.length + 2 * i + 1] = o.getKeyProperty(r.tags[i]);
-                }
-                System.arraycopy(r.fixed, 0, all, tags.length + 2 * r.tags.length, r.fixed.length);
-                metric(r.metric, r.scale == 1 ? v : v.doubleValue() * r.scale, all);
-            }
-            if (names.size() > LIST_CAP) metric(r.metric + "_not_shown", names.size() - LIST_CAP, tags);
-        }
-    }
-
-    /** The one MBean named, or none. */
-    static SortedSet<ObjectName> exists(MBeanServerConnection m, String name) {
-        SortedSet<ObjectName> s = new TreeSet<>();
-        try { if (m.isRegistered(on(name))) s.add(on(name)); } catch (Exception e) { /* not there */ }
-        return s;
     }
 }

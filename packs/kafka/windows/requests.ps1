@@ -28,9 +28,8 @@
     of the brokers' own. The broker's JVM (heap, garbage collection, threads,
     CPU, open files) is the jvm pack's, not this one's.
 
-    Kafka's library is not in the pack: KAFKA_HOME, a Kafka download (its
-    libs/), or KAFKA_LIBS, a folder of its jars, any kafka-clients from 3.x or
-    4.x.
+    The probe (_probe.jar, tools/probe) reads it, from this pack's
+    _probe.tables, beside this script: no Kafka library is needed.
 
     Metrics:
       jmx_up            1 when a broker's JMX answers, tagged broker=<id, or its
@@ -68,10 +67,8 @@
                followers are slow to replicate.
 
     Requires: Windows PowerShell 5.1 or PowerShell 7, Java 11 or later
-      (JAVA_HOME, or java on the PATH), a JDK or a JRE, to run _client.jar,
-      beside this script, once it matches its digest (a copy of the pack without
-      the jar runs _client.java, which needs a JDK); Kafka's library (KAFKA_HOME
-      or KAFKA_LIBS)
+      (JAVA_HOME, or java on the PATH), a JDK or a JRE, to run _probe.jar,
+      beside this script, once it matches its digest; the brokers' JMX
     Exit code: 0 on success, or when the cluster does not answer; 1 if Java or
       Kafka's library is missing, _client.jar does not match its digest, or the
       cluster refuses the login or its certificate
@@ -80,11 +77,10 @@
 $ErrorActionPreference = 'Stop'
 $job = 'kafka_requests'
 
-# _client.jar's SHA-256, written when the pack was released: built from
-# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
-$jarSha256 = '@CLIENT_JAR_SHA256@'
-
-# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+$probeSha256 = '@PROBE_JAR_SHA256@'
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
 # the PATH's.
 $java = $null
 if ($env:JAVA_HOME -and [System.IO.File]::Exists((Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
@@ -95,40 +91,32 @@ else {
     if ($c) { $java = $c.Source }
 }
 if (-not $java) {
-    [Console]::Error.WriteLine("${job}: java not found: the kafka pack runs its client with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME")
+    [Console]::Error.WriteLine("${job}: java not found: the kafka pack runs with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME")
     exit 1
 }
 
-# Kafka's library, the user's: KAFKA_LIBS, else a Kafka download's libs\.
-$libs = $env:KAFKA_LIBS
-if (-not $libs -and $env:KAFKA_HOME) { $libs = Join-Path $env:KAFKA_HOME 'libs' }
-if (-not $libs) {
-    [Console]::Error.WriteLine("${job}: no Kafka library: set KAFKA_HOME to a Kafka download, or KAFKA_LIBS to a folder of its jars")
-    exit 1
-}
-if (-not [System.IO.Directory]::Exists($libs) -or @([System.IO.Directory]::GetFiles($libs, 'kafka-clients-*.jar')).Count -eq 0) {
-    [Console]::Error.WriteLine("${job}: no kafka-clients-*.jar in ${libs}: KAFKA_HOME is a Kafka download (its libs\), KAFKA_LIBS a folder of its jars")
-    exit 1
-}
-
-# The jar, the client compiled, once it matches the digest above: any Java
-# 11 or later runs it. A copy of the pack without one (from the repository,
-# not a release) runs the source, which needs a JDK.
-$jar = Join-Path $PSScriptRoot '_client.jar'
-if (-not [System.IO.File]::Exists($jar)) {
-    $client = @('-cp', (Join-Path $libs '*'), (Join-Path $PSScriptRoot '_client.java'))
-}
-else {
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    $f = [System.IO.File]::OpenRead($jar)
-    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
-    finally { $f.Dispose(); $sha.Dispose() }
-    if ($sum -ne $jarSha256) {
-        [Console]::Error.WriteLine("${job}: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs")
+# A jar is run only once it matches its digest.
+function Test-Jar {
+    param([string]$Jar, [string]$Want)
+    $n = [System.IO.Path]::GetFileName($Jar)
+    if (-not [System.IO.File]::Exists($Jar)) {
+        [Console]::Error.WriteLine("${job}: ${n} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install kafka), or build it (tools/release/client-jar.sh)")
         exit 1
     }
-    $client = @('-cp', ($jar + ';' + (Join-Path $libs '*')), 'KafkaClient')
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $f = [System.IO.File]::OpenRead($Jar)
+    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
+    finally { $f.Dispose(); $sha.Dispose() }
+    if ($sum -ne $Want) {
+        [Console]::Error.WriteLine("${job}: $n does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs")
+        exit 1
+    }
 }
+$probe = Join-Path $PSScriptRoot '_probe.jar'
+Test-Jar $probe $probeSha256
+
+# The probe reads this job's table: the brokers' JMX only, no Kafka library.
+$run = @('-cp', $probe, 'Probe', (Join-Path $PSScriptRoot '_probe.tables'))
 
 # A folder of this run's own, for what Java writes while it runs: gone when
 # the run ends.
@@ -138,7 +126,7 @@ $code = 1
 try {
     # A small JVM, quick to start, that keeps no counters of its own (the
     # jvm pack would find it among the JVMs it watches).
-    & $java -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx256m "-Djava.io.tmpdir=$work" @client $job
+    & $java -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx256m "-Djava.io.tmpdir=$work" @run $job
     $code = $LASTEXITCODE
 }
 finally {

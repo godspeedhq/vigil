@@ -6,12 +6,13 @@
 # rely on it. In no event shall the authors or copyright holders be liable
 # for any claim, damages or other liability arising from its use. See the
 # LICENSE file for the full terms.
-"""Writes packs/kafka (2.0, tools/kafka/DESIGN.md): pack.config; _client.java
-for each platform, the pack's client (tools/kafka/_client.java) followed by
-the shared JMX engine (tools/jmx/Jmx.java), their imports merged; and each
-job's script for Linux and macOS (bash) and Windows (PowerShell), which runs
-the client, with the documentation below. Run from the repository:
-python tools/kafka/gen.py ."""
+"""Writes packs/kafka (2.0, tools/kafka/DESIGN.md): pack.config; for each
+platform, _client.java (tools/kafka/_client.java: the jobs that ask the
+cluster), _probe.java (tools/probe/_probe.java: the generic probe, as every
+pack carries it) and _probe.tables (tools/kafka/_probe.tables: the JMX
+jobs); and each job's script for Linux and macOS (bash) and Windows
+(PowerShell), which runs the probe or the client, with the documentation
+below. Run from the repository: python tools/kafka/gen.py ."""
 import os
 import sys
 import textwrap
@@ -51,6 +52,9 @@ JMX = (
     "KAFKA_JMX, it prints nothing of the brokers' own. The broker's JVM "
     "(heap, garbage collection, threads, CPU, open files) is the jvm pack's, "
     "not this one's.")
+PROBE = (
+    "The probe (_probe.jar, tools/probe) reads it, from this pack's "
+    "_probe.tables, beside this script: no Kafka library is needed.")
 LIBRARY = (
     "Kafka's library is not in the pack: KAFKA_HOME, a Kafka download (its "
     "libs/), or KAFKA_LIBS, a folder of its jars, any kafka-clients from 3.x "
@@ -416,7 +420,7 @@ def doc(j, ps):
         c += ['']
     if j['kind'] in ('jmx', 'both'):
         c += wrap(JMX, 76)
-    c += [''] + wrap(LIBRARY, 76)
+    c += [''] + wrap(PROBE if j['kind'] == 'jmx' else LIBRARY, 76)
     c += ['', 'Metrics:']
     c += metrics_doc(j['metrics'])
     ex = EXAMPLES.get(j['job'])
@@ -432,11 +436,13 @@ def doc(j, ps):
     c += wrap(j['watch'], 76, first='  Watch    ', rest=' ' * 11)
     c += wrap(j['act'], 76, first='  Act      ', rest=' ' * 11)
     c += ['']
-    tools = ("Java 11 or later (JAVA_HOME, or java on the PATH), a JDK or a JRE, to run _client.jar, beside this "
-             "script, once it matches its digest (a copy of the pack without the jar runs _client.java, which needs "
-             "a JDK); Kafka's library (KAFKA_HOME or KAFKA_LIBS)")
-    if j['kind'] != 'jmx':
-        tools += '; a user with the ACLs packs/README.md lists'
+    if j['kind'] == 'jmx':
+        tools = ("Java 11 or later (JAVA_HOME, or java on the PATH), a JDK or a JRE, to run _probe.jar, beside this "
+                 "script, once it matches its digest; the brokers' JMX")
+    else:
+        tools = ("Java 11 or later (JAVA_HOME, or java on the PATH), a JDK or a JRE, to run _client.jar and _probe.jar, "
+                 "beside this script, once they match their digests; Kafka's library (KAFKA_HOME or KAFKA_LIBS); a "
+                 "user with the ACLs packs/README.md lists")
     c += wrap(('Requires: Windows PowerShell 5.1 or PowerShell 7, ' if ps else 'Requires: bash, ') + tools, 76, rest='  ')
     if j['job'] == 'status':
         c += wrap('Exit code: 0 on success, cluster up or down; 1 if Java or Kafka\'s library is missing, _client.jar '
@@ -448,13 +454,13 @@ def doc(j, ps):
     return c
 
 
-SH_BODY = r"""set -u
+SH_HEAD = r"""set -u
 
-# _client.jar's SHA-256, written when the pack was released: built from
-# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
-jar_sha256=@CLIENT_JAR_SHA256@
-
-# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+probe_sha256=@PROBE_JAR_SHA256@
+@CLIENT_SHA@
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
 # the PATH's.
 here=$(cd "$(dirname "$0")" && pwd)
 if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
@@ -462,9 +468,37 @@ if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
 elif command -v java > /dev/null 2>&1; then
     java=$(command -v java)
 else
-    echo "@JOB@: java not found: the kafka pack runs its client with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME" >&2
+    echo "@JOB@: java not found: the kafka pack runs with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME" >&2
     exit 1
 fi
+
+# A jar is run only once it matches the digest above: $1 the jar, $2 its digest.
+checked() {
+    if [ ! -f "$1" ]; then
+        echo "@JOB@: ${1##*/} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install kafka), or build it (tools/release/client-jar.sh)" >&2
+        exit 1
+    fi
+    if command -v sha256sum > /dev/null 2>&1; then
+        sum=$(sha256sum < "$1")
+    elif command -v shasum > /dev/null 2>&1; then
+        sum=$(shasum -a 256 < "$1")
+    else
+        sum=$(openssl dgst -sha256 -r < "$1")
+    fi
+    if [ "${sum%% *}" != "$2" ]; then
+        echo "@JOB@: ${1##*/} does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs" >&2
+        exit 1
+    fi
+}
+checked "$here/_probe.jar" "$probe_sha256"
+"""
+
+SH_PROBE = r"""
+# The probe reads this job's table: the brokers' JMX only, no Kafka library.
+set -- -cp "$here/_probe.jar" Probe "$here/_probe.tables"
+"""
+
+SH_CLIENT = r"""checked "$here/_client.jar" "$client_sha256"
 
 # Kafka's library, the user's: KAFKA_LIBS, else a Kafka download's libs/.
 libs=${KAFKA_LIBS-}
@@ -481,27 +515,10 @@ if [ "$found" = no ]; then
     echo "@JOB@: no kafka-clients-*.jar in $libs: KAFKA_HOME is a Kafka download (its libs/), KAFKA_LIBS a folder of its jars" >&2
     exit 1
 fi
+set -- -cp "$here/_client.jar:$here/_probe.jar:$libs/*" KafkaClient
+"""
 
-# The jar, the client compiled, once it matches the digest above: any Java
-# 11 or later runs it. A copy of the pack without one (from the repository,
-# not a release) runs the source, which needs a JDK.
-if [ ! -f "$here/_client.jar" ]; then
-    set -- -cp "$libs/*" "$here/_client.java"
-else
-    if command -v sha256sum > /dev/null 2>&1; then
-        sum=$(sha256sum < "$here/_client.jar")
-    elif command -v shasum > /dev/null 2>&1; then
-        sum=$(shasum -a 256 < "$here/_client.jar")
-    else
-        sum=$(openssl dgst -sha256 -r < "$here/_client.jar")
-    fi
-    if [ "${sum%% *}" != "$jar_sha256" ]; then
-        echo "@JOB@: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs" >&2
-        exit 1
-    fi
-    set -- -cp "$here/_client.jar:$libs/*" KafkaClient
-fi
-
+SH_TAIL = r"""
 # A folder of this run's own, readable by this account only, for what Java
 # writes while it runs: gone when the run ends.
 work=$(umask 077 && mktemp -d "${TMPDIR:-/tmp}/vigil-kafka.XXXXXX") || exit 1
@@ -514,14 +531,14 @@ trap 'rm -rf "$work"' EXIT
 exit $?
 """
 
-PS_BODY = r"""$ErrorActionPreference = 'Stop'
+PS_HEAD = r"""$ErrorActionPreference = 'Stop'
 $job = '@JOB@'
 
-# _client.jar's SHA-256, written when the pack was released: built from
-# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
-$jarSha256 = '@CLIENT_JAR_SHA256@'
-
-# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+$probeSha256 = '@PROBE_JAR_SHA256@'
+@CLIENT_SHA@
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
 # the PATH's.
 $java = $null
 if ($env:JAVA_HOME -and [System.IO.File]::Exists((Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
@@ -532,9 +549,38 @@ else {
     if ($c) { $java = $c.Source }
 }
 if (-not $java) {
-    [Console]::Error.WriteLine("${job}: java not found: the kafka pack runs its client with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME")
+    [Console]::Error.WriteLine("${job}: java not found: the kafka pack runs with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME")
     exit 1
 }
+
+# A jar is run only once it matches its digest.
+function Test-Jar {
+    param([string]$Jar, [string]$Want)
+    $n = [System.IO.Path]::GetFileName($Jar)
+    if (-not [System.IO.File]::Exists($Jar)) {
+        [Console]::Error.WriteLine("${job}: ${n} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install kafka), or build it (tools/release/client-jar.sh)")
+        exit 1
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $f = [System.IO.File]::OpenRead($Jar)
+    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
+    finally { $f.Dispose(); $sha.Dispose() }
+    if ($sum -ne $Want) {
+        [Console]::Error.WriteLine("${job}: $n does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs")
+        exit 1
+    }
+}
+$probe = Join-Path $PSScriptRoot '_probe.jar'
+Test-Jar $probe $probeSha256
+"""
+
+PS_PROBE = r"""
+# The probe reads this job's table: the brokers' JMX only, no Kafka library.
+$run = @('-cp', $probe, 'Probe', (Join-Path $PSScriptRoot '_probe.tables'))
+"""
+
+PS_CLIENT = r"""$client = Join-Path $PSScriptRoot '_client.jar'
+Test-Jar $client $clientSha256
 
 # Kafka's library, the user's: KAFKA_LIBS, else a Kafka download's libs\.
 $libs = $env:KAFKA_LIBS
@@ -547,26 +593,10 @@ if (-not [System.IO.Directory]::Exists($libs) -or @([System.IO.Directory]::GetFi
     [Console]::Error.WriteLine("${job}: no kafka-clients-*.jar in ${libs}: KAFKA_HOME is a Kafka download (its libs\), KAFKA_LIBS a folder of its jars")
     exit 1
 }
+$run = @('-cp', ($client + ';' + $probe + ';' + (Join-Path $libs '*')), 'KafkaClient')
+"""
 
-# The jar, the client compiled, once it matches the digest above: any Java
-# 11 or later runs it. A copy of the pack without one (from the repository,
-# not a release) runs the source, which needs a JDK.
-$jar = Join-Path $PSScriptRoot '_client.jar'
-if (-not [System.IO.File]::Exists($jar)) {
-    $client = @('-cp', (Join-Path $libs '*'), (Join-Path $PSScriptRoot '_client.java'))
-}
-else {
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    $f = [System.IO.File]::OpenRead($jar)
-    try { $sum = -join ($sha.ComputeHash($f) | ForEach-Object { $_.ToString('x2') }) }
-    finally { $f.Dispose(); $sha.Dispose() }
-    if ($sum -ne $jarSha256) {
-        [Console]::Error.WriteLine("${job}: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs")
-        exit 1
-    }
-    $client = @('-cp', ($jar + ';' + (Join-Path $libs '*')), 'KafkaClient')
-}
-
+PS_TAIL = r"""
 # A folder of this run's own, for what Java writes while it runs: gone when
 # the run ends.
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ('vigil-kafka.' + [guid]::NewGuid().ToString('N'))
@@ -575,7 +605,7 @@ $code = 1
 try {
     # A small JVM, quick to start, that keeps no counters of its own (the
     # jvm pack would find it among the JVMs it watches).
-    & $java -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx256m "-Djava.io.tmpdir=$work" @client $job
+    & $java -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData -Xshare:auto -Xmx256m "-Djava.io.tmpdir=$work" @run $job
     $code = $LASTEXITCODE
 }
 finally {
@@ -585,11 +615,27 @@ exit $code
 """
 
 
+def sh_body(j):
+    if j['kind'] == 'jmx':
+        b = SH_HEAD.replace('@CLIENT_SHA@\n', '') + SH_PROBE + SH_TAIL
+    else:
+        b = SH_HEAD.replace('@CLIENT_SHA@', 'client_sha256=@CLIENT_JAR_SHA256@') + SH_CLIENT + SH_TAIL
+    return b.replace('@JOB@', 'kafka_' + j['job'])
+
+
+def ps_body(j):
+    if j['kind'] == 'jmx':
+        b = PS_HEAD.replace('@CLIENT_SHA@\n', '') + PS_PROBE + PS_TAIL
+    else:
+        b = PS_HEAD.replace('@CLIENT_SHA@', "$clientSha256 = '@CLIENT_JAR_SHA256@'") + PS_CLIENT + PS_TAIL
+    return b.replace('@JOB@', 'kafka_' + j['job'])
+
+
 def sh_script(j):
     head = ['#!/usr/bin/env bash', '#', '# %s.sh - %s' % (j['job'], j['title']), '#']
     head += [('# ' + n).rstrip() for n in NOTICE] + ['#']
     head += [('# ' + l).rstrip() for l in doc(j, False)]
-    return '\n'.join(head) + '\n\n' + SH_BODY.replace('@JOB@', 'kafka_' + j['job'])
+    return '\n'.join(head) + '\n\n' + sh_body(j)
 
 
 def ps_script(j):
@@ -598,27 +644,11 @@ def ps_script(j):
     head += ['.DESCRIPTION']
     head += [('    ' + l).rstrip() for l in doc(j, True)]
     head += ['#>']
-    return '\n'.join(head) + '\n\n' + PS_BODY.replace('@JOB@', 'kafka_' + j['job'])
+    return '\n'.join(head) + '\n\n' + ps_body(j)
 
 
-def client():
-    """The pack's client, then the shared JMX engine, their imports merged at the top."""
-    k = open(os.path.join(src, '_client.java'), encoding='utf-8').read()
-    e = open(os.path.join(repo, 'tools', 'jmx', 'Jmx.java'), encoding='utf-8').read()
-    imports, parts = [], []
-    for text in (k, e):
-        lines = text.split('\n')
-        first = next(i for i, l in enumerate(lines) if l.startswith('import '))
-        last = max(i for i, l in enumerate(lines) if l.startswith('import '))
-        imports += [l for l in lines[first:last + 1] if l.startswith('import ')]
-        parts.append((lines[:first], lines[last + 1:]))
-    merged = sorted(set(imports), key=lambda l: (not l.startswith('import java'), l))
-    head, body = parts[0]
-    _, engine = parts[1]
-    # The engine's own header comment says where it comes from; its licence is the file's.
-    note = ['', '// ---- the shared JMX engine, tools/jmx/Jmx.java (tools/jmx/DESIGN.md), as',
-            '// it is in the repository: every Java application pack carries the same copy.', '']
-    return '\n'.join(head + merged + body).rstrip('\n') + '\n' + '\n'.join(note) + '\n'.join(engine).lstrip('\n')
+def copy(path):
+    return open(path, encoding='utf-8').read()
 
 
 ACLS = ("kafka-acls --add --allow-principal User:vigil_monitor --operation Describe --operation DescribeConfigs "
@@ -695,7 +725,7 @@ def pack_config():
               j['when'],
               'max_runtime = %s' % ('3m' if j['job'] in ('tls', 'groups', 'topics', 'security', 'consumers') else '2m')]
         if j['kind'] == 'jmx':
-            p += jmx_env + ['env         = KAFKA_CACERT=', 'env         = KAFKA_HOME=']
+            p += jmx_env + ['env         = KAFKA_CACERT=']
         else:
             p += admin_env[:-1]
             if j['kind'] == 'both':
@@ -707,14 +737,17 @@ def pack_config():
     return '\n'.join(p).rstrip('\n') + '\n'
 
 
-the_client = client()
+FILES = {'_client.java': copy(os.path.join(src, '_client.java')),
+         '_probe.java': copy(os.path.join(repo, 'tools', 'probe', '_probe.java')),
+         '_probe.tables': copy(os.path.join(src, '_probe.tables'))}
 for d in ('linux', 'macos', 'windows'):
     os.makedirs(os.path.join(out, d), exist_ok=True)
     # 1.0's scripts and jobs that 2.0 no longer has.
     for f in os.listdir(os.path.join(out, d)):
         if f.endswith(('.sh', '.ps1')) and f.rsplit('.', 1)[0] not in [j['job'] for j in JOBS]:
             os.remove(os.path.join(out, d, f))
-    open(os.path.join(out, d, '_client.java'), 'w', encoding='utf-8', newline='\n').write(the_client)
+    for f, text in FILES.items():
+        open(os.path.join(out, d, f), 'w', encoding='utf-8', newline='\n').write(text)
 open(os.path.join(out, 'pack.config'), 'w', encoding='utf-8', newline='\n').write(pack_config())
 for j in JOBS:
     s = sh_script(j)

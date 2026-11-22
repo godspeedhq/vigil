@@ -47,9 +47,13 @@ for name in "$@"; do
             continue
         fi
         lib=$work/$f
+        probe=${src%/*}/_probe.java
         command -v cygpath > /dev/null 2>&1 && lib=$(cygpath -w "$lib")
         rm -rf "$work/classes" && mkdir "$work/classes" || exit 1
-        if "${bin}javac" --release 11 -encoding UTF-8 -nowarn -cp "$lib" -d "$work/classes" "$src" > "$work/out" 2>&1; then
+        # With the probe beside it, compiled with it: the client uses its engine.
+        set -- "$src"
+        [ -f "$probe" ] && set -- "$src" "$probe"
+        if "${bin}javac" --release 11 -encoding UTF-8 -nowarn -cp "$lib" -d "$work/classes" "$@" > "$work/out" 2>&1; then
             printf 'client-check: %s compiles against %s\n' "$name" "$f"
         else
             printf 'client-check: %s does not compile against %s:\n' "$name" "$f" >&2

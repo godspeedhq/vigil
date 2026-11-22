@@ -26,9 +26,8 @@
 # of the brokers' own. The broker's JVM (heap, garbage collection, threads,
 # CPU, open files) is the jvm pack's, not this one's.
 #
-# Kafka's library is not in the pack: KAFKA_HOME, a Kafka download (its
-# libs/), or KAFKA_LIBS, a folder of its jars, any kafka-clients from 3.x or
-# 4.x.
+# The probe (_probe.jar, tools/probe) reads it, from this pack's
+# _probe.tables, beside this script: no Kafka library is needed.
 #
 # Metrics:
 #   jmx_up                           1 when a node's JMX answers, tagged
@@ -78,20 +77,18 @@
 #            unclean_elections_count rising: data was lost.
 #
 # Requires: bash, Java 11 or later (JAVA_HOME, or java on the PATH), a JDK or
-#   a JRE, to run _client.jar, beside this script, once it matches its digest
-#   (a copy of the pack without the jar runs _client.java, which needs a JDK);
-#   Kafka's library (KAFKA_HOME or KAFKA_LIBS)
+#   a JRE, to run _probe.jar, beside this script, once it matches its digest;
+#   the brokers' JMX
 # Exit code: 0 on success, or when the cluster does not answer; 1 if Java or
 #   Kafka's library is missing, _client.jar does not match its digest, or the
 #   cluster refuses the login or its certificate
 
 set -u
 
-# _client.jar's SHA-256, written when the pack was released: built from
-# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
-jar_sha256=@CLIENT_JAR_SHA256@
-
-# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+probe_sha256=@PROBE_JAR_SHA256@
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
 # the PATH's.
 here=$(cd "$(dirname "$0")" && pwd)
 if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
@@ -99,45 +96,32 @@ if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
 elif command -v java > /dev/null 2>&1; then
     java=$(command -v java)
 else
-    echo "kafka_controller: java not found: the kafka pack runs its client with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME" >&2
+    echo "kafka_controller: java not found: the kafka pack runs with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME" >&2
     exit 1
 fi
 
-# Kafka's library, the user's: KAFKA_LIBS, else a Kafka download's libs/.
-libs=${KAFKA_LIBS-}
-if [ -z "$libs" ] && [ -n "${KAFKA_HOME-}" ]; then
-    libs=$KAFKA_HOME/libs
-fi
-if [ -z "$libs" ]; then
-    echo "kafka_controller: no Kafka library: set KAFKA_HOME to a Kafka download, or KAFKA_LIBS to a folder of its jars" >&2
-    exit 1
-fi
-found=no
-for f in "$libs"/kafka-clients-*.jar; do [ -f "$f" ] && found=yes; done
-if [ "$found" = no ]; then
-    echo "kafka_controller: no kafka-clients-*.jar in $libs: KAFKA_HOME is a Kafka download (its libs/), KAFKA_LIBS a folder of its jars" >&2
-    exit 1
-fi
-
-# The jar, the client compiled, once it matches the digest above: any Java
-# 11 or later runs it. A copy of the pack without one (from the repository,
-# not a release) runs the source, which needs a JDK.
-if [ ! -f "$here/_client.jar" ]; then
-    set -- -cp "$libs/*" "$here/_client.java"
-else
-    if command -v sha256sum > /dev/null 2>&1; then
-        sum=$(sha256sum < "$here/_client.jar")
-    elif command -v shasum > /dev/null 2>&1; then
-        sum=$(shasum -a 256 < "$here/_client.jar")
-    else
-        sum=$(openssl dgst -sha256 -r < "$here/_client.jar")
-    fi
-    if [ "${sum%% *}" != "$jar_sha256" ]; then
-        echo "kafka_controller: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs" >&2
+# A jar is run only once it matches the digest above: $1 the jar, $2 its digest.
+checked() {
+    if [ ! -f "$1" ]; then
+        echo "kafka_controller: ${1##*/} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install kafka), or build it (tools/release/client-jar.sh)" >&2
         exit 1
     fi
-    set -- -cp "$here/_client.jar:$libs/*" KafkaClient
-fi
+    if command -v sha256sum > /dev/null 2>&1; then
+        sum=$(sha256sum < "$1")
+    elif command -v shasum > /dev/null 2>&1; then
+        sum=$(shasum -a 256 < "$1")
+    else
+        sum=$(openssl dgst -sha256 -r < "$1")
+    fi
+    if [ "${sum%% *}" != "$2" ]; then
+        echo "kafka_controller: ${1##*/} does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs" >&2
+        exit 1
+    fi
+}
+checked "$here/_probe.jar" "$probe_sha256"
+
+# The probe reads this job's table: the brokers' JMX only, no Kafka library.
+set -- -cp "$here/_probe.jar" Probe "$here/_probe.tables"
 
 # A folder of this run's own, readable by this account only, for what Java
 # writes while it runs: gone when the run ends.

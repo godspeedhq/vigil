@@ -19,9 +19,9 @@
 #   vigil-pack-<name>-<version>-linux.tar.gz, -macos.tar.gz, -windows.zip
 #       a pack as packs/<name>/ holds it on that platform: pack.config and
 #       that platform's scripts, in a folder <name>/. A platform the pack has
-#       no scripts for has no archive. A pack with a _client.java there also
-#       gets _client.jar, compiled from it, and its digest written into the
-#       scripts (client-jar.sh).
+#       no scripts for has no archive. A pack with Java there (_client.java,
+#       _probe.java) also gets their jars, and their digests written into
+#       the scripts (client-jar.sh).
 #   packs.index
 #       every version of every pack, the release its archives are in, and
 #       each archive's SHA-256. Versions in <previous packs.index> are carried
@@ -43,7 +43,7 @@
 # once (setting). A Vigil skips records it does not know.
 #
 # Needs tar, gzip, openssl, and for the .zip: zip, python3 or (Git Bash)
-# PowerShell. For a pack with a _client.java: a JDK 17 or later, and curl
+# PowerShell. For a pack with Java (_*.java): a JDK 17 or later, and curl
 # for the libraries its tools/<pack>/client.lib names, unless
 # VIGIL_TEST_PACKS_NO_CLIENT is set (a test's release, never a real one:
 # the packs workflow refuses it), which builds such a pack without its jar.
@@ -175,12 +175,12 @@ for d in "$repo"/packs/*/; do
         # A client in Java, compiled for a JRE, and its digest in the scripts.
         # A test's release (VIGIL_TEST_PACKS_NO_CLIENT) leaves it out: its
         # scripts run the source, as a copy from the repository does.
-        if [ -f "$stage/$os/$name/_client.java" ] && [ -z "${VIGIL_TEST_PACKS_NO_CLIENT-}" ]; then
+        if ls "$stage/$os/$name"/_*.java > /dev/null 2>&1 && [ -z "${VIGIL_TEST_PACKS_NO_CLIENT-}" ]; then
             client_libs "$repo/tools/$name" || exit 1
             bash "$here/client-jar.sh" "$stage/$os/$name" ${libs[@]+"${libs[@]}"} > /dev/null || { printf 'packs: cannot build the client of %s for %s\n' "$name" "$os" >&2; exit 1; }
         fi
-        if [ -z "${VIGIL_TEST_PACKS_NO_CLIENT-}" ] && grep -l '@CLIENT_JAR_' "$stage/$os/$name"/* > /dev/null 2>&1; then
-            printf 'packs: %s for %s names a compiled client it has no _client.java for\n' "$name" "$os" >&2
+        if [ -z "${VIGIL_TEST_PACKS_NO_CLIENT-}" ] && grep -lE '@[A-Z]+_JAR_(SHA256|JAVAC)@' "$stage/$os/$name"/* > /dev/null 2>&1; then
+            printf 'packs: %s for %s names a jar it has no source for (_<name>.java)\n' "$name" "$os" >&2
             exit 1
         fi
         arch=vigil-pack-$name-$version-$os

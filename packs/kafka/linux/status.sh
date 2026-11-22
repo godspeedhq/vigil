@@ -51,21 +51,20 @@
 #            brokers_fenced above 0 for minutes.
 #
 # Requires: bash, Java 11 or later (JAVA_HOME, or java on the PATH), a JDK or
-#   a JRE, to run _client.jar, beside this script, once it matches its digest
-#   (a copy of the pack without the jar runs _client.java, which needs a JDK);
-#   Kafka's library (KAFKA_HOME or KAFKA_LIBS); a user with the ACLs
-#   packs/README.md lists
+#   a JRE, to run _client.jar and _probe.jar, beside this script, once they
+#   match their digests; Kafka's library (KAFKA_HOME or KAFKA_LIBS); a user
+#   with the ACLs packs/README.md lists
 # Exit code: 0 on success, cluster up or down; 1 if Java or Kafka's library is
 #   missing, _client.jar does not match its digest, or the cluster refuses the
 #   login or its certificate
 
 set -u
 
-# _client.jar's SHA-256, written when the pack was released: built from
-# _client.java, beside it, by javac @CLIENT_JAR_JAVAC@ (tools/release/client-jar.sh).
-jar_sha256=@CLIENT_JAR_SHA256@
-
-# The client, beside this script, run by Java 11 or later: JAVA_HOME's, else
+# The jars' SHA-256s, written when the pack was released: each built from
+# its source, beside it, by javac @PROBE_JAR_JAVAC@ (tools/release/client-jar.sh).
+probe_sha256=@PROBE_JAR_SHA256@
+client_sha256=@CLIENT_JAR_SHA256@
+# The jars, beside this script, run by Java 11 or later: JAVA_HOME's, else
 # the PATH's.
 here=$(cd "$(dirname "$0")" && pwd)
 if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
@@ -73,9 +72,30 @@ if [ -n "${JAVA_HOME-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
 elif command -v java > /dev/null 2>&1; then
     java=$(command -v java)
 else
-    echo "kafka_status: java not found: the kafka pack runs its client with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME" >&2
+    echo "kafka_status: java not found: the kafka pack runs with Java 11 or later (a JDK or a JRE), on the PATH or in JAVA_HOME" >&2
     exit 1
 fi
+
+# A jar is run only once it matches the digest above: $1 the jar, $2 its digest.
+checked() {
+    if [ ! -f "$1" ]; then
+        echo "kafka_status: ${1##*/} not found: this copy of the pack has none: install the pack from a packs release (vigil pack install kafka), or build it (tools/release/client-jar.sh)" >&2
+        exit 1
+    fi
+    if command -v sha256sum > /dev/null 2>&1; then
+        sum=$(sha256sum < "$1")
+    elif command -v shasum > /dev/null 2>&1; then
+        sum=$(shasum -a 256 < "$1")
+    else
+        sum=$(openssl dgst -sha256 -r < "$1")
+    fi
+    if [ "${sum%% *}" != "$2" ]; then
+        echo "kafka_status: ${1##*/} does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs" >&2
+        exit 1
+    fi
+}
+checked "$here/_probe.jar" "$probe_sha256"
+checked "$here/_client.jar" "$client_sha256"
 
 # Kafka's library, the user's: KAFKA_LIBS, else a Kafka download's libs/.
 libs=${KAFKA_LIBS-}
@@ -92,26 +112,7 @@ if [ "$found" = no ]; then
     echo "kafka_status: no kafka-clients-*.jar in $libs: KAFKA_HOME is a Kafka download (its libs/), KAFKA_LIBS a folder of its jars" >&2
     exit 1
 fi
-
-# The jar, the client compiled, once it matches the digest above: any Java
-# 11 or later runs it. A copy of the pack without one (from the repository,
-# not a release) runs the source, which needs a JDK.
-if [ ! -f "$here/_client.jar" ]; then
-    set -- -cp "$libs/*" "$here/_client.java"
-else
-    if command -v sha256sum > /dev/null 2>&1; then
-        sum=$(sha256sum < "$here/_client.jar")
-    elif command -v shasum > /dev/null 2>&1; then
-        sum=$(shasum -a 256 < "$here/_client.jar")
-    else
-        sum=$(openssl dgst -sha256 -r < "$here/_client.jar")
-    fi
-    if [ "${sum%% *}" != "$jar_sha256" ]; then
-        echo "kafka_status: _client.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify kafka says what differs" >&2
-        exit 1
-    fi
-    set -- -cp "$here/_client.jar:$libs/*" KafkaClient
-fi
+set -- -cp "$here/_client.jar:$here/_probe.jar:$libs/*" KafkaClient
 
 # A folder of this run's own, readable by this account only, for what Java
 # writes while it runs: gone when the run ends.

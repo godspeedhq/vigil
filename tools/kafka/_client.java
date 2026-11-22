@@ -7,13 +7,15 @@
 // for any claim, damages or other liability arising from its use. See the
 // LICENSE file for the full terms.
 //
-// _client.java - the kafka pack's client (tools/kafka/DESIGN.md): every job
-// of the pack, on every platform, so each prints the same lines on Linux,
-// macOS and Windows. It asks Kafka's admin API what any Kafka admin would, as
-// a user that may only describe, and reads each broker's own figures over JMX
-// through the shared engine (tools/jmx), which follows it in this file. It
-// reports Kafka's, never the JVM's: the broker's heap, garbage collection,
-// threads, CPU and open files are the jvm pack's.
+// _client.java - the kafka pack's client (tools/kafka/DESIGN.md): the jobs
+// that ask the cluster, on every platform, so each prints the same lines on
+// Linux, macOS and Windows. It asks Kafka's admin API what any Kafka admin
+// would, as a user that may only describe; kafka_logdirs reads each broker's
+// flushes and log cleaner over JMX too, through the probe's engine
+// (_probe.jar, on the class path: tools/probe). The jobs that only read the
+// brokers' JMX are the probe's own, from _probe.tables. It reports Kafka's,
+// never the JVM's: the broker's heap, garbage collection, threads, CPU and
+// open files are the jvm pack's.
 //
 // Kafka's library is not in the pack: the script puts the user's on the
 // class path (KAFKA_HOME/libs, or KAFKA_LIBS), any kafka-clients from 3.x or
@@ -138,7 +140,15 @@ class KafkaClient {
 
     /** Kafka's admin client, configured in memory: the password never touches a file. */
     static Admin admin() {
-        if (admin != null) return admin;
+        if (admin == null) admin = Admin.create(props());
+        return admin;
+    }
+
+    static Properties props;
+
+    /** The admin client's configuration, from the settings, in memory. */
+    static Properties props() {
+        if (props != null) return props;
         Properties p = new Properties();
         String own = env("KAFKA_CLIENT_CONFIG");
         if (!own.isEmpty()) {
@@ -191,8 +201,8 @@ class KafkaClient {
         p.putIfAbsent("request.timeout.ms", "15000");
         p.putIfAbsent("default.api.timeout.ms", "30000");
         p.putIfAbsent("retry.backoff.ms", "500");
-        admin = Admin.create(p);
-        return admin;
+        props = p;
+        return p;
     }
 
     /** A value inside a JAAS line's quotes. */
@@ -440,10 +450,6 @@ class KafkaClient {
         JOBS.put("security", Jobs::security);
         JOBS.put("features", Jobs::features);
         JOBS.put("tls", Jobs::tls);
-        JOBS.put("throughput", Jobs::throughput);
-        JOBS.put("requests", Jobs::requests);
-        JOBS.put("controller", Jobs::controller);
-        JOBS.put("connections", Jobs::connections);
     }
 
     static void metric(String name, Number v, String... tags) { Jmx.metric(name, v, tags); }
@@ -513,34 +519,6 @@ class KafkaClient {
             }
             metric("max_follower_lag", maxLag);
             metric("max_follower_lag_ms", maxLagMs);
-        }
-
-        static void controller() {
-            List<Jmx.Row> rows = Arrays.asList(
-                    Jmx.row("brokers", "kafka.controller:type=KafkaController,name=ActiveBrokerCount", "Value"),
-                    Jmx.row("fenced_brokers", "kafka.controller:type=KafkaController,name=FencedBrokerCount", "Value"),
-                    Jmx.row("topics", "kafka.controller:type=KafkaController,name=GlobalTopicCount", "Value"),
-                    Jmx.row("partitions", "kafka.controller:type=KafkaController,name=GlobalPartitionCount", "Value"),
-                    Jmx.row("offline_partitions", "kafka.controller:type=KafkaController,name=OfflinePartitionsCount", "Value"),
-                    Jmx.row("preferred_imbalance", "kafka.controller:type=KafkaController,name=PreferredReplicaImbalanceCount", "Value"),
-                    Jmx.row("metadata_errors", "kafka.controller:type=KafkaController,name=MetadataErrorCount", "Value"),
-                    Jmx.row("metadata_lag_ms", "kafka.controller:type=KafkaController,name=LastAppliedRecordLagMs", "Value"),
-                    Jmx.row("timed_out_heartbeats", "kafka.controller:type=KafkaController,name=TimedOutBrokerHeartbeatCount", "Value"),
-                    Jmx.row("controller_changes", "kafka.controller:type=KafkaController,name=NewActiveControllersCount", "Value"),
-                    Jmx.row("elections_count", "kafka.controller:type=ControllerStats,name=LeaderElectionRateAndTimeMs", "Count"),
-                    Jmx.row("unclean_elections_count", "kafka.controller:type=ControllerStats,name=UncleanLeaderElectionsPerSec", "Count"),
-                    Jmx.row("eligible_leader_elections_count", "kafka.controller:type=ControllerStats,name=ElectionFromEligibleLeaderReplicasPerSec", "Count"),
-                    Jmx.row("event_queue", "kafka.controller:type=ControllerEventManager,name=EventQueueSize", "Value"),
-                    Jmx.row("event_queue_ms_p99", "kafka.controller:type=ControllerEventManager,name=EventQueueTimeMs", "99thPercentile"));
-            for (Jmx.Target t : jmx()) {
-                if (t.mbs() == null) continue;
-                Object a = Jmx.attr(t.mbs(), "kafka.controller:type=KafkaController,name=ActiveControllerCount", "Value");
-                Number n = Jmx.number(a, null);
-                if (n == null) continue;
-                boolean active = n.doubleValue() > 0;
-                metric("active_controller", active, broker(t));
-                if (active) Jmx.table(t, rows, broker(t));
-            }
         }
 
         // Is the data safe?
@@ -846,68 +824,6 @@ class KafkaClient {
             jmxTable(rows);
         }
 
-        // Is it fast, or saturated?
-
-        static void throughput() {
-            String[][] m = {
-                    { "messages_in_count", "MessagesInPerSec" }, { "bytes_in_count", "BytesInPerSec" },
-                    { "bytes_out_count", "BytesOutPerSec" }, { "bytes_rejected_count", "BytesRejectedPerSec" },
-                    { "replication_bytes_in_count", "ReplicationBytesInPerSec" }, { "replication_bytes_out_count", "ReplicationBytesOutPerSec" },
-                    { "produce_requests_count", "TotalProduceRequestsPerSec" }, { "fetch_requests_count", "TotalFetchRequestsPerSec" },
-                    { "failed_produce_requests_count", "FailedProduceRequestsPerSec" }, { "failed_fetch_requests_count", "FailedFetchRequestsPerSec" },
-                    { "produce_conversions_count", "ProduceMessageConversionsPerSec" }, { "fetch_conversions_count", "FetchMessageConversionsPerSec" },
-                    { "invalid_crc_records_count", "InvalidMessageCrcRecordsPerSec" }, { "invalid_sequence_records_count", "InvalidOffsetOrSequenceRecordsPerSec" } };
-            List<Jmx.Row> rows = new ArrayList<>();
-            for (String[] x : m) rows.add(Jmx.row(x[0], "kafka.server:type=BrokerTopicMetrics,name=" + x[1], "Count"));
-            jmxTable(rows);
-        }
-
-        static void requests() {
-            List<Jmx.Row> rows = new ArrayList<>();
-            for (String r : new String[]{ "Produce", "FetchConsumer", "FetchFollower" }) {
-                String base = "kafka.network:type=RequestMetrics,name=";
-                rows.add(Jmx.row("total_ms_p99", base + "TotalTimeMs,request=" + r, "99thPercentile", "request"));
-                rows.add(Jmx.row("queue_ms_p99", base + "RequestQueueTimeMs,request=" + r, "99thPercentile", "request"));
-                rows.add(Jmx.row("remote_ms_p99", base + "RemoteTimeMs,request=" + r, "99thPercentile", "request"));
-                rows.add(Jmx.row("requests_count", base + "TotalTimeMs,request=" + r, "Count", "request"));
-            }
-            rows.add(Jmx.row("request_queue", "kafka.network:type=RequestChannel,name=RequestQueueSize", "Value"));
-            rows.add(Jmx.row("response_queue", "kafka.network:type=RequestChannel,name=ResponseQueueSize", "Value"));
-            rows.add(Jmx.row("purgatory", "kafka.server:type=DelayedOperationPurgatory,name=PurgatorySize,delayedOperation=Produce", "Value").with("operation", "produce"));
-            rows.add(Jmx.row("purgatory", "kafka.server:type=DelayedOperationPurgatory,name=PurgatorySize,delayedOperation=Fetch", "Value").with("operation", "fetch"));
-            // The idle shares are fractions, 0 to 1: as percents.
-            rows.add(Jmx.row("handler_idle_pct", "kafka.server:type=KafkaRequestHandlerPool,name=RequestHandlerAvgIdlePercent", "OneMinuteRate").scale(100));
-            rows.add(Jmx.row("network_idle_pct", "kafka.network:type=SocketServer,name=NetworkProcessorAvgIdlePercent", "Value").scale(100));
-            jmxTable(rows);
-        }
-
-        static void connections() {
-            String[][] m = { { "connections", "connection-count" }, { "created_count", "connection-creation-total" },
-                    { "logins_count", "successful-authentication-total" }, { "failed_logins_count", "failed-authentication-total" },
-                    { "failed_relogins_count", "failed-reauthentication-total" } };
-            for (Jmx.Target t : jmx()) {
-                if (t.mbs() == null) continue;
-                // Each listener's network processors, added up.
-                Map<String, double[]> byListener = new TreeMap<>();
-                for (ObjectName o : Jmx.query(t.mbs(), "kafka.server:type=socket-server-metrics,listener=*,networkProcessor=*")) {
-                    double[] sum = byListener.computeIfAbsent(o.getKeyProperty("listener"), k -> new double[m.length]);
-                    for (int i = 0; i < m.length; i++) {
-                        Number v = Jmx.number(Jmx.attr(t.mbs(), o.toString(), m[i][1]), null);
-                        if (v != null) sum[i] += v.doubleValue();
-                    }
-                }
-                for (Map.Entry<String, double[]> e : byListener.entrySet()) {
-                    for (int i = 0; i < m.length; i++) {
-                        String[] tags = broker(t);
-                        String[] all = Arrays.copyOf(tags, tags.length + 2);
-                        all[tags.length] = "listener";
-                        all[tags.length + 1] = e.getKey();
-                        metric(m[i][0], e.getValue()[i], all);
-                    }
-                }
-            }
-        }
-
         // What is stuck?
 
         static void reassignment() {
@@ -1104,13 +1020,22 @@ class KafkaClient {
          * against KAFKA_CACERT or Java's CAs, and its name. Nothing is sent.
          */
         static void tls() {
-            Collection<Node> ns = nodes();
+            props();
             boolean tls = protocol.endsWith("SSL");
             metric("tls", tls);
             if (!tls) return;
-            List<String> eps = new ArrayList<>();
-            for (Node n : ns) eps.add(n.host() + ":" + n.port());
-            Collections.sort(eps);
+            // The brokers it was given, and those the cluster lists when it
+            // answers. One it will not trust still gives its certificate, to
+            // be reported untrusted: that is no reason to fail the run.
+            Set<String> found = new TreeSet<>();
+            for (String b : props().getProperty("bootstrap.servers", "").split(",")) if (!b.trim().isEmpty()) found.add(b.trim());
+            try {
+                DescribeClusterOptions o = new DescribeClusterOptions().timeoutMs(15000);
+                for (Node n : admin().describeCluster(o).nodes().get(20, TimeUnit.SECONDS)) found.add(n.host() + ":" + n.port());
+            } catch (Exception e) {
+                Jmx.say("the brokers' list: " + Jmx.rootMessage(e) + "; their certificates are read from KAFKA_BOOTSTRAP's");
+            }
+            List<String> eps = new ArrayList<>(found);
             metric("endpoints", eps.size());
             X509TrustManager trust;
             try { trust = trustManager(); } catch (Exception e) { Jmx.fail("KAFKA_CACERT: " + Jmx.rootMessage(e)); return; }
