@@ -495,6 +495,118 @@ A cluster that cannot be reached reports `kafka.up` 0, and the run succeeds: tha
 
 **Tested** on 2026-11-21 on the Fedora 44 test machine by `tests/integration/backends/scripts/run-kafka.sh`, against clusters in Docker with SASL_SSL, SCRAM-SHA-512, a certificate from a test CA and the brokers' JMX open, made busy: a group that read part of a topic and stopped, one that keeps reading, a transaction held open, and a partition move held back by a throttle. `service-packs.sh` through Vigil, then every job as the busy cluster has it, with a broker stopped, and with it started again: **64 passed, 0 failed** against **Kafka 4.4.0**, three nodes in KRaft mode, with the 4.4.0 tools, the open transaction seen as `ongoing`, and later as `long_running`; **63 passed, 0 failed** against **Kafka 3.9.2**, three nodes in KRaft mode, with its own 3.9.2 tools; and **63 passed, 0 failed** against **Kafka 3.9.2 on ZooKeeper**, one broker (`--zookeeper`), so with no partition move and no broker stopped, with the 4.4.0 tools. In the 3.9.2 runs, and those of macOS and Windows below, the transaction did not stay open: the test then held it at Kafka's default timeout, a minute, and the broker ended it, so there `kafka_transactions` was seen to run and count, not to see one open. The full console output: [4.4.0](../tests/integration/backends/reports/runs/2026-11-21/fedora/pack-kafka-4.4.0/console.txt), [3.9.2](../tests/integration/backends/reports/runs/2026-11-21/fedora/pack-kafka-3.9.2/console.txt), [3.9.2 on ZooKeeper](../tests/integration/backends/reports/runs/2026-11-21/fedora/pack-kafka-3.9.2-zookeeper/console.txt). **On macOS**, on the Intel Mac test machine under its bash 3.2, with the 4.4.0 tools, against the 4.4.0 cluster on the Fedora machine through SSH tunnels: `service-packs.sh` through Vigil, **63 passed, 0 failed**: [the console output](../tests/integration/backends/reports/runs/2026-11-21/macos/pack-kafka-macos/console.txt). **On Windows**, against the same cluster the same way: every job directly, then `Service-Packs.ps1` through Vigil, **54 passed, 0 failed**, on Windows PowerShell 5.1 and PowerShell 7 on Windows 11 ([the console output](../tests/integration/backends/reports/runs/2026-11-21/windows/pack-kafka-windows/console.txt)), and on Windows PowerShell 5.1 on Windows Server 2025 ([the console output](../tests/integration/backends/reports/runs/2026-11-21/windows-server-2025/pack-kafka-windows/console.txt)). On Windows the password came from an `env:` reference: Windows refuses its data protection to a logon by SSH key, as the test machines' were.
 
+### jvm
+
+Java virtual machines: any Java application (Jenkins, Spring Boot, Elasticsearch, Keycloak, one of your own) through the JVM it runs on. The JVM, not the application: its process, memory, garbage collection, threads, JIT, classes, crashes, settings and security. Application servers and libraries (Tomcat, Jetty, connection pools) are for packs of their own, which report what is theirs and leave the JVM to this one. Linux, macOS and Windows; JVMs from Java 8.
+
+Each script runs `_client.java`, beside it, with a JDK 11 or later: one client for every platform, so each prints the same lines. It reaches each JVM in three tiers, and uses every one that reaches it:
+
+| Tier | Needs | Reads |
+| --- | --- | --- |
+| 1. The operating system | Nothing | The process: up, memory, CPU, threads, open files, disk I/O, uptime; its startup options; crash reports and heap dumps on disk |
+| 2. The JVM's own counters | The same machine, and Vigil running as root, an administrator or the JVM's own account. HotSpot JVMs (OpenJDK, Oracle, Temurin, Corretto, Zulu...), unless started with `-XX:-UsePerfData` | The `hsperfdata` file `jstat` reads: heap and pools, collections, threads, classes, the JIT, safepoints, promotion |
+| 3. JMX | The JVM's JMX address, given in `JVM_TARGETS` | Everything else, on this machine or another |
+
+So a JVM nobody set up is still watched: its process always, its counters when Vigil may read them. `jvm_status` says which tiers reach each JVM, and `jvm_discovery` lists the JVMs on the machine, and whether each is watched.
+
+1. `vigil pack enable jvm`. With `JVM_TARGETS` empty, every JVM on this machine is watched, each named by its main class.
+2. To name them, or to reach one over JMX, set `JVM_TARGETS` on the jobs' `env` lines: `name: key=value, ...; name: ...`, with `main=` (its main class or jar, or any text on its command line) or `pid=` (a pid file) to find it here, `jmx=host:port` or `jmxs=host:port` (JMX over TLS) for its JMX address, and `gclog=` for its GC log (written with `-Xlog:gc*:file=<path>`: plain `-Xlog:gc` leaves out ZGC's and Shenandoah's pauses; on Java 8, `-XX:+PrintGCDetails -XX:+PrintGCTimeStamps`):
+
+   ```ini
+   env = JVM_TARGETS=shop: main=com.acme.Shop, jmxs=localhost:9010, gclog=/var/log/shop/gc.log; jenkins: main=jenkins.war
+   ```
+
+   **The JMX address is the switch**: a JVM with one gets tier 3, one without gets tiers 1 and 2. A JVM with an address that does not answer reports `jmx_up 0`, which is worth an alert, and the other tiers still report. Vigil never looks for JMX ports by itself.
+3. For JMX with a password (and it should have one), add a secret line to each job, under its `env` lines, and give Vigil the password, as the account Vigil runs as:
+
+   ```ini
+   secret = JVM_JMX_PASSWORD=secret:JVM_JMX_PASSWORD
+   ```
+
+   ```sh
+   vigil secret set JVM_JMX_PASSWORD
+   ```
+
+   and the user in `JVM_JMX_USER`. With `jmxs=`, the JVM's certificate is checked against `JVM_CACERT` (a PEM file of CAs) or Java's own, and against its name: connect by the name on its certificate. No setting trusts a certificate unchecked.
+
+**Turning JMX on, safely.** On the JVM, with a password, TLS, and only this machine's address when Vigil runs here:
+
+```sh
+java -Dcom.sun.management.jmxremote.port=9010 -Dcom.sun.management.jmxremote.rmi.port=9010 \
+  -Dcom.sun.management.jmxremote.host=127.0.0.1 -Djava.rmi.server.hostname=localhost \
+  -Dcom.sun.management.jmxremote.authenticate=true \
+  -Dcom.sun.management.jmxremote.password.file=/etc/shop/jmx.password \
+  -Dcom.sun.management.jmxremote.access.file=/etc/shop/jmx.access \
+  -Dcom.sun.management.jmxremote.ssl=true -Dcom.sun.management.jmxremote.registry.ssl=true \
+  -Djavax.net.ssl.keyStore=/etc/shop/jmx.p12 -Djavax.net.ssl.keyStorePassword=... ...
+```
+
+The password file holds `vigil <password>` and must be readable by the JVM's account alone; the access file gives the user its role. **`readonly` or `readwrite`**: JMX has only these two. A `readonly` user may read attributes, which is most of this pack. It may not run operations, which `jvm_deadlocks`, `jvm_contention`, `jvm_hot_threads`, `jvm_allocation`, `jvm_classloaders`, `jvm_native` and part of `jvm_threads` and `jvm_virtual_threads` need: with `readonly` they say so in their log, and print what they can. `readwrite` lets them run, and also lets the user run anything else a JVM offers over JMX (a heap dump, a setting changed): choose it knowing that.
+
+**What it needs:**
+
+| | Linux | macOS | Windows |
+| --- | --- | --- | --- |
+| On the Vigil machine | A JDK 11 or later, `JAVA_HOME` or `java` on the PATH (a JRE cannot run a source file) | The same | The same |
+| For tier 2 | Vigil as root, or the JVM's account | Vigil as root, or the JVM's account | Vigil as an administrator, or the JVM's account |
+| For tier 3 | Each JVM's JMX address in `JVM_TARGETS`, and with a password, a `secret` line and `vigil secret set JVM_JMX_PASSWORD` (step 3) | | |
+
+| Job | Every | Tiers | Reports |
+| --- | --- | --- | --- |
+| `jvm_process` | 1m | 1 | Running, resident and virtual memory, CPU, threads, open files against the limit, uptime |
+| `jvm_heap` | 1m | 2, 3 | Heap used, committed, maximum, used against the maximum |
+| `jvm_gc` | 1m | 2, 3 | Collections and time per collector, the share of its life spent collecting |
+| `jvm_threads` | 1m | 2, 3 | Live, daemon, peak, started; by state (JMX) |
+| `jvm_deadlocks` | 1m | 3 | Deadlocked threads, each named with the lock it waits for and the thread that holds it |
+| `jvm_pools` | 2m | 2, 3 | Each memory pool, and each as the last collection left it: old gen after a collection, the leak signal |
+| `jvm_gc_cycles` | 2m | 3 | Pauses apart from concurrent work (ZGC, Shenandoah, G1's cycles) |
+| `jvm_gc_last` | 2m | 3 | The last collection: how long, how long ago, what it freed and left |
+| `jvm_allocation` | 2m | 3 | Allocation per second, over two seconds; the running total (Java 21 and later) |
+| `jvm_os` | 2m | 3 | The JVM's and the system's CPU, load, memory, swap, open files against the limit |
+| `jvm_status` | 5m | 1, 2, 3 | Up, which tiers reach it, version, vendor, VM, collectors, uptime, the heap's maximum |
+| `jvm_metaspace` | 5m | 2, 3 | Metaspace and compressed class space against their limits |
+| `jvm_codecache` | 5m | 2, 3 | The code cache by segment: when full, the JIT stops |
+| `jvm_buffers` | 5m | 3 | Direct and mapped buffers: off-heap memory |
+| `jvm_native_overhead` | 5m | 1 with 2 or 3 | Resident memory outside the heap: native leaks no Java figure shows |
+| `jvm_gc_cpu` | 5m | 2, 3 | The GC threads' CPU against the process's (HotSpot 22 and later) |
+| `jvm_promotion` | 5m | 2 | Promotion to old gen, tenuring, survivor overflow (Serial and Parallel) |
+| `jvm_gclog` | 5m | GC log | Pauses in the last five minutes: count, longest, 99th percentile; full collections; allocation stalls |
+| `jvm_virtual_threads` | 5m | 3 | Virtual threads' carriers; mounted and queued (Java 24 and later) |
+| `jvm_classes` | 5m | 2, 3 | Classes loaded, ever loaded, unloaded |
+| `jvm_jit` | 5m | 2, 3 | Time compiling, compilations, compiled code |
+| `jvm_safepoints` | 5m | 2 | Time stopped at safepoints, and waiting for threads to stop |
+| `jvm_io` | 5m | 1 | Disk reads and writes; open files by kind (Linux) |
+| `jvm_crashes` | 5m | 1 | Crash reports, compiler replays and core dumps written |
+| `jvm_oom` | 5m | 1 | Heap dumps written: out of memory |
+| `jvm_mbeans` | 5m | 3 | MBean attributes you name in `JVM_MBEANS`, as numbers |
+| `jvm_flags` | 15m | 1, 3 | No maximum heap, no heap dump or exit on out-of-memory, a removed collector, a heap over the machine's memory |
+| `jvm_security` | 15m | 1, 3 | A debugger listening, beyond this machine too; JMX without a password or TLS; verification off |
+| `jvm_startup` | 15m | 1, 2, 3 | When it started, how long the JVM took to start |
+| `jvm_native` | 15m | 3 | Native memory by category, when the JVM tracks it |
+| `jvm_tlab` | 15m | 2 | Allocation outside the threads' own buffers |
+| `jvm_gclog_detail` | 15m | GC log | Pauses by length; humongous allocations, to-space exhaustion, evacuation and promotion failures |
+| `jvm_contention` | 15m | 3 | Threads blocked, and the locks most waited for, with who holds them |
+| `jvm_hot_threads` | 15m | 3 | The busiest threads by CPU, over two seconds |
+| `jvm_classloaders` | 15m | 3 | Classloaders, and classes by loader type: redeploy leaks |
+| `jvm_deopt` | 15m | 2 | Compilations thrown away and given up |
+| `jvm_finalization` | 15m | 3 | Objects waiting to be finalized |
+| `jvm_discovery` | 1h | 1, 2 | The JVMs on this machine, by main class and account, watched or not, counters readable or not |
+| `jvm_container` | 1h | 3 | The CPUs and memory the JVM sees, against this machine's |
+| `jvm_release_age` | 1h | 2, 3 | Its Java's feature release, long-term support or not, days since its release |
+| `jvm_jfr` | 1h | 3 | Flight Recorder there, and its recordings |
+
+Each script's header says what its metrics mean and how to read them. Worth knowing:
+
+- **Nothing here pauses a JVM.** No heap dump, class histogram or thread dump with stacks: the jobs read counters, and make calls that are cheap on any heap.
+- **A command line is read, never reported**: it can hold a password. The pack reads only the options it knows.
+- **A run takes two or three seconds**: Java compiles the client from its source each time. So only the cheap jobs run every minute; the rest every 2, 5 or 15 minutes, or each hour.
+- **On Windows, an account CIM refuses** (one that is not an administrator, logged on over the network) still finds its own JVMs: Windows lists them without their command lines, and the pack reads each one's options and main class from its counters instead. Such a JVM has no disk reads and writes in `jvm_io`.
+- `JVM_DUMP_DIRS` adds folders to look in for crash reports and heap dumps, for every JVM: the JVM's own `-XX:ErrorFile` and `-XX:HeapDumpPath`, and its working folder on Linux, are looked in already.
+
+A JVM that is not running reports `running 0` (`jvm_process`) and `up 0` (`jvm_status`), and the run succeeds: that is a reading. A JMX login refused, or a certificate that cannot be trusted, fails the run, and its log says why.
+
+**Tested** on 2026-11-22 on the Fedora 44 test machine by `tests/integration/backends/scripts/run-jvm.sh`, with the client on Java 25.0.4, against eight JVMs made to misbehave (`Trouble.java`: a deadlock, leaked threads, a busy thread, blocked threads, leaking direct buffers and classloaders, an out-of-memory heap dump). Six were in Docker: **Java 8** with Parallel GC and JMX with a password but no TLS; **Java 11** tracking its native memory, **Java 17** with ZGC, **Java 21** with G1 and **Java 25** with Shenandoah and a debugger listening, each with JMX over TLS and a password; and a Java 21 with no JMX, run as root. Two ran on the machine itself on Java 25, one with JMX and one without. Beside them, a Java 17 crashed once, on purpose, for its crash report. `service-packs.sh` through Vigil, then every job: **93 passed, 0 failed**. That covers each tier alone and together, GC logs from Java 8, G1 and ZGC, a `readonly` JMX user, a wrong password, a certificate it cannot trust, JMX that does not answer and a JVM not running. Then from a container that sees the machine's processes as root, as Vigil running as root would, `jvm_discovery` and `jvm_heap` read the counters of all eight: [the console output](../tests/integration/backends/reports/runs/2026-11-22/fedora/pack-jvm/console.txt). **On macOS**, on the Intel Mac test machine (macOS 12.7.6, bash 3.2, Java 21), against a JVM of its own without JMX and the Fedora JVMs over JMX through SSH tunnels: every job directly, then `service-packs.sh` through Vigil, **64 passed, 0 failed**: [the console output](../tests/integration/backends/reports/runs/2026-11-22/macos/pack-jvm-macos/console.txt). **On Windows**, the same way with Java 21, `Service-Packs.ps1` through Vigil, **74 passed, 0 failed**: on Windows PowerShell 5.1 and PowerShell 7 on Windows 11 ([the console output](../tests/integration/backends/reports/runs/2026-11-22/windows/pack-jvm-windows/console.txt)), and on Windows PowerShell 5.1 on Windows Server 2025 ([the console output](../tests/integration/backends/reports/runs/2026-11-22/windows-server-2025/pack-jvm-windows/console.txt)). Both Windows machines ran it as an account that is not an administrator, logged on by SSH key. CIM refused that account, so the JVMs were found as above, without CIM. Windows also refuses its data protection to such a logon, so the password came from an `env:` reference.
+
 ### nginx
 
 An nginx server on this machine, from its `stub_status` page, which you turn on once, reachable from this machine only:

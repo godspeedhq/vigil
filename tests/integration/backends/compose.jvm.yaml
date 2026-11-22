@@ -1,0 +1,125 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# JVMs for the jvm pack (scripts/run-jvm.sh), each with trouble on purpose
+# (workloads/jvm/Trouble.java), from Java 8 to 25, each with a collector of
+# its own. Not somewhere Vigil sends: what its pack reads.
+#
+#   j8      Java 8,  Parallel,   JMX with a password (19181)   GC log, Java 8's
+#   j11     Java 11, Serial,     JMX, password and TLS (19182) native memory
+#                                                             tracked
+#   j17     Java 17, ZGC,        JMX, password and TLS (19183) GC log
+#   j21     Java 21, G1,         JMX, password and TLS (19184) GC log, heap dump
+#                                                             on out-of-memory
+#   j25     Java 25, Shenandoah, JMX, password and TLS (19185) a debugger
+#                                                             listening
+#   nojmx   Java 21, G1,         no JMX, and run as root: its counters are
+#                                root's alone
+#   crasher Java 17, crashes once, writing its crash report into the dumps
+#
+# Each runs as JVM_UID (the account that runs the test), but nojmx: the test
+# reads their counters, logs and dumps as that account would on a machine
+# of its own. JMX: users monitor (readonly) and operator (readwrite), both
+# with the password in JVM_JMX_PASSWORD; TLS with the certificate in
+# JVM_TLS_DIR (server.p12, naming localhost and 127.0.0.1, its password in
+# JVM_KS_PASSWORD). The dumps (GC logs, heap dumps, crash reports) go to
+# JVM_DUMPS_DIR. Each JVM takes 512 MB, its heap 256 MB.
+
+x-jvm: &jvm
+  mem_limit: 512m
+  user: "${JVM_UID:-1000}:${JVM_GID:-1000}"
+  entrypoint: ["/bin/sh", "/vigil/start.sh"]
+  volumes:
+    - ./configs/services/jvm/start.sh:/vigil/start.sh:ro,z
+    - ./workloads/jvm/Trouble.java:/vigil/Trouble.java:ro,z
+    - ${JVM_TLS_DIR:-./.jvm-tls}:/tls:ro,z
+    - ${JVM_DUMPS_DIR:-./.jvm-dumps}:/dumps:z
+    # A name for JVM_UID: a JVM whose account has no name keeps no counters.
+    - ${JVM_PASSWD:-./.jvm-passwd}:/etc/passwd:ro,z
+
+x-env: &env
+  JMX_PASSWORD: ${JVM_JMX_PASSWORD:-}
+  KS_PASSWORD: ${JVM_KS_PASSWORD:-}
+
+services:
+  j8:
+    <<: *jvm
+    image: eclipse-temurin:8-jdk
+    environment:
+      <<: *env
+      JMX_PORT: "19181"
+      JMX_TLS: "no"
+      MODES: busy leak threadleak gcstorm
+      JAVA_OPTS: -Xmx256m -XX:+UseParallelGC -Xloggc:/dumps/j8-gc.log -XX:+PrintGCDetails -XX:+PrintGCTimeStamps
+    ports:
+      - "127.0.0.1:19181:19181"
+
+  j11:
+    <<: *jvm
+    image: eclipse-temurin:11-jdk
+    environment:
+      <<: *env
+      JMX_PORT: "19182"
+      JMX_TLS: "yes"
+      MODES: busy offheap classleak finalizers
+      JAVA_OPTS: -Xmx256m -XX:+UseSerialGC -XX:NativeMemoryTracking=summary -XX:MaxDirectMemorySize=512m
+    ports:
+      - "127.0.0.1:19182:19182"
+
+  j17:
+    <<: *jvm
+    image: eclipse-temurin:17-jdk
+    environment:
+      <<: *env
+      JMX_PORT: "19183"
+      JMX_TLS: "yes"
+      MODES: busy gcstorm contention
+      JAVA_OPTS: -Xmx256m -XX:+UseZGC -Xlog:gc*:file=/dumps/j17-gc.log
+    ports:
+      - "127.0.0.1:19183:19183"
+
+  j21:
+    <<: *jvm
+    image: eclipse-temurin:21-jdk
+    environment:
+      <<: *env
+      JMX_PORT: "19184"
+      JMX_TLS: "yes"
+      MODES: busy leak deadlock vthreads oom humongous
+      JAVA_OPTS: -Xmx256m -XX:+UseG1GC -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/dumps -Xlog:gc*:file=/dumps/j21-gc.log
+    ports:
+      - "127.0.0.1:19184:19184"
+
+  j25:
+    <<: *jvm
+    image: eclipse-temurin:25-jdk
+    environment:
+      <<: *env
+      JMX_PORT: "19185"
+      JMX_TLS: "yes"
+      MODES: busy hot leak
+      JAVA_OPTS: -Xmx256m -XX:+UseShenandoahGC -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+    ports:
+      - "127.0.0.1:19185:19185"
+
+  nojmx:
+    <<: *jvm
+    image: eclipse-temurin:21-jdk
+    user: "0:0"
+    environment:
+      MODES: busy leak
+      JAVA_OPTS: -Xmx128m -Dvigil.it=nojmx
+
+  crasher:
+    <<: *jvm
+    image: eclipse-temurin:17-jdk
+    restart: "no"
+    environment:
+      MODES: crash
+      JAVA_OPTS: -Xmx64m -XX:ErrorFile=/dumps/hs_err_pid%p.log -XX:-CreateCoredumpOnCrash

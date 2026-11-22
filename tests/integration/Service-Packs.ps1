@@ -11,7 +11,7 @@
 
 <#
 .SYNOPSIS
-    Integration test: the postgres, redis, mssql and kafka service packs against
+    Integration test: the postgres, redis, mssql, kafka and jvm service packs against
     real servers, on Windows. The twin of service-packs.sh (nginx has no
     Windows script).
 .DESCRIPTION
@@ -51,9 +51,16 @@
         VIGIL_IT_KAFKA_ADMIN_BOOTSTRAP       optional: a PLAINTEXT listener that may
                                              do anything, to make a topic, messages
                                              and a group with lag
+        VIGIL_IT_JVM_TARGETS                 JVMs with JMX (JVM_TARGETS' form), as
+                                             scripts/run-jvm.sh runs them, by
+                                             tunnels; the test adds a JVM of its
+                                             own here, without JMX
+        VIGIL_IT_JVM_PASSWORD                their JMX operator user's password
+        VIGIL_IT_JVM_CACERT                  the CA their certificates are from
     psql is found as the pack finds it: on the PATH, or in PostgreSQL's own
     folders under Program Files. The redis and mssql packs need no client;
-    the kafka pack needs Kafka's tools and Java.
+    the kafka pack needs Kafka's tools and Java, the jvm pack a JDK 11 or
+    later.
 
     The pack is off until enabled; vigil pack enable puts its jobs in the
     configuration; each job runs and reports what the server says; a long
@@ -78,6 +85,7 @@ $root = Join-Path $work 'root'
 $script:pass = 0
 $script:fail = 0
 $hold = $null
+$script:jvmProc = $null
 $script:blocked = $null
 
 function Test-Equal {
@@ -746,12 +754,132 @@ try {
         $prom = [System.IO.File]::ReadAllText((Join-Path $root 'metrics\vigil.prom'))
         Test-Equal 'kafka: metrics reach the backend' 'True' ([string](($prom -match '(?m)^kafka_up\{') -and ($prom -match '(?m)^kafka_replication_partitions\{')))
     }
+
+    # --- jvm ----------------------------------------------------------------
+    # A JVM of the test's own on this machine, as this account, without JMX:
+    # the process and its counters, as Windows has them. And JMX to JVMs
+    # elsewhere (VIGIL_IT_JVM_TARGETS, by tunnels to scripts/run-jvm.sh's).
+    $jjava = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { [string](Get-Command java.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source) }
+    if (-not $env:VIGIL_IT_JVM_TARGETS -or -not $env:VIGIL_IT_JVM_PASSWORD) { Write-Host '  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)' }
+    elseif (-not $jjava -or -not (Test-Path -LiteralPath $jjava)) { Write-Host '  SKIP  jvm: java is not installed here' }
+    else {
+        # The jobs have their JVMs, password and CA from Vigil: never from
+        # this test's own environment.
+        foreach ($v in 'JVM_TARGETS', 'JVM_JMX_USER', 'JVM_JMX_PASSWORD', 'JVM_CACERT', 'JVM_MBEANS', 'JVM_DUMP_DIRS') { Remove-Item "Env:\$v" -ErrorAction SilentlyContinue }
+        $jtargets = "$($env:VIGIL_IT_JVM_TARGETS); win: main=-Dvigil.it=winplain"
+        Write-Host "jvm: $jtargets"
+        $script:jvmProc = Start-Process -FilePath $jjava -PassThru -NoNewWindow -WorkingDirectory $work `
+            -RedirectStandardOutput (Join-Path $work 'winplain.out') -RedirectStandardError (Join-Path $work 'winplain.err') `
+            -ArgumentList @('-Dvigil.it=winplain', '-Xmx128m', '-XX:+UseSerialGC', "`"$(Join-Path $repo 'tests\integration\backends\workloads\jvm\Trouble.java')`"", 'busy', 'leak', 'threadleak')
+        $jk = Join-Path $root 'packs\jvm'
+        [void](New-Item -ItemType Directory -Force -Path $jk)
+        Copy-Item -LiteralPath (Join-Path $repo 'packs\jvm\pack.config') -Destination $jk
+        Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jvm\windows') | Copy-Item -Destination $jk
+        function Get-JvmJobsOn {
+            $list = (Invoke-Vigil pack list).Text
+            $s = @($list.Split("`n") | Where-Object { $_ -match '^\s*jvm_\w+\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            return (@($s | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        function Invoke-JJob { param([string]$Job) return [string](Invoke-Vigil run "jvm_$Job").Code }
+        Test-Equal 'jvm: off until enabled' 'off=41' (Get-JvmJobsOn)
+        $r = Invoke-Vigil pack enable jvm
+        Test-Equal 'jvm: enabled' '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal 'jvm: its jobs are on' 'on=41' (Get-JvmJobsOn)
+        $cfg = Join-Path $root 'config\vigil.config'
+        Test-Equal 'jvm: no secret line until JMX asks for one' '0' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*JVM_JMX_PASSWORD=')).Count)
+        # JMX with a password: a secret line on each job, as packs/README.md
+        # says. A logon with no password (SSH with a key) cannot use the
+        # secret store: then the jobs take it by an env: reference, as such a
+        # logon would.
+        [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(env\s*=\s*JVM_CACERT=[^\r\n]*)(\r?\n)', '$1$2secret      = JVM_JMX_PASSWORD=secret:JVM_JMX_PASSWORD$2'))
+        Test-Equal 'jvm: the password is a secret reference, on every job' '41' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*JVM_JMX_PASSWORD=secret:JVM_JMX_PASSWORD')).Count)
+        $jenv = $false
+        Set-VigilSecret 'JVM_JMX_PASSWORD' $env:VIGIL_IT_JVM_PASSWORD
+        if ((Invoke-Vigil secret list).Text -notmatch 'JVM_JMX_PASSWORD') {
+            $jenv = $true
+            Write-Host '  note  jvm: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_JVM_PASSWORD'
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*JVM_JMX_PASSWORD=)secret:JVM_JMX_PASSWORD', '${1}env:VIGIL_IT_JVM_PASSWORD'))
+        }
+        Set-Env 'JVM_TARGETS' $jtargets
+        Set-Env 'JVM_JMX_USER' 'operator'
+        Set-Env 'JVM_CACERT' ([string]$env:VIGIL_IT_JVM_CACERT)
+        $r = Invoke-Vigil precheck
+        Test-Equal 'jvm: precheck is happy' '0' ([string]$r.Code)
+        # A while of trouble: threads leaked, the heap filling.
+        Start-Sleep -Seconds 45
+        $jlist = @(([System.IO.File]::ReadAllLines($cfg) | Where-Object { $_ -match '^\[job\.jvm_(\w+)\]' } | ForEach-Object { $Matches[1] }))
+        foreach ($j in $jlist) {
+            Test-Equal "jvm: $j runs" '0' (Invoke-JJob $j)
+            Show-LastRun "jvm_$j"
+        }
+        # This machine's JVM: its process and counters, no JMX.
+        Test-Equal 'jvm: found here' '1' (Get-Printed jvm_process running ' jvm=win')
+        Test-Equal 'jvm: its memory' 'yes' (Test-Between jvm_process rss_bytes ' jvm=win' 1e6 1e11)
+        Test-Equal 'jvm: its CPU time' 'yes' (Test-Between jvm_process cpu_seconds ' jvm=win' 0.1 1e9)
+        Test-Equal 'jvm: its handles' 'yes' (Test-Between jvm_process open_files ' jvm=win' 1 1e7)
+        Test-Equal 'jvm: from the process' '1' (Get-Printed jvm_status tier_os ' jvm=win')
+        Test-Equal 'jvm: and its counters' '1' (Get-Printed jvm_status tier_counters ' jvm=win')
+        Test-Equal 'jvm: and no JMX' '0' (Get-Printed jvm_status tier_jmx ' jvm=win')
+        Test-Equal 'jvm: the heap, from the counters' 'yes' (Test-Between jvm_heap used_bytes ' jvm=win' 1 1e11)
+        Test-Equal 'jvm: collections, counted' 'yes' (Test-Between jvm_gc collections_total ' jvm=win' 1 1e12)
+        Test-Equal 'jvm: leaked threads' 'yes' (Test-Between jvm_threads live ' jvm=win' 30 1e6)
+        Test-Equal 'jvm: the JIT' 'yes' (Test-Between jvm_jit compile_seconds ' jvm=win' 0.001 1e6)
+        Test-Equal 'jvm: safepoints, a share of its time' 'yes' (Test-Between jvm_safepoints stopped_percent_lifetime ' jvm=win' 0 100)
+        Test-Equal 'jvm: every JVM here, found' 'yes' (Test-Between jvm_discovery jvms '' 1 1000)
+        # JMX elsewhere, by its address.
+        if ($env:VIGIL_IT_JVM_TARGETS -match '(^|;)\s*j21:') {
+            Test-Equal 'jvm: JMX with TLS and a password' '1' (Get-Printed jvm_status tier_jmx ' jvm=j21')
+            Test-Equal 'jvm: a deadlock, named' '2' (Get-Printed jvm_deadlocks deadlocked ' jvm=j21')
+            Test-Equal 'jvm: the heap, over JMX' 'yes' (Test-Between jvm_heap used_bytes ' jvm=j21' 1 1e11)
+        }
+
+        # Failures: a wrong password and a certificate it cannot trust fail
+        # the run and say why; JMX that does not answer reads as jmx_up 0, a
+        # JVM not running as running 0.
+        $jpw = $env:VIGIL_IT_JVM_PASSWORD
+        if ($jenv) { $env:VIGIL_IT_JVM_PASSWORD = 'not-the-password' } else { Set-VigilSecret 'JVM_JMX_PASSWORD' 'not-the-password' }
+        Test-Equal 'jvm: a wrong password fails the run' '2' (Invoke-JJob heap)
+        Test-Equal 'jvm: and says why' 'True' (Test-Said jvm_heap 'refused the login')
+        if ($jenv) { $env:VIGIL_IT_JVM_PASSWORD = $jpw } else { Set-VigilSecret 'JVM_JMX_PASSWORD' $jpw }
+        if ($env:VIGIL_IT_JVM_CACERT -and $env:VIGIL_IT_JVM_TARGETS -match 'jmxs=') {
+            Set-Env 'JVM_CACERT' ''
+            Test-Equal 'jvm: a certificate it cannot trust fails the run' '2' (Invoke-JJob heap)
+            Test-Equal 'jvm: and says why' 'True' (Test-Said jvm_heap 'certificate is not trusted')
+            Set-Env 'JVM_CACERT' $env:VIGIL_IT_JVM_CACERT
+        }
+        Set-Env 'JVM_TARGETS' 'gone: jmx=127.0.0.1:1; absent: main=-Dvigil.it=nowhere'
+        Test-Equal 'jvm: JMX that does not answer still runs' '0' (Invoke-JJob status)
+        Test-Equal 'jvm: and reads as jmx_up 0' '0' (Get-Printed jvm_status jmx_up ' jvm=gone')
+        [void](Invoke-JJob process)
+        Test-Equal 'jvm: a JVM not running reads as running 0' '0' (Get-Printed jvm_process running ' jvm=absent')
+        Set-Env 'JVM_TARGETS' $jtargets
+        [void](Invoke-JJob heap)
+        [void](Invoke-JJob deadlocks)
+        $leaks = @(Get-ChildItem -LiteralPath (Join-Path $root 'logs'), (Join-Path $root 'state'), (Join-Path $root 'spool'), (Join-Path $root 'metrics'), $cfg -Recurse -File -ErrorAction SilentlyContinue |
+                Where-Object { [System.IO.File]::ReadAllText($_.FullName).Contains($env:VIGIL_IT_JVM_PASSWORD) })
+        Test-Equal 'jvm: the password is written nowhere' '' ((@($leaks | ForEach-Object { $_.FullName.Substring($root.Length + 1) })) -join ' ')
+
+        # Forty-one jobs are a lot of events: the sender merges them in the
+        # background.
+        $prom = ''
+        foreach ($i in 1..40) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match '(?m)^jvm_heap_used_bytes\{.*jvm="win"') { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal 'jvm: metrics reach the backend' 'True' ([string](($prom -match '(?m)^jvm_heap_used_bytes\{.*jvm="win"') -and ($prom -match '(?m)^jvm_threads_live\{')))
+    }
 }
 finally {
     # The mssql test's own connections, holding a lock or waiting on one.
     foreach ($c in $holder, $waiter, $sa) { if ($c) { try { $c.Dispose() } catch { } } }
     if ($script:blocked) { $script:blocked.Tcp.Close() }
     if ($hold -and -not $hold.HasExited) { Stop-Process -Id $hold.Id -Force -ErrorAction SilentlyContinue }
+    # The jvm test's JVM: the one it started, by its process.
+    if ($script:jvmProc -and -not $script:jvmProc.HasExited) { Stop-Process -Id $script:jvmProc.Id -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1
     Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue
 }
