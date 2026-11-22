@@ -31,11 +31,19 @@ jobs:
   # commit before it, so a merged pack does not run the suites again. The
   # Test evidence page reads the newest run on main whose suites ran. A run
   # by hand, or a push whose commit before is unknown, runs everything.
+  #
+  # Whatever the class, the packs with Java whose Java the change can break
+  # (java_packs, for the pack-java job): a pack changed in packs/<name>/ or
+  # tools/<name>/ that has a _*.java; every pack carrying the probe when
+  # tools/probe/ changes; every pack with Java when the release tools or
+  # this workflow change, or when everything runs. Found from the packs
+  # themselves, so a new pack with Java needs no change here.
   changes:
     runs-on: ubuntu-latest
     outputs:
       docs_only: ${{ steps.files.outputs.docs_only }}
       packs_only: ${{ steps.files.outputs.packs_only }}
+      java_packs: ${{ steps.files.outputs.java_packs }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -64,9 +72,27 @@ jobs:
                   packs_only=true
               fi
           fi
-          echo "docs only: $docs_only; packs only: $packs_only"
+          # The packs with Java, and those carrying the probe.
+          java=$(ls packs/*/*/_*.java 2> /dev/null | cut -d/ -f2 | sort -u | tr '\n' ' ')
+          probe=$(ls packs/*/*/_probe.java 2> /dev/null | cut -d/ -f2 | sort -u | tr '\n' ' ')
+          if [ -z "$BASE" ]; then
+              java_packs=$java
+          else
+              java_packs=$(printf '%s\n' "$files" | while IFS= read -r f; do
+                  case $f in
+                      tools/release/* | .github/workflows/conformance.yml) printf '%s\n' $java ;;
+                      tools/probe/*) printf '%s\n' $probe ;;
+                      packs/*/* | tools/*/*)
+                          n=${f#*/}; n=${n%%/*}
+                          case " $java " in *" $n "*) printf '%s\n' "$n" ;; esac ;;
+                  esac
+              done | sort -u | tr '\n' ' ')
+          fi
+          java_packs=$(printf '%s' "$java_packs" | sed 's/ *$//')
+          echo "docs only: $docs_only; packs only: $packs_only; packs whose Java to check: ${java_packs:-none}"
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
           echo "packs_only=$packs_only" >> "$GITHUB_OUTPUT"
+          echo "java_packs=$java_packs" >> "$GITHUB_OUTPUT"
 
   # The suite in three parts on each runner, side by side: most of its time
   # is waiting on the clock (a schedule, a max_runtime, a supervisor's next
@@ -653,26 +679,47 @@ jobs:
         run: /bin/bash tools/check-headers.sh
       - name: every pack, checked and run (/bin/bash)
         run: /bin/bash tools/check-pack.sh --run
-      # As a packs release builds them, a pack's compiled client too
-      # (tools/release/client-jar.sh): one that does not compile for Java 11
-      # is found here, not when a release is tagged.
+      # Its archives and index; the jars are the pack-java job's, for the
+      # packs the change can break.
+      - name: every pack, built as a release, without its jars
+        env:
+          VIGIL_TEST_PACKS_NO_CLIENT: '1'
+        run: /bin/bash tools/release/packs.sh packs-2099.01.01 "$RUNNER_TEMP/packs"
+
+  # The Java of the packs the change can break (changes: java_packs), checked
+  # as a release builds it (tools/release/client-check.sh): compiled against
+  # every library its client.lib names, the newest too, and each platform's
+  # jars built with their digests written in. So a pack whose Java does not
+  # build fails here, not when a release is tagged; a change that touches no
+  # pack's Java runs nothing here.
+  pack-java:
+    name: pack java
+    needs: changes
+    if: needs.changes.outputs.java_packs != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-      - name: every pack, built as a release
-        run: /bin/bash tools/release/packs.sh packs-2099.01.01 "$RUNNER_TEMP/packs"
+      - name: their Java, compiled against every library and built as a release
+        env:
+          PACKS: ${{ needs.changes.outputs.java_packs }}
+        run: /bin/bash tools/release/client-check.sh $PACKS
 
   # The checks main requires are named for each PowerShell and for each
   # bash runner. Each passes once its suite has passed (every part: twelve
   # for Windows, six for bash), or when the suite was skipped because the
-  # change is documentation only, or packs only and the packs job passed. A
+  # change is documentation only, or packs only and the packs job passed;
+  # and in every case only when pack-java passed or had nothing to check. A
   # gate of its own, because a skipped matrix job reports under its
   # unexpanded name, which main would wait for forever. So the parts can be
   # split or renamed without changing the checks main requires.
   windows:
     name: windows (${{ matrix.label }})
-    needs: [changes, windows-part, packs]
+    needs: [changes, windows-part, packs, pack-java]
     if: always()
     strategy:
       fail-fast: false
@@ -686,7 +733,10 @@ jobs:
           DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
           PACKS_ONLY: ${{ needs.changes.outputs.packs_only }}
           PACKS: ${{ needs.packs.result }}
+          JAVA: ${{ needs.pack-java.result }}
         run: |
+          # The packs' Java, when the change can break it: passed, or not run.
+          case $JAVA in success | skipped) ;; *) echo "pack java: $JAVA"; exit 1 ;; esac
           test "$RESULT" = success && exit 0
           test "$RESULT" = skipped && test "$DOCS_ONLY" = true && exit 0
           test "$RESULT" = skipped && test "$PACKS_ONLY" = true && test "$PACKS" = success && exit 0
@@ -695,7 +745,7 @@ jobs:
 
   bash:
     name: bash (${{ matrix.os }})
-    needs: [changes, bash-suite, packs]
+    needs: [changes, bash-suite, packs, pack-java]
     if: always()
     strategy:
       fail-fast: false
@@ -709,7 +759,10 @@ jobs:
           DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
           PACKS_ONLY: ${{ needs.changes.outputs.packs_only }}
           PACKS: ${{ needs.packs.result }}
+          JAVA: ${{ needs.pack-java.result }}
         run: |
+          # The packs' Java, when the change can break it: passed, or not run.
+          case $JAVA in success | skipped) ;; *) echo "pack java: $JAVA"; exit 1 ;; esac
           test "$RESULT" = success && exit 0
           test "$RESULT" = skipped && test "$DOCS_ONLY" = true && exit 0
           test "$RESULT" = skipped && test "$PACKS_ONLY" = true && test "$PACKS" = success && exit 0
