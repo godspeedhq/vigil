@@ -515,6 +515,32 @@ Each script's header says what its metrics mean and how to read them. Worth know
 
 A cluster that cannot be reached reports `kafka.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed. A refused login, a certificate that cannot be trusted, or a jar that does not match its digest fails the run, and its log says why; so does a JMX login refused, or a JMX certificate not trusted, for the jobs that read JMX.
 
+**What to alert on.** Starting points, not rules: Vigil runs the jobs and delivers what they print, and the alerts are yours, in the backend you already use. *Watch* is a warning: someone looks today. *Act* is critical: someone acts now. Give most alerts a few minutes, since a rolling restart fences a broker and leaves partitions under-replicated for a moment, and that is healthy. The last column is what the test cluster showed, in [the 4.4.0 run's console output](../tests/integration/backends/reports/runs/2026-11-22/fedora/pack-kafka-4.4.0/console.txt): most of it caused on purpose, and where we caused nothing, it says so. Everything not here (topics, partitions, sizes, traffic) is for dashboards.
+
+| Metric | Healthy | Watch | Act | In our tests |
+| --- | --- | --- | --- | --- |
+| `kafka.up` | 1 | | 0: the cluster does not answer | 0, with the job pointed at a port where nothing listens |
+| `kafka.replication.offline` | 0 | | Any: no one can read or write those partitions | 1 with broker 3 stopped: a partition of `audit`, whose only replica was there |
+| `kafka.replication.under_min_isr` | 0 | | Any: producers with `acks=all` are refused | 4 on the busy cluster (`audit` has one replica where two must be in sync), 7 with broker 3 stopped |
+| `kafka.replication.at_min_isr` | 0 | Any: one more replica lost and writes fail | | 165 with broker 3 stopped |
+| `kafka.replication.under_replicated` | 0 | Any, for 5 minutes or more | Many, or not falling | 1 during the throttled partition move, 169 with broker 3 stopped |
+| `kafka.brokers_fenced`, `kafka.broker.online` | 0, and 1 for each broker | A broker fenced or not online for a few minutes | Still so after 10 minutes, or more than one broker | `brokers_fenced 1` and `online 0 broker=3` with broker 3 stopped |
+| `kafka.quorum.max_follower_lag_ms` (KRaft) | Under a second | Several seconds | Tens of seconds and rising: a controller has stopped fetching | 277 to 448 on the busy cluster; 30,338 with broker 3, a controller too, stopped |
+| `kafka.controller.active_controller`, added up over the brokers | 1 | | 0 or more than 1: no controller, or two | Not caused: every run read 1 |
+| `jmx_up` of the JMX jobs (`kafka.throughput.jmx_up` and the rest) | 1 for each broker | | 0: that broker's figures are missing. A broker whose JMX does not answer cannot give its id, so it is tagged with its address | `jmx_up 0 broker=127.0.0.1:19993` with broker 3 stopped |
+| `kafka.consumer.group_lag` | Steady, or falling | Rising for 15 minutes or more | Rising for an hour, or near what retention keeps: messages will be deleted unread | `billing`, whose consumer stopped: 16,387, then 21,428 later in the run |
+| `kafka.transaction.long_running` | 0 | Any: an open transaction holds back consumers that read only committed messages | | The transaction held open read `ongoing 1`, then `long_running 1` once open longer than 300 seconds |
+| `kafka.connection.failed_logins_count` (as a rate) | 0 | Any | Rising: a client with a wrong password, or someone guessing | 1 and 3 on the `SECURE` listener, after the test logged in with a wrong password |
+| `kafka.controller.unclean_elections_count` (as a rate) | 0 | | Any: a leader was elected without all the data, and messages were lost | Not caused: unclean election is off |
+| `kafka.logdir.dirs_offline` | 0 | | Any: a disk failed, and its partitions went elsewhere or offline | Not caused |
+| `kafka.logdir.cleaner_dead_threads` | 0 | | Any: compacted topics, `__consumer_offsets` among them, are no longer cleaned and grow | Not caused: 0 on every broker |
+| `kafka.request.handler_idle_pct` | Above 50 | Below 30 for 15 minutes or more | Below 10: requests wait | Not caused: 99.3 to 99.8 |
+| `kafka.throughput.failed_produce_requests_count` (as a rate) | 0 | Any | Rising | Not caused: 0 |
+| `kafka.tls.expires_days` | Above 30 | 30 or fewer | 7 or fewer | 1: the test's certificates last two days |
+| `kafka.tls.trusted` | 1 | | 0: clients that check certificates will refuse it | 0 when checked against Java's own CAs, which do not include the test's |
+| `kafka.config.unclean_leader_election`, `plaintext_listeners`, `settings_differ`, `topics_min_isr_ge_rf`; `kafka.security.any_principal_acls`, `all_operations_acls` | 0 | Any: a risk to decide on, not an outage | | `plaintext_listeners 2`, `settings_differ 2` and `topics_min_isr_ge_rf 2` on the test cluster |
+| `kafka.feature.features_behind` | 0 | Any, for days: an upgrade not finalized. A quorum with a fixed list of controllers always shows `kraft.version` behind | | 0 |
+
 **From 1.0.** `kafka_jvm` is gone: its JVM half is the jvm pack's, and its Kafka half (flush times, the log cleaner) is in `kafka_logdirs`. Where a job still runs it, `vigil pack update` keeps its script and says so (`dropped from the pack, still running: kafka_jvm`); `vigil pack disable kafka_jvm` stops it. Kafka's command-line tools are no longer run; `KAFKA_HOME` still names the Kafka download, now for its library. JMX takes a password and TLS, and `KAFKA_JMX` its targets as `jmxs=host:port` or `jmx=host:port` (a bare `host:port` still works, as `jmx=`). Java 11 or later, where 1.0 needed 17.
 
 **Tested** (2.0) on 2026-11-22 on the Fedora 44 test machine by `tests/integration/backends/scripts/run-kafka.sh`, which builds the pack's jars as a release does. Each cluster ran in Docker with SASL_SSL, SCRAM-SHA-512, a certificate from a test CA, JMX over TLS with a password and a `readonly` user, and trouble on purpose: a group behind, a share group (Kafka 4), a transaction held open, a partition move held back.
