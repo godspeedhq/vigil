@@ -39,7 +39,10 @@
 #   gc_cpu_percent_lifetime  the GC threads' share of it
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric gc_cpu_seconds 3.7634 jvm=host
+#   metric process_cpu_seconds 33.98 jvm=host
+#   metric gc_cpu_percent_lifetime 11.0752 jvm=host
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  gc_cpu_percent_lifetime under 10.

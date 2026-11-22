@@ -41,7 +41,15 @@
 #   uptime_seconds  since it started
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric running 1 jvm=j21
+#   metric rss_bytes 371208192 jvm=j21
+#   metric virtual_bytes 4020424704 jvm=j21
+#   metric cpu_seconds 630.15 jvm=j21
+#   metric threads 36 jvm=j21
+#   metric open_files 10 jvm=j21
+#   metric open_files_max 524288 jvm=j21
+#   metric uptime_seconds 1016 jvm=j21
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  running 1; rss_bytes steady; uptime_seconds rising.

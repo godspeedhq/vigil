@@ -34,7 +34,11 @@
 #   stopped_percent_lifetime  time stopped, against the time it has run
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric safepoints 5645 jvm=j21
+#   metric stopped_seconds 113.9661 jvm=j21
+#   metric sync_seconds 18.4907 jvm=j21
+#   metric stopped_percent_lifetime 8.6562 jvm=j21
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  stopped_seconds' rate close to the GC's pause rate.

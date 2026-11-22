@@ -37,7 +37,15 @@
 #   waste_refill_words    buffer left unused at a refill, in words
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric allocated_words 12032 jvm=plain
+#   metric threads 1 jvm=plain
+#   metric refills 1 jvm=plain
+#   metric refills_max 1 jvm=plain
+#   metric slow_allocations 1 jvm=plain
+#   metric slow_allocations_max 1 jvm=plain
+#   metric waste_gc_words 1782 jvm=plain
+#   metric waste_refill_words 0 jvm=plain
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  slow_allocations small against refills.

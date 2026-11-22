@@ -42,7 +42,16 @@
 #   after_gc_percent  that, against max, tagged the same
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric used_bytes 1496064 jvm=j21 pool=CodeHeap_non-nmethods type=non_heap
+#   metric committed_bytes 2555904 jvm=j21 pool=CodeHeap_non-nmethods type=non_heap
+#   metric max_bytes 5836800 jvm=j21 pool=CodeHeap_non-nmethods type=non_heap
+#   metric used_bytes 1512448 jvm=j21 pool=CodeHeap_non-profiled_nmethods type=non_heap
+#   metric committed_bytes 2555904 jvm=j21 pool=CodeHeap_non-profiled_nmethods type=non_heap
+#   metric max_bytes 122912768 jvm=j21 pool=CodeHeap_non-profiled_nmethods type=non_heap
+#   metric used_bytes 5639296 jvm=j21 pool=CodeHeap_profiled_nmethods type=non_heap
+#   metric committed_bytes 5701632 jvm=j21 pool=CodeHeap_profiled_nmethods type=non_heap
+#   metric max_bytes 122908672 jvm=j21 pool=CodeHeap_profiled_nmethods type=non_heap
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  Old gen's after_gc_percent steady.

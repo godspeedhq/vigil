@@ -37,7 +37,10 @@
 #   recordings_running  of those, running
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric available 1 jvm=j17
+#   metric recordings 0 jvm=j17
+#   metric recordings_running 0 jvm=j17
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  As you set it up.

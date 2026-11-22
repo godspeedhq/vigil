@@ -38,7 +38,10 @@
 #                           survivors
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric tenuring_threshold 1 jvm=plain
+#   metric tenuring_threshold_max 15 jvm=plain
+#   metric survivor_desired_bytes 2228224 jvm=plain
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  tenuring_threshold near tenuring_threshold_max;

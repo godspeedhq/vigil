@@ -37,7 +37,9 @@
 #           attribute>
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric value 22 jvm=j21 mbean=java.lang:type=Threading attribute=ThreadCount
+#   metric value 190453104 jvm=j21 mbean=java.lang:type=Memory attribute=HeapMemoryUsage.used
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  As your application defines it.

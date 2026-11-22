@@ -38,7 +38,12 @@
 #   concurrent_seconds  their time, a running total
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric pauses 14554 jvm=j17
+#   metric pause_seconds 0.146 jvm=j17
+#   metric pause_avg_ms 0.01 jvm=j17
+#   metric concurrent_cycles 4851 jvm=j17
+#   metric concurrent_seconds 932.55 jvm=j17
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  pause_avg_ms small for the collector (ZGC: under 1 ms; G1: tens

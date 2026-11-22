@@ -47,7 +47,14 @@
 #                         deprecated collector, a heap over memory
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric heap_max_set 1 jvm=j21
+#   metric heap_dump_on_oom 1 jvm=j21
+#   metric exit_on_oom 0 jvm=j21
+#   metric deprecated_gc 0 jvm=j21
+#   metric heap_over_memory 0 jvm=j21
+#   metric explicit_gc_disabled 0 jvm=j21
+#   metric risks 0 jvm=j21
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  risks 0.

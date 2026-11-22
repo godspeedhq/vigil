@@ -39,7 +39,11 @@
 #   compiled_code_bytes  compiled code (counters)
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric compile_seconds 15.1326 jvm=plain
+#   metric compiles 2027 jvm=plain
+#   metric osr_compiles 5 jvm=plain
+#   metric compiled_code_bytes 2932792 jvm=plain
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  compile_seconds' rate near 0 once warm.

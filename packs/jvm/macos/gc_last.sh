@@ -36,7 +36,16 @@
 #   after_bytes  memory in use after it, tagged the same
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric duration_ms 1 jvm=j21 collector=G1_Concurrent_GC
+#   metric seconds_ago 0.803 jvm=j21 collector=G1_Concurrent_GC
+#   metric freed_bytes 0 jvm=j21 collector=G1_Concurrent_GC
+#   metric after_bytes 148555256 jvm=j21 collector=G1_Concurrent_GC
+#   metric duration_ms 86 jvm=j21 collector=G1_Old_Generation
+#   metric seconds_ago 315.652 jvm=j21 collector=G1_Old_Generation
+#   metric freed_bytes 250167632 jvm=j21 collector=G1_Old_Generation
+#   metric after_bytes 29118368 jvm=j21 collector=G1_Old_Generation
+#   metric duration_ms 13 jvm=j21 collector=G1_Young_Generation
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  freed_bytes large, after_bytes small.

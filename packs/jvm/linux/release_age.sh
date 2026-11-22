@@ -40,7 +40,10 @@
 #                     JMX), tagged version=
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric feature_version 25 jvm=j25
+#   metric lts 1 jvm=j25
+#   metric release_age_days 5 jvm=j25 version=25.0.5.1
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  release_age_days under about 100: Java updates come every three

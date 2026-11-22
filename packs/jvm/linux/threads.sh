@@ -41,7 +41,16 @@
 #            timed_waiting, new> (JMX)
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric live 414 jvm=j8
+#   metric daemon 413 jvm=j8
+#   metric peak 414 jvm=j8
+#   metric started 464 jvm=j8
+#   metric state 0 jvm=j8 state=blocked
+#   metric state 0 jvm=j8 state=new
+#   metric state 6 jvm=j8 state=runnable
+#   metric state 406 jvm=j8 state=timed_waiting
+#   metric state 2 jvm=j8 state=waiting
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  live steady under steady load.

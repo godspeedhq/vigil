@@ -32,7 +32,13 @@
 #   open         open, tagged kind=<socket, file, pipe or other> (Linux)
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric read_bytes 3993600 jvm=host
+#   metric write_bytes 0 jvm=host
+#   metric open 3 jvm=host kind=socket
+#   metric open 0 jvm=host kind=pipe
+#   metric open 6 jvm=host kind=file
+#   metric open 0 jvm=host kind=other
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  Steady for steady load.

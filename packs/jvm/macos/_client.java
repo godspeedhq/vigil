@@ -509,7 +509,19 @@ class JvmClient {
                     p.readBytes = longOrNull(c[9]);
                     p.writeBytes = longOrNull(c[10]);
                 } catch (NumberFormatException e) { continue; }
-                p.args = winArgs(c[2]);
+                String cmd = c[2];
+                if (cmd.isEmpty()) {
+                    // Windows would not say (no CIM for this account): the
+                    // JVM's own counters keep its options and main class.
+                    Perf pf = Perf.find(p);
+                    if (pf == null) continue;
+                    String vm = pf.s("java.rt.vmArgs"), main = pf.s("sun.rt.javaCommand");
+                    if (main == null) continue;
+                    // A source file run as it is: its launcher, then the file.
+                    main = main.replaceFirst("^jdk\\.compiler/\\S+\\s+", "");
+                    cmd = "java " + (vm == null ? "" : vm + " ") + main;
+                }
+                p.args = winArgs(cmd);
                 if (p.args.isEmpty()) continue;
                 p.main = mainOf(p.args);
                 l.add(p);
@@ -1727,7 +1739,7 @@ class JvmClient {
                         int n = 0;
                         for (CompositeData c : (CompositeData[]) infos) {
                             if (c == null || n++ >= 20) continue;
-                            metric("thread", 1, t, "thread", String.valueOf(c.get("threadName")), "waits_on", String.valueOf(c.get("lockName")),
+                            metric("thread", 1, t, "thread", String.valueOf(c.get("threadName")), "waits_on", lockClass(String.valueOf(c.get("lockName"))),
                                     "held_by", String.valueOf(c.get("lockOwnerName")));
                         }
                     }

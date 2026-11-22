@@ -38,7 +38,10 @@
 #   load_seconds  time spent loading classes (counters)
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric loaded 3362 jvm=j11
+#   metric loaded_total 3581 jvm=j11
+#   metric unloaded 219 jvm=j11
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  loaded steady once started.

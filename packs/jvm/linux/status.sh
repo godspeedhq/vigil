@@ -45,7 +45,14 @@
 #   heap_max_bytes  the most heap it may use
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric up 1 jvm=j8
+#   metric tier_os 1 jvm=j8
+#   metric tier_counters 1 jvm=j8
+#   metric tier_jmx 1 jvm=j8
+#   metric info 1 jvm=j8 version=1.8.0_512 vendor=Temurin vm=OpenJDK_64-Bit_Server_VM gc=PS_MarkSweep+PS_Scavenge
+#   metric uptime_seconds 1013 jvm=j8
+#   metric heap_max_bytes 266338304 jvm=j8
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  up 1, and the tiers you expect at 1.

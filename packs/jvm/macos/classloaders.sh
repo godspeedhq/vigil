@@ -36,7 +36,16 @@
 #   types_not_shown  loader types past the first 15
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric loaders 302 jvm=j11
+#   metric loaders_of_type 200 jvm=j11 type=java.net.URLClassLoader
+#   metric classes_of_type 200 jvm=j11 type=java.net.URLClassLoader
+#   metric loaders_of_type 98 jvm=j11 type=jdk.internal.reflect.DelegatingClassLoader
+#   metric classes_of_type 98 jvm=j11 type=jdk.internal.reflect.DelegatingClassLoader
+#   metric loaders_of_type 1 jvm=j11 type=<boot_class_loader>
+#   metric classes_of_type 3045 jvm=j11 type=<boot_class_loader>
+#   metric loaders_of_type 1 jvm=j11 type=jdk.internal.loader.ClassLoaders$AppClassLoader
+#   metric classes_of_type 3 jvm=j11 type=jdk.internal.loader.ClassLoaders$AppClassLoader
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  loaders steady once started.

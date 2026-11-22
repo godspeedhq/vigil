@@ -37,7 +37,14 @@
 #   allocation_stalls_in_log  ZGC allocation stalls in the log read
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric window_seconds 300 jvm=j8
+#   metric pauses 5013 jvm=j8
+#   metric pause_max_ms 188.981 jvm=j8
+#   metric pause_p99_ms 128.8541 jvm=j8
+#   metric pause_total_ms 168184.5135 jvm=j8
+#   metric full_gcs 1953 jvm=j8
+#   metric allocation_stalls_in_log 0 jvm=j8
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  pause_p99_ms small for the collector; full_gcs 0.

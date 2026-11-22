@@ -39,7 +39,13 @@
 #   memory_limited     1 when it sees less memory than the machine has
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric cpus 4 jvm=j21
+#   metric memory_bytes 536870912 jvm=j21
+#   metric cpus_host 4 jvm=j21
+#   metric memory_host_bytes 8188477440 jvm=j21
+#   metric cpus_limited 0 jvm=j21
+#   metric memory_limited 1 jvm=j21
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  cpus and memory_bytes what you meant it to have.

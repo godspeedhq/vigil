@@ -39,7 +39,9 @@
 #   carriers_runnable      carriers runnable now (Java 21 to 23)
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric carriers 4 jvm=j21
+#   metric carriers_runnable 0 jvm=j21
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  queued near 0.

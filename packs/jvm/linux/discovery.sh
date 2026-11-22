@@ -34,7 +34,16 @@
 #   jvms_not_shown  JVMs past the first 50, left out
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric found 1 main=Trouble user=root watched=yes counters=no
+#   metric found 1 main=Trouble user=vigil-test watched=yes counters=yes
+#   metric found 1 main=Trouble user=vigil-test watched=yes counters=yes
+#   metric found 1 main=Trouble user=vigil-test watched=yes counters=yes
+#   metric found 1 main=Trouble user=vigil-test watched=yes counters=yes
+#   metric found 1 main=Trouble user=vigil-test watched=yes counters=yes
+#   metric found 1 main=Trouble user=vigil-test watched=yes counters=yes
+#   metric found 1 main=Trouble user=vigil-test watched=yes counters=yes
+#   metric jvms_not_shown 0
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  Every JVM you run, watched=yes.

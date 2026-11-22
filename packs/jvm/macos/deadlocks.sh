@@ -35,10 +35,15 @@
 #                       java.util.concurrent locks
 #   monitor_deadlocked  of those, on monitors (synchronized)
 #   thread              always 1, for each (the first 20), tagged thread=,
-#                       waits_on=<the lock> and held_by=<a thread>
+#                       waits_on=<the lock, by its class> and held_by=<a
+#                       thread>
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric deadlocked 2 jvm=j21
+#   metric monitor_deadlocked 2 jvm=j21
+#   metric thread 1 jvm=j21 thread=deadlock-a waits_on=java.lang.Object@1222a830 held_by=deadlock-b
+#   metric thread 1 jvm=j21 thread=deadlock-b waits_on=java.lang.Object@11e162b held_by=deadlock-a
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  deadlocked 0.

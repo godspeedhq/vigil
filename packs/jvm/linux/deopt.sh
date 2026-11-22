@@ -32,7 +32,11 @@
 #   invalidated_percent  invalidated against compiles
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric invalidated 0 jvm=plain
+#   metric bailouts 0 jvm=plain
+#   metric compiles 2027 jvm=plain
+#   metric invalidated_percent 0 jvm=plain
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  invalidated_percent small.

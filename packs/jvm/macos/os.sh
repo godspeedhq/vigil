@@ -45,7 +45,16 @@
 #   open_files_percent   open against the limit
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric process_cpu_percent 15.8413 jvm=j21
+#   metric system_cpu_percent 99.9982 jvm=j21
+#   metric process_cpu_seconds 835.14 jvm=j21
+#   metric load_average 18.9644 jvm=j21
+#   metric cpus 4 jvm=j21
+#   metric memory_bytes 536870912 jvm=j21
+#   metric memory_free_bytes 3452928 jvm=j21
+#   metric swap_bytes 536870912 jvm=j21
+#   metric swap_free_bytes 462376960 jvm=j21
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  process_cpu_percent within what you expect; open_files_percent

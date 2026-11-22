@@ -43,7 +43,14 @@
 #                          ran> (counters)
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric collections 5406 jvm=j8 collector=PS_MarkSweep
+#   metric time_seconds 375.878 jvm=j8 collector=PS_MarkSweep
+#   metric collections 15139 jvm=j8 collector=PS_Scavenge
+#   metric time_seconds 119.123 jvm=j8 collector=PS_Scavenge
+#   metric time_percent_lifetime 43.5255 jvm=j8
+#   metric collections_total 20545 jvm=j8
+#   metric time_seconds_total 495.001 jvm=j8
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  time_seconds_total's rate under 0.05 (5% of the time).

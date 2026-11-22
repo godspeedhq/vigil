@@ -36,7 +36,9 @@
 #   allocation_bytes_per_second  allocated per second, over two seconds
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric allocated_bytes 1017008217448 jvm=j17
+#   metric allocation_bytes_per_second 820685256.4022 jvm=j17
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  Steady for steady load.

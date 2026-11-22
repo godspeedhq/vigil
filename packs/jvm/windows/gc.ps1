@@ -45,7 +45,14 @@
                              ran> (counters)
 
     Example output:
-      (draft: no example yet)
+      metric jvms 8
+      metric collections 5406 jvm=j8 collector=PS_MarkSweep
+      metric time_seconds 375.878 jvm=j8 collector=PS_MarkSweep
+      metric collections 15139 jvm=j8 collector=PS_Scavenge
+      metric time_seconds 119.123 jvm=j8 collector=PS_Scavenge
+      metric time_percent_lifetime 43.5255 jvm=j8
+      metric collections_total 20545 jvm=j8
+      metric time_seconds_total 495.001 jvm=j8
 
     Reading the results (starting points: tune them to the JVM):
       Healthy  time_seconds_total's rate under 0.05 (5% of the time).
@@ -89,7 +96,10 @@ try {
     # administrator (Vigil's service is one).
     $rows = New-Object System.Collections.Generic.List[string]
     $epoch = [datetime]'1970-01-01'
-    foreach ($p in @(Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" -ErrorAction SilentlyContinue)) {
+    $cim = $true
+    try { $procs = @(Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" -ErrorAction Stop) }
+    catch { $cim = $false; $procs = @() }
+    foreach ($p in $procs) {
         $cmd = [string]$p.CommandLine
         if (-not $cmd) { $cmd = [string]$p.ExecutablePath }
         $cmd = $cmd -replace '[\t\r\n]', ' '
@@ -97,6 +107,17 @@ try {
         if ($p.CreationDate) { $start = [string][long](($p.CreationDate.ToUniversalTime() - $epoch).TotalSeconds) }
         $rows.Add((@($p.ProcessId, '', $cmd, $p.WorkingSetSize, $p.VirtualSize, $p.ThreadCount, $p.HandleCount,
                     ([long]$p.KernelModeTime + [long]$p.UserModeTime), $start, $p.ReadTransferCount, $p.WriteTransferCount) -join "`t"))
+    }
+    # An account CIM refuses (one logged on over the network, not an
+    # administrator): the processes without their command lines, which the
+    # client reads from each JVM's counters instead.
+    if (-not $cim) {
+        foreach ($p in @(Get-Process -Name java, javaw -ErrorAction SilentlyContinue)) {
+            $cpu = ''; $start = ''
+            try { if ($null -ne $p.TotalProcessorTime) { $cpu = [string]$p.TotalProcessorTime.Ticks } } catch { }
+            try { if ($null -ne $p.StartTime) { $start = [string][long](($p.StartTime.ToUniversalTime() - $epoch).TotalSeconds) } } catch { }
+            $rows.Add((@($p.Id, '', '', $p.WorkingSet64, $p.VirtualMemorySize64, $p.Threads.Count, $p.HandleCount, $cpu, $start, '', '') -join "`t"))
+        }
     }
     $table = Join-Path $work 'procs.tsv'
     [System.IO.File]::WriteAllLines($table, $rows, (New-Object System.Text.UTF8Encoding $false))

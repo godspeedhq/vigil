@@ -37,7 +37,13 @@
 #   capacity_bytes  their total capacity, tagged the same
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric count 66 jvm=j11 pool=direct
+#   metric used_bytes 268451840 jvm=j11 pool=direct
+#   metric capacity_bytes 268451840 jvm=j11 pool=direct
+#   metric count 0 jvm=j11 pool=mapped
+#   metric used_bytes 0 jvm=j11 pool=mapped
+#   metric capacity_bytes 0 jvm=j11 pool=mapped
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  direct used_bytes steady under load.

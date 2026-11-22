@@ -43,7 +43,16 @@
 #   newest_core_dump_age_seconds        since the newest
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric crash_reports_day 1 jvm=j17
+#   metric crash_reports 1 jvm=j17
+#   metric crash_reports_bytes 45402 jvm=j17
+#   metric newest_crash_report_age_seconds 1322 jvm=j17
+#   metric compiler_replays_day 0 jvm=j17
+#   metric compiler_replays 0 jvm=j17
+#   metric compiler_replays_bytes 0 jvm=j17
+#   metric core_dumps_day 0 jvm=j17
+#   metric core_dumps 0 jvm=j17
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  crash_reports_day 0.

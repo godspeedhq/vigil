@@ -42,7 +42,11 @@
 #   outside_heap_percent  that, against resident memory
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric rss_bytes 396595200 jvm=j11
+#   metric heap_committed_bytes 35905536 jvm=j11
+#   metric outside_heap_bytes 360689664 jvm=j11
+#   metric outside_heap_percent 90.9466 jvm=j11
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  outside_heap_bytes steady once started.

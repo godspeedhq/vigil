@@ -42,7 +42,14 @@
 #   risks               how many of the above are 1, jmx_remote aside
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric debug_agent 1 jvm=j25
+#   metric debug_agent_remote 1 jvm=j25
+#   metric jmx_remote 1 jvm=j25
+#   metric jmx_no_password 0 jvm=j25
+#   metric jmx_no_tls 0 jvm=j25
+#   metric verify_off 0 jvm=j25
+#   metric risks 1 jvm=j25
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  risks 0.

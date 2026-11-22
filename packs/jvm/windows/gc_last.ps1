@@ -38,7 +38,16 @@
       after_bytes  memory in use after it, tagged the same
 
     Example output:
-      (draft: no example yet)
+      metric jvms 8
+      metric duration_ms 1 jvm=j21 collector=G1_Concurrent_GC
+      metric seconds_ago 0.803 jvm=j21 collector=G1_Concurrent_GC
+      metric freed_bytes 0 jvm=j21 collector=G1_Concurrent_GC
+      metric after_bytes 148555256 jvm=j21 collector=G1_Concurrent_GC
+      metric duration_ms 86 jvm=j21 collector=G1_Old_Generation
+      metric seconds_ago 315.652 jvm=j21 collector=G1_Old_Generation
+      metric freed_bytes 250167632 jvm=j21 collector=G1_Old_Generation
+      metric after_bytes 29118368 jvm=j21 collector=G1_Old_Generation
+      metric duration_ms 13 jvm=j21 collector=G1_Young_Generation
 
     Reading the results (starting points: tune them to the JVM):
       Healthy  freed_bytes large, after_bytes small.
@@ -80,7 +89,10 @@ try {
     # administrator (Vigil's service is one).
     $rows = New-Object System.Collections.Generic.List[string]
     $epoch = [datetime]'1970-01-01'
-    foreach ($p in @(Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" -ErrorAction SilentlyContinue)) {
+    $cim = $true
+    try { $procs = @(Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" -ErrorAction Stop) }
+    catch { $cim = $false; $procs = @() }
+    foreach ($p in $procs) {
         $cmd = [string]$p.CommandLine
         if (-not $cmd) { $cmd = [string]$p.ExecutablePath }
         $cmd = $cmd -replace '[\t\r\n]', ' '
@@ -88,6 +100,17 @@ try {
         if ($p.CreationDate) { $start = [string][long](($p.CreationDate.ToUniversalTime() - $epoch).TotalSeconds) }
         $rows.Add((@($p.ProcessId, '', $cmd, $p.WorkingSetSize, $p.VirtualSize, $p.ThreadCount, $p.HandleCount,
                     ([long]$p.KernelModeTime + [long]$p.UserModeTime), $start, $p.ReadTransferCount, $p.WriteTransferCount) -join "`t"))
+    }
+    # An account CIM refuses (one logged on over the network, not an
+    # administrator): the processes without their command lines, which the
+    # client reads from each JVM's counters instead.
+    if (-not $cim) {
+        foreach ($p in @(Get-Process -Name java, javaw -ErrorAction SilentlyContinue)) {
+            $cpu = ''; $start = ''
+            try { if ($null -ne $p.TotalProcessorTime) { $cpu = [string]$p.TotalProcessorTime.Ticks } } catch { }
+            try { if ($null -ne $p.StartTime) { $start = [string][long](($p.StartTime.ToUniversalTime() - $epoch).TotalSeconds) } } catch { }
+            $rows.Add((@($p.Id, '', '', $p.WorkingSet64, $p.VirtualMemorySize64, $p.Threads.Count, $p.HandleCount, $cpu, $start, '', '') -join "`t"))
+        }
     }
     $table = Join-Path $work 'procs.tsv'
     [System.IO.File]::WriteAllLines($table, $rows, (New-Object System.Text.UTF8Encoding $false))

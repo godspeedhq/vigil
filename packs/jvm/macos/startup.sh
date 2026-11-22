@@ -40,7 +40,11 @@
 #   uptime_seconds         since it started
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric startup_seconds 0.281 jvm=plain
+#   metric init_seconds 0.075 jvm=plain
+#   metric started_epoch_seconds 1795306653 jvm=plain
+#   metric uptime_seconds 1077 jvm=plain
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  started_epoch_seconds changing only when you restart it.

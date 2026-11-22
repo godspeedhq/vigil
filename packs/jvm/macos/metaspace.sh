@@ -43,7 +43,13 @@
 #   class_space_used_percent     used against it
 #
 # Example output:
-#   (draft: no example yet)
+#   metric jvms 8
+#   metric metaspace_used_bytes 13631440 jvm=j11
+#   metric metaspace_committed_bytes 15597568 jvm=j11
+#   metric class_space_used_bytes 1562128 jvm=j11
+#   metric class_space_committed_bytes 2228224 jvm=j11
+#   metric class_space_max_bytes 1073741824 jvm=j11
+#   metric class_space_used_percent 0.1455 jvm=j11
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  Steady once the application has started.
