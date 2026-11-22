@@ -305,18 +305,41 @@ class KafkaClient {
     static DescribeClusterResult cluster;
     static Collection<Node> nodes;
 
+    /** Whether the cluster listed its fenced brokers too, so each says whether it is. */
+    static boolean fencedListed;
+
     static Collection<Node> nodes() {
         if (nodes != null) return nodes;
+        // Kafka 4's library can list fenced brokers too, from a cluster that
+        // can (4.0 and later); an older one refuses the asking, and is asked
+        // again without it.
         DescribeClusterOptions o = new DescribeClusterOptions().timeoutMs((int) (WAIT * 1000));
-        // Kafka 4's library can list fenced brokers too.
-        Lib.call(o, "includeFencedBrokers", true);
-        cluster = admin().describeCluster(o);
+        fencedListed = Lib.call(o, "includeFencedBrokers", true) != null;
+        if (fencedListed) {
+            DescribeClusterResult r = admin().describeCluster(o);
+            try {
+                nodes = new ArrayList<>(r.nodes().get(WAIT, TimeUnit.SECONDS));
+                cluster = r;
+                return nodes;
+            } catch (ExecutionException e) {
+                if (!(e.getCause() instanceof UnsupportedVersionException)) throw stop(e.getCause(), "the cluster");
+                fencedListed = false;
+            } catch (java.util.concurrent.TimeoutException e) {
+                Jmx.say("the cluster: the cluster did not answer in " + WAIT + " seconds (" + bootstrap() + ")");
+                throw new Stop();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new Stop();
+            }
+        }
+        cluster = admin().describeCluster(new DescribeClusterOptions().timeoutMs((int) (WAIT * 1000)));
         nodes = new ArrayList<>(get(cluster.nodes(), "the cluster"));
         return nodes;
     }
 
-    /** Whether node n is fenced; null when the library cannot tell. */
+    /** Whether node n is fenced; null when the library or the cluster cannot tell. */
     static Boolean fenced(Node n) {
+        if (!fencedListed) return null;
         Object f = Lib.call(n, "isFenced");
         return f instanceof Boolean ? (Boolean) f : null;
     }
