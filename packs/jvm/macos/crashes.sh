@@ -47,7 +47,7 @@
 #   metric crash_reports_day 1 jvm=j17
 #   metric crash_reports 1 jvm=j17
 #   metric crash_reports_bytes 45402 jvm=j17
-#   metric newest_crash_report_age_seconds 1322 jvm=j17
+#   metric newest_crash_report_age_seconds 1262 jvm=j17
 #   metric compiler_replays_day 0 jvm=j17
 #   metric compiler_replays 0 jvm=j17
 #   metric compiler_replays_bytes 0 jvm=j17

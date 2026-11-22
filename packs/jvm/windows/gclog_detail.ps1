@@ -41,14 +41,14 @@
 
     Example output:
       metric jvms 8
-      metric pauses 1495 jvm=j21 length=under_10ms
-      metric pauses 2335 jvm=j21 length=10_to_100ms
-      metric pauses 60 jvm=j21 length=100ms_to_1s
+      metric pauses 1559 jvm=j21 length=under_10ms
+      metric pauses 2403 jvm=j21 length=10_to_100ms
+      metric pauses 47 jvm=j21 length=100ms_to_1s
       metric pauses 0 jvm=j21 length=over_1s
       metric window_seconds 900 jvm=j21
-      metric humongous_allocations_in_log 3408 jvm=j21
+      metric humongous_allocations_in_log 3302 jvm=j21
       metric to_space_exhausted_in_log 0 jvm=j21
-      metric evacuation_failures_in_log 21 jvm=j21
+      metric evacuation_failures_in_log 22 jvm=j21
       metric promotion_failed_in_log 0 jvm=j21
 
     Reading the results (starting points: tune them to the JVM):

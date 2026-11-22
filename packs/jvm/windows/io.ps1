@@ -35,7 +35,7 @@
 
     Example output:
       metric jvms 8
-      metric read_bytes 3993600 jvm=host
+      metric read_bytes 26136576 jvm=host
       metric write_bytes 0 jvm=host
       metric open 3 jvm=host kind=socket
       metric open 0 jvm=host kind=pipe

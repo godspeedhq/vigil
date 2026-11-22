@@ -41,11 +41,11 @@
     Example output:
       metric jvms 8
       metric window_seconds 300 jvm=j8
-      metric pauses 5013 jvm=j8
-      metric pause_max_ms 188.981 jvm=j8
-      metric pause_p99_ms 128.8541 jvm=j8
-      metric pause_total_ms 168184.5135 jvm=j8
-      metric full_gcs 1953 jvm=j8
+      metric pauses 4026 jvm=j8
+      metric pause_max_ms 262.8516 jvm=j8
+      metric pause_p99_ms 139.2999 jvm=j8
+      metric pause_total_ms 210454.3606 jvm=j8
+      metric full_gcs 2639 jvm=j8
       metric allocation_stalls_in_log 0 jvm=j8
 
     Reading the results (starting points: tune them to the JVM):

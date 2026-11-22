@@ -39,8 +39,8 @@
 
     Example output:
       metric jvms 8
-      metric allocated_bytes 1017008217448 jvm=j17
-      metric allocation_bytes_per_second 820685256.4022 jvm=j17
+      metric allocated_bytes 984545434080 jvm=j17
+      metric allocation_bytes_per_second 1309616535.4521 jvm=j17
 
     Reading the results (starting points: tune them to the JVM):
       Healthy  Steady for steady load.

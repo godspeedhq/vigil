@@ -37,10 +37,10 @@
 
     Example output:
       metric jvms 8
-      metric safepoints 5645 jvm=j21
-      metric stopped_seconds 113.9661 jvm=j21
-      metric sync_seconds 18.4907 jvm=j21
-      metric stopped_percent_lifetime 8.6562 jvm=j21
+      metric safepoints 5048 jvm=j21
+      metric stopped_seconds 104.8893 jvm=j21
+      metric sync_seconds 18.3229 jvm=j21
+      metric stopped_percent_lifetime 8.3394 jvm=j21
 
     Reading the results (starting points: tune them to the JVM):
       Healthy  stopped_seconds' rate close to the GC's pause rate.

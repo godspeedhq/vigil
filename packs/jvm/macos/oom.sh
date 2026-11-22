@@ -36,8 +36,8 @@
 #   metric jvms 8
 #   metric heap_dumps_day 1 jvm=j21
 #   metric heap_dumps 1 jvm=j21
-#   metric heap_dumps_bytes 237614616 jvm=j21
-#   metric newest_heap_dump_age_seconds 1311 jvm=j21
+#   metric heap_dumps_bytes 237494831 jvm=j21
+#   metric newest_heap_dump_age_seconds 1251 jvm=j21
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  heap_dumps_day 0.

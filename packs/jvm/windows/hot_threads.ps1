@@ -41,9 +41,9 @@
 
     Example output:
       metric jvms 8
-      metric cpu_percent_total 74.0995 jvm=j25
-      metric cpu_percent 70.3834 jvm=j25 thread=busy-loop
-      metric cpu_percent 3.3585 jvm=j25 thread=busy
+      metric cpu_percent_total 73.5561 jvm=j25
+      metric cpu_percent 69.0208 jvm=j25 thread=busy-loop
+      metric cpu_percent 4.2078 jvm=j25 thread=busy
       metric busy_threads_shown 2 jvm=j25
 
     Reading the results (starting points: tune them to the JVM):

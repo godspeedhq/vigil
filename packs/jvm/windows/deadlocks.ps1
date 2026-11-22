@@ -44,8 +44,8 @@
       metric jvms 8
       metric deadlocked 2 jvm=j21
       metric monitor_deadlocked 2 jvm=j21
-      metric thread 1 jvm=j21 thread=deadlock-a waits_on=java.lang.Object@1222a830 held_by=deadlock-b
-      metric thread 1 jvm=j21 thread=deadlock-b waits_on=java.lang.Object@11e162b held_by=deadlock-a
+      metric thread 1 jvm=j21 thread=deadlock-a waits_on=java.lang.Object held_by=deadlock-b
+      metric thread 1 jvm=j21 thread=deadlock-b waits_on=java.lang.Object held_by=deadlock-a
 
     Reading the results (starting points: tune them to the JVM):
       Healthy  deadlocked 0.

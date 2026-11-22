@@ -40,8 +40,8 @@
 #   metric jvms 8
 #   metric blocked 7 jvm=j17
 #   metric waiting 6 jvm=j17
-#   metric blocked_times_total 22769 jvm=j17
-#   metric lock_waiters 7 jvm=j17 lock=java.lang.Object held_by=contender-6
+#   metric blocked_times_total 21560 jvm=j17
+#   metric lock_waiters 7 jvm=j17 lock=java.lang.Object held_by=contender-3
 #
 # Reading the results (starting points: tune them to the JVM):
 #   Healthy  blocked near 0.

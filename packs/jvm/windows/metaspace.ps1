@@ -46,7 +46,7 @@
 
     Example output:
       metric jvms 8
-      metric metaspace_used_bytes 13631440 jvm=j11
+      metric metaspace_used_bytes 13630872 jvm=j11
       metric metaspace_committed_bytes 15597568 jvm=j11
       metric class_space_used_bytes 1562128 jvm=j11
       metric class_space_committed_bytes 2228224 jvm=j11

@@ -42,14 +42,14 @@
     Example output:
       metric jvms 8
       metric tracking 1 jvm=j11
-      metric reserved_bytes 1918981120 jvm=j11
-      metric committed_bytes 351429632 jvm=j11
-      metric category_committed_bytes 35905536 jvm=j11 category=java_heap
-      metric category_committed_bytes 16617472 jvm=j11 category=class
-      metric category_committed_bytes 1824768 jvm=j11 category=thread
-      metric category_committed_bytes 12046336 jvm=j11 category=code
+      metric reserved_bytes 1923589120 jvm=j11
+      metric committed_bytes 356185088 jvm=j11
+      metric category_committed_bytes 36065280 jvm=j11 category=java_heap
+      metric category_committed_bytes 16615424 jvm=j11 category=class
+      metric category_committed_bytes 1812480 jvm=j11 category=thread
+      metric category_committed_bytes 12024832 jvm=j11 category=code
       metric category_committed_bytes 275456 jvm=j11 category=gc
-      metric category_committed_bytes 216064 jvm=j11 category=compiler
+      metric category_committed_bytes 5210112 jvm=j11 category=compiler
 
     Reading the results (starting points: tune them to the JVM):
       Healthy  Every category steady once started.

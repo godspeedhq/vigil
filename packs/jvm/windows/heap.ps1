@@ -42,10 +42,10 @@
 
     Example output:
       metric jvms 8
-      metric used_bytes 90752744 jvm=j21
-      metric committed_bytes 264241152 jvm=j21
+      metric used_bytes 99038024 jvm=j21
+      metric committed_bytes 263192576 jvm=j21
       metric max_bytes 268435456 jvm=j21
-      metric used_percent 33.808 jvm=j21
+      metric used_percent 36.8945 jvm=j21
 
     Reading the results (starting points: tune them to the JVM):
       Healthy  used_percent rising and falling in a saw-tooth, falling well

@@ -48,15 +48,15 @@
 
     Example output:
       metric jvms 8
-      metric process_cpu_percent 15.8413 jvm=j21
-      metric system_cpu_percent 99.9982 jvm=j21
-      metric process_cpu_seconds 835.14 jvm=j21
-      metric load_average 18.9644 jvm=j21
+      metric process_cpu_percent 16.3077 jvm=j21
+      metric system_cpu_percent 99.9972 jvm=j21
+      metric process_cpu_seconds 819.36 jvm=j21
+      metric load_average 18.4395 jvm=j21
       metric cpus 4 jvm=j21
       metric memory_bytes 536870912 jvm=j21
-      metric memory_free_bytes 3452928 jvm=j21
+      metric memory_free_bytes 46911488 jvm=j21
       metric swap_bytes 536870912 jvm=j21
-      metric swap_free_bytes 462376960 jvm=j21
+      metric swap_free_bytes 424173568 jvm=j21
 
     Reading the results (starting points: tune them to the JVM):
       Healthy  process_cpu_percent within what you expect; open_files_percent

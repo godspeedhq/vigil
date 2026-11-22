@@ -36,8 +36,8 @@
     Example output:
       metric jvms 8
       metric invalidated 0 jvm=plain
-      metric bailouts 0 jvm=plain
-      metric compiles 2027 jvm=plain
+      metric bailouts 1 jvm=plain
+      metric compiles 2015 jvm=plain
       metric invalidated_percent 0 jvm=plain
 
     Reading the results (starting points: tune them to the JVM):

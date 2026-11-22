@@ -36,7 +36,7 @@
 
     Example output:
       metric jvms 8
-      metric pending 216642 jvm=j11
+      metric pending 208285 jvm=j11
 
     Reading the results (starting points: tune them to the JVM):
       Healthy  pending near 0.

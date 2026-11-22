@@ -44,15 +44,15 @@
 
     Example output:
       metric jvms 8
-      metric used_bytes 1496064 jvm=j21 segment=non-nmethods
+      metric used_bytes 1494528 jvm=j21 segment=non-nmethods
       metric max_bytes 5836800 jvm=j21 segment=non-nmethods
-      metric used_percent 25.6316 jvm=j21 segment=non-nmethods
-      metric used_bytes 1542272 jvm=j21 segment=non-profiled_nmethods
+      metric used_percent 25.6053 jvm=j21 segment=non-nmethods
+      metric used_bytes 1340288 jvm=j21 segment=non-profiled_nmethods
       metric max_bytes 122912768 jvm=j21 segment=non-profiled_nmethods
-      metric used_percent 1.2548 jvm=j21 segment=non-profiled_nmethods
-      metric used_bytes 5668736 jvm=j21 segment=profiled_nmethods
+      metric used_percent 1.0904 jvm=j21 segment=non-profiled_nmethods
+      metric used_bytes 4843776 jvm=j21 segment=profiled_nmethods
       metric max_bytes 122908672 jvm=j21 segment=profiled_nmethods
-      metric used_percent 4.6122 jvm=j21 segment=profiled_nmethods
+      metric used_percent 3.941 jvm=j21 segment=profiled_nmethods
 
     Reading the results (starting points: tune them to the JVM):
       Healthy  used_percent under 80 in every segment.
