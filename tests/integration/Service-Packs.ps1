@@ -822,7 +822,7 @@ try {
         Test-Equal 'jvm: and its counters' '1' (Get-Printed jvm_status tier_counters ' jvm=win')
         Test-Equal 'jvm: and no JMX' '0' (Get-Printed jvm_status tier_jmx ' jvm=win')
         Test-Equal 'jvm: the heap, from the counters' 'yes' (Test-Between jvm_heap used_bytes ' jvm=win' 1 1e11)
-        Test-Equal 'jvm: collections, counted' 'yes' (Test-Between jvm_gc collections_count ' jvm=win' 1 1e12)
+        Test-Equal 'jvm: collections, counted' 'yes' (Test-Between jvm_gc collections_total ' jvm=win' 1 1e12)
         Test-Equal 'jvm: leaked threads' 'yes' (Test-Between jvm_threads live ' jvm=win' 30 1e6)
         Test-Equal 'jvm: the JIT' 'yes' (Test-Between jvm_jit compile_seconds ' jvm=win' 0.001 1e6)
         Test-Equal 'jvm: safepoints, a share of its time' 'yes' (Test-Between jvm_safepoints stopped_percent_lifetime ' jvm=win' 0 100)

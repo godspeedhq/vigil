@@ -599,7 +599,8 @@ Each script's header says what its metrics mean and how to read them. Worth know
 
 - **Nothing here pauses a JVM.** No heap dump, class histogram or thread dump with stacks: the jobs read counters, and make calls that are cheap on any heap.
 - **A command line is read, never reported**: it can hold a password. The pack reads only the options it knows.
-- **The client starts in about a second**, so only the cheap jobs run every minute; the rest every 2, 5 or 15 minutes, or each hour.
+- **A run takes two or three seconds**: Java compiles the client from its source each time. So only the cheap jobs run every minute; the rest every 2, 5 or 15 minutes, or each hour.
+- **On Windows, an account CIM refuses** (one that is not an administrator, logged on over the network) still finds its own JVMs: Windows lists them without their command lines, and the pack reads each one's options and main class from its counters instead. Such a JVM has no disk reads and writes in `jvm_io`.
 - `JVM_DUMP_DIRS` adds folders to look in for crash reports and heap dumps, for every JVM: the JVM's own `-XX:ErrorFile` and `-XX:HeapDumpPath`, and its working folder on Linux, are looked in already.
 
 A JVM that is not running reports `running 0` (`jvm_process`) and `up 0` (`jvm_status`), and the run succeeds: that is a reading. A JMX login refused, or a certificate that cannot be trusted, fails the run, and its log says why.
