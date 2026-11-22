@@ -1020,6 +1020,9 @@ else
     check 'jvm: classes, from the counters' yes "$(jbetween classes loaded plain 100 1e7)"
     check 'jvm: the JIT' yes "$(jbetween jit compile_seconds j21 0 1e6)"
     check 'jvm: safepoints, from the counters' yes "$(jbetween safepoints safepoints plain 1 1e12)"
+    # A share of the JVM's time, on every Java: JDK 25 keeps no timer ticks.
+    check 'jvm: and a share of its time' yes "$(jbetween safepoints stopped_percent_lifetime plain 0 100)"
+    check 'jvm: GC, a share of its time' yes "$(jbetween gc time_percent_lifetime plain 0 100)"
     check 'jvm: Flight Recorder there' 1 "$(jval jfr available j17)"
     check 'jvm: MBeans of your own' yes "$(jbetween mbeans value j21 1 1e6 attribute=ThreadCount)"
 

@@ -574,6 +574,17 @@ class JvmClient {
             return t == null ? null : t / hz;
         }
 
+        /** How long the JVM has run: the timer's ticks, which JDK 25 no
+         *  longer keeps, else since the JVM began (epoch milliseconds). */
+        Double uptime() {
+            Long t = l("sun.os.hrt.ticks");
+            if (t != null && t > 0) return t / hz;
+            Long b = l("sun.rt.createVmBeginTime");
+            if (b == null || b <= 0) return null;
+            double u = (System.currentTimeMillis() - b) / 1000.0;
+            return u > 0 ? u : null;
+        }
+
         /** The names under a prefix, such as sun.gc.collector.0. */
         List<String> under(String prefix) {
             List<String> r = new ArrayList<>();
@@ -1024,8 +1035,8 @@ class JvmClient {
                     version = pf.s("java.property.java.version");
                     vendor = pf.s("java.property.java.vm.vendor");
                     vm = pf.s("java.property.java.vm.name");
-                    Long ticks = pf.l("sun.os.hrt.ticks");
-                    if (ticks != null) uptime = (long) (ticks / pf.hz);
+                    Double ran = pf.uptime();
+                    if (ran != null) uptime = (long) (double) ran;
                     heapMax = perfHeap(pf, "maxCapacity");
                     for (int i = 0; i < 8; i++) {
                         String g = pf.s("sun.gc.collector." + i + ".name");
@@ -1411,8 +1422,8 @@ class JvmClient {
                         if (s != null) time += s;
                         any = true;
                     }
-                    Long ticks = pf.l("sun.os.hrt.ticks");
-                    if (any && ticks != null && ticks > 0) metric("time_percent_lifetime", 100.0 * time / (ticks / pf.hz), t);
+                    Double up = pf.uptime();
+                    if (any && up != null) metric("time_percent_lifetime", 100.0 * time / up, t);
                     String cause = pf.s("sun.gc.lastCause");
                     if (cause != null) metric("last_cause", 1, t, "cause", cause);
                 }
@@ -1938,13 +1949,13 @@ class JvmClient {
                 // timer). Ticks that add up to more time than the JVM has run
                 // are nanoseconds.
                 Long stopT = pf.l("sun.rt.safepointTime"), syncT = pf.l("sun.rt.safepointSyncTime"), appT = pf.l("sun.rt.applicationTime");
-                Long up = pf.l("sun.os.hrt.ticks");
+                Double up = pf.uptime();
                 double per = pf.hz;
-                if (stopT != null && appT != null && up != null && up > 0 && (stopT + appT) / pf.hz > 1.5 * up / pf.hz) per = 1e9;
+                if (stopT != null && appT != null && up != null && (stopT + appT) / pf.hz > 1.5 * up) per = 1e9;
                 if (stopT != null) metric("stopped_seconds", stopT / per, t);
                 if (syncT != null) metric("sync_seconds", syncT / per, t);
                 // Against its uptime, which the timer gives surely.
-                if (stopT != null && up != null && up > 0) metric("stopped_percent_lifetime", 100.0 * (stopT / per) / (up / pf.hz), t);
+                if (stopT != null && up != null) metric("stopped_percent_lifetime", 100.0 * (stopT / per) / up, t);
             });
         }
 
