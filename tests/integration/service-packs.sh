@@ -1079,7 +1079,7 @@ else
         jp=$work/jvm-jar
         for d in "$jp" "$jp.2"; do
             rm -rf "$d" && mkdir -p "$d" && cp "$repo/packs/jvm/$os"/* "$d/" &&
-                bash "$repo/tools/release/client-jar.sh" "$d" > "$work/jar.out" 2>&1 || { cat "$work/jar.out"; break; }
+                JAVA_HOME=${VIGIL_IT_JVM_JDK:-${JAVA_HOME-}} bash "$repo/tools/release/client-jar.sh" "$d" > "$work/jar.out" 2>&1 || { sed 's/^/        /' "$work/jar.out"; break; }
         done
         check 'jvm: its client compiles to a jar' yes "$([ -f "$jp/_client.jar" ] && [ -f "$jp.2/_client.jar" ] && echo yes || echo no)"
         check 'jvm: built twice, the same jar, byte for byte' yes "$(cmp -s "$jp/_client.jar" "$jp.2/_client.jar" && echo yes || echo no)"

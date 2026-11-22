@@ -119,6 +119,18 @@ Test-Line 'doctor: the cores' $r.Output "^  (ok    |note  )Vigil's runs keep [0-
 Test-Line 'doctor: native images, ok' $r.Output "^  ok    \.NET native images: "
 Test-Line 'doctor: Defender, said' $r.Output '^  (ok    |note  )Defender: '
 Test-Line 'doctor: logging policies, said' $r.Output '^  (ok    |note  )PowerShell logging polic'
+Test-Line 'doctor: who can change what Vigil runs, only its owners' $r.Output '^  ok    only their owners, SYSTEM and Administrators can change app, vendor, packs, scripts and config$'
+
+Write-Host '== a script Users may change (16.7)'
+$open = Join-Path $root 'packs\x\a.ps1'
+[void](New-Item -ItemType Directory -Force -Path (Split-Path -Parent $open))
+[System.IO.File]::WriteAllText($open, "'x'`n")
+[void](& icacls.exe $open /grant '*S-1-5-32-545:(M)')
+$r = Invoke-Vigil @('doctor')
+Test-Equal 'open: exit code' '1' "$($r.Code)"
+Test-Line 'open: WARN' $r.Output '^  WARN  1 of its files and folders can be written by others than their owner, SYSTEM and Administrators, who can then change what Vigil runs'
+Test-Line 'open: names it, and who' $r.Output "^        $([regex]::Escape($open)): .+"
+Remove-Item -Recurse -Force (Join-Path $root 'packs')
 
 Write-Host '== above half a core'
 $hl = Join-Path $root 'logs\jobs\heavy'

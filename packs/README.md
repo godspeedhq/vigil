@@ -499,7 +499,7 @@ A cluster that cannot be reached reports `kafka.up` 0, and the run succeeds: tha
 
 Java virtual machines: any Java application (Jenkins, Spring Boot, Elasticsearch, Keycloak, one of your own) through the JVM it runs on. The JVM, not the application: its process, memory, garbage collection, threads, JIT, classes, crashes, settings and security. Application servers and libraries (Tomcat, Jetty, connection pools) are for packs of their own, which report what is theirs and leave the JVM to this one. Linux, macOS and Windows; JVMs from Java 8.
 
-Each script runs `_client.java`, beside it, with a JDK 11 or later: one client for every platform, so each prints the same lines. It reaches each JVM in three tiers, and uses every one that reaches it:
+Each script runs the pack's client, beside it, with Java 11 or later, a JDK or a JRE: one client for every platform, so each prints the same lines. It reaches each JVM in three tiers, and uses every one that reaches it:
 
 | Tier | Needs | Reads |
 | --- | --- | --- |
@@ -547,7 +547,7 @@ The password file holds `vigil <password>` and must be readable by the JVM's acc
 
 | | Linux | macOS | Windows |
 | --- | --- | --- | --- |
-| On the Vigil machine | A JDK 11 or later, `JAVA_HOME` or `java` on the PATH (a JRE cannot run a source file) | The same | The same |
+| On the Vigil machine | Java 11 or later, a JDK or a JRE, `JAVA_HOME` or `java` on the PATH | The same | The same |
 | For tier 2 | Vigil as root, or the JVM's account | Vigil as root, or the JVM's account | Vigil as an administrator, or the JVM's account |
 | For tier 3 | Each JVM's JMX address in `JVM_TARGETS`, and with a password, a `secret` line and `vigil secret set JVM_JMX_PASSWORD` (step 3) | | |
 
@@ -599,7 +599,8 @@ Each script's header says what its metrics mean and how to read them. Worth know
 
 - **Nothing here pauses a JVM.** No heap dump, class histogram or thread dump with stacks: the jobs read counters, and make calls that are cheap on any heap.
 - **A command line is read, never reported**: it can hold a password. The pack reads only the options it knows.
-- **A run takes two or three seconds**: Java compiles the client from its source each time. So only the cheap jobs run every minute; the rest every 2, 5 or 15 minutes, or each hour.
+- **The client, compiled, and checked before it runs.** The client is one Java source file, `_client.java`. A JRE cannot run a source file, so the pack also carries it compiled, `_client.jar`, built from that source when the pack is released, and every script runs the jar. Before it does, it checks the jar against the SHA-256 the script carries, and a jar that does not match is not run: `_client.jar does not match the digest in this script`. The archive the jar comes in is checked against the signed pack index when the pack is installed. The jar is Java 11 bytecode, built so the same source gives the same bytes: each script names the `javac` that built it, so you can compile `_client.java` with that version (`tools/release/client-jar.sh`) and compare. A copy of the pack without the jar, straight from the repository, runs the source instead, which needs a JDK.
+- **A run takes about half a second** from the jar, more on Windows, where PowerShell starts first; from the source, two or three seconds, as Java compiles it each time. Still, only the cheap jobs run every minute; the rest every 2, 5 or 15 minutes, or each hour.
 - **On Windows, an account CIM refuses** (one that is not an administrator, logged on over the network) still finds its own JVMs: Windows lists them without their command lines, and the pack reads each one's options and main class from its counters instead. Such a JVM has no disk reads and writes in `jvm_io`.
 - `JVM_DUMP_DIRS` adds folders to look in for crash reports and heap dumps, for every JVM: the JVM's own `-XX:ErrorFile` and `-XX:HeapDumpPath`, and its working folder on Linux, are looked in already.
 

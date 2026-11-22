@@ -261,6 +261,52 @@ sed -i.bak 's/^version = 1.0.0$/version = 5.0.0/' "$root/packs/web/pack.config" 
 check 'never back a version on its own' 'pack web 5.0.0 is here: nothing to do' "$(vigil pack update 2>&1 | grep '^pack web')"
 sed -i.bak 's/^version = 5.0.0$/version = 1.0.0/' "$root/packs/web/pack.config" && rm -f "$root/packs/web/pack.config.bak"
 
+printf 'Verifying\n'
+out=$(vigil pack verify 2>&1)
+rc=$?
+check 'every pack here, against its release' "pack base 1.2.0: its 3 files match packs-2026.01.03|pack web 1.0.0: its 2 files match packs-2026.01.02|0" "$(printf '%s' "$out" | lines)|$rc"
+printf '# more\n' >> "$root/packs/web/status.sh"
+out=$(vigil pack verify web 2>&1)
+rc=$?
+check 'a changed script' 'pack web 1.0.0: differs from packs-2026.01.02|  changed  status.sh|  To put it back as released: vigil pack install web@1.0.0|1' "$(printf '%s' "$out" | lines)|$rc"
+cp "$root/packs/web/pack.config" "$work/web.config"
+rm -f "$root/packs/web/pack.config"
+check 'one gone is not a pack here' 'vigil: pack web is not installed: vigil pack list' "$(vigil pack verify web 2>&1)"
+cp "$work/web.config" "$root/packs/web/pack.config"
+printf 'echo hi\n' > "$root/packs/web/extra.sh"
+out=$(vigil pack verify web 2>&1)
+rc=$?
+check 'and a file added' 'pack web 1.0.0: differs from packs-2026.01.02|  changed  status.sh|  added    extra.sh|  To put it back as released: vigil pack install web@1.0.0|1' "$(printf '%s' "$out" | lines)|$rc"
+was=$(cksum < "$cfg")
+out=$(vigil pack install web 2>&1)
+rc=$?
+check 'install puts it back' 'restored pack web 1.0.0 as released|  put back  status.sh|  removed   extra.sh|0' "$(printf '%s' "$out" | lines)|$rc"
+check 'and changes no configuration' "$was" "$(cksum < "$cfg")"
+check 'then it matches' 'pack web 1.0.0: its 2 files match packs-2026.01.02' "$(vigil pack verify web 2>&1)"
+rm -f "$root/packs/web/status.sh"
+check 'a missing script' 'pack web 1.0.0: differs from packs-2026.01.02|  missing  status.sh|  To put it back as released: vigil pack install web@1.0.0' "$(vigil pack verify web 2>&1 | lines)"
+check 'put back too' 'restored pack web 1.0.0 as released|  put back  status.sh' "$(vigil pack install web 2>&1 | lines)"
+# A script the release does not have, that a job runs (vigil pack update
+# keeps those): a note, not a difference.
+cp "$cfg" "$work/cfg.keep"
+printf 'echo "metric up 1"\n' > "$root/packs/web/old.sh"
+printf '\n[job.webold]\nfile = packs/web/old.sh\nrun_every = 1h\n' >> "$cfg"
+out=$(vigil pack verify web 2>&1)
+rc=$?
+check 'a script a job still runs, a note' 'pack web 1.0.0: its 2 files match packs-2026.01.02|  kept     old.sh: dropped from the pack, still run by webold|0' "$(printf '%s' "$out" | lines)|$rc"
+check 'and install leaves it' 'pack web 1.0.0 is here: nothing to do|yes' "$(vigil pack install web 2>&1)|$(yes_no test -f "$root/packs/web/old.sh")"
+cp "$work/cfg.keep" "$cfg"
+rm -f "$root/packs/web/old.sh"
+mkdir -p "$root/packs/own"
+printf '[pack]\nversion = 0.1.0\nvigil = 0.0.1\ndescription = Mine\n' > "$root/packs/own/pack.config"
+check 'a pack of your own is not checked' 'pack own 0.1.0: not in the repository, not checked|0' "$(vigil pack verify own 2>&1)|$?"
+rm -rf "$root/packs/own"
+check 'one not installed' 'vigil: pack nosuch is not installed: vigil pack list|1' "$(vigil pack verify nosuch 2>&1)|$?"
+check 'a version is not asked for' 'vigil: pack verify checks the version installed here: vigil pack verify web|1' "$(vigil pack verify web@1.0.0 2>&1)|$?"
+check 'an option it does not know' 64 "$(vigil pack verify --all > /dev/null 2>&1; echo $?)"
+# What it read, it did not change.
+check 'verify changes nothing' "$(cksum < "$root/packs/web/status.sh")" "$(vigil pack verify > /dev/null 2>&1; cksum < "$root/packs/web/status.sh")"
+
 printf 'Removing\n'
 vigil pack enable web > /dev/null 2>&1
 check 'refused while on' 'vigil: pack web is in use by: web_status. Turn them off first: vigil pack disable web, or vigil pack remove --disable web' "$(vigil pack remove web 2>&1)"
@@ -305,6 +351,7 @@ check 'not a platform' 'vigil: not a platform: beos (linux, macos or windows)' "
 offline() { VIGIL_TEST_RELEASE_URL=http://127.0.0.1:9 vigil "$@"; }
 out=$(offline pack install web --from "$usb" 2>&1)
 check 'installs from the folder, with no network' 'installed pack web 1.0.0' "$(printf '%s' "$out" | head -n 1)"
+check 'verified from the folder, with no network' 'pack web 1.0.0: its 2 files match packs-2026.01.02' "$(offline pack verify web --from "$usb" 2>&1)"
 offline pack remove web > /dev/null 2>&1
 check 'a pack not in the folder' "vigil: vigil-pack-base-1.2.0-$os.tar.gz is not in $usb: vigil pack download base@1.2.0 there" "$(offline pack install base@1.2.0 --from "$usb" 2>&1)"
 cp "$usb/vigil-pack-web-1.0.0-$os.tar.gz" "$work/keep.tgz"

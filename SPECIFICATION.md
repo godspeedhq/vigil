@@ -2197,6 +2197,7 @@ max_runtime = 30s
 **The pack repository** is the packs releases on GitHub, tagged `packs-<YYYY.MM.DD>` (`.2`, `.3` for more in a day), apart from Vigil's and never marked latest. `tools/release/packs.sh` builds one from main, and only the packs whose version is new since the last: a pack whose files changed while its version did not is refused. A release holds:
 
 - `vigil-pack-<name>-<version>-linux.tar.gz`, `-macos.tar.gz` and `-windows.zip`: the pack as `packs/<name>/` holds it on that platform, `pack.config` and that platform's scripts, in a folder `<name>/`. A platform the pack has no scripts for has no archive.
+- **A compiled client**, only where a runtime cannot run source: a pack whose scripts run a Java client (`_client.java`) also carries it compiled, `_client.jar`, since a JRE cannot run a source file. It is built when the release is built, never committed, by `tools/release/client-jar.sh`: Java 11 bytecode, the same bytes from the same source and `javac`. Its SHA-256 and the `javac` that built it are written into each script of that platform, in place of `@CLIENT_JAR_SHA256@` and `@CLIENT_JAR_JAVAC@`, and each script checks the jar against it before running it, refusing one that does not match. The source ships beside it, so anyone can rebuild it and compare. A release whose scripts name a compiled client with no source to build it from is refused.
 - `packs.index`: every version of every pack, from this release and those before, one tab-separated record a line:
 
   ```text

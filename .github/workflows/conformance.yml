@@ -653,6 +653,15 @@ jobs:
         run: /bin/bash tools/check-headers.sh
       - name: every pack, checked and run (/bin/bash)
         run: /bin/bash tools/check-pack.sh --run
+      # As a packs release builds them, a pack's compiled client too
+      # (tools/release/client-jar.sh): one that does not compile for Java 11
+      # is found here, not when a release is tagged.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: every pack, built as a release
+        run: /bin/bash tools/release/packs.sh packs-2099.01.01 "$RUNNER_TEMP/packs"
 
   # The checks main requires are named for each PowerShell and for each
   # bash runner. Each passes once its suite has passed (every part: twelve

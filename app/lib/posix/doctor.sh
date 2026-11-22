@@ -17,6 +17,10 @@
 #
 #   vigil_doctor <root>
 #     Prints the report. Returns 1 when any line is WARN, else 0.
+#   vigil_doctor_open <root> <temporary file>
+#     The files and folders Vigil runs or reads its jobs from that others
+#     than their owner may write: _dr_open, and _dr_hidden, the folders
+#     this account could not look into.
 #   vigil_doctor_runs_since <job log dir> <ISO 8601 UTC>
 #     The runs a job log records as ended since then: _dr_runs, of them
 #     _dr_measured with their CPU, summed in _dr_sum, and their time in
@@ -26,6 +30,35 @@
 # Requires config.sh, worker.sh, command.sh and fetch.sh.
 
 VIGIL_DOCTOR_SHELLS=' bash sh dash zsh ksh '
+
+# Who may change what Vigil runs (16.7): the root's own folder, and app/,
+# vendor/, packs/, scripts/ and config/ with all they hold, writable by
+# others than their owner. A group named as its owner (a user private
+# group, as Fedora makes) is the owner's. Into _dr_open, one
+# "<path>: <who>" a line; into _dr_hidden, the folders this account could
+# not look into, one a line. $2 is a temporary file.
+vigil_doctor_open() {
+    local root=$1 tmp=$2 p d
+    _dr_open='' _dr_hidden=''
+    {
+        find "$root" -maxdepth 0 ! -type l \( -perm -020 -o -perm -002 \) -print
+        for d in app vendor packs scripts config; do
+            [ ! -e "$root/$d" ] || find "$root/$d" ! -type l \( -perm -020 -o -perm -002 \) -print
+        done
+    } 2> "$tmp" | while IFS= read -r p; do
+        # shellcheck disable=SC2046
+        set -- $(ls -ld -- "$p" 2> /dev/null)
+        [ "$#" -ge 4 ] || continue
+        case $1 in
+            ????????w*) printf '%s: anyone\n' "$p" ;;
+            ?????w*) [ "$4" = "$3" ] || printf '%s: group %s\n' "$p" "$4" ;;
+        esac
+    done > "$tmp.open"
+    _dr_open=$(cat "$tmp.open")
+    # GNU find quotes the path (in the C locale, with '), BSD find does not.
+    _dr_hidden=$(sed -n -e "s/^find: '\(.*\)': Permission denied\$/\1/p" -e t -e 's/^find: \(.*\): Permission denied$/\1/p' "$tmp")
+    rm -f "$tmp.open"
+}
 
 vigil_doctor_runs_since() {
     local f g
@@ -233,6 +266,26 @@ EOF
             fi
         fi
     done
+    # Who can change what Vigil runs: whoever can write its folders can
+    # change what it runs, as the account it runs as.
+    printf '\nWho can change what Vigil runs\n'
+    if [ -z "$tmp" ]; then
+        printf '  note  not checked (no temporary file)\n'
+    else
+        vigil_doctor_open "$root" "$tmp"
+        if [ -n "$_dr_open" ]; then
+            i=$(printf '%s\n' "$_dr_open" | wc -l | tr -d ' ')
+            printf '  WARN  %d of its files and folders can be written by others than their owner, who can then change what Vigil runs: chmod go-w each\n' "$i"
+            warn=$((warn + 1))
+            printf '%s\n' "$_dr_open" | head -n 5 | sed 's/^/        /'
+            [ "$i" -le 5 ] || printf '        and %d more\n' $((i - 5))
+        elif [ -z "$_dr_hidden" ]; then
+            printf '  ok    only their owners can change app, vendor, packs, scripts and config\n'
+        fi
+        printf '%s\n' "$_dr_hidden" | while IFS= read -r f; do
+            [ -z "$f" ] || printf '  note  cannot look into %s from this account: run this as the account Vigil runs as to check it\n' "$f"
+        done
+    fi
     [ -n "$tmp" ] && rm -f "$tmp"
 
     printf '\n'

@@ -52,10 +52,13 @@
     vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...
     vigil [-Root <dir>] pack enable <what> | disable <what> | update [--check] [<name>...]
     vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>
+    vigil [-Root <dir>] pack verify [<name>...] [--from <folder>]
         The packs of scripts and jobs (18.10), from the pack repository:
         search it, install a pack, then enable its jobs. What is a pack or a
         pack_job. download writes packs for a machine offline, which installs
-        them --from the folder.
+        them --from the folder. verify checks the packs installed here, file by
+        file, against their release; install of the version here puts back
+        what differs.
     vigil [-Root <dir>] init [empty] [--instance <name>] [--backend file,datadog,otel] [--no-pack]
         Writes a starting configuration (19): runners for the PowerShell
         hosts found here, the backends, and the base pack's jobs; empty for
@@ -161,7 +164,7 @@ else {
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]`n       vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...`n       vigil [-Root <dir>] pack enable <what> | disable <what>`n       vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]`n       vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...`n       vigil [-Root <dir>] pack enable <what> | disable <what> | verify [<name>...] [--from <folder>]`n       vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -434,6 +437,22 @@ switch ($Command) {
         }
         elseif ($Job -ceq 'info' -and $argv.Count -eq 1) {
             Get-VigilPackInfo -Root $Root -App $app -Name $argv[0] | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+        }
+        elseif ($Job -ceq 'verify') {
+            # verify [<name>...] [--from <folder>]: every pack here, or those named.
+            $from = ''
+            $names = New-Object 'System.Collections.Generic.List[string]'
+            for ($i = 0; $i -lt $argv.Count; $i++) {
+                $a = $argv[$i]
+                if ($a -ceq '--from') {
+                    if ($i + 1 -ge $argv.Count) { Exit-Usage }
+                    $i++
+                    $from = $argv[$i]
+                }
+                elseif ($a.StartsWith('-')) { Exit-Usage }
+                else { $names.Add($a) }
+            }
+            Test-VigilPack -Root $Root -App $app -From $from -Names $names.ToArray() | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
         }
         elseif ($Job -ceq 'remove' -and @($argv | Where-Object { $_ -cne '--disable' }).Count -ge 1 -and -not ($argv | Where-Object { $_ -cne '--disable' -and $_.StartsWith('-') })) {
             # remove [--disable] <name>...: --disable turns the pack's jobs off first.

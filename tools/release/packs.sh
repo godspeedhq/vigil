@@ -43,7 +43,9 @@
 # once (setting). A Vigil skips records it does not know.
 #
 # Needs tar, gzip, openssl, and for the .zip: zip, python3 or (Git Bash)
-# PowerShell. For a pack with a _client.java: a JDK 17 or later.
+# PowerShell. For a pack with a _client.java: a JDK 17 or later, unless
+# VIGIL_TEST_PACKS_NO_CLIENT is set (a test's release, never a real one:
+# the packs workflow refuses it), which builds such a pack without its jar.
 # Exit code: 0 built; 1 a pack refused, or a failure; 64 a usage error.
 
 set -u
@@ -150,10 +152,12 @@ for d in "$repo"/packs/*/; do
         rm -rf "${stage:?}/$os" && mkdir -p "$stage/$os/$name" || exit 1
         cp "$d/pack.config" "$d/$os"/* "$stage/$os/$name/" || exit 1
         # A client in Java, compiled for a JRE, and its digest in the scripts.
-        if [ -f "$stage/$os/$name/_client.java" ]; then
+        # A test's release (VIGIL_TEST_PACKS_NO_CLIENT) leaves it out: its
+        # scripts run the source, as a copy from the repository does.
+        if [ -f "$stage/$os/$name/_client.java" ] && [ -z "${VIGIL_TEST_PACKS_NO_CLIENT-}" ]; then
             bash "$here/client-jar.sh" "$stage/$os/$name" > /dev/null || { printf 'packs: cannot build the client of %s for %s\n' "$name" "$os" >&2; exit 1; }
         fi
-        if grep -l '@CLIENT_JAR_' "$stage/$os/$name"/* > /dev/null 2>&1; then
+        if [ -z "${VIGIL_TEST_PACKS_NO_CLIENT-}" ] && grep -l '@CLIENT_JAR_' "$stage/$os/$name"/* > /dev/null 2>&1; then
             printf 'packs: %s for %s names a compiled client it has no _client.java for\n' "$name" "$os" >&2
             exit 1
         fi

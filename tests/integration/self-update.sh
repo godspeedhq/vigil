@@ -130,7 +130,7 @@ check 'up to date: says so' 1 "$(grep -c 'nothing to do' "$work/out")"
 
 publish 0.0.2-it
 # A packs release (18.10), which the copies below carry for vigil pack update.
-bash "$repo/tools/release/packs.sh" packs-2026.01.01 "$www/releases/download/packs-2026.01.01" > /dev/null ||
+VIGIL_TEST_PACKS_NO_CLIENT=1 bash "$repo/tools/release/packs.sh" packs-2026.01.01 "$www/releases/download/packs-2026.01.01" > /dev/null ||
     { printf 'packs release failed\n'; exit 1; }
 vigil self update --check > "$work/out" 2>&1
 check '--check: succeeds' 0 "$?"

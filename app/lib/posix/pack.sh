@@ -38,6 +38,10 @@
 #   vigil_pack_update <root> <app dir> <check: 0|1>
 #     Updates the packs installed here to the repository's newest, never
 #     back a version.
+#   vigil_pack_verify <root> <app dir> <folder, or ''> [<name>...]
+#     Checks the packs installed here, or those named, file by file against
+#     the release of the version installed. Changes nothing. install of the
+#     version installed puts back what differs.
 #   vigil_pack_seed <root> <app dir>
 #     A packaged program only: copies in the packs the package keeps beside
 #     app/, those not here yet.
@@ -373,6 +377,50 @@ _vigil_pack_unpack() {
         { _vigil_pack_die "cannot unpack $f"; return 1; }
     _vp_src=$_vp_work/x/$name
     [ -f "$_vp_src/pack.config" ] || { _vigil_pack_die "$f holds no pack $name"; return 1; }
+}
+
+# Pack $2's folder here, $3, against its release's, $4, byte for byte: into
+# _vp_count the release's files, and the names (space-separated) of those
+# that differ here (_vp_changed), are not here (_vp_missing), and those here
+# the release does not have (_vp_added). A script the release does not have
+# that a job of configuration $1 runs, kept by vigil pack update when the
+# pack dropped it, is not added: it is in _vp_kept, as <file>:<job>.
+_vigil_pack_compare() {
+    local cfg=$1 name=$2 here=$3 rel=$4 f b j i=0 n=0 runs=' '
+    # Files in byte order, as Pack.ps1 lists them.
+    local LC_ALL=C
+    _vp_count=0 _vp_changed='' _vp_missing='' _vp_added='' _vp_kept=''
+    for f in "$rel"/* "$rel"/.[!.]*; do
+        [ -e "$f" ] || continue
+        b=${f##*/}
+        _vp_count=$((_vp_count + 1))
+        if [ ! -f "$here/$b" ]; then
+            _vp_missing="$_vp_missing $b"
+        elif ! cmp -s "$f" "$here/$b"; then
+            _vp_changed="$_vp_changed $b"
+        fi
+    done
+    if [ -f "$cfg" ] && vigil_config_parse "$cfg" 2> /dev/null; then
+        n=${#VIGIL_CFG_KEY[@]}
+    fi
+    while [ "$i" -lt "$n" ]; do
+        case ${VIGIL_CFG_SECTION[$i]}:${VIGIL_CFG_KEY[$i]}:${VIGIL_CFG_VALUE[$i]} in
+            job.*:file:packs/"$name"/*) runs="$runs${VIGIL_CFG_VALUE[$i]#packs/"$name"/}:${VIGIL_CFG_SECTION[$i]#job.} " ;;
+        esac
+        i=$((i + 1))
+    done
+    for f in "$here"/* "$here"/.[!.]*; do
+        [ -e "$f" ] || continue
+        b=${f##*/}
+        [ ! -e "$rel/$b" ] || continue
+        case $runs in
+            *" $b:"*)
+                j=${runs#* "$b":}
+                _vp_kept="$_vp_kept $b:${j%% *}"
+                ;;
+            *) _vp_added="$_vp_added $b" ;;
+        esac
+    done
 }
 
 
@@ -730,6 +778,13 @@ _vigil_pack_replace() {
         # Its jobs are all new, and all off: the caller says so.
         printf 'installed pack %s %s\n' "$name" "$want_ver"
         return 0
+    elif [ "$was" = "$want_ver" ]; then
+        # The same version, put back as released (_vigil_pack_compare said
+        # what differed).
+        printf 'restored pack %s %s as released\n' "$name" "$want_ver"
+        for b in $_vp_changed $_vp_missing; do printf '  put back  %s\n' "$b"; done
+        for b in $_vp_added; do printf '  removed   %s\n' "$b"; done
+        return 0
     elif _vigil_self_newer "$was" "$want_ver"; then
         printf 'pack %s went back from %s to %s\n' "$name" "$was" "$want_ver"
     else
@@ -791,11 +846,15 @@ _vigil_pack_spec() {
 _vigil_pack_put() {
     local root=$1 name=$2 was='' j
     if _vigil_pack_read "$root/packs/$name" "$name"; then was=$_vp_version; fi
-    if [ "$was" = "$_vp_pick" ]; then
-        printf 'pack %s %s is here: nothing to do\n' "$name" "$was"
-        return 0
-    fi
     _vigil_pack_unpack "$name" || return 1
+    if [ "$was" = "$_vp_pick" ]; then
+        # The version here: its files put back as released, where they differ.
+        _vigil_pack_compare "$root/config/vigil.config" "$name" "$root/packs/$name" "$_vp_src"
+        if [ -z "$_vp_changed$_vp_missing$_vp_added" ]; then
+            printf 'pack %s %s is here: nothing to do\n' "$name" "$was"
+            return 0
+        fi
+    fi
     mkdir -p "$root/packs" || { _vigil_pack_die "cannot write to $root/packs"; return 1; }
     _vigil_pack_replace "$root" "$_vp_app" "$name" "$_vp_src" "$was" || return 1
     [ -z "$was" ] || return 0
@@ -1252,6 +1311,70 @@ _vigil_pack_download() {
     printf 'with the signed index. There: vigil pack install <name> --from <this folder>\n'
 }
 
+# Checks the packs installed here against the packs release each version
+# came from, every file byte for byte, its archive checked against the
+# signed index as install checks it. Reads only.
+_vigil_pack_verify() {
+    local root=$1 app=$2 from=$3 d name s b rc=0 n=0
+    local -a dirs=()
+    shift 3
+    if ! _vigil_pack_readable "$root"; then
+        _vigil_pack_die "cannot read $root/packs from this account: run this as the account that installed Vigil (sudo for a system install)"
+        return 1
+    fi
+    for s in "$@"; do
+        _vigil_pack_spec "$s" || return 1
+        [ -z "$_vp_at" ] || { _vigil_pack_die "pack verify checks the version installed here: vigil pack verify $_vp_name"; return 1; }
+        _vigil_pack_read "$root/packs/$_vp_name" "$_vp_name" || { _vigil_pack_die "pack $_vp_name is not installed: vigil pack list"; return 1; }
+        dirs+=("$root/packs/$_vp_name/")
+    done
+    [ "${#dirs[@]}" -gt 0 ] || dirs=("$root"/packs/*/)
+    _vigil_pack_begin "$root" "$app" "$from" || return 1
+    _vigil_pack_os
+    for d in "${dirs[@]}"; do
+        [ -f "$d/pack.config" ] || continue
+        d=${d%/}
+        name=${d##*/}
+        if ! _vigil_pack_read "$d" "$name"; then
+            printf 'pack %s: cannot read its pack.config\n' "$name"
+            rc=1
+            continue
+        fi
+        n=$((n + 1))
+        # A pack of your own, or a version no release has: nothing to check against.
+        if ! awk -F '\t' -v n="$name" -v v="$_vp_version" '$1 == "pack" && $2 == n && $3 == v { f = 1 } END { exit !f }' "$_vp_index"; then
+            printf 'pack %s %s: not in the repository, not checked\n' "$name" "$_vp_version"
+            continue
+        fi
+        if ! _vigil_pack_pick "$name" "$_vp_version" "$_vp_os" ''; then
+            printf 'pack %s %s: cannot check it: %s\n' "$name" "$_vp_version" "$_vp_why"
+            rc=1
+            continue
+        fi
+        # Why it cannot be had, or does not match the index, is on stderr.
+        if ! _vigil_pack_unpack "$name"; then
+            printf 'pack %s %s: cannot check it\n' "$name" "$_vp_pick"
+            rc=1
+            continue
+        fi
+        _vigil_pack_compare "$root/config/vigil.config" "$name" "$d" "$_vp_src"
+        if [ -z "$_vp_changed$_vp_missing$_vp_added" ]; then
+            printf 'pack %s %s: its %d files match %s\n' "$name" "$_vp_pick" "$_vp_count" "$_vp_pick_rel"
+        else
+            printf 'pack %s %s: differs from %s\n' "$name" "$_vp_pick" "$_vp_pick_rel"
+            rc=1
+        fi
+        for b in $_vp_changed; do printf '  changed  %s\n' "$b"; done
+        for b in $_vp_missing; do printf '  missing  %s\n' "$b"; done
+        for b in $_vp_added; do printf '  added    %s\n' "$b"; done
+        for b in $_vp_kept; do printf '  kept     %s: dropped from the pack, still run by %s\n' "${b%%:*}" "${b#*:}"; done
+        [ -z "$_vp_changed$_vp_missing$_vp_added" ] || printf '  To put it back as released: vigil pack install %s@%s\n' "$name" "$_vp_pick"
+    done
+    [ "$n" -gt 0 ] || printf 'no packs here: vigil pack search, then vigil pack install <name>\n'
+    return "$rc"
+}
+
+vigil_pack_verify() { _vigil_pack_run _vigil_pack_verify "$@"; }
 vigil_pack_update() { _vigil_pack_run _vigil_pack_update "$@"; }
 vigil_pack_install() { _vigil_pack_run _vigil_pack_install "$@"; }
 vigil_pack_remove() { _vigil_pack_remove "$@"; }
