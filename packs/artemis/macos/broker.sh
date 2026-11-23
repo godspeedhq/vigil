@@ -99,7 +99,26 @@
 #                                 left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 broker=art244 jmx=localhost:19333
+#   metric address_memory_bytes 2646476 broker=art244 jmx=localhost:19333
+#   metric address_memory_pct 7 broker=art244 jmx=localhost:19333
+#   metric global_max_bytes 33554432 broker=art244 jmx=localhost:19333
+#   metric disk_pct 53.505 broker=art244 jmx=localhost:19333
+#   metric disk_max_pct 90 broker=art244 jmx=localhost:19333
+#   metric connections 1 broker=art244 jmx=localhost:19333
+#   metric connections_count 23 broker=art244 jmx=localhost:19333
+#   metric sessions 2 broker=art244 jmx=localhost:19333
+#   metric sessions_count 21 broker=art244 jmx=localhost:19333
+#   metric consumers 1 broker=art244 jmx=localhost:19333
+#   metric messages 3524 broker=art244 jmx=localhost:19333
+#   metric added_count 3625 broker=art244 jmx=localhost:19333
+#   metric acknowledged_count 1 broker=art244 jmx=localhost:19333
+#   metric addresses 10 broker=art244 jmx=localhost:19333
+#   metric queues 8 broker=art244 jmx=localhost:19333
+#   metric login_failed_count 9 broker=art244 jmx=localhost:19333
+#   metric login_count 21 broker=art244 jmx=localhost:19333
+#   metric authorization_failed_count 0 broker=art244 jmx=localhost:19333
+#   metric mirror_pending 0 broker=art244 jmx=localhost:19333
 #
 # Reading the results (starting points: tune them to your brokers):
 #   Healthy  address_memory_pct and disk_pct well below their limits;

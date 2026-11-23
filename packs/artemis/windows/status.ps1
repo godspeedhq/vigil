@@ -69,7 +69,18 @@
                                 out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 broker=art244 jmx=localhost:19333
+      metric version 1 broker=art244 jmx=localhost:19333 version=2.44.0
+      metric broker 1 broker=art244 jmx=localhost:19333 broker_name=0.0.0.0
+      metric ha_policy 1 broker=art244 jmx=localhost:19333 policy=Primary_Only
+      metric uptime_seconds 335.59 broker=art244 jmx=localhost:19333
+      metric started 1 broker=art244 jmx=localhost:19333
+      metric active 1 broker=art244 jmx=localhost:19333
+      metric backup 0 broker=art244 jmx=localhost:19333
+      metric replica_sync 0 broker=art244 jmx=localhost:19333
+      metric clustered 0 broker=art244 jmx=localhost:19333
+      metric node 1 broker=art244 jmx=localhost:19333 node_id=0e2bebad-e72d-11f1-88fd-8e8a6d94b076
+      metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=amqp
 
     Reading the results (starting points: tune them to your brokers):
       Healthy  jmx_up 1; started 1; active 1 on the primary and 0 on a backup;

@@ -63,7 +63,7 @@
 #                                 left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 broker=art244 jmx=localhost:19333
 #
 # Reading the results (starting points: tune them to your brokers):
 #   Healthy  every cluster_up, bridge_up and connection_up 1; pending small.

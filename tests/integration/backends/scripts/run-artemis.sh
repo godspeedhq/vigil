@@ -132,8 +132,13 @@ for t in art233:2.33 art240:2.40 art244:2.44; do
     check "$n: its acceptor" 1 "$(val status acceptor_up "broker=$n .*name=artemis")"
     check "$n: global-max-size" 33554432 "$(val broker global_max_bytes "broker=$n ")"
     check "$n: messages waiting" yes "$(least broker messages "broker=$n " 3330)"
-    check "$n: logins refused" yes "$(least broker login_failed_count "broker=$n " 3)"
-    check "$n: the largest address first" orders "$(grep -E "^metric size_bytes [^ ]+ broker=$n " "$work/addresses.out" | head -n 1 | sed 's/.*address=//')"
+    if [ "$n" = art233 ]; then
+        printf '        %s: logins refused: 2.33 does not count them (%s)\n' "$n" "$(val broker login_failed_count "broker=$n ")"
+    else
+        check "$n: logins refused" yes "$(least broker login_failed_count "broker=$n " 3)"
+    fi
+    check "$n: the largest address first, holding its producers" blocked "$(grep -E "^metric size_bytes [^ ]+ broker=$n " "$work/addresses.out" | head -n 1 | sed 's/.*address=//')"
+    check "$n: then the one paging" orders "$(grep -E "^metric size_bytes [^ ]+ broker=$n " "$work/addresses.out" | sed -n 2p | sed 's/.*address=//')"
     check "$n: paging" 1 "$(val addresses paging "broker=$n .*address=orders\$")"
     check "$n: pages on disk" yes "$(least addresses pages "broker=$n .*address=orders\$" 1)"
     check "$n: the address that blocks, full" yes "$(least addresses limit_pct "broker=$n .*address=blocked\$" 90)"

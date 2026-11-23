@@ -70,7 +70,17 @@
                                  left out (the largest are shown)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 broker=art244 jmx=localhost:19333
+      metric size_bytes 1074830 broker=art244 jmx=localhost:19333 address=blocked
+      metric limit_pct 102 broker=art244 jmx=localhost:19333 address=blocked
+      metric messages 95 broker=art244 jmx=localhost:19333 address=blocked
+      metric paging 0 broker=art244 jmx=localhost:19333 address=blocked
+      metric pages 0 broker=art244 jmx=localhost:19333 address=blocked
+      metric routed_count 95 broker=art244 jmx=localhost:19333 address=blocked
+      metric unrouted_count 0 broker=art244 jmx=localhost:19333 address=blocked
+      metric queues 1 broker=art244 jmx=localhost:19333 address=blocked
+      metric paused 0 broker=art244 jmx=localhost:19333 address=blocked
+      metric duplicate_cache 0 broker=art244 jmx=localhost:19333 address=blocked
 
     Reading the results (starting points: tune them to your brokers):
       Healthy  paging 0; limit_pct well below 100; unrouted_count flat.

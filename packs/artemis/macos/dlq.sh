@@ -52,7 +52,11 @@
 #                                 100, left out (the largest are shown)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 broker=art244 jmx=localhost:19333
+#   metric dead 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+#   metric dead_added_count 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+#   metric expired 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+#   metric expired_added_count 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
 #
 # Reading the results (starting points: tune them to your brokers):
 #   Healthy  dead and expired 0, or flat.

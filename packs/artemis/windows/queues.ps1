@@ -109,7 +109,25 @@
                                     left out (the largest are shown)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 broker=art244 jmx=localhost:19333
+      metric messages 2999 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric oldest_seconds 116.385 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric delivering 434 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric scheduled 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric added_count 3000 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric acknowledged_count 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric expired_count 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric killed_count 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric consumers 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric persistent_bytes 7164611 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric groups 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric prepared 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric paused 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric enabled 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric durable_messages 2999 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric delivering_bytes 1036826 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric scheduled_bytes 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+      metric acknowledge_attempts_count 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
 
     Reading the results (starting points: tune them to your brokers):
       Healthy  messages rising and falling; oldest_seconds small; consumers
