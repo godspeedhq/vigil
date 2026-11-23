@@ -1,0 +1,78 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Jettys for the jetty pack (scripts/run-jetty.sh), each with workloads/jetty's
+# apps (a shop to trouble, an app that cannot start) and JMX with a password
+# and TLS. Not somewhere Vigil sends: what its pack reads.
+#
+#   j94    Jetty 9.4,  Java 11   JMX 19311   http 18101
+#   j11    Jetty 11.0, Java 17   JMX 19312   http 18102
+#   j120   Jetty 12.0, Java 21   JMX 19313   http 18103
+#   j121   Jetty 12.1, Java 21   JMX 19314   http 18104
+#
+# JMX: user monitor (readonly), password JETTY_JMX_PASSWORD; TLS with the
+# certificate in JETTY_TLS_DIR (server.p12, naming localhost and 127.0.0.1,
+# its password in JETTY_KS_PASSWORD). Each takes 384 MB, its heap 192 MB.
+
+x-jetty: &jetty
+  mem_limit: 384m
+  entrypoint: ["/bin/sh", "/vigil/start.sh"]
+  volumes:
+    - ./configs/services/jetty/start.sh:/vigil/start.sh:ro,z
+    - ./workloads/jetty:/vigil/workload:ro,z
+    - ${JETTY_TLS_DIR:-./.jetty-tls}:/tls:ro,z
+
+x-env: &env
+  JMX_PASSWORD: ${JETTY_JMX_PASSWORD:-}
+  KS_PASSWORD: ${JETTY_KS_PASSWORD:-}
+
+services:
+  j94:
+    <<: *jetty
+    image: jetty:9.4-jre11
+    environment:
+      <<: *env
+      JMX_PORT: "19311"
+      JETTY_LINE: "9"
+    ports:
+      - "127.0.0.1:19311:19311"
+      - "127.0.0.1:18101:8080"
+
+  j11:
+    <<: *jetty
+    image: jetty:11.0-jre17
+    environment:
+      <<: *env
+      JMX_PORT: "19312"
+      JETTY_LINE: "11"
+    ports:
+      - "127.0.0.1:19312:19312"
+      - "127.0.0.1:18102:8080"
+
+  j120:
+    <<: *jetty
+    image: jetty:12.0-jre21
+    environment:
+      <<: *env
+      JMX_PORT: "19313"
+      JETTY_LINE: "12"
+    ports:
+      - "127.0.0.1:19313:19313"
+      - "127.0.0.1:18103:8080"
+
+  j121:
+    <<: *jetty
+    image: jetty:12.1-jdk21
+    environment:
+      <<: *env
+      JMX_PORT: "19314"
+      JETTY_LINE: "12"
+    ports:
+      - "127.0.0.1:19314:19314"
+      - "127.0.0.1:18104:8080"
