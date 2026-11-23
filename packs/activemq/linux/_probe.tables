@@ -1,0 +1,124 @@
+# _probe.tables - the activemq pack's jobs, as tables the probe reads
+# (tools/probe/DESIGN.md), written by tools/activemq/gen.py: edit that, not this.
+# A row: metric, MBean, attribute, then tags from the MBean's name (key/
+# for its value after the last /), +tag=value, -key=pattern, =STATE, @tag,
+# *scale, >=floor, sum, top, age. An MBean a server does not have prints
+# nothing.
+#
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+
+targets   ACTIVEMQ_JMX
+user      ACTIVEMQ_JMX_USER
+password  ACTIVEMQ_JMX_PASSWORD
+cacert    ACTIVEMQ_CACERT
+# Each broker is named as ACTIVEMQ_JMX names it (amq1: jmxs=host:port), else
+# by its address; its own name is in activemq_status.
+name      broker
+
+[status]
+version                    org.apache.activemq:type=Broker,brokerName=*                                             BrokerVersion               @version
+broker                     org.apache.activemq:type=Broker,brokerName=*                                             BrokerName                  @broker_name
+uptime_seconds             org.apache.activemq:type=Broker,brokerName=*                                             UptimeMillis                *0.001
+healthy                    org.apache.activemq:type=Broker,brokerName=*,service=Health                              CurrentStatus               =Good
+slave                      org.apache.activemq:type=Broker,brokerName=*                                             Slave
+connector_up               org.apache.activemq:type=Broker,brokerName=*,connector=clientConnectors,connectorName=*  Started                     connectorName
+connections_refused_count  org.apache.activemq:type=Broker,brokerName=*,connector=clientConnectors,connectorName=*  MaxConnectionExceededCount  connectorName
+
+[broker]
+memory_pct             org.apache.activemq:type=Broker,brokerName=*                               MemoryPercentUsage
+memory_limit_bytes     org.apache.activemq:type=Broker,brokerName=*                               MemoryLimit
+store_pct              org.apache.activemq:type=Broker,brokerName=*                               StorePercentUsage
+store_limit_bytes      org.apache.activemq:type=Broker,brokerName=*                               StoreLimit
+temp_pct               org.apache.activemq:type=Broker,brokerName=*                               TempPercentUsage
+temp_limit_bytes       org.apache.activemq:type=Broker,brokerName=*                               TempLimit
+scheduler_pct          org.apache.activemq:type=Broker,brokerName=*                               JobSchedulerStorePercentUsage
+scheduler_limit_bytes  org.apache.activemq:type=Broker,brokerName=*                               JobSchedulerStoreLimit
+store_bytes            org.apache.activemq:type=Broker,brokerName=*,service=PersistenceAdapter,*  Size                           sum
+connections            org.apache.activemq:type=Broker,brokerName=*                               CurrentConnectionsCount
+connections_count      org.apache.activemq:type=Broker,brokerName=*                               TotalConnectionsCount
+producers              org.apache.activemq:type=Broker,brokerName=*                               TotalProducerCount
+consumers              org.apache.activemq:type=Broker,brokerName=*                               TotalConsumerCount
+messages               org.apache.activemq:type=Broker,brokerName=*                               TotalMessageCount
+enqueued_count         org.apache.activemq:type=Broker,brokerName=*                               TotalEnqueueCount
+dequeued_count         org.apache.activemq:type=Broker,brokerName=*                               TotalDequeueCount
+queues                 org.apache.activemq:type=Broker,brokerName=*                               TotalQueuesCount
+topics                 org.apache.activemq:type=Broker,brokerName=*                               TotalTopicsCount
+temp_queues            org.apache.activemq:type=Broker,brokerName=*                               TotalTemporaryQueuesCount
+temp_topics            org.apache.activemq:type=Broker,brokerName=*                               TotalTemporaryTopicsCount
+message_mean_bytes     org.apache.activemq:type=Broker,brokerName=*                               AverageMessageSize
+message_max_bytes      org.apache.activemq:type=Broker,brokerName=*                               MaxMessageSize
+
+[queues]
+size                        org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  QueueSize                    destinationName  top
+enqueued_count              org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  EnqueueCount                 destinationName
+dequeued_count              org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  DequeueCount                 destinationName
+dispatched_count            org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  DispatchCount                destinationName
+expired_count               org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  ExpiredCount                 destinationName
+in_flight                   org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  InFlightCount                destinationName
+consumers                   org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  ConsumerCount                destinationName
+producers                   org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  ProducerCount                destinationName
+memory_pct                  org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  MemoryPercentUsage           destinationName
+memory_bytes                org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  MemoryUsageByteCount         destinationName
+cursor_pct                  org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  CursorPercentUsage           destinationName
+blocked_sends_count         org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  BlockedSends                 destinationName
+blocked_seconds             org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  TotalBlockedTime             destinationName  *0.001
+enqueue_mean_seconds        org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  AverageEnqueueTime           destinationName  *0.001
+enqueue_max_seconds         org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  MaxEnqueueTime               destinationName  *0.001
+message_mean_bytes          org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  AverageMessageSize           destinationName
+paused                      org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  Paused                       destinationName
+forwarded_count             org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  ForwardCount                 destinationName
+store_bytes                 org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  StoreMessageSize             destinationName
+temp_pct                    org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  TempUsagePercentUsage        destinationName
+cursor_full                 org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  CursorFull                   destinationName
+blocked_mean_seconds        org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  AverageBlockedTime           destinationName  *0.001
+network_enqueued_count      org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  NetworkEnqueues              destinationName
+network_dequeued_count      org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  NetworkDequeues              destinationName
+message_max_bytes           org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  MaxMessageSize               destinationName
+duplicates_count            org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  DuplicateFromStoreCount      destinationName
+uncommitted_exceeded_count  org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*  MaxUncommittedExceededCount  destinationName
+
+[topics]
+pending              org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*  QueueSize           destinationName top -destinationName=ActiveMQ.Advisory.*
+enqueued_count       org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*  EnqueueCount        destinationName -destinationName=ActiveMQ.Advisory.*
+dequeued_count       org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*  DequeueCount        destinationName -destinationName=ActiveMQ.Advisory.*
+dispatched_count     org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*  DispatchCount       destinationName -destinationName=ActiveMQ.Advisory.*
+expired_count        org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*  ExpiredCount        destinationName -destinationName=ActiveMQ.Advisory.*
+consumers            org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*  ConsumerCount       destinationName -destinationName=ActiveMQ.Advisory.*
+producers            org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*  ProducerCount       destinationName -destinationName=ActiveMQ.Advisory.*
+memory_pct           org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*  MemoryPercentUsage  destinationName -destinationName=ActiveMQ.Advisory.*
+blocked_sends_count  org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*  BlockedSends        destinationName -destinationName=ActiveMQ.Advisory.*
+
+[dlq]
+size            org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*DLQ*  QueueSize     destinationName top
+enqueued_count  org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*DLQ*  EnqueueCount  destinationName
+
+[subscribers]
+pending         org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  PendingQueueSize     destinationName clientId top -destinationName=ActiveMQ.Advisory.*
+dispatched      org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  DispatchedQueueSize  destinationName clientId -destinationName=ActiveMQ.Advisory.*
+enqueued_count  org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  EnqueueCounter       destinationName clientId -destinationName=ActiveMQ.Advisory.*
+dequeued_count  org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  DequeueCounter       destinationName clientId -destinationName=ActiveMQ.Advisory.*
+active          org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  Active               destinationName clientId -destinationName=ActiveMQ.Advisory.*
+slow            org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  SlowConsumer         destinationName clientId -destinationName=ActiveMQ.Advisory.*
+
+[producers]
+blocked_seconds  org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*  TotalTimeBlocked   destinationName clientId *0.001
+blocked          org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*  ProducerBlocked    destinationName clientId
+blocked_pct      org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*  PercentageBlocked  destinationName clientId top
+sent_count       org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*  SentCount          destinationName clientId
+
+[connections]
+dispatch_queue              org.apache.activemq:type=Broker,brokerName=*,connector=clientConnectors,connectorName=*,connectionViewType=clientId,connectionName=*  DispatchQueueSize                connectorName connectionName top
+blocked                     org.apache.activemq:type=Broker,brokerName=*,connector=clientConnectors,connectorName=*,connectionViewType=clientId,connectionName=*  Blocked                          connectorName connectionName
+slow                        org.apache.activemq:type=Broker,brokerName=*,connector=clientConnectors,connectorName=*,connectionViewType=clientId,connectionName=*  Slow                             connectorName connectionName
+transactions                org.apache.activemq:type=Broker,brokerName=*,connector=clientConnectors,connectorName=*,connectionViewType=clientId,connectionName=*  ActiveTransactionCount           connectorName connectionName
+oldest_transaction_seconds  org.apache.activemq:type=Broker,brokerName=*,connector=clientConnectors,connectorName=*,connectionViewType=clientId,connectionName=*  OldestActiveTransactionDuration  connectorName connectionName *0.001 >=0
+bridge                      org.apache.activemq:type=Broker,brokerName=*,connector=networkConnectors,networkConnectorName=*,networkBridge=*                       RemoteBrokerName                 networkConnectorName @remote
+bridge_enqueued_count       org.apache.activemq:type=Broker,brokerName=*,connector=networkConnectors,networkConnectorName=*,networkBridge=*                       EnqueueCounter                   networkConnectorName networkBridge
+bridge_dequeued_count       org.apache.activemq:type=Broker,brokerName=*,connector=networkConnectors,networkConnectorName=*,networkBridge=*                       DequeueCounter                   networkConnectorName networkBridge

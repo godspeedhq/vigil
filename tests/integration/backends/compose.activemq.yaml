@@ -1,0 +1,65 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# ActiveMQ Classic brokers for the activemq pack (scripts/run-activemq.sh),
+# each with workloads/activemq's activemq.xml and JMX with a password and
+# TLS. a518 bridges to a62 (a network connector). Not somewhere Vigil
+# sends: what its pack reads.
+#
+#   a518   ActiveMQ 5.18   JMX 19321
+#   a519   ActiveMQ 5.19   JMX 19322
+#   a62    ActiveMQ 6.2    JMX 19323
+#
+# JMX: user monitor (readonly), password ACTIVEMQ_JMX_PASSWORD; TLS with
+# the certificate in ACTIVEMQ_TLS_DIR (server.p12, naming localhost and
+# 127.0.0.1, its password in ACTIVEMQ_KS_PASSWORD). Each takes 512 MB.
+
+x-amq: &amq
+  mem_limit: 512m
+  entrypoint: ["/bin/sh", "/vigil/start.sh"]
+  volumes:
+    - ./configs/services/activemq/start.sh:/vigil/start.sh:ro,z
+    - ./workloads/activemq:/vigil/workload:ro,z
+    - ${ACTIVEMQ_TLS_DIR:-./.activemq-tls}:/tls:ro,z
+
+x-env: &env
+  JMX_PASSWORD: ${ACTIVEMQ_JMX_PASSWORD:-}
+  KS_PASSWORD: ${ACTIVEMQ_KS_PASSWORD:-}
+
+services:
+  a518:
+    <<: *amq
+    image: apache/activemq-classic:5.18.7
+    environment:
+      <<: *env
+      BROKER: a518
+      JMX_PORT: "19321"
+      NETWORK_TO: a62
+    ports:
+      - "127.0.0.1:19321:19321"
+
+  a519:
+    <<: *amq
+    image: apache/activemq-classic:5.19.2
+    environment:
+      <<: *env
+      BROKER: a519
+      JMX_PORT: "19322"
+    ports:
+      - "127.0.0.1:19322:19322"
+
+  a62:
+    <<: *amq
+    image: apache/activemq-classic:6.2.0
+    environment:
+      <<: *env
+      BROKER: a62
+      JMX_PORT: "19323"
+    ports:
+      - "127.0.0.1:19323:19323"

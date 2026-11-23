@@ -1,0 +1,205 @@
+pack     activemq 1.0.0, Vigil commit a0aa32d (a copy); the pack from a packs release built by tools/release/packs.sh
+account  vigil-test, not an administrator, by SSH key
+servers  run-activemq.sh's brokers on the Fedora test machine (ActiveMQ Classic 5.18, 5.19 and 6.2, each with trouble on purpose; JMX with a password and TLS), through SSH tunnels
+
+######## tests\integration\Service-Packs.ps1 through Vigil, then every job on a JRE, powershell.exe
+
+host     APHC-LPT-1, Windows 10 Pro 26H2 build 26300
+shell    C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe 5.1.26100.10068
+java     openjdk version "21.0.13.1" 2026-11-17 LTS
+jre      openjdk version "21.0.13.1" 2026-11-17 LTS
+servers  a518: jmxs=localhost:19321; a519: jmxs=localhost:19322; a62: jmxs=localhost:19323
+PowerShell 5.1.26100.10068
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+activemq: a518: jmxs=localhost:19321; a519: jmxs=localhost:19322; a62: jmxs=localhost:19323
+  PASS  activemq: off until enabled
+  PASS  activemq: enabled
+        on: activemq_status
+        on: activemq_broker
+        on: activemq_queues
+        on: activemq_topics
+        on: activemq_dlq
+        on: activemq_subscribers
+        on: activemq_producers
+        on: activemq_connections
+        needs each broker's JMX in ACTIVEMQ_JMX (amq1: jmxs=host:port): -Dcom.sun.management.jmxremote.port and a password and TLS in ACTIVEMQ_SUNJMX_START (packs/README.md shows how)
+        needs for JMX with a password: a secret line on the jobs: secret = ACTIVEMQ_JMX_PASSWORD=secret:ACTIVEMQ_JMX_PASSWORD, then vigil secret set ACTIVEMQ_JMX_PASSWORD
+        needs for the broker's JVM (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: vigil pack install jvm, with each broker in JVM_TARGETS named as here (amq1: jmxs=host:port)
+        settings in vigil.config: ACTIVEMQ_JMX= ACTIVEMQ_JMX_USER= ACTIVEMQ_CACERT=
+  PASS  activemq: it says its JVM is the jvm pack's
+  PASS  activemq: its jobs are on
+  PASS  activemq: no secret line until JMX asks for one
+  PASS  activemq: the password is a secret reference, on every job
+  note  activemq: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_PROBE_PASSWORD
+  PASS  activemq: precheck is happy
+  PASS  activemq: every job runs
+  PASS  activemq: a518 answers over JMX
+  PASS  activemq: a519 answers over JMX
+  PASS  activemq: a62 answers over JMX
+        metric jmx_up 1 broker=a518 jmx=localhost:19321
+        metric version 1 broker=a518 jmx=localhost:19321 version=5.18.7
+        metric broker 1 broker=a518 jmx=localhost:19321 broker_name=a518
+        metric uptime_seconds 451.536 broker=a518 jmx=localhost:19321
+        metric healthy 1 broker=a518 jmx=localhost:19321
+        metric slave 0 broker=a518 jmx=localhost:19321
+        metric connector_up 1 broker=a518 jmx=localhost:19321 connectorName=openwire
+        metric connections_refused_count 0 broker=a518 jmx=localhost:19321 connectorName=openwire
+        metric jmx_up 1 broker=a519 jmx=localhost:19322
+        metric version 1 broker=a519 jmx=localhost:19322 version=5.19.2
+        metric broker 1 broker=a519 jmx=localhost:19322 broker_name=a519
+        metric uptime_seconds 451.615 broker=a519 jmx=localhost:19322
+        metric healthy 1 broker=a519 jmx=localhost:19322
+        metric slave 0 broker=a519 jmx=localhost:19322
+        metric connector_up 1 broker=a519 jmx=localhost:19322 connectorName=openwire
+        metric connections_refused_count 0 broker=a519 jmx=localhost:19322 connectorName=openwire
+        metric jmx_up 1 broker=a62 jmx=localhost:19323
+        metric version 1 broker=a62 jmx=localhost:19323 version=6.2.0
+        metric broker 1 broker=a62 jmx=localhost:19323 broker_name=a62
+        metric uptime_seconds 456.716 broker=a62 jmx=localhost:19323
+        metric healthy 1 broker=a62 jmx=localhost:19323
+        metric slave 0 broker=a62 jmx=localhost:19323
+        metric connector_up 1 broker=a62 jmx=localhost:19323 connectorName=openwire
+        metric connections_refused_count 0 broker=a62 jmx=localhost:19323 connectorName=openwire
+  PASS  activemq: a wrong password fails the run
+  PASS  activemq: and says why
+  PASS  activemq: a certificate it cannot trust fails the run
+  PASS  activemq: and says why
+  PASS  activemq: a server that does not answer still runs
+  PASS  activemq: and reads as jmx_up 0
+  PASS  activemq: the password is written nowhere
+  PASS  activemq: metrics reach the backend
+21 passed, 0 failed
+        metric jmx_up 1 broker=a518 jmx=localhost:19321
+        metric version 1 broker=a518 jmx=localhost:19321 version=5.18.7
+        metric broker 1 broker=a518 jmx=localhost:19321 broker_name=a518
+        metric uptime_seconds 637.766 broker=a518 jmx=localhost:19321
+        metric healthy 1 broker=a518 jmx=localhost:19321
+        metric slave 0 broker=a518 jmx=localhost:19321
+        metric connector_up 1 broker=a518 jmx=localhost:19321 connectorName=openwire
+        metric connections_refused_count 0 broker=a518 jmx=localhost:19321 connectorName=openwire
+        metric jmx_up 1 broker=a519 jmx=localhost:19322
+        metric version 1 broker=a519 jmx=localhost:19322 version=5.19.2
+        metric broker 1 broker=a519 jmx=localhost:19322 broker_name=a519
+        metric uptime_seconds 637.336 broker=a519 jmx=localhost:19322
+        metric healthy 1 broker=a519 jmx=localhost:19322
+        metric slave 0 broker=a519 jmx=localhost:19322
+        metric connector_up 1 broker=a519 jmx=localhost:19322 connectorName=openwire
+        metric connections_refused_count 0 broker=a519 jmx=localhost:19322 connectorName=openwire
+        metric jmx_up 1 broker=a62 jmx=localhost:19323
+        metric version 1 broker=a62 jmx=localhost:19323 version=6.2.0
+        metric broker 1 broker=a62 jmx=localhost:19323 broker_name=a62
+        metric uptime_seconds 641.638 broker=a62 jmx=localhost:19323
+        metric healthy 1 broker=a62 jmx=localhost:19323
+        metric slave 0 broker=a62 jmx=localhost:19323
+        metric connector_up 1 broker=a62 jmx=localhost:19323 connectorName=openwire
+        metric connections_refused_count 0 broker=a62 jmx=localhost:19323 connectorName=openwire
+  PASS  activemq: every job runs on the JRE, from the release
+  PASS  activemq: and every server answers
+2 passed, 0 failed
+
+######## tests\integration\Service-Packs.ps1 through Vigil, then every job on a JRE, pwsh.exe
+
+host     APHC-LPT-1, Windows 10 Pro 26H2 build 26300
+shell    C:\Program Files\PowerShell\7\pwsh.exe 7.6.10
+java     openjdk version "21.0.13.1" 2026-11-17 LTS
+jre      openjdk version "21.0.13.1" 2026-11-17 LTS
+servers  a518: jmxs=localhost:19321; a519: jmxs=localhost:19322; a62: jmxs=localhost:19323
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+activemq: a518: jmxs=localhost:19321; a519: jmxs=localhost:19322; a62: jmxs=localhost:19323
+  PASS  activemq: off until enabled
+  PASS  activemq: enabled
+        on: activemq_status
+        on: activemq_broker
+        on: activemq_queues
+        on: activemq_topics
+        on: activemq_dlq
+        on: activemq_subscribers
+        on: activemq_producers
+        on: activemq_connections
+        needs each broker's JMX in ACTIVEMQ_JMX (amq1: jmxs=host:port): -Dcom.sun.management.jmxremote.port and a password and TLS in ACTIVEMQ_SUNJMX_START (packs/README.md shows how)
+        needs for JMX with a password: a secret line on the jobs: secret = ACTIVEMQ_JMX_PASSWORD=secret:ACTIVEMQ_JMX_PASSWORD, then vigil secret set ACTIVEMQ_JMX_PASSWORD
+        needs for the broker's JVM (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: vigil pack install jvm, with each broker in JVM_TARGETS named as here (amq1: jmxs=host:port)
+        settings in vigil.config: ACTIVEMQ_JMX= ACTIVEMQ_JMX_USER= ACTIVEMQ_CACERT=
+  PASS  activemq: it says its JVM is the jvm pack's
+  PASS  activemq: its jobs are on
+  PASS  activemq: no secret line until JMX asks for one
+  PASS  activemq: the password is a secret reference, on every job
+  note  activemq: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_PROBE_PASSWORD
+  PASS  activemq: precheck is happy
+  PASS  activemq: every job runs
+  PASS  activemq: a518 answers over JMX
+  PASS  activemq: a519 answers over JMX
+  PASS  activemq: a62 answers over JMX
+        metric jmx_up 1 broker=a518 jmx=localhost:19321
+        metric version 1 broker=a518 jmx=localhost:19321 version=5.18.7
+        metric broker 1 broker=a518 jmx=localhost:19321 broker_name=a518
+        metric uptime_seconds 745.775 broker=a518 jmx=localhost:19321
+        metric healthy 1 broker=a518 jmx=localhost:19321
+        metric slave 0 broker=a518 jmx=localhost:19321
+        metric connector_up 1 broker=a518 jmx=localhost:19321 connectorName=openwire
+        metric connections_refused_count 0 broker=a518 jmx=localhost:19321 connectorName=openwire
+        metric jmx_up 1 broker=a519 jmx=localhost:19322
+        metric version 1 broker=a519 jmx=localhost:19322 version=5.19.2
+        metric broker 1 broker=a519 jmx=localhost:19322 broker_name=a519
+        metric uptime_seconds 745.305 broker=a519 jmx=localhost:19322
+        metric healthy 1 broker=a519 jmx=localhost:19322
+        metric slave 0 broker=a519 jmx=localhost:19322
+        metric connector_up 1 broker=a519 jmx=localhost:19322 connectorName=openwire
+        metric connections_refused_count 0 broker=a519 jmx=localhost:19322 connectorName=openwire
+        metric jmx_up 1 broker=a62 jmx=localhost:19323
+        metric version 1 broker=a62 jmx=localhost:19323 version=6.2.0
+        metric broker 1 broker=a62 jmx=localhost:19323 broker_name=a62
+        metric uptime_seconds 749.595 broker=a62 jmx=localhost:19323
+        metric healthy 1 broker=a62 jmx=localhost:19323
+        metric slave 0 broker=a62 jmx=localhost:19323
+        metric connector_up 1 broker=a62 jmx=localhost:19323 connectorName=openwire
+        metric connections_refused_count 0 broker=a62 jmx=localhost:19323 connectorName=openwire
+  PASS  activemq: a wrong password fails the run
+  PASS  activemq: and says why
+  PASS  activemq: a certificate it cannot trust fails the run
+  PASS  activemq: and says why
+  PASS  activemq: a server that does not answer still runs
+  PASS  activemq: and reads as jmx_up 0
+  PASS  activemq: the password is written nowhere
+  PASS  activemq: metrics reach the backend
+21 passed, 0 failed
+        metric jmx_up 1 broker=a518 jmx=localhost:19321
+        metric version 1 broker=a518 jmx=localhost:19321 version=5.18.7
+        metric broker 1 broker=a518 jmx=localhost:19321 broker_name=a518
+        metric uptime_seconds 916.074 broker=a518 jmx=localhost:19321
+        metric healthy 1 broker=a518 jmx=localhost:19321
+        metric slave 0 broker=a518 jmx=localhost:19321
+        metric connector_up 1 broker=a518 jmx=localhost:19321 connectorName=openwire
+        metric connections_refused_count 0 broker=a518 jmx=localhost:19321 connectorName=openwire
+        metric jmx_up 1 broker=a519 jmx=localhost:19322
+        metric version 1 broker=a519 jmx=localhost:19322 version=5.19.2
+        metric broker 1 broker=a519 jmx=localhost:19322 broker_name=a519
+        metric uptime_seconds 915.614 broker=a519 jmx=localhost:19322
+        metric healthy 1 broker=a519 jmx=localhost:19322
+        metric slave 0 broker=a519 jmx=localhost:19322
+        metric connector_up 1 broker=a519 jmx=localhost:19322 connectorName=openwire
+        metric connections_refused_count 0 broker=a519 jmx=localhost:19322 connectorName=openwire
+        metric jmx_up 1 broker=a62 jmx=localhost:19323
+        metric version 1 broker=a62 jmx=localhost:19323 version=6.2.0
+        metric broker 1 broker=a62 jmx=localhost:19323 broker_name=a62
+        metric uptime_seconds 919.865 broker=a62 jmx=localhost:19323
+        metric healthy 1 broker=a62 jmx=localhost:19323
+        metric slave 0 broker=a62 jmx=localhost:19323
+        metric connector_up 1 broker=a62 jmx=localhost:19323 connectorName=openwire
+        metric connections_refused_count 0 broker=a62 jmx=localhost:19323 connectorName=openwire
+  PASS  activemq: every job runs on the JRE, from the release
+  PASS  activemq: and every server answers
+2 passed, 0 failed

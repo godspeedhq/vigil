@@ -1,0 +1,101 @@
+# Each job's example output, for its script's header: real lines from
+# tests/integration/backends/scripts/run-activemq.sh's ActiveMQ 6.2 (a62), with
+# trouble on purpose, 2026-11-23. tools/activemq/gen.py reads it.
+== status
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric version 1 broker=a62 jmx=localhost:19323 version=6.2.0
+metric broker 1 broker=a62 jmx=localhost:19323 broker_name=a62
+metric uptime_seconds 257.286 broker=a62 jmx=localhost:19323
+metric healthy 1 broker=a62 jmx=localhost:19323
+metric slave 0 broker=a62 jmx=localhost:19323
+metric connector_up 1 broker=a62 jmx=localhost:19323 connectorName=openwire
+metric connections_refused_count 0 broker=a62 jmx=localhost:19323 connectorName=openwire
+== broker
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric memory_pct 11 broker=a62 jmx=localhost:19323
+metric memory_limit_bytes 16777216 broker=a62 jmx=localhost:19323
+metric store_pct 1 broker=a62 jmx=localhost:19323
+metric store_limit_bytes 209715200 broker=a62 jmx=localhost:19323
+metric temp_pct 100 broker=a62 jmx=localhost:19323
+metric temp_limit_bytes 104857600 broker=a62 jmx=localhost:19323
+metric scheduler_pct 0 broker=a62 jmx=localhost:19323
+metric scheduler_limit_bytes 0 broker=a62 jmx=localhost:19323
+metric store_bytes 2733858 broker=a62 jmx=localhost:19323
+metric connections 3 broker=a62 jmx=localhost:19323
+metric connections_count 10 broker=a62 jmx=localhost:19323
+metric producers 1 broker=a62 jmx=localhost:19323
+metric consumers 4 broker=a62 jmx=localhost:19323
+metric messages 13550 broker=a62 jmx=localhost:19323
+metric enqueued_count 14242 broker=a62 jmx=localhost:19323
+metric dequeued_count 51 broker=a62 jmx=localhost:19323
+metric queues 6 broker=a62 jmx=localhost:19323
+metric topics 15 broker=a62 jmx=localhost:19323
+metric temp_queues 0 broker=a62 jmx=localhost:19323
+metric temp_topics 0 broker=a62 jmx=localhost:19323
+metric message_mean_bytes 8171 broker=a62 jmx=localhost:19323
+metric message_max_bytes 11024 broker=a62 jmx=localhost:19323
+== queues
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric size 10171 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric enqueued_count 10171 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric dequeued_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric dispatched_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric expired_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric in_flight 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric consumers 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric producers 1 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric memory_pct 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric memory_bytes 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric cursor_pct 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric blocked_sends_count 2 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric blocked_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric enqueue_mean_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric enqueue_max_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric message_mean_bytes 11024 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric paused 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric forwarded_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric store_bytes 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric temp_pct 100 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric cursor_full 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric blocked_mean_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric network_enqueued_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric network_dequeued_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric message_max_bytes 11024 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric duplicates_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+metric uncommitted_exceeded_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+== topics
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric pending 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric enqueued_count 500 broker=a62 jmx=localhost:19323 destinationName=prices
+metric dequeued_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric dispatched_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric expired_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric consumers 1 broker=a62 jmx=localhost:19323 destinationName=prices
+metric producers 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric memory_pct 49 broker=a62 jmx=localhost:19323 destinationName=prices
+metric blocked_sends_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+== dlq
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric size 50 broker=a62 jmx=localhost:19323 destinationName=ActiveMQ.DLQ
+metric enqueued_count 50 broker=a62 jmx=localhost:19323 destinationName=ActiveMQ.DLQ
+== subscribers
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric pending 500 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+metric dispatched 0 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+metric enqueued_count 500 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+metric dequeued_count 0 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+metric active 0 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+metric slow 0 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+== producers
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric blocked_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_f4e4deea07b3-38131-1795428207048-0_1
+metric blocked 1 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_f4e4deea07b3-38131-1795428207048-0_1
+metric blocked_pct 100 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_f4e4deea07b3-38131-1795428207048-0_1
+metric sent_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_f4e4deea07b3-38131-1795428207048-0_1
+== connections
+metric bridge 1 broker=a518 jmx=localhost:19321 networkConnectorName=to-a62 remote=a62
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric dispatch_queue 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f4e4deea07b3-38131-1795428207048-0_1
+metric blocked 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f4e4deea07b3-38131-1795428207048-0_1
+metric slow 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f4e4deea07b3-38131-1795428207048-0_1
+metric transactions 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f4e4deea07b3-38131-1795428207048-0_1

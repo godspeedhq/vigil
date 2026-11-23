@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) Bankole Ogundero and the Vigil contributors
+  SPDX-License-Identifier: Apache-2.0
+
+  Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+  implied. Run it at your own risk: review it first, and test it before you
+  rely on it. In no event shall the authors or copyright holders be liable
+  for any claim, damages or other liability arising from its use. See the
+  LICENSE file for the full terms.
+
+  activemq.xml - an ActiveMQ Classic broker (5.18 to 6.x) for the activemq
+  pack's tests (scripts/run-activemq.sh), small on purpose so trouble comes
+  quickly: 16 MB of memory for messages, 1 MB a destination (then producer
+  flow control holds senders back), 200 MB of store, expiry checked every 5
+  seconds (expired messages go to ActiveMQ.DLQ), at most 50 connections.
+  start.sh puts in the broker's name (@BROKER@) and its network connectors
+  (@NETWORK@).
+-->
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://activemq.apache.org/schema/core http://activemq.apache.org/schema/core/activemq-core.xsd">
+  <broker xmlns="http://activemq.apache.org/schema/core" brokerName="@BROKER@" dataDirectory="/tmp/amq-data" useJmx="true">
+    <destinationPolicy>
+      <policyMap>
+        <policyEntries>
+          <policyEntry queue="&gt;" producerFlowControl="true" memoryLimit="1mb" expireMessagesPeriod="5000"/>
+          <policyEntry topic="&gt;" producerFlowControl="true" memoryLimit="1mb" expireMessagesPeriod="5000"/>
+        </policyEntries>
+      </policyMap>
+    </destinationPolicy>
+    <managementContext>
+      <managementContext createConnector="false"/>
+    </managementContext>
+    @NETWORK@
+    <persistenceAdapter>
+      <kahaDB directory="/tmp/amq-data/kahadb"/>
+    </persistenceAdapter>
+    <systemUsage>
+      <systemUsage>
+        <memoryUsage><memoryUsage limit="16 mb"/></memoryUsage>
+        <storeUsage><storeUsage limit="200 mb"/></storeUsage>
+        <tempUsage><tempUsage limit="100 mb"/></tempUsage>
+      </systemUsage>
+    </systemUsage>
+    <transportConnectors>
+      <transportConnector name="openwire" uri="tcp://0.0.0.0:61616?maximumConnections=50"/>
+    </transportConnectors>
+  </broker>
+</beans>
