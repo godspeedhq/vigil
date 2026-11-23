@@ -62,6 +62,7 @@ A row is: the metric, the MBean (a pattern or one name), the attribute (or `attr
 | Word | Meaning |
 | --- | --- |
 | `name` | a key of the MBean's name, as a tag (`topic`, `listener`) |
+| `name/` | the same, after its last `/`: Jetty's `context=oejs_Server@70e9c95d/_shop` is `context=_shop`, without the hash a restart changes |
 | `+name=value` | a tag of the row's own |
 | `*n` | its value times n (`*100`: a fraction as a percent; `*0.001`: ms to seconds) |
 | `>=n` | a value below n is no reading, and not printed (a figure never measured) |
@@ -69,6 +70,8 @@ A row is: the metric, the MBean (a pattern or one name), the attribute (or `attr
 | `top` | the MBeans that match in order of this row's value, largest first, for every row of the same MBeans in the job: past 100, the worst are shown, not the first by name (the deepest queues of thousands) |
 | `-key=pattern` | leaves out the MBeans whose key is like the pattern, `*` any characters (`-destinationName=ActiveMQ.Advisory.*`); rows with the same MBean and the same words read the same MBeans |
 | `=STATE` | a state as a number: 1 when the attribute's text is `STATE`, else 0; several with `\|` (`=STARTED\|STARTING`), case aside (a web application `STARTED`, or `FAILED`) |
+| `@tag` | a text as a tag, the value 1: `version 1 version=11.0.29.0` |
+| `age` | the seconds since the attribute's time, in milliseconds since 1970: since a web application started; a time never set (0) is no reading |
 
 And `when <MBean> <attribute>`: the rows after it print only when that value is above 0 (Kafka's controller figures, on the active controller only).
 
@@ -95,4 +98,4 @@ With the kafka pack 2.0, on every platform and every cluster it is tested on, an
 - a server that does not answer: `jmx_up 0`, and the run succeeds;
 - a row for an MBean that is not there: nothing, and no error; `when`, `sum`, `*n`, `>=n` and `+tag` against real MBeans.
 
-And on its own, every time it changes (CI's pack java job): `tools/probe/test/probe-test.sh` runs it against MBeans made for it (`Fixture.java`): the worst of 150 queues with `top`, noise left out, states, quoted names, composite keys, named targets, and the tables it refuses.
+And on its own, every time it changes (CI's pack java job): `tools/probe/test/probe-test.sh` runs it against MBeans made for it (`Fixture.java`): the worst of 150 queues with `top`, noise left out, states, texts, ages, quoted names, a key after its last `/`, composite keys, named targets, and the tables it refuses.

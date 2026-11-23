@@ -74,10 +74,16 @@ kept      fixture:type=App,*  stateName  name  =STARTED  -name=//localhost/b*
 
 [pool]
 busy      fixture:type=Pool,*  busy  name
+sessions  fixture:type=sessioncache,*  sessionsCurrent  context/
 
 [memory]
 used      fixture:type=Memory  Usage.used
 ok        fixture:type=Memory  Usage.state  =OK
+
+[server]
+version   fixture:type=Server  serverNumber  @version
+started   fixture:type=Server  startTime     age
+never     fixture:type=Server  neverTime     age
 EOF
 probe() { PT_JMX=$1 "${bin}java" -cp "$work/probe" Probe "$work/t.tables" "$2" 2>&1; }
 t="web1: jmx=localhost:$port"
@@ -107,10 +113,16 @@ has 'and the rest kept' "$out" "metric kept 0 server=web1 jmx=localhost:$port na
 
 out=$(probe "$t" pool)
 has 'a quoted name, as a tag without its quotes' "$out" "metric busy 5 server=web1 jmx=localhost:$port name=http-nio-8080"
+has 'a key after its last /, without the hash a restart changes' "$out" "metric sessions 3 server=web1 jmx=localhost:$port context=_shop"
 
 out=$(probe "$t" memory)
 has 'a composite key, as before' "$out" "metric used 10 server=web1 jmx=localhost:$port"
 has 'a state in a composite key' "$out" "metric ok 1 server=web1 jmx=localhost:$port"
+
+out=$(probe "$t" server)
+has 'a text, as a tag' "$out" "metric version 1 server=web1 jmx=localhost:$port version=11.0.29.0"
+if printf '%s\n' "$out" | grep -qE "^metric started 3[67][0-9][0-9] server=web1 jmx=localhost:$port\$"; then pass 'an age: an hour'; else fail 'an age: an hour' "$out"; fi
+lacks 'and none for a time never set' "$out" '^metric never '
 
 out=$(probe "web1: jmxs=localhost:1; jmx=localhost:$port" memory)
 has 'a target named in the setting' "$out" "metric jmx_up 0 server=web1 jmx=localhost:1"
@@ -124,7 +136,9 @@ refused() {
     if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qF -- "$3"; then pass "$1"; else fail "$1" "exit $rc: $out"; fi
 }
 refused 'sum and top together, refused' 'x fixture:type=Queue,* Size name sum top' 'line 4: sum or top, not both'
-refused 'a word it does not know, refused' 'x fixture:type=Queue,* Size name ~odd' 'not a tag, +tag=value, -key=pattern, =STATE, *n, >=n, sum or top: ~odd'
+refused 'a word it does not know, refused' 'x fixture:type=Queue,* Size name ~odd' 'not a tag, +tag=value, -key=pattern, =STATE, @tag, *n, >=n, sum, top or age: ~odd'
+refused 'a text in order, refused' 'x fixture:type=Server serverNumber @v top' '@tag is a text: not with sum or top'
+refused 'a state and an age, refused' 'x fixture:type=Server startTime =A age' 'one of =STATE, @tag and age'
 out=$(PT_JMX='web1 jmx=localhost:1' "${bin}java" -cp "$work/probe" Probe "$work/t.tables" memory 2>&1)
 if [ $? -eq 1 ] && printf '%s\n' "$out" | grep -qF 'with a name first or not (web1: jmxs=host:port)'; then pass 'a target it cannot read, refused'; else fail 'a target it cannot read, refused' "$out"; fi
 

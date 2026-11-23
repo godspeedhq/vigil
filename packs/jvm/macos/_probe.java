@@ -81,26 +81,33 @@ final class Probe {
                     Jmx.on(w[1]);
                     List<String> tags = new ArrayList<>(), fixed = new ArrayList<>();
                     double scale = 1, floor = Double.NEGATIVE_INFINITY;
-                    boolean sum = false, top = false;
+                    boolean sum = false, top = false, age = false;
                     String[] states = null;
+                    String text = null;
                     List<String[]> without = new ArrayList<>();
                     for (int i = 3; i < w.length; i++) {
                         String x = w[i];
                         if (x.startsWith("+") && x.indexOf('=') > 1) { fixed.add(x.substring(1, x.indexOf('='))); fixed.add(x.substring(x.indexOf('=') + 1)); }
                         else if (x.startsWith("-") && x.indexOf('=') > 1) without.add(new String[]{ x.substring(1, x.indexOf('=')), x.substring(x.indexOf('=') + 1) });
                         else if (x.startsWith("=") && x.length() > 1) states = x.substring(1).split("\\|");
+                        else if (x.matches("@[A-Za-z0-9_.-]+")) text = x.substring(1);
                         else if (x.startsWith("*")) scale = Double.parseDouble(x.substring(1));
                         else if (x.startsWith(">=")) floor = Double.parseDouble(x.substring(2));
                         else if (x.equals("sum")) sum = true;
                         else if (x.equals("top")) top = true;
-                        else if (x.matches("[A-Za-z0-9_.-]+")) tags.add(x);
-                        else throw new IllegalArgumentException("not a tag, +tag=value, -key=pattern, =STATE, *n, >=n, sum or top: " + x);
+                        else if (x.equals("age")) age = true;
+                        else if (x.matches("[A-Za-z0-9_.-]+/?")) tags.add(x);
+                        else throw new IllegalArgumentException("not a tag, +tag=value, -key=pattern, =STATE, @tag, *n, >=n, sum, top or age: " + x);
                     }
                     if (sum && top) throw new IllegalArgumentException("sum or top, not both");
+                    if ((states != null ? 1 : 0) + (text != null ? 1 : 0) + (age ? 1 : 0) > 1) throw new IllegalArgumentException("one of =STATE, @tag and age");
+                    if (text != null && (sum || top)) throw new IllegalArgumentException("@tag is a text: not with sum or top");
                     it.row = Jmx.row(w[0], w[1], w[2], tags.toArray(new String[0])).scale(scale).atLeast(floor).with(fixed.toArray(new String[0]));
                     if (sum) it.row.sum();
                     if (top) it.row.top();
                     if (states != null) it.row.states(states);
+                    if (text != null) it.row.text(text);
+                    if (age) it.row.age();
                     for (String[] x : without) it.row.without(x[0], x[1]);
                 }
                 items.add(it);
@@ -557,18 +564,54 @@ final class Jmx {
             return true;
         }
 
-        /** Its value from an attribute's: a number, or 1 or 0 for a state; null when there is none. */
+        /** The attribute's text as this tag, the value 1: a version, a role. */
+        String textTag;
+        /** The seconds since the attribute's time (milliseconds since 1970): since a start. */
+        boolean age;
+
+        Row text(String tag) {
+            textTag = tag;
+            return this;
+        }
+
+        Row age() {
+            age = true;
+            return this;
+        }
+
+        /** The attribute's value itself, or key k of a composite one; null when there is none. */
+        Object raw(Object v) {
+            if (key == null) return v;
+            if (!(v instanceof CompositeData) || !((CompositeData) v).containsKey(key)) return null;
+            return ((CompositeData) v).get(key);
+        }
+
+        /** Its value from an attribute's: a number, 1 or 0 for a state, 1 for a text, an age; null when there is none. */
         Number value(Object v) {
-            if (states == null) return number(v, key);
-            if (key != null) {
-                if (!(v instanceof CompositeData) || !((CompositeData) v).containsKey(key)) return null;
-                v = ((CompositeData) v).get(key);
-            }
+            if (states == null && textTag == null && !age) return number(v, key);
+            v = raw(v);
             if (v == null) return null;
+            if (age) {
+                if (!(v instanceof Number) || ((Number) v).longValue() <= 0) return null;
+                return Math.max(0, (System.currentTimeMillis() - ((Number) v).longValue()) / 1000);
+            }
+            if (textTag != null) return String.valueOf(v).trim().isEmpty() ? null : 1;
             String s = String.valueOf(v).trim();
             for (String x : states) if (x.equalsIgnoreCase(s)) return 1;
             return 0;
         }
+    }
+
+    /** A row's tag: a key of the MBean's name, or key/ for its value after the last / (Jetty's server@hash/h1: h1). */
+    static String tagName(String t) {
+        return t.endsWith("/") ? t.substring(0, t.length() - 1) : t;
+    }
+
+    /** The value of tag t for MBean o: its key's value, unquoted, or after the last / for key/. */
+    static String keyTag(ObjectName o, String t) {
+        String v = unquote(o.getKeyProperty(tagName(t)));
+        if (v == null || !t.endsWith("/")) return v;
+        return v.substring(v.lastIndexOf('/') + 1);
     }
 
     /** A key's value without the quotes JMX puts around some ("http-nio-8080"). */
@@ -659,14 +702,19 @@ final class Jmx {
             int n = 0;
             for (ObjectName o : names) {
                 if (++n > LIST_CAP) break;
-                Number v = r.value(values.getOrDefault(o, Collections.emptyMap()).get(r.attribute));
+                Object got = values.getOrDefault(o, Collections.emptyMap()).get(r.attribute);
+                Number v = r.value(got);
                 if (v == null || v.doubleValue() < r.floor) continue;
-                String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length + r.fixed.length);
+                String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length + r.fixed.length + (r.textTag == null ? 0 : 2));
                 for (int i = 0; i < r.tags.length; i++) {
-                    all[tags.length + 2 * i] = r.tags[i];
-                    all[tags.length + 2 * i + 1] = unquote(o.getKeyProperty(r.tags[i]));
+                    all[tags.length + 2 * i] = tagName(r.tags[i]);
+                    all[tags.length + 2 * i + 1] = keyTag(o, r.tags[i]);
                 }
                 System.arraycopy(r.fixed, 0, all, tags.length + 2 * r.tags.length, r.fixed.length);
+                if (r.textTag != null) {
+                    all[all.length - 2] = r.textTag;
+                    all[all.length - 1] = String.valueOf(r.raw(got)).trim();
+                }
                 metric(r.metric, r.scale == 1 ? v : v.doubleValue() * r.scale, all);
             }
             if (names.size() > LIST_CAP) metric(r.metric + "_not_shown", names.size() - LIST_CAP, tags);
@@ -680,7 +728,7 @@ final class Jmx {
             Number v = r.value(values.getOrDefault(o, Collections.emptyMap()).get(r.attribute));
             if (v == null) continue;
             List<String> k = new ArrayList<>();
-            for (String t : r.tags) k.add(unquote(o.getKeyProperty(t)));
+            for (String t : r.tags) k.add(keyTag(o, t));
             by.computeIfAbsent(k, x -> new double[1])[0] += v.doubleValue();
         }
         int n = 0;
@@ -690,7 +738,7 @@ final class Jmx {
             if (v < r.floor) continue;
             String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length + r.fixed.length);
             for (int i = 0; i < r.tags.length; i++) {
-                all[tags.length + 2 * i] = r.tags[i];
+                all[tags.length + 2 * i] = tagName(r.tags[i]);
                 all[tags.length + 2 * i + 1] = e.getKey().get(i);
             }
             System.arraycopy(r.fixed, 0, all, tags.length + 2 * r.tags.length, r.fixed.length);

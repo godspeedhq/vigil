@@ -19,6 +19,10 @@
 //                                            STOPPED; available, a boolean
 //   fixture:type=Pool,name="http-nio-8080"   busy, max: a quoted name
 //   fixture:type=Memory                      Usage, a composite: used, state
+//   fixture:type=sessioncache,context=oejs_Server@1a2b3c/_shop   a key with
+//                                            a hash a restart changes (Jetty's)
+//   fixture:type=Server                      serverNumber, a text; startTime,
+//                                            an hour ago; neverTime, 0
 
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
@@ -86,6 +90,9 @@ public final class Fixture {
                 new ObjectName("fixture:type=App,name=" + ObjectName.quote("//localhost/" + app[0])));
         }
         s.registerMBean(new Bean().put("busy", 5).put("max", 200), new ObjectName("fixture:type=Pool,name=" + ObjectName.quote("http-nio-8080")));
+        s.registerMBean(new Bean().put("sessionsCurrent", 3L), new ObjectName("fixture:type=sessioncache,context=oejs_Server@1a2b3c/_shop,id=0"));
+        s.registerMBean(new Bean().put("serverNumber", "11.0.29.0").put("startTime", System.currentTimeMillis() - 3600_000L).put("neverTime", 0L),
+            new ObjectName("fixture:type=Server"));
         CompositeType ct = new CompositeType("Usage", "usage", new String[]{ "used", "state" }, new String[]{ "used", "state" },
             new OpenType<?>[]{ SimpleType.LONG, SimpleType.STRING });
         s.registerMBean(new Bean().put("Usage", new CompositeDataSupport(ct, new String[]{ "used", "state" }, new Object[]{ 10L, "OK" })),
