@@ -31,6 +31,141 @@ These are starting points, not rules: tune them to what's normal on each machine
 | `system.load.load1`, `load5`, `load15` | Below the number of cores | 1 to 2 times the cores for 15 minutes or more | Above 2 times the cores for 5 minutes or more |
 | `system.services.failed` | 0, or your usual number on macOS and Windows | Higher than usual on macOS | 1 or more on Linux, or still rising elsewhere |
 
+
+<!-- grid:start -->
+## Every metric, at a glance
+
+Every job, every metric it prints and what it measures, and what good, watch and bad look like. It is the header of each job's script, laid out (`tools/pack-grid.py` writes it), so it says what the scripts say. A metric's full name is its job's name, then its own: `system.cpu.used_pct`.
+
+```text
++--------------------------------------------------------------------------------------------------+
+| base_cpu   system.cpu.<metric>   every 1m                                                        |
++------------+-------------------------------------------------------------------------------------+
+| used_pct   | percent of CPU time in use, across all cores                                        |
+| user_pct   | of which running programs (user and nice)                                           |
+| system_pct | of which the kernel (system, irq and softirq)                                       |
+| iowait_pct | idle while waiting for a disk; not part of used_pct                                 |
+| steal_pct  | taken by the hypervisor for other virtual machines; part of used_pct                |
++------------+-------------------------------------------------------------------------------------+
+| GOOD  used_pct below 70: normal work, and short spikes to 100 are fine.                          |
+| WATCH used_pct 70 to 90 for 15 minutes or more: little room left for a peak. iowait_pct above    |
+|       10: the disks are holding work back.                                                       |
+| BAD   used_pct above 90 for 5 minutes or more: find what is using the CPU (system.processes).    |
+|       steal_pct above 10 on a virtual machine: its host is overcommitted.                        |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| base_memory   system.memory.<metric>   every 1m                                                  |
++-------------------+------------------------------------------------------------------------------+
+| used_pct          | percent of memory in use                                                     |
+| used_bytes        | memory in use, in bytes                                                      |
+| total_bytes       | installed memory, in bytes                                                   |
+| available_bytes   | memory available to programs without swapping, in bytes                      |
+| swap_used_bytes   | swap in use, in bytes                                                        |
+| swap_total_bytes  | swap configured, in bytes (0 with no swap)                                   |
+| commit_used_bytes | and commit_limit_bytes are Windows only                                      |
++-------------------+------------------------------------------------------------------------------+
+| GOOD  below 80: room for peaks.                                                                  |
+| WATCH 80 to 90, or used_bytes climbing steadily, which can mean a leak. swap_used_bytes growing  |
+|       while used_pct is high.                                                                    |
+| BAD   above 90 for 5 minutes or more: the machine may start to swap, or the system may stop      |
+|       processes to free memory.                                                                  |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| base_disk   system.disk.<metric>   cron 1/5 * * * *                                              |
++-----------------+--------------------------------------------------------------------------------+
+| used_pct        | percent of usable space in use (tag: mount)                                    |
+| used_bytes      | space in use, in bytes (tag: mount)                                            |
+| total_bytes     | size of the file system, in bytes (tag: mount)                                 |
+| inodes_used_pct | percent of inodes (file entries) in use (tag: mount); left out for file        |
+|                 | systems with no fixed number, such as btrfs                                    |
++-----------------+--------------------------------------------------------------------------------+
+| GOOD  below 80.                                                                                  |
+| WATCH 80 to 90, or used_bytes growing fast: work out when it fills up.                           |
+| BAD   above 90: free some space. At 100, writes fail, and databases and logs usually go with     |
+|       them. The same goes for inodes_used_pct: many small files can fill a disk that still has   |
+|       space.                                                                                     |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| base_diskio   system.diskio.<metric>   cron 2/5 * * * *                                          |
++-------------+------------------------------------------------------------------------------------+
+| read_bytes  | bytes read (tag: disk)                                                             |
+| write_bytes | bytes written (tag: disk)                                                          |
+| reads       | reads completed (tag: disk)                                                        |
+| writes      | writes completed (tag: disk)                                                       |
+| busy_ms     | milliseconds the disk was busy (tag: disk); as a rate, busy_ms / 10 per second is  |
+|             | the percent of time it was busy                                                    |
++-------------+------------------------------------------------------------------------------------+
+| GOOD  busy below 50 percent of the time.                                                         |
+| WATCH busy above 80 percent for 15 minutes or more: the disk is the bottleneck, and              |
+|       system.cpu.iowait_pct usually rises with it.                                               |
+| BAD   busy near 100 percent with work waiting: find what is reading or writing, or move it to a  |
+|       faster disk. Totals restart after a reboot.                                                |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| base_network   system.network.<metric>   every 1m                                                |
++------------+-------------------------------------------------------------------------------------+
+| rx_bytes   | bytes received (tag: iface)                                                         |
+| tx_bytes   | bytes sent (tag: iface)                                                             |
+| rx_packets | packets received (tag: iface)                                                       |
+| tx_packets | packets sent (tag: iface)                                                           |
+| rx_errors  | received packets with errors (tag: iface)                                           |
+| tx_errors  | packets that failed to send (tag: iface)                                            |
+| rx_drops   | received packets dropped, for lack of room or of a taker (tag: iface)               |
+| tx_drops   | packets dropped before sending (tag: iface)                                         |
++------------+-------------------------------------------------------------------------------------+
+| GOOD  steady, and well below the speed of the link; errors at 0.                                 |
+| WATCH above 70 percent of the link speed for 15 minutes or more, or errors or drops rising.      |
+| BAD   close to the link speed, no traffic where there should be some, or errors rising steadily: |
+|       a cable, a port or a driver. Totals restart after a reboot.                                |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| base_load   system.load.<metric>   every 1m                                                      |
++--------+-----------------------------------------------------------------------------------------+
+| load1  | average over 1 minute                                                                   |
+| load5  | average over 5 minutes                                                                  |
+| load15 | average over 15 minutes                                                                 |
++--------+-----------------------------------------------------------------------------------------+
+| GOOD  below 4: every core can keep up.                                                           |
+| WATCH 4 to 8 for 15 minutes or more: work is queueing.                                           |
+| BAD   above 8 for 5 minutes or more: the machine is overloaded. load1 above load15 means load is |
+|       rising; below it, falling.                                                                 |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| base_services   system.services.<metric>   every 1m                                              |
++--------+-----------------------------------------------------------------------------------------+
+| failed | number of failed units                                                                  |
++--------+-----------------------------------------------------------------------------------------+
+| GOOD  0.                                                                                         |
+| BAD   1 or more: something that should be running is not. To see what: systemctl --failed        |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| base_processes   system.processes.<metric>   cron 3/5 * * * *                                    |
++--------------+-----------------------------------------------------------------------------------+
+| cpu_pct      | percent of the whole machine's CPU, all cores together, so it adds up with        |
+|              | system.cpu.used_pct (tag: name)                                                   |
+| memory_bytes | resident memory, in bytes (tag: name)                                             |
++--------------+-----------------------------------------------------------------------------------+
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| base_host   system.host.<metric>   cron 4/5 * * * *                                              |
++----------------+---------------------------------------------------------------------------------+
+| uptime_seconds | seconds since the machine started                                               |
+| process_count  | processes running now                                                           |
+| cores          | logical cores (hardware threads)                                                |
+| info           | always 1 (tags: os_name, os_version, kernel, cpu_model)                         |
++----------------+---------------------------------------------------------------------------------+
++--------------------------------------------------------------------------------------------------+
+```
+<!-- grid:end -->
+
 ---
 
 [All packs](../README.md) · [Writing a pack](../../CONTRIBUTING.md#your-first-pack) · [The packs releases](https://github.com/godspeedhq/vigil/releases)

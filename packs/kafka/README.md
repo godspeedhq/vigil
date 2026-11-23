@@ -92,6 +92,396 @@ Each script's header says what its metrics mean and how to read them. Worth know
 
 A cluster that cannot be reached reports `kafka.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed. A refused login, a certificate that cannot be trusted, or a jar that does not match its digest fails the run, and its log says why; so does a JMX login refused, or a JMX certificate not trusted, for the jobs that read JMX.
 
+
+<!-- grid:start -->
+## Every metric, at a glance
+
+Every job, every metric it prints and what it measures, and what good, watch and bad look like. It is the header of each job's script, laid out (`tools/pack-grid.py` writes it), so it says what the scripts say. A metric's full name is its job's name, then its own: `kafka.up`.
+
+```text
++--------------------------------------------------------------------------------------------------+
+| kafka_status   kafka.<metric>   every 1m                                                         |
++----------------+---------------------------------------------------------------------------------+
+| up             | 1 when the cluster answers, else 0                                              |
+| info           | always 1, tagged cluster_id=<its id> and kraft=<yes or no>                      |
+| brokers        | brokers the cluster lists                                                       |
+| brokers_fenced | of those, brokers fenced: registered, but not serving                           |
+| controller_id  | the node that is the active controller (KRaft)                                  |
++----------------+---------------------------------------------------------------------------------+
+| GOOD  up 1; brokers steady at as many as you run; brokers_fenced 0.                              |
+| WATCH controller_id changing often: the controllers keep electing a new leader.                  |
+| BAD   up 0; brokers below what you run: a broker is down; brokers_fenced above 0 for minutes.    |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_quorum   kafka.quorum.<metric>   cron 1/2 * * * *                                          |
++----------------------------+---------------------------------------------------------------------+
+| kraft                      | 1 when the cluster runs on KRaft, else 0                            |
+| leader_id                  | the quorum's leader, the active controller                          |
+| leader_epoch               | its epoch: it rises with each new leader                            |
+| high_watermark             | the metadata log's committed end                                    |
+| max_follower_lag           | the most any follower is behind, in records                         |
+| max_follower_lag_ms        | the same, in milliseconds                                           |
+| voters                     | controllers that vote                                               |
+| observers                  | nodes that only follow (brokers)                                    |
+| node_lag                   | how many records a node is behind, tagged node=<id> and             |
+|                            | role=<leader, follower or observer>                                 |
+| node_fetch_age_seconds     | since the node last fetched, tagged the same                        |
+| node_caught_up_age_seconds | since the node was last caught up, tagged the same                  |
++----------------------------+---------------------------------------------------------------------+
+| GOOD  kraft 1; max_follower_lag near 0; every node's node_caught_up_age_seconds a few seconds.   |
+| WATCH leader_epoch rising often: the controllers keep losing their leader; node_lag growing for  |
+|       one node.                                                                                  |
+| BAD   voters fewer than you run, or a voter's node_caught_up_age_seconds in minutes: a           |
+|       controller is gone or stuck. Lose a majority of voters and the cluster can change nothing. |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_brokers   kafka.broker.<metric>   cron 1/5 * * * *                                         |
++----------------------+---------------------------------------------------------------------------+
+| online               | 1 when the broker is listed and not fenced, 0 when it holds replicas but  |
+|                      | is not, or is fenced, tagged broker=<id> and rack=<its rack, or none>     |
+| fenced               | 1 when it is fenced, tagged broker=<id>                                   |
+| leaders              | partitions it leads, tagged the same                                      |
+| replicas             | replicas it holds, tagged the same                                        |
+| out_of_sync_replicas | of those, replicas not in sync, tagged the same                           |
+| preferred_leaders    | partitions whose preferred leader it is, tagged the same                  |
+| ..._not_shown        | past 100 of a list (brokers), how many were left out                      |
++----------------------+---------------------------------------------------------------------------+
+| GOOD  online 1 for every broker; out_of_sync_replicas 0; leaders close to preferred_leaders.     |
+| WATCH leaders far from preferred_leaders on one broker: leadership is unbalanced                 |
+|       (kafka-leader-election puts it back).                                                      |
+| BAD   online 0; out_of_sync_replicas above 0 on one broker: it cannot keep up (disk, network,    |
+|       CPU).                                                                                      |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_replication   kafka.replication.<metric>   every 1m                                        |
++------------------------+-------------------------------------------------------------------------+
+| topics                 | topics                                                                  |
+| partitions             | partitions                                                              |
+| under_replicated       | partitions with fewer replicas in sync than they have                   |
+| offline                | partitions with no leader: no one can read or write them                |
+| under_min_isr          | partitions with fewer in sync than min.insync.replicas: writes with     |
+|                        | acks=all fail                                                           |
+| at_min_isr             | partitions exactly at min.insync.replicas, with replicas to spare       |
+| not_preferred_leader   | partitions not led by their preferred leader                            |
+| with_eligible_leaders  | partitions with eligible leader replicas (Kafka 4)                      |
+| reassigning            | partitions being moved between brokers                                  |
+| topic_under_replicated | under-replicated partitions of a topic, tagged topic=<name> (at most    |
+|                        | 100 topics)                                                             |
+| topic_offline          | offline partitions of a topic, tagged the same                          |
+| topic_under_min_isr    | partitions of a topic under min.insync.replicas, tagged the same        |
++------------------------+-------------------------------------------------------------------------+
+| GOOD  under_replicated, offline and under_min_isr 0.                                             |
+| WATCH at_min_isr above 0: one more replica lost and writes fail; not_preferred_leader growing.   |
+| BAD   offline above 0: data unreachable; under_min_isr above 0: producers with acks=all fail;    |
+|       under_replicated above 0 for minutes when no broker is restarting.                         |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_reassignment   kafka.reassignment.<metric>   cron 2/5 * * * *                              |
++-------------------+------------------------------------------------------------------------------+
+| partitions        | partitions being moved                                                       |
+| adding_replicas   | replicas being added                                                         |
+| removing_replicas | replicas being removed                                                       |
+| topics            | topics with a partition being moved                                          |
+| topic_partitions  | a topic's partitions being moved, tagged topic=<name> (at most 100)          |
++-------------------+------------------------------------------------------------------------------+
+| GOOD  partitions 0, except while you move partitions.                                            |
+| WATCH partitions above 0 for hours: a move held back by a throttle, or by a broker that cannot   |
+|       catch up.                                                                                  |
+| BAD   partitions not falling during a move you started: check the throttle and the brokers it    |
+|       moves to.                                                                                  |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_consumers   kafka.consumer.<metric>   every 1m                                             |
++----------------------+---------------------------------------------------------------------------+
+| groups               | groups with committed offsets                                             |
+| total_lag            | all groups' lag, in messages                                              |
+| lag                  | a group's lag on a topic, in messages, tagged group=<name> and            |
+|                      | topic=<name> (at most 150 pairs)                                          |
+| lag_max              | its worst partition, tagged the same                                      |
+| no_offset_partitions | partitions the group has no committed offset for, tagged the same; left   |
+|                      | out when none                                                             |
+| group_lag            | a group's lag on all its topics, tagged group=<name> (at most 150)        |
+| ..._not_shown        | past 100 of a list (pairs), how many were left out                        |
++----------------------+---------------------------------------------------------------------------+
+| GOOD  lag steady or falling: consumers keep up.                                                  |
+| WATCH lag rising for minutes: consumers fall behind; lag_max far above lag divided by            |
+|       partitions: one partition is stuck, or one consumer is slow.                               |
+| BAD   lag rising with the group empty (kafka_groups): nothing consumes; lag near what retention  |
+|       keeps: consumers are about to lose messages they never read.                               |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_groups   kafka.group.<metric>   cron 3/5 * * * *                                           |
++---------------+----------------------------------------------------------------------------------+
+| all_groups    | groups                                                                           |
+| all_members   | all groups' members                                                              |
+| rebalancing   | groups rebalancing now                                                           |
+| empty         | groups with no members                                                           |
+| dead          | groups that are dead (being removed)                                             |
+| groups        | groups of a type in a state, tagged type=<classic, consumer, share or streams>   |
+|               | and state=<stable, empty, ...>                                                   |
+| members       | a group's members, tagged group=<name> and type=<its type> (at most 150)         |
+| ..._not_shown | past 100 of a list (groups), how many were left out                              |
++---------------+----------------------------------------------------------------------------------+
+| GOOD  rebalancing 0 most of the time; each group's members steady.                               |
+| WATCH rebalancing often above 0: consumers join and leave, or time out (max.poll.interval.ms).   |
+| BAD   a group you expect to consume shows empty, or its members fall to 0: its consumers         |
+|       stopped.                                                                                   |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_topics   kafka.topic.<metric>   cron 4/5 * * * *                                           |
++--------------------+-----------------------------------------------------------------------------+
+| topics             | topics                                                                      |
+| internal_topics    | Kafka's own topics (their names start with __)                              |
+| rf1_topics         | topics of your own with a single replica: a broker lost is data lost        |
+| compacted_topics   | topics compacted (cleanup.policy compact)                                   |
+| partitions         | a topic's partitions, tagged topic=<name> (at most 100 topics)              |
+| replication_factor | its replication factor, tagged the same                                     |
+| messages_count     | messages ever written to it, a running total, tagged the same               |
+| retained_messages  | messages it still holds, tagged the same                                    |
+| ..._not_shown      | past 100 of a list (topics), how many were left out                         |
++--------------------+-----------------------------------------------------------------------------+
+| GOOD  rf1_topics 0, unless on purpose; messages_count rising on every topic you write to.        |
+| WATCH messages_count flat on a topic that should be written to: its producers stopped.           |
+| BAD   rf1_topics above 0 for data you cannot lose.                                               |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_logdirs   kafka.logdir.<metric>   cron 0/5 * * * *                                         |
++---------------------------+----------------------------------------------------------------------+
+| size_bytes                | a directory's size, tagged broker=<id> and dir=<its path>            |
+| partitions                | its partitions, tagged the same                                      |
+| offline                   | 1 when the broker reports an error for it, tagged the same           |
+| future_replicas           | replicas being moved into it, tagged the same                        |
+| dirs                      | directories                                                          |
+| dirs_offline              | of those, offline                                                    |
+| broker_size_bytes         | a broker's data, tagged broker=<id>                                  |
+| topic_size_bytes          | a topic's data, every replica counted, tagged topic=<name> (at most  |
+|                           | 100)                                                                 |
+| jmx_up                    | with KAFKA_JMX: 1 when a broker's JMX answers, tagged broker=<id, or |
+|                           | its JMX host:port>                                                   |
+| remote_size_bytes         | a broker's data in remote storage (tiered storage), tagged           |
+|                           | broker=<id>                                                          |
+| remote_copy_lag_bytes     | data it has yet to copy there, tagged the same                       |
+| flush_ms_p99              | the time a log flush takes, in ms, 99th percentile, tagged           |
+|                           | broker=<id>                                                          |
+| flushes_count             | log flushes, a running total, tagged the same                        |
+| cleaner_max_dirty_pct     | the most of a compacted log not yet compacted, as a percent, tagged  |
+|                           | the same                                                             |
+| cleaner_idle_seconds      | since the log cleaner last ran, tagged the same; left out before it  |
+|                           | first has                                                            |
+| cleaner_dead_threads      | log cleaner threads that died, tagged the same                       |
+| cleaner_max_clean_seconds | the longest a clean took, tagged the same; left out before the first |
+| ..._not_shown             | past 100 of a list (topics), how many were left out                  |
++---------------------------+----------------------------------------------------------------------+
+| GOOD  dirs_offline 0; sizes growing and shrinking with retention; cleaner_dead_threads 0.        |
+| WATCH a broker's broker_size_bytes far above the others': partitions are unbalanced;             |
+|       remote_copy_lag_bytes growing; flush_ms_p99 rising: the disk is slow.                      |
+| BAD   offline 1: a disk failed, and its partitions moved away or went offline;                   |
+|       cleaner_dead_threads above 0: compacted topics grow without bound.                         |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_transactions   kafka.transaction.<metric>   cron 1/5 * * * *                               |
++------------------+-------------------------------------------------------------------------------+
+| all_transactions | transactional producers the cluster knows                                     |
+| transactions     | of those, in a state, tagged state=<ongoing, completecommit, empty, ...>      |
+| ongoing          | transactions open now                                                         |
+| long_running     | transactions open longer than KAFKA_TXN_LONG                                  |
++------------------+-------------------------------------------------------------------------------+
+| GOOD  long_running 0.                                                                            |
+| WATCH ongoing growing without falling back.                                                      |
+| BAD   long_running above 0: a transaction left open holds up consumers that read committed       |
+|       messages (isolation.level read_committed) on its partitions.                               |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_config   kafka.config.<metric>   cron 6/15 * * * *                                         |
++--------------------------------+-----------------------------------------------------------------+
+| unclean_leader_election        | 1 when an out-of-sync replica may become leader, losing data    |
+| auto_create_topics             | 1 when a client creates a topic just by naming it               |
+| auto_leader_rebalance          | 1 when leadership moves back to preferred leaders by itself     |
+| authorizer                     | 1 when ACLs are checked                                         |
+| min_insync_replicas            | the default min.insync.replicas                                 |
+| default_replication_factor     | the replication factor of a topic created without one           |
+| offsets_replication_factor     | the consumer offsets topic's                                    |
+| transactions_replication_facto | the transaction state topic's                                   |
+| r                              |                                                                 |
+| message_max_bytes              | the largest batch a broker takes                                |
+| retention_hours                | how long messages are kept by default; -1 forever               |
+| plaintext_listeners            | listeners without TLS or a login, the controllers' left out     |
+| settings_differ                | settings with different values on different brokers             |
+| topics_unclean_election        | topics that allow unclean leader election                       |
+| topics_min_isr_ge_rf           | topics with more replicas than one whose min.insync.replicas is |
+|                                | at least their replication factor: one replica down and writes  |
+|                                | with acks=all fail                                              |
+| topics_min_isr_1               | topics with 3 or more replicas but min.insync.replicas 1:       |
+|                                | acks=all keeps only one copy                                    |
++--------------------------------+-----------------------------------------------------------------+
+| GOOD  unclean_leader_election 0; min_insync_replicas 2 with a replication factor of 3;           |
+|       settings_differ 0.                                                                         |
+| WATCH auto_create_topics 1 in production: a typo makes a topic; plaintext_listeners above 0.     |
+| BAD   unclean_leader_election 1, or topics_unclean_election above 0, where data must not be      |
+|       lost; topics_min_isr_ge_rf above 0.                                                        |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_security   kafka.security.<metric>   cron 8/15 * * * *                                     |
++---------------------+----------------------------------------------------------------------------+
+| authorizer          | 1 when the cluster checks ACLs, 0 when it has no authorizer                |
+| all_acls            | ACLs                                                                       |
+| any_principal_acls  | ACLs for every principal (User:*)                                          |
+| all_operations_acls | ACLs for every operation (ALL)                                             |
+| acls                | ACLs, tagged resource=<topic, group, cluster, ...> and permission=<allow   |
+|                     | or deny>                                                                   |
+| scram_users         | users with SCRAM credentials                                               |
+| quotas              | quotas set, tagged entity=<user or client>                                 |
++---------------------+----------------------------------------------------------------------------+
+| GOOD  authorizer 1; all_acls and scram_users changing only when you change them.                 |
+| WATCH any_principal_acls or all_operations_acls above 0: check they are meant.                   |
+| BAD   authorizer 0 on a cluster that should check ACLs; all_acls or scram_users changing when no |
+|       one changed them.                                                                          |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_features   kafka.feature.<metric>   cron 10/15 * * * *                                     |
++------------------+-------------------------------------------------------------------------------+
+| metadata_version | always 1, tagged version=<finalized> and supported=<the most supported>       |
+| level            | a feature's finalized level, tagged feature=<name>                            |
+| supported_level  | the most the brokers support, tagged the same                                 |
+| behind           | 1 when the feature is below that, tagged the same                             |
+| features         | features                                                                      |
+| features_behind  | of those, behind                                                              |
++------------------+-------------------------------------------------------------------------------+
+| GOOD  features_behind 0, after an upgrade is finished.                                           |
+| WATCH features_behind above 0 for long after an upgrade: it was never finalized, and the cluster |
+|       does not use what the new version brings.                                                  |
+| BAD   metadata_version far behind supported: finalize it once every broker runs the new version. |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_throughput   kafka.throughput.<metric>   every 2m                                          |
++--------------------------------+-----------------------------------------------------------------+
+| jmx_up                         | 1 when a broker's JMX answers, tagged broker=<id, or its JMX    |
+|                                | host:port>                                                      |
+| messages_in_count              | messages written to it, tagged broker=<id>                      |
+| bytes_in_count                 | bytes written to it by clients, tagged the same                 |
+| bytes_out_count                | bytes read from it by clients, tagged the same                  |
+| bytes_rejected_count           | bytes rejected, too large, tagged the same                      |
+| replication_bytes_in_count     | bytes copied to it from other brokers, tagged the same          |
+| replication_bytes_out_count    | bytes copied from it to other brokers, tagged the same          |
+| produce_requests_count         | produce requests, tagged the same                               |
+| fetch_requests_count           | fetch requests, tagged the same                                 |
+| failed_produce_requests_count  | produce requests that failed, tagged the same                   |
+| failed_fetch_requests_count    | fetch requests that failed, tagged the same                     |
+| produce_conversions_count      | messages converted to another format on produce, tagged the     |
+|                                | same                                                            |
+| fetch_conversions_count        | messages converted on fetch, tagged the same                    |
+| invalid_crc_records_count      | records rejected for a bad checksum, tagged the same            |
+| invalid_sequence_records_count | records rejected for an offset or sequence out of order, tagged |
+|                                | the same                                                        |
++--------------------------------+-----------------------------------------------------------------+
+| GOOD  jmx_up 1; traffic spread evenly between brokers; the failed counts flat.                   |
+| WATCH one broker's bytes far above the others': partitions are unbalanced; the conversion counts |
+|       rising: old clients make the broker do extra work.                                         |
+| BAD   failed_produce_requests_count rising: producers' writes fail; bytes_rejected_count rising: |
+|       messages too large for message.max.bytes.                                                  |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_requests   kafka.request.<metric>   cron 1/2 * * * *                                       |
++------------------+-------------------------------------------------------------------------------+
+| jmx_up           | 1 when a broker's JMX answers, tagged broker=<id, or its JMX host:port>       |
+| total_ms_p99     | the time a request takes, in ms, tagged broker=<id> and request=<Produce,     |
+|                  | FetchConsumer or FetchFollower>                                               |
+| queue_ms_p99     | of that, the time it waits in the queue, tagged the same                      |
+| remote_ms_p99    | of that, the time it waits on other brokers (acks=all) or for data (fetch),   |
+|                  | tagged the same                                                               |
+| requests_count   | requests served, a running total, tagged the same                             |
+| request_queue    | requests waiting for a handler thread, tagged broker=<id>                     |
+| response_queue   | responses waiting to be sent, tagged the same                                 |
+| purgatory        | requests waiting in purgatory, tagged broker=<id> and operation=<produce or   |
+|                  | fetch>                                                                        |
+| handler_idle_pct | how idle the request handler threads are, as a percent, tagged broker=<id>    |
+| network_idle_pct | how idle the network threads are, as a percent, tagged the same               |
++------------------+-------------------------------------------------------------------------------+
+| GOOD  handler_idle_pct and network_idle_pct above 30; request_queue near 0; Produce total_ms_p99 |
+|       steady.                                                                                    |
+| WATCH handler_idle_pct below 30: the broker is busy; queue_ms_p99 rising: requests wait for      |
+|       threads.                                                                                   |
+| BAD   handler_idle_pct or network_idle_pct below 10: the broker is saturated; Produce            |
+|       total_ms_p99 climbing with remote_ms_p99: followers are slow to replicate.                 |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_controller   kafka.controller.<metric>   every 2m                                          |
++--------------------------------+-----------------------------------------------------------------+
+| jmx_up                         | 1 when a node's JMX answers, tagged broker=<id, or its JMX      |
+|                                | host:port>                                                      |
+| active_controller              | 1 on the active controller, else 0, tagged broker=<id>          |
+| brokers                        | brokers active, tagged the same                                 |
+| fenced_brokers                 | brokers fenced, tagged the same                                 |
+| topics                         | topics, tagged the same                                         |
+| partitions                     | partitions, tagged the same                                     |
+| offline_partitions             | partitions with no leader, tagged the same                      |
+| preferred_imbalance            | partitions not led by their preferred leader, tagged the same   |
+| metadata_errors                | errors applying metadata, tagged the same                       |
+| metadata_lag_ms                | how far behind its metadata is, in ms, tagged the same          |
+| timed_out_heartbeats           | broker heartbeats that timed out, tagged the same               |
+| controller_changes             | times a new controller became active, tagged the same           |
+| elections_count                | leader elections, a running total, tagged the same              |
+| unclean_elections_count        | unclean leader elections (data lost), a running total, tagged   |
+|                                | the same                                                        |
+| eligible_leader_elections_coun | leaders elected from eligible leader replicas (Kafka 4), a      |
+| t                              | running total, tagged the same                                  |
+| event_queue                    | events waiting in the controller's queue, tagged the same       |
+| event_queue_ms_p99             | the time an event waits there, in ms, tagged the same           |
++--------------------------------+-----------------------------------------------------------------+
+| GOOD  one node with active_controller 1; offline_partitions 0; metadata_errors 0.                |
+| WATCH elections_count rising fast: leaders keep changing; timed_out_heartbeats rising.           |
+| BAD   no node with active_controller 1; offline_partitions above 0; unclean_elections_count      |
+|       rising: data was lost.                                                                     |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_connections   kafka.connection.<metric>   cron 3/5 * * * *                                 |
++-----------------------+--------------------------------------------------------------------------+
+| jmx_up                | 1 when a broker's JMX answers, tagged broker=<id, or its JMX host:port>  |
+| connections           | connections open, tagged broker=<id> and listener=<name>                 |
+| created_count         | connections made, a running total, tagged the same                       |
+| logins_count          | logins that succeeded, a running total, tagged the same                  |
+| failed_logins_count   | logins that failed, a running total, tagged the same                     |
+| failed_relogins_count | re-authentications that failed, a running total, tagged the same         |
++-----------------------+--------------------------------------------------------------------------+
+| GOOD  failed_logins_count flat; connections steady.                                              |
+| WATCH created_count rising fast while connections stays flat: clients connect and drop.          |
+| BAD   failed_logins_count rising: a client with a wrong password or certificate, or someone      |
+|       guessing.                                                                                  |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| kafka_tls   kafka.tls.<metric>   cron 12 * * * *                                                 |
++--------------+-----------------------------------------------------------------------------------+
+| tls          | 1 when the listener uses TLS, else 0                                              |
+| endpoints    | brokers checked                                                                   |
+| reachable    | 1 when a broker gave its certificate, tagged endpoint=<host:port>                 |
+| expires_days | days until it expires, below 0 once it has, tagged the same                       |
+| trusted      | 1 when it is trusted and names the broker, tagged the same                        |
++--------------+-----------------------------------------------------------------------------------+
+| GOOD  expires_days above 30 everywhere; trusted 1.                                               |
+| WATCH expires_days below 30: renew it.                                                           |
+| BAD   expires_days below 7, or trusted 0: clients that check certificates will refuse the        |
+|       broker.                                                                                    |
++--------------------------------------------------------------------------------------------------+
+```
+<!-- grid:end -->
+
 ## What to alert on
 
 Starting points, not rules: Vigil runs the jobs and delivers what they print, and the alerts are yours, in the backend you already use. *Watch* is a warning: someone looks today. *Act* is critical: someone acts now. Give most alerts a few minutes, since a rolling restart fences a broker and leaves partitions under-replicated for a moment, and that is healthy. The last column is what the test cluster showed, in [the 4.4.0 run's console output](../../tests/integration/backends/reports/runs/2026-11-22/fedora/pack-kafka-4.4.0/console.txt): most of it caused on purpose, and where we caused nothing, it says so. Everything not here (topics, partitions, sizes, traffic) is for dashboards.

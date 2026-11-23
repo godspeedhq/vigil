@@ -44,6 +44,117 @@ Each script reads MySQL's and MariaDB's own names for the same thing, so a dashb
 
 A server that does not answer reports `mysql.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed. A refused login fails the run, and its log says why. For several servers, copy a job's section under a new name, as for postgres.
 
+
+<!-- grid:start -->
+## Every metric, at a glance
+
+Every job, every metric it prints and what it measures, and what good, watch and bad look like. It is the header of each job's script, laid out (`tools/pack-grid.py` writes it), so it says what the scripts say. A metric's full name is its job's name, then its own: `mysql.up`.
+
+```text
++--------------------------------------------------------------------------------------------------+
+| mysql_status   mysql.<metric>   every 1m                                                         |
++------------------------+-------------------------------------------------------------------------+
+| up                     | 1 when the server answers, else 0                                       |
+| connections            | client connections now                                                  |
+| max_connections        | the server's limit                                                      |
+| connections_pct        | connections as a percent of the limit                                   |
+| running                | client connections running a statement now, leaving out this one and    |
+|                        | replication threads                                                     |
+| longest_query_seconds  | the longest statement running now (replication threads left out)        |
+| queries_count          | statements run (a running total)                                        |
+| slow_queries_count     | statements over long_query_time (a running total)                       |
+| aborted_connects_count | failed connection attempts (a running total)                            |
+| tmp_disk_tables_count  | temporary tables that spilled to disk (a running total)                 |
++------------------------+-------------------------------------------------------------------------+
+| GOOD  up 1; connections_pct below 70; running a handful; no statement running for minutes.       |
+| WATCH connections_pct 70 to 90; running in the tens for long: the server is busy, or statements  |
+|       queue on locks; slow_queries_count or tmp_disk_tables_count rising faster than usual.      |
+| BAD   up 0; connections_pct above 90, and new connections will soon be refused;                  |
+|       aborted_connects_count rising fast: bad passwords, or a full server. The _count totals     |
+|       restart with the server: graph them as a rate.                                             |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mysql_activity   mysql.activity.<metric>   every 1m                                              |
++--------------------------------+-----------------------------------------------------------------+
+| longest_transaction_seconds    | the longest open transaction now                                |
+| idle_in_transaction            | transactions open on a connection that is doing nothing         |
+| longest_idle_in_transaction_se | the longest of those idle times                                 |
+| conds                          |                                                                 |
+| waiting                        | transactions waiting on a row lock                              |
+| longest_wait_seconds           | the longest row lock wait now                                   |
++--------------------------------+-----------------------------------------------------------------+
+| GOOD  waiting at 0, or briefly above it; no transaction open for minutes; no connection idle in  |
+|       a transaction for more than a few seconds.                                                 |
+| WATCH longest_wait_seconds above a few seconds, again and again: statements queue behind each    |
+|       other's row locks.                                                                         |
+| BAD   longest_wait_seconds nearing innodb_lock_wait_timeout (50 s by default), when statements   |
+|       start failing; a transaction idle for minutes holds its locks and lets the undo history    |
+|       grow (mysql_innodb history_list_count): find it in information_schema.INNODB_TRX and fix   |
+|       the application, or lower wait_timeout.                                                    |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mysql_replication   mysql.replication.<metric>   every 1m                                        |
++-------------+------------------------------------------------------------------------------------+
+| is_replica  | 1 when it replicates from a source, else 0                                         |
+| io_running  | (replica) 1 while the thread receiving from the source runs, tagged channel=<name, |
+|             | or default>                                                                        |
+| sql_running | (replica) 1 while the thread applying the changes runs, tagged channel=<name, or   |
+|             | default>                                                                           |
+| lag_seconds | (replica) how far behind the source it is (Seconds_Behind_Source), tagged          |
+|             | channel=<name, or default>; left out while the applying thread is stopped, when    |
+|             | the server cannot tell                                                             |
+| replicas    | (source) replicas connected to it now; one whose machine stopped without closing   |
+|             | its connection still counts until the source's connection to it times out          |
++-------------+------------------------------------------------------------------------------------+
+| GOOD  on a replica, io_running 1 and sql_running 1, and lag_seconds a few seconds at most; on a  |
+|       source, replicas as many as you run.                                                       |
+| WATCH lag_seconds rising during heavy writes and not falling after them: the replica applies     |
+|       more slowly than the source writes.                                                        |
+| BAD   io_running 0: the replica cannot reach or log in to its source; sql_running 0: applying    |
+|       stopped on an error (SHOW REPLICA STATUS says which); either way it falls further behind.  |
+|       replicas below what you run, on the source: one is not connected. Alert on each replica's  |
+|       own io_running and mysql.up as well: they say at once what the source may learn only       |
+|       minutes later.                                                                             |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mysql_innodb   mysql.innodb.<metric>   cron 4/5 * * * *                                          |
++----------------------+---------------------------------------------------------------------------+
+| buffer_pool_hit_pct  | reads served from the buffer pool, since the server started; left out     |
+|                      | while the server's counters cannot give it (MariaDB counts read requests  |
+|                      | only in part, and on a fresh server can show more reads from disk than    |
+|                      | requests)                                                                 |
+| buffer_pool_used_pct | pages of the buffer pool in use                                           |
+| history_list_count   | undo log entries waiting for purge                                        |
+| row_lock_waits_count | times a statement waited for a row lock (a running total)                 |
+| deadlocks_count      | deadlocks InnoDB detected (a running total)                               |
++----------------------+---------------------------------------------------------------------------+
+| GOOD  buffer_pool_hit_pct above 99 on a busy server; history_list_count in the thousands at      |
+|       most, and falling back after bursts.                                                       |
+| WATCH buffer_pool_used_pct at 100 with the hit rate falling: the working set no longer fits      |
+|       (innodb_buffer_pool_size). history_list_count climbing for hours: purge cannot keep up, or |
+|       a long transaction holds it back (mysql_activity).                                         |
+| BAD   history_list_count in the millions: queries slow down as they read old row versions; end   |
+|       the transaction holding it back. deadlocks_count rising: transactions take their locks in  |
+|       different orders (SHOW ENGINE INNODB STATUS shows the last one). The _count totals restart |
+|       with the server: graph them as a rate.                                                     |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mysql_size   mysql.database.<metric>   cron 8/15 * * * *                                         |
++------------+-------------------------------------------------------------------------------------+
+| size_bytes | a database's InnoDB tables on disk, tagged database=<name>                          |
++------------+-------------------------------------------------------------------------------------+
+| GOOD  growth in line with the data the database takes in.                                        |
+| WATCH a database growing much faster than usual.                                                 |
+| BAD   growth that will fill the disk soon: compare with the disk's free space (the base pack's   |
+|       disk job).                                                                                 |
++--------------------------------------------------------------------------------------------------+
+```
+<!-- grid:end -->
+
 ## What to alert on
 
 Starting points, not rules: Vigil runs the jobs and delivers what they print, and the alerts are yours, in the backend you already use. *Watch* is a warning: someone looks today. *Act* is critical: someone acts now. Give most alerts a few minutes, since a lock held for a moment or a burst of writes that a replica soon catches up on is healthy. The last column is what the test servers showed, in the console output of [MySQL 8.4](../../tests/integration/backends/reports/runs/2026-11-19/fedora/pack-mysql-replication/console.txt) and [MariaDB 11.4](../../tests/integration/backends/reports/runs/2026-11-19/fedora/pack-mariadb-replication/console.txt), and on Windows ([MySQL 8.4](../../tests/integration/backends/reports/runs/2026-11-19/windows/pack-mysql-windows/console.txt), [MariaDB 11.4](../../tests/integration/backends/reports/runs/2026-11-19/windows/pack-mariadb-windows/console.txt)): most of it caused on purpose, and where we caused nothing, it says so. Everything not here (statements, temporary tables on disk, row lock waits, `is_replica`) is for dashboards.

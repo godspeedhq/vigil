@@ -14,6 +14,35 @@ Then `vigil pack enable nginx`, which reminds you of the page. The job reads `ht
 | --- | --- | --- | --- | --- |
 | `nginx_status` | Up, connections (active, reading, writing, waiting), accepted, handled and dropped connections, requests | Yes | Yes | No |
 
+
+<!-- grid:start -->
+## Every metric, at a glance
+
+Every job, every metric it prints and what it measures, and what good, watch and bad look like. It is the header of each job's script, laid out (`tools/pack-grid.py` writes it), so it says what the scripts say. A metric's full name is its job's name, then its own: `nginx.up`.
+
+```text
++--------------------------------------------------------------------------------------------------+
+| nginx_status   nginx.<metric>   every 1m                                                         |
++--------------------+-----------------------------------------------------------------------------+
+| up                 | 1 when the page answers, else 0                                             |
+| active_connections | client connections now, waiting ones included                               |
+| reading            | connections reading a request                                               |
+| writing            | connections writing a response                                              |
+| waiting            | idle keep-alive connections                                                 |
+| accepts_count      | connections accepted (a running total)                                      |
+| handled_count      | connections handled (a running total)                                       |
+| requests_count     | requests served (a running total)                                           |
+| dropped_count      | connections accepted but not handled (a running total)                      |
++--------------------+-----------------------------------------------------------------------------+
+| GOOD  up 1; dropped_count not rising; requests_count rising at your usual rate (graph the _count |
+|       totals as a rate).                                                                         |
+| WATCH active_connections near worker_connections times the workers.                              |
+| BAD   up 0; dropped_count rising, which means nginx is turning connections away, usually at a    |
+|       resource limit.                                                                            |
++--------------------------------------------------------------------------------------------------+
+```
+<!-- grid:end -->
+
 ## What to alert on
 
 Starting points, not rules: Vigil runs the job and delivers what it prints, and the alerts are yours, in the backend you already use. *Watch* is a warning: someone looks today. *Act* is critical: someone acts now. Give `up` a minute or two, since a restart leaves nginx not answering for a moment, and that is healthy. The totals start again from 0 when nginx restarts: graph them as rates. The last column is what the test server, nginx 1.30.5 in Docker, showed, in [the run's console output](../../tests/integration/backends/reports/runs/2026-11-04/fedora/pack-nginx/console.txt): where we caused nothing, it says so. Everything not here (reading, writing, waiting, accepted and handled connections) is for dashboards.

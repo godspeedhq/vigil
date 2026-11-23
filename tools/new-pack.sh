@@ -211,7 +211,8 @@ Next:
      cannot run there.
   2. Add an entry for $name to packs/README.md: ### $name, a line or two, and
      a link to its page.
-  3. tools/check-pack.sh $name          checks it
+  3. python tools/pack-grid.py . $name   puts the grid of its metrics on its page
+  4. tools/check-pack.sh $name          checks it
      tools/check-pack.sh --run $name    and runs its jobs here, through Vigil
-  4. Open a pull request. CONTRIBUTING.md has the rest.
+  5. Open a pull request. CONTRIBUTING.md has the rest.
 EOF

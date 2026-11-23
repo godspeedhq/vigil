@@ -41,6 +41,155 @@ A server that does not answer reports `postgres.up` 0, and the run succeeds: tha
 
 **Several servers:** `vigil pack enable` writes one copy of the jobs. For another server, copy a job's section in `vigil.config` under a new name (`[job.postgres_status_db2]`) and change its `env` lines; each copy reports with its own `job` tag.
 
+
+<!-- grid:start -->
+## Every metric, at a glance
+
+Every job, every metric it prints and what it measures, and what good, watch and bad look like. It is the header of each job's script, laid out (`tools/pack-grid.py` writes it), so it says what the scripts say. A metric's full name is its job's name, then its own: `postgres.up`.
+
+```text
++--------------------------------------------------------------------------------------------------+
+| postgres_status   postgres.<metric>   every 1m                                                   |
++-----------------------------+--------------------------------------------------------------------+
+| up                          | 1 when the server accepts connections, else 0                      |
+| connections                 | client connections now                                             |
+| max_connections             | the server's limit                                                 |
+| connections_pct             | connections as a percent of the limit                              |
+| longest_query_seconds       | the longest query running now                                      |
+| longest_transaction_seconds | the longest open transaction now                                   |
+| commits_count               | transactions committed (a running total)                           |
+| rollbacks_count             | transactions rolled back (a running total)                         |
+| deadlocks_count             | deadlocks detected (a running total)                               |
+| cache_hit_pct               | reads served from the buffer cache                                 |
++-----------------------------+--------------------------------------------------------------------+
+| GOOD  up 1; connections_pct below 70; no query or transaction open for minutes; cache_hit_pct    |
+|       above 99 on a busy database.                                                               |
+| WATCH connections_pct 70 to 90; a transaction open for more than a few minutes holds back        |
+|       vacuum; rollbacks rising faster than usual.                                                |
+| BAD   up 0; connections_pct above 90, and new connections will soon be refused; deadlocks_count  |
+|       rising. The _count totals restart when the server's statistics are reset: graph them as a  |
+|       rate.                                                                                      |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| postgres_size   postgres.database.<metric>   cron 10/15 * * * *                                  |
++------------+-------------------------------------------------------------------------------------+
+| size_bytes | disk used by the database, in bytes (tag: database)                                 |
++------------+-------------------------------------------------------------------------------------+
+| GOOD  growing as the data does.                                                                  |
+| WATCH growing much faster than the data, which can mean bloat that vacuum is not keeping up      |
+|       with.                                                                                      |
+| BAD   approaching the space left on the disk.                                                    |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| postgres_activity   postgres.activity.<metric>   every 1m                                        |
++--------------------------------+-----------------------------------------------------------------+
+| active                         | sessions running a query now                                    |
+| idle                           | sessions connected and doing nothing                            |
+| idle_in_transaction            | sessions inside a transaction, doing nothing                    |
+| waiting                        | sessions waiting on a lock                                      |
+| blocked                        | sessions blocked by another session                             |
+| longest_wait_seconds           | the longest lock wait now                                       |
+| longest_idle_in_transaction_se | the longest time a session has sat idle inside a transaction    |
+| conds                          |                                                                 |
++--------------------------------+-----------------------------------------------------------------+
+| GOOD  waiting and blocked at 0, or briefly above it; no session idle in a transaction for more   |
+|       than a few seconds.                                                                        |
+| WATCH longest_wait_seconds above a few seconds, again and again: sessions queue behind each      |
+|       other's locks; idle_in_transaction rising.                                                 |
+| BAD   blocked growing, or longest_wait_seconds in minutes: something is holding a lock and       |
+|       everything behind it waits. A session idle in a transaction for minutes holds its locks    |
+|       and holds back vacuum: find it in pg_stat_activity, and fix the application, or set        |
+|       idle_in_transaction_session_timeout.                                                       |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| postgres_replication   postgres.replication.<metric>   every 1m                                  |
++---------------------+----------------------------------------------------------------------------+
+| is_replica          | 1 on a replica (in recovery), 0 on a primary                               |
+| replicas            | (primary) streaming replicas connected                                     |
+| lag_bytes           | (primary) WAL a replica has not yet replayed, tagged replica=<its          |
+|                     | application_name>                                                          |
+| lag_seconds         | (primary) that replica's replay lag in time; 0 when there is nothing to    |
+|                     | replay                                                                     |
+| slots_inactive      | (primary) replication slots nothing is using now                           |
+| slot_retained_bytes | (primary) WAL a slot keeps, tagged slot=<its name>                         |
+| receiver_up         | (replica) 1 while it streams from its primary                              |
+| replay_lag_bytes    | (replica) WAL received but not yet replayed                                |
+| last_replay_seconds | (replica) since the last transaction it replayed                           |
++---------------------+----------------------------------------------------------------------------+
+| GOOD  replicas as many as you run; lag_bytes near 0 and lag_seconds a few seconds at most;       |
+|       slots_inactive 0; on a replica, receiver_up 1.                                             |
+| WATCH lag rising during heavy writes and not falling after them.                                 |
+| BAD   replicas below what you run, or receiver_up 0: a replica is not streaming, and falls       |
+|       further behind. slots_inactive above 0 and slot_retained_bytes growing: an unused slot     |
+|       keeps every WAL file until the disk fills; drop it (pg_drop_replication_slot) if nothing   |
+|       will use it again. last_replay_seconds also grows when the primary simply has nothing to   |
+|       write: read it with lag_bytes.                                                             |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| postgres_wraparound   postgres.wraparound.<metric>   cron 5/15 * * * *                           |
++-----------------------+--------------------------------------------------------------------------+
+| xid_age_count         | transactions since the oldest unfrozen row, tagged database=<name>       |
+| xid_pct               | that age, as a percent of the 2^31 limit                                 |
+| mxid_age_count        | the same for multixact IDs (row locks shared by several transactions),   |
+|                       | tagged database=<name>                                                   |
+| mxid_pct              | that age, as a percent of the 2^31 limit                                 |
+| oldest_xmin_age_count | age of the oldest transaction a session, a replication slot or a         |
+|                       | prepared transaction still needs                                         |
++-----------------------+--------------------------------------------------------------------------+
+| GOOD  xid_pct below 10: autovacuum keeps freezing as it should (it starts on a database at       |
+|       autovacuum_freeze_max_age, 200 million by default, or 9 percent).                          |
+| WATCH xid_pct above 20 and climbing: autovacuum is not keeping up, or something holds it back;   |
+|       check oldest_xmin_age_count.                                                               |
+| BAD   xid_pct above 50: plan a VACUUM (FREEZE) of the oldest tables now. Near 100, PostgreSQL    |
+|       refuses writes until it is done. oldest_xmin_age_count in the hundreds of millions: an old |
+|       session, an abandoned replication slot or a forgotten prepared transaction stops vacuum    |
+|       freezing anything newer; end or drop it.                                                   |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| postgres_vacuum   postgres.vacuum.<metric>   cron 0/15 * * * *                                   |
++------------------------+-------------------------------------------------------------------------+
+| dead_tuples_count      | dead rows waiting for vacuum, tagged database=<name>                    |
+| tables_due_count       | tables with more dead rows than the server-wide autovacuum threshold    |
+|                        | allows, tagged database=<name> (a table's own autovacuum settings are   |
+|                        | not read)                                                               |
+| autovacuum_workers     | autovacuum workers running now                                          |
+| autovacuum_max_workers | how many may run at once                                                |
++------------------------+-------------------------------------------------------------------------+
+| GOOD  tables_due_count 0, or briefly above it while workers catch up.                            |
+| WATCH tables_due_count staying above 0, and autovacuum_workers often at autovacuum_max_workers:  |
+|       autovacuum is busy all the time, and tables wait their turn.                               |
+| BAD   dead_tuples_count growing run after run with tables due: tables and indexes bloat, and     |
+|       queries slow down. Look for a long open transaction holding vacuum back                    |
+|       (postgres_activity, postgres_wraparound), or give autovacuum more workers or less cost     |
+|       delay.                                                                                     |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| postgres_io   postgres.io.<metric>   cron 2/5 * * * *                                            |
++-----------------------------+--------------------------------------------------------------------+
+| checkpoints_timed_count     | checkpoints started on schedule (checkpoint_timeout) (a running    |
+|                             | total)                                                             |
+| checkpoints_requested_count | checkpoints forced early, mostly by WAL reaching max_wal_size (a   |
+|                             | running total)                                                     |
+| temp_files_count            | temporary files queries wrote (a running total)                    |
+| temp_bytes                  | bytes they wrote (a running total)                                 |
+| wal_bytes                   | WAL written (a running total)                                      |
++-----------------------------+--------------------------------------------------------------------+
+| GOOD  checkpoints nearly all timed; temp files rare.                                             |
+| WATCH checkpoints_requested_count rising alongside timed ones: WAL fills max_wal_size before     |
+|       checkpoint_timeout, and writes come in bursts.                                             |
+| BAD   requested checkpoints outnumber timed ones: raise max_wal_size. temp_bytes rising fast:    |
+|       sorts and hashes spill to disk; find the queries (log_temp_files) and raise work_mem for   |
+|       them.                                                                                      |
++--------------------------------------------------------------------------------------------------+
+```
+<!-- grid:end -->
+
 ## What to alert on
 
 Starting points, not rules: Vigil runs the jobs and delivers what they print, and the alerts are yours, in the backend you already use. *Watch* is a warning: someone looks today. *Act* is critical: someone acts now. Give most alerts a few minutes, since a backup or a nightly report holds a transaction open for a while, and a replica that restarts leaves its slot unused for a moment, and that is healthy. The last column is what the test servers showed, in the console output of [PostgreSQL 18](../../tests/integration/backends/reports/runs/2026-11-19/fedora/pack-postgres-18-replication/console.txt), [PostgreSQL 14](../../tests/integration/backends/reports/runs/2026-11-19/fedora/pack-postgres-14-replication/console.txt) and [Windows](../../tests/integration/backends/reports/runs/2026-11-19/windows/pack-postgres-windows/console.txt): some of it caused on purpose, and where we caused nothing, it says so. Everything not here (commits, rollbacks, checkpoints, temporary files, WAL, and `last_replay_seconds`, which grows whenever the primary has nothing to write) is for dashboards.

@@ -56,6 +56,253 @@ Apache Tomcat 9, 10.1 and 11, on this machine or any it can reach, over JMX with
 
 Past 100 of anything (apps, servlets, sessions' apps, requests running), the pack shows the worst first (the most errors, sessions, time; the longest running) and counts the rest in a `_not_shown` line.
 
+
+<!-- grid:start -->
+## Every metric, at a glance
+
+Every job, every metric it prints and what it measures, and what good, watch and bad look like. It is the header of each job's script, laid out (`tools/pack-grid.py` writes it), so it says what the scripts say. A metric's full name is its job's name, then its own: `tomcat.version`.
+
+```text
++--------------------------------------------------------------------------------------------------+
+| tomcat_status   tomcat.<metric>   every 1m                                                       |
++---------------+----------------------------------------------------------------------------------+
+| jmx_up        | 1 when JMX answers, else 0, tagged tomcat=<its name> and jmx=<its address>       |
+| version       | always 1, tagged version=<Tomcat's version, 11.0.29.0>                           |
+| up            | 1 when the server is started, else 0                                             |
+| engine_up     | 1 when the engine is started, else 0                                             |
+| jvm_route     | always 1, tagged route=<its jvmRoute>, when it has one (behind a load balancer)  |
+| host_up       | 1 when the host is started, else 0, tagged host=<its name>                       |
+| connector_up  | 1 when the connector is started, else 0 (stopped, or its port taken), tagged     |
+|               | port=<its port>                                                                  |
+| ..._not_shown | past 100 of a list (host_up, connector_up), how many were left out               |
++---------------+----------------------------------------------------------------------------------+
+| GOOD  jmx_up 1; up, engine_up, host_up and every connector_up 1.                                 |
+| WATCH version older than the newest of its line: Tomcat fixes security issues in most releases.  |
+| BAD   jmx_up 0: Tomcat is down, or its JMX is; connector_up 0: that port takes no requests.      |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| tomcat_requests   tomcat.requests.<metric>   every 1m                                            |
++--------------------+-----------------------------------------------------------------------------+
+| jmx_up             | 1 when JMX answers, else 0, tagged tomcat=<its name> and jmx=<its address>  |
+| requests_count     | requests, tagged name=<the connector: http-nio-8080>                        |
+| errors_count       | of those, answered with a status of 400 or more, tagged the same            |
+| sent_bytes         | bytes sent, tagged the same                                                 |
+| received_bytes     | bytes received, tagged the same                                             |
+| processing_seconds | time spent on requests, tagged the same                                     |
+| slowest_seconds    | the slowest request since Tomcat started, tagged the same                   |
+| ..._not_shown      | past 100 of a list (requests_count, errors_count, sent_bytes,               |
+|                    | received_bytes, processing_seconds, slowest_seconds), how many were left    |
+|                    | out                                                                         |
++--------------------+-----------------------------------------------------------------------------+
+| GOOD  errors_count rising far slower than requests_count; processing_seconds rising in step with |
+|       requests.                                                                                  |
+| WATCH errors_count rising faster than usual: clients or the apps are failing (404s count too).   |
+| BAD   requests_count flat where there should be traffic; the share of errors climbing;           |
+|       processing_seconds per request climbing: the apps or what they call are slow.              |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| tomcat_threads   tomcat.threads.<metric>   every 1m                                              |
++----------------------+---------------------------------------------------------------------------+
+| jmx_up               | 1 when JMX answers, else 0, tagged tomcat=<its name> and jmx=<its         |
+|                      | address>                                                                  |
+| busy                 | threads handling a request now, tagged name=<the connector> (none for a   |
+|                      | connector on an Executor)                                                 |
+| threads              | threads it has, tagged the same                                           |
+| max_threads          | the most it may have, tagged the same                                     |
+| connections          | connections open, tagged the same                                         |
+| max_connections      | the most it accepts, then they wait in the backlog, tagged the same       |
+| keep_alive           | connections kept alive between requests, tagged the same                  |
+| backlog_max          | the backlog of connections waiting to be accepted, its size, tagged the   |
+|                      | same                                                                      |
+| paused               | 1 when the connector is paused (takes no requests), tagged the same       |
+| executor_busy        | an Executor's threads handling a request now, tagged name=<the Executor>  |
+| executor_threads     | threads it has, tagged the same                                           |
+| executor_max_threads | the most it may have, tagged the same                                     |
+| executor_largest     | the most it has had at once, tagged the same                              |
+| executor_queue       | requests waiting for a thread, tagged the same                            |
+| executor_max_queue   | the most that may wait, then they are refused, tagged the same            |
+| executor_done_count  | requests it has handled, tagged the same                                  |
+| utility_busy         | Tomcat's utility executor's threads busy (background work: session        |
+|                      | expiry, reloading)                                                        |
+| utility_threads      | its threads                                                               |
+| utility_tasks_count  | tasks given to it                                                         |
+| ..._not_shown        | past 100 of a list (busy, threads, max_threads, connections,              |
+|                      | max_connections, keep_alive, backlog_max, paused, executor_busy,          |
+|                      | executor_threads, executor_max_threads, executor_largest, executor_queue, |
+|                      | executor_max_queue, executor_done_count), how many were left out          |
++----------------------+---------------------------------------------------------------------------+
+| GOOD  busy, or executor_busy, well below max_threads; executor_queue 0; connections well below   |
+|       max_connections.                                                                           |
+| WATCH busy near max_threads for minutes; executor_queue above 0: requests are waiting for a      |
+|       thread.                                                                                    |
+| BAD   busy at max_threads with executor_queue near executor_max_queue, or connections at         |
+|       max_connections: Tomcat is turning requests away. Find what holds the threads              |
+|       (tomcat_inflight, the jvm pack's threads and deadlocks).                                   |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| tomcat_inflight   tomcat.inflight.<metric>   every 1m                                            |
++-------------------------+------------------------------------------------------------------------+
+| jmx_up                  | 1 when JMX answers, else 0, tagged tomcat=<its name> and jmx=<its      |
+|                         | address>                                                               |
+| running_seconds         | how long a request running now has run, tagged worker=<the connector>  |
+|                         | and name=<its processor>; the longest first                            |
+| stuck_threads           | threads on a request longer than the valve's threshold, tagged         |
+|                         | host=<its host>                                                        |
+| stuck_threshold_seconds | the valve's threshold, tagged the same                                 |
+| interrupted_count       | stuck threads the valve has interrupted (with                          |
+|                         | interruptThreadThreshold), tagged the same                             |
+| ..._not_shown           | past 100 of a list (running_seconds, stuck_threads,                    |
+|                         | stuck_threshold_seconds, interrupted_count), how many were left out    |
++-------------------------+------------------------------------------------------------------------+
+| GOOD  running_seconds of a second or less; stuck_threads 0.                                      |
+| WATCH running_seconds in tens of seconds for some requests; stuck_threads above 0 now and then.  |
+| BAD   stuck_threads staying above 0, or rising: requests that never end hold threads until none  |
+|       are left. A thread dump shows where they wait (a database, a lock, another service).       |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| tomcat_apps   tomcat.app.<metric>   every 2m                                                     |
++--------------------+-----------------------------------------------------------------------------+
+| jmx_up             | 1 when JMX answers, else 0, tagged tomcat=<its name> and jmx=<its address>  |
+| up                 | 1 when the app is started, else 0 (FAILED, STOPPED), tagged                 |
+|                    | name=<//host/path>                                                          |
+| uptime_seconds     | since the app started, tagged the same                                      |
+| startup_seconds    | how long it took to start, tagged the same                                  |
+| errors_count       | requests that ended in an exception, tagged the same; the most first        |
+| requests_count     | requests, tagged the same                                                   |
+| processing_seconds | time spent on requests, tagged the same                                     |
+| slowest_seconds    | the slowest request, tagged the same                                        |
+| ..._not_shown      | past 100 of a list (up, uptime_seconds, startup_seconds, errors_count,      |
+|                    | requests_count, processing_seconds, slowest_seconds), how many were left    |
+|                    | out                                                                         |
++--------------------+-----------------------------------------------------------------------------+
+| GOOD  up 1 for every app; uptime_seconds only growing; errors_count flat or rising slowly.       |
+| WATCH uptime_seconds falling back: the app was restarted or redeployed; errors_count rising.     |
+| BAD   up 0: the app failed to start or was stopped, and answers 404 (Tomcat's log says why).     |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| tomcat_sessions   tomcat.sessions.<metric>   every 1m                                            |
++-----------------------+--------------------------------------------------------------------------+
+| jmx_up                | 1 when JMX answers, else 0, tagged tomcat=<its name> and jmx=<its        |
+|                       | address>                                                                 |
+| active                | sessions active now, tagged host=<its host> and context=<its path>; the  |
+|                       | most first                                                               |
+| most                  | the most active at once since the app started, tagged the same           |
+| limit                 | the most it allows (maxActiveSessions), when one is set, tagged the same |
+| rejected_count        | sessions refused for the limit, tagged the same                          |
+| created_count         | sessions created, tagged the same                                        |
+| expired_count         | sessions expired, tagged the same                                        |
+| created_per_minute    | sessions created a minute, over the last 100, tagged the same            |
+| expired_per_minute    | sessions expired a minute, over the last 100, tagged the same            |
+| average_alive_seconds | how long the last 100 expired sessions lived, on average, tagged the     |
+|                       | same                                                                     |
+| longest_alive_seconds | the longest any expired session lived, tagged the same                   |
+| ..._not_shown         | past 100 of a list (active, most, limit, rejected_count, created_count,  |
+|                       | expired_count, created_per_minute, expired_per_minute,                   |
+|                       | average_alive_seconds, longest_alive_seconds), how many were left out    |
++-----------------------+--------------------------------------------------------------------------+
+| GOOD  active rising and falling with traffic; rejected_count 0.                                  |
+| WATCH active climbing without falling back: sessions created and never used again (bots, a       |
+|       client that keeps no cookie) hold memory until they expire.                                |
+| BAD   rejected_count rising: users are refused a session at the limit; active near limit.        |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| tomcat_servlets   tomcat.servlet.<metric>   cron 3/5 * * * *                                     |
++--------------------+-----------------------------------------------------------------------------+
+| jmx_up             | 1 when JMX answers, else 0, tagged tomcat=<its name> and jmx=<its address>  |
+| processing_seconds | time spent in the servlet, tagged WebModule=<//host/path> and name=<the     |
+|                    | servlet>; the most first                                                    |
+| requests_count     | requests, tagged the same                                                   |
+| errors_count       | requests that ended in an exception, tagged the same                        |
+| slowest_seconds    | the slowest request, tagged the same                                        |
+| load_seconds       | how long it took to load, tagged the same                                   |
+| ..._not_shown      | past 100 of a list (processing_seconds, requests_count, errors_count,       |
+|                    | slowest_seconds, load_seconds), how many were left out                      |
++--------------------+-----------------------------------------------------------------------------+
+| GOOD  processing_seconds rising in step with requests_count; errors_count flat.                  |
+| WATCH one servlet's share of the time growing.                                                   |
+| BAD   a servlet's errors_count rising: it is failing; its processing_seconds per request         |
+|       climbing: it is slow.                                                                      |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| tomcat_jdbc   tomcat.jdbc.<metric>   every 1m                                                    |
++------------------------+-------------------------------------------------------------------------+
+| jmx_up                 | 1 when JMX answers, else 0, tagged tomcat=<its name> and jmx=<its       |
+|                        | address>                                                                |
+| active                 | connections in use, tagged context=<the app, or none for a global one>  |
+|                        | and name=<its JNDI name>                                                |
+| idle                   | connections idle in the pool, tagged the same                           |
+| max                    | the most it may open (DBCP maxTotal, the JDBC pool maxActive), tagged   |
+|                        | the same                                                                |
+| max_idle               | the most it keeps idle, tagged the same                                 |
+| min_idle               | the fewest it keeps idle, tagged the same                               |
+| max_wait_seconds       | how long a request waits for a connection before it fails, tagged the   |
+|                        | same                                                                    |
+| size                   | connections open, in use or idle (the JDBC pool), tagged the same       |
+| waiting                | threads waiting for a connection now (the JDBC pool), tagged the same   |
+| borrowed_count         | connections taken from it (the JDBC pool), tagged the same              |
+| returned_count         | connections given back (the JDBC pool), tagged the same                 |
+| created_count          | connections opened (the JDBC pool), tagged the same                     |
+| released_count         | connections closed (the JDBC pool), tagged the same                     |
+| abandoned_count        | connections taken back from code that never returned them (the JDBC     |
+|                        | pool, removeAbandoned), tagged the same                                 |
+| reconnected_count      | connections reopened (the JDBC pool), tagged the same                   |
+| hikari_active          | a HikariCP pool's connections in use, tagged type=<Pool (its name)>     |
+| hikari_idle            | its connections idle, tagged the same                                   |
+| hikari_total           | its connections open, tagged the same                                   |
+| hikari_waiting         | threads waiting for one of its connections, tagged the same             |
+| hikari_max             | a HikariCP pool's most connections, tagged type=<PoolConfig (its name)> |
+| hikari_min_idle        | the fewest it keeps idle, tagged the same                               |
+| hikari_timeout_seconds | how long a request waits for a connection before it fails, tagged the   |
+|                        | same                                                                    |
+| ..._not_shown          | past 100 of a list (active, idle, max, max_idle, min_idle,              |
+|                        | max_wait_seconds, size, waiting, borrowed_count, returned_count,        |
+|                        | created_count, released_count, abandoned_count, reconnected_count,      |
+|                        | hikari_active, hikari_idle, hikari_total, hikari_waiting, hikari_max,   |
+|                        | hikari_min_idle, hikari_timeout_seconds), how many were left out        |
++------------------------+-------------------------------------------------------------------------+
+| GOOD  active well below max; waiting and hikari_waiting 0; abandoned_count flat.                 |
+| WATCH active at max now and then; waiting above 0: requests queue for a connection.              |
+| BAD   active at max and waiting above 0 for minutes: requests fail after max_wait_seconds.       |
+|       Either the database is slow or code keeps connections (abandoned_count rising says code    |
+|       leaks them).                                                                               |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| tomcat_cache   tomcat.cache.<metric>   cron 4/5 * * * *                                          |
++----------------------------+---------------------------------------------------------------------+
+| jmx_up                     | 1 when JMX answers, else 0, tagged tomcat=<its name> and jmx=<its   |
+|                            | address>                                                            |
+| lookups_count              | lookups in the app's resource cache, tagged host=<its host> and     |
+|                            | context=<its path>                                                  |
+| hits_count                 | of those, found in the cache, tagged the same                       |
+| size_bytes                 | what the cache holds, tagged the same                               |
+| max_bytes                  | the most it may hold, tagged the same                               |
+| jsps                       | JSPs loaded, tagged WebModule=<//host/path>                         |
+| jsp_reloads_count          | JSPs reloaded after a change, tagged the same                       |
+| jsp_unloads_count          | JSPs unloaded (maxLoadedJsps), tagged the same                      |
+| jsp_queue                  | JSPs waiting to be unloaded, when there is a limit, tagged the same |
+| string_cache_lookups_count | lookups in Tomcat's string cache (when it is on)                    |
+| string_cache_hits_count    | of those, found                                                     |
+| ..._not_shown              | past 100 of a list (lookups_count, hits_count, size_bytes,          |
+|                            | max_bytes, jsps, jsp_reloads_count, jsp_unloads_count, jsp_queue),  |
+|                            | how many were left out                                              |
++----------------------------+---------------------------------------------------------------------+
+| GOOD  hits_count close to lookups_count; size_bytes below max_bytes; jsp_reloads_count flat in   |
+|       production.                                                                                |
+| WATCH size_bytes at max_bytes with hits falling behind lookups: the cache is too small (Tomcat   |
+|       warns).                                                                                    |
+| BAD   jsp_reloads_count rising in production: JSPs are being changed under a running Tomcat.     |
++--------------------------------------------------------------------------------------------------+
+```
+<!-- grid:end -->
+
 ## What to alert on
 
 Starting points, from the same figures each script's header explains; "In our tests" is what three Tomcats in trouble on purpose (below) showed:

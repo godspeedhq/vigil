@@ -66,6 +66,338 @@ Each script's header says what its metrics mean and how to read them. Worth know
 
 A server that does not answer reports `mssql.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed. A refused login, a certificate that cannot be trusted or names another host, and a failed query fail the run, and its log says why.
 
+
+<!-- grid:start -->
+## Every metric, at a glance
+
+Every job, every metric it prints and what it measures, and what good, watch and bad look like. It is the header of each job's script, laid out (`tools/pack-grid.py` writes it), so it says what the scripts say. A metric's full name is its job's name, then its own: `mssql.up`.
+
+```text
++--------------------------------------------------------------------------------------------------+
+| mssql_status   mssql.<metric>   every 1m                                                         |
++-----------------+--------------------------------------------------------------------------------+
+| up              | 1 when the server answers, else 0                                              |
+| info            | always 1, tagged release=<2019, 2022 or 2025>, version=<its build>,            |
+|                 | update=<its CU>, edition=<developer, enterprise, standard, express or web> and |
+|                 | os=<linux or windows>                                                          |
+| uptime_seconds  | how long it has run                                                            |
+| cpus            | the CPUs it sees                                                               |
+| schedulers      | the schedulers it runs work on                                                 |
+| connections     | user connections now                                                           |
+| connections_max | the most it allows                                                             |
+| clustered       | 1 in a failover cluster instance                                               |
+| cluster_node    | in a failover cluster: always 1, tagged node=<the node it runs on now>         |
+| hadr_enabled    | 1 when Always On availability groups are enabled                               |
+| agent_running   | SQL Agent: 1 running, 0 stopped; left out where there is none (Express)        |
++-----------------+--------------------------------------------------------------------------------+
+| GOOD  up 1; agent_running 1 where Agent runs the backups.                                        |
+| WATCH connections growing toward connections_max; uptime_seconds back near 0: it restarted.      |
+| BAD   up 0; agent_running 0 on a server whose backups Agent schedules; cluster_node changing     |
+|       when no one moved it: it failed over.                                                      |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_performance   mssql.performance.<metric>   every 1m                                        |
++------------------------------+-------------------------------------------------------------------+
+| batch_requests_count         | requests run (a running total)                                    |
+| compilations_count           | query plans compiled (a running total)                            |
+| recompilations_count         | plans compiled again (a running total)                            |
+| transactions_count           | transactions started, all databases (a running total)             |
+| logins_count                 | logins (a running total)                                          |
+| logouts_count                | logouts (a running total)                                         |
+| processes_blocked            | sessions waiting on another now                                   |
+| errors_count                 | errors raised (a running total)                                   |
+| page_life_expectancy_seconds | how long a page stays in the buffer pool                          |
+| lazy_writes_count            | pages written to free memory (a running total)                    |
+| checkpoint_pages_count       | pages written by checkpoints (a running total)                    |
+| page_reads_count             | pages read from disk (a running total)                            |
+| page_writes_count            | pages written to disk (a running total)                           |
+| lock_waits_count             | lock requests that had to wait (a running total)                  |
+| lock_timeouts_count          | lock requests that gave up (a running total)                      |
+| deadlocks_count              | deadlocks (a running total)                                       |
+| page_splits_count            | index pages split in two (a running total)                        |
+| full_scans_count             | whole tables or indexes scanned (a running total)                 |
+| memory_grants_pending        | queries waiting for memory to run                                 |
+| memory_grants_outstanding    | queries holding memory to run                                     |
+| buffer_cache_hit_pct         | pages found in memory, as a percent                               |
+| missing_indexes              | indexes the optimizer wished for since the server started         |
+| missing_index_top_impact_pct | the most one of them would improve its queries, as a percent      |
++------------------------------+-------------------------------------------------------------------+
+| GOOD  memory_grants_pending 0; deadlocks_count flat; page_life_expectancy_seconds steady.        |
+| WATCH page_life_expectancy_seconds falling: memory is short for the data; compilations_count     |
+|       close to batch_requests_count: plans are not reused; lock_timeouts_count rising.           |
+| BAD   memory_grants_pending above 0 for minutes: queries wait for memory; deadlocks_count        |
+|       rising. The _count totals restart with the server: graph them as a rate.                   |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_activity   mssql.activity.<metric>   every 1m                                              |
++-----------------------------+--------------------------------------------------------------------+
+| sessions                    | user sessions, tagged state=<running, sleeping, dormant or         |
+|                             | preconnect>                                                        |
+| requests                    | requests running now                                               |
+| requests_blocked            | requests waiting on another session                                |
+| head_blockers               | sessions that block others and wait on no one                      |
+| longest_request_seconds     | how long the longest request has run                               |
+| longest_wait_seconds        | the longest wait now, tagged type=<its wait type, or none>         |
+| oldest_transaction_seconds  | how long the oldest open transaction has been open                 |
+| idle_in_transaction         | sessions asleep with a transaction open                            |
+| idle_in_transaction_seconds | how long the longest of them has slept                             |
+| longest_snapshot_seconds    | how long the longest snapshot transaction has run                  |
++-----------------------------+--------------------------------------------------------------------+
+| GOOD  requests_blocked and head_blockers 0; idle_in_transaction 0.                               |
+| WATCH oldest_transaction_seconds in minutes: it holds locks and keeps the log from being reused; |
+|       longest_snapshot_seconds growing: tempdb's version store grows with it.                    |
+| BAD   head_blockers above 0 for minutes: one session holds up others, find it;                   |
+|       idle_in_transaction above 0 for long: an application that did not commit.                  |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_cpu   mssql.cpu.<metric>   every 1m                                                        |
++-----------------+--------------------------------------------------------------------------------+
+| sql_pct         | CPU used by SQL Server, as a percent of the machine; left out in its first     |
+|                 | minute, before it records any                                                  |
+| other_pct       | CPU used by everything else (Windows only: on Linux SQL Server cannot tell)    |
+| runnable_tasks  | tasks ready to run that wait for a CPU                                         |
+| work_queued     | tasks waiting for a worker thread                                              |
+| pending_disk_io | disk reads and writes not yet done                                             |
+| workers         | worker threads now                                                             |
+| workers_max     | the most it may have                                                           |
+| workers_pct     | workers as a percent of the most                                               |
++-----------------+--------------------------------------------------------------------------------+
+| GOOD  runnable_tasks near 0; work_queued 0; workers_pct below 70.                                |
+| WATCH runnable_tasks steadily above the CPUs: CPU pressure; other_pct high: something else on    |
+|       the machine competes for it.                                                               |
+| BAD   work_queued above 0, or workers_pct near 100: new queries cannot start (thread             |
+|       starvation).                                                                               |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_replication   mssql.replication.<metric>   every 1m                                        |
++------------------+-------------------------------------------------------------------------------+
+| primary          | 1 for the primary replica, tagged group=<its name, where the login may see    |
+|                  | it; else its id> and replica=                                                 |
+| connected        | 1 when the replica is connected                                               |
+| health           | 2 healthy, 1 partly, 0 not healthy                                            |
+| local            | 1 for this server                                                             |
+| sync_state       | each database: 2 synchronized, 1 synchronizing, 0 neither; tagged group=,     |
+|                  | replica= and database=                                                        |
+| suspended        | 1 when its data movement is suspended                                         |
+| send_queue_bytes | log not yet sent to the secondary                                             |
+| send_rate_bytes  | log sent a second                                                             |
+| redo_queue_bytes | log received but not yet redone on the secondary                              |
+| redo_rate_bytes  | log redone a second                                                           |
+| lag_seconds      | how far the secondary is behind                                               |
++------------------+-------------------------------------------------------------------------------+
+| GOOD  health 2; connected 1; sync_state 2 (synchronous) or 1 (asynchronous); queues near 0.      |
+| WATCH send_queue_bytes or redo_queue_bytes growing: the secondary falls behind; lag_seconds      |
+|       rising.                                                                                    |
+| BAD   connected 0; health 0; suspended 1: that database is not protected; primary changing when  |
+|       no one failed it over.                                                                     |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_waits   mssql.waits.<metric>   cron 1/5 * * * *                                            |
++-------------------+------------------------------------------------------------------------------+
+| wait_ms_count     | milliseconds waited, tagged kind=<cpu, disk_read, log_write, lock, latch,    |
+|                   | memory, network, parallelism, replication, external or other> (a running     |
+|                   | total)                                                                       |
+| top_wait_ms_count | milliseconds waited by one of the ten most costly types, tagged type= (a     |
+|                   | running total)                                                               |
+| top_waits_count   | waits of that type (a running total)                                         |
++-------------------+------------------------------------------------------------------------------+
+| GOOD  each kind's rate steady with the workload.                                                 |
+| WATCH disk_read rising: the data does not fit in memory, or the disk is slow; log_write rising:  |
+|       the log's disk is slow; lock rising: blocking; network: a client reads its results slowly. |
+| BAD   cpu (signal waits) a large share of the total: the CPUs are saturated. The totals restart  |
+|       with the server: graph them as a rate, and compare kinds.                                  |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_io   mssql.io.<metric>   cron 2/5 * * * *                                                  |
++----------------------+---------------------------------------------------------------------------+
+| reads_count          | reads, tagged database=, file= and kind=<data or log> (a running total)   |
+| writes_count         | writes (a running total)                                                  |
+| read_bytes_count     | bytes read (a running total)                                              |
+| written_bytes_count  | bytes written (a running total)                                           |
+| read_stall_ms_count  | milliseconds spent waiting on reads (a running total)                     |
+| write_stall_ms_count | milliseconds spent waiting on writes (a running total)                    |
+| size_bytes           | the file's size on disk                                                   |
+| ..._not_shown        | past 100 of a list (files), how many were left out                        |
++----------------------+---------------------------------------------------------------------------+
+| GOOD  latency (the stall's rate over the reads' or writes') below 10 ms for data, 2 ms for a     |
+|       log.                                                                                       |
+| WATCH read latency 10 to 20 ms; a log's write latency above 5 ms.                                |
+| BAD   read latency above 20 ms, or a log's write latency above 10 ms, for long: the disk is the  |
+|       bottleneck.                                                                                |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_memory   mssql.memory.<metric>   cron 3/5 * * * *                                          |
++------------------------+-------------------------------------------------------------------------+
+| target_bytes           | the memory SQL Server aims for                                          |
+| total_bytes            | the memory it holds                                                     |
+| process_bytes          | physical memory the process uses                                        |
+| process_low            | 1 when SQL Server finds its memory low                                  |
+| system_total_bytes     | the machine's (or container's) memory                                   |
+| system_available_bytes | memory free on it                                                       |
+| system_low             | 1 when the machine signals low memory                                   |
+| buffer_pool_bytes      | data pages held in memory                                               |
+| memory_grants_bytes    | memory granted to running queries                                       |
+| plan_cache_bytes       | cached query plans                                                      |
+| single_use_plan_bytes  | ad hoc plans used once only                                             |
+| xtp_bytes              | In-Memory OLTP                                                          |
+| clerk_bytes            | the five memory clerks that hold the most, tagged clerk=                |
++------------------------+-------------------------------------------------------------------------+
+| GOOD  total_bytes at target_bytes; process_low and system_low 0.                                 |
+| WATCH single_use_plan_bytes a large share of plan_cache_bytes: turn on optimize for ad hoc       |
+|       workloads; system_available_bytes low.                                                     |
+| BAD   process_low or system_low 1: SQL Server, or the machine, is short of memory.               |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_tempdb   mssql.tempdb.<metric>   cron 4/5 * * * *                                          |
++------------------------+-------------------------------------------------------------------------+
+| size_bytes             | tempdb's data files                                                     |
+| free_bytes             | space free in them                                                      |
+| free_pct               | free as a percent                                                       |
+| version_store_bytes    | row versions, for snapshot isolation and online index builds            |
+| user_objects_bytes     | temporary tables and table variables                                    |
+| internal_objects_bytes | sorts, hashes and spools                                                |
+| log_used_pct           | its log in use, as a percent                                            |
+| data_files             | its data files                                                          |
++------------------------+-------------------------------------------------------------------------+
+| GOOD  free_pct above 20.                                                                         |
+| WATCH version_store_bytes growing: a long transaction keeps old row versions (mssql_activity     |
+|       longest_snapshot_seconds); free_pct below 20.                                              |
+| BAD   free_pct near 0: queries that need tempdb fail.                                            |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_connections   mssql.connections.<metric>   cron 0/5 * * * *                                |
++---------------------+----------------------------------------------------------------------------+
+| connections         | connections, tagged encrypted=<yes or no>                                  |
+| connections_by_auth | connections, tagged auth=<sql, kerberos or ntlm>                           |
+| sessions            | user sessions in the 50 databases with the most, tagged database=          |
++---------------------+----------------------------------------------------------------------------+
+| GOOD  encrypted=no 0 where clients should encrypt.                                               |
+| WATCH auth=ntlm where Kerberos is expected: a missing SPN, quietly slower and weaker.            |
+| BAD   encrypted=no above 0 on a server that must encrypt every connection.                       |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_databases   mssql.database.<metric>   cron 6/15 * * * *                                    |
++----------------------+---------------------------------------------------------------------------+
+| databases            | databases on the server                                                   |
+| online               | 1 when online, tagged database=                                           |
+| state                | 0 online, 1 restoring, 2 recovering, 3 recovery pending, 4 suspect, 5     |
+|                      | emergency, 6 offline; tagged state=                                       |
+| read_only            | 1 when read-only                                                          |
+| recovery             | always 1, tagged model=<full, bulk_logged or simple>                      |
+| data_bytes           | its data files                                                            |
+| log_bytes            | its log                                                                   |
+| log_used_bytes       | its log in use                                                            |
+| log_used_pct         | its log in use, as a percent                                              |
+| log_reuse_waiting    | 1 when something keeps the log from being reused, tagged                  |
+|                      | reason=<log_backup, active_transaction, replication and the like, or      |
+|                      | nothing>                                                                  |
+| active_transactions  | transactions open in it                                                   |
+| compatibility_level  | its compatibility level                                                   |
+| compatibility_behind | 1 when below the server's own                                             |
+| query_store          | 0 off, 1 read only (often full), 2 read and write, 3 in error             |
+| ..._not_shown        | past 100 of a list (databases), how many were left out                    |
++----------------------+---------------------------------------------------------------------------+
+| GOOD  online 1; log_used_pct below 70; log_reuse_waiting 0 or reason=log_backup between log      |
+|       backups.                                                                                   |
+| WATCH log_used_pct above 70 and rising; query_store 1 where it should record;                    |
+|       compatibility_behind 1 after an upgrade.                                                   |
+| BAD   online 0 or state 4 (suspect); log_used_pct near 100: writes stop when the log cannot      |
+|       grow; log_reuse_waiting with reason=active_transaction for long.                           |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_health   mssql.health.<metric>   cron 8/15 * * * *                                         |
++------------------------+-------------------------------------------------------------------------+
+| checkdb_age_days       | days since the last DBCC CHECKDB that found nothing, tagged database=;  |
+|                        | -1 never                                                                |
+| vlfs                   | virtual log files in its log                                            |
+| pct_growth_files       | files that grow by a percentage                                         |
+| max_size_used_pct      | a file with a maximum size: how much of it is used, tagged database=,   |
+|                        | file= and kind=                                                         |
+| volume_total_bytes     | a volume with database files, tagged volume=                            |
+| volume_free_bytes      | space free on it                                                        |
+| volume_free_pct        | free as a percent                                                       |
+| express_limit_used_pct | Express edition: a database's data against its 10 GB limit              |
+| encryption_state       | with transparent data encryption: 3 encrypted, 2 encrypting, 4 changing |
+|                        | its key, 5 decrypting, 1 not yet                                        |
+| suspect_pages          | pages found damaged (bad checksum, torn page, I/O error) and not yet    |
+|                        | repaired                                                                |
++------------------------+-------------------------------------------------------------------------+
+| GOOD  checkdb_age_days 0 to 7; suspect_pages 0; volume_free_pct above 20.                        |
+| WATCH checkdb_age_days above 7, or -1; vlfs in the thousands; pct_growth_files above 0.          |
+| BAD   suspect_pages above 0: run DBCC CHECKDB and restore what it finds; max_size_used_pct or    |
+|       express_limit_used_pct near 100: writes fail; volume_free_pct below 10.                    |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_config   mssql.config.<metric>   cron 10/15 * * * *                                        |
++---------------------------+----------------------------------------------------------------------+
+| max_server_memory_mb      | max server memory                                                    |
+| max_server_memory_default | 1 when left at its default, so SQL Server may take the machine's     |
+|                           | memory                                                               |
+| maxdop                    | max degree of parallelism (0: all CPUs)                              |
+| cost_threshold            | cost threshold for parallelism                                       |
+| optimize_for_ad_hoc       | 1 when optimize for ad hoc workloads is on                           |
+| xp_cmdshell               | 1 when xp_cmdshell is on                                             |
+| clr_enabled               | 1 when CLR is on                                                     |
+| ole_automation            | 1 when OLE Automation Procedures are on                              |
+| remote_admin_connections  | 1 when the dedicated admin connection takes remote clients           |
+| sa_enabled                | 1 when the sa login is enabled                                       |
+| sysadmins                 | enabled logins in the sysadmin role                                  |
+| instant_file_init         | 1 when instant file initialization is on (Windows)                   |
+| locked_pages              | 1 when its memory is locked in place                                 |
++---------------------------+----------------------------------------------------------------------+
+| GOOD  max_server_memory_default 0; xp_cmdshell, clr_enabled and ole_automation 0 unless needed.  |
+| WATCH cost_threshold 5 (the default) on a busy server; sysadmins growing.                        |
+| BAD   xp_cmdshell 1 where nothing needs it; sa_enabled 1 with a weak password; any of them       |
+|       changing when no one meant to.                                                             |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_backups   mssql.backups.<metric>   cron 12/15 * * * *                                      |
++------------------+-------------------------------------------------------------------------------+
+| full_age_seconds | since the last full backup, tagged database=; -1 none in 400 days             |
+| diff_age_seconds | since the last differential backup; -1 none                                   |
+| log_age_seconds  | since the last log backup (full or bulk-logged recovery); -1 none             |
+| never_backed_up  | databases with no full backup in 400 days                                     |
++------------------+-------------------------------------------------------------------------------+
+| GOOD  full_age_seconds within your schedule (a day or a week); log_age_seconds within minutes to |
+|       an hour.                                                                                   |
+| WATCH log_age_seconds growing past your schedule: the log grows and the data you can lose with   |
+|       it.                                                                                        |
+| BAD   never_backed_up above 0; full_age_seconds -1 or far past the schedule: the backups         |
+|       stopped.                                                                                   |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| mssql_agent   mssql.agent.<metric>   cron 14/15 * * * *                                          |
++-------------------------+------------------------------------------------------------------------+
+| readable                | 1 when this login may read Agent's jobs, else 0                        |
+| jobs                    | Agent jobs                                                             |
+| jobs_enabled            | those enabled                                                          |
+| failed_24h              | job runs that failed in the last 24 hours                              |
+| job_failed_24h          | a job that failed in them: its failures, tagged job=                   |
+| running                 | jobs running now                                                       |
+| longest_running_seconds | how long the longest has run                                           |
++-------------------------+------------------------------------------------------------------------+
+| GOOD  readable 1; failed_24h 0.                                                                  |
+| WATCH longest_running_seconds longer than the job usually takes.                                 |
+| BAD   failed_24h above 0: see which in job_failed_24h; readable 0: grant what packs/README.md    |
+|       says.                                                                                      |
++--------------------------------------------------------------------------------------------------+
+```
+<!-- grid:end -->
+
 ## What to alert on
 
 Starting points, not rules: Vigil runs the jobs and delivers what they print, and the alerts are yours, in the backend you already use. *Watch* is a warning: someone looks today. *Act* is critical: someone acts now. Give most alerts a few minutes, since a request blocked for a few seconds, or a secondary catching up after a restart, is healthy. The last column is what the test servers showed, in [the 2025 run's console output](../../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-mssql-2025-replication/console.txt) and the others under **Tested** below: most of it caused on purpose, and where we caused nothing, it says so. Everything not here (the workload, waits, file I/O, the plan cache, sizes) is for dashboards.

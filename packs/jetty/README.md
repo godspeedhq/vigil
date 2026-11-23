@@ -35,6 +35,203 @@ Eclipse Jetty 9.4 to 12, on this machine or any it can reach, over JMX with a pa
 | `jetty_sessions` | Each app's sessions now, the most at once and every one cached; created, how long they live, their timeout | minute |
 | `jetty_buffers` | The memory Jetty's own buffer pools hold, direct and heap, and how much is free (12) | 5 minutes |
 
+
+<!-- grid:start -->
+## Every metric, at a glance
+
+Every job, every metric it prints and what it measures, and what good, watch and bad look like. It is the header of each job's script, laid out (`tools/pack-grid.py` writes it), so it says what the scripts say. A metric's full name is its job's name, then its own: `jetty.version`.
+
+```text
++--------------------------------------------------------------------------------------------------+
+| jetty_status   jetty.<metric>   every 1m                                                         |
++-------------------+------------------------------------------------------------------------------+
+| jmx_up            | 1 when JMX answers, else 0, tagged jetty=<its name> and jmx=<its address>    |
+| version           | always 1, tagged version=<Jetty's version, 12.1.15>                          |
+| up                | 1 when the server is started, else 0                                         |
+| uptime_seconds    | since the server started (9.4 to 11: 12 gives it as a text)                  |
+| app_up            | 1 when the web application is started, else 0 (FAILED, STOPPED), tagged      |
+|                   | context=<its name>. Jetty keeps an app whose start failed STARTED and        |
+|                   | answers 503, unless it throws (throwUnavailableOnStartupException): its 503s |
+|                   | show in jetty_requests                                                       |
+| low_on_resources  | 1 when the low resources monitor says so, else 0                             |
+| low_since_seconds | how long it has been low on resources, when it is                            |
+| ..._not_shown     | past 100 of a list (version, up, uptime_seconds, app_up, low_on_resources,   |
+|                   | low_since_seconds), how many were left out                                   |
++-------------------+------------------------------------------------------------------------------+
+| GOOD  jmx_up 1; up 1 and every app_up 1; low_on_resources 0.                                     |
+| WATCH uptime_seconds falling back: Jetty restarted; version older than the newest of its line.   |
+| BAD   jmx_up 0: Jetty or its JMX is down; app_up 0: that app answers 404 (and                    |
+|       responses_5xx_count rising may be an app that failed to start, answering 503);             |
+|       low_on_resources 1: Jetty is closing idle connections early and may stop accepting.        |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| jetty_requests   jetty.requests.<metric>   every 1m                                              |
++----------------------------+---------------------------------------------------------------------+
+| jmx_up                     | 1 when JMX answers, else 0, tagged jetty=<its name> and jmx=<its    |
+|                            | address>                                                            |
+| requests_count             | requests                                                            |
+| active                     | requests being handled now                                          |
+| active_max                 | the most at once                                                    |
+| responses_1xx_count        | responses with a 1xx status                                         |
+| responses_2xx_count        | with a 2xx status                                                   |
+| responses_3xx_count        | with a 3xx status                                                   |
+| responses_4xx_count        | with a 4xx status                                                   |
+| responses_5xx_count        | with a 5xx status (on 9.4 to 11, not those that threw:              |
+|                            | thrown_count)                                                       |
+| failures_count             | requests that failed (12)                                           |
+| handling_failures_count    | failures while handling (12)                                        |
+| thrown_count               | requests that ended in an exception (9.4 to 11)                     |
+| dispatched_count           | dispatches to the application (9.4 to 11)                           |
+| dispatched_active          | dispatches running now (9.4 to 11)                                  |
+| handling_active            | requests being handled by the application now (12)                  |
+| async_count                | asynchronous requests (9.4 to 11)                                   |
+| async_waiting              | asynchronous requests waiting now (9.4 to 11)                       |
+| expired_count              | asynchronous requests that timed out (9.4 to 11)                    |
+| received_bytes             | bytes of requests read (12)                                         |
+| sent_bytes                 | bytes of responses written                                          |
+| slowest_seconds            | the slowest request                                                 |
+| mean_seconds               | the mean time of a request                                          |
+| total_seconds              | the time of every request, added up                                 |
+| handling_slowest_seconds   | the slowest time in the application, apart from reading and writing |
+|                            | (12)                                                                |
+| handling_mean_seconds      | the mean time in the application (12)                               |
+| handling_active_max        | the most in the application at once (12)                            |
+| dispatched_slowest_seconds | the slowest dispatch to the application (9.4 to 11)                 |
+| dispatched_mean_seconds    | the mean time of a dispatch (9.4 to 11)                             |
+| dispatched_active_max      | the most dispatches at once (9.4 to 11)                             |
+| async_waiting_max          | the most asynchronous requests waiting at once (9.4 to 11)          |
+| stats_seconds              | since these statistics began (9.4 to 11): the totals count from     |
+|                            | then                                                                |
+| ..._not_shown              | past 100 of a list (requests_count, active, active_max,             |
+|                            | responses_1xx_count, responses_2xx_count, responses_3xx_count,      |
+|                            | responses_4xx_count, responses_5xx_count, failures_count,           |
+|                            | handling_failures_count, thrown_count, dispatched_count,            |
+|                            | dispatched_active, handling_active, async_count, async_waiting,     |
+|                            | expired_count, received_bytes, sent_bytes, slowest_seconds,         |
+|                            | mean_seconds, total_seconds, handling_slowest_seconds,              |
+|                            | handling_mean_seconds, handling_active_max,                         |
+|                            | dispatched_slowest_seconds, dispatched_mean_seconds,                |
+|                            | dispatched_active_max, async_waiting_max, stats_seconds), how many  |
+|                            | were left out                                                       |
++----------------------------+---------------------------------------------------------------------+
+| GOOD  responses_5xx_count flat; active well below the thread pool's max; mean_seconds steady.    |
+| WATCH responses_4xx_count rising faster than requests: clients asking for what is not there, or  |
+|       refused.                                                                                   |
+| BAD   responses_5xx_count rising: the server or the apps are failing; active near the pool's     |
+|       max: requests are waiting for a thread.                                                    |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| jetty_threads   jetty.threads.<metric>   every 1m                                                |
++-------------------+------------------------------------------------------------------------------+
+| jmx_up            | 1 when JMX answers, else 0, tagged jetty=<its name> and jmx=<its address>    |
+| threads           | threads it has, tagged id=<the pool>                                         |
+| busy              | busy threads, tagged the same                                                |
+| idle              | idle threads, tagged the same                                                |
+| ready             | threads ready for a job now, tagged the same                                 |
+| utilized          | threads running a job of the application, tagged the same                    |
+| max_threads       | the most it may have, tagged the same                                        |
+| min_threads       | the fewest it keeps, tagged the same                                         |
+| queue             | jobs waiting for a thread, tagged the same                                   |
+| utilization_pct   | how much of the pool is in use, tagged the same                              |
+| low_on_threads    | 1 when it is low on threads, else 0, tagged the same                         |
+| leased            | threads leased to Jetty's own work (acceptors, selectors), tagged the same   |
+| reserved          | threads reserved and available, tagged the same                              |
+| max_available     | the most that could run the application, tagged the same                     |
+| reserved_capacity | the most threads it keeps reserved for quick work                            |
+| reserved_pending  | reserved threads starting now                                                |
+| ..._not_shown     | past 100 of a list (threads, busy, idle, ready, utilized, max_threads,       |
+|                   | min_threads, queue, utilization_pct, low_on_threads, leased, reserved,       |
+|                   | max_available, reserved_capacity, reserved_pending), how many were left out  |
++-------------------+------------------------------------------------------------------------------+
+| GOOD  busy well below max_threads; queue 0; low_on_threads 0.                                    |
+| WATCH utilization_pct above 80 for minutes; queue above 0 now and then.                          |
+| BAD   queue growing and low_on_threads 1: every thread is busy and requests wait. Find what      |
+|       holds them (the jvm pack's threads and deadlocks).                                         |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| jetty_connections   jetty.connections.<metric>   every 1m                                        |
++-------------------------+------------------------------------------------------------------------+
+| jmx_up                  | 1 when JMX answers, else 0, tagged jetty=<its name> and jmx=<its       |
+|                         | address>                                                               |
+| open                    | connections open now                                                   |
+| open_max                | the most open at once                                                  |
+| opened_count            | connections opened                                                     |
+| duration_max_seconds    | the longest a connection lasted                                        |
+| duration_mean_seconds   | how long a connection lasts, on average                                |
+| received_bytes          | bytes received                                                         |
+| sent_bytes              | bytes sent                                                             |
+| received_messages_count | messages received (requests, frames)                                   |
+| sent_messages_count     | messages sent                                                          |
+| limited                 | connections the connection limit counts                                |
+| limit                   | its limit                                                              |
+| limit_pending           | connections accepted but waiting for it (12)                           |
+| qos_max                 | the QoS handler's limit of requests at once (12)                       |
+| qos_suspended           | requests suspended for it now (12)                                     |
+| qos_exceeded_count      | requests refused for it (12.1)                                         |
+| qos_expired_count       | requests that waited too long for it (12.1)                            |
+| qos_requests_count      | requests it has seen (12.1)                                            |
+| qos_suspended_count     | requests it has suspended (12.1)                                       |
+| qos_max_suspended       | the most it suspends, then it refuses (12)                             |
+| selector_keys           | connections Jetty's selectors watch, every one added up                |
+| selects_count           | times they have selected                                               |
+| ..._not_shown           | past 100 of a list (open, open_max, opened_count,                      |
+|                         | duration_max_seconds, duration_mean_seconds, received_bytes,           |
+|                         | sent_bytes, received_messages_count, sent_messages_count, limited,     |
+|                         | limit, limit_pending, qos_max, qos_suspended, qos_exceeded_count,      |
+|                         | qos_expired_count, qos_requests_count, qos_suspended_count,            |
+|                         | qos_max_suspended, selector_keys, selects_count), how many were left   |
+|                         | out                                                                    |
++-------------------------+------------------------------------------------------------------------+
+| GOOD  open well below limit; limit_pending 0; qos_exceeded_count flat.                           |
+| WATCH open near limit; qos_suspended above 0: requests wait for the QoS handler.                 |
+| BAD   limited at limit with limit_pending above 0: Jetty is not accepting more;                  |
+|       qos_exceeded_count rising: requests refused.                                               |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| jetty_sessions   jetty.sessions.<metric>   every 1m                                              |
++--------------------+-----------------------------------------------------------------------------+
+| jmx_up             | 1 when JMX answers, else 0, tagged jetty=<its name> and jmx=<its address>   |
+| current            | sessions in the cache now, tagged context=<its app>; the most first         |
+| most               | the most at once, tagged the same                                           |
+| cached_count       | sessions it has held, tagged the same                                       |
+| created_count      | sessions created, tagged the same                                           |
+| alive_mean_seconds | how long a session lives, on average, tagged the same                       |
+| alive_max_seconds  | the longest a session lived, tagged the same                                |
+| timeout_seconds    | how long an idle session lives, tagged the same                             |
+| ..._not_shown      | past 100 of a list (current, most, cached_count, created_count,             |
+|                    | alive_mean_seconds, alive_max_seconds, timeout_seconds), how many were left |
+|                    | out                                                                         |
++--------------------+-----------------------------------------------------------------------------+
+| GOOD  current rising and falling with traffic.                                                   |
+| WATCH current climbing without falling back: sessions created and never used again hold memory   |
+|       until they time out.                                                                       |
+| BAD   current far above what your users explain: a client or a bot making a session each         |
+|       request.                                                                                   |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| jetty_buffers   jetty.buffers.<metric>   cron 2/5 * * * *                                        |
++-------------------+------------------------------------------------------------------------------+
+| jmx_up            | 1 when JMX answers, else 0, tagged jetty=<its name> and jmx=<its address>    |
+| direct_bytes      | direct memory its pools hold                                                 |
+| heap_bytes        | heap memory its pools hold                                                   |
+| direct_free_bytes | of the direct, free to reuse (12)                                            |
+| heap_free_bytes   | of the heap, free to reuse (12)                                              |
+| ..._not_shown     | past 100 of a list (direct_bytes, heap_bytes, direct_free_bytes,             |
+|                   | heap_free_bytes), how many were left out                                     |
++-------------------+------------------------------------------------------------------------------+
+| GOOD  direct_bytes and heap_bytes steady.                                                        |
+| WATCH direct_bytes growing without falling back.                                                 |
+| BAD   direct_bytes near the JVM's -XX:MaxDirectMemorySize: Jetty will fail to allocate (the jvm  |
+|       pack's buffers job shows the limit).                                                       |
++--------------------------------------------------------------------------------------------------+
+```
+<!-- grid:end -->
+
 ## What to alert on
 
 Starting points; "In our tests" is what four Jettys in trouble on purpose (below) showed:

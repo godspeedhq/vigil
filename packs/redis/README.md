@@ -46,6 +46,137 @@ Each script's header says what its metrics mean and how to read them. Worth know
 
 A server that does not answer reports `redis.up` 0, and the run succeeds: that is a reading. The other jobs then print nothing and succeed. A refused login, a user that may not run `INFO`, and a TLS handshake that fails, fail the run, and its log says why. A wrong password fails even where the server's default user is open and would answer. For several servers, copy a job's section under a new name, as for postgres.
 
+
+<!-- grid:start -->
+## Every metric, at a glance
+
+Every job, every metric it prints and what it measures, and what good, watch and bad look like. It is the header of each job's script, laid out (`tools/pack-grid.py` writes it), so it says what the scripts say. A metric's full name is its job's name, then its own: `redis.up`.
+
+```text
++--------------------------------------------------------------------------------------------------+
+| redis_status   redis.<metric>   every 1m                                                         |
++----------------------------+---------------------------------------------------------------------+
+| up                         | 1 when the server answers, else 0                                   |
+| info                       | always 1, tagged server=<redis or valkey>, version=<its version>    |
+|                            | and mode=<standalone, cluster or sentinel>                          |
+| loading                    | 1 while it loads its data from disk after a start, when it answers  |
+|                            | little else                                                         |
+| uptime_seconds             | how long it has run                                                 |
+| clients                    | client connections now                                              |
+| blocked_clients            | clients waiting in a blocking command (BLPOP and the like)          |
+| max_clients                | the server's limit (maxclients)                                     |
+| clients_pct                | clients as a percent of the limit                                   |
+| rejected_connections_count | connections refused at the limit (a running total)                  |
+| connections_count          | connections accepted (a running total)                              |
+| commands_count             | commands run (a running total)                                      |
+| ops_per_sec                | commands a second, as the server counts them now                    |
+| hits_count                 | lookups that found their key (a running total)                      |
+| misses_count               | lookups that did not (a running total)                              |
+| hit_pct                    | hits as a percent of all lookups since the server started; left out |
+|                            | before the first                                                    |
+| evicted_keys_count         | keys removed to stay under maxmemory (a running total)              |
+| expired_keys_count         | keys removed as their time ran out (a running total)                |
+| error_replies_count        | commands answered with an error (a running total; Redis 6.2 and     |
+|                            | Valkey on)                                                          |
++----------------------------+---------------------------------------------------------------------+
+| GOOD  up 1; clients_pct below 70; rejected_connections_count flat; evicted_keys_count flat,      |
+|       unless it is a cache meant to evict.                                                       |
+| WATCH clients_pct 70 to 90; blocked_clients growing where nothing should wait; hit_pct falling   |
+|       on a cache: it holds less of what is asked for; error_replies_count rising faster than     |
+|       usual.                                                                                     |
+| BAD   up 0; loading 1 for long; rejected_connections_count rising: clients are turned away at    |
+|       maxclients; evicted_keys_count rising where keys must not be lost. The _count totals       |
+|       restart with the server: graph them as a rate.                                             |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| redis_memory   redis.memory.<metric>   every 1m                                                  |
++---------------------+----------------------------------------------------------------------------+
+| used_bytes          | memory the server has allocated for its data and itself (used_memory)      |
+| rss_bytes           | memory the operating system gives the process                              |
+| peak_bytes          | the most used_bytes has been since the start                               |
+| max_bytes           | the limit (maxmemory), 0 for none, tagged policy=<what it does at the      |
+|                     | limit: maxmemory-policy>                                                   |
+| used_pct            | used_bytes as a percent of the limit; left out with no limit               |
+| fragmentation_ratio | rss_bytes over used_bytes                                                  |
++---------------------+----------------------------------------------------------------------------+
+| GOOD  used_pct below 80, or steady at the limit on a cache meant to evict (policy allkeys-lru    |
+|       and the like); fragmentation_ratio 1 to 1.5 on a server holding real data.                 |
+| WATCH used_pct 80 to 95 with policy noeviction: at 100 writes are refused; max_bytes 0: the      |
+|       server grows until the machine runs out; fragmentation_ratio above 1.5: memory held but    |
+|       not used.                                                                                  |
+| BAD   used_pct at 100 with policy noeviction: writes fail with OOM; fragmentation_ratio below 1: |
+|       the system is swapping the server out, and it slows down. A small server reads a high      |
+|       fragmentation_ratio with no harm: judge it once there is data.                             |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| redis_replication   redis.replication.<metric>   every 1m                                        |
++-------------------+------------------------------------------------------------------------------+
+| is_replica        | 1 when it replicates from a primary, else 0                                  |
+| replicas          | replicas connected to it now                                                 |
+| online            | (primary) 1 while a replica is in step, 0 while it is still being sent a     |
+|                   | full copy, tagged replica=<its address>_<port>                               |
+| lag_bytes         | (primary) how far a replica is behind, in bytes of the replication stream,   |
+|                   | tagged replica=                                                              |
+| lag_seconds       | (primary) seconds since a replica last said how far it has got (about once a |
+|                   | second), tagged replica=                                                     |
+| link_up           | (replica) 1 while its link to the primary is up                              |
+| last_io_seconds   | (replica) seconds since it last heard from the primary, while the link is up |
+| link_down_seconds | (replica) how long the link has been down, while it is                       |
+| sync_in_progress  | (replica) 1 while it takes a full copy from the primary                      |
++-------------------+------------------------------------------------------------------------------+
+| GOOD  on a primary, replicas as many as you run, each online 1 with lag_bytes near 0 and         |
+|       lag_seconds 0 or 1; on a replica, link_up 1 and last_io_seconds below 10.                  |
+| WATCH lag_bytes rising during heavy writes and not falling after them; sync_in_progress 1 for    |
+|       long, or again and again: each full copy costs the primary a fork and the replica a        |
+|       reload.                                                                                    |
+| BAD   replicas below what you run, on the primary; link_up 0 on a replica: it serves older and   |
+|       older data. Alert on each replica's own link_up and redis.up as well: they say at once     |
+|       what the primary may learn only later.                                                     |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| redis_persistence   redis.persistence.<metric>   every 1m                                        |
++-------------------------+------------------------------------------------------------------------+
+| last_save_ok            | 1 when the last snapshot was written, 0 when it failed                 |
+| last_save_age_seconds   | seconds since the last snapshot was written, or since the start when   |
+|                         | none has been                                                          |
+| changes_since_save      | writes since then, which a crash would lose without the AOF            |
+| save_in_progress        | 1 while a snapshot is written                                          |
+| last_fork_usec          | how long the last fork took, in microseconds: the server stops for it  |
+| aof_enabled             | 1 when the append-only file is on                                      |
+| aof_last_write_ok       | 1 when the last write to it worked                                     |
+| aof_last_rewrite_ok     | 1 when its last rewrite worked                                         |
+| aof_rewrite_in_progress | 1 while it is rewritten                                                |
++-------------------------+------------------------------------------------------------------------+
+| GOOD  last_save_ok 1 and aof_last_write_ok 1; last_save_age_seconds within your snapshot         |
+|       schedule (the save setting).                                                               |
+| WATCH last_save_age_seconds well past the schedule while changes_since_save grows;               |
+|       last_fork_usec in the hundreds of thousands: each snapshot stalls the server for that      |
+|       long.                                                                                      |
+| BAD   last_save_ok 0 or aof_last_write_ok 0: the disk is full or not writable, and by default    |
+|       the server then refuses writes (stop-writes-on-bgsave-error). With snapshots off (save     |
+|       ""), last_save_age_seconds only grows: read the AOF metrics instead, or none if it is a    |
+|       cache with nothing to keep.                                                                |
++--------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------+
+| redis_keyspace   redis.keyspace.<metric>   cron 7/15 * * * *                                     |
++---------+----------------------------------------------------------------------------------------+
+| keys    | keys in a database, tagged db=<db0, db1 and so on>; an empty server reports keys 0 for |
+|         | db0                                                                                    |
+| expires | of those, the keys with a time to live, tagged db=                                     |
++---------+----------------------------------------------------------------------------------------+
+| GOOD  keys steady, or rising and falling with the work; on a cache, expires close to keys.       |
+| WATCH keys growing without end, with expires flat: keys written without a time to live, which    |
+|       only eviction or a person will remove.                                                     |
+| BAD   keys falling to 0 when they should not: a FLUSHALL, or a restart that loaded nothing       |
+|       (redis.uptime_seconds says which).                                                         |
++--------------------------------------------------------------------------------------------------+
+```
+<!-- grid:end -->
+
 ## What to alert on
 
 Starting points, not rules: Vigil runs the jobs and delivers what they print, and the alerts are yours, in the backend you already use. *Watch* is a warning: someone looks today. *Act* is critical: someone acts now. Give most alerts a few minutes, since a server that restarts reads `loading 1` while it loads its data, and a replica that restarts is missing from its primary for a moment, and that is healthy. The last column is what the test servers showed, in [the Valkey 9.2 run's console output](../../tests/integration/backends/reports/runs/2026-11-20/fedora/pack-valkey-9-replication/console.txt): some of it caused on purpose (twice its `maxmemory` written to the primary, a client left waiting, the replica stopped), and where we caused nothing, it says so. Everything not here (commands, the hit rate, keys expired, uptime) is for dashboards.
