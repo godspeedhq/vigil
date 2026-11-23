@@ -110,17 +110,18 @@ hostpids="$hostpids $!"
 # Every JMX port answering, and the crasher crashed.
 for _ in $(seq 1 60); do
     up=0
-    for p in 19181 19182 19183 19184 19185 19190; do (exec 3<> "/dev/tcp/127.0.0.1/$p") 2> /dev/null && up=$((up + 1)); done
-    [ "$up" -eq 6 ] && ls "$dumps"/hs_err_pid*.log > /dev/null 2>&1 && break
+    for p in 19181 19182 19183 19184 19185 19186 19190; do (exec 3<> "/dev/tcp/127.0.0.1/$p") 2> /dev/null && up=$((up + 1)); done
+    [ "$up" -eq 7 ] && ls "$dumps"/hs_err_pid*.log > /dev/null 2>&1 && break
     sleep 3
 done
-[ "$up" -eq 6 ] || { dc logs --tail 20; die "only $up of 6 JMX ports answer"; }
+[ "$up" -eq 7 ] || { dc logs --tail 20; die "only $up of 7 JMX ports answer"; }
 ls "$dumps"/hs_err_pid*.log > /dev/null 2>&1 || die 'the crasher did not crash'
 # A while of trouble: leaks, a heap dump, threads leaked.
 sleep 60
 printf 'jvms     %s\n' "$(dc ps --format '{{.Service}} {{.Image}}' | sort | tr '\n' ';' | sed 's/;$//; s/;/; /g')"
 
 targets="j8: main=-XX:+UseParallelGC, jmx=localhost:19181, gclog=$dumps/j8-gc.log;"
+targets="$targets j8tls: main=-Dvigil.it=j8tls, jmxs=localhost:19186;"
 targets="$targets j11: main=-XX:NativeMemoryTracking=summary, jmxs=localhost:19182;"
 targets="$targets j17: main=-XX:+UseZGC, jmxs=localhost:19183, gclog=$dumps/j17-gc.log;"
 targets="$targets j21: main=-XX:+HeapDumpOnOutOfMemoryError, jmxs=localhost:19184, gclog=$dumps/j21-gc.log;"

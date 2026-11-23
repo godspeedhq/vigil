@@ -1070,6 +1070,17 @@ else
     check "jvm: and of one in a container, as this account" 1 "$(jval status tier_counters j21)"
     check "jvm: a JVM run as root keeps its counters from this account" 0 "$(jval status tier_counters nojmx)"
     check 'jvm: Java 8 says what it is' yes "$(grep -h ' out metric info 1 jvm=j8 ' "$root"/logs/jobs/jvm_status/*.log | tail -n 1 | grep -q 'version=1\.8\.' && echo yes || echo no)"
+    # Java 8 with JMX over TLS and a password, when it is among the JVMs.
+    case $VIGIL_IT_JVM_TARGETS in
+        *'j8tls:'*)
+            check 'jvm: Java 8 with TLS is up' 1 "$(jval status up j8tls)"
+            check 'jvm: and answers over JMX, with TLS' 1 "$(jval status tier_jmx j8tls)"
+            check 'jvm: its process is found' 1 "$(jval process running j8tls)"
+            check 'jvm: it says it is Java 8' yes "$(grep -h ' out metric info 1 jvm=j8tls ' "$root"/logs/jobs/jvm_status/*.log | tail -n 1 | grep -q 'version=1\.8\.' && echo yes || echo no)"
+            check 'jvm: its heap, over JMX with TLS' yes "$(jbetween heap used_bytes j8tls 1 1e12)"
+            check 'jvm: its threads, over JMX with TLS' yes "$(jbetween threads live j8tls 5 1e6)"
+            ;;
+    esac
     check 'jvm: its feature release' 8 "$(jval release_age feature_version j8)"
     check 'jvm: Java 25 too' 25 "$(jval release_age feature_version j25)"
 
@@ -1195,13 +1206,17 @@ else
         check 'jvm: every job runs on the JRE, from the jar' '' "$failed"
         for j in $failed; do tail -n 3 "$work/jre.$j" | sed 's/^/        /'; done
         printf '        41 jobs from the jar in %d s\n' $((t1 - t0))
-        check 'jvm: and every JVM is up' 8 "$(grep -c '^metric up 1 ' "$work/jre.status")"
+        check 'jvm: and every JVM is up' "$(printf '%s' "$VIGIL_IT_JVM_TARGETS" | tr ';' '\n' | grep -c ':')" "$(grep -c '^metric up 1 ' "$work/jre.status")"
         # The same lines as the same jars give on a JDK, values apart.
         same=''
         for j in status heap gc threads classes jit metaspace codecache flags security; do
             awk '{ $3 = ""; print }' "$work/jre.$j" | sort > "$work/jre.names"
             jdirect "$jdk_home" "$jp" "$j" > /dev/null
-            awk '{ $3 = ""; print }' "$work/jre.$j" | sort | cmp -s - "$work/jre.names" || same="$same $j"
+            awk '{ $3 = ""; print }' "$work/jre.$j" | sort > "$work/jdk.names"
+            if ! cmp -s "$work/jdk.names" "$work/jre.names"; then
+                same="$same $j"
+                diff "$work/jre.names" "$work/jdk.names" | grep '^[<>]' | head -n 6 | sed "s/^/        $j: /"
+            fi
         done
         check 'jvm: the same lines as on a JDK' '' "$same"
         # A jar changed by one byte is not run, by any Java.

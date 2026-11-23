@@ -12,6 +12,7 @@
 # its own. Not somewhere Vigil sends: what its pack reads.
 #
 #   j8      Java 8,  Parallel,   JMX with a password (19181)   GC log, Java 8's
+#   j8tls   Java 8,  Serial,     JMX, password and TLS (19186)
 #   j11     Java 11, Serial,     JMX, password and TLS (19182) native memory
 #                                                             tracked
 #   j17     Java 17, ZGC,        JMX, password and TLS (19183) GC log
@@ -59,6 +60,18 @@ services:
       JAVA_OPTS: -Xmx256m -XX:+UseParallelGC -Xloggc:/dumps/j8-gc.log -XX:+PrintGCDetails -XX:+PrintGCTimeStamps
     ports:
       - "127.0.0.1:19181:19181"
+
+  j8tls:
+    <<: *jvm
+    image: eclipse-temurin:8-jdk
+    environment:
+      <<: *env
+      JMX_PORT: "19186"
+      JMX_TLS: "yes"
+      MODES: busy leak
+      JAVA_OPTS: -Xmx256m -XX:+UseSerialGC -Dvigil.it=j8tls
+    ports:
+      - "127.0.0.1:19186:19186"
 
   j11:
     <<: *jvm
