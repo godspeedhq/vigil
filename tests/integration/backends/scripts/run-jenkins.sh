@@ -23,7 +23,8 @@
 # pack is run as monitor, while the long build runs, and what it reads is
 # checked; then a user without SystemRead, a wrong token and a Jenkins that
 # is down; then tests/integration/service-packs.sh runs the pack through
-# Vigil. The Jenkins are taken down at the end.
+# Vigil. The Jenkins are taken down at the end (VIGIL_IT_JENKINS_HOLD, at
+# the end of this script, keeps them up for other machines' tests).
 
 set -u
 
@@ -132,4 +133,14 @@ unset JENKINS_URL JENKINS_USER JENKINS_API_TOKEN
 bash "$bk_repo/tests/integration/service-packs.sh"
 rc=$?
 printf '%d passed, %d failed\n' "$pass" "$fail"
+# VIGIL_IT_JENKINS_HOLD=<file>: the Jenkins stay up, their tokens in
+# <file>.d/ (this account's alone), for the tests of other machines (macOS,
+# Windows), until <file> is deleted.
+if [ -n "${VIGIL_IT_JENKINS_HOLD-}" ]; then
+    (umask 077 && mkdir -p "$VIGIL_IT_JENKINS_HOLD.d" && cp "$work"/*.token "$VIGIL_IT_JENKINS_HOLD.d/")
+    : > "$VIGIL_IT_JENKINS_HOLD"
+    printf 'hold     the Jenkins stay up, on 18081 and 18082, until %s is deleted\n' "$VIGIL_IT_JENKINS_HOLD"
+    while [ -e "$VIGIL_IT_JENKINS_HOLD" ]; do sleep 5; done
+    rm -rf "$VIGIL_IT_JENKINS_HOLD.d"
+fi
 [ "$fail" -eq 0 ] && [ "$rc" -eq 0 ]

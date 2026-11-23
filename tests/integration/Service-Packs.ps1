@@ -257,6 +257,10 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $qk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\rabbitmq\pack.config') -Destination $qk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\rabbitmq\windows') | Copy-Item -Destination $qk
+    $jk = Join-Path $root 'packs\jenkins'
+    [void](New-Item -ItemType Directory -Force -Path $jk)
+    Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
+    Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
     $list = (Invoke-Vigil pack list).Text
     # pack list indents each job under its pack.
     Test-Equal 'the pack is off until enabled' 'off off' ((@($list.Split("`n") | Where-Object { $_ -match '^\s*postgres_(status|size)\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })) -join ' ')
@@ -1148,6 +1152,81 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "${pp}: metrics reach the backend" 'True' ([string](($prom -match "(?m)^$($env:VIGIL_IT_PROBE_EXPECT)\{") -and ($prom -match "(?m)^${pp}_jmx_up\{")))
+    }
+
+    # --- jenkins -----------------------------------------------------------
+    # A Jenkins, through Vigil: VIGIL_IT_JENKINS_URL its address,
+    # VIGIL_IT_JENKINS_USER a read-only user, VIGIL_IT_JENKINS_TOKEN its token.
+    if (-not $env:VIGIL_IT_JENKINS_URL -or -not $env:VIGIL_IT_JENKINS_TOKEN) { Write-Host '  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN' }
+    else {
+        foreach ($v in 'JENKINS_URL', 'JENKINS_USER', 'JENKINS_API_TOKEN', 'JENKINS_CACERT') { Remove-Item "Env:\$v" -ErrorAction SilentlyContinue }
+        Write-Host "jenkins: $($env:VIGIL_IT_JENKINS_URL) as $($env:VIGIL_IT_JENKINS_USER)"
+        $kjobs = @(([System.IO.File]::ReadAllLines((Join-Path $jk 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] }))
+        $kn = $kjobs.Count
+        function Get-JenkinsJobsOn {
+            $list = (Invoke-Vigil pack list).Text
+            $s = @($list.Split("`n") | Where-Object { $_ -match '^\s*jenkins_\w+\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            return (@($s | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        function Invoke-KJob { param([string]$Job) return [string](Invoke-Vigil run "jenkins_$Job").Code }
+        Test-Equal 'jenkins: off until enabled' "off=$kn" (Get-JenkinsJobsOn)
+        $r = Invoke-Vigil pack enable jenkins
+        Test-Equal 'jenkins: enabled' '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "jenkins: it says its JVM is the jvm pack's" 'True' ([string](($r.Text -replace '\s+', ' ').Contains('the jvm pack, not this one')))
+        Test-Equal 'jenkins: its jobs are on' "on=$kn" (Get-JenkinsJobsOn)
+        $cfg = Join-Path $root 'config\vigil.config'
+        [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(env\s*=\s*JENKINS_CACERT=[^\r\n]*)(\r?\n)', "`$1`$2secret      = JENKINS_API_TOKEN=secret:JENKINS_API_TOKEN`$2"))
+        Test-Equal 'jenkins: the token is a secret reference, on every job' "$kn" ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*JENKINS_API_TOKEN=secret:JENKINS_API_TOKEN')).Count)
+        # A logon with no password (SSH with a key) cannot use the secret
+        # store: then the jobs take it by an env: reference.
+        $kenv = $false
+        Set-VigilSecret JENKINS_API_TOKEN $env:VIGIL_IT_JENKINS_TOKEN
+        if ((Invoke-Vigil secret list).Text -notmatch 'JENKINS_API_TOKEN') {
+            $kenv = $true
+            Write-Host '  note  jenkins: this logon cannot use the secret store (it has no password): the jobs take the token by env:VIGIL_IT_JENKINS_TOKEN'
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*JENKINS_API_TOKEN=)secret:JENKINS_API_TOKEN', '${1}env:VIGIL_IT_JENKINS_TOKEN'))
+        }
+        Set-Env JENKINS_URL $env:VIGIL_IT_JENKINS_URL
+        Set-Env JENKINS_USER ([string]$env:VIGIL_IT_JENKINS_USER)
+        $r = Invoke-Vigil precheck
+        Test-Equal 'jenkins: precheck is happy' '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $kjobs) { if ((Invoke-KJob $j) -ne '0') { $failed += $j } }
+        Test-Equal 'jenkins: every job runs' '' ($failed -join ' ')
+        foreach ($j in $failed) { Show-LastRun "jenkins_$j" }
+        Test-Equal 'jenkins: answers' '1' (Get-Printed jenkins_status up)
+        Test-Equal 'jenkins: nodes offline seen' 'yes' (Test-Between jenkins_status nodes_offline '' 1 1e9)
+        Test-Equal 'jenkins: failing jobs seen' 'yes' (Test-Between jenkins_jobs failing '' 1 1e9)
+        Show-LastRun jenkins_status
+        if ($kenv) { $keep = $env:VIGIL_IT_JENKINS_TOKEN; $env:VIGIL_IT_JENKINS_TOKEN = 'not-the-token' }
+        else { Set-VigilSecret JENKINS_API_TOKEN 'not-the-token' }
+        Test-Equal 'jenkins: a wrong token fails the run' '2' (Invoke-KJob status)
+        Test-Equal 'jenkins: and says why' 'True' (Test-Said jenkins_status 'Jenkins refused the login (HTTP 401)')
+        if ($kenv) { $env:VIGIL_IT_JENKINS_TOKEN = $keep } else { Set-VigilSecret JENKINS_API_TOKEN $env:VIGIL_IT_JENKINS_TOKEN }
+        Set-Env JENKINS_URL 'http://127.0.0.1:1'
+        Test-Equal 'jenkins: a Jenkins that does not answer still runs' '0' (Invoke-KJob status)
+        Test-Equal 'jenkins: and reads as up 0' '0' (Get-Printed jenkins_status up)
+        Set-Env JENKINS_URL $env:VIGIL_IT_JENKINS_URL
+        [void](Invoke-KJob status)
+        [void](Invoke-KJob jobs)
+        $leaks = @()
+        foreach ($d in 'logs', 'state', 'spool', 'metrics') {
+            foreach ($f in Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue) {
+                if ([System.IO.File]::ReadAllText($f.FullName).Contains($env:VIGIL_IT_JENKINS_TOKEN)) { $leaks += $f.Name }
+            }
+        }
+        if ([System.IO.File]::ReadAllText($cfg).Contains($env:VIGIL_IT_JENKINS_TOKEN)) { $leaks += 'vigil.config' }
+        Test-Equal 'jenkins: the token is written nowhere' '' ($leaks -join ' ')
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match '(?m)^jenkins_jobs_failing\{') { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal 'jenkins: metrics reach the backend' 'True' ([string](($prom -match '(?m)^jenkins_up\{') -and ($prom -match '(?m)^jenkins_jobs_failing\{')))
     }
 
     # --- rabbitmq ----------------------------------------------------------
