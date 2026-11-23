@@ -35,7 +35,10 @@
 #   consumers                 its consumers
 #   utilisation_pct           how much of the time its consumers can take
 #                             a message at once (100: they keep up; low:
-#                             they are slow, or their prefetch too small)
+#                             they are slow, or their prefetch too small).
+#                             Classic queues; a quorum queue says 100
+#                             while it has a consumer, slow or not: read
+#                             its ready rising instead
 #   bytes                     the size of its messages
 #   memory_bytes              the memory its process holds
 #   oldest_seconds            how old its oldest message is (when
@@ -118,7 +121,7 @@ while IFS= read -r entry; do
             if (!match(line, key "=\"[^\"]*\"")) return ""
             return substr(line, RSTART + length(key) + 2, RLENGTH - length(key) - 3)
         }
-        function safe(s) { gsub(/[^A-Za-z0-9@._:\/+-]/, "_", s); return s == "" ? "none" : substr(s, 1, 120) }
+        function safe(s) { gsub(/[^A-Za-z0-9@._:\/+-]/, "_", s); return (s == "" ? "none" : substr(s, 1, 120)) }
         /^rabbitmq_detailed_queue_/ {
             base = $1; sub(/[{].*/, "", base); sub(/^rabbitmq_detailed_queue_/, "", base)
             q = label($1, "vhost") SUBSEP label($1, "queue")
@@ -152,7 +155,7 @@ while IFS= read -r entry; do
             printf "metric without_consumers %d %s\n", idle, tag
             for (i = 1; i <= k && i <= 100; i++) {
                 q = qs[i]; split(q, p, SUBSEP)
-                t = sprintf("%s vhost=%s queue=%s type=%s", tag, safe(p[1]), safe(p[2]), type[q] == "" ? "unknown" : type[q])
+                t = sprintf("%s vhost=%s queue=%s type=%s", tag, safe(p[1]), safe(p[2]), (type[q] == "" ? "unknown" : type[q]))
                 printf "metric messages %.0f %s\n", v[q, "messages"], t
                 printf "metric ready %.0f %s\n", v[q, "messages_ready"], t
                 printf "metric unacked %.0f %s\n", v[q, "messages_unacked"], t
@@ -167,7 +170,7 @@ while IFS= read -r entry; do
                 if ((q, "exchange_messages_published_total") in v) printf "metric published_count %.0f %s\n", v[q, "exchange_messages_published_total"], t
             }
             printf "metric queues_not_shown %d %s\n", (k > 100 ? k - 100 : 0), tag
-        }'
+        }' || rc=1
 done << EOF
 $(printf '%s' "$targets" | tr ';' '\n')
 EOF

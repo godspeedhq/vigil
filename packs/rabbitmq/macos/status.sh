@@ -126,7 +126,7 @@ while IFS= read -r entry; do
             if (!match(line, key "=\"[^\"]*\"")) return ""
             s = substr(line, RSTART + length(key) + 2, RLENGTH - length(key) - 3)
             gsub(/[^A-Za-z0-9@._:\/+-]/, "_", s)
-            return s == "" ? "none" : s
+            return (s == "" ? "none" : s)
         }
         /^#/ { next }
         {
@@ -138,7 +138,7 @@ while IFS= read -r entry; do
         function out(m, b) { if (b in seen) printf "metric %s %.0f %s\n", m, sum[b], tag }
         function pct(m, a, b) { if ((a in seen) && (b in seen) && sum[b] > 0) printf "metric %s %.2f %s\n", m, 100 * sum[a] / sum[b], tag }
         END {
-            printf "metric version 1 %s rabbitmq=%s erlang=%s rabbitmq_node=%s cluster=%s\n", tag, rv == "" ? "unknown" : rv, ev == "" ? "unknown" : ev, nn == "" ? "unknown" : nn, cl == "" ? "unknown" : cl
+            printf "metric version 1 %s rabbitmq=%s erlang=%s rabbitmq_node=%s cluster=%s\n", tag, (rv == "" ? "unknown" : rv), (ev == "" ? "unknown" : ev), (nn == "" ? "unknown" : nn), (cl == "" ? "unknown" : cl)
             out("memory_used_bytes", "rabbitmq_process_resident_memory_bytes")
             out("memory_limit_bytes", "rabbitmq_resident_memory_limit_bytes")
             pct("memory_pct", "rabbitmq_process_resident_memory_bytes", "rabbitmq_resident_memory_limit_bytes")
@@ -161,7 +161,7 @@ while IFS= read -r entry; do
             out("consumers", "rabbitmq_consumers")
             out("queues", "rabbitmq_queues")
             out("publishers", "rabbitmq_global_publishers")
-        }'
+        }' || rc=1
 done << EOF
 $(printf '%s' "$targets" | tr ';' '\n')
 EOF

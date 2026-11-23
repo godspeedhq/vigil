@@ -111,7 +111,7 @@ while IFS= read -r entry; do
             if (!match(line, key "=\"[^\"]*\"")) return ""
             return substr(line, RSTART + length(key) + 2, RLENGTH - length(key) - 3)
         }
-        function safe(s) { gsub(/[^A-Za-z0-9@._:\/+-]/, "_", s); return s == "" ? "none" : substr(s, 1, 120) }
+        function safe(s) { gsub(/[^A-Za-z0-9@._:\/+-]/, "_", s); return (s == "" ? "none" : substr(s, 1, 120)) }
         /^rabbitmq_detailed_queue_info[{]/ {
             q = label($1, "vhost") SUBSEP label($1, "queue")
             if (label($1, "queue_type") == "rabbit_quorum_queue") role[q] = label($1, "membership")
@@ -143,7 +143,7 @@ while IFS= read -r entry; do
             printf "metric leaders %d %s\n", lead, tag
             for (i = 1; i <= k && i <= 100; i++) {
                 q = qs[i]; split(q, p, SUBSEP)
-                r = role[q] == "" ? "member" : role[q]
+                r = (role[q] == "" ? "member" : role[q])
                 if (p[1] == "system") t = sprintf("%s system=%s", tag, safe(p[2]))
                 else t = sprintf("%s vhost=%s queue=%s role=%s", tag, safe(p[1]), safe(p[2]), r)
                 printf "metric term %.0f %s\n", v[q, "term"], t
@@ -155,7 +155,7 @@ while IFS= read -r entry; do
                 if ((q, "num_segments") in v) printf "metric segments %.0f %s\n", v[q, "num_segments"], t
             }
             printf "metric members_not_shown %d %s\n", (k > 100 ? k - 100 : 0), tag
-        }'
+        }' || rc=1
 done << EOF
 $(printf '%s' "$targets" | tr ';' '\n')
 EOF

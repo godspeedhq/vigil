@@ -17,12 +17,15 @@
     /metrics/memory-breakdown, port 15692), from RABBITMQ_TARGETS
     (<name>=<address> separated by ;): RabbitMQ's own account of its memory,
     by what holds it. rabbitmq_status memory_pct says how near the watermark
-    it is; this says why.
+    it is; this says why. RabbitMQ 4.0 and later serve it; 3.x does not, and
+    there this job says served 0.
 
     Metrics:
       nodes                     the nodes named in RABBITMQ_TARGETS
       up                        1 when the node's page answers, else 0,
                                 tagged node=<its name>
+      served                    1 when the node serves its memory breakdown
+                                (RabbitMQ 4.0 on), 0 when it does not (3.x)
       connection_readers_bytes  connections' readers (one per connection)
       connection_writers_bytes  connections' writers
       channels_bytes            channels
@@ -158,10 +161,36 @@ $parts = @(
     @('allocated_unused_bytes', 'rabbitmq_memory_runtime_allocated_unused_bytes'),
     @('reserved_unallocated_bytes', 'rabbitmq_memory_runtime_reserved_unallocated_bytes'))
 foreach ($entry in $targets) {
-    $t = Read-Target $entry '/metrics/memory-breakdown'
-    if ($t -isnot [hashtable]) { $t | Where-Object { $_ -is [string] } | ForEach-Object { Write-Output $_ }; continue }
-    $tag = "node=$($t.Name)"
-    $s = Get-Sums $t.Page
+    $i = $entry.IndexOf('=')
+    if ($i -lt 1 -or $i -eq $entry.Length - 1) {
+        [Console]::Error.WriteLine("memory: RABBITMQ_TARGETS: '$entry' is not <name>=<address>, as in rabbit1=http://127.0.0.1:15692")
+        exit 1
+    }
+    $name = $entry.Substring(0, $i).Trim() -replace '[^A-Za-z0-9@._:-]', '_'
+    $url = $entry.Substring($i + 1).Trim().TrimEnd('/')
+    $tag = "node=$name"
+    $page = $null; $missing = $false
+    try { $page = @(([string](Invoke-WebRequest -Uri "$url/metrics/memory-breakdown" -UseBasicParsing -TimeoutSec 30).Content) -split "`n" | ForEach-Object { $_.TrimEnd("`r") }) }
+    catch { if ($_.Exception.Response) { $missing = $true } }
+    if ($missing) {
+        # RabbitMQ 3.x has no breakdown page: up, and none served.
+        $main = Get-Page "$url/metrics" 2> $null
+        if ($main -isnot [string] -and $main -and ($main | Where-Object { $_.StartsWith('rabbitmq_build_info') })) {
+            Write-Output "metric up 1 $tag"; Write-Output "metric served 0 $tag"; continue
+        }
+        Write-Output "metric up 0 $tag"
+        [Console]::Error.WriteLine("memory: ${name}: $url/metrics/memory-breakdown did not give a page")
+        $code = 1; continue
+    }
+    if ($null -eq $page) { Write-Output "metric up 0 $tag"; continue }
+    if (-not ($page | Where-Object { $_.StartsWith('rabbitmq_build_info') })) {
+        Write-Output "metric up 0 $tag"
+        [Console]::Error.WriteLine("memory: ${name}: $url/metrics/memory-breakdown answers, but is not RabbitMQ's Prometheus page")
+        $code = 1; continue
+    }
+    Write-Output "metric up 1 $tag"
+    Write-Output "metric served 1 $tag"
+    $s = Get-Sums $page
     foreach ($part in $parts) {
         $found = $false; $sum = 0.0
         foreach ($b in $part[1..($part.Count - 1)]) { if ($s.ContainsKey($b)) { $found = $true; $sum += $s[$b] } }

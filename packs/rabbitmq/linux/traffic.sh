@@ -164,7 +164,7 @@ while IFS= read -r entry; do
             out("queues_deleted_count", "rabbitmq_queues_deleted_total")
             out("logins_count", "rabbitmq_auth_attempts_total")
             out("logins_failed_count", "rabbitmq_auth_attempts_failed_total")
-        }'
+        }' || rc=1
 done << EOF
 $(printf '%s' "$targets" | tr ';' '\n')
 EOF

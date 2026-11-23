@@ -138,7 +138,7 @@ while IFS= read -r entry; do
             out("queue_index_writes_count", "rabbitmq_queue_index_write_ops_total")
             out("metadata_disk_tx_count", "rabbitmq_schema_db_disk_tx_total")
             out("metadata_ram_tx_count", "rabbitmq_schema_db_ram_tx_total")
-        }'
+        }' || rc=1
 done << EOF
 $(printf '%s' "$targets" | tr ';' '\n')
 EOF

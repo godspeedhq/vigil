@@ -36,7 +36,10 @@
       consumers                 its consumers
       utilisation_pct           how much of the time its consumers can take
                                 a message at once (100: they keep up; low:
-                                they are slow, or their prefetch too small)
+                                they are slow, or their prefetch too small).
+                                Classic queues; a quorum queue says 100
+                                while it has a consumer, slow or not: read
+                                its ready rising instead
       bytes                     the size of its messages
       memory_bytes              the memory its process holds
       oldest_seconds            how old its oldest message is (when

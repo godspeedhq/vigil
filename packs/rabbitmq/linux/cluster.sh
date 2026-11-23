@@ -112,7 +112,7 @@ while IFS= read -r entry; do
             if (!match(line, key "=\"[^\"]*\"")) return ""
             return substr(line, RSTART + length(key) + 2, RLENGTH - length(key) - 3)
         }
-        function safe(s) { gsub(/[^A-Za-z0-9@._:\/+-]/, "_", s); return s == "" ? "none" : substr(s, 1, 120) }
+        function safe(s) { gsub(/[^A-Za-z0-9@._:\/+-]/, "_", s); return (s == "" ? "none" : substr(s, 1, 120)) }
         /^#/ { next }
         /^erlang_vm_dist_/ {
             base = $1; sub(/[{].*/, "", base); p = label($1, "peer")
@@ -152,7 +152,7 @@ while IFS= read -r entry; do
             }
             if (ex > 0) printf "metric exchanges %d %s\n", ex, tag
             if (has_bi) printf "metric bindings %.0f %s\n", bi, tag
-        }'
+        }' || rc=1
 done << EOF
 $(printf '%s' "$targets" | tr ';' '\n')
 EOF

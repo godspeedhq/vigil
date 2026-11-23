@@ -66,8 +66,11 @@ for i in $(seq 1 40); do
     admin publish message --routing-key idle --payload "waiting $i"
     admin publish message --routing-key capped --payload "capped $i"
     admin publish message --routing-key late --payload "late $i"
-    admin publish message --exchange amq.direct --routing-key nowhere --payload "lost $i"
 done
+# Messages no queue takes, from an AMQP client (RabbitMQ counts a
+# protocol's publishes; rabbitmqadmin's, over HTTP, it does not).
+docker run --rm --network "$net" pivotalrabbitmq/perf-test:latest --uri amqp://guest:guest@rmq-a:5672 \
+    --exchange vigil-nowhere --routing-key nowhere --producers 1 --consumers 0 --pmessages 40 > /dev/null 2>&1
 # A quorum queue, fed faster than its one consumer takes from it.
 docker run -d --name vigil-rabbitmq-perf --network "$net" pivotalrabbitmq/perf-test:latest \
     --uri amqp://guest:guest@rmq-a:5672 --queue orders --quorum-queue --producers 2 --consumers 1 \
@@ -109,7 +112,7 @@ check 'a: the queue nobody reads, 40 waiting' 40 "$(val queues messages 'node=a 
 check 'a: counted without consumers' yes "$(least queues without_consumers 'node=a$' 1)"
 check 'a: the quorum queue the deepest' orders "$(grep -E '^metric messages [^ ]+ node=a ' "$work/queues.out" | head -n 1 | sed 's/.* queue=\([^ ]*\) .*/\1/')"
 check 'a: and of type quorum' 1 "$(grep -c '^metric messages [^ ]* node=a vhost=/ queue=orders type=quorum$' "$work/queues.out")"
-check 'a: its consumer, slow: utilisation below 50' yes "$(most queues utilisation_pct 'node=a vhost=/ queue=orders ' 50)"
+check 'a: its consumer, slow: thousands ready' yes "$(least queues ready 'node=a vhost=/ queue=orders ' 2000)"
 check 'a: the queue of 10 at most holds 10' 10 "$(val queues messages 'node=a vhost=/ queue=capped ')"
 check 'a: the others dead-lettered, for its length' yes "$(least traffic dead_lettered_count 'node=a reason=maxlen' 30)"
 check 'a: and those that expired' yes "$(least traffic dead_lettered_count 'node=a reason=expired' 40)"

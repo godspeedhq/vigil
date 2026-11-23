@@ -16,12 +16,15 @@
 # /metrics/memory-breakdown, port 15692) with curl, from RABBITMQ_TARGETS
 # (<name>=<address> separated by ;): RabbitMQ's own account of its memory,
 # by what holds it. rabbitmq_status memory_pct says how near the watermark
-# it is; this says why.
+# it is; this says why. RabbitMQ 4.0 and later serve it; 3.x does not, and
+# there this job says served 0.
 #
 # Metrics:
 #   nodes                     the nodes named in RABBITMQ_TARGETS
 #   up                        1 when the node's page answers, else 0,
 #                             tagged node=<its name>
+#   served                    1 when the node serves its memory breakdown
+#                             (RabbitMQ 4.0 on), 0 when it does not (3.x)
 #   connection_readers_bytes  connections' readers (one per connection)
 #   connection_writers_bytes  connections' writers
 #   channels_bytes            channels
@@ -100,11 +103,22 @@ while IFS= read -r entry; do
     fi
     name=$(printf '%s' "$name" | tr -c 'A-Za-z0-9@._:-' '_')
     url=${url%/}
-    page=$(get "$url/metrics/memory-breakdown")
+    page=$(get "$url/metrics/memory-breakdown" 2> /dev/null)
     case $? in
         0) ;;
         2) echo "metric up 0 node=$name"; continue ;;
-        *) echo "metric up 0 node=$name"; echo "memory: $name: $url/metrics/memory-breakdown did not give a page" >&2; rc=1; continue ;;
+        *)
+            # RabbitMQ 3.x has no breakdown page: up, and none served.
+            if get "$url/metrics" 2> /dev/null | grep -q '^rabbitmq_build_info'; then
+                echo "metric up 1 node=$name"
+                echo "metric served 0 node=$name"
+                continue
+            fi
+            echo "metric up 0 node=$name"
+            echo "memory: $name: $url/metrics/memory-breakdown did not give a page" >&2
+            rc=1
+            continue
+            ;;
     esac
     if ! printf '%s\n' "$page" | grep -q '^rabbitmq_build_info'; then
         echo "metric up 0 node=$name"
@@ -113,6 +127,7 @@ while IFS= read -r entry; do
         continue
     fi
     echo "metric up 1 node=$name"
+    echo "metric served 1 node=$name"
     printf '%s\n' "$page" | awk -v tag="node=$name" '
         /^#/ { next }
         { base = $1; sub(/[{].*/, "", base); sum[base] += $2; seen[base] = 1 }
@@ -145,7 +160,7 @@ while IFS= read -r entry; do
             out("other_system_bytes", "rabbitmq_memory_other_system_bytes")
             out("allocated_unused_bytes", "rabbitmq_memory_runtime_allocated_unused_bytes")
             out("reserved_unallocated_bytes", "rabbitmq_memory_runtime_reserved_unallocated_bytes")
-        }'
+        }' || rc=1
 done << EOF
 $(printf '%s' "$targets" | tr ';' '\n')
 EOF
