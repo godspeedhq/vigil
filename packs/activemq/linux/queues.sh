@@ -62,6 +62,23 @@
 #                                 the same
 #   forwarded_count               messages forwarded to another broker, tagged
 #                                 the same
+#   store_bytes                   the size of its messages in the store (6.x),
+#                                 tagged the same
+#   temp_pct                      of its temp limit (non-persistent messages
+#                                 on disk), in use, tagged the same
+#   cursor_full                   1 when its cursor is full: no more messages
+#                                 paged in to dispatch, tagged the same
+#   blocked_mean_seconds          how long a held-back send waited, on
+#                                 average, tagged the same
+#   network_enqueued_count        messages that came from another broker,
+#                                 tagged the same
+#   network_dequeued_count        messages that went on to another broker,
+#                                 tagged the same
+#   message_max_bytes             the largest message, tagged the same
+#   duplicates_count              duplicates found in the store, tagged the
+#                                 same
+#   uncommitted_exceeded_count    transactions refused for holding too many
+#                                 messages, tagged the same
 #   size_not_shown                of size, those past the first 100, left out
 #                                 (the largest are shown)
 #   enqueued_count_not_shown      of enqueued_count, those past the first 100,
@@ -102,6 +119,29 @@
 #                                 out (the largest are shown)
 #   forwarded_count_not_shown     of forwarded_count, those past the first
 #                                 100, left out (the largest are shown)
+#   store_bytes_not_shown         of store_bytes, those past the first 100,
+#                                 left out (the largest are shown)
+#   temp_pct_not_shown            of temp_pct, those past the first 100, left
+#                                 out (the largest are shown)
+#   cursor_full_not_shown         of cursor_full, those past the first 100,
+#                                 left out (the largest are shown)
+#   blocked_mean_seconds_not_shown
+#                                 of blocked_mean_seconds, those past the
+#                                 first 100, left out (the largest are shown)
+#   network_enqueued_count_not_shown
+#                                 of network_enqueued_count, those past the
+#                                 first 100, left out (the largest are shown)
+#   network_dequeued_count_not_shown
+#                                 of network_dequeued_count, those past the
+#                                 first 100, left out (the largest are shown)
+#   message_max_bytes_not_shown   of message_max_bytes, those past the first
+#                                 100, left out (the largest are shown)
+#   duplicates_count_not_shown    of duplicates_count, those past the first
+#                                 100, left out (the largest are shown)
+#   uncommitted_exceeded_count_not_shown
+#                                 of uncommitted_exceeded_count, those past
+#                                 the first 100, left out (the largest are
+#                                 shown)
 #
 # Example output (the rest are in the same form):
 #   (draft: no example yet)

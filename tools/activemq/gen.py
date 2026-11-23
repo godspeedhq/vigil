@@ -27,6 +27,7 @@ DLQ = 'org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destin
 T = 'org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*'
 NOADV = '-destinationName=ActiveMQ.Advisory.*'
 SUB = 'org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*'
+PROD = 'org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*'
 
 
 def qrows(p, words, tagdoc):
@@ -50,6 +51,15 @@ def qrows(p, words, tagdoc):
         ('message_mean_bytes', p, 'AverageMessageSize', w, 'the mean size of a message, tagged the same'),
         ('paused', p, 'Paused', w, '1 when it is paused (no dispatch), tagged the same'),
         ('forwarded_count', p, 'ForwardCount', w, 'messages forwarded to another broker, tagged the same'),
+        ('store_bytes', p, 'StoreMessageSize', w, 'the size of its messages in the store (6.x), tagged the same'),
+        ('temp_pct', p, 'TempUsagePercentUsage', w, 'of its temp limit (non-persistent messages on disk), in use, tagged the same'),
+        ('cursor_full', p, 'CursorFull', w, '1 when its cursor is full: no more messages paged in to dispatch, tagged the same'),
+        ('blocked_mean_seconds', p, 'AverageBlockedTime', w + ' *0.001', 'how long a held-back send waited, on average, tagged the same'),
+        ('network_enqueued_count', p, 'NetworkEnqueues', w, 'messages that came from another broker, tagged the same'),
+        ('network_dequeued_count', p, 'NetworkDequeues', w, 'messages that went on to another broker, tagged the same'),
+        ('message_max_bytes', p, 'MaxMessageSize', w, 'the largest message, tagged the same'),
+        ('duplicates_count', p, 'DuplicateFromStoreCount', w, 'duplicates found in the store, tagged the same'),
+        ('uncommitted_exceeded_count', p, 'MaxUncommittedExceededCount', w, 'transactions refused for holding too many messages, tagged the same'),
     ]
 
 
@@ -150,6 +160,17 @@ JOBS = [
          watch="slow 1; pending growing on one.",
          act="active 0 with pending growing: an offline durable subscriber keeps every message for it. Bring "
              "it back, or remove the subscription."),
+    dict(job='producers', metric_name='activemq.producer', when='run_every   = 2m', max_runtime='2m', title="an ActiveMQ broker's producers, and those held back",
+         what="Reports each producer: whether flow control holds it back now, how long it has been held back "
+              "and its share of the time, and the messages it sent. The 100 held back longest first.",
+         rows=[('blocked_seconds', PROD, 'TotalTimeBlocked', 'destinationName clientId top *0.001', 'how long it has been held back by flow control, added up, tagged destinationName=<its destination> and clientId=<its client>; the longest first'),
+               ('blocked', PROD, 'ProducerBlocked', 'destinationName clientId', '1 when flow control holds it back now, tagged the same'),
+               ('blocked_pct', PROD, 'PercentageBlocked', 'destinationName clientId', 'of its time, held back, tagged the same'),
+               ('sent_count', PROD, 'SentCount', 'destinationName clientId', 'messages it sent, tagged the same')],
+         healthy="blocked 0 for every producer.",
+         watch="blocked_pct climbing on one producer.",
+         act="blocked 1 for minutes: its destination is at its memory limit (activemq_queues memory_pct), and the "
+             "producer waits; nothing reads what it sends."),
     dict(job='connections', metric_name='activemq.connection', when='run_every   = 2m', max_runtime='2m', title="an ActiveMQ broker's client connections and network bridges",
          what="Reports each client connection (the 100 with the most waiting to be dispatched): messages "
               "waiting to go to it, whether it is blocked or slow, its open transactions and the oldest's age; "

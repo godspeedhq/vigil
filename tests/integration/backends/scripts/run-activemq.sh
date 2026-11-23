@@ -96,6 +96,8 @@ for s in a518 a519 a62; do
     amq "$s" 60 activemq producer --brokerUrl $u --destination topic://prices --messageCount 500
     # Flow control: non-persistent messages into a queue of 1 MB, nobody reading.
     amq "$s" 25 activemq producer --brokerUrl $u --destination queue://bulk --persistent false --messageSize 10000 --messageCount 100000
+    # And another, kept connected while the jobs run: held back now.
+    dc exec -T -d "$s" timeout 600 activemq producer --brokerUrl $u --destination queue://bulk --persistent false --messageSize 10000 --messageCount 100000 > /dev/null 2>&1
     # A slow consumer, kept connected: messages in flight, waiting on it.
     dc exec -T -d "$s" timeout 600 activemq consumer --brokerUrl $u --destination queue://orders --messageCount 3 --sleep 120000 > /dev/null 2>&1
 done
@@ -130,6 +132,9 @@ for t in a518:5.18 a519:5.19 a62:6.2; do
     check "$n: into the dead letter queue" yes "$(least dlq size "broker=$n .*destinationName=ActiveMQ.DLQ\$" 50)"
     check "$n: sends held back by flow control" yes "$(least queues blocked_sends_count "broker=$n .*destinationName=bulk\$" 1)"
     check "$n: that queue's memory, full" yes "$(least queues memory_pct "broker=$n .*destinationName=bulk\$" 90)"
+    check "$n: a producer held back now" 1 "$(grep -E "^metric blocked [^ ]+ broker=$n .*destinationName=bulk " "$work/producers.out" | awk '{ print $3 }' | sort -r | head -n 1)"
+    check "$n: and how long" yes "$(least producers blocked_seconds "broker=$n .*destinationName=bulk " 1)"
+    check "$n: the orders queue's size in the store" yes "$(least queues store_bytes "broker=$n .*destinationName=orders\$" 1000)"
     check "$n: messages in flight to the slow consumer" yes "$(least queues in_flight "broker=$n .*destinationName=orders\$" 1)"
     check "$n: its consumer" 1 "$(val queues consumers "broker=$n .*destinationName=orders\$")"
     check "$n: the durable subscriber gone" 0 "$(val subscribers active "broker=$n .*clientId=sub-billing")"
