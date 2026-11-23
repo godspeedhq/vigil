@@ -1,0 +1,298 @@
+pack     jetty 1.0.0, Vigil commit 1ccdd05 (a copy); its jar built there by tools/release/client-jar.sh
+servers  run-jetty.sh's Jettys on the Fedora test machine (9.4 on Java 11, 11.0 on Java 17, 12.0 and 12.1 on Java 21, each with trouble on purpose; JMX with a password and TLS), through SSH tunnels
+
+######## the jar built, every job, then on a JRE, then tests/integration/service-packs.sh through Vigil
+
+host     Bankoles-MacBook-Air, macOS 12.7.6, bash 3.2.57(1)-release
+java     openjdk version "21.0.13.1" 2026-11-17 LTS
+jar      _probe.jar 1c3abd00acbfa9e4fbe4985965706c70f76d99adbf5a7ce6cc96ee0e3f87be36 (javac 21.0.13.1)
+servers  j94: jmxs=localhost:19311; j11: jmxs=localhost:19312; j120: jmxs=localhost:19313; j121: jmxs=localhost:19314
+
+# Every job, from the jar.
+
+$ bash packs/jetty/status.sh
+metric jmx_up 1 jetty=j94 jmx=localhost:19311
+metric version 1 jetty=j94 jmx=localhost:19311 version=9.4.58.v20250814
+metric up 1 jetty=j94 jmx=localhost:19311
+metric uptime_seconds 153 jetty=j94 jmx=localhost:19311
+metric app_up 1 jetty=j94 jmx=localhost:19311 context=broken
+metric app_up 1 jetty=j94 jmx=localhost:19311 context=shop
+metric low_on_resources 1 jetty=j94 jmx=localhost:19311
+metric low_since_seconds 138 jetty=j94 jmx=localhost:19311
+metric jmx_up 1 jetty=j11 jmx=localhost:19312
+metric version 1 jetty=j11 jmx=localhost:19312 version=11.0.26
+metric up 1 jetty=j11 jmx=localhost:19312
+metric uptime_seconds 152 jetty=j11 jmx=localhost:19312
+metric app_up 1 jetty=j11 jmx=localhost:19312 context=broken
+metric app_up 1 jetty=j11 jmx=localhost:19312 context=shop
+metric low_on_resources 1 jetty=j11 jmx=localhost:19312
+metric low_since_seconds 137 jetty=j11 jmx=localhost:19312
+metric jmx_up 1 jetty=j120 jmx=localhost:19313
+metric version 1 jetty=j120 jmx=localhost:19313 version=12.0.41
+metric up 1 jetty=j120 jmx=localhost:19313
+metric app_up 1 jetty=j120 jmx=localhost:19313 context=broken
+metric app_up 1 jetty=j120 jmx=localhost:19313 context=shop
+metric low_on_resources 0 jetty=j120 jmx=localhost:19313
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric version 1 jetty=j121 jmx=localhost:19314 version=12.1.15
+metric up 1 jetty=j121 jmx=localhost:19314
+metric app_up 1 jetty=j121 jmx=localhost:19314 context=_broken
+metric app_up 1 jetty=j121 jmx=localhost:19314 context=_shop
+metric low_on_resources 0 jetty=j121 jmx=localhost:19314
+  PASS  jetty_status runs
+
+$ bash packs/jetty/requests.sh
+metric jmx_up 1 jetty=j94 jmx=localhost:19311
+metric requests_count 82 jetty=j94 jmx=localhost:19311
+metric active 22 jetty=j94 jmx=localhost:19311
+metric active_max 22 jetty=j94 jmx=localhost:19311
+metric responses_1xx_count 0 jetty=j94 jmx=localhost:19311
+metric responses_2xx_count 51 jetty=j94 jmx=localhost:19311
+metric responses_3xx_count 0 jetty=j94 jmx=localhost:19311
+metric responses_4xx_count 3 jetty=j94 jmx=localhost:19311
+metric responses_5xx_count 3 jetty=j94 jmx=localhost:19311
+metric failures_count 0 jetty=j94 jmx=localhost:19311
+metric thrown_count 3 jetty=j94 jmx=localhost:19311
+metric dispatched_count 82 jetty=j94 jmx=localhost:19311
+metric dispatched_active 22 jetty=j94 jmx=localhost:19311
+metric async_count 0 jetty=j94 jmx=localhost:19311
+metric async_waiting 0 jetty=j94 jmx=localhost:19311
+metric expired_count 0 jetty=j94 jmx=localhost:19311
+metric sent_bytes 306 jetty=j94 jmx=localhost:19311
+metric slowest_seconds 3.862 jetty=j94 jmx=localhost:19311
+metric mean_seconds 0.0688 jetty=j94 jmx=localhost:19311
+metric total_seconds 4.13 jetty=j94 jmx=localhost:19311
+metric jmx_up 1 jetty=j11 jmx=localhost:19312
+metric requests_count 82 jetty=j11 jmx=localhost:19312
+metric active 22 jetty=j11 jmx=localhost:19312
+metric active_max 22 jetty=j11 jmx=localhost:19312
+metric responses_1xx_count 0 jetty=j11 jmx=localhost:19312
+metric responses_2xx_count 51 jetty=j11 jmx=localhost:19312
+metric responses_3xx_count 0 jetty=j11 jmx=localhost:19312
+metric responses_4xx_count 3 jetty=j11 jmx=localhost:19312
+metric responses_5xx_count 3 jetty=j11 jmx=localhost:19312
+metric failures_count 0 jetty=j11 jmx=localhost:19312
+metric thrown_count 3 jetty=j11 jmx=localhost:19312
+metric dispatched_count 82 jetty=j11 jmx=localhost:19312
+metric dispatched_active 22 jetty=j11 jmx=localhost:19312
+metric async_count 0 jetty=j11 jmx=localhost:19312
+metric async_waiting 0 jetty=j11 jmx=localhost:19312
+metric expired_count 0 jetty=j11 jmx=localhost:19312
+metric sent_bytes 306 jetty=j11 jmx=localhost:19312
+metric slowest_seconds 1.637 jetty=j11 jmx=localhost:19312
+metric mean_seconds 0.031 jetty=j11 jmx=localhost:19312
+metric total_seconds 1.859 jetty=j11 jmx=localhost:19312
+... (74 lines)
+  PASS  jetty_requests runs
+
+$ bash packs/jetty/threads.sh
+metric jmx_up 1 jetty=j94 jmx=localhost:19311
+metric threads 24 jetty=j94 jmx=localhost:19311 id=0
+metric busy 24 jetty=j94 jmx=localhost:19311 id=0
+metric idle 0 jetty=j94 jmx=localhost:19311 id=0
+metric ready 0 jetty=j94 jmx=localhost:19311 id=0
+metric utilized 22 jetty=j94 jmx=localhost:19311 id=0
+metric max_threads 24 jetty=j94 jmx=localhost:19311 id=0
+metric min_threads 4 jetty=j94 jmx=localhost:19311 id=0
+metric queue 22 jetty=j94 jmx=localhost:19311 id=0
+metric utilization_pct 100 jetty=j94 jmx=localhost:19311 id=0
+metric low_on_threads 1 jetty=j94 jmx=localhost:19311 id=0
+metric leased 2 jetty=j94 jmx=localhost:19311 id=0
+metric reserved 0 jetty=j94 jmx=localhost:19311 id=0
+metric max_available 22 jetty=j94 jmx=localhost:19311 id=0
+metric jmx_up 1 jetty=j11 jmx=localhost:19312
+metric threads 24 jetty=j11 jmx=localhost:19312 id=0
+metric busy 24 jetty=j11 jmx=localhost:19312 id=0
+metric idle 0 jetty=j11 jmx=localhost:19312 id=0
+metric ready 0 jetty=j11 jmx=localhost:19312 id=0
+metric utilized 22 jetty=j11 jmx=localhost:19312 id=0
+metric max_threads 24 jetty=j11 jmx=localhost:19312 id=0
+metric min_threads 4 jetty=j11 jmx=localhost:19312 id=0
+metric queue 20 jetty=j11 jmx=localhost:19312 id=0
+metric utilization_pct 100 jetty=j11 jmx=localhost:19312 id=0
+metric low_on_threads 1 jetty=j11 jmx=localhost:19312 id=0
+metric leased 2 jetty=j11 jmx=localhost:19312 id=0
+metric reserved 0 jetty=j11 jmx=localhost:19312 id=0
+metric max_available 22 jetty=j11 jmx=localhost:19312 id=0
+metric jmx_up 1 jetty=j120 jmx=localhost:19313
+metric threads 23 jetty=j120 jmx=localhost:19313 id=0
+metric busy 18 jetty=j120 jmx=localhost:19313 id=0
+metric idle 3 jetty=j120 jmx=localhost:19313 id=0
+metric ready 5 jetty=j120 jmx=localhost:19313 id=0
+metric utilized 16 jetty=j120 jmx=localhost:19313 id=0
+metric max_threads 24 jetty=j120 jmx=localhost:19313 id=0
+metric min_threads 4 jetty=j120 jmx=localhost:19313 id=0
+metric queue 0 jetty=j120 jmx=localhost:19313 id=0
+metric utilization_pct 72.7273 jetty=j120 jmx=localhost:19313 id=0
+metric low_on_threads 0 jetty=j120 jmx=localhost:19313 id=0
+metric leased 2 jetty=j120 jmx=localhost:19313 id=0
+... (56 lines)
+  PASS  jetty_threads runs
+
+$ bash packs/jetty/connections.sh
+metric jmx_up 1 jetty=j94 jmx=localhost:19311
+metric open 23 jetty=j94 jmx=localhost:19311
+metric open_max 23 jetty=j94 jmx=localhost:19311
+metric opened_count 83 jetty=j94 jmx=localhost:19311
+metric duration_max_seconds 4.286 jetty=j94 jmx=localhost:19311
+metric duration_mean_seconds 0.0804 jetty=j94 jmx=localhost:19311
+metric received_bytes 5517 jetty=j94 jmx=localhost:19311
+metric sent_bytes 41507 jetty=j94 jmx=localhost:19311
+metric received_messages_count 60 jetty=j94 jmx=localhost:19311
+metric sent_messages_count 60 jetty=j94 jmx=localhost:19311
+metric limited 23 jetty=j94 jmx=localhost:19311
+metric limit 40 jetty=j94 jmx=localhost:19311
+metric jmx_up 1 jetty=j11 jmx=localhost:19312
+metric open 40 jetty=j11 jmx=localhost:19312
+metric open_max 40 jetty=j11 jmx=localhost:19312
+metric opened_count 100 jetty=j11 jmx=localhost:19312
+metric duration_max_seconds 1.909 jetty=j11 jmx=localhost:19312
+metric duration_mean_seconds 0.0413 jetty=j11 jmx=localhost:19312
+metric received_bytes 5517 jetty=j11 jmx=localhost:19312
+metric sent_bytes 37369 jetty=j11 jmx=localhost:19312
+metric received_messages_count 60 jetty=j11 jmx=localhost:19312
+metric sent_messages_count 60 jetty=j11 jmx=localhost:19312
+metric limited 40 jetty=j11 jmx=localhost:19312
+metric limit 40 jetty=j11 jmx=localhost:19312
+metric jmx_up 1 jetty=j120 jmx=localhost:19313
+metric open 40 jetty=j120 jmx=localhost:19313
+metric open_max 40 jetty=j120 jmx=localhost:19313
+metric opened_count 100 jetty=j120 jmx=localhost:19313
+metric duration_max_seconds 1.124 jetty=j120 jmx=localhost:19313
+metric duration_mean_seconds 0.0265 jetty=j120 jmx=localhost:19313
+metric received_bytes 5517 jetty=j120 jmx=localhost:19313
+metric sent_bytes 33097 jetty=j120 jmx=localhost:19313
+metric received_messages_count 60 jetty=j120 jmx=localhost:19313
+metric sent_messages_count 60 jetty=j120 jmx=localhost:19313
+metric limited 40 jetty=j120 jmx=localhost:19313
+metric limit 40 jetty=j120 jmx=localhost:19313
+metric limit_pending 0 jetty=j120 jmx=localhost:19313
+metric qos_max 16 jetty=j120 jmx=localhost:19313
+metric qos_suspended 24 jetty=j120 jmx=localhost:19313
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+... (56 lines)
+  PASS  jetty_connections runs
+
+$ bash packs/jetty/sessions.sh
+metric jmx_up 1 jetty=j94 jmx=localhost:19311
+metric current 51 jetty=j94 jmx=localhost:19311 context=shop
+metric most 51 jetty=j94 jmx=localhost:19311 context=shop
+metric cached_count 51 jetty=j94 jmx=localhost:19311 context=shop
+metric created_count 0 jetty=j94 jmx=localhost:19311 context=broken
+metric created_count 51 jetty=j94 jmx=localhost:19311 context=shop
+metric alive_mean_seconds 0 jetty=j94 jmx=localhost:19311 context=broken
+metric alive_mean_seconds 0 jetty=j94 jmx=localhost:19311 context=shop
+metric alive_max_seconds 0 jetty=j94 jmx=localhost:19311 context=broken
+metric alive_max_seconds 0 jetty=j94 jmx=localhost:19311 context=shop
+metric timeout_seconds 1800 jetty=j94 jmx=localhost:19311 context=broken
+metric timeout_seconds 60 jetty=j94 jmx=localhost:19311 context=shop
+metric jmx_up 1 jetty=j11 jmx=localhost:19312
+metric current 51 jetty=j11 jmx=localhost:19312 context=shop
+metric most 51 jetty=j11 jmx=localhost:19312 context=shop
+metric cached_count 51 jetty=j11 jmx=localhost:19312 context=shop
+metric created_count 0 jetty=j11 jmx=localhost:19312 context=broken
+metric created_count 51 jetty=j11 jmx=localhost:19312 context=shop
+metric alive_mean_seconds 0 jetty=j11 jmx=localhost:19312 context=broken
+metric alive_mean_seconds 0 jetty=j11 jmx=localhost:19312 context=shop
+metric alive_max_seconds 0 jetty=j11 jmx=localhost:19312 context=broken
+metric alive_max_seconds 0 jetty=j11 jmx=localhost:19312 context=shop
+metric timeout_seconds 1800 jetty=j11 jmx=localhost:19312 context=broken
+metric timeout_seconds 60 jetty=j11 jmx=localhost:19312 context=shop
+metric jmx_up 1 jetty=j120 jmx=localhost:19313
+metric current 51 jetty=j120 jmx=localhost:19313 context=shop
+metric most 51 jetty=j120 jmx=localhost:19313 context=shop
+metric cached_count 51 jetty=j120 jmx=localhost:19313 context=shop
+metric created_count 0 jetty=j120 jmx=localhost:19313 context=broken
+metric created_count 51 jetty=j120 jmx=localhost:19313 context=shop
+metric alive_mean_seconds 0 jetty=j120 jmx=localhost:19313 context=broken
+metric alive_mean_seconds 0 jetty=j120 jmx=localhost:19313 context=shop
+metric timeout_seconds 1800 jetty=j120 jmx=localhost:19313 context=broken
+metric timeout_seconds 60 jetty=j120 jmx=localhost:19313 context=shop
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric current 51 jetty=j121 jmx=localhost:19314 context=_shop
+metric most 51 jetty=j121 jmx=localhost:19314 context=_shop
+metric cached_count 51 jetty=j121 jmx=localhost:19314 context=_shop
+metric created_count 0 jetty=j121 jmx=localhost:19314 context=_broken
+metric created_count 51 jetty=j121 jmx=localhost:19314 context=_shop
+... (44 lines)
+  PASS  jetty_sessions runs
+
+$ bash packs/jetty/buffers.sh
+metric jmx_up 1 jetty=j94 jmx=localhost:19311
+metric direct_bytes 32768 jetty=j94 jmx=localhost:19311
+metric heap_bytes 8192 jetty=j94 jmx=localhost:19311
+metric jmx_up 1 jetty=j11 jmx=localhost:19312
+metric direct_bytes 40960 jetty=j11 jmx=localhost:19312
+metric heap_bytes 0 jetty=j11 jmx=localhost:19312
+metric jmx_up 1 jetty=j120 jmx=localhost:19313
+metric direct_bytes 49152 jetty=j120 jmx=localhost:19313
+metric heap_bytes 8192 jetty=j120 jmx=localhost:19313
+metric direct_free_bytes 49152 jetty=j120 jmx=localhost:19313
+metric heap_free_bytes 8192 jetty=j120 jmx=localhost:19313
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric direct_bytes 57344 jetty=j121 jmx=localhost:19314
+metric heap_bytes 8192 jetty=j121 jmx=localhost:19314
+metric direct_free_bytes 57344 jetty=j121 jmx=localhost:19314
+metric heap_free_bytes 8192 jetty=j121 jmx=localhost:19314
+  PASS  jetty_buffers runs
+  PASS  every server answers
+  PASS  the repository's copy, without its jar, does not run
+  PASS  and says so
+        jetty_status: _probe.jar not found: this copy of the pack has none: install the pack from a packs release (vigil pack install jetty), or build it (tools/release/client-jar.sh)
+
+# On a JRE.
+jre      openjdk version "21.0.13.1" 2026-11-17 LTS
+  PASS  the JRE has no compiler
+  PASS  every job runs on the JRE
+  PASS  and reads the same servers
+12 passed, 0 failed
+
+# The pack through Vigil.
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+jetty: j94: jmxs=localhost:19311; j11: jmxs=localhost:19312; j120: jmxs=localhost:19313; j121: jmxs=localhost:19314
+  PASS  jetty: off until enabled
+  PASS  jetty: enabled
+        on: jetty_status
+        on: jetty_requests
+        on: jetty_threads
+        on: jetty_connections
+        on: jetty_sessions
+        on: jetty_buffers
+        needs Jetty's jmx module, and its statistics module (stats on 9.4 to 11) for requests; each Jetty's JMX in JETTY_JMX (web1: jmxs=host:port): -Dcom.sun.management.jmxremote.port and a password and TLS in JAVA_OPTIONS (packs/README.md shows how)
+        needs for JMX with a password: a secret line on the jobs: secret = JETTY_JMX_PASSWORD=secret:JETTY_JMX_PASSWORD, then vigil secret set JETTY_JMX_PASSWORD
+        needs for Jetty's JVM (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: vigil pack install jvm, with each Jetty in JVM_TARGETS named as here (web1: jmxs=host:port)
+        settings in vigil.config: JETTY_JMX= JETTY_JMX_USER= JETTY_CACERT=
+  PASS  jetty: it says its JVM is the jvm pack's
+  PASS  jetty: its jobs are on
+  PASS  jetty: no secret line until JMX asks for one
+  PASS  jetty: the password is a secret reference, on every job
+  PASS  jetty: precheck is happy
+  PASS  jetty: every job runs
+  PASS  jetty: j94 answers over JMX
+  PASS  jetty: j11 answers over JMX
+  PASS  jetty: j120 answers over JMX
+  PASS  jetty: j121 answers over JMX
+        status: 28 lines
+        requests: 74 lines
+        threads: 56 lines
+        connections: 56 lines
+        sessions: 44 lines
+        buffers: 16 lines
+  PASS  jetty: a wrong password fails the run
+  PASS  jetty: and says why
+  PASS  jetty: a certificate it cannot trust fails the run
+  PASS  jetty: and says why
+  PASS  jetty: a server that does not answer still runs
+  PASS  jetty: and reads as jmx_up 0
+  PASS  jetty: the password is written nowhere
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  PASS  jetty: metrics reach the backend
+22 passed, 0 failed

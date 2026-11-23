@@ -937,17 +937,20 @@ Eclipse Jetty 9.4 to 12, on this machine or any it can reach, over JMX with a pa
 | Metric | Healthy | Watch | Act | In our tests |
 | --- | --- | --- | --- | --- |
 | `jetty.jmx_up` | 1 | | 0: Jetty, or its JMX, is down | 0 for a target where nothing listens |
-| `jetty.threads.queue` | 0 | Above 0 now and then | Growing, with `low_on_threads` 1: every thread busy, requests waiting | 46 on 9.4 and 22 on 11, with 23 of 24 threads busy and `low_on_threads` 1 |
+| `jetty.threads.queue` | 0 | Above 0 now and then | Growing, with `low_on_threads` 1: every thread busy, requests waiting | 22 on 9.4 and on 11, with 24 and 23 of 24 threads busy and `low_on_threads` 1 |
 | `jetty.low_on_resources` | 0 | | 1: Jetty is closing idle connections early, and may stop accepting | 1 on 9.4 and 11; 0 on 12, where QoS kept threads free |
 | `jetty.connections.qos_suspended` (12) | 0 | Above 0: requests waiting for the QoS limit | Growing, with `qos_exceeded_count` rising: requests refused | 24 suspended, at the limit of 16 |
-| `jetty.connections.limited` against `limit` | Well below | Near it | At it: Jetty stops accepting until one closes | 40 of 40 on 9.4 and 12.1; 22 on 11 |
+| `jetty.connections.limited` against `limit` | Well below | Near it | At it: Jetty stops accepting until one closes | 40 of 40 on 12.0 and 12.1; 23 on 9.4 and 22 on 11, whose threads filled first |
 | `jetty.requests.responses_5xx_count` (as a rate) | Flat | Rising | Rising fast: an app is failing, or one that failed to start answers 503 | 3 on 9.4 and 11, the failed app's 503s; 6 on 12, with the pages that threw |
 | `jetty.requests.thrown_count` (9.4 to 11, as a rate) | Flat | Rising | | 3, the failing pages |
-| `jetty.threads.utilization_pct` | Below 70 | Above 80 for minutes | Near 100 | 95.5 on 9.4 and 11; 72.7 on 12 |
+| `jetty.threads.utilization_pct` | Below 70 | Above 80 for minutes | Near 100 | 100 on 9.4, 95.5 on 11; 72.7 on 12 |
 | `jetty.sessions.current` | Rising and falling with traffic | Climbing without falling back | | Not caused: 51, every visit's, then expiring |
 | `jetty.app_up` | 1 | | 0: the app is FAILED or stopped | Not caused: the app that failed to start read 1, as Jetty keeps it STARTED (above) |
 
 **Tested** on 2026-11-23 on the Fedora 44 test machine by `tests/integration/backends/scripts/run-jetty.sh`, against **Jetty 9.4.58 on Java 11, 11.0.26 on Java 17, 12.0.41 on Java 21 and 12.1.15 on Java 21**, each in Docker with JMX over TLS with a password and a `readonly` user, 24 threads, a connection limit of 40, the low resources monitor watching threads, QoS at 16 on 12, a shop of JSPs and an app that fails to start. Trouble on purpose, on each: 50 visits, 3 failing pages, 3 not there, 3 to the failed app, and 45 requests held for 4 minutes.
+- **On Fedora**: every job directly, each reading checked on all four, then `service-packs.sh` through Vigil, then every job on Temurin's JRE 11, and a probe changed by one byte refused: **88 passed, 0 failed**, and through Vigil **22 passed, 0 failed** ([the console output](../tests/integration/backends/reports/runs/2026-11-23/fedora/pack-jetty/console.txt)).
+- **On macOS** (12.7.6, bash 3.2), with the jar built there, through SSH tunnels: every job, then on Temurin's JRE 21, **12 passed, 0 failed**; through Vigil, **22 passed, 0 failed** ([the console output](../tests/integration/backends/reports/runs/2026-11-23/macos/pack-jetty-macos/console.txt)).
+- **On Windows**, from a packs release built by `tools/release/packs.sh`, as an account that is not an administrator: `Service-Packs.ps1` through Vigil, **22 passed, 0 failed**, then every job from the release on a JRE, **2 passed, 0 failed**: on Windows PowerShell 5.1 and PowerShell 7 on Windows 11 ([the console output](../tests/integration/backends/reports/runs/2026-11-23/windows/pack-jetty-windows/console.txt)), and on Windows PowerShell 5.1 on Windows Server 2025 ([the console output](../tests/integration/backends/reports/runs/2026-11-23/windows-server-2025/pack-jetty-windows/console.txt)). The password came from an `env:` reference: Windows refuses its data protection to a logon by SSH key.
 
 ### nginx
 
