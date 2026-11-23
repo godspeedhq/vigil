@@ -145,20 +145,27 @@ final class Jmx {
 
     /**
      * The targets in setting var: jmx=host:port or jmxs=host:port (TLS),
-     * separated by ; or , and a bare host:port as jmx=. Empty: none.
+     * separated by ; or , and a bare host:port as jmx=. Each may have a name
+     * of its own first (web1: jmxs=host:port), else it is named by its
+     * address, or by the pack's name row. Empty: none.
      */
     static List<Target> targets(String var) {
         List<Target> ts = new ArrayList<>();
         for (String part : env(var).split("[;,]")) {
             String p = part.trim();
             if (p.isEmpty()) continue;
+            String label = null;
+            java.util.regex.Matcher named = java.util.regex.Pattern.compile("([A-Za-z0-9_.-]+):\\s*(jmxs?=.*)").matcher(p);
+            if (named.matches()) { label = named.group(1); p = named.group(2).trim(); }
             boolean tls = false;
             if (p.startsWith("jmxs=")) { tls = true; p = p.substring(5).trim(); }
             else if (p.startsWith("jmx=")) p = p.substring(4).trim();
             if (!p.matches("[^\\s:=]+:[0-9]{1,5}") && !p.matches("\\[[0-9A-Fa-f:.]+\\]:[0-9]{1,5}")) {
-                throw new IllegalArgumentException(var + ": not jmx=host:port or jmxs=host:port: " + part.trim());
+                throw new IllegalArgumentException(var + ": not jmx=host:port or jmxs=host:port, with a name first or not (web1: jmxs=host:port): " + part.trim());
             }
-            ts.add(new Target(p, tls));
+            Target t = new Target(p, tls);
+            if (label != null) t.name = label;
+            ts.add(t);
         }
         return ts;
     }
@@ -378,6 +385,112 @@ final class Jmx {
             fixed = tags;
             return this;
         }
+
+        /** A state as a number: 1 when the attribute's text is one of these (case aside), else 0. */
+        String[] states;
+        /** Its MBeans in order of its value, largest first, for every row of its pattern: the worst shown, not the first. */
+        boolean top;
+        /** MBeans left out: a key of their name, and its value's pattern (* any characters). */
+        final List<String[]> excludes = new ArrayList<>();
+
+        Row states(String... s) {
+            states = s;
+            return this;
+        }
+
+        Row top() {
+            top = true;
+            return this;
+        }
+
+        /** Leaves out the MBeans whose key k has a value like glob (* any characters). */
+        Row without(String k, String glob) {
+            excludes.add(new String[]{ k, glob });
+            return this;
+        }
+
+        /** Its pattern and what it leaves out: the rows that read the same MBeans. */
+        String group() {
+            StringBuilder b = new StringBuilder(pattern);
+            for (String[] x : excludes) b.append(" -").append(x[0]).append('=').append(x[1]);
+            return b.toString();
+        }
+
+        boolean keeps(ObjectName o) {
+            for (String[] x : excludes) {
+                String v = o.getKeyProperty(x[0]);
+                if (v != null && like(unquote(v), x[1])) return false;
+            }
+            return true;
+        }
+
+        /** The attribute's text as this tag, the value 1: a version, a role. */
+        String textTag;
+        /** The seconds since the attribute's time (milliseconds since 1970): since a start. */
+        boolean age;
+
+        Row text(String tag) {
+            textTag = tag;
+            return this;
+        }
+
+        Row age() {
+            age = true;
+            return this;
+        }
+
+        /** The attribute's value itself, or key k of a composite one; null when there is none. */
+        Object raw(Object v) {
+            if (key == null) return v;
+            if (!(v instanceof CompositeData) || !((CompositeData) v).containsKey(key)) return null;
+            return ((CompositeData) v).get(key);
+        }
+
+        /** Its value from an attribute's: a number, 1 or 0 for a state, 1 for a text, an age; null when there is none. */
+        Number value(Object v) {
+            if (states == null && textTag == null && !age) return number(v, key);
+            v = raw(v);
+            if (v == null) return null;
+            if (age) {
+                if (!(v instanceof Number) || ((Number) v).longValue() <= 0) return null;
+                return Math.max(0, (System.currentTimeMillis() - ((Number) v).longValue()) / 1000);
+            }
+            if (textTag != null) return String.valueOf(v).trim().isEmpty() ? null : 1;
+            String s = String.valueOf(v).trim();
+            for (String x : states) if (x.equalsIgnoreCase(s)) return 1;
+            return 0;
+        }
+    }
+
+    /** A row's tag: a key of the MBean's name, or key/ for its value after the last / (Jetty's server@hash/h1: h1). */
+    static String tagName(String t) {
+        return t.endsWith("/") ? t.substring(0, t.length() - 1) : t;
+    }
+
+    /** The value of tag t for MBean o: its key's value, unquoted, or after the last / for key/. */
+    static String keyTag(ObjectName o, String t) {
+        String v = unquote(o.getKeyProperty(tagName(t)));
+        if (v == null || !t.endsWith("/")) return v;
+        return v.substring(v.lastIndexOf('/') + 1);
+    }
+
+    /** A key's value without the quotes JMX puts around some ("http-nio-8080"). */
+    static String unquote(String v) {
+        if (v != null && v.length() >= 2 && v.startsWith("\"") && v.endsWith("\"")) {
+            try { return ObjectName.unquote(v); } catch (IllegalArgumentException e) { return v.substring(1, v.length() - 1); }
+        }
+        return v;
+    }
+
+    /** Whether s is like glob, where * is any characters. */
+    static boolean like(String s, String glob) {
+        String[] parts = glob.split("\\*", -1);
+        StringBuilder r = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) r.append(".*");
+            r.append(java.util.regex.Pattern.quote(parts[i]));
+        }
+        return s.matches(r.toString());
     }
 
     /**
@@ -393,19 +506,29 @@ final class Jmx {
      * Prints the rows for target t: every MBean each matches, its value,
      * tagged with tags first and then the MBean's own keys. An MBean that is
      * not there prints nothing; one pattern's MBeans past LIST_CAP are
-     * counted in <metric>_not_shown. One round trip for each MBean, every
-     * attribute its rows want at once.
+     * counted in <metric>_not_shown: the first by name, or with a top row,
+     * the largest by its value, for every row of that pattern. One round
+     * trip for each MBean, every attribute its rows want at once.
      */
     static void table(Target t, List<Row> rows, String... tags) {
         MBeanServerConnection m = t.mbs();
         if (m == null) return;
-        Map<String, SortedSet<ObjectName>> found = new HashMap<>();
+        Map<String, List<ObjectName>> found = new HashMap<>();
+        Map<String, Row> order = new HashMap<>();
+        for (Row r : rows) {
+            found.computeIfAbsent(r.group(), g -> {
+                List<ObjectName> l = new ArrayList<>();
+                for (ObjectName o : on(r.pattern).isPattern() ? query(m, r.pattern) : exists(m, r.pattern)) if (r.keeps(o)) l.add(o);
+                return l;
+            });
+            if (r.top) order.putIfAbsent(r.group(), r);
+        }
         Map<ObjectName, Set<String>> wanted = new LinkedHashMap<>();
         for (Row r : rows) {
-            SortedSet<ObjectName> names = found.computeIfAbsent(r.pattern, p -> on(p).isPattern() ? query(m, p) : exists(m, p));
+            boolean all = r.sum || order.containsKey(r.group());
             int n = 0;
-            for (ObjectName o : names) {
-                if (++n > LIST_CAP && !r.sum) break;
+            for (ObjectName o : found.get(r.group())) {
+                if (++n > LIST_CAP && !all) break;
                 wanted.computeIfAbsent(o, x -> new LinkedHashSet<>()).add(r.attribute);
             }
         }
@@ -420,8 +543,18 @@ final class Jmx {
             } catch (Exception x) { /* gone since the query: nothing */ }
             values.put(e.getKey(), got);
         }
+        // The worst first: by the top row's value, largest first, those with none last; ties by name.
+        for (Map.Entry<String, Row> e : order.entrySet()) {
+            Row r = e.getValue();
+            Map<ObjectName, Double> by = new HashMap<>();
+            for (ObjectName o : found.get(e.getKey())) {
+                Number v = r.value(values.getOrDefault(o, Collections.emptyMap()).get(r.attribute));
+                by.put(o, v == null ? Double.NEGATIVE_INFINITY : v.doubleValue());
+            }
+            found.get(e.getKey()).sort((a, b) -> Double.compare(by.get(b), by.get(a)));
+        }
         for (Row r : rows) {
-            SortedSet<ObjectName> names = found.get(r.pattern);
+            List<ObjectName> names = found.get(r.group());
             if (r.sum) {
                 sum(r, names, values, tags);
                 continue;
@@ -429,14 +562,19 @@ final class Jmx {
             int n = 0;
             for (ObjectName o : names) {
                 if (++n > LIST_CAP) break;
-                Number v = number(values.getOrDefault(o, Collections.emptyMap()).get(r.attribute), r.key);
+                Object got = values.getOrDefault(o, Collections.emptyMap()).get(r.attribute);
+                Number v = r.value(got);
                 if (v == null || v.doubleValue() < r.floor) continue;
-                String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length + r.fixed.length);
+                String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length + r.fixed.length + (r.textTag == null ? 0 : 2));
                 for (int i = 0; i < r.tags.length; i++) {
-                    all[tags.length + 2 * i] = r.tags[i];
-                    all[tags.length + 2 * i + 1] = o.getKeyProperty(r.tags[i]);
+                    all[tags.length + 2 * i] = tagName(r.tags[i]);
+                    all[tags.length + 2 * i + 1] = keyTag(o, r.tags[i]);
                 }
                 System.arraycopy(r.fixed, 0, all, tags.length + 2 * r.tags.length, r.fixed.length);
+                if (r.textTag != null) {
+                    all[all.length - 2] = r.textTag;
+                    all[all.length - 1] = String.valueOf(r.raw(got)).trim();
+                }
                 metric(r.metric, r.scale == 1 ? v : v.doubleValue() * r.scale, all);
             }
             if (names.size() > LIST_CAP) metric(r.metric + "_not_shown", names.size() - LIST_CAP, tags);
@@ -444,13 +582,13 @@ final class Jmx {
     }
 
     /** Row r's MBeans, added up by the tags they print with: one line each, up to LIST_CAP. */
-    static void sum(Row r, SortedSet<ObjectName> names, Map<ObjectName, Map<String, Object>> values, String[] tags) {
+    static void sum(Row r, List<ObjectName> names, Map<ObjectName, Map<String, Object>> values, String[] tags) {
         Map<List<String>, double[]> by = new TreeMap<>(Comparator.comparing(Object::toString));
         for (ObjectName o : names) {
-            Number v = number(values.getOrDefault(o, Collections.emptyMap()).get(r.attribute), r.key);
+            Number v = r.value(values.getOrDefault(o, Collections.emptyMap()).get(r.attribute));
             if (v == null) continue;
             List<String> k = new ArrayList<>();
-            for (String t : r.tags) k.add(o.getKeyProperty(t));
+            for (String t : r.tags) k.add(keyTag(o, t));
             by.computeIfAbsent(k, x -> new double[1])[0] += v.doubleValue();
         }
         int n = 0;
@@ -460,7 +598,7 @@ final class Jmx {
             if (v < r.floor) continue;
             String[] all = Arrays.copyOf(tags, tags.length + 2 * r.tags.length + r.fixed.length);
             for (int i = 0; i < r.tags.length; i++) {
-                all[tags.length + 2 * i] = r.tags[i];
+                all[tags.length + 2 * i] = tagName(r.tags[i]);
                 all[tags.length + 2 * i + 1] = e.getKey().get(i);
             }
             System.arraycopy(r.fixed, 0, all, tags.length + 2 * r.tags.length, r.fixed.length);

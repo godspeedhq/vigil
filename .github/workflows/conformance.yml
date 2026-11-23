@@ -708,6 +708,10 @@ jobs:
         env:
           PACKS: ${{ needs.changes.outputs.java_packs }}
         run: /bin/bash tools/release/client-check.sh $PACKS
+      # The probe they carry, against MBeans made for it: every word of its
+      # tables, the worst of many, states, named targets (tools/probe/test).
+      - name: the probe, against MBeans made for it
+        run: /bin/bash tools/probe/test/probe-test.sh
 
   # The checks main requires are named for each PowerShell and for each
   # bash runner. Each passes once its suite has passed (every part: twelve

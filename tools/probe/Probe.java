@@ -20,9 +20,13 @@
 //   password  <setting: its password, a secret line>
 //   cacert    <setting: a PEM file of CAs>
 //   name      <tag> <MBean pattern> <key>   each target named by that key
+//   name      <tag>                         or only the tag: each target named
+//                                           in the setting (web1: jmx=...), else
+//                                           by its address
 //
 //   [job]
-//   <metric> <MBean> <attribute or attribute.key> [<key>...] [+tag=value] [*n] [>=n] [sum]
+//   <metric> <MBean> <attribute or attribute.key> [<key> or <key>/...] [+tag=value] [*n] [>=n]
+//            [sum] [top] [-key=pattern] [=STATE|STATE...] [@tag] [age]
 //   when <MBean> <attribute>       the rows after it, only when it is above 0
 //
 // Exit code: 0 on success, targets up or down; 1 if the tables file or a
@@ -67,8 +71,9 @@ final class Probe {
                 String[] w = l.split("\\s+");
                 if (section == null) {
                     if (w[0].equals("name")) {
-                        if (w.length != 4) throw new IllegalArgumentException("name <tag> <MBean pattern> <key>");
-                        name = new String[]{ w[1], w[2], w[3] };
+                        if (w.length != 4 && w.length != 2) throw new IllegalArgumentException("name <tag> <MBean pattern> <key>, or name <tag>");
+                        if (!w[1].matches("[A-Za-z0-9_.-]+")) throw new IllegalArgumentException("not a tag: " + w[1]);
+                        name = w.length == 4 ? new String[]{ w[1], w[2], w[3] } : new String[]{ w[1], null, null };
                     } else if (w.length == 2 && w[0].matches("targets|user|password|cacert")) {
                         set.put(w[0], w[1]);
                     } else {
@@ -87,18 +92,34 @@ final class Probe {
                     Jmx.on(w[1]);
                     List<String> tags = new ArrayList<>(), fixed = new ArrayList<>();
                     double scale = 1, floor = Double.NEGATIVE_INFINITY;
-                    boolean sum = false;
+                    boolean sum = false, top = false, age = false;
+                    String[] states = null;
+                    String text = null;
+                    List<String[]> without = new ArrayList<>();
                     for (int i = 3; i < w.length; i++) {
                         String x = w[i];
                         if (x.startsWith("+") && x.indexOf('=') > 1) { fixed.add(x.substring(1, x.indexOf('='))); fixed.add(x.substring(x.indexOf('=') + 1)); }
+                        else if (x.startsWith("-") && x.indexOf('=') > 1) without.add(new String[]{ x.substring(1, x.indexOf('=')), x.substring(x.indexOf('=') + 1) });
+                        else if (x.startsWith("=") && x.length() > 1) states = x.substring(1).split("\\|");
+                        else if (x.matches("@[A-Za-z0-9_.-]+")) text = x.substring(1);
                         else if (x.startsWith("*")) scale = Double.parseDouble(x.substring(1));
                         else if (x.startsWith(">=")) floor = Double.parseDouble(x.substring(2));
                         else if (x.equals("sum")) sum = true;
-                        else if (x.matches("[A-Za-z0-9_.-]+")) tags.add(x);
-                        else throw new IllegalArgumentException("not a tag, +tag=value, *n, >=n or sum: " + x);
+                        else if (x.equals("top")) top = true;
+                        else if (x.equals("age")) age = true;
+                        else if (x.matches("[A-Za-z0-9_.-]+/?")) tags.add(x);
+                        else throw new IllegalArgumentException("not a tag, +tag=value, -key=pattern, =STATE, @tag, *n, >=n, sum, top or age: " + x);
                     }
+                    if (sum && top) throw new IllegalArgumentException("sum or top, not both");
+                    if ((states != null ? 1 : 0) + (text != null ? 1 : 0) + (age ? 1 : 0) > 1) throw new IllegalArgumentException("one of =STATE, @tag and age");
+                    if (text != null && (sum || top)) throw new IllegalArgumentException("@tag is a text: not with sum or top");
                     it.row = Jmx.row(w[0], w[1], w[2], tags.toArray(new String[0])).scale(scale).atLeast(floor).with(fixed.toArray(new String[0]));
                     if (sum) it.row.sum();
+                    if (top) it.row.top();
+                    if (states != null) it.row.states(states);
+                    if (text != null) it.row.text(text);
+                    if (age) it.row.age();
+                    for (String[] x : without) it.row.without(x[0], x[1]);
                 }
                 items.add(it);
             }
@@ -125,9 +146,9 @@ final class Probe {
         try {
             for (Jmx.Target t : ts) {
                 MBeanServerConnection m = t.mbs();
-                if (m != null && name != null) {
+                if (m != null && name != null && name[1] != null) {
                     for (ObjectName o : Jmx.query(m, name[1])) {
-                        String v = o.getKeyProperty(name[2]);
+                        String v = Jmx.unquote(o.getKeyProperty(name[2]));
                         if (v != null) t.name = v;
                     }
                 }

@@ -62,21 +62,28 @@ A row is: the metric, the MBean (a pattern or one name), the attribute (or `attr
 | Word | Meaning |
 | --- | --- |
 | `name` | a key of the MBean's name, as a tag (`topic`, `listener`) |
+| `name/` | the same, after its last `/`: Jetty's `context=oejs_Server@70e9c95d/_shop` is `context=_shop`, without the hash a restart changes |
 | `+name=value` | a tag of the row's own |
 | `*n` | its value times n (`*100`: a fraction as a percent; `*0.001`: ms to seconds) |
 | `>=n` | a value below n is no reading, and not printed (a figure never measured) |
 | `sum` | the MBeans that match, added up by their tags: one line per listener, not per processor |
+| `top` | the MBeans that match in order of this row's value, largest first, for every row of the same MBeans in the job: past 100, the worst are shown, not the first by name (the deepest queues of thousands) |
+| `-key=pattern` | leaves out the MBeans whose key is like the pattern, `*` any characters (`-destinationName=ActiveMQ.Advisory.*`); rows with the same MBean and the same words read the same MBeans |
+| `=STATE` | a state as a number: 1 when the attribute's text is `STATE`, else 0; several with `\|` (`=STARTED\|STARTING`), case aside (a web application `STARTED`, or `FAILED`) |
+| `@tag` | a text as a tag, the value 1: `version 1 version=11.0.29.0` |
+| `age` | the seconds since the attribute's time, in milliseconds since 1970: since a web application started; a time never set (0) is no reading |
 
 And `when <MBean> <attribute>`: the rows after it print only when that value is above 0 (Kafka's controller figures, on the active controller only).
 
+- **A key's value in quotes** (`name="http-nio-8080"`) is a tag without them.
 - **An MBean a server does not have prints nothing.** Kafka 4 has no ZooKeeper metrics; a ZooKeeper cluster no KRaft controller metrics.
-- **Many MBeans from one pattern** are capped at 100, with a `<metric>_not_shown` count.
+- **Many MBeans from one pattern** are capped at 100, with a `<metric>_not_shown` count: the first 100 by name, or with `top`, the 100 largest.
 - **Each target's `jmx_up`**, 1 or 0, tagged with its name and address, starts every job.
 - **One round trip per MBean**, with all its rows' attributes at once.
 
 ## Connecting, and what goes wrong
 
-- `jmx=host:port` plain, `jmxs=host:port` TLS (the RMI registry too), `;`- or `,`-separated; a bare `host:port` is `jmx=`.
+- `jmx=host:port` plain, `jmxs=host:port` TLS (the RMI registry too), `;`- or `,`-separated; a bare `host:port` is `jmx=`. A name first names the target (`web1: jmxs=host:port`); else the pack's `name` row names it by an MBean's key, or its address does. `name <tag>` alone gives the tag, with no MBean.
 - **TLS always checked**: the chain against the pack's CA file or Java's own, and the server's name (DNS, a one-label wildcard, or an IP address). No setting trusts a certificate unchecked.
 - **In time**: 30 seconds to connect, RMI's own timeouts for each call.
 - **Down is a reading** (`jmx_up 0`, and why in the log). A login refused, a certificate not trusted, or `jmxs=` at a server that does not speak TLS fails the run, naming the pack's settings.
@@ -90,3 +97,5 @@ With the kafka pack 2.0, on every platform and every cluster it is tested on, an
 - a wrong password, a certificate from another CA, one naming another host, TLS against a plain server: each fails the run, saying why;
 - a server that does not answer: `jmx_up 0`, and the run succeeds;
 - a row for an MBean that is not there: nothing, and no error; `when`, `sum`, `*n`, `>=n` and `+tag` against real MBeans.
+
+And on its own, every time it changes (CI's pack java job): `tools/probe/test/probe-test.sh` runs it against MBeans made for it (`Fixture.java`): the worst of 150 queues with `top`, noise left out, states, texts, ages, quoted names, a key after its last `/`, composite keys, named targets, and the tables it refuses.
