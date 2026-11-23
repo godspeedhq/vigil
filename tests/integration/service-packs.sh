@@ -1070,6 +1070,17 @@ else
     check "jvm: and of one in a container, as this account" 1 "$(jval status tier_counters j21)"
     check "jvm: a JVM run as root keeps its counters from this account" 0 "$(jval status tier_counters nojmx)"
     check 'jvm: Java 8 says what it is' yes "$(grep -h ' out metric info 1 jvm=j8 ' "$root"/logs/jobs/jvm_status/*.log | tail -n 1 | grep -q 'version=1\.8\.' && echo yes || echo no)"
+    # Java 8 with JMX over TLS and a password, when it is among the JVMs.
+    case $VIGIL_IT_JVM_TARGETS in
+        *'j8tls:'*)
+            check 'jvm: Java 8 with TLS is up' 1 "$(jval status up j8tls)"
+            check 'jvm: and answers over JMX, with TLS' 1 "$(jval status tier_jmx j8tls)"
+            check 'jvm: its process is found' 1 "$(jval process running j8tls)"
+            check 'jvm: it says it is Java 8' yes "$(grep -h ' out metric info 1 jvm=j8tls ' "$root"/logs/jobs/jvm_status/*.log | tail -n 1 | grep -q 'version=1\.8\.' && echo yes || echo no)"
+            check 'jvm: its heap, over JMX with TLS' yes "$(jbetween heap used_bytes j8tls 1 1e12)"
+            check 'jvm: its threads, over JMX with TLS' yes "$(jbetween threads live j8tls 5 1e6)"
+            ;;
+    esac
     check 'jvm: its feature release' 8 "$(jval release_age feature_version j8)"
     check 'jvm: Java 25 too' 25 "$(jval release_age feature_version j25)"
 
