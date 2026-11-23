@@ -1206,13 +1206,17 @@ else
         check 'jvm: every job runs on the JRE, from the jar' '' "$failed"
         for j in $failed; do tail -n 3 "$work/jre.$j" | sed 's/^/        /'; done
         printf '        41 jobs from the jar in %d s\n' $((t1 - t0))
-        check 'jvm: and every JVM is up' 8 "$(grep -c '^metric up 1 ' "$work/jre.status")"
+        check 'jvm: and every JVM is up' "$(printf '%s' "$VIGIL_IT_JVM_TARGETS" | tr ';' '\n' | grep -c ':')" "$(grep -c '^metric up 1 ' "$work/jre.status")"
         # The same lines as the same jars give on a JDK, values apart.
         same=''
         for j in status heap gc threads classes jit metaspace codecache flags security; do
             awk '{ $3 = ""; print }' "$work/jre.$j" | sort > "$work/jre.names"
             jdirect "$jdk_home" "$jp" "$j" > /dev/null
-            awk '{ $3 = ""; print }' "$work/jre.$j" | sort | cmp -s - "$work/jre.names" || same="$same $j"
+            awk '{ $3 = ""; print }' "$work/jre.$j" | sort > "$work/jdk.names"
+            if ! cmp -s "$work/jdk.names" "$work/jre.names"; then
+                same="$same $j"
+                diff "$work/jre.names" "$work/jdk.names" | grep '^[<>]' | head -n 6 | sed "s/^/        $j: /"
+            fi
         done
         check 'jvm: the same lines as on a JDK' '' "$same"
         # A jar changed by one byte is not run, by any Java.
