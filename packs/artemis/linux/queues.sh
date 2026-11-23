@@ -20,13 +20,12 @@
 #
 # Reads each ActiveMQ Artemis broker's JMX, at ARTEMIS_JMX: jmx=host:port, or
 # jmxs=host:port over TLS, separated by ; or , each with a name first if you
-# like (art1: jmxs=host:port); with ARTEMIS_JMX_USER (a broker user of a role
-# management.xml lets read: get*, is*) and the password in
-# ARTEMIS_JMX_PASSWORD; a certificate is checked against ARTEMIS_CACERT, a PEM
-# file of CAs, or Java's own, and against the server's name. With no
-# ARTEMIS_JMX, it prints nothing. ActiveMQ Classic is the activemq pack's; the
-# broker's JVM (heap, garbage collection, threads, CPU, open files) is the jvm
-# pack's, not this one's.
+# like (art1: jmxs=host:port); with ARTEMIS_JMX_USER and the password in
+# ARTEMIS_JMX_PASSWORD when JMX asks for them; a certificate is checked
+# against ARTEMIS_CACERT, a PEM file of CAs, or Java's own, and against the
+# server's name. With no ARTEMIS_JMX, it prints nothing. ActiveMQ Classic is
+# the activemq pack's; the broker's JVM (heap, garbage collection, threads,
+# CPU, open files) is the jvm pack's, not this one's.
 #
 # The probe (_probe.jar, tools/probe) reads it, from this pack's
 # _probe.tables, beside this script: nothing of Artemis's is needed here.

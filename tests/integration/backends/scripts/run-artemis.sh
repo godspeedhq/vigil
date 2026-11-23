@@ -14,10 +14,9 @@
 #   scripts/run-artemis.sh
 #
 # It makes a TLS certificate from a CA of its own, passwords of the run's
-# own (the broker's admin, and monitor, a user of a role that may only
-# read), each broker's etc-override (management.xml, users and roles, and
-# workloads/artemis's broker.properties), and starts compose.artemis.yaml's
-# brokers: 2.33, 2.40 and 2.44. Then trouble, on each, with Artemis's own
+# own (the broker's admin, and monitor, a readonly JMX user), the brokers'
+# etc-override (workloads/artemis's broker.properties), and starts
+# compose.artemis.yaml's brokers: 2.33, 2.40 and 2.44. Then trouble, on each, with Artemis's own
 # producer and consumer: an address paging to disk, two smaller queues,
 # messages that expire into ExpiryQueue, an address that blocks its
 # producers, messages sent where no queue reads them, logins refused, and a
@@ -44,7 +43,7 @@ dc() { docker compose -p vigil-artemis --project-directory "$bk_dir" -f "$bk_dir
 pw=$(openssl rand -hex 16)
 apw=$(openssl rand -hex 16)
 kspw=$(openssl rand -hex 16)
-export ARTEMIS_ADMIN_PASSWORD=$apw ARTEMIS_KS_PASSWORD=$kspw
+export ARTEMIS_ADMIN_PASSWORD=$apw ARTEMIS_KS_PASSWORD=$kspw ARTEMIS_JMX_PASSWORD=$pw
 trap 'dc down -v > /dev/null 2>&1; evidence_save "$pw" "$apw" "$kspw"; rm -rf "$work"' EXIT
 
 tls=$work/tls
@@ -58,17 +57,8 @@ mkdir -p "$tls"
         KS=$kspw openssl pkcs12 -export -in server.crt -inkey server.key -name jmx -out server.p12 -passout env:KS > /dev/null 2>&1 &&
         chmod 644 server.p12 ca.crt
 ) || die 'cannot make the test certificate'
-# Each broker's etc-override: its JMX roles, its users (admin
-# of role amq; monitor of role view, which may only read) and its roles.
-for n in art233 art240 art244; do
-    d=$work/etc/$n
-    mkdir -p "$d"
-    cp "$bk_dir/workloads/artemis/management.xml" "$d/"
-    printf 'admin = %s\nmonitor = %s\n' "$apw" "$pw" > "$d/artemis-users.properties"
-    printf 'amq = admin\nview = monitor\n' > "$d/artemis-roles.properties"
-    cp "$bk_dir/workloads/artemis/broker.properties" "$d/"
-    chmod 755 "$d" && chmod 644 "$d"/*
-done
+# The brokers' etc-override: small limits, quick expiry.
+mkdir -p "$work/etc" && cp "$bk_dir/workloads/artemis/broker.properties" "$work/etc/" && chmod 755 "$work/etc" && chmod 644 "$work/etc"/*
 
 evidence_start pack-artemis "$bk_dir/$file" "$0" "$@"
 pack=$work/pack
@@ -120,7 +110,7 @@ sleep 20
 
 targets='art233: jmxs=localhost:19331; art240: jmxs=localhost:19332; art244: jmxs=localhost:19333'
 export ARTEMIS_JMX=$targets ARTEMIS_JMX_USER=monitor ARTEMIS_JMX_PASSWORD=$pw ARTEMIS_CACERT=$tls/ca.crt
-say "Every job, as the pack's scripts print it, as monitor (a role that may only read)."
+say "Every job, as the pack's scripts print it, as monitor (readonly)."
 jobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$pack/pack.config")
 for j in $jobs; do
     printf '\n$ bash packs/artemis/%s.sh\n' "$j"
@@ -134,7 +124,7 @@ say "What they read."
 for j in $jobs; do check "artemis: $j runs" 'exit 0' "$(tail -n 1 "$work/$j.err")"; done
 for t in art233:2.33 art240:2.40 art244:2.44; do
     n=${t%%:*} v=${t#*:}
-    check "$n: answers over TLS, as a user that may only read" 1 "$(val status jmx_up "broker=$n ")"
+    check "$n: answers over TLS, as a readonly user" 1 "$(val status jmx_up "broker=$n ")"
     check "$n: its version, $v" yes "$(grep -qE "^metric version 1 broker=$n .* version=${v//./\\.}\.[0-9]+" "$work/status.out" && echo yes || echo no)"
     check "$n: started" 1 "$(val status started "broker=$n ")"
     check "$n: active" 1 "$(val status active "broker=$n ")"

@@ -161,19 +161,18 @@ PACK = dict(
     name_doc='Each broker is named as ARTEMIS_JMX names it (art1: jmxs=host:port), else by its address; its own name is in artemis_status.',
     jmx_doc=("Reads each ActiveMQ Artemis broker's JMX, at ARTEMIS_JMX: jmx=host:port, or jmxs=host:port over TLS, "
              "separated by ; or , each with a name first if you like (art1: jmxs=host:port); with ARTEMIS_JMX_USER "
-             "(a broker user of a role management.xml lets read: get*, is*) and the password in "
-             "ARTEMIS_JMX_PASSWORD; a certificate is checked against ARTEMIS_CACERT, a PEM file of CAs, or "
+             "and the password in ARTEMIS_JMX_PASSWORD when JMX asks for them; a certificate is checked against ARTEMIS_CACERT, a PEM file of CAs, or "
              "Java's own, and against the server's name. With no ARTEMIS_JMX, it prints nothing. ActiveMQ Classic "
              "is the activemq pack's; the broker's JVM (heap, garbage collection, threads, CPU, open files) is "
              "the jvm pack's, not this one's."),
     description='Apache ActiveMQ Artemis over JMX: health and HA, address memory and disk against their limits, '
                 'addresses and paging, queues (the deepest first, the oldest message), dead letter and expiry '
                 'queues, logins refused, cluster connections and bridges',
-    works_with="Apache ActiveMQ Artemis 2.x (tested: 2.33, 2.40 and 2.44), with the JVM's JMX on, logging in as the broker's users; Classic is the activemq pack's",
-    needs=["each broker's JMX in ARTEMIS_JMX (art1: jmxs=host:port): the JVM's JMX, with TLS on the registry too, logging in through the broker's realm (com.sun.management.jmxremote.login.config=activemq) "
-           "(packs/README.md shows how)",
-           "a broker user for it, of a role management.xml lets read (get*, is* and list*), in ARTEMIS_JMX_USER, "
-           "and its password a secret line on the jobs: secret = ARTEMIS_JMX_PASSWORD=secret:ARTEMIS_JMX_PASSWORD, "
+    works_with="Apache ActiveMQ Artemis 2.x (tested: 2.33, 2.40 and 2.44), with the JVM's JMX on; Classic is the activemq pack's",
+    needs=["each broker's JMX in ARTEMIS_JMX (art1: jmxs=host:port): the JVM's JMX, -Dcom.sun.management.jmxremote.port "
+           "and a password and TLS (the registry too) in JAVA_ARGS_APPEND; not management.xml's connector, whose "
+           "registry is not on TLS (packs/README.md shows how)",
+           "for JMX with a password: a secret line on the jobs: secret = ARTEMIS_JMX_PASSWORD=secret:ARTEMIS_JMX_PASSWORD, "
            "then vigil secret set ARTEMIS_JMX_PASSWORD",
            "for the broker's JVM (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: "
            "vigil pack install jvm, with each broker in JVM_TARGETS named as here (art1: jmxs=host:port)"],
