@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) Bankole Ogundero and the Vigil contributors
+  SPDX-License-Identifier: Apache-2.0
+
+  Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+  implied. Run it at your own risk: review it first, and test it before you
+  rely on it. In no event shall the authors or copyright holders be liable
+  for any claim, damages or other liability arising from its use. See the
+  LICENSE file for the full terms.
+
+  The shop, for the jetty pack's tests: JSPs only (the tomcat pack's), so
+  the same app runs on Jetty 9.4 (javax) and 11 and 12 (jakarta).
+-->
+<web-app>
+  <display-name>shop</display-name>
+  <session-config>
+    <session-timeout>1</session-timeout>
+  </session-config>
+</web-app>

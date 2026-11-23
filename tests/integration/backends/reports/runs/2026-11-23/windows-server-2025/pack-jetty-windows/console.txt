@@ -1,0 +1,107 @@
+pack     jetty 1.0.0, Vigil commit 1ccdd05 (a copy); the pack from a packs release built by tools/release/packs.sh
+account  vigil-test, not an administrator, by SSH key
+servers  run-jetty.sh's Jettys on the Fedora test machine (9.4 on Java 11, 11.0 on Java 17, 12.0 and 12.1 on Java 21, each with trouble on purpose; JMX with a password and TLS), through SSH tunnels
+
+######## tests\integration\Service-Packs.ps1 through Vigil, then every job on a JRE, powershell.exe
+
+host     WIN-R50M4Q63SR9, Windows Server 2025 Datacenter Evaluation 24H2 build 26100
+shell    C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe 5.1.26100.7462
+java     openjdk version "21.0.13.1" 2026-11-17 LTS
+jre      openjdk version "21.0.13.1" 2026-11-17 LTS
+servers  j94: jmxs=localhost:19311; j11: jmxs=localhost:19312; j120: jmxs=localhost:19313; j121: jmxs=localhost:19314
+PowerShell 5.1.26100.7462
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+jetty: j94: jmxs=localhost:19311; j11: jmxs=localhost:19312; j120: jmxs=localhost:19313; j121: jmxs=localhost:19314
+  PASS  jetty: off until enabled
+  PASS  jetty: enabled
+        on: jetty_status
+        on: jetty_requests
+        on: jetty_threads
+        on: jetty_connections
+        on: jetty_sessions
+        on: jetty_buffers
+        needs Jetty's jmx module, and its statistics module (stats on 9.4 to 11) for requests; each Jetty's JMX in JETTY_JMX (web1: jmxs=host:port): -Dcom.sun.management.jmxremote.port and a password and TLS in JAVA_OPTIONS (packs/README.md shows how)
+        needs for JMX with a password: a secret line on the jobs: secret = JETTY_JMX_PASSWORD=secret:JETTY_JMX_PASSWORD, then vigil secret set JETTY_JMX_PASSWORD
+        needs for Jetty's JVM (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: vigil pack install jvm, with each Jetty in JVM_TARGETS named as here (web1: jmxs=host:port)
+        settings in vigil.config: JETTY_JMX= JETTY_JMX_USER= JETTY_CACERT=
+  PASS  jetty: it says its JVM is the jvm pack's
+  PASS  jetty: its jobs are on
+  PASS  jetty: no secret line until JMX asks for one
+  PASS  jetty: the password is a secret reference, on every job
+  note  jetty: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_PROBE_PASSWORD
+  PASS  jetty: precheck is happy
+  PASS  jetty: every job runs
+  PASS  jetty: j94 answers over JMX
+  PASS  jetty: j11 answers over JMX
+  PASS  jetty: j120 answers over JMX
+  PASS  jetty: j121 answers over JMX
+        metric jmx_up 1 jetty=j94 jmx=localhost:19311
+        metric version 1 jetty=j94 jmx=localhost:19311 version=9.4.58.v20250814
+        metric up 1 jetty=j94 jmx=localhost:19311
+        metric uptime_seconds 930 jetty=j94 jmx=localhost:19311
+        metric app_up 1 jetty=j94 jmx=localhost:19311 context=broken
+        metric app_up 1 jetty=j94 jmx=localhost:19311 context=shop
+        metric low_on_resources 0 jetty=j94 jmx=localhost:19311
+        metric jmx_up 1 jetty=j11 jmx=localhost:19312
+        metric version 1 jetty=j11 jmx=localhost:19312 version=11.0.26
+        metric up 1 jetty=j11 jmx=localhost:19312
+        metric uptime_seconds 929 jetty=j11 jmx=localhost:19312
+        metric app_up 1 jetty=j11 jmx=localhost:19312 context=broken
+        metric app_up 1 jetty=j11 jmx=localhost:19312 context=shop
+        metric low_on_resources 0 jetty=j11 jmx=localhost:19312
+        metric jmx_up 1 jetty=j120 jmx=localhost:19313
+        metric version 1 jetty=j120 jmx=localhost:19313 version=12.0.41
+        metric up 1 jetty=j120 jmx=localhost:19313
+        metric app_up 1 jetty=j120 jmx=localhost:19313 context=broken
+        metric app_up 1 jetty=j120 jmx=localhost:19313 context=shop
+        metric low_on_resources 0 jetty=j120 jmx=localhost:19313
+        metric jmx_up 1 jetty=j121 jmx=localhost:19314
+        metric version 1 jetty=j121 jmx=localhost:19314 version=12.1.15
+        metric up 1 jetty=j121 jmx=localhost:19314
+        metric app_up 1 jetty=j121 jmx=localhost:19314 context=_broken
+        metric app_up 1 jetty=j121 jmx=localhost:19314 context=_shop
+        metric low_on_resources 0 jetty=j121 jmx=localhost:19314
+  PASS  jetty: a wrong password fails the run
+  PASS  jetty: and says why
+  PASS  jetty: a certificate it cannot trust fails the run
+  PASS  jetty: and says why
+  PASS  jetty: a server that does not answer still runs
+  PASS  jetty: and reads as jmx_up 0
+  PASS  jetty: the password is written nowhere
+  PASS  jetty: metrics reach the backend
+22 passed, 0 failed
+        metric jmx_up 1 jetty=j94 jmx=localhost:19311
+        metric version 1 jetty=j94 jmx=localhost:19311 version=9.4.58.v20250814
+        metric up 1 jetty=j94 jmx=localhost:19311
+        metric uptime_seconds 1145 jetty=j94 jmx=localhost:19311
+        metric app_up 1 jetty=j94 jmx=localhost:19311 context=broken
+        metric app_up 1 jetty=j94 jmx=localhost:19311 context=shop
+        metric low_on_resources 0 jetty=j94 jmx=localhost:19311
+        metric jmx_up 1 jetty=j11 jmx=localhost:19312
+        metric version 1 jetty=j11 jmx=localhost:19312 version=11.0.26
+        metric up 1 jetty=j11 jmx=localhost:19312
+        metric uptime_seconds 1143 jetty=j11 jmx=localhost:19312
+        metric app_up 1 jetty=j11 jmx=localhost:19312 context=broken
+        metric app_up 1 jetty=j11 jmx=localhost:19312 context=shop
+        metric low_on_resources 0 jetty=j11 jmx=localhost:19312
+        metric jmx_up 1 jetty=j120 jmx=localhost:19313
+        metric version 1 jetty=j120 jmx=localhost:19313 version=12.0.41
+        metric up 1 jetty=j120 jmx=localhost:19313
+        metric app_up 1 jetty=j120 jmx=localhost:19313 context=broken
+        metric app_up 1 jetty=j120 jmx=localhost:19313 context=shop
+        metric low_on_resources 0 jetty=j120 jmx=localhost:19313
+        metric jmx_up 1 jetty=j121 jmx=localhost:19314
+        metric version 1 jetty=j121 jmx=localhost:19314 version=12.1.15
+        metric up 1 jetty=j121 jmx=localhost:19314
+        metric app_up 1 jetty=j121 jmx=localhost:19314 context=_broken
+        metric app_up 1 jetty=j121 jmx=localhost:19314 context=_shop
+        metric low_on_resources 0 jetty=j121 jmx=localhost:19314
+  PASS  jetty: every job runs on the JRE, from the release
+  PASS  jetty: and every server answers
+2 passed, 0 failed
