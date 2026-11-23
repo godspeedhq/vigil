@@ -1,0 +1,120 @@
+# _probe.tables - the tomcat pack's jobs, as tables the probe reads
+# (tools/probe/DESIGN.md), written by tools/tomcat/gen.py: edit that, not this.
+# A row: metric, MBean, attribute, then tags from the MBean's name (key/
+# for its value after the last /), +tag=value, -key=pattern, =STATE, @tag,
+# *scale, >=floor, sum, top, age. An MBean a server does not have prints
+# nothing.
+#
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+
+targets   TOMCAT_JMX
+user      TOMCAT_JMX_USER
+password  TOMCAT_JMX_PASSWORD
+cacert    TOMCAT_CACERT
+# Each Tomcat is named as TOMCAT_JMX names it (web1: jmxs=host:port), else
+# by its address.
+name      tomcat
+
+[status]
+version       Catalina:type=Server       serverNumber  @version
+up            Catalina:type=Server       stateName     =STARTED
+engine_up     Catalina:type=Engine       stateName     =STARTED
+host_up       Catalina:type=Host,*       stateName     host =STARTED
+connector_up  Catalina:type=Connector,*  stateName     port =STARTED
+
+[requests]
+requests_count      Catalina:type=GlobalRequestProcessor,*  requestCount    name
+errors_count        Catalina:type=GlobalRequestProcessor,*  errorCount      name
+sent_bytes          Catalina:type=GlobalRequestProcessor,*  bytesSent       name
+received_bytes      Catalina:type=GlobalRequestProcessor,*  bytesReceived   name
+processing_seconds  Catalina:type=GlobalRequestProcessor,*  processingTime  name *0.001
+slowest_seconds     Catalina:type=GlobalRequestProcessor,*  maxTime         name *0.001
+
+[threads]
+busy                  Catalina:type=ThreadPool,*  currentThreadsBusy  name >=0
+threads               Catalina:type=ThreadPool,*  currentThreadCount  name >=0
+max_threads           Catalina:type=ThreadPool,*  maxThreads          name >=0
+connections           Catalina:type=ThreadPool,*  connectionCount     name >=0
+max_connections       Catalina:type=ThreadPool,*  maxConnections      name >=0
+keep_alive            Catalina:type=ThreadPool,*  keepAliveCount      name >=0
+backlog_max           Catalina:type=ThreadPool,*  acceptCount         name >=0
+paused                Catalina:type=ThreadPool,*  paused              name
+executor_busy         Catalina:type=Executor,*    activeCount         name
+executor_threads      Catalina:type=Executor,*    poolSize            name
+executor_max_threads  Catalina:type=Executor,*    maxThreads          name
+executor_largest      Catalina:type=Executor,*    largestPoolSize     name
+executor_queue        Catalina:type=Executor,*    queueSize           name
+executor_max_queue    Catalina:type=Executor,*    maxQueueSize        name
+executor_done_count   Catalina:type=Executor,*    completedTaskCount  name
+
+[inflight]
+running_seconds          Catalina:type=RequestProcessor,*                      requestProcessingTime    worker name top >=1 *0.001
+stuck_threads            Catalina:type=Valve,name=StuckThreadDetectionValve,*  stuckThreadCount         host
+stuck_threshold_seconds  Catalina:type=Valve,name=StuckThreadDetectionValve,*  threshold                host
+interrupted_count        Catalina:type=Valve,name=StuckThreadDetectionValve,*  interruptedThreadsCount  host
+
+[apps]
+up                  Catalina:j2eeType=WebModule,*  stateName       name =STARTED
+uptime_seconds      Catalina:j2eeType=WebModule,*  startTime       name age
+startup_seconds     Catalina:j2eeType=WebModule,*  startupTime     name *0.001
+errors_count        Catalina:j2eeType=WebModule,*  errorCount      name top
+requests_count      Catalina:j2eeType=WebModule,*  requestCount    name
+processing_seconds  Catalina:j2eeType=WebModule,*  processingTime  name *0.001
+slowest_seconds     Catalina:j2eeType=WebModule,*  maxTime         name *0.001
+
+[sessions]
+active                 Catalina:type=Manager,*  activeSessions           host context top
+most                   Catalina:type=Manager,*  maxActive                host context
+limit                  Catalina:type=Manager,*  maxActiveSessions        host context >=0
+rejected_count         Catalina:type=Manager,*  rejectedSessions         host context
+created_count          Catalina:type=Manager,*  sessionCounter           host context
+expired_count          Catalina:type=Manager,*  expiredSessions          host context
+created_per_minute     Catalina:type=Manager,*  sessionCreateRate        host context
+expired_per_minute     Catalina:type=Manager,*  sessionExpireRate        host context
+average_alive_seconds  Catalina:type=Manager,*  sessionAverageAliveTime  host context
+longest_alive_seconds  Catalina:type=Manager,*  sessionMaxAliveTime      host context
+
+[servlets]
+processing_seconds  Catalina:j2eeType=Servlet,*  processingTime  WebModule name top *0.001
+requests_count      Catalina:j2eeType=Servlet,*  requestCount    WebModule name
+errors_count        Catalina:j2eeType=Servlet,*  errorCount      WebModule name
+slowest_seconds     Catalina:j2eeType=Servlet,*  maxTime         WebModule name *0.001
+
+[jdbc]
+active             Catalina:type=DataSource,*      numActive                  context name -connectionpool=*
+idle               Catalina:type=DataSource,*      numIdle                    context name -connectionpool=*
+max                Catalina:type=DataSource,*      maxTotal                   context name -connectionpool=*
+max                Catalina:type=DataSource,*      maxActive                  context name -connectionpool=*
+max_idle           Catalina:type=DataSource,*      maxIdle                    context name -connectionpool=*
+min_idle           Catalina:type=DataSource,*      minIdle                    context name -connectionpool=*
+max_wait_seconds   Catalina:type=DataSource,*      maxWaitMillis              context name *0.001 >=0 -connectionpool=*
+max_wait_seconds   Catalina:type=DataSource,*      maxWait                    context name *0.001 >=0 -connectionpool=*
+size               Catalina:type=DataSource,*      size                       context name -connectionpool=*
+waiting            Catalina:type=DataSource,*      waitCount                  context name -connectionpool=*
+borrowed_count     Catalina:type=DataSource,*      borrowedCount              context name -connectionpool=*
+returned_count     Catalina:type=DataSource,*      returnedCount              context name -connectionpool=*
+created_count      Catalina:type=DataSource,*      createdCount               context name -connectionpool=*
+released_count     Catalina:type=DataSource,*      releasedCount              context name -connectionpool=*
+abandoned_count    Catalina:type=DataSource,*      removeAbandonedCount       context name -connectionpool=*
+reconnected_count  Catalina:type=DataSource,*      reconnectedCount           context name -connectionpool=*
+hikari_active      com.zaxxer.hikari:type=Pool?(*  ActiveConnections          type
+hikari_idle        com.zaxxer.hikari:type=Pool?(*  IdleConnections            type
+hikari_total       com.zaxxer.hikari:type=Pool?(*  TotalConnections           type
+hikari_waiting     com.zaxxer.hikari:type=Pool?(*  ThreadsAwaitingConnection  type
+
+[cache]
+lookups_count      Catalina:type=WebResourceRoot,name=Cache,*  lookupCount     host context
+hits_count         Catalina:type=WebResourceRoot,name=Cache,*  hitCount        host context
+size_bytes         Catalina:type=WebResourceRoot,name=Cache,*  size            host context *1024
+max_bytes          Catalina:type=WebResourceRoot,name=Cache,*  maxSize         host context *1024
+jsps               Catalina:type=JspMonitor,*                  jspCount        WebModule
+jsp_reloads_count  Catalina:type=JspMonitor,*                  jspReloadCount  WebModule
+jsp_unloads_count  Catalina:type=JspMonitor,*                  jspUnloadCount  WebModule
+jsp_queue          Catalina:type=JspMonitor,*                  jspQueueLength  WebModule >=0

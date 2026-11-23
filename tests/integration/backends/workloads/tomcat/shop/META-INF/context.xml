@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) Bankole Ogundero and the Vigil contributors
+  SPDX-License-Identifier: Apache-2.0
+
+  Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+  implied. Run it at your own risk: review it first, and test it before you
+  rely on it. In no event shall the authors or copyright holders be liable
+  for any claim, damages or other liability arising from its use. See the
+  LICENSE file for the full terms.
+
+  The shop's context: at most 40 sessions, then refused; three connection
+  pools to an in-memory H2 database (no data, no password: it holds
+  nothing), from Tomcat's DBCP, Tomcat's JDBC pool and HikariCP, each giving
+  up a wait after a second.
+-->
+<Context>
+  <Manager maxActiveSessions="40"/>
+  <Resource name="jdbc/hikari" auth="Container" type="javax.sql.DataSource"
+            factory="com.zaxxer.hikari.HikariJNDIFactory" driverClassName="org.h2.Driver"
+            jdbcUrl="jdbc:h2:mem:hikari;DB_CLOSE_DELAY=-1" username="sa" password=""
+            poolName="hikari" maximumPoolSize="3" minimumIdle="0" connectionTimeout="1000" registerMbeans="true"/>
+  <Resource name="jdbc/shop" auth="Container" type="javax.sql.DataSource" driverClassName="org.h2.Driver"
+            url="jdbc:h2:mem:shop;DB_CLOSE_DELAY=-1" username="sa" password=""
+            maxTotal="4" maxIdle="2" minIdle="0" maxWaitMillis="1000"/>
+  <Resource name="jdbc/orders" auth="Container" type="javax.sql.DataSource"
+            factory="org.apache.tomcat.jdbc.pool.DataSourceFactory" jmxEnabled="true" driverClassName="org.h2.Driver"
+            url="jdbc:h2:mem:orders;DB_CLOSE_DELAY=-1" username="sa" password=""
+            maxActive="4" maxIdle="2" minIdle="0" initialSize="0" maxWait="1000"/>
+</Context>
