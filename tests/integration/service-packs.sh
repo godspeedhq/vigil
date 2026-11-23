@@ -1301,6 +1301,97 @@ else
     check "$pp: the password is written nowhere" '' "$(grep -rlF -- "$VIGIL_IT_PROBE_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
 
+# --- beam -------------------------------------------------------------------
+# Erlang VMs, through Vigil, as scripts/run-beam.sh sets them up:
+# VIGIL_IT_BEAM_DIST its nodes (name=node;...), VIGIL_IT_BEAM_COOKIE their
+# cookie, VIGIL_IT_BEAM_ERLANG where Erlang is, VIGIL_IT_BEAM_PROMETHEUS
+# Prometheus pages (name=url;...), VIGIL_IT_BEAM_DUMPS a folder of crash
+# dumps, and VIGIL_IT_BEAM_TROUBLE the node in trouble (trouble.erl: a
+# mailbox nobody reads, a cache that never evicts).
+if [ -z "${VIGIL_IT_BEAM_DIST-}" ] || [ -z "${VIGIL_IT_BEAM_COOKIE-}" ]; then
+    printf '  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)\n'
+else
+    # The jobs have their settings and cookie from Vigil: never from this
+    # test's own environment.
+    unset BEAM_DIST BEAM_COOKIE BEAM_PROMETHEUS BEAM_ERLANG BEAM_EPMD BEAM_CRASH_DUMPS
+    printf 'beam: %s; %s\n' "$VIGIL_IT_BEAM_DIST" "${VIGIL_IT_BEAM_PROMETHEUS-}"
+    cookie_file_before=$([ -e "$HOME/.erlang.cookie" ] && echo yes || echo no)
+    bjobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/beam/pack.config")
+    bn=$(printf '%s\n' $bjobs | wc -l | tr -d ' ')
+    bjobs_on() { vigil pack list | awk '$1 ~ /^beam_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    bval() { grep -h " out metric $2 " "$root/logs/jobs/beam_$1"/*.log 2> /dev/null | grep -- "${3-}" | tail -n 1 | awk '{ print $6 }'; }
+    bsaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/beam_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    brun() { vigil run "beam_$1" > "$work/out" 2>&1; echo $?; }
+    check 'beam: off until enabled' "off=$bn" "$(bjobs_on)"
+    out=$(vigil pack enable beam 2>&1)
+    check 'beam: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'beam: it warns what the cookie allows' yes "$(printf '%s\n' "$out" | tr '\n' ' ' | tr -s ' ' | grep -q 'WARNING: the cookie lets whoever holds it run anything on the node; this pack only reads' && echo yes || echo no)"
+    check 'beam: its jobs are on' "on=$bn" "$(bjobs_on)"
+    check 'beam: no secret line until the cookie is asked for' 0 "$(grep -c '^secret *= BEAM_COOKIE=' "$root/config/vigil.config")"
+    # The cookie: a secret line on the jobs that read it (those with
+    # BEAM_ERLANG), as the pack's page says.
+    awk -v s='secret      = BEAM_COOKIE=secret:BEAM_COOKIE' '{ print } /^env *= BEAM_ERLANG=/ { print s }' \
+        "$root/config/vigil.config" > "$work/cfg" && cat "$work/cfg" > "$root/config/vigil.config"
+    check 'beam: the cookie is a secret reference, on the five jobs that read it' 5 "$(grep -c '^secret *= BEAM_COOKIE=secret:BEAM_COOKIE' "$root/config/vigil.config")"
+    printf '%s' "$VIGIL_IT_BEAM_COOKIE" | vigil secret set BEAM_COOKIE --stdin > /dev/null
+    set_env BEAM_DIST "$VIGIL_IT_BEAM_DIST"
+    set_env BEAM_ERLANG "${VIGIL_IT_BEAM_ERLANG-}"
+    set_env BEAM_PROMETHEUS "${VIGIL_IT_BEAM_PROMETHEUS-}"
+    set_env BEAM_CRASH_DUMPS "${VIGIL_IT_BEAM_DUMPS-}"
+    check 'beam: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+
+    failed=''
+    for j in $bjobs; do
+        [ "$(brun "$j")" = 0 ] || failed="$failed $j"
+    done
+    check 'beam: every job runs' '' "$failed"
+    for j in $failed; do sed 's/^/        /' "$root/logs/jobs/beam_$j"/*.log | tail -n 4; done
+    for j in $bjobs; do
+        printf '        %s: %s lines\n' "$j" "$(grep -h ' out metric ' "$root/logs/jobs/beam_$j"/*.log | wc -l | tr -d ' ')"
+    done
+    check 'beam: process: the VMs are seen' yes "$([ "$(bval process beams)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'beam: epmd answers' 1 "$(bval epmd epmd_up)"
+    for t in $(printf '%s\n' "$VIGIL_IT_BEAM_DIST" | tr ';' '\n' | sed -n 's/^ *\([^=]*\)=.*/\1/p'); do
+        check "beam: $t answers with the cookie" 1 "$(bval vm up "node=$t source=dist")"
+        check "beam: $t says its version" 1 "$(bval vm version "node=$t source=dist")"
+    done
+    for t in $(printf '%s\n' "${VIGIL_IT_BEAM_PROMETHEUS-}" | tr ';' '\n' | sed -n 's/^ *\([^=]*\)=.*/\1/p'); do
+        check "beam: $t answers on Prometheus" 1 "$(bval vm up "node=$t source=prometheus")"
+        check "beam: $t's atoms are counted" yes "$([ "$(bval vm atoms "node=$t source=prometheus")" -ge 1000 ] 2> /dev/null && echo yes || echo no)"
+    done
+    if [ -n "${VIGIL_IT_BEAM_TROUBLE-}" ]; then
+        tr_=$VIGIL_IT_BEAM_TROUBLE
+        check 'beam: the mailbox nobody reads is the longest' yes "$([ "$(bval processes mailbox "node=$tr_ source=dist process=slow_consumer")" -ge 100 ] 2> /dev/null && echo yes || echo no)"
+        check 'beam: and over 1,000 waiting, once it has run a minute' yes "$([ "$(bval processes mailboxes_over_1000 "node=$tr_ ")" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+        check 'beam: the cache that never evicts is the largest table' yes "$(grep -h ' out metric table_memory_bytes ' "$root/logs/jobs/beam_tables"/*.log | grep "node=$tr_ " | head -1 | grep -q 'table=leaky_cache owner=trouble:cache/1' && echo yes || echo no)"
+        check 'beam: the busy loop is the busiest process' yes "$(grep -h ' out metric process_reductions_count ' "$root/logs/jobs/beam_processes"/*.log | grep "node=$tr_ " | head -1 | grep -q 'process=spinner' && echo yes || echo no)"
+        check 'beam: its applications are listed' 1 "$(bval apps app "node=$tr_ source=dist app=kernel ")"
+    fi
+    if [ -n "${VIGIL_IT_BEAM_DUMPS-}" ]; then
+        check 'beam: the crash dumps are found' yes "$([ "$(bval crashdumps dumps)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+        check 'beam: and why the VM died' yes "$(grep -h ' out metric dump 1 ' "$root/logs/jobs/beam_crashdumps"/*.log | grep -q 'slogan=no_more_index_entries_in_atom_tab' && echo yes || echo no)"
+    fi
+    # A wrong cookie fails the run and says why; a node that is down is a
+    # reading.
+    printf 'not-the-cookie' | vigil secret set BEAM_COOKIE --stdin > /dev/null
+    check 'beam: a wrong cookie fails the run' 1 "$(brun vm)"
+    check 'beam: and says the cookie, or the name, is not the node'"'"'s' yes "$(bsaid vm 'is not its cookie, or')"
+    printf '%s' "$VIGIL_IT_BEAM_COOKIE" | vigil secret set BEAM_COOKIE --stdin > /dev/null
+    set_env BEAM_DIST 'gone=vigil_gone@127.0.0.1'
+    check 'beam: a node that is down still runs' 0 "$(brun dist)"
+    check 'beam: and reads as up 0' 0 "$(bval dist up 'node=gone ')"
+    set_env BEAM_DIST "$VIGIL_IT_BEAM_DIST"
+    check 'beam: the cookie is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_BEAM_COOKIE" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+    check 'beam: and Erlang wrote no cookie file into this home' "$cookie_file_before" "$([ -e "$HOME/.erlang.cookie" ] && echo yes || echo no)"
+    check 'beam: no home of a run is left behind' 0 "$(ls -d "${TMPDIR:-/tmp}"/vigil-beam.* 2> /dev/null | wc -l | tr -d ' ')"
+fi
+
 # --- nginx ------------------------------------------------------------------
 if [ -z "${VIGIL_IT_NGINX_URL-}" ]; then
     printf '  SKIP  nginx: set VIGIL_IT_NGINX_URL\n'
@@ -1355,6 +1446,10 @@ fi
 if [ -n "${VIGIL_IT_PROBE_PACK-}" ] && [ -n "${VIGIL_IT_PROBE_EXPECT-}" ]; then
     for _ in $(seq 1 20); do grep -q "^${VIGIL_IT_PROBE_EXPECT}{" "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
     check "$VIGIL_IT_PROBE_PACK: metrics reach the backend" yes "$(grep -q "^${VIGIL_IT_PROBE_EXPECT}{" "$root/metrics/vigil.prom" && grep -q "^${VIGIL_IT_PROBE_PACK}_jmx_up{" "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
+if [ -n "${VIGIL_IT_BEAM_DIST-}" ] && [ -n "${VIGIL_IT_BEAM_COOKIE-}" ]; then
+    for _ in $(seq 1 20); do grep -q '^beam_vm_up{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check 'beam: metrics reach the backend' yes "$(grep -q '^beam_vm_up{' "$root/metrics/vigil.prom" && grep -q '^beam_processes_mailbox_messages{' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
     check 'nginx: metrics reach the backend' yes "$(grep -q '^nginx_requests_count{' "$root/metrics/vigil.prom" && echo yes || echo no)"
