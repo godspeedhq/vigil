@@ -1039,7 +1039,7 @@ Apache ActiveMQ Artemis 2.x, on this machine or any it can reach, over JMX with 
 | `artemis.address.limit_pct` on an address that blocks | Well below 100 | Above 70 | At 100: its producers are blocked | 102 for `blocked`, its producer held |
 | `artemis.address.paging`, `pages` | 0 | 1: the address holds more than memory allows, on disk | `pages` growing for hours | 1 and 1 page for `orders`, at 99 of its limit |
 | `artemis.address.unrouted_count` (as a rate) | Flat | | Rising: messages sent where no queue reads them are lost | 50 for `nowhere` |
-| `artemis.queue.oldest_seconds` | Small | Growing: consumers fall behind | Hours | 139 to 378 for `orders`, by how long each broker had been up, read by a consumer too slow |
+| `artemis.queue.oldest_seconds` | Small | Growing: consumers fall behind | Hours | 139 to 378 for `orders` (the brokers got their trouble one after another), read by a consumer too slow |
 | `artemis.queue.messages` with `consumers` 0 | Rising and falling | Growing on one queue | Growing with nobody reading | 2,999 in `orders`, 434 being delivered to its slow consumer |
 | `artemis.dlq.expired`, `dead` | 0, or flat | Rising | Growing | 100 in `ExpiryQueue`, every message that expired; `dead` 0 |
 | `artemis.broker.login_failed_count` (as a rate) | Flat | | Rising: a client with a wrong password, or someone guessing | 9 on 2.40 and 2.44 after 3 refused clients (each tried again); 2.33 does not count them |
