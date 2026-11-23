@@ -26,7 +26,7 @@ x-artemis: &artemis
   environment: &env
     ARTEMIS_USER: admin
     ARTEMIS_PASSWORD: ${ARTEMIS_ADMIN_PASSWORD:-}
-    JAVA_ARGS_APPEND: -Djava.rmi.server.hostname=localhost -Xmx256m
+    JAVA_ARGS_APPEND: -Djava.rmi.server.hostname=localhost -Xms128m -Xmx320m
 
 services:
   art233:
