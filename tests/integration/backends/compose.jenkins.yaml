@@ -1,0 +1,40 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Jenkins for the jenkins pack (scripts/run-jenkins.sh), each in trouble on
+# purpose by configs/services/jenkins/vigil.groovy at its first start:
+# users monitor (read-only, and SystemRead) and reader (read-only), two
+# agents that never connect, jobs failing, unstable, disabled, never built,
+# a build far past its estimate and one waiting for a label no node has.
+# Not somewhere Vigil sends: what its pack reads.
+#
+#   jk2580   Jenkins 2.580.2 LTS, Java 21   127.0.0.1:18081
+#   jk2528   Jenkins 2.528.3 LTS, Java 17   127.0.0.1:18082
+#
+# Each installs the plugins the script needs (matrix-auth, folders,
+# pipelines) as it starts: the versions the update center gives for its
+# own version of Jenkins. Each takes 1 GB.
+
+x-jenkins: &jenkins
+  mem_limit: 1g
+  entrypoint: ["/bin/sh", "-c", "jenkins-plugin-cli --jenkins-update-center \"https://updates.jenkins.io/update-center.json?version=$${JENKINS_VERSION}\" --plugins matrix-auth cloudbees-folder workflow-aggregator > /tmp/plugins.log 2>&1 && exec /usr/bin/tini -- /usr/local/bin/jenkins.sh"]
+  environment:
+    JAVA_OPTS: -Djenkins.install.runSetupWizard=false -Djenkins.security.SystemReadPermission=true -Xmx512m
+  volumes:
+    - ./configs/services/jenkins/vigil.groovy:/usr/share/jenkins/ref/init.groovy.d/vigil.groovy:ro,z
+
+services:
+  jk2580:
+    <<: *jenkins
+    image: jenkins/jenkins:2.580.2-lts-jdk21
+    ports: ["127.0.0.1:18081:8080"]
+  jk2528:
+    <<: *jenkins
+    image: jenkins/jenkins:2.528.3-lts-jdk17
+    ports: ["127.0.0.1:18082:8080"]

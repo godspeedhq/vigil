@@ -79,6 +79,8 @@
 #                                        _TROUBLE (scripts/run-beam.sh)
 #   VIGIL_IT_RABBITMQ_TARGETS            RabbitMQ nodes' Prometheus pages
 #                                        (scripts/run-rabbitmq.sh)
+#   VIGIL_IT_JENKINS_URL, _USER, _TOKEN  a Jenkins, a read-only user and its
+#                                        API token (scripts/run-jenkins.sh)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
@@ -155,7 +157,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq nginx; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins nginx; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1321,6 +1323,65 @@ else
     check "$pp: the password is written nowhere" '' "$(grep -rlF -- "$VIGIL_IT_PROBE_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
 
+# --- jenkins ----------------------------------------------------------------
+# A Jenkins, through Vigil, as scripts/run-jenkins.sh sets it up:
+# VIGIL_IT_JENKINS_URL its address, VIGIL_IT_JENKINS_USER a read-only user
+# (with SystemRead) and VIGIL_IT_JENKINS_TOKEN its API token.
+if [ -z "${VIGIL_IT_JENKINS_URL-}" ] || [ -z "${VIGIL_IT_JENKINS_TOKEN-}" ]; then
+    printf '  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)\n'
+elif ! command -v jq > /dev/null 2>&1; then
+    printf '  SKIP  jenkins: jq is not installed here\n'
+else
+    unset JENKINS_URL JENKINS_USER JENKINS_API_TOKEN JENKINS_CACERT
+    printf 'jenkins: %s as %s\n' "$VIGIL_IT_JENKINS_URL" "${VIGIL_IT_JENKINS_USER-}"
+    kjobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/jenkins/pack.config")
+    kn=$(printf '%s\n' $kjobs | wc -l | tr -d ' ')
+    kjobs_on() { vigil pack list | awk '$1 ~ /^jenkins_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    kval() { grep -h " out metric $2 " "$root/logs/jobs/jenkins_$1"/*.log 2> /dev/null | grep -- "${3-}" | tail -n 1 | awk '{ print $6 }'; }
+    ksaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/jenkins_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    krun() { vigil run "jenkins_$1" > "$work/out" 2>&1; echo $?; }
+    check 'jenkins: off until enabled' "off=$kn" "$(kjobs_on)"
+    out=$(vigil pack enable jenkins 2>&1)
+    check 'jenkins: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check "jenkins: it says its JVM is the jvm pack's" yes "$(printf '%s\n' "$out" | tr '\n' ' ' | tr -s ' ' | grep -q 'the jvm pack, not this one' && echo yes || echo no)"
+    check 'jenkins: its jobs are on' "on=$kn" "$(kjobs_on)"
+    check 'jenkins: no secret line until the token is asked for' 0 "$(grep -c '^secret *= JENKINS_API_TOKEN=' "$root/config/vigil.config")"
+    awk -v s='secret      = JENKINS_API_TOKEN=secret:JENKINS_API_TOKEN' '{ print } /^env *= JENKINS_CACERT=/ { print s }' \
+        "$root/config/vigil.config" > "$work/cfg" && cat "$work/cfg" > "$root/config/vigil.config"
+    check 'jenkins: the token is a secret reference, on every job' "$kn" "$(grep -c '^secret *= JENKINS_API_TOKEN=secret:JENKINS_API_TOKEN' "$root/config/vigil.config")"
+    printf '%s' "$VIGIL_IT_JENKINS_TOKEN" | vigil secret set JENKINS_API_TOKEN --stdin > /dev/null
+    set_env JENKINS_URL "$VIGIL_IT_JENKINS_URL"
+    set_env JENKINS_USER "${VIGIL_IT_JENKINS_USER-}"
+    check 'jenkins: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    failed=''
+    for j in $kjobs; do [ "$(krun "$j")" = 0 ] || failed="$failed $j"; done
+    check 'jenkins: every job runs' '' "$failed"
+    for j in $failed; do sed 's/^/        /' "$root/logs/jobs/jenkins_$j"/*.log | tail -n 4; done
+    for j in $kjobs; do
+        printf '        %s: %s lines\n' "$j" "$(grep -h ' out metric ' "$root/logs/jobs/jenkins_$j"/*.log | wc -l | tr -d ' ')"
+    done
+    check 'jenkins: answers' 1 "$(kval status up)"
+    check 'jenkins: nodes offline seen' yes "$([ "$(kval status nodes_offline)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'jenkins: failing jobs seen' yes "$([ "$(kval jobs failing)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'jenkins: the queue read' yes "$(grep -qh ' out metric queue_length ' "$root/logs/jobs/jenkins_queue"/*.log && echo yes || echo no)"
+    printf 'not-the-token' | vigil secret set JENKINS_API_TOKEN --stdin > /dev/null
+    check 'jenkins: a wrong token fails the run' 2 "$(krun status)"
+    check 'jenkins: and says why' yes "$(ksaid status 'Jenkins refused the login (HTTP 401)')"
+    printf '%s' "$VIGIL_IT_JENKINS_TOKEN" | vigil secret set JENKINS_API_TOKEN --stdin > /dev/null
+    set_env JENKINS_URL 'http://127.0.0.1:1'
+    check 'jenkins: a Jenkins that does not answer still runs' 0 "$(krun status)"
+    check 'jenkins: and reads as up 0' 0 "$(kval status up)"
+    set_env JENKINS_URL "$VIGIL_IT_JENKINS_URL"
+    [ "$(krun status)" = 0 ] || true
+    check 'jenkins: the token is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_JENKINS_TOKEN" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+fi
+
 # --- rabbitmq ---------------------------------------------------------------
 # RabbitMQ nodes, through Vigil, as scripts/run-rabbitmq.sh sets them up:
 # VIGIL_IT_RABBITMQ_TARGETS their Prometheus pages (name=address;...).
@@ -1527,6 +1588,10 @@ fi
 if [ -n "${VIGIL_IT_RABBITMQ_TARGETS-}" ]; then
     for _ in $(seq 1 20); do grep -q '^rabbitmq_queues_messages{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
     check 'rabbitmq: metrics reach the backend' yes "$(grep -q '^rabbitmq_up{' "$root/metrics/vigil.prom" && grep -q '^rabbitmq_queues_messages{' "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
+if [ -n "${VIGIL_IT_JENKINS_URL-}" ] && [ -n "${VIGIL_IT_JENKINS_TOKEN-}" ] && command -v jq > /dev/null 2>&1; then
+    for _ in $(seq 1 20); do grep -q '^jenkins_jobs_failing{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check 'jenkins: metrics reach the backend' yes "$(grep -q '^jenkins_up{' "$root/metrics/vigil.prom" && grep -q '^jenkins_jobs_failing{' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
     check 'nginx: metrics reach the backend' yes "$(grep -q '^nginx_requests_count{' "$root/metrics/vigil.prom" && echo yes || echo no)"
