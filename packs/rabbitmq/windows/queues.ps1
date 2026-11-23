@@ -140,7 +140,10 @@ $families = '?family=queue_coarse_metrics&family=queue_consumer_count&family=que
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 foreach ($entry in $targets) {
     $t = Read-Target $entry ('/metrics/detailed' + $families)
-    if ($t -isnot [hashtable]) { $t | Where-Object { $_ -is [string] } | ForEach-Object { Write-Output $_ }; continue }
+    # What it printed (up 1 or 0), then the node's page, if it gave one.
+    $t | Where-Object { $_ -is [string] } | ForEach-Object { Write-Output $_ }
+    $t = @($t | Where-Object { $_ -is [hashtable] })[0]
+    if (-not $t) { continue }
     $tag = "node=$($t.Name)"
     $q = @{}
     foreach ($l in $t.Page) {

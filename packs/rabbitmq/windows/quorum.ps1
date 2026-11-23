@@ -129,7 +129,10 @@ function Get-Sums($page) {
 
 foreach ($entry in $targets) {
     $t = Read-Target $entry '/metrics/detailed?family=ra_metrics&family=queue_metrics'
-    if ($t -isnot [hashtable]) { $t | Where-Object { $_ -is [string] } | ForEach-Object { Write-Output $_ }; continue }
+    # What it printed (up 1 or 0), then the node's page, if it gave one.
+    $t | Where-Object { $_ -is [string] } | ForEach-Object { Write-Output $_ }
+    $t = @($t | Where-Object { $_ -is [hashtable] })[0]
+    if (-not $t) { continue }
     $tag = "node=$($t.Name)"
     $role = @{}; $q = @{}
     foreach ($l in $t.Page) {

@@ -145,7 +145,10 @@ $io = @(
     @('metadata_disk_tx_count', 'rabbitmq_schema_db_disk_tx_total', '0'), @('metadata_ram_tx_count', 'rabbitmq_schema_db_ram_tx_total', '0'))
 foreach ($entry in $targets) {
     $t = Read-Target $entry '/metrics'
-    if ($t -isnot [hashtable]) { $t | Where-Object { $_ -is [string] } | ForEach-Object { Write-Output $_ }; continue }
+    # What it printed (up 1 or 0), then the node's page, if it gave one.
+    $t | Where-Object { $_ -is [string] } | ForEach-Object { Write-Output $_ }
+    $t = @($t | Where-Object { $_ -is [hashtable] })[0]
+    if (-not $t) { continue }
     $tag = "node=$($t.Name)"
     $build = $t.Page | Where-Object { $_.StartsWith('rabbitmq_build_info{') } | Select-Object -First 1
     $major = 0
