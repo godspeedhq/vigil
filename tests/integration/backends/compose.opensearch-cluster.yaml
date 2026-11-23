@@ -1,0 +1,104 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# OpenSearch for the opensearch pack (scripts/run-opensearch.sh): two
+# clusters (three nodes and two), with the security plugin on, put in
+# trouble on purpose by the run. Not somewhere Vigil sends (that is
+# compose.opensearch.yaml): what its pack reads.
+#
+#   os310a, b, c     OpenSearch 3.10.0, cluster vigil310, https   127.0.0.1:19210
+#   os219a, b        OpenSearch 2.19.7, cluster vigil219, https   127.0.0.1:19211
+#
+# Each node sets up the security plugin's demo configuration (its demo
+# certificates: the run reads the demo root CA, so the pack's
+# OPENSEARCH_CACERT is tested). The admin user's password comes from
+# OS_IT_PASSWORD (the run makes one). Each node takes 1 GB at most; its
+# write thread pool has one thread and a queue of ten, so a burst of
+# writes is rejected. Wants vm.max_map_count of 262144.
+
+x-os: &os
+  mem_limit: 1g
+  depends_on:
+    os-dirs:
+      condition: service_completed_successfully
+
+x-os-env: &os-env
+  OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OS_IT_PASSWORD:-}
+  OPENSEARCH_JAVA_OPTS: -Xms384m -Xmx384m
+  bootstrap.memory_lock: "false"
+  path.repo: /snapshots
+  thread_pool.write.size: "1"
+  thread_pool.write.queue_size: "10"
+
+services:
+  os-dirs:
+    image: opensearchproject/opensearch:3.10.0
+    user: "0"
+    entrypoint: ["/bin/sh", "-c", "chown -R 1000:1000 /snap310 /snap219"]
+    volumes:
+      - snap310:/snap310
+      - snap219:/snap219
+
+  os310a:
+    <<: *os
+    image: opensearchproject/opensearch:3.10.0
+    ports: ["127.0.0.1:19210:9200"]
+    environment:
+      <<: *os-env
+      node.name: os310a
+      cluster.name: vigil310
+      discovery.seed_hosts: os310b,os310c
+      cluster.initial_cluster_manager_nodes: os310a,os310b,os310c
+    volumes: ["snap310:/snapshots"]
+  os310b:
+    <<: *os
+    image: opensearchproject/opensearch:3.10.0
+    environment:
+      <<: *os-env
+      node.name: os310b
+      cluster.name: vigil310
+      discovery.seed_hosts: os310a,os310c
+      cluster.initial_cluster_manager_nodes: os310a,os310b,os310c
+    volumes: ["snap310:/snapshots"]
+  os310c:
+    <<: *os
+    image: opensearchproject/opensearch:3.10.0
+    environment:
+      <<: *os-env
+      node.name: os310c
+      cluster.name: vigil310
+      discovery.seed_hosts: os310a,os310b
+      cluster.initial_cluster_manager_nodes: os310a,os310b,os310c
+    volumes: ["snap310:/snapshots"]
+
+  os219a:
+    <<: *os
+    image: opensearchproject/opensearch:2.19.7
+    ports: ["127.0.0.1:19211:9200"]
+    environment:
+      <<: *os-env
+      node.name: os219a
+      cluster.name: vigil219
+      discovery.seed_hosts: os219b
+      cluster.initial_cluster_manager_nodes: os219a,os219b
+    volumes: ["snap219:/snapshots"]
+  os219b:
+    <<: *os
+    image: opensearchproject/opensearch:2.19.7
+    environment:
+      <<: *os-env
+      node.name: os219b
+      cluster.name: vigil219
+      discovery.seed_hosts: os219a
+      cluster.initial_cluster_manager_nodes: os219a,os219b
+    volumes: ["snap219:/snapshots"]
+
+volumes:
+  snap310:
+  snap219:

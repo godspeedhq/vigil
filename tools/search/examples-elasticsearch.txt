@@ -1,0 +1,142 @@
+# Each job's example output, for its script's header (tools/search/gen.py):
+# from scripts/run-elasticsearch.sh against Elasticsearch 9.5.5, three nodes
+# in trouble on purpose, on the Fedora test machine (2026-11-23). At most 10
+# lines a job.
+
+== status
+metric up 1
+metric version 1 version=9.5.5 cluster=vigil95
+metric status 2 status=red
+metric nodes 3
+metric active_shards_pct 86.21
+metric unassigned_shards 4
+metric unassigned_primary_shards 2
+metric master 1 node=es95b
+
+== health
+metric up 1
+metric served 1
+metric status 2 status=red
+metric indicators_red 2
+metric indicators_yellow 1
+metric indicator 2 indicator=shards_availability symptom=This_cluster_has_2_unavailable_primary_shards__2_unavailable_replica_shards.
+metric indicator 2 indicator=shards_capacity symptom=Cluster_is_close_to_reaching_the_configured_maximum_number_of_shards_for_data_nodes.
+metric indicator 0 indicator=master_is_stable symptom=The_cluster_has_a_stable_master_node
+
+== nodes
+metric up 1
+metric nodes 3
+metric versions 1
+metric info 1 node=es95a version=9.5.5 roles=cdfhilmrstw
+metric master 0 node=es95a
+metric cpu_pct 90 node=es95a
+metric load_1m 9.94 node=es95a
+metric mem_used_pct 77 node=es95a
+
+== thread_pools
+metric up 1
+metric rejected_total 219
+metric queued_total 0
+metric rejected 113 node=es95b pool=write
+metric rejected 106 node=es95c pool=write
+metric queue 0 node=es95b pool=write
+metric completed 201 node=es95b pool=write
+
+== breakers
+metric up 1
+metric tripped_total 14
+metric max_used_pct 51.88
+metric estimated_bytes 188663528 node=es95a breaker=parent
+metric limit_bytes 382520524 node=es95a breaker=parent
+metric used_pct 49.32 node=es95a breaker=parent
+metric tripped 7 node=es95a breaker=request
+
+== indices
+metric up 1
+metric indices 13
+metric red 1
+metric yellow 1
+metric write_blocked 2
+metric health 2 index=archive-red
+metric block 1 index=blocked block=write
+
+== shards
+metric up 1
+metric unassigned 4
+metric unassigned_primaries 2
+metric unassigned_seconds 121 index=archive-red shard=0 prirep=p reason=INDEX_CREATED
+metric unassigned_seconds 122 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric explained 1 index=archive-red shard=0 prirep=p can_allocate=no decider=filter why=node_does_not_match_index_setting__index.routing.allocation.require__filters___name:_nowhere__
+
+== allocation
+metric up 1
+metric disk_used_pct 65 node=es95a
+metric watermark 2 node=es95a
+metric nodes_over_high 3
+metric watermark_free_bytes 54975581388800 level=high
+metric allocation_enabled 0 setting=primaries
+metric exclusion 1 attribute=_name value=decommissioned-1
+metric shards_capacity_pct 83.33
+
+== operations
+metric up 1
+metric docs 25 node=es95a
+metric index_total 19 node=es95a
+metric index_time_ms 241 node=es95a
+metric query_total 10 node=es95a
+metric query_time_ms 329 node=es95a
+metric fetch_total 1 node=es95a
+
+== ingest
+metric up 1
+metric count 7
+metric failed 3
+metric failed_pct 42.86
+metric pipeline_count 6 pipeline=parse
+metric pipeline_failed 3 pipeline=parse
+metric pipeline_failed_pct 50 pipeline=parse
+metric pipeline_avg_ms 17 pipeline=parse
+
+== tasks
+metric up 1
+metric tasks 1
+metric longest_seconds 88
+metric action_tasks 1 action=indices:data/write/reindex
+metric running_seconds 88 action=indices:data/write/reindex node=es95a what=reindex_from__logs-ok__to__logs-slow_
+metric pending 0
+
+== lifecycle
+metric up 1
+metric ilm_running 1 mode=RUNNING
+metric ilm_errors 1
+metric ilm_error 1 index=ilm-broken policy=rollover-broken step=check-rollover-ready reason=setting__index.lifecycle.rollover_alias__for_index__ilm-broken__is_empty_or_not_defined
+metric ilm_error_retries 5 index=ilm-broken
+metric slm_failing 0 policy=nightly-ok reason=none
+metric slm_last_success_age_seconds 45 policy=nightly-ok
+
+== snapshots
+metric up 1
+metric repositories 2
+metric snapshots 1 repository=backups
+metric last_status 0 repository=backups status=SUCCESS
+metric last_duration_seconds 4 repository=backups
+metric last_success_age_seconds 157 repository=backups
+
+== cluster
+metric up 1
+metric indices 13
+metric shards 25
+metric fields 92
+metric nodes 3
+metric role_nodes 3 role=data_hot
+metric versions 1
+metric license 1 type=basic status=active
+
+== features
+metric up 1
+metric transforms 1
+metric transforms_started 0
+metric transforms_failed 0
+metric watcher_nodes 3
+metric watcher_started 3
+metric enrich_queued 0

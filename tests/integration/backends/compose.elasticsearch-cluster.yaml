@@ -1,0 +1,156 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Elasticsearch for the elasticsearch pack (scripts/run-elasticsearch.sh):
+# two clusters (three nodes and two), with security on, put in trouble on
+# purpose by the run. Not somewhere Vigil sends (that is
+# compose.elastic.yaml): what its pack reads.
+#
+#   es95a, b, c      Elasticsearch 9.5.5, cluster vigil95, https   127.0.0.1:19200
+#   es819a, es819b   Elasticsearch 8.19.25, cluster vigil819, http 127.0.0.1:19201
+#
+# es-certs makes a CA and each node's certificate first (transport TLS is
+# required with security on and more than one node; 9.5.5 serves https
+# with it too, so the pack's ES_CACERT is tested). The elastic user's
+# password comes from ES_IT_PASSWORD (the run makes one). Each node takes
+# 1 GB at most; its write thread pool has one thread and a queue of ten,
+# so a burst of writes is rejected. Wants vm.max_map_count of 262144.
+
+x-es: &es
+  mem_limit: 1g
+  depends_on:
+    es-certs:
+      condition: service_completed_successfully
+
+x-es-env: &es-env
+  ELASTIC_PASSWORD: ${ES_IT_PASSWORD:-}
+  ES_JAVA_OPTS: -Xms384m -Xmx384m
+  bootstrap.memory_lock: "false"
+  xpack.security.enabled: "true"
+  xpack.security.transport.ssl.enabled: "true"
+  xpack.security.transport.ssl.verification_mode: certificate
+  xpack.security.transport.ssl.certificate_authorities: certs/ca/ca.crt
+  xpack.ml.enabled: "false"
+  xpack.license.self_generated.type: basic
+  path.repo: /snapshots
+  thread_pool.write.size: "1"
+  thread_pool.write.queue_size: "10"
+
+services:
+  es-certs:
+    image: elasticsearch:9.5.5
+    user: "0"
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        if [ ! -f /certs/ca/ca.crt ]; then
+          bin/elasticsearch-certutil ca --silent --pem -out /certs/ca.zip
+          unzip -q /certs/ca.zip -d /certs
+          printf 'instances:\n' > /certs/instances.yml
+          for n in es95a es95b es95c es819a es819b; do
+            printf '  - name: %s\n    dns: [%s, localhost]\n    ip: [127.0.0.1]\n' $$n $$n >> /certs/instances.yml
+          done
+          bin/elasticsearch-certutil cert --silent --pem -out /certs/certs.zip --in /certs/instances.yml --ca-cert /certs/ca/ca.crt --ca-key /certs/ca/ca.key
+          unzip -q /certs/certs.zip -d /certs
+          rm -f /certs/*.zip
+        fi
+        chown -R 1000:0 /certs /snap95 /snap819
+        chmod -R go-rwx /certs/ca
+        chmod 755 /certs /certs/ca
+        chmod 644 /certs/ca/ca.crt
+    volumes:
+      - certs:/certs
+      - snap95:/snap95
+      - snap819:/snap819
+
+  es95a:
+    <<: *es
+    image: elasticsearch:9.5.5
+    ports: ["127.0.0.1:19200:9200"]
+    environment:
+      <<: *es-env
+      node.name: es95a
+      cluster.name: vigil95
+      discovery.seed_hosts: es95b,es95c
+      cluster.initial_master_nodes: es95a,es95b,es95c
+      xpack.security.transport.ssl.key: certs/es95a/es95a.key
+      xpack.security.transport.ssl.certificate: certs/es95a/es95a.crt
+      xpack.security.http.ssl.enabled: "true"
+      xpack.security.http.ssl.key: certs/es95a/es95a.key
+      xpack.security.http.ssl.certificate: certs/es95a/es95a.crt
+      xpack.security.http.ssl.certificate_authorities: certs/ca/ca.crt
+    volumes: ["certs:/usr/share/elasticsearch/config/certs:ro", "snap95:/snapshots"]
+  es95b:
+    <<: *es
+    image: elasticsearch:9.5.5
+    environment:
+      <<: *es-env
+      node.name: es95b
+      cluster.name: vigil95
+      discovery.seed_hosts: es95a,es95c
+      cluster.initial_master_nodes: es95a,es95b,es95c
+      xpack.security.transport.ssl.key: certs/es95b/es95b.key
+      xpack.security.transport.ssl.certificate: certs/es95b/es95b.crt
+      xpack.security.http.ssl.enabled: "true"
+      xpack.security.http.ssl.key: certs/es95b/es95b.key
+      xpack.security.http.ssl.certificate: certs/es95b/es95b.crt
+      xpack.security.http.ssl.certificate_authorities: certs/ca/ca.crt
+    volumes: ["certs:/usr/share/elasticsearch/config/certs:ro", "snap95:/snapshots"]
+
+  es95c:
+    <<: *es
+    image: elasticsearch:9.5.5
+    environment:
+      <<: *es-env
+      node.name: es95c
+      cluster.name: vigil95
+      discovery.seed_hosts: es95a,es95b
+      cluster.initial_master_nodes: es95a,es95b,es95c
+      xpack.security.transport.ssl.key: certs/es95c/es95c.key
+      xpack.security.transport.ssl.certificate: certs/es95c/es95c.crt
+      xpack.security.http.ssl.enabled: "true"
+      xpack.security.http.ssl.key: certs/es95c/es95c.key
+      xpack.security.http.ssl.certificate: certs/es95c/es95c.crt
+      xpack.security.http.ssl.certificate_authorities: certs/ca/ca.crt
+    volumes: ["certs:/usr/share/elasticsearch/config/certs:ro", "snap95:/snapshots"]
+
+  es819a:
+    <<: *es
+    image: elasticsearch:8.19.25
+    ports: ["127.0.0.1:19201:9200"]
+    environment:
+      <<: *es-env
+      node.name: es819a
+      cluster.name: vigil819
+      discovery.seed_hosts: es819b
+      cluster.initial_master_nodes: es819a,es819b
+      xpack.security.transport.ssl.key: certs/es819a/es819a.key
+      xpack.security.transport.ssl.certificate: certs/es819a/es819a.crt
+      xpack.security.http.ssl.enabled: "false"
+    volumes: ["certs:/usr/share/elasticsearch/config/certs:ro", "snap819:/snapshots"]
+  es819b:
+    <<: *es
+    image: elasticsearch:8.19.25
+    environment:
+      <<: *es-env
+      node.name: es819b
+      cluster.name: vigil819
+      discovery.seed_hosts: es819a
+      cluster.initial_master_nodes: es819a,es819b
+      xpack.security.transport.ssl.key: certs/es819b/es819b.key
+      xpack.security.transport.ssl.certificate: certs/es819b/es819b.crt
+      xpack.security.http.ssl.enabled: "false"
+    volumes: ["certs:/usr/share/elasticsearch/config/certs:ro", "snap819:/snapshots"]
+
+volumes:
+  certs:
+  snap95:
+  snap819:

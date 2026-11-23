@@ -34,6 +34,8 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`beam`](beam/README.md) | Erlang and Elixir VMs: process, epmd, memory by kind, processes, ports, atoms and ETS against their limits, run queues, GC, mailboxes, ETS tables, distribution, applications, crash dumps | [packs/beam/README.md](beam/README.md) |
 | [`rabbitmq`](rabbitmq/README.md) | RabbitMQ: up, memory, disk and file descriptors against their limits and alarms, messages in and out and lost, queues (the deepest first), quorum queues, memory by use, disk work, cluster links, vhosts | [packs/rabbitmq/README.md](rabbitmq/README.md) |
 | [`jenkins`](jenkins/README.md) | Jenkins: up, version, executors, labels, the queue and what is stuck, nodes online and why not, builds running and stuck, jobs failing, unstable and their health, load averages, plugins | [packs/jenkins/README.md](jenkins/README.md) |
+| [`elasticsearch`](elasticsearch/README.md) | Elasticsearch: cluster health and its own health report, nodes, thread pools and rejections, circuit breakers, indices, shards and why one is unassigned, disks and watermarks, node work, ingest, tasks, ILM, SLM, snapshots, transforms, license | [packs/elasticsearch/README.md](elasticsearch/README.md) |
+| [`opensearch`](opensearch/README.md) | OpenSearch: cluster health, nodes, thread pools and rejections, circuit breakers, backpressure and admission control, indices, shards and why one is unassigned, disks and watermarks, node work, ingest, tasks, ISM, snapshot management, snapshots | [packs/opensearch/README.md](opensearch/README.md) |
 | [`nginx`](nginx/README.md) | nginx: up, connections and requests, from stub_status | [packs/nginx/README.md](nginx/README.md) |
 
 ## Service packs
@@ -117,6 +119,18 @@ RabbitMQ 3.13 and 4.x, a node or a cluster, from the Prometheus pages it serves 
 A Jenkins controller, from its REST API, as a read-only user with an API token, with `curl` and `jq` (on Windows, PowerShell alone). Its nodes online or not and why, each label's executors, the queue and what is stuck in it, the builds running against their estimate, every job failing or unstable with its health and recent builds, Jenkins' own load averages, its plugins. Its JVM is the jvm pack's. Linux, macOS and Windows.
 
 **Its page: [packs/jenkins/README.md](jenkins/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### elasticsearch
+
+An Elasticsearch cluster, from its REST API, as a user (or an API key) that may only monitor, with `curl` and `jq` (on Windows, PowerShell alone). The cluster's health and Elasticsearch's own health report, every node, the thread pools and the work they refuse, the circuit breakers, every index and its blocks, every shard and Elasticsearch's own explanation of why one is unassigned, the disks against the watermarks and the settings left behind after maintenance, the work each node does, ingest pipelines, tasks, ILM, SLM and the data stream lifecycle, snapshots, the license, transforms, Watcher and enrich. Its JVM is the jvm pack's. Linux, macOS and Windows.
+
+**Its page: [packs/elasticsearch/README.md](elasticsearch/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### opensearch
+
+An OpenSearch cluster, from its REST API, as a user that may only monitor, with `curl` and `jq` (on Windows, PowerShell alone). The cluster's health and its cluster manager, every node, the thread pools and the work they refuse, the circuit breakers, search backpressure, shard indexing pressure and admission control, every index and its blocks, every shard and OpenSearch's own explanation of why one is unassigned, the disks against the watermarks and the settings left behind after maintenance, the work each node does, ingest pipelines, tasks, Index State Management, snapshot management and snapshots. Its JVM is the jvm pack's. Linux, macOS and Windows.
+
+**Its page: [packs/opensearch/README.md](opensearch/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ### nginx
 
