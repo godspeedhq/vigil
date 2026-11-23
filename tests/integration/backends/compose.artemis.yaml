@@ -1,0 +1,75 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Artemis brokers for the artemis pack (scripts/run-artemis.sh), each with
+# workloads/artemis's broker.properties and the JVM's JMX with a password
+# and TLS, the registry too (configs/services/artemis/start.sh). Artemis's
+# own connector (management.xml's <connector>) does not put its registry on
+# TLS, and the JVM's JMX cannot use the broker's own logins: so the JVM's,
+# as for any other JVM. Not somewhere Vigil sends: what its pack reads.
+#
+#   art233   Artemis 2.33   JMX 19331
+#   art240   Artemis 2.40   JMX 19332
+#   art244   Artemis 2.44   JMX 19333
+#
+# JMX: user monitor (readonly), password ARTEMIS_JMX_PASSWORD; TLS with the
+# certificate in ARTEMIS_TLS_DIR (server.p12, its password in
+# ARTEMIS_KS_PASSWORD). The broker's own admin has ARTEMIS_ADMIN_PASSWORD.
+# Each broker's etc-override (its broker.properties) is ARTEMIS_ETC_DIR's.
+# Each takes 512 MB.
+
+x-artemis: &artemis
+  mem_limit: 512m
+  entrypoint: ["/bin/sh", "/vigil/start.sh"]
+
+x-env: &env
+  ARTEMIS_USER: admin
+  ARTEMIS_PASSWORD: ${ARTEMIS_ADMIN_PASSWORD:-}
+  JMX_PASSWORD: ${ARTEMIS_JMX_PASSWORD:-}
+  KS_PASSWORD: ${ARTEMIS_KS_PASSWORD:-}
+
+services:
+  art233:
+    <<: *artemis
+    image: apache/activemq-artemis:2.33.0
+    environment:
+      <<: *env
+      JMX_PORT: "19331"
+    volumes:
+      - ./configs/services/artemis/start.sh:/vigil/start.sh:ro,z
+      - ${ARTEMIS_ETC_DIR:-./.artemis-etc}:/var/lib/artemis-instance/etc-override:ro,z
+      - ${ARTEMIS_TLS_DIR:-./.artemis-tls}:/tls:ro,z
+    ports:
+      - "127.0.0.1:19331:19331"
+
+  art240:
+    <<: *artemis
+    image: apache/activemq-artemis:2.40.0
+    environment:
+      <<: *env
+      JMX_PORT: "19332"
+    volumes:
+      - ./configs/services/artemis/start.sh:/vigil/start.sh:ro,z
+      - ${ARTEMIS_ETC_DIR:-./.artemis-etc}:/var/lib/artemis-instance/etc-override:ro,z
+      - ${ARTEMIS_TLS_DIR:-./.artemis-tls}:/tls:ro,z
+    ports:
+      - "127.0.0.1:19332:19332"
+
+  art244:
+    <<: *artemis
+    image: apache/activemq-artemis:2.44.0
+    environment:
+      <<: *env
+      JMX_PORT: "19333"
+    volumes:
+      - ./configs/services/artemis/start.sh:/vigil/start.sh:ro,z
+      - ${ARTEMIS_ETC_DIR:-./.artemis-etc}:/var/lib/artemis-instance/etc-override:ro,z
+      - ${ARTEMIS_TLS_DIR:-./.artemis-tls}:/tls:ro,z
+    ports:
+      - "127.0.0.1:19333:19333"

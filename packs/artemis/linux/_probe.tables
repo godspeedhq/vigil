@@ -1,0 +1,106 @@
+# _probe.tables - the artemis pack's jobs, as tables the probe reads
+# (tools/probe/DESIGN.md), written by tools/artemis/gen.py: edit that, not this.
+# A row: metric, MBean, attribute, then tags from the MBean's name (key/
+# for its value after the last /), +tag=value, -key=pattern, =STATE, @tag,
+# *scale, >=floor, sum, top, age. An MBean a server does not have prints
+# nothing.
+#
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+
+targets   ARTEMIS_JMX
+user      ARTEMIS_JMX_USER
+password  ARTEMIS_JMX_PASSWORD
+cacert    ARTEMIS_CACERT
+# Each broker is named as ARTEMIS_JMX names it (art1: jmxs=host:port), else
+# by its address; its own name is in artemis_status.
+name      broker
+
+[status]
+version         org.apache.activemq.artemis:broker=*                             Version       @version
+broker          org.apache.activemq.artemis:broker=*                             Name          @broker_name
+ha_policy       org.apache.activemq.artemis:broker=*                             HAPolicy      @policy
+uptime_seconds  org.apache.activemq.artemis:broker=*                             UptimeMillis  *0.001
+started         org.apache.activemq.artemis:broker=*                             Started
+active          org.apache.activemq.artemis:broker=*                             Active
+backup          org.apache.activemq.artemis:broker=*                             Backup
+replica_sync    org.apache.activemq.artemis:broker=*                             ReplicaSync
+clustered       org.apache.activemq.artemis:broker=*                             Clustered
+node            org.apache.activemq.artemis:broker=*                             NodeID        @node_id
+acceptor_up     org.apache.activemq.artemis:broker=*,component=acceptors,name=*  Started       name
+
+[broker]
+address_memory_bytes        org.apache.activemq.artemis:broker=*  AddressMemoryUsage
+address_memory_pct          org.apache.activemq.artemis:broker=*  AddressMemoryUsagePercentage
+global_max_bytes            org.apache.activemq.artemis:broker=*  GlobalMaxSize
+disk_pct                    org.apache.activemq.artemis:broker=*  DiskStoreUsage                *100
+disk_max_pct                org.apache.activemq.artemis:broker=*  MaxDiskUsage
+connections                 org.apache.activemq.artemis:broker=*  ConnectionCount
+connections_count           org.apache.activemq.artemis:broker=*  TotalConnectionCount
+sessions                    org.apache.activemq.artemis:broker=*  SessionCount
+sessions_count              org.apache.activemq.artemis:broker=*  TotalSessionCount
+consumers                   org.apache.activemq.artemis:broker=*  TotalConsumerCount
+messages                    org.apache.activemq.artemis:broker=*  TotalMessageCount
+added_count                 org.apache.activemq.artemis:broker=*  TotalMessagesAdded
+acknowledged_count          org.apache.activemq.artemis:broker=*  TotalMessagesAcknowledged
+addresses                   org.apache.activemq.artemis:broker=*  AddressCount
+queues                      org.apache.activemq.artemis:broker=*  QueueCount
+login_failed_count          org.apache.activemq.artemis:broker=*  AuthenticationFailureCount
+login_count                 org.apache.activemq.artemis:broker=*  AuthenticationSuccessCount
+authorization_failed_count  org.apache.activemq.artemis:broker=*  AuthorizationFailureCount
+mirror_pending              org.apache.activemq.artemis:broker=*  PendingMirrorAcks
+
+[addresses]
+size_bytes       org.apache.activemq.artemis:broker=*,component=addresses,address=*  AddressSize                  address top -address=$sys.* -address=activemq.notifications -address=activemq.management*
+limit_pct        org.apache.activemq.artemis:broker=*,component=addresses,address=*  AddressLimitPercent          address -address=$sys.* -address=activemq.notifications -address=activemq.management*
+messages         org.apache.activemq.artemis:broker=*,component=addresses,address=*  NumberOfMessages             address -address=$sys.* -address=activemq.notifications -address=activemq.management*
+paging           org.apache.activemq.artemis:broker=*,component=addresses,address=*  Paging                       address -address=$sys.* -address=activemq.notifications -address=activemq.management*
+pages            org.apache.activemq.artemis:broker=*,component=addresses,address=*  NumberOfPages                address -address=$sys.* -address=activemq.notifications -address=activemq.management*
+routed_count     org.apache.activemq.artemis:broker=*,component=addresses,address=*  RoutedMessageCount           address -address=$sys.* -address=activemq.notifications -address=activemq.management*
+unrouted_count   org.apache.activemq.artemis:broker=*,component=addresses,address=*  UnRoutedMessageCount         address -address=$sys.* -address=activemq.notifications -address=activemq.management*
+queues           org.apache.activemq.artemis:broker=*,component=addresses,address=*  QueueCount                   address -address=$sys.* -address=activemq.notifications -address=activemq.management*
+paused           org.apache.activemq.artemis:broker=*,component=addresses,address=*  Paused                       address -address=$sys.* -address=activemq.notifications -address=activemq.management*
+duplicate_cache  org.apache.activemq.artemis:broker=*,component=addresses,address=*  CurrentDuplicateIdCacheSize  address -address=$sys.* -address=activemq.notifications -address=activemq.management*
+
+[queues]
+messages                    org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  MessageCount                     address queue top -address=$sys.* -address=activemq.notifications -address=activemq.management*
+oldest_seconds              org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  FirstMessageAge                  address queue *0.001 -address=$sys.* -address=activemq.notifications -address=activemq.management*
+delivering                  org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  DeliveringCount                  address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+scheduled                   org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  ScheduledCount                   address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+added_count                 org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  MessagesAdded                    address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+acknowledged_count          org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  MessagesAcknowledged             address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+expired_count               org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  MessagesExpired                  address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+killed_count                org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  MessagesKilled                   address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+consumers                   org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  ConsumerCount                    address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+persistent_bytes            org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  PersistentSize                   address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+groups                      org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  GroupCount                       address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+prepared                    org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  PreparedTransactionMessageCount  address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+paused                      org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  Paused                           address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+enabled                     org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  Enabled                          address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+durable_messages            org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  DurableMessageCount              address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+delivering_bytes            org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  DeliveringSize                   address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+scheduled_bytes             org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  ScheduledSize                    address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+acknowledge_attempts_count  org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  AcknowledgeAttempts              address queue -address=$sys.* -address=activemq.notifications -address=activemq.management*
+max_consumers               org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*  MaxConsumers                     address queue >=0 -address=$sys.* -address=activemq.notifications -address=activemq.management*
+
+[dlq]
+dead                 org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*DLQ*     MessageCount     address queue top
+dead_oldest_seconds  org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*DLQ*     FirstMessageAge  address queue *0.001
+dead_added_count     org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*DLQ*     MessagesAdded    address queue
+expired              org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*Expiry*  MessageCount     address queue top
+expired_added_count  org.apache.activemq.artemis:broker=*,component=addresses,address=*,subcomponent=queues,routing-type=*,queue=*Expiry*  MessagesAdded    address queue
+
+[cluster]
+cluster_up                  org.apache.activemq.artemis:broker=*,component=cluster-connections,name=*  Started                         name
+cluster_pending             org.apache.activemq.artemis:broker=*,component=cluster-connections,name=*  MessagesPendingAcknowledgement  name
+cluster_acknowledged_count  org.apache.activemq.artemis:broker=*,component=cluster-connections,name=*  MessagesAcknowledged            name
+bridge_up                   org.apache.activemq.artemis:broker=*,component=bridges,name=*              Started                         name
+bridge_pending              org.apache.activemq.artemis:broker=*,component=bridges,name=*              MessagesPendingAcknowledgement  name
+bridge_acknowledged_count   org.apache.activemq.artemis:broker=*,component=bridges,name=*              MessagesAcknowledged            name
+connection_up               org.apache.activemq.artemis:broker=*,component=broker-connections,name=*   Open                            name

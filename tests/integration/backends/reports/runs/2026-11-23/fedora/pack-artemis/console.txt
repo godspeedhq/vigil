@@ -1,0 +1,892 @@
+== pack-artemis
+date     2026-11-23T11:08:27Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    7b93eb2 (deployed copy)
+command  tests/integration/backends/scripts/run-artemis.sh
+bash     5.3.9(1)-release
+git      git version 2.56.0
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.18.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.artemis.yaml pins them)
+         apache/activemq-artemis:2.33.0
+         apache/activemq-artemis:2.40.0
+         apache/activemq-artemis:2.44.0
+
+jar      _probe.jar 1c3abd00acbfa9e4fbe4985965706c70f76d99adbf5a7ce6cc96ee0e3f87be36 (javac 21.0.13.1)
+java     openjdk version "25.0.4.1" 2026-08-18
+jre      openjdk version "11.0.33.1" 2026-11-17 (/home/vigil-test/clis/jre11)
+brokers  art233 apache/activemq-artemis:2.33.0; art240 apache/activemq-artemis:2.40.0; art244 apache/activemq-artemis:2.44.0
+
+# Trouble, on each broker.
+sent     on each: 3000 messages of 2 KB to an address of 1 MB that pages, 300 and 30 more, 100 that expire, 50 to an address no queue reads, an address that blocks, 3 logins refused, a slow consumer
+
+# Every job, as the pack's scripts print it, as monitor (readonly).
+
+$ bash packs/artemis/status.sh
+metric jmx_up 1 broker=art233 jmx=localhost:19331
+metric version 1 broker=art233 jmx=localhost:19331 version=2.33.0
+metric broker 1 broker=art233 jmx=localhost:19331 broker_name=0.0.0.0
+metric ha_policy 1 broker=art233 jmx=localhost:19331 policy=Primary_Only
+metric uptime_seconds 389.589 broker=art233 jmx=localhost:19331
+metric started 1 broker=art233 jmx=localhost:19331
+metric active 1 broker=art233 jmx=localhost:19331
+metric backup 0 broker=art233 jmx=localhost:19331
+metric replica_sync 0 broker=art233 jmx=localhost:19331
+metric clustered 0 broker=art233 jmx=localhost:19331
+metric node 1 broker=art233 jmx=localhost:19331 node_id=5c4f2afd-e72e-11f1-a8a8-aa8b23951273
+metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=amqp
+metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=artemis
+metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=hornetq
+metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=mqtt
+metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=stomp
+metric jmx_up 1 broker=art240 jmx=localhost:19332
+metric version 1 broker=art240 jmx=localhost:19332 version=2.40.0
+metric broker 1 broker=art240 jmx=localhost:19332 broker_name=0.0.0.0
+metric ha_policy 1 broker=art240 jmx=localhost:19332 policy=Primary_Only
+metric uptime_seconds 389.621 broker=art240 jmx=localhost:19332
+metric started 1 broker=art240 jmx=localhost:19332
+metric active 1 broker=art240 jmx=localhost:19332
+metric backup 0 broker=art240 jmx=localhost:19332
+metric replica_sync 0 broker=art240 jmx=localhost:19332
+metric clustered 0 broker=art240 jmx=localhost:19332
+metric node 1 broker=art240 jmx=localhost:19332 node_id=5c977e58-e72e-11f1-8fc0-12c7ce8acc73
+metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=amqp
+metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=artemis
+metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=hornetq
+metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=mqtt
+metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=stomp
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric version 1 broker=art244 jmx=localhost:19333 version=2.44.0
+metric broker 1 broker=art244 jmx=localhost:19333 broker_name=0.0.0.0
+metric ha_policy 1 broker=art244 jmx=localhost:19333 policy=Primary_Only
+metric uptime_seconds 394.013 broker=art244 jmx=localhost:19333
+metric started 1 broker=art244 jmx=localhost:19333
+metric active 1 broker=art244 jmx=localhost:19333
+metric backup 0 broker=art244 jmx=localhost:19333
+metric replica_sync 0 broker=art244 jmx=localhost:19333
+metric clustered 0 broker=art244 jmx=localhost:19333
+metric node 1 broker=art244 jmx=localhost:19333 node_id=5a5ad52e-e72e-11f1-b36c-8a9af21f6fd2
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=amqp
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=artemis
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=hornetq
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=mqtt
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=stomp
+
+$ bash packs/artemis/broker.sh
+metric jmx_up 1 broker=art233 jmx=localhost:19331
+metric address_memory_bytes 2640244 broker=art233 jmx=localhost:19331
+metric address_memory_pct 7 broker=art233 jmx=localhost:19331
+metric global_max_bytes 33554432 broker=art233 jmx=localhost:19331
+metric disk_pct 53.4913 broker=art233 jmx=localhost:19331
+metric disk_max_pct 90 broker=art233 jmx=localhost:19331
+metric connections 1 broker=art233 jmx=localhost:19331
+metric connections_count 23 broker=art233 jmx=localhost:19331
+metric consumers 1 broker=art233 jmx=localhost:19331
+metric messages 3522 broker=art233 jmx=localhost:19331
+metric added_count 3625 broker=art233 jmx=localhost:19331
+metric acknowledged_count 3 broker=art233 jmx=localhost:19331
+metric addresses 9 broker=art233 jmx=localhost:19331
+metric queues 7 broker=art233 jmx=localhost:19331
+metric jmx_up 1 broker=art240 jmx=localhost:19332
+metric address_memory_bytes 2643360 broker=art240 jmx=localhost:19332
+metric address_memory_pct 7 broker=art240 jmx=localhost:19332
+metric global_max_bytes 33554432 broker=art240 jmx=localhost:19332
+metric disk_pct 53.4913 broker=art240 jmx=localhost:19332
+metric disk_max_pct 90 broker=art240 jmx=localhost:19332
+metric connections 1 broker=art240 jmx=localhost:19332
+metric connections_count 23 broker=art240 jmx=localhost:19332
+metric sessions 2 broker=art240 jmx=localhost:19332
+metric sessions_count 21 broker=art240 jmx=localhost:19332
+metric consumers 1 broker=art240 jmx=localhost:19332
+metric messages 3523 broker=art240 jmx=localhost:19332
+metric added_count 3625 broker=art240 jmx=localhost:19332
+metric acknowledged_count 2 broker=art240 jmx=localhost:19332
+metric addresses 10 broker=art240 jmx=localhost:19332
+metric queues 8 broker=art240 jmx=localhost:19332
+metric login_failed_count 9 broker=art240 jmx=localhost:19332
+metric login_count 21 broker=art240 jmx=localhost:19332
+metric authorization_failed_count 0 broker=art240 jmx=localhost:19332
+metric mirror_pending 0 broker=art240 jmx=localhost:19332
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric address_memory_bytes 2646476 broker=art244 jmx=localhost:19333
+metric address_memory_pct 7 broker=art244 jmx=localhost:19333
+metric global_max_bytes 33554432 broker=art244 jmx=localhost:19333
+metric disk_pct 53.4913 broker=art244 jmx=localhost:19333
+metric disk_max_pct 90 broker=art244 jmx=localhost:19333
+metric connections 1 broker=art244 jmx=localhost:19333
+metric connections_count 23 broker=art244 jmx=localhost:19333
+metric sessions 2 broker=art244 jmx=localhost:19333
+metric sessions_count 21 broker=art244 jmx=localhost:19333
+metric consumers 1 broker=art244 jmx=localhost:19333
+metric messages 3524 broker=art244 jmx=localhost:19333
+metric added_count 3625 broker=art244 jmx=localhost:19333
+metric acknowledged_count 1 broker=art244 jmx=localhost:19333
+metric addresses 10 broker=art244 jmx=localhost:19333
+metric queues 8 broker=art244 jmx=localhost:19333
+metric login_failed_count 9 broker=art244 jmx=localhost:19333
+metric login_count 21 broker=art244 jmx=localhost:19333
+metric authorization_failed_count 0 broker=art244 jmx=localhost:19333
+metric mirror_pending 0 broker=art244 jmx=localhost:19333
+
+$ bash packs/artemis/addresses.sh
+metric jmx_up 1 broker=art233 jmx=localhost:19331
+metric size_bytes 1074830 broker=art233 jmx=localhost:19331 address=blocked
+metric size_bytes 1040744 broker=art233 jmx=localhost:19331 address=orders
+metric size_bytes 335480 broker=art233 jmx=localhost:19331 address=invoices
+metric size_bytes 155880 broker=art233 jmx=localhost:19331 address=ExpiryQueue
+metric size_bytes 33310 broker=art233 jmx=localhost:19331 address=refunds
+metric size_bytes 0 broker=art233 jmx=localhost:19331 address=DLQ
+metric size_bytes 0 broker=art233 jmx=localhost:19331 address=late
+metric size_bytes 0 broker=art233 jmx=localhost:19331 address=nowhere
+metric limit_pct 102 broker=art233 jmx=localhost:19331 address=blocked
+metric limit_pct 99 broker=art233 jmx=localhost:19331 address=orders
+metric limit_pct 0 broker=art233 jmx=localhost:19331 address=invoices
+metric limit_pct 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue
+metric limit_pct 0 broker=art233 jmx=localhost:19331 address=refunds
+metric limit_pct 0 broker=art233 jmx=localhost:19331 address=DLQ
+metric limit_pct 0 broker=art233 jmx=localhost:19331 address=late
+metric limit_pct 0 broker=art233 jmx=localhost:19331 address=nowhere
+metric messages 95 broker=art233 jmx=localhost:19331 address=blocked
+metric messages 2997 broker=art233 jmx=localhost:19331 address=orders
+metric messages 300 broker=art233 jmx=localhost:19331 address=invoices
+metric messages 100 broker=art233 jmx=localhost:19331 address=ExpiryQueue
+metric messages 30 broker=art233 jmx=localhost:19331 address=refunds
+metric messages 0 broker=art233 jmx=localhost:19331 address=DLQ
+metric messages 0 broker=art233 jmx=localhost:19331 address=late
+metric messages 0 broker=art233 jmx=localhost:19331 address=nowhere
+metric paging 0 broker=art233 jmx=localhost:19331 address=blocked
+metric paging 1 broker=art233 jmx=localhost:19331 address=orders
+metric paging 0 broker=art233 jmx=localhost:19331 address=invoices
+metric paging 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue
+metric paging 0 broker=art233 jmx=localhost:19331 address=refunds
+metric paging 0 broker=art233 jmx=localhost:19331 address=DLQ
+metric paging 0 broker=art233 jmx=localhost:19331 address=late
+metric paging 0 broker=art233 jmx=localhost:19331 address=nowhere
+metric pages 0 broker=art233 jmx=localhost:19331 address=blocked
+metric pages 1 broker=art233 jmx=localhost:19331 address=orders
+metric pages 0 broker=art233 jmx=localhost:19331 address=invoices
+metric pages 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue
+metric pages 0 broker=art233 jmx=localhost:19331 address=refunds
+metric pages 0 broker=art233 jmx=localhost:19331 address=DLQ
+metric pages 0 broker=art233 jmx=localhost:19331 address=late
+metric pages 0 broker=art233 jmx=localhost:19331 address=nowhere
+metric routed_count 95 broker=art233 jmx=localhost:19331 address=blocked
+metric routed_count 3000 broker=art233 jmx=localhost:19331 address=orders
+metric routed_count 300 broker=art233 jmx=localhost:19331 address=invoices
+metric routed_count 100 broker=art233 jmx=localhost:19331 address=ExpiryQueue
+metric routed_count 30 broker=art233 jmx=localhost:19331 address=refunds
+metric routed_count 0 broker=art233 jmx=localhost:19331 address=DLQ
+metric routed_count 100 broker=art233 jmx=localhost:19331 address=late
+metric routed_count 0 broker=art233 jmx=localhost:19331 address=nowhere
+metric unrouted_count 0 broker=art233 jmx=localhost:19331 address=blocked
+metric unrouted_count 0 broker=art233 jmx=localhost:19331 address=orders
+metric unrouted_count 0 broker=art233 jmx=localhost:19331 address=invoices
+metric unrouted_count 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue
+metric unrouted_count 0 broker=art233 jmx=localhost:19331 address=refunds
+metric unrouted_count 0 broker=art233 jmx=localhost:19331 address=DLQ
+metric unrouted_count 0 broker=art233 jmx=localhost:19331 address=late
+metric unrouted_count 50 broker=art233 jmx=localhost:19331 address=nowhere
+metric paused 0 broker=art233 jmx=localhost:19331 address=blocked
+metric paused 0 broker=art233 jmx=localhost:19331 address=orders
+metric paused 0 broker=art233 jmx=localhost:19331 address=invoices
+metric paused 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue
+metric paused 0 broker=art233 jmx=localhost:19331 address=refunds
+metric paused 0 broker=art233 jmx=localhost:19331 address=DLQ
+metric paused 0 broker=art233 jmx=localhost:19331 address=late
+metric paused 0 broker=art233 jmx=localhost:19331 address=nowhere
+metric duplicate_cache 0 broker=art233 jmx=localhost:19331 address=blocked
+metric duplicate_cache 0 broker=art233 jmx=localhost:19331 address=orders
+metric duplicate_cache 0 broker=art233 jmx=localhost:19331 address=invoices
+metric duplicate_cache 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue
+metric duplicate_cache 0 broker=art233 jmx=localhost:19331 address=refunds
+metric duplicate_cache 0 broker=art233 jmx=localhost:19331 address=DLQ
+metric duplicate_cache 0 broker=art233 jmx=localhost:19331 address=late
+metric duplicate_cache 0 broker=art233 jmx=localhost:19331 address=nowhere
+metric jmx_up 1 broker=art240 jmx=localhost:19332
+metric size_bytes 1074830 broker=art240 jmx=localhost:19332 address=blocked
+metric size_bytes 1043860 broker=art240 jmx=localhost:19332 address=orders
+metric size_bytes 335480 broker=art240 jmx=localhost:19332 address=invoices
+metric size_bytes 155880 broker=art240 jmx=localhost:19332 address=ExpiryQueue
+metric size_bytes 33310 broker=art240 jmx=localhost:19332 address=refunds
+metric size_bytes 0 broker=art240 jmx=localhost:19332 address=DLQ
+metric size_bytes 0 broker=art240 jmx=localhost:19332 address=late
+metric size_bytes 0 broker=art240 jmx=localhost:19332 address=nowhere
+metric limit_pct 102 broker=art240 jmx=localhost:19332 address=blocked
+metric limit_pct 99 broker=art240 jmx=localhost:19332 address=orders
+metric limit_pct 0 broker=art240 jmx=localhost:19332 address=invoices
+metric limit_pct 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue
+metric limit_pct 0 broker=art240 jmx=localhost:19332 address=refunds
+metric limit_pct 0 broker=art240 jmx=localhost:19332 address=DLQ
+metric limit_pct 0 broker=art240 jmx=localhost:19332 address=late
+metric limit_pct 0 broker=art240 jmx=localhost:19332 address=nowhere
+metric messages 95 broker=art240 jmx=localhost:19332 address=blocked
+metric messages 2998 broker=art240 jmx=localhost:19332 address=orders
+metric messages 300 broker=art240 jmx=localhost:19332 address=invoices
+metric messages 100 broker=art240 jmx=localhost:19332 address=ExpiryQueue
+metric messages 30 broker=art240 jmx=localhost:19332 address=refunds
+metric messages 0 broker=art240 jmx=localhost:19332 address=DLQ
+metric messages 0 broker=art240 jmx=localhost:19332 address=late
+metric messages 0 broker=art240 jmx=localhost:19332 address=nowhere
+metric paging 0 broker=art240 jmx=localhost:19332 address=blocked
+metric paging 1 broker=art240 jmx=localhost:19332 address=orders
+metric paging 0 broker=art240 jmx=localhost:19332 address=invoices
+metric paging 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue
+metric paging 0 broker=art240 jmx=localhost:19332 address=refunds
+metric paging 0 broker=art240 jmx=localhost:19332 address=DLQ
+metric paging 0 broker=art240 jmx=localhost:19332 address=late
+metric paging 0 broker=art240 jmx=localhost:19332 address=nowhere
+metric pages 0 broker=art240 jmx=localhost:19332 address=blocked
+metric pages 1 broker=art240 jmx=localhost:19332 address=orders
+metric pages 0 broker=art240 jmx=localhost:19332 address=invoices
+metric pages 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue
+metric pages 0 broker=art240 jmx=localhost:19332 address=refunds
+metric pages 0 broker=art240 jmx=localhost:19332 address=DLQ
+metric pages 0 broker=art240 jmx=localhost:19332 address=late
+metric pages 0 broker=art240 jmx=localhost:19332 address=nowhere
+metric routed_count 95 broker=art240 jmx=localhost:19332 address=blocked
+metric routed_count 3000 broker=art240 jmx=localhost:19332 address=orders
+metric routed_count 300 broker=art240 jmx=localhost:19332 address=invoices
+metric routed_count 100 broker=art240 jmx=localhost:19332 address=ExpiryQueue
+metric routed_count 30 broker=art240 jmx=localhost:19332 address=refunds
+metric routed_count 0 broker=art240 jmx=localhost:19332 address=DLQ
+metric routed_count 100 broker=art240 jmx=localhost:19332 address=late
+metric routed_count 0 broker=art240 jmx=localhost:19332 address=nowhere
+metric unrouted_count 0 broker=art240 jmx=localhost:19332 address=blocked
+metric unrouted_count 0 broker=art240 jmx=localhost:19332 address=orders
+metric unrouted_count 0 broker=art240 jmx=localhost:19332 address=invoices
+metric unrouted_count 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue
+metric unrouted_count 0 broker=art240 jmx=localhost:19332 address=refunds
+metric unrouted_count 0 broker=art240 jmx=localhost:19332 address=DLQ
+metric unrouted_count 0 broker=art240 jmx=localhost:19332 address=late
+metric unrouted_count 50 broker=art240 jmx=localhost:19332 address=nowhere
+metric paused 0 broker=art240 jmx=localhost:19332 address=blocked
+metric paused 0 broker=art240 jmx=localhost:19332 address=orders
+metric paused 0 broker=art240 jmx=localhost:19332 address=invoices
+metric paused 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue
+metric paused 0 broker=art240 jmx=localhost:19332 address=refunds
+metric paused 0 broker=art240 jmx=localhost:19332 address=DLQ
+metric paused 0 broker=art240 jmx=localhost:19332 address=late
+metric paused 0 broker=art240 jmx=localhost:19332 address=nowhere
+metric duplicate_cache 0 broker=art240 jmx=localhost:19332 address=blocked
+metric duplicate_cache 0 broker=art240 jmx=localhost:19332 address=orders
+metric duplicate_cache 0 broker=art240 jmx=localhost:19332 address=invoices
+metric duplicate_cache 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue
+metric duplicate_cache 0 broker=art240 jmx=localhost:19332 address=refunds
+metric duplicate_cache 0 broker=art240 jmx=localhost:19332 address=DLQ
+metric duplicate_cache 0 broker=art240 jmx=localhost:19332 address=late
+metric duplicate_cache 0 broker=art240 jmx=localhost:19332 address=nowhere
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric size_bytes 1074830 broker=art244 jmx=localhost:19333 address=blocked
+metric size_bytes 1046976 broker=art244 jmx=localhost:19333 address=orders
+metric size_bytes 335480 broker=art244 jmx=localhost:19333 address=invoices
+metric size_bytes 155880 broker=art244 jmx=localhost:19333 address=ExpiryQueue
+metric size_bytes 33310 broker=art244 jmx=localhost:19333 address=refunds
+metric size_bytes 0 broker=art244 jmx=localhost:19333 address=DLQ
+metric size_bytes 0 broker=art244 jmx=localhost:19333 address=late
+metric size_bytes 0 broker=art244 jmx=localhost:19333 address=nowhere
+metric limit_pct 102 broker=art244 jmx=localhost:19333 address=blocked
+metric limit_pct 99 broker=art244 jmx=localhost:19333 address=orders
+metric limit_pct 0 broker=art244 jmx=localhost:19333 address=invoices
+metric limit_pct 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue
+metric limit_pct 0 broker=art244 jmx=localhost:19333 address=refunds
+metric limit_pct 0 broker=art244 jmx=localhost:19333 address=DLQ
+metric limit_pct 0 broker=art244 jmx=localhost:19333 address=late
+metric limit_pct 0 broker=art244 jmx=localhost:19333 address=nowhere
+metric messages 95 broker=art244 jmx=localhost:19333 address=blocked
+metric messages 2999 broker=art244 jmx=localhost:19333 address=orders
+metric messages 300 broker=art244 jmx=localhost:19333 address=invoices
+metric messages 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue
+metric messages 30 broker=art244 jmx=localhost:19333 address=refunds
+metric messages 0 broker=art244 jmx=localhost:19333 address=DLQ
+metric messages 0 broker=art244 jmx=localhost:19333 address=late
+metric messages 0 broker=art244 jmx=localhost:19333 address=nowhere
+metric paging 0 broker=art244 jmx=localhost:19333 address=blocked
+metric paging 1 broker=art244 jmx=localhost:19333 address=orders
+metric paging 0 broker=art244 jmx=localhost:19333 address=invoices
+metric paging 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue
+metric paging 0 broker=art244 jmx=localhost:19333 address=refunds
+metric paging 0 broker=art244 jmx=localhost:19333 address=DLQ
+metric paging 0 broker=art244 jmx=localhost:19333 address=late
+metric paging 0 broker=art244 jmx=localhost:19333 address=nowhere
+metric pages 0 broker=art244 jmx=localhost:19333 address=blocked
+metric pages 1 broker=art244 jmx=localhost:19333 address=orders
+metric pages 0 broker=art244 jmx=localhost:19333 address=invoices
+metric pages 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue
+metric pages 0 broker=art244 jmx=localhost:19333 address=refunds
+metric pages 0 broker=art244 jmx=localhost:19333 address=DLQ
+metric pages 0 broker=art244 jmx=localhost:19333 address=late
+metric pages 0 broker=art244 jmx=localhost:19333 address=nowhere
+metric routed_count 95 broker=art244 jmx=localhost:19333 address=blocked
+metric routed_count 3000 broker=art244 jmx=localhost:19333 address=orders
+metric routed_count 300 broker=art244 jmx=localhost:19333 address=invoices
+metric routed_count 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue
+metric routed_count 30 broker=art244 jmx=localhost:19333 address=refunds
+metric routed_count 0 broker=art244 jmx=localhost:19333 address=DLQ
+metric routed_count 100 broker=art244 jmx=localhost:19333 address=late
+metric routed_count 0 broker=art244 jmx=localhost:19333 address=nowhere
+metric unrouted_count 0 broker=art244 jmx=localhost:19333 address=blocked
+metric unrouted_count 0 broker=art244 jmx=localhost:19333 address=orders
+metric unrouted_count 0 broker=art244 jmx=localhost:19333 address=invoices
+metric unrouted_count 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue
+metric unrouted_count 0 broker=art244 jmx=localhost:19333 address=refunds
+metric unrouted_count 0 broker=art244 jmx=localhost:19333 address=DLQ
+metric unrouted_count 0 broker=art244 jmx=localhost:19333 address=late
+metric unrouted_count 50 broker=art244 jmx=localhost:19333 address=nowhere
+metric queues 1 broker=art244 jmx=localhost:19333 address=blocked
+metric queues 1 broker=art244 jmx=localhost:19333 address=orders
+metric queues 1 broker=art244 jmx=localhost:19333 address=invoices
+metric queues 1 broker=art244 jmx=localhost:19333 address=ExpiryQueue
+metric queues 1 broker=art244 jmx=localhost:19333 address=refunds
+metric queues 1 broker=art244 jmx=localhost:19333 address=DLQ
+metric queues 1 broker=art244 jmx=localhost:19333 address=late
+metric queues 0 broker=art244 jmx=localhost:19333 address=nowhere
+metric paused 0 broker=art244 jmx=localhost:19333 address=blocked
+metric paused 0 broker=art244 jmx=localhost:19333 address=orders
+metric paused 0 broker=art244 jmx=localhost:19333 address=invoices
+metric paused 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue
+metric paused 0 broker=art244 jmx=localhost:19333 address=refunds
+metric paused 0 broker=art244 jmx=localhost:19333 address=DLQ
+metric paused 0 broker=art244 jmx=localhost:19333 address=late
+metric paused 0 broker=art244 jmx=localhost:19333 address=nowhere
+metric duplicate_cache 0 broker=art244 jmx=localhost:19333 address=blocked
+metric duplicate_cache 0 broker=art244 jmx=localhost:19333 address=orders
+metric duplicate_cache 0 broker=art244 jmx=localhost:19333 address=invoices
+metric duplicate_cache 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue
+metric duplicate_cache 0 broker=art244 jmx=localhost:19333 address=refunds
+metric duplicate_cache 0 broker=art244 jmx=localhost:19333 address=DLQ
+metric duplicate_cache 0 broker=art244 jmx=localhost:19333 address=late
+metric duplicate_cache 0 broker=art244 jmx=localhost:19333 address=nowhere
+
+$ bash packs/artemis/queues.sh
+metric jmx_up 1 broker=art233 jmx=localhost:19331
+metric messages 2997 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric messages 300 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric messages 100 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric messages 95 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric messages 30 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric messages 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric messages 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric oldest_seconds 378.019 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric oldest_seconds 332.043 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric oldest_seconds 319.987 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric oldest_seconds 309.424 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric oldest_seconds 323.752 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric delivering 432 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric delivering 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric delivering 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric delivering 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric delivering 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric delivering 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric delivering 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric scheduled 0 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric scheduled 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric scheduled 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric scheduled 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric scheduled 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric scheduled 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric scheduled 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric added_count 3000 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric added_count 300 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric added_count 100 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric added_count 95 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric added_count 30 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric added_count 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric added_count 100 broker=art233 jmx=localhost:19331 address=late queue=late
+metric acknowledged_count 3 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric acknowledged_count 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric acknowledged_count 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric acknowledged_count 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric acknowledged_count 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric acknowledged_count 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric acknowledged_count 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric expired_count 0 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric expired_count 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric expired_count 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric expired_count 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric expired_count 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric expired_count 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric expired_count 100 broker=art233 jmx=localhost:19331 address=late queue=late
+metric killed_count 0 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric killed_count 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric killed_count 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric killed_count 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric killed_count 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric killed_count 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric killed_count 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric consumers 1 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric consumers 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric consumers 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric consumers 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric consumers 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric consumers 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric consumers 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric persistent_bytes 7159833 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric persistent_bytes 116180 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric persistent_bytes 59380 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric persistent_bytes 1005575 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric persistent_bytes 11440 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric persistent_bytes 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric persistent_bytes 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric groups 0 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric groups 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric groups 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric groups 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric groups 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric groups 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric groups 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric prepared 0 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric prepared 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric prepared 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric prepared 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric prepared 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric prepared 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric prepared 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric paused 0 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric paused 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric paused 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric paused 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric paused 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric paused 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric paused 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric enabled 1 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric enabled 1 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric enabled 1 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric enabled 1 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric enabled 1 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric enabled 1 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric enabled 1 broker=art233 jmx=localhost:19331 address=late queue=late
+metric durable_messages 2997 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric durable_messages 300 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric durable_messages 100 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric durable_messages 95 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric durable_messages 30 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric durable_messages 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric durable_messages 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric delivering_bytes 1032048 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric delivering_bytes 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric delivering_bytes 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric delivering_bytes 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric delivering_bytes 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric delivering_bytes 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric delivering_bytes 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric scheduled_bytes 0 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric scheduled_bytes 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric scheduled_bytes 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric scheduled_bytes 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric scheduled_bytes 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric scheduled_bytes 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric scheduled_bytes 0 broker=art233 jmx=localhost:19331 address=late queue=late
+metric acknowledge_attempts_count 3 broker=art233 jmx=localhost:19331 address=orders queue=orders
+metric acknowledge_attempts_count 0 broker=art233 jmx=localhost:19331 address=invoices queue=invoices
+metric acknowledge_attempts_count 0 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric acknowledge_attempts_count 0 broker=art233 jmx=localhost:19331 address=blocked queue=blocked
+metric acknowledge_attempts_count 0 broker=art233 jmx=localhost:19331 address=refunds queue=refunds
+metric acknowledge_attempts_count 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric acknowledge_attempts_count 100 broker=art233 jmx=localhost:19331 address=late queue=late
+metric jmx_up 1 broker=art240 jmx=localhost:19332
+metric messages 2998 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric messages 300 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric messages 100 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric messages 95 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric messages 30 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric messages 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric messages 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric oldest_seconds 260.798 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric oldest_seconds 211.638 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric oldest_seconds 200.157 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric oldest_seconds 189.389 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric oldest_seconds 204.363 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric delivering 433 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric delivering 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric delivering 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric delivering 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric delivering 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric delivering 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric delivering 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric scheduled 0 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric scheduled 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric scheduled 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric scheduled 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric scheduled 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric scheduled 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric scheduled 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric added_count 3000 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric added_count 300 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric added_count 100 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric added_count 95 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric added_count 30 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric added_count 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric added_count 100 broker=art240 jmx=localhost:19332 address=late queue=late
+metric acknowledged_count 2 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric acknowledged_count 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric acknowledged_count 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric acknowledged_count 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric acknowledged_count 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric acknowledged_count 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric acknowledged_count 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric expired_count 0 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric expired_count 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric expired_count 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric expired_count 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric expired_count 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric expired_count 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric expired_count 100 broker=art240 jmx=localhost:19332 address=late queue=late
+metric killed_count 0 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric killed_count 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric killed_count 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric killed_count 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric killed_count 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric killed_count 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric killed_count 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric consumers 1 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric consumers 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric consumers 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric consumers 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric consumers 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric consumers 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric consumers 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric persistent_bytes 7162222 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric persistent_bytes 116180 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric persistent_bytes 59380 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric persistent_bytes 1005575 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric persistent_bytes 11440 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric persistent_bytes 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric persistent_bytes 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric groups 0 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric groups 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric groups 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric groups 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric groups 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric groups 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric groups 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric prepared 0 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric prepared 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric prepared 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric prepared 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric prepared 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric prepared 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric prepared 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric paused 0 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric paused 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric paused 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric paused 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric paused 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric paused 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric paused 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric enabled 1 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric enabled 1 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric enabled 1 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric enabled 1 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric enabled 1 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric enabled 1 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric enabled 1 broker=art240 jmx=localhost:19332 address=late queue=late
+metric durable_messages 2998 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric durable_messages 300 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric durable_messages 100 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric durable_messages 95 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric durable_messages 30 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric durable_messages 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric durable_messages 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric delivering_bytes 1034437 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric delivering_bytes 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric delivering_bytes 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric delivering_bytes 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric delivering_bytes 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric delivering_bytes 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric delivering_bytes 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric scheduled_bytes 0 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric scheduled_bytes 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric scheduled_bytes 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric scheduled_bytes 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric scheduled_bytes 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric scheduled_bytes 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric scheduled_bytes 0 broker=art240 jmx=localhost:19332 address=late queue=late
+metric acknowledge_attempts_count 2 broker=art240 jmx=localhost:19332 address=orders queue=orders
+metric acknowledge_attempts_count 0 broker=art240 jmx=localhost:19332 address=invoices queue=invoices
+metric acknowledge_attempts_count 0 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric acknowledge_attempts_count 0 broker=art240 jmx=localhost:19332 address=blocked queue=blocked
+metric acknowledge_attempts_count 0 broker=art240 jmx=localhost:19332 address=refunds queue=refunds
+metric acknowledge_attempts_count 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric acknowledge_attempts_count 100 broker=art240 jmx=localhost:19332 address=late queue=late
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric messages 2999 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric messages 300 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric messages 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric messages 95 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric messages 30 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric messages 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric messages 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric oldest_seconds 139.463 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric oldest_seconds 83.703 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric oldest_seconds 71.473 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric oldest_seconds 61.425 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric oldest_seconds 77.942 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric delivering 434 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric delivering 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric delivering 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric delivering 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric delivering 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric delivering 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric delivering 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric scheduled 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric scheduled 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric scheduled 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric scheduled 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric scheduled 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric scheduled 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric scheduled 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric added_count 3000 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric added_count 300 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric added_count 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric added_count 95 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric added_count 30 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric added_count 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric added_count 100 broker=art244 jmx=localhost:19333 address=late queue=late
+metric acknowledged_count 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric acknowledged_count 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric acknowledged_count 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric acknowledged_count 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric acknowledged_count 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric acknowledged_count 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric acknowledged_count 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric expired_count 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric expired_count 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric expired_count 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric expired_count 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric expired_count 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric expired_count 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric expired_count 100 broker=art244 jmx=localhost:19333 address=late queue=late
+metric killed_count 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric killed_count 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric killed_count 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric killed_count 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric killed_count 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric killed_count 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric killed_count 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric consumers 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric consumers 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric consumers 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric consumers 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric consumers 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric consumers 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric consumers 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric persistent_bytes 7164611 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric persistent_bytes 116180 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric persistent_bytes 59380 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric persistent_bytes 1005575 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric persistent_bytes 11440 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric persistent_bytes 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric persistent_bytes 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric groups 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric groups 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric groups 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric groups 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric groups 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric groups 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric groups 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric prepared 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric prepared 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric prepared 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric prepared 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric prepared 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric prepared 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric prepared 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric paused 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric paused 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric paused 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric paused 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric paused 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric paused 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric paused 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric enabled 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric enabled 1 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric enabled 1 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric enabled 1 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric enabled 1 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric enabled 1 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric enabled 1 broker=art244 jmx=localhost:19333 address=late queue=late
+metric durable_messages 2999 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric durable_messages 300 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric durable_messages 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric durable_messages 95 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric durable_messages 30 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric durable_messages 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric durable_messages 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric delivering_bytes 1036826 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric delivering_bytes 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric delivering_bytes 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric delivering_bytes 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric delivering_bytes 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric delivering_bytes 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric delivering_bytes 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric scheduled_bytes 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric scheduled_bytes 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric scheduled_bytes 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric scheduled_bytes 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric scheduled_bytes 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric scheduled_bytes 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric scheduled_bytes 0 broker=art244 jmx=localhost:19333 address=late queue=late
+metric acknowledge_attempts_count 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric acknowledge_attempts_count 0 broker=art244 jmx=localhost:19333 address=invoices queue=invoices
+metric acknowledge_attempts_count 0 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric acknowledge_attempts_count 0 broker=art244 jmx=localhost:19333 address=blocked queue=blocked
+metric acknowledge_attempts_count 0 broker=art244 jmx=localhost:19333 address=refunds queue=refunds
+metric acknowledge_attempts_count 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric acknowledge_attempts_count 100 broker=art244 jmx=localhost:19333 address=late queue=late
+
+$ bash packs/artemis/dlq.sh
+metric jmx_up 1 broker=art233 jmx=localhost:19331
+metric dead 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric dead_added_count 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric expired 100 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric expired_added_count 100 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric jmx_up 1 broker=art240 jmx=localhost:19332
+metric dead 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric dead_added_count 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric expired 100 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric expired_added_count 100 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric dead 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric dead_added_count 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric expired 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric expired_added_count 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+
+$ bash packs/artemis/cluster.sh
+metric jmx_up 1 broker=art233 jmx=localhost:19331
+metric jmx_up 1 broker=art240 jmx=localhost:19332
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+
+# What they read.
+  PASS  artemis: status runs
+  PASS  artemis: broker runs
+  PASS  artemis: addresses runs
+  PASS  artemis: queues runs
+  PASS  artemis: dlq runs
+  PASS  artemis: cluster runs
+  PASS  art233: answers over TLS, as a readonly user
+  PASS  art233: its version, 2.33
+  PASS  art233: started
+  PASS  art233: active
+  PASS  art233: not a backup
+  PASS  art233: its acceptor
+  PASS  art233: global-max-size
+  PASS  art233: messages waiting
+        art233: logins refused: 2.33 does not count them ()
+  PASS  art233: the largest address first, holding its producers
+  PASS  art233: then the one paging
+  PASS  art233: paging
+  PASS  art233: pages on disk
+  PASS  art233: the address that blocks, full
+  PASS  art233: messages routed nowhere
+  PASS  art233: the deepest queue first
+  PASS  art233: its oldest message's age
+  PASS  art233: messages being delivered
+  PASS  art233: to its consumer
+  PASS  art233: messages expired
+  PASS  art233: into the expiry queue
+  PASS  art233: its dead letter queue, read
+  PASS  art240: answers over TLS, as a readonly user
+  PASS  art240: its version, 2.40
+  PASS  art240: started
+  PASS  art240: active
+  PASS  art240: not a backup
+  PASS  art240: its acceptor
+  PASS  art240: global-max-size
+  PASS  art240: messages waiting
+  PASS  art240: logins refused
+  PASS  art240: the largest address first, holding its producers
+  PASS  art240: then the one paging
+  PASS  art240: paging
+  PASS  art240: pages on disk
+  PASS  art240: the address that blocks, full
+  PASS  art240: messages routed nowhere
+  PASS  art240: the deepest queue first
+  PASS  art240: its oldest message's age
+  PASS  art240: messages being delivered
+  PASS  art240: to its consumer
+  PASS  art240: messages expired
+  PASS  art240: into the expiry queue
+  PASS  art240: its dead letter queue, read
+  PASS  art244: answers over TLS, as a readonly user
+  PASS  art244: its version, 2.44
+  PASS  art244: started
+  PASS  art244: active
+  PASS  art244: not a backup
+  PASS  art244: its acceptor
+  PASS  art244: global-max-size
+  PASS  art244: messages waiting
+  PASS  art244: logins refused
+  PASS  art244: the largest address first, holding its producers
+  PASS  art244: then the one paging
+  PASS  art244: paging
+  PASS  art244: pages on disk
+  PASS  art244: the address that blocks, full
+  PASS  art244: messages routed nowhere
+  PASS  art244: the deepest queue first
+  PASS  art244: its oldest message's age
+  PASS  art244: messages being delivered
+  PASS  art244: to its consumer
+  PASS  art244: messages expired
+  PASS  art244: into the expiry queue
+  PASS  art244: its dead letter queue, read
+
+# The pack through Vigil.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+artemis: art233: jmxs=localhost:19331; art240: jmxs=localhost:19332; art244: jmxs=localhost:19333
+  PASS  artemis: off until enabled
+  PASS  artemis: enabled
+        on: artemis_status
+        on: artemis_broker
+        on: artemis_addresses
+        on: artemis_queues
+        on: artemis_dlq
+        on: artemis_cluster
+        needs each broker's JMX in ARTEMIS_JMX (art1: jmxs=host:port): the JVM's JMX, -Dcom.sun.management.jmxremote.port and a password and TLS (the registry too) in JAVA_ARGS_APPEND; not management.xml's connector, whose registry is not on TLS (packs/README.md shows how)
+        needs for JMX with a password: a secret line on the jobs: secret = ARTEMIS_JMX_PASSWORD=secret:ARTEMIS_JMX_PASSWORD, then vigil secret set ARTEMIS_JMX_PASSWORD
+        needs for the broker's JVM (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: vigil pack install jvm, with each broker in JVM_TARGETS named as here (art1: jmxs=host:port)
+        settings in vigil.config: ARTEMIS_JMX= ARTEMIS_JMX_USER= ARTEMIS_CACERT=
+  PASS  artemis: it says its JVM is the jvm pack's
+  PASS  artemis: its jobs are on
+  PASS  artemis: no secret line until JMX asks for one
+  PASS  artemis: the password is a secret reference, on every job
+  PASS  artemis: precheck is happy
+  PASS  artemis: every job runs
+  PASS  artemis: art233 answers over JMX
+  PASS  artemis: art240 answers over JMX
+  PASS  artemis: art244 answers over JMX
+        status: 48 lines
+        broker: 54 lines
+        addresses: 227 lines
+        queues: 375 lines
+        dlq: 15 lines
+        cluster: 3 lines
+  PASS  artemis: a wrong password fails the run
+  PASS  artemis: and says why
+  PASS  artemis: a certificate it cannot trust fails the run
+  PASS  artemis: and says why
+  PASS  artemis: a server that does not answer still runs
+  PASS  artemis: and reads as jmx_up 0
+  PASS  artemis: the password is written nowhere
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  PASS  artemis: metrics reach the backend
+21 passed, 0 failed
+
+# The jar: refused when changed, and on a JRE.
+  PASS  artemis: a probe changed by one byte is not run
+        artemis_status: _probe.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify artemis says what differs
+  PASS  artemis: the JRE has no compiler
+  PASS  artemis: every job runs on the JRE
+  PASS  artemis: and reads the same brokers
+75 passed, 0 failed
+
+# Kept up for other machines' tests until /home/vigil-test/r314-hold is deleted.

@@ -1,0 +1,77 @@
+# Each job's example output, for its script's header: real lines from
+# tests/integration/backends/scripts/run-artemis.sh's Artemis 2.44 (art244), with
+# trouble on purpose, 2026-11-23. tools/artemis/gen.py reads it.
+== status
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric version 1 broker=art244 jmx=localhost:19333 version=2.44.0
+metric broker 1 broker=art244 jmx=localhost:19333 broker_name=0.0.0.0
+metric ha_policy 1 broker=art244 jmx=localhost:19333 policy=Primary_Only
+metric uptime_seconds 335.59 broker=art244 jmx=localhost:19333
+metric started 1 broker=art244 jmx=localhost:19333
+metric active 1 broker=art244 jmx=localhost:19333
+metric backup 0 broker=art244 jmx=localhost:19333
+metric replica_sync 0 broker=art244 jmx=localhost:19333
+metric clustered 0 broker=art244 jmx=localhost:19333
+metric node 1 broker=art244 jmx=localhost:19333 node_id=0e2bebad-e72d-11f1-88fd-8e8a6d94b076
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=amqp
+== broker
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric address_memory_bytes 2646476 broker=art244 jmx=localhost:19333
+metric address_memory_pct 7 broker=art244 jmx=localhost:19333
+metric global_max_bytes 33554432 broker=art244 jmx=localhost:19333
+metric disk_pct 53.505 broker=art244 jmx=localhost:19333
+metric disk_max_pct 90 broker=art244 jmx=localhost:19333
+metric connections 1 broker=art244 jmx=localhost:19333
+metric connections_count 23 broker=art244 jmx=localhost:19333
+metric sessions 2 broker=art244 jmx=localhost:19333
+metric sessions_count 21 broker=art244 jmx=localhost:19333
+metric consumers 1 broker=art244 jmx=localhost:19333
+metric messages 3524 broker=art244 jmx=localhost:19333
+metric added_count 3625 broker=art244 jmx=localhost:19333
+metric acknowledged_count 1 broker=art244 jmx=localhost:19333
+metric addresses 10 broker=art244 jmx=localhost:19333
+metric queues 8 broker=art244 jmx=localhost:19333
+metric login_failed_count 9 broker=art244 jmx=localhost:19333
+metric login_count 21 broker=art244 jmx=localhost:19333
+metric authorization_failed_count 0 broker=art244 jmx=localhost:19333
+metric mirror_pending 0 broker=art244 jmx=localhost:19333
+== addresses
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric size_bytes 1074830 broker=art244 jmx=localhost:19333 address=blocked
+metric limit_pct 102 broker=art244 jmx=localhost:19333 address=blocked
+metric messages 95 broker=art244 jmx=localhost:19333 address=blocked
+metric paging 0 broker=art244 jmx=localhost:19333 address=blocked
+metric pages 0 broker=art244 jmx=localhost:19333 address=blocked
+metric routed_count 95 broker=art244 jmx=localhost:19333 address=blocked
+metric unrouted_count 0 broker=art244 jmx=localhost:19333 address=blocked
+metric queues 1 broker=art244 jmx=localhost:19333 address=blocked
+metric paused 0 broker=art244 jmx=localhost:19333 address=blocked
+metric duplicate_cache 0 broker=art244 jmx=localhost:19333 address=blocked
+== queues
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric messages 2999 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric oldest_seconds 116.385 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric delivering 434 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric scheduled 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric added_count 3000 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric acknowledged_count 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric expired_count 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric killed_count 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric consumers 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric persistent_bytes 7164611 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric groups 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric prepared 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric paused 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric enabled 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric durable_messages 2999 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric delivering_bytes 1036826 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric scheduled_bytes 0 broker=art244 jmx=localhost:19333 address=orders queue=orders
+metric acknowledge_attempts_count 1 broker=art244 jmx=localhost:19333 address=orders queue=orders
+== dlq
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric dead 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric dead_added_count 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric expired 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric expired_added_count 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+== cluster
+metric jmx_up 1 broker=art244 jmx=localhost:19333
