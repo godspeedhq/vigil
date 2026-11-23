@@ -249,6 +249,10 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $kk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\kafka\pack.config') -Destination $kk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\kafka\windows') | Copy-Item -Destination $kk
+    $bk = Join-Path $root 'packs\beam'
+    [void](New-Item -ItemType Directory -Force -Path $bk)
+    Copy-Item -LiteralPath (Join-Path $repo 'packs\beam\pack.config') -Destination $bk
+    Get-ChildItem -LiteralPath (Join-Path $repo 'packs\beam\windows') | Copy-Item -Destination $bk
     $list = (Invoke-Vigil pack list).Text
     # pack list indents each job under its pack.
     Test-Equal 'the pack is off until enabled' 'off off' ((@($list.Split("`n") | Where-Object { $_ -match '^\s*postgres_(status|size)\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })) -join ' ')
@@ -1140,6 +1144,114 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "${pp}: metrics reach the backend" 'True' ([string](($prom -match "(?m)^$($env:VIGIL_IT_PROBE_EXPECT)\{") -and ($prom -match "(?m)^${pp}_jmx_up\{")))
+    }
+
+    # --- beam --------------------------------------------------------------
+    # Erlang VMs, through Vigil: VIGIL_IT_BEAM_DIST the nodes (name=node;...),
+    # VIGIL_IT_BEAM_COOKIE their cookie, VIGIL_IT_BEAM_ERLANG where Erlang is,
+    # VIGIL_IT_BEAM_PROMETHEUS Prometheus pages (name=url;...),
+    # VIGIL_IT_BEAM_DUMPS a folder of crash dumps, VIGIL_IT_BEAM_TROUBLE the
+    # node running workloads/beam/trouble.erl.
+    if (-not $env:VIGIL_IT_BEAM_DIST -or -not $env:VIGIL_IT_BEAM_COOKIE) { Write-Host '  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE' }
+    else {
+        foreach ($v in 'BEAM_DIST', 'BEAM_COOKIE', 'BEAM_PROMETHEUS', 'BEAM_ERLANG', 'BEAM_EPMD', 'BEAM_CRASH_DUMPS') { Remove-Item "Env:\$v" -ErrorAction SilentlyContinue }
+        Write-Host "beam: $($env:VIGIL_IT_BEAM_DIST); $($env:VIGIL_IT_BEAM_PROMETHEUS)"
+        $profileCookie = Join-Path $env:USERPROFILE '.erlang.cookie'
+        $cookieBefore = [string](Test-Path -LiteralPath $profileCookie)
+        $bjobs = @(([System.IO.File]::ReadAllLines((Join-Path $bk 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] }))
+        $bn = $bjobs.Count
+        function Get-BeamJobsOn {
+            $list = (Invoke-Vigil pack list).Text
+            $s = @($list.Split("`n") | Where-Object { $_ -match '^\s*beam_\w+\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            return (@($s | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        function Invoke-BJob { param([string]$Job) return [string](Invoke-Vigil run "beam_$Job").Code }
+        function Test-AtLeast { param([string]$Job, [string]$Name, [string]$Tag, [double]$Low) return (Test-Between "beam_$Job" $Name $Tag $Low 1e18) }
+        Test-Equal 'beam: off until enabled' "off=$bn" (Get-BeamJobsOn)
+        $r = Invoke-Vigil pack enable beam
+        Test-Equal 'beam: enabled' '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal 'beam: it warns what the cookie allows' 'True' ([string](($r.Text -replace '\s+', ' ').Contains('WARNING: the cookie lets whoever holds it run anything on the node; this pack only reads')))
+        Test-Equal 'beam: its jobs are on' "on=$bn" (Get-BeamJobsOn)
+        $cfg = Join-Path $root 'config\vigil.config'
+        Test-Equal 'beam: no secret line until the cookie is asked for' '0' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*BEAM_COOKIE=')).Count)
+        [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(env\s*=\s*BEAM_ERLANG=[^\r\n]*)(\r?\n)', "`$1`$2secret      = BEAM_COOKIE=secret:BEAM_COOKIE`$2"))
+        Test-Equal 'beam: the cookie is a secret reference, on the five jobs that read it' '5' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*BEAM_COOKIE=secret:BEAM_COOKIE')).Count)
+        # A logon with no password (SSH with a key) cannot use the secret
+        # store: then the jobs take it by an env: reference.
+        $benv = $false
+        Set-VigilSecret BEAM_COOKIE $env:VIGIL_IT_BEAM_COOKIE
+        if ((Invoke-Vigil secret list).Text -notmatch 'BEAM_COOKIE') {
+            $benv = $true
+            Write-Host '  note  beam: this logon cannot use the secret store (it has no password): the jobs take the cookie by env:VIGIL_IT_BEAM_COOKIE'
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*BEAM_COOKIE=)secret:BEAM_COOKIE', '${1}env:VIGIL_IT_BEAM_COOKIE'))
+        }
+        Set-Env BEAM_DIST $env:VIGIL_IT_BEAM_DIST
+        Set-Env BEAM_ERLANG ([string]$env:VIGIL_IT_BEAM_ERLANG)
+        Set-Env BEAM_PROMETHEUS ([string]$env:VIGIL_IT_BEAM_PROMETHEUS)
+        Set-Env BEAM_CRASH_DUMPS ([string]$env:VIGIL_IT_BEAM_DUMPS)
+        $r = Invoke-Vigil precheck
+        Test-Equal 'beam: precheck is happy' '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $bjobs) { if ((Invoke-BJob $j) -ne '0') { $failed += $j } }
+        Test-Equal 'beam: every job runs' '' ($failed -join ' ')
+        foreach ($j in $failed) { Show-LastRun "beam_$j" }
+        Test-Equal 'beam: process: the VMs are seen' 'yes' (Test-AtLeast process beams '' 1)
+        Test-Equal 'beam: epmd answers' '1' (Get-Printed beam_epmd epmd_up)
+        foreach ($t in $env:VIGIL_IT_BEAM_DIST.Split(';')) {
+            if ($t -match '^\s*([^=]+)=') {
+                $n = $Matches[1].Trim()
+                Test-Equal "beam: $n answers with the cookie" '1' (Get-Printed beam_vm up "node=$n source=dist")
+                Test-Equal "beam: $n says its version" '1' (Get-Printed beam_vm version "node=$n source=dist")
+            }
+        }
+        foreach ($t in ([string]$env:VIGIL_IT_BEAM_PROMETHEUS).Split(';')) {
+            if ($t -match '^\s*([^=]+)=') {
+                $n = $Matches[1].Trim()
+                Test-Equal "beam: $n answers on Prometheus" '1' (Get-Printed beam_vm up "node=$n source=prometheus")
+                Test-Equal "beam: ${n}'s atoms are counted" 'yes' (Test-AtLeast vm atoms "node=$n source=prometheus" 1000)
+            }
+        }
+        if ($env:VIGIL_IT_BEAM_TROUBLE) {
+            $tr = $env:VIGIL_IT_BEAM_TROUBLE
+            Test-Equal 'beam: the mailbox nobody reads is the longest' 'yes' (Test-AtLeast processes mailbox "node=$tr source=dist process=slow_consumer" 100)
+            Test-Equal 'beam: the cache that never evicts is the largest table' 'True' ([string](@(Get-ChildItem -LiteralPath (Join-Path $root 'logs\jobs\beam_tables') -Filter *.log | ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) } | Where-Object { $_ -match " out metric table_memory_bytes \S+ node=$tr " })[0] -match 'table=leaky_cache owner=trouble:cache/1'))
+            Test-Equal 'beam: its applications are listed' '1' (Get-Printed beam_apps app "node=$tr source=dist app=kernel ")
+        }
+        if ($env:VIGIL_IT_BEAM_DUMPS) {
+            Test-Equal 'beam: the crash dumps are found' 'yes' (Test-AtLeast crashdumps dumps '' 1)
+            Test-Equal 'beam: and why the VM died' 'True' ([string]((Get-Printed beam_crashdumps dump 'slogan=no_more_index_entries_in_atom_tab') -eq '1'))
+        }
+        Show-LastRun beam_vm
+        if ($benv) { $keep = $env:VIGIL_IT_BEAM_COOKIE; $env:VIGIL_IT_BEAM_COOKIE = 'not-the-cookie' }
+        else { Set-VigilSecret BEAM_COOKIE 'not-the-cookie' }
+        Test-Equal 'beam: a wrong cookie fails the run' '1' (Invoke-BJob vm)
+        Test-Equal "beam: and says the cookie, or the name, is not the node's" 'True' (Test-Said beam_vm 'is not its cookie, or')
+        if ($benv) { $env:VIGIL_IT_BEAM_COOKIE = $keep } else { Set-VigilSecret BEAM_COOKIE $env:VIGIL_IT_BEAM_COOKIE }
+        Set-Env BEAM_DIST 'gone=vigil_gone@127.0.0.1'
+        Test-Equal 'beam: a node that is down still runs' '0' (Invoke-BJob dist)
+        Test-Equal 'beam: and reads as up 0' '0' (Get-Printed beam_dist up 'node=gone ')
+        Set-Env BEAM_DIST $env:VIGIL_IT_BEAM_DIST
+        [void](Invoke-BJob vm)
+        $leaks = @()
+        foreach ($d in 'logs', 'state', 'spool', 'metrics') {
+            foreach ($f in Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue) {
+                if ([System.IO.File]::ReadAllText($f.FullName).Contains($env:VIGIL_IT_BEAM_COOKIE)) { $leaks += $f.Name }
+            }
+        }
+        if ([System.IO.File]::ReadAllText($cfg).Contains($env:VIGIL_IT_BEAM_COOKIE)) { $leaks += 'vigil.config' }
+        Test-Equal 'beam: the cookie is written nowhere' '' ($leaks -join ' ')
+        Test-Equal 'beam: and Erlang wrote no cookie file into this profile' $cookieBefore ([string](Test-Path -LiteralPath $profileCookie))
+        Test-Equal 'beam: no home of a run is left behind' '0' ([string]@(Get-ChildItem ([System.IO.Path]::GetTempPath()) -Filter 'vigil-beam.*' -ErrorAction SilentlyContinue).Count)
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match '(?m)^beam_vm_up\{') { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal 'beam: metrics reach the backend' 'True' ([string](($prom -match '(?m)^beam_vm_up\{') -and ($prom -match '(?m)^beam_processes_mailbox_messages\{')))
     }
 }
 finally {
