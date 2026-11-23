@@ -690,7 +690,7 @@ def pack_config():
     p += [('# ' + n).rstrip() for n in NOTICE]
     p += ['',
           '[pack]',
-          'version     = 2.0.0',
+          'version     = 2.0.1',
           '# vigil: the oldest Vigil this pack runs on. vigil pack update refuses the',
           '# pack on an older one.',
           'vigil       = 0.3.0',
