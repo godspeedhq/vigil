@@ -42,7 +42,16 @@
 
     Example output:
       metric nodes 1
-      metric up 1 node=rabbit1
+      metric up 1 node=win
+      metric peers 0 node=win
+      metric unreachable_peers 0 node=win
+      metric peers_not_shown 0 node=win
+      metric vhosts 1 node=win
+      metric vhosts_down 0 node=win
+      metric vhost_up 1 node=win vhost=/
+      metric vhosts_not_shown 0 node=win
+      metric exchanges 5 node=win
+      metric bindings 0 node=win
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  peers one fewer than the cluster's nodes, every peer_up 1;

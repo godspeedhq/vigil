@@ -41,7 +41,19 @@
 
     Example output:
       metric nodes 1
-      metric up 1 node=rabbit1
+      metric up 1 node=win
+      metric members 2 node=win
+      metric leaders 1 node=win
+      metric term 1 node=win vhost=/ queue=orders role=leader
+      metric commit_latency_seconds 0.003000 node=win vhost=/ queue=orders role=leader
+      metric commit_lag 0 node=win vhost=/ queue=orders role=leader
+      metric apply_lag 0 node=win vhost=/ queue=orders role=leader
+      metric segments 0 node=win vhost=/ queue=orders role=leader
+      metric term 1 node=win system=rabbit_khepri
+      metric commit_latency_seconds 0.002000 node=win system=rabbit_khepri
+      metric commit_lag 0 node=win system=rabbit_khepri
+      metric apply_lag 0 node=win system=rabbit_khepri
+      metric segments 0 node=win system=rabbit_khepri
 
     Reading the results (starting points: tune them to the cluster):
       Healthy  term steady; commit_latency_seconds in milliseconds;

@@ -48,7 +48,8 @@
 
     Example output:
       metric nodes 1
-      metric up 1 node=rabbit1
+      metric up 1 node=win
+      metric counted 0 node=win
 
     Reading the results (starting points: tune them to the node):
       Healthy  sync_seconds and write_seconds rising slowly against their

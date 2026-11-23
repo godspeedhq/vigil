@@ -56,7 +56,19 @@
 
     Example output:
       metric nodes 1
-      metric up 1 node=rabbit1
+      metric up 1 node=win
+      metric version 1 node=win rabbitmq=4.4.1 erlang=28.5 rabbitmq_node=rabbit@APHC-LPT-1 cluster=rabbit@APHC-LPT-1
+      metric memory_used_bytes 72777728 node=win
+      metric memory_limit_bytes 10236388147 node=win
+      metric memory_pct 0.71 node=win
+      metric disk_free_bytes 781859110912 node=win
+      metric disk_free_limit_bytes 50000000 node=win
+      metric alarm_memory 0 node=win
+      metric alarm_disk 0 node=win
+      metric fds_used 0 node=win
+      metric fds_max 65536 node=win
+      metric fd_pct 0.00 node=win
+      metric erlang_processes 490 node=win
 
     Reading the results (starting points: tune them to the node):
       Healthy  up 1; every alarm 0; memory_pct below 60; disk_free_bytes far

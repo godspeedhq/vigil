@@ -47,8 +47,22 @@
 #   queues_not_shown          past the deepest 100, how many were left out
 #
 # Example output:
-#   metric nodes 1
-#   metric up 1 node=rabbit1
+#   metric nodes 5
+#   metric up 1 node=a
+#   metric queues 5 node=a
+#   metric messages_total 14293 node=a
+#   metric without_consumers 3 node=a
+#   metric messages 14173 node=a vhost=/ queue=orders type=quorum
+#   metric ready 14163 node=a vhost=/ queue=orders type=quorum
+#   metric unacked 10 node=a vhost=/ queue=orders type=quorum
+#   metric consumers 1 node=a vhost=/ queue=orders type=quorum
+#   metric utilisation_pct 100.00 node=a vhost=/ queue=orders type=quorum
+#   metric bytes 170076 node=a vhost=/ queue=orders type=quorum
+#   metric memory_bytes 1125956 node=a vhost=/ queue=orders type=quorum
+#   metric published_count 15708 node=a vhost=/ queue=orders type=quorum
+#   metric messages 70 node=a vhost=/ queue=dlq type=classic
+#   metric ready 70 node=a vhost=/ queue=dlq type=classic
+#   metric unacked 0 node=a vhost=/ queue=dlq type=classic
 #
 # Reading the results (starting points: tune them to the queue):
 #   Healthy  ready near 0, or steady, for queues with consumers;

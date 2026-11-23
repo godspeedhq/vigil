@@ -55,7 +55,19 @@
 
     Example output:
       metric nodes 1
-      metric up 1 node=rabbit1
+      metric up 1 node=win
+      metric received_count 160 node=win
+      metric received_confirm_count 160 node=win
+      metric confirmed_count 160 node=win
+      metric routed_count 120 node=win
+      metric unroutable_dropped_count 0 node=win
+      metric unroutable_returned_count 40 node=win
+      metric delivered_count 0 node=win
+      metric delivered_manual_ack_count 0 node=win
+      metric delivered_auto_ack_count 0 node=win
+      metric redelivered_count 0 node=win
+      metric acknowledged_count 0 node=win
+      metric get_empty_count 0 node=win
 
     Reading the results (starting points: tune them to the node; graph the
     _count totals as rates):

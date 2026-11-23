@@ -40,8 +40,22 @@
 #   vhosts_not_shown     past 100 virtual hosts, how many were left out
 #
 # Example output:
-#   metric nodes 1
-#   metric up 1 node=rabbit1
+#   metric nodes 5
+#   metric up 1 node=a
+#   metric peers 2 node=a
+#   metric unreachable_peers 0 node=a
+#   metric peer_up 1 node=a peer=rabbit@rmq-b
+#   metric peer_sent_bytes 5467277 node=a peer=rabbit@rmq-b
+#   metric peer_received_bytes 1372021 node=a peer=rabbit@rmq-b
+#   metric peer_queue_bytes 246 node=a peer=rabbit@rmq-b
+#   metric peer_up 1 node=a peer=rabbit@rmq-c
+#   metric peer_sent_bytes 5453376 node=a peer=rabbit@rmq-c
+#   metric peer_received_bytes 1361182 node=a peer=rabbit@rmq-c
+#   metric peer_queue_bytes 246 node=a peer=rabbit@rmq-c
+#   metric peers_not_shown 0 node=a
+#   metric vhosts 1 node=a
+#   metric vhosts_down 0 node=a
+#   metric vhost_up 1 node=a vhost=/
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  peers one fewer than the cluster's nodes, every peer_up 1;

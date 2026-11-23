@@ -53,8 +53,22 @@
 #   publishers               publishers now
 #
 # Example output:
-#   metric nodes 1
-#   metric up 1 node=rabbit1
+#   metric nodes 5
+#   metric up 1 node=a
+#   metric version 1 node=a rabbitmq=4.2.9 erlang=27.3.4.19 rabbitmq_node=rabbit@rmq-a cluster=rabbit@rmq-a
+#   metric memory_used_bytes 171368448 node=a
+#   metric memory_limit_bytes 4913086464 node=a
+#   metric memory_pct 3.49 node=a
+#   metric disk_free_bytes 49230524416 node=a
+#   metric disk_free_limit_bytes 50000000 node=a
+#   metric alarm_memory 0 node=a
+#   metric alarm_disk 0 node=a
+#   metric alarm_fds 0 node=a
+#   metric fds_used 45 node=a
+#   metric fds_max 1024 node=a
+#   metric fd_pct 4.39 node=a
+#   metric erlang_processes 448 node=a
+#   metric erlang_processes_limit 1048576 node=a
 #
 # Reading the results (starting points: tune them to the node):
 #   Healthy  up 1; every alarm 0; memory_pct below 60; disk_free_bytes far

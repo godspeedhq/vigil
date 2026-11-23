@@ -39,8 +39,21 @@
 #   members_not_shown  past 100, how many were left out
 #
 # Example output:
-#   metric nodes 1
-#   metric up 1 node=rabbit1
+#   metric nodes 5
+#   metric up 1 node=a
+#   metric members 2 node=a
+#   metric leaders 1 node=a
+#   metric term 1 node=a system=rabbit_khepri
+#   metric commit_latency_seconds 0.044000 node=a system=rabbit_khepri
+#   metric commit_lag 0 node=a system=rabbit_khepri
+#   metric apply_lag 0 node=a system=rabbit_khepri
+#   metric segments 0 node=a system=rabbit_khepri
+#   metric term 1 node=a vhost=/ queue=orders role=leader
+#   metric commit_latency_seconds 0.012000 node=a vhost=/ queue=orders role=leader
+#   metric commit_lag 0 node=a vhost=/ queue=orders role=leader
+#   metric apply_lag 0 node=a vhost=/ queue=orders role=leader
+#   metric segments 0 node=a vhost=/ queue=orders role=leader
+#   metric members_not_shown 0 node=a
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  term steady; commit_latency_seconds in milliseconds;

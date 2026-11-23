@@ -51,7 +51,19 @@
 
     Example output:
       metric nodes 1
-      metric up 1 node=rabbit1
+      metric up 1 node=win
+      metric served 1 node=win
+      metric connection_readers_bytes 0 node=win
+      metric connection_writers_bytes 0 node=win
+      metric channels_bytes 0 node=win
+      metric connection_other_bytes 66560 node=win
+      metric classic_queues_bytes 77240 node=win
+      metric quorum_queues_bytes 93756 node=win
+      metric quorum_queues_dlx_bytes 2752 node=win
+      metric quorum_ets_bytes 77464 node=win
+      metric streams_bytes 2768 node=win
+      metric binaries_bytes 653728 node=win
+      metric message_index_bytes 226336 node=win
 
     Reading the results (starting points: tune them to the node):
       Healthy  binaries_bytes and the queues' bytes rising and falling with

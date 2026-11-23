@@ -32,6 +32,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`activemq`](activemq/README.md) | Apache ActiveMQ Classic over JMX: health, memory, store and temp limits, queues (the deepest first), topics, dead letter queues, durable subscribers, connections and network bridges | [packs/activemq/README.md](activemq/README.md) |
 | [`artemis`](artemis/README.md) | Apache ActiveMQ Artemis over JMX: health and HA, address memory and disk against their limits, addresses and paging, queues (the deepest first, the oldest message), dead letter and expiry queues, logins refused, cluster connections and bridges | [packs/artemis/README.md](artemis/README.md) |
 | [`beam`](beam/README.md) | Erlang and Elixir VMs: process, epmd, memory by kind, processes, ports, atoms and ETS against their limits, run queues, GC, mailboxes, ETS tables, distribution, applications, crash dumps | [packs/beam/README.md](beam/README.md) |
+| [`rabbitmq`](rabbitmq/README.md) | RabbitMQ: up, memory, disk and file descriptors against their limits and alarms, messages in and out and lost, queues (the deepest first), quorum queues, memory by use, disk work, cluster links, vhosts | [packs/rabbitmq/README.md](rabbitmq/README.md) |
 | [`nginx`](nginx/README.md) | nginx: up, connections and requests, from stub_status | [packs/nginx/README.md](nginx/README.md) |
 
 ## Service packs
@@ -103,6 +104,12 @@ Apache ActiveMQ Artemis 2.x, on this machine or any it can reach, over JMX with 
 Erlang and Elixir virtual machines: any application on the BEAM (RabbitMQ, CouchDB, ejabberd, EMQX, Phoenix, a release of your own) through the VM it runs on. The VM, not the application: its process, the nodes epmd knows, memory by kind, processes, ports, atoms and ETS tables against their limits, run queues, garbage collection, the longest mailboxes and largest tables, its peers, its applications, and the crash dumps a VM leaves when it dies. No Java: shell, PowerShell and one Erlang script. Its deepest tier needs the node's cookie, which lets whoever holds it run anything on the node: the pack only reads, and its page says how, call by call. Linux, macOS and Windows; Erlang/OTP 25 and later.
 
 **Its page: [packs/beam/README.md](beam/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### rabbitmq
+
+RabbitMQ 3.13 and 4.x, a node or a cluster, from the Prometheus pages it serves itself, read with `curl`: no login, no cookie. Each node's memory, disk and file descriptors against their limits and its alarms; messages received, routed, delivered, acknowledged and lost; every queue, the deepest first; quorum queues' Raft logs and the metadata store; what its memory holds; its links to the other nodes. Its Erlang VM is the beam pack's. Linux, macOS and Windows.
+
+**Its page: [packs/rabbitmq/README.md](rabbitmq/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ### nginx
 

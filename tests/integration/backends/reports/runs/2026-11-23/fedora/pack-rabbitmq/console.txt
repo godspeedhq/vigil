@@ -1,0 +1,724 @@
+== pack-rabbitmq
+date     2026-11-23T16:09:10Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    9082e3f46f65be5ce8d0685cb4aff4ee5e15cf80 (deployed copy)
+command  scripts/run-rabbitmq.sh
+bash     5.3.9(1)-release
+git      git version 2.56.0
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.18.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.rabbitmq.yaml pins them)
+         alpine:3
+         rabbitmq:3.13-management
+         rabbitmq:4.1-management
+         rabbitmq:4.2-management
+
+nodes    rmq313 rabbitmq:3.13-management; rmq41 rabbitmq:4.1-management; rmq-a rabbitmq:4.2-management; rmq-b rabbitmq:4.2-management; rmq-c rabbitmq:4.2-management
+         rabbit@rmq-a
+         rabbit@rmq-b
+         rabbit@rmq-c
+
+# Trouble, on the cluster.
+sent     on rmq-a: 40 messages to a queue nobody reads, 40 to a queue of 10 at most, 40 that expire, 40 no queue takes; 3 logins refused; a quorum queue fed 200 a second, read 10 a second
+
+# Every job, as the pack's scripts print it.
+
+$ bash packs/rabbitmq/linux/status.sh
+metric nodes 5
+metric up 1 node=a
+metric version 1 node=a rabbitmq=4.2.9 erlang=27.3.4.19 rabbitmq_node=rabbit@rmq-a cluster=rabbit@rmq-a
+metric memory_used_bytes 171368448 node=a
+metric memory_limit_bytes 4913086464 node=a
+metric memory_pct 3.49 node=a
+metric disk_free_bytes 49230524416 node=a
+metric disk_free_limit_bytes 50000000 node=a
+metric alarm_memory 0 node=a
+metric alarm_disk 0 node=a
+metric alarm_fds 0 node=a
+metric fds_used 45 node=a
+metric fds_max 1024 node=a
+metric fd_pct 4.39 node=a
+metric erlang_processes 448 node=a
+metric erlang_processes_limit 1048576 node=a
+metric erlang_process_pct 0.04 node=a
+metric run_queue 1 node=a
+metric uptime_seconds 265 node=a
+metric unreachable_peers 0 node=a
+metric connections 4 node=a
+metric channels 3 node=a
+metric consumers 1 node=a
+metric queues 5 node=a
+metric publishers 2 node=a
+metric up 1 node=b
+metric version 1 node=b rabbitmq=4.2.9 erlang=27.3.4.19 rabbitmq_node=rabbit@rmq-b cluster=rabbit@rmq-b
+metric memory_used_bytes 164827136 node=b
+metric memory_limit_bytes 4913086464 node=b
+metric memory_pct 3.35 node=b
+metric disk_free_bytes 49229316096 node=b
+metric disk_free_limit_bytes 50000000 node=b
+metric alarm_memory 0 node=b
+metric alarm_disk 0 node=b
+metric alarm_fds 0 node=b
+metric fds_used 38 node=b
+metric fds_max 1024 node=b
+metric fd_pct 3.71 node=b
+metric erlang_processes 400 node=b
+metric erlang_processes_limit 1048576 node=b
+metric erlang_process_pct 0.04 node=b
+metric run_queue 1 node=b
+metric uptime_seconds 145 node=b
+metric unreachable_peers 0 node=b
+metric connections 0 node=b
+metric channels 0 node=b
+metric consumers 0 node=b
+metric queues 0 node=b
+metric publishers 0 node=b
+metric up 1 node=c
+metric version 1 node=c rabbitmq=4.2.9 erlang=27.3.4.19 rabbitmq_node=rabbit@rmq-c cluster=rabbit@rmq-c
+metric memory_used_bytes 159457280 node=c
+metric memory_limit_bytes 4913086464 node=c
+metric memory_pct 3.25 node=c
+metric disk_free_bytes 49229316096 node=c
+metric disk_free_limit_bytes 50000000 node=c
+metric alarm_memory 0 node=c
+metric alarm_disk 0 node=c
+metric alarm_fds 0 node=c
+metric fds_used 38 node=c
+metric fds_max 1024 node=c
+metric fd_pct 3.71 node=c
+metric erlang_processes 399 node=c
+metric erlang_processes_limit 1048576 node=c
+metric erlang_process_pct 0.04 node=c
+metric run_queue 1 node=c
+metric uptime_seconds 124 node=c
+metric unreachable_peers 0 node=c
+metric connections 0 node=c
+metric channels 0 node=c
+metric consumers 0 node=c
+metric queues 0 node=c
+metric publishers 0 node=c
+metric up 1 node=v41
+metric version 1 node=v41 rabbitmq=4.1.8 erlang=27.3.4.19 rabbitmq_node=rabbit@rmq41 cluster=rabbit@rmq41
+metric memory_used_bytes 117948416 node=v41
+metric memory_limit_bytes 50000000 node=v41
+metric memory_pct 235.90 node=v41
+metric disk_free_bytes 49229316096 node=v41
+metric disk_free_limit_bytes 50000000 node=v41
+metric alarm_memory 1 node=v41
+metric alarm_disk 0 node=v41
+metric alarm_fds 0 node=v41
+metric fds_used 37 node=v41
+metric fds_max 1024 node=v41
+metric fd_pct 3.61 node=v41
+metric erlang_processes 415 node=v41
+metric erlang_processes_limit 1048576 node=v41
+metric erlang_process_pct 0.04 node=v41
+metric run_queue 1 node=v41
+metric uptime_seconds 272 node=v41
+metric unreachable_peers 0 node=v41
+metric connections 0 node=v41
+metric channels 0 node=v41
+metric consumers 0 node=v41
+metric queues 0 node=v41
+metric publishers 0 node=v41
+metric up 1 node=v313
+metric version 1 node=v313 rabbitmq=3.13.7 erlang=26.2.5.16 rabbitmq_node=rabbit@rmq313 cluster=rabbit@rmq313
+metric memory_used_bytes 167149568 node=v313
+metric memory_limit_bytes 3275390976 node=v313
+metric memory_pct 5.10 node=v313
+metric disk_free_bytes 49230524416 node=v313
+metric disk_free_limit_bytes 100000000000000 node=v313
+metric alarm_memory 0 node=v313
+metric alarm_disk 1 node=v313
+metric alarm_fds 0 node=v313
+metric fds_used 43 node=v313
+metric fds_max 1024 node=v313
+metric fd_pct 4.20 node=v313
+metric erlang_processes 434 node=v313
+metric erlang_processes_limit 1048576 node=v313
+metric erlang_process_pct 0.04 node=v313
+metric run_queue 1 node=v313
+metric uptime_seconds 270 node=v313
+metric unreachable_peers 0 node=v313
+metric connections 0 node=v313
+metric channels 0 node=v313
+metric consumers 0 node=v313
+metric queues 0 node=v313
+metric publishers 0 node=v313
+
+$ bash packs/rabbitmq/linux/traffic.sh
+metric nodes 5
+metric up 1 node=a
+metric received_count 15728 node=a
+metric received_confirm_count 120 node=a
+metric confirmed_count 120 node=a
+metric routed_count 15688 node=a
+metric unroutable_dropped_count 40 node=a
+metric unroutable_returned_count 0 node=a
+metric delivered_count 790 node=a
+metric delivered_manual_ack_count 790 node=a
+metric delivered_auto_ack_count 0 node=a
+metric redelivered_count 0 node=a
+metric acknowledged_count 780 node=a
+metric get_empty_count 0 node=a
+metric dead_lettered_count 40 node=a reason=expired
+metric dead_lettered_count 30 node=a reason=maxlen
+metric dead_lettered_count 0 node=a reason=rejected
+metric dead_lettered_count 0 node=a reason=delivery_limit
+metric unacked 10 node=a
+metric unconfirmed 0 node=a
+metric message_avg_bytes 12 node=a
+metric connections_opened_count 126 node=a
+metric connections_closed_count 125 node=a
+metric channels_opened_count 125 node=a
+metric channels_closed_count 122 node=a
+metric queues_declared_count 5 node=a
+metric queues_created_count 5 node=a
+metric queues_deleted_count 0 node=a
+metric logins_count 133 node=a
+metric logins_failed_count 3 node=a
+metric up 1 node=b
+metric received_count 0 node=b
+metric received_confirm_count 0 node=b
+metric confirmed_count 0 node=b
+metric routed_count 0 node=b
+metric unroutable_dropped_count 0 node=b
+metric unroutable_returned_count 0 node=b
+metric delivered_count 0 node=b
+metric delivered_manual_ack_count 0 node=b
+metric delivered_auto_ack_count 0 node=b
+metric redelivered_count 0 node=b
+metric acknowledged_count 0 node=b
+metric get_empty_count 0 node=b
+metric dead_lettered_count 0 node=b reason=expired
+metric dead_lettered_count 0 node=b reason=maxlen
+metric dead_lettered_count 0 node=b reason=rejected
+metric dead_lettered_count 0 node=b reason=delivery_limit
+metric unacked 0 node=b
+metric unconfirmed 0 node=b
+metric connections_opened_count 0 node=b
+metric connections_closed_count 0 node=b
+metric channels_opened_count 0 node=b
+metric channels_closed_count 0 node=b
+metric queues_declared_count 0 node=b
+metric queues_created_count 0 node=b
+metric queues_deleted_count 0 node=b
+metric up 1 node=c
+metric received_count 0 node=c
+metric received_confirm_count 0 node=c
+metric confirmed_count 0 node=c
+metric routed_count 0 node=c
+metric unroutable_dropped_count 0 node=c
+metric unroutable_returned_count 0 node=c
+metric delivered_count 0 node=c
+metric delivered_manual_ack_count 0 node=c
+metric delivered_auto_ack_count 0 node=c
+metric redelivered_count 0 node=c
+metric acknowledged_count 0 node=c
+metric get_empty_count 0 node=c
+metric dead_lettered_count 0 node=c reason=expired
+metric dead_lettered_count 0 node=c reason=maxlen
+metric dead_lettered_count 0 node=c reason=rejected
+metric dead_lettered_count 0 node=c reason=delivery_limit
+metric unacked 0 node=c
+metric unconfirmed 0 node=c
+metric connections_opened_count 0 node=c
+metric connections_closed_count 0 node=c
+metric channels_opened_count 0 node=c
+metric channels_closed_count 0 node=c
+metric queues_declared_count 0 node=c
+metric queues_created_count 0 node=c
+metric queues_deleted_count 0 node=c
+metric up 1 node=v41
+metric received_count 0 node=v41
+metric received_confirm_count 0 node=v41
+metric confirmed_count 0 node=v41
+metric routed_count 0 node=v41
+metric unroutable_dropped_count 0 node=v41
+metric unroutable_returned_count 0 node=v41
+metric delivered_count 0 node=v41
+metric delivered_manual_ack_count 0 node=v41
+metric delivered_auto_ack_count 0 node=v41
+metric redelivered_count 0 node=v41
+metric acknowledged_count 0 node=v41
+metric get_empty_count 0 node=v41
+metric dead_lettered_count 0 node=v41 reason=expired
+metric dead_lettered_count 0 node=v41 reason=maxlen
+metric dead_lettered_count 0 node=v41 reason=rejected
+metric dead_lettered_count 0 node=v41 reason=delivery_limit
+metric unacked 0 node=v41
+metric unconfirmed 0 node=v41
+metric connections_opened_count 0 node=v41
+metric connections_closed_count 0 node=v41
+metric channels_opened_count 0 node=v41
+metric channels_closed_count 0 node=v41
+metric queues_declared_count 0 node=v41
+metric queues_created_count 0 node=v41
+metric queues_deleted_count 0 node=v41
+metric up 1 node=v313
+metric received_count 0 node=v313
+metric received_confirm_count 0 node=v313
+metric confirmed_count 0 node=v313
+metric routed_count 0 node=v313
+metric unroutable_dropped_count 0 node=v313
+metric unroutable_returned_count 0 node=v313
+metric delivered_count 0 node=v313
+metric delivered_manual_ack_count 0 node=v313
+metric delivered_auto_ack_count 0 node=v313
+metric redelivered_count 0 node=v313
+metric acknowledged_count 0 node=v313
+metric get_empty_count 0 node=v313
+metric dead_lettered_count 0 node=v313 reason=expired
+metric dead_lettered_count 0 node=v313 reason=maxlen
+metric dead_lettered_count 0 node=v313 reason=rejected
+metric dead_lettered_count 0 node=v313 reason=delivery_limit
+metric unacked 0 node=v313
+metric unconfirmed 0 node=v313
+metric connections_opened_count 0 node=v313
+metric connections_closed_count 0 node=v313
+metric channels_opened_count 0 node=v313
+metric channels_closed_count 0 node=v313
+metric queues_declared_count 0 node=v313
+metric queues_created_count 0 node=v313
+metric queues_deleted_count 0 node=v313
+
+$ bash packs/rabbitmq/linux/queues.sh
+metric nodes 5
+metric up 1 node=a
+metric queues 5 node=a
+metric messages_total 14293 node=a
+metric without_consumers 3 node=a
+metric messages 14173 node=a vhost=/ queue=orders type=quorum
+metric ready 14163 node=a vhost=/ queue=orders type=quorum
+metric unacked 10 node=a vhost=/ queue=orders type=quorum
+metric consumers 1 node=a vhost=/ queue=orders type=quorum
+metric utilisation_pct 100.00 node=a vhost=/ queue=orders type=quorum
+metric bytes 170076 node=a vhost=/ queue=orders type=quorum
+metric memory_bytes 1125956 node=a vhost=/ queue=orders type=quorum
+metric published_count 15708 node=a vhost=/ queue=orders type=quorum
+metric messages 70 node=a vhost=/ queue=dlq type=classic
+metric ready 70 node=a vhost=/ queue=dlq type=classic
+metric unacked 0 node=a vhost=/ queue=dlq type=classic
+metric consumers 0 node=a vhost=/ queue=dlq type=classic
+metric utilisation_pct 0.00 node=a vhost=/ queue=dlq type=classic
+metric bytes 532 node=a vhost=/ queue=dlq type=classic
+metric memory_bytes 197240 node=a vhost=/ queue=dlq type=classic
+metric messages 40 node=a vhost=/ queue=idle type=classic
+metric ready 40 node=a vhost=/ queue=idle type=classic
+metric unacked 0 node=a vhost=/ queue=idle type=classic
+metric consumers 0 node=a vhost=/ queue=idle type=classic
+metric utilisation_pct 0.00 node=a vhost=/ queue=idle type=classic
+metric bytes 391 node=a vhost=/ queue=idle type=classic
+metric memory_bytes 68192 node=a vhost=/ queue=idle type=classic
+metric published_count 40 node=a vhost=/ queue=idle type=classic
+metric messages 10 node=a vhost=/ queue=capped type=classic
+metric ready 10 node=a vhost=/ queue=capped type=classic
+metric unacked 0 node=a vhost=/ queue=capped type=classic
+metric consumers 0 node=a vhost=/ queue=capped type=classic
+metric utilisation_pct 0.00 node=a vhost=/ queue=capped type=classic
+metric bytes 90 node=a vhost=/ queue=capped type=classic
+metric memory_bytes 109600 node=a vhost=/ queue=capped type=classic
+metric published_count 40 node=a vhost=/ queue=capped type=classic
+metric messages 0 node=a vhost=/ queue=late type=classic
+metric ready 0 node=a vhost=/ queue=late type=classic
+metric unacked 0 node=a vhost=/ queue=late type=classic
+metric consumers 0 node=a vhost=/ queue=late type=classic
+metric utilisation_pct 0.00 node=a vhost=/ queue=late type=classic
+metric bytes 0 node=a vhost=/ queue=late type=classic
+metric memory_bytes 68112 node=a vhost=/ queue=late type=classic
+metric published_count 40 node=a vhost=/ queue=late type=classic
+metric queues_not_shown 0 node=a
+metric up 1 node=b
+metric queues 0 node=b
+metric messages_total 0 node=b
+metric without_consumers 0 node=b
+metric queues_not_shown 0 node=b
+metric up 1 node=c
+metric queues 0 node=c
+metric messages_total 0 node=c
+metric without_consumers 0 node=c
+metric queues_not_shown 0 node=c
+metric up 1 node=v41
+metric queues 0 node=v41
+metric messages_total 0 node=v41
+metric without_consumers 0 node=v41
+metric queues_not_shown 0 node=v41
+metric up 1 node=v313
+metric queues 0 node=v313
+metric messages_total 0 node=v313
+metric without_consumers 0 node=v313
+metric queues_not_shown 0 node=v313
+
+$ bash packs/rabbitmq/linux/quorum.sh
+metric nodes 5
+metric up 1 node=a
+metric members 2 node=a
+metric leaders 1 node=a
+metric term 1 node=a system=rabbit_khepri
+metric commit_latency_seconds 0.044000 node=a system=rabbit_khepri
+metric commit_lag 0 node=a system=rabbit_khepri
+metric apply_lag 0 node=a system=rabbit_khepri
+metric segments 0 node=a system=rabbit_khepri
+metric term 1 node=a vhost=/ queue=orders role=leader
+metric commit_latency_seconds 0.012000 node=a vhost=/ queue=orders role=leader
+metric commit_lag 0 node=a vhost=/ queue=orders role=leader
+metric apply_lag 0 node=a vhost=/ queue=orders role=leader
+metric segments 0 node=a vhost=/ queue=orders role=leader
+metric members_not_shown 0 node=a
+metric up 1 node=b
+metric members 2 node=b
+metric leaders 0 node=b
+metric term 1 node=b system=rabbit_khepri
+metric commit_latency_seconds 0.045000 node=b system=rabbit_khepri
+metric commit_lag 0 node=b system=rabbit_khepri
+metric apply_lag 0 node=b system=rabbit_khepri
+metric segments 0 node=b system=rabbit_khepri
+metric term 1 node=b vhost=/ queue=orders role=follower
+metric commit_latency_seconds 0.015000 node=b vhost=/ queue=orders role=follower
+metric commit_lag 0 node=b vhost=/ queue=orders role=follower
+metric apply_lag 0 node=b vhost=/ queue=orders role=follower
+metric segments 0 node=b vhost=/ queue=orders role=follower
+metric members_not_shown 0 node=b
+metric up 1 node=c
+metric members 2 node=c
+metric leaders 0 node=c
+metric term 1 node=c system=rabbit_khepri
+metric commit_latency_seconds 0.045000 node=c system=rabbit_khepri
+metric commit_lag 0 node=c system=rabbit_khepri
+metric apply_lag 0 node=c system=rabbit_khepri
+metric segments 0 node=c system=rabbit_khepri
+metric term 1 node=c vhost=/ queue=orders role=follower
+metric commit_latency_seconds 0.018000 node=c vhost=/ queue=orders role=follower
+metric commit_lag 0 node=c vhost=/ queue=orders role=follower
+metric apply_lag 0 node=c vhost=/ queue=orders role=follower
+metric segments 0 node=c vhost=/ queue=orders role=follower
+metric members_not_shown 0 node=c
+metric up 1 node=v41
+metric members 0 node=v41
+metric leaders 0 node=v41
+metric members_not_shown 0 node=v41
+metric up 1 node=v313
+metric members 0 node=v313
+metric leaders 0 node=v313
+metric members_not_shown 0 node=v313
+
+$ bash packs/rabbitmq/linux/memory.sh
+metric nodes 5
+metric up 1 node=a
+metric served 1 node=a
+metric connection_readers_bytes 86624 node=a
+metric connection_writers_bytes 37520 node=a
+metric channels_bytes 592968 node=a
+metric connection_other_bytes 219008 node=a
+metric classic_queues_bytes 134552 node=a
+metric quorum_queues_bytes 1133404 node=a
+metric quorum_queues_dlx_bytes 2760 node=a
+metric quorum_ets_bytes 9733544 node=a
+metric streams_bytes 2624 node=a
+metric binaries_bytes 418240 node=a
+metric message_index_bytes 158672 node=a
+metric metadata_store_bytes 306532 node=a
+metric metrics_bytes 893272 node=a
+metric management_bytes 237456 node=a
+metric plugins_bytes 1171492 node=a
+metric code_bytes 26249150 node=a
+metric atoms_bytes 1179937 node=a
+metric other_processes_bytes 16315316 node=a
+metric other_tables_bytes 2890288 node=a
+metric other_system_bytes 23225529 node=a
+metric allocated_unused_bytes 0 node=a
+metric reserved_unallocated_bytes 93560832 node=a
+metric up 1 node=b
+metric served 1 node=b
+metric connection_readers_bytes 0 node=b
+metric connection_writers_bytes 0 node=b
+metric channels_bytes 0 node=b
+metric connection_other_bytes 39344 node=b
+metric classic_queues_bytes 0 node=b
+metric quorum_queues_bytes 1832604 node=b
+metric quorum_queues_dlx_bytes 2760 node=b
+metric quorum_ets_bytes 10274016 node=b
+metric streams_bytes 2624 node=b
+metric binaries_bytes 201744 node=b
+metric message_index_bytes 158672 node=b
+metric metadata_store_bytes 206620 node=b
+metric metrics_bytes 840552 node=b
+metric management_bytes 147448 node=b
+metric plugins_bytes 677860 node=b
+metric code_bytes 25911270 node=b
+metric atoms_bytes 1179937 node=b
+metric other_processes_bytes 16754468 node=b
+metric other_tables_bytes 2884264 node=b
+metric other_system_bytes 22313601 node=b
+metric allocated_unused_bytes 0 node=b
+metric reserved_unallocated_bytes 88682496 node=b
+metric up 1 node=c
+metric served 1 node=c
+metric connection_readers_bytes 0 node=c
+metric connection_writers_bytes 0 node=c
+metric channels_bytes 0 node=c
+metric connection_other_bytes 38208 node=c
+metric classic_queues_bytes 0 node=c
+metric quorum_queues_bytes 2969508 node=c
+metric quorum_queues_dlx_bytes 2760 node=c
+metric quorum_ets_bytes 10283016 node=c
+metric streams_bytes 2624 node=c
+metric binaries_bytes 203504 node=c
+metric message_index_bytes 158672 node=c
+metric metadata_store_bytes 206060 node=c
+metric metrics_bytes 840552 node=c
+metric management_bytes 146840 node=c
+metric plugins_bytes 701764 node=c
+metric code_bytes 25911294 node=c
+metric atoms_bytes 1179937 node=c
+metric other_processes_bytes 16540212 node=c
+metric other_tables_bytes 2881784 node=c
+metric other_system_bytes 22307281 node=c
+metric allocated_unused_bytes 0 node=c
+metric reserved_unallocated_bytes 85209088 node=c
+metric up 1 node=v41
+metric served 1 node=v41
+metric connection_readers_bytes 0 node=v41
+metric connection_writers_bytes 0 node=v41
+metric channels_bytes 0 node=v41
+metric connection_other_bytes 174952 node=v41
+metric classic_queues_bytes 0 node=v41
+metric quorum_queues_bytes 2760 node=v41
+metric quorum_queues_dlx_bytes 2760 node=v41
+metric quorum_ets_bytes 5264 node=v41
+metric streams_bytes 2624 node=v41
+metric binaries_bytes 102440 node=v41
+metric message_index_bytes 158736 node=v41
+metric metadata_store_bytes 101868 node=v41
+metric metrics_bytes 839832 node=v41
+metric management_bytes 143832 node=v41
+metric plugins_bytes 640004 node=v41
+metric code_bytes 23995638 node=v41
+metric atoms_bytes 1171745 node=v41
+metric other_processes_bytes 15464792 node=v41
+metric other_tables_bytes 2377160 node=v41
+metric other_system_bytes 19196585 node=v41
+metric allocated_unused_bytes 0 node=v41
+metric reserved_unallocated_bytes 60534784 node=v41
+metric up 1 node=v313
+metric served 0 node=v313
+
+$ bash packs/rabbitmq/linux/storage.sh
+metric nodes 5
+metric up 1 node=a
+metric counted 0 node=a
+metric up 1 node=b
+metric counted 0 node=b
+metric up 1 node=c
+metric counted 0 node=c
+metric up 1 node=v41
+metric counted 0 node=v41
+metric up 1 node=v313
+metric counted 1 node=v313
+metric read_ops_count 1 node=v313
+metric read_bytes 1 node=v313
+metric read_seconds 0.000 node=v313
+metric write_ops_count 0 node=v313
+metric write_bytes 0 node=v313
+metric write_seconds 0.000 node=v313
+metric sync_ops_count 0 node=v313
+metric sync_seconds 0.000 node=v313
+metric seek_ops_count 0 node=v313
+metric seek_seconds 0.000 node=v313
+metric reopen_ops_count 0 node=v313
+metric msg_store_reads_count 0 node=v313
+metric msg_store_writes_count 0 node=v313
+metric queue_index_reads_count 0 node=v313
+metric queue_index_writes_count 0 node=v313
+metric metadata_disk_tx_count 12 node=v313
+metric metadata_ram_tx_count 16 node=v313
+
+$ bash packs/rabbitmq/linux/cluster.sh
+metric nodes 5
+metric up 1 node=a
+metric peers 2 node=a
+metric unreachable_peers 0 node=a
+metric peer_up 1 node=a peer=rabbit@rmq-b
+metric peer_sent_bytes 5467277 node=a peer=rabbit@rmq-b
+metric peer_received_bytes 1372021 node=a peer=rabbit@rmq-b
+metric peer_queue_bytes 246 node=a peer=rabbit@rmq-b
+metric peer_up 1 node=a peer=rabbit@rmq-c
+metric peer_sent_bytes 5453376 node=a peer=rabbit@rmq-c
+metric peer_received_bytes 1361182 node=a peer=rabbit@rmq-c
+metric peer_queue_bytes 246 node=a peer=rabbit@rmq-c
+metric peers_not_shown 0 node=a
+metric vhosts 1 node=a
+metric vhosts_down 0 node=a
+metric vhost_up 1 node=a vhost=/
+metric vhosts_not_shown 0 node=a
+metric exchanges 7 node=a
+metric bindings 1 node=a
+metric up 1 node=b
+metric peers 2 node=b
+metric unreachable_peers 0 node=b
+metric peer_up 1 node=b peer=rabbit@rmq-a
+metric peer_sent_bytes 1376197 node=b peer=rabbit@rmq-a
+metric peer_received_bytes 5483381 node=b peer=rabbit@rmq-a
+metric peer_queue_bytes 0 node=b peer=rabbit@rmq-a
+metric peer_up 1 node=b peer=rabbit@rmq-c
+metric peer_sent_bytes 88115 node=b peer=rabbit@rmq-c
+metric peer_received_bytes 76149 node=b peer=rabbit@rmq-c
+metric peer_queue_bytes 0 node=b peer=rabbit@rmq-c
+metric peers_not_shown 0 node=b
+metric vhosts 1 node=b
+metric vhosts_down 0 node=b
+metric vhost_up 1 node=b vhost=/
+metric vhosts_not_shown 0 node=b
+metric exchanges 7 node=b
+metric bindings 1 node=b
+metric up 1 node=c
+metric peers 2 node=c
+metric unreachable_peers 0 node=c
+metric peer_up 1 node=c peer=rabbit@rmq-a
+metric peer_sent_bytes 1368910 node=c peer=rabbit@rmq-a
+metric peer_received_bytes 5483320 node=c peer=rabbit@rmq-a
+metric peer_queue_bytes 0 node=c peer=rabbit@rmq-a
+metric peer_up 1 node=c peer=rabbit@rmq-b
+metric peer_sent_bytes 76245 node=c peer=rabbit@rmq-b
+metric peer_received_bytes 88211 node=c peer=rabbit@rmq-b
+metric peer_queue_bytes 0 node=c peer=rabbit@rmq-b
+metric peers_not_shown 0 node=c
+metric vhosts 1 node=c
+metric vhosts_down 0 node=c
+metric vhost_up 1 node=c vhost=/
+metric vhosts_not_shown 0 node=c
+metric exchanges 7 node=c
+metric bindings 1 node=c
+metric up 1 node=v41
+metric peers 0 node=v41
+metric unreachable_peers 0 node=v41
+metric peers_not_shown 0 node=v41
+metric vhosts 1 node=v41
+metric vhosts_down 0 node=v41
+metric vhost_up 1 node=v41 vhost=/
+metric vhosts_not_shown 0 node=v41
+metric exchanges 5 node=v41
+metric bindings 0 node=v41
+metric up 1 node=v313
+metric peers 0 node=v313
+metric unreachable_peers 0 node=v313
+metric peers_not_shown 0 node=v313
+metric vhosts 1 node=v313
+metric vhosts_down 0 node=v313
+metric vhost_up 1 node=v313 vhost=/
+metric vhosts_not_shown 0 node=v313
+metric exchanges 5 node=v313
+metric bindings 0 node=v313
+
+# What they read.
+  PASS  rabbitmq: status runs
+  PASS  rabbitmq: traffic runs
+  PASS  rabbitmq: queues runs
+  PASS  rabbitmq: quorum runs
+  PASS  rabbitmq: memory runs
+  PASS  rabbitmq: storage runs
+  PASS  rabbitmq: cluster runs
+  PASS  a: answers
+  PASS  a: RabbitMQ 4.2
+  PASS  b: answers
+  PASS  b: RabbitMQ 4.2
+  PASS  c: answers
+  PASS  c: RabbitMQ 4.2
+  PASS  v41: answers
+  PASS  v41: RabbitMQ 4.1
+  PASS  v313: answers
+  PASS  v313: RabbitMQ 3.13
+  PASS  a: in a cluster of three
+  PASS  a: its links to b and c up
+  PASS  a: no peer unreachable
+  PASS  v41: past its memory watermark: the memory alarm on
+  PASS  v41: memory_pct past 100
+  PASS  v313: below its free disk limit: the disk alarm on
+  PASS  a: no alarm, memory or disk
+  PASS  a: the queue nobody reads, 40 waiting
+  PASS  a: counted without consumers
+  PASS  a: the quorum queue the deepest
+  PASS  a: and of type quorum
+  PASS  a: its consumer, slow: thousands ready
+  PASS  a: the queue of 10 at most holds 10
+  PASS  a: the others dead-lettered, for its length
+  PASS  a: and those that expired
+  PASS  a: into the dead letter queue
+  PASS  a: messages no queue took, dropped
+  PASS  a: logins refused
+  PASS  a: messages delivered and acknowledged
+  PASS  b and c: the quorum queue counted once, by its leader
+  PASS  the quorum queue: a copy on each node
+  PASS  the quorum queue: one leader
+  PASS  the metadata store on each node
+  PASS  a: its memory, quorum queues among it
+  PASS  a: 4.2 does not count its file I/O
+  PASS  v313: 3.13 does
+
+# A node of the cluster stopped.
+metric up 1 node=a
+metric unreachable_peers 1 node=a
+metric up 1 node=b
+metric unreachable_peers 1 node=b
+metric up 0 node=c
+metric up 1 node=v41
+metric unreachable_peers 0 node=v41
+metric up 1 node=v313
+metric unreachable_peers 0 node=v313
+  PASS  c: reads as up 0
+  PASS  a: c unreachable, or gone from its links
+
+# The pack through Vigil.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+rabbitmq: a=http://127.0.0.1:15691; b=http://127.0.0.1:15692; c=http://127.0.0.1:15693; v41=http://127.0.0.1:15694; v313=http://127.0.0.1:15695
+  PASS  rabbitmq: off until enabled
+  PASS  rabbitmq: enabled
+        on: rabbitmq_status
+        on: rabbitmq_traffic
+        on: rabbitmq_queues
+        on: rabbitmq_quorum
+        on: rabbitmq_memory
+        on: rabbitmq_storage
+        on: rabbitmq_cluster
+        needs each node's Prometheus page (port 15692), reachable from this machine: RABBITMQ_TARGETS=<name>=http://<host>:15692, every node of a cluster
+        needs for https: RABBITMQ_CACERT, the CA that signed the plugin's certificate, or none for the system's own CAs
+        needs for the node's Erlang VM (its memory by kind, processes, atoms, run queues, crash dumps): the beam pack, not this one: vigil pack install beam, with BEAM_PROMETHEUS set to the same pages
+        settings in vigil.config: RABBITMQ_TARGETS= RABBITMQ_CACERT=
+  PASS  rabbitmq: it says its VM is the beam pack's
+  PASS  rabbitmq: its jobs are on
+  PASS  rabbitmq: precheck is happy
+  PASS  rabbitmq: every job runs
+        status: 121 lines
+        traffic: 134 lines
+        queues: 65 lines
+        quorum: 51 lines
+        memory: 99 lines
+        storage: 28 lines
+        cluster: 75 lines
+  PASS  rabbitmq: a answers
+  PASS  rabbitmq: b answers
+  PASS  rabbitmq: c answers
+  PASS  rabbitmq: v41 answers
+  PASS  rabbitmq: v313 answers
+  PASS  rabbitmq: a queue read
+  PASS  rabbitmq: a node that does not answer still runs
+  PASS  rabbitmq: and reads as up 0
+  PASS  rabbitmq: a page that is not there fails the run
+  PASS  rabbitmq: and says why
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  PASS  rabbitmq: metrics reach the backend
+19 passed, 0 failed
+45 passed, 0 failed
+evidence: reports/runs/2026-11-23/fedora/pack-rabbitmq

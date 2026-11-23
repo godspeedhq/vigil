@@ -46,8 +46,22 @@
 #   metadata_ram_tx_count     metadata store transactions in memory
 #
 # Example output:
-#   metric nodes 1
-#   metric up 1 node=rabbit1
+#   metric nodes 5
+#   metric up 1 node=a
+#   metric counted 0 node=a
+#   metric up 1 node=v313
+#   metric counted 1 node=v313
+#   metric read_ops_count 1 node=v313
+#   metric read_bytes 1 node=v313
+#   metric read_seconds 0.000 node=v313
+#   metric write_ops_count 0 node=v313
+#   metric write_bytes 0 node=v313
+#   metric write_seconds 0.000 node=v313
+#   metric sync_ops_count 0 node=v313
+#   metric sync_seconds 0.000 node=v313
+#   metric seek_ops_count 0 node=v313
+#   metric seek_seconds 0.000 node=v313
+#   metric reopen_ops_count 0 node=v313
 #
 # Reading the results (starting points: tune them to the node):
 #   Healthy  sync_seconds and write_seconds rising slowly against their

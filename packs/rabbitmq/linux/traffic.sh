@@ -53,8 +53,22 @@
 #   logins_failed_count         logins refused
 #
 # Example output:
-#   metric nodes 1
-#   metric up 1 node=rabbit1
+#   metric nodes 5
+#   metric up 1 node=a
+#   metric received_count 15728 node=a
+#   metric received_confirm_count 120 node=a
+#   metric confirmed_count 120 node=a
+#   metric routed_count 15688 node=a
+#   metric unroutable_dropped_count 40 node=a
+#   metric unroutable_returned_count 0 node=a
+#   metric delivered_count 790 node=a
+#   metric delivered_manual_ack_count 790 node=a
+#   metric delivered_auto_ack_count 0 node=a
+#   metric redelivered_count 0 node=a
+#   metric acknowledged_count 780 node=a
+#   metric get_empty_count 0 node=a
+#   metric dead_lettered_count 40 node=a reason=expired
+#   metric dead_lettered_count 30 node=a reason=maxlen
 #
 # Reading the results (starting points: tune them to the node; graph the
 # _count totals as rates):

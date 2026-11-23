@@ -49,7 +49,19 @@
 
     Example output:
       metric nodes 1
-      metric up 1 node=rabbit1
+      metric up 1 node=win
+      metric queues 4 node=win
+      metric messages_total 120 node=win
+      metric without_consumers 4 node=win
+      metric messages 40 node=win vhost=/ queue=orders type=quorum
+      metric ready 40 node=win vhost=/ queue=orders type=quorum
+      metric unacked 0 node=win vhost=/ queue=orders type=quorum
+      metric consumers 0 node=win vhost=/ queue=orders type=quorum
+      metric utilisation_pct 0.00 node=win vhost=/ queue=orders type=quorum
+      metric bytes 231 node=win vhost=/ queue=orders type=quorum
+      metric memory_bytes 68548 node=win vhost=/ queue=orders type=quorum
+      metric published_count 40 node=win vhost=/ queue=orders type=quorum
+      metric messages 40 node=win vhost=/ queue=idle type=classic
 
     Reading the results (starting points: tune them to the queue):
       Healthy  ready near 0, or steady, for queues with consumers;

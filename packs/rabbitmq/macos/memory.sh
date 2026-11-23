@@ -49,8 +49,22 @@
 #   reserved_unallocated_bytes  reserved by the runtime, not allocated
 #
 # Example output:
-#   metric nodes 1
-#   metric up 1 node=rabbit1
+#   metric nodes 5
+#   metric up 1 node=a
+#   metric served 1 node=a
+#   metric connection_readers_bytes 86624 node=a
+#   metric connection_writers_bytes 37520 node=a
+#   metric channels_bytes 592968 node=a
+#   metric connection_other_bytes 219008 node=a
+#   metric classic_queues_bytes 134552 node=a
+#   metric quorum_queues_bytes 1133404 node=a
+#   metric quorum_queues_dlx_bytes 2760 node=a
+#   metric quorum_ets_bytes 9733544 node=a
+#   metric streams_bytes 2624 node=a
+#   metric binaries_bytes 418240 node=a
+#   metric message_index_bytes 158672 node=a
+#   metric metadata_store_bytes 306532 node=a
+#   metric metrics_bytes 893272 node=a
 #
 # Reading the results (starting points: tune them to the node):
 #   Healthy  binaries_bytes and the queues' bytes rising and falling with
