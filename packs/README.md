@@ -928,7 +928,7 @@ Eclipse Jetty 9.4 to 12, on this machine or any it can reach, over JMX with a pa
 | `jetty_status` | Whether each Jetty answers, its version, the server and each app started, how long since it started (9.4 to 11), and whether it is low on resources, and since when | minute |
 | `jetty_requests` | Requests, active now and at most, responses 1xx to 5xx, failures, those that threw (9.4 to 11), async requests, bytes, the slowest, mean and total time | minute |
 | `jetty_threads` | The thread pool: threads, busy, idle, ready, used by apps, its most and fewest, jobs queued, how much is in use, low on threads, leased and reserved | minute |
-| `jetty_connections` | Connections open, at most and opened, how long they last, bytes and messages in and out (every connector added up); the connection limit and those waiting for it; the QoS handler's limit, suspended, refused and expired (12) | minute |
+| `jetty_connections` | Connections open, at most and opened, how long they last, bytes and messages in and out (every connector added up); the connection limit and those waiting for it; the QoS handler's limit and requests suspended (12), and its totals, suspended, refused and expired (12.1) | minute |
 | `jetty_sessions` | Each app's sessions now, the most at once and every one cached; created, how long they live, their timeout | minute |
 | `jetty_buffers` | The memory Jetty's own buffer pools hold, direct and heap, and how much is free (12) | 5 minutes |
 

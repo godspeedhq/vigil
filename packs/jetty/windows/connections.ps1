@@ -50,10 +50,10 @@
       qos_max                       the QoS handler's limit of requests at once
                                     (12)
       qos_suspended                 requests suspended for it now (12)
-      qos_exceeded_count            requests refused for it (12)
-      qos_expired_count             requests that waited too long for it (12)
-      qos_requests_count            requests it has seen (12)
-      qos_suspended_count           requests it has suspended (12)
+      qos_exceeded_count            requests refused for it (12.1)
+      qos_expired_count             requests that waited too long for it (12.1)
+      qos_requests_count            requests it has seen (12.1)
+      qos_suspended_count           requests it has suspended (12.1)
       qos_max_suspended             the most it suspends, then it refuses (12)
       selector_keys                 connections Jetty's selectors watch, every
                                     one added up

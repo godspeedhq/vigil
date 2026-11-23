@@ -141,7 +141,7 @@ for t in j94:9.4 j11:11.0 j120:12.0 j121:12.1; do
             check "$n: the QoS limit" 16 "$(val connections qos_max "jetty=$n ")"
             check "$n: requests suspended for it" yes "$(least connections qos_suspended "jetty=$n " 10)"
             check "$n: so threads are left" yes "$(least threads busy "jetty=$n " 16)"
-            check "$n: requests the QoS handler has seen" yes "$(least connections qos_requests_count "jetty=$n " 50)"
+            [ "$n" = j121 ] && check "$n: requests the QoS handler has seen (12.1)" yes "$(least connections qos_requests_count "jetty=$n " 50)"
             check "$n: time in the application, apart" yes "$(least requests handling_slowest_seconds "jetty=$n " 0.001)"
             ;;
     esac
