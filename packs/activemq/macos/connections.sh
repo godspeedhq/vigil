@@ -70,7 +70,12 @@
 #                                 first 100, left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric bridge 1 broker=a518 jmx=localhost:19321 networkConnectorName=to-a62 remote=a62
+#   metric jmx_up 1 broker=a62 jmx=localhost:19323
+#   metric dispatch_queue 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f4e4deea07b3-38131-1795428207048-0_1
+#   metric blocked 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f4e4deea07b3-38131-1795428207048-0_1
+#   metric slow 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f4e4deea07b3-38131-1795428207048-0_1
+#   metric transactions 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f4e4deea07b3-38131-1795428207048-0_1
 #
 # Reading the results (starting points: tune them to your brokers):
 #   Healthy  dispatch_queue small; blocked 0; transactions few and short; a

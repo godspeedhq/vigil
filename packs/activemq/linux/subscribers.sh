@@ -58,7 +58,13 @@
 #                             largest are shown)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 broker=a62 jmx=localhost:19323
+#   metric pending 500 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+#   metric dispatched 0 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+#   metric enqueued_count 500 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+#   metric dequeued_count 0 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+#   metric active 0 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+#   metric slow 0 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
 #
 # Reading the results (starting points: tune them to your brokers):
 #   Healthy  pending near 0 for every subscriber; active 1.

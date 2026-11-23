@@ -15,8 +15,8 @@
 .DESCRIPTION
     Reports each producer: whether flow control holds it back now, how long it
     has been held back and its share of the time, and the messages it sent. The
-    100 held back longest first. Read-only: it reads attributes over JMX, and
-    changes nothing.
+    100 held back the most of their time first. Read-only: it reads attributes
+    over JMX, and changes nothing.
 
     Reads each ActiveMQ Classic broker's JMX, at ACTIVEMQ_JMX: jmx=host:port, or
     jmxs=host:port over TLS, separated by ; or , each with a name first if you
@@ -34,12 +34,13 @@
       jmx_up                     1 when JMX answers, else 0, tagged broker=<its
                                  name> and jmx=<its address>
       blocked_seconds            how long it has been held back by flow control,
-                                 added up, tagged destinationName=<its
-                                 destination> and clientId=<its client>; the
-                                 longest first
+                                 added up as each hold ends, tagged
+                                 destinationName=<its destination> and
+                                 clientId=<its client>
       blocked                    1 when flow control holds it back now, tagged
                                  the same
-      blocked_pct                of its time, held back, tagged the same
+      blocked_pct                of its time, held back (a hold now counts at
+                                 once), tagged the same; the most first
       sent_count                 messages it sent, tagged the same
       blocked_seconds_not_shown
                                  of blocked_seconds, those past the first 100,
@@ -52,7 +53,11 @@
                                  out (the largest are shown)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 broker=a62 jmx=localhost:19323
+      metric blocked_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_f4e4deea07b3-38131-1795428207048-0_1
+      metric blocked 1 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_f4e4deea07b3-38131-1795428207048-0_1
+      metric blocked_pct 100 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_f4e4deea07b3-38131-1795428207048-0_1
+      metric sent_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_f4e4deea07b3-38131-1795428207048-0_1
 
     Reading the results (starting points: tune them to your brokers):
       Healthy  blocked 0 for every producer.

@@ -146,7 +146,34 @@
                                     shown)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 broker=a62 jmx=localhost:19323
+      metric size 10171 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric enqueued_count 10171 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric dequeued_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric dispatched_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric expired_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric in_flight 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric consumers 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric producers 1 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric memory_pct 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric memory_bytes 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric cursor_pct 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric blocked_sends_count 2 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric blocked_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric enqueue_mean_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric enqueue_max_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric message_mean_bytes 11024 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric paused 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric forwarded_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric store_bytes 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric temp_pct 100 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric cursor_full 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric blocked_mean_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric network_enqueued_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric network_dequeued_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric message_max_bytes 11024 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric duplicates_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
+      metric uncommitted_exceeded_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk
 
     Reading the results (starting points: tune them to your brokers):
       Healthy  size rising and falling; consumers above 0 on every queue that

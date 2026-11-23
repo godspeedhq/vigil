@@ -108,7 +108,29 @@
                                     100, left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 broker=a62 jmx=localhost:19323
+      metric memory_pct 11 broker=a62 jmx=localhost:19323
+      metric memory_limit_bytes 16777216 broker=a62 jmx=localhost:19323
+      metric store_pct 1 broker=a62 jmx=localhost:19323
+      metric store_limit_bytes 209715200 broker=a62 jmx=localhost:19323
+      metric temp_pct 100 broker=a62 jmx=localhost:19323
+      metric temp_limit_bytes 104857600 broker=a62 jmx=localhost:19323
+      metric scheduler_pct 0 broker=a62 jmx=localhost:19323
+      metric scheduler_limit_bytes 0 broker=a62 jmx=localhost:19323
+      metric store_bytes 2733858 broker=a62 jmx=localhost:19323
+      metric connections 3 broker=a62 jmx=localhost:19323
+      metric connections_count 10 broker=a62 jmx=localhost:19323
+      metric producers 1 broker=a62 jmx=localhost:19323
+      metric consumers 4 broker=a62 jmx=localhost:19323
+      metric messages 13550 broker=a62 jmx=localhost:19323
+      metric enqueued_count 14242 broker=a62 jmx=localhost:19323
+      metric dequeued_count 51 broker=a62 jmx=localhost:19323
+      metric queues 6 broker=a62 jmx=localhost:19323
+      metric topics 15 broker=a62 jmx=localhost:19323
+      metric temp_queues 0 broker=a62 jmx=localhost:19323
+      metric temp_topics 0 broker=a62 jmx=localhost:19323
+      metric message_mean_bytes 8171 broker=a62 jmx=localhost:19323
+      metric message_max_bytes 11024 broker=a62 jmx=localhost:19323
 
     Reading the results (starting points: tune them to your brokers):
       Healthy  memory_pct, store_pct and temp_pct well below 100; messages

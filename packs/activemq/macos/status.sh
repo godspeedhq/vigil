@@ -61,7 +61,14 @@
 #                                 first 100, left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 broker=a62 jmx=localhost:19323
+#   metric version 1 broker=a62 jmx=localhost:19323 version=6.2.0
+#   metric broker 1 broker=a62 jmx=localhost:19323 broker_name=a62
+#   metric uptime_seconds 257.286 broker=a62 jmx=localhost:19323
+#   metric healthy 1 broker=a62 jmx=localhost:19323
+#   metric slave 0 broker=a62 jmx=localhost:19323
+#   metric connector_up 1 broker=a62 jmx=localhost:19323 connectorName=openwire
+#   metric connections_refused_count 0 broker=a62 jmx=localhost:19323 connectorName=openwire
 #
 # Reading the results (starting points: tune them to your brokers):
 #   Healthy  jmx_up 1; healthy 1; every connector_up 1;

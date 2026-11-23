@@ -43,7 +43,9 @@
                                 left out (the largest are shown)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 broker=a62 jmx=localhost:19323
+      metric size 50 broker=a62 jmx=localhost:19323 destinationName=ActiveMQ.DLQ
+      metric enqueued_count 50 broker=a62 jmx=localhost:19323 destinationName=ActiveMQ.DLQ
 
     Reading the results (starting points: tune them to your brokers):
       Healthy  size 0, or flat.

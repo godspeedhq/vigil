@@ -134,7 +134,7 @@ for t in a518:5.18 a519:5.19 a62:6.2; do
     check "$n: the broker's temp store, full of them" 100 "$(val broker temp_pct "broker=$n ")"
     check "$n: the orders queue's memory, nearly full" yes "$(least queues memory_pct "broker=$n .*destinationName=orders$" 80)"
     check "$n: a producer held back now" 1 "$(grep -E "^metric blocked [^ ]+ broker=$n .*destinationName=bulk " "$work/producers.out" | awk '{ print $3 }' | sort -r | head -n 1)"
-    check "$n: and how long" yes "$(least producers blocked_seconds "broker=$n .*destinationName=bulk " 1)"
+    check "$n: most of its time" yes "$(least producers blocked_pct "broker=$n .*destinationName=bulk " 90)"
     check "$n: the orders queue's size in the store" yes "$(least queues store_bytes "broker=$n .*destinationName=orders\$" 1000)"
     check "$n: messages in flight to the slow consumer" yes "$(least queues in_flight "broker=$n .*destinationName=orders\$" 1)"
     check "$n: its consumers (on a518, the bridge to a62 too)" yes "$(least queues consumers "broker=$n .*destinationName=orders$" 1)"

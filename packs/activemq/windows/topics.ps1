@@ -68,7 +68,16 @@
                                     100, left out (the largest are shown)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 broker=a62 jmx=localhost:19323
+      metric pending 0 broker=a62 jmx=localhost:19323 destinationName=prices
+      metric enqueued_count 500 broker=a62 jmx=localhost:19323 destinationName=prices
+      metric dequeued_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+      metric dispatched_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+      metric expired_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+      metric consumers 1 broker=a62 jmx=localhost:19323 destinationName=prices
+      metric producers 0 broker=a62 jmx=localhost:19323 destinationName=prices
+      metric memory_pct 49 broker=a62 jmx=localhost:19323 destinationName=prices
+      metric blocked_sends_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
 
     Reading the results (starting points: tune them to your brokers):
       Healthy  pending near 0.

@@ -100,17 +100,17 @@ size            org.apache.activemq:type=Broker,brokerName=*,destinationType=Que
 enqueued_count  org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*DLQ*  EnqueueCount  destinationName
 
 [subscribers]
-pending         org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  PendingQueueSize     destinationName clientId top
-dispatched      org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  DispatchedQueueSize  destinationName clientId
-enqueued_count  org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  EnqueueCounter       destinationName clientId
-dequeued_count  org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  DequeueCounter       destinationName clientId
-active          org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  Active               destinationName clientId
-slow            org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  SlowConsumer         destinationName clientId
+pending         org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  PendingQueueSize     destinationName clientId top -destinationName=ActiveMQ.Advisory.*
+dispatched      org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  DispatchedQueueSize  destinationName clientId -destinationName=ActiveMQ.Advisory.*
+enqueued_count  org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  EnqueueCounter       destinationName clientId -destinationName=ActiveMQ.Advisory.*
+dequeued_count  org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  DequeueCounter       destinationName clientId -destinationName=ActiveMQ.Advisory.*
+active          org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  Active               destinationName clientId -destinationName=ActiveMQ.Advisory.*
+slow            org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Consumer,*  SlowConsumer         destinationName clientId -destinationName=ActiveMQ.Advisory.*
 
 [producers]
-blocked_seconds  org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*  TotalTimeBlocked   destinationName clientId top *0.001
+blocked_seconds  org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*  TotalTimeBlocked   destinationName clientId *0.001
 blocked          org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*  ProducerBlocked    destinationName clientId
-blocked_pct      org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*  PercentageBlocked  destinationName clientId
+blocked_pct      org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*  PercentageBlocked  destinationName clientId top
 sent_count       org.apache.activemq:type=Broker,brokerName=*,destinationType=*,destinationName=*,endpoint=Producer,*  SentCount          destinationName clientId
 
 [connections]
