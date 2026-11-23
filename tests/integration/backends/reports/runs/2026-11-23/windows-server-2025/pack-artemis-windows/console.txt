@@ -1,0 +1,150 @@
+pack     artemis 1.0.0, Vigil commit 7b93eb2 (a copy); the pack from a packs release built by tools/release/packs.sh
+account  vigil-test, not an administrator, by SSH key
+servers  run-artemis.sh's brokers on the Fedora test machine (Artemis 2.33, 2.40 and 2.44, each with trouble on purpose; JMX with a password and TLS), through SSH tunnels
+
+######## tests\integration\Service-Packs.ps1 through Vigil, then every job on a JRE, powershell.exe
+
+host     WIN-R50M4Q63SR9, Windows Server 2025 Datacenter Evaluation 24H2 build 26100
+shell    C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe 5.1.26100.7462
+java     openjdk version "21.0.13.1" 2026-11-17 LTS
+jre      openjdk version "21.0.13.1" 2026-11-17 LTS
+servers  art233: jmxs=localhost:19331; art240: jmxs=localhost:19332; art244: jmxs=localhost:19333
+PowerShell 5.1.26100.7462
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+artemis: art233: jmxs=localhost:19331; art240: jmxs=localhost:19332; art244: jmxs=localhost:19333
+  PASS  artemis: off until enabled
+  PASS  artemis: enabled
+        on: artemis_status
+        on: artemis_broker
+        on: artemis_addresses
+        on: artemis_queues
+        on: artemis_dlq
+        on: artemis_cluster
+        needs each broker's JMX in ARTEMIS_JMX (art1: jmxs=host:port): the JVM's JMX, -Dcom.sun.management.jmxremote.port and a password and TLS (the registry too) in JAVA_ARGS_APPEND; not management.xml's connector, whose registry is not on TLS (packs/README.md shows how)
+        needs for JMX with a password: a secret line on the jobs: secret = ARTEMIS_JMX_PASSWORD=secret:ARTEMIS_JMX_PASSWORD, then vigil secret set ARTEMIS_JMX_PASSWORD
+        needs for the broker's JVM (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: vigil pack install jvm, with each broker in JVM_TARGETS named as here (art1: jmxs=host:port)
+        settings in vigil.config: ARTEMIS_JMX= ARTEMIS_JMX_USER= ARTEMIS_CACERT=
+  PASS  artemis: it says its JVM is the jvm pack's
+  PASS  artemis: its jobs are on
+  PASS  artemis: no secret line until JMX asks for one
+  PASS  artemis: the password is a secret reference, on every job
+  note  artemis: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_PROBE_PASSWORD
+  PASS  artemis: precheck is happy
+  PASS  artemis: every job runs
+  PASS  artemis: art233 answers over JMX
+  PASS  artemis: art240 answers over JMX
+  PASS  artemis: art244 answers over JMX
+        metric jmx_up 1 broker=art233 jmx=localhost:19331
+        metric version 1 broker=art233 jmx=localhost:19331 version=2.33.0
+        metric broker 1 broker=art233 jmx=localhost:19331 broker_name=0.0.0.0
+        metric ha_policy 1 broker=art233 jmx=localhost:19331 policy=Primary_Only
+        metric uptime_seconds 1126.269 broker=art233 jmx=localhost:19331
+        metric started 1 broker=art233 jmx=localhost:19331
+        metric active 1 broker=art233 jmx=localhost:19331
+        metric backup 0 broker=art233 jmx=localhost:19331
+        metric replica_sync 0 broker=art233 jmx=localhost:19331
+        metric clustered 0 broker=art233 jmx=localhost:19331
+        metric node 1 broker=art233 jmx=localhost:19331 node_id=5c4f2afd-e72e-11f1-a8a8-aa8b23951273
+        metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=amqp
+        metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=artemis
+        metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=hornetq
+        metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=mqtt
+        metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=stomp
+        metric jmx_up 1 broker=art240 jmx=localhost:19332
+        metric version 1 broker=art240 jmx=localhost:19332 version=2.40.0
+        metric broker 1 broker=art240 jmx=localhost:19332 broker_name=0.0.0.0
+        metric ha_policy 1 broker=art240 jmx=localhost:19332 policy=Primary_Only
+        metric uptime_seconds 1126.206 broker=art240 jmx=localhost:19332
+        metric started 1 broker=art240 jmx=localhost:19332
+        metric active 1 broker=art240 jmx=localhost:19332
+        metric backup 0 broker=art240 jmx=localhost:19332
+        metric replica_sync 0 broker=art240 jmx=localhost:19332
+        metric clustered 0 broker=art240 jmx=localhost:19332
+        metric node 1 broker=art240 jmx=localhost:19332 node_id=5c977e58-e72e-11f1-8fc0-12c7ce8acc73
+        metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=amqp
+        metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=artemis
+        metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=hornetq
+        metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=mqtt
+        metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=stomp
+        metric jmx_up 1 broker=art244 jmx=localhost:19333
+        metric version 1 broker=art244 jmx=localhost:19333 version=2.44.0
+        metric broker 1 broker=art244 jmx=localhost:19333 broker_name=0.0.0.0
+        metric ha_policy 1 broker=art244 jmx=localhost:19333 policy=Primary_Only
+        metric uptime_seconds 1130.203 broker=art244 jmx=localhost:19333
+        metric started 1 broker=art244 jmx=localhost:19333
+        metric active 1 broker=art244 jmx=localhost:19333
+        metric backup 0 broker=art244 jmx=localhost:19333
+        metric replica_sync 0 broker=art244 jmx=localhost:19333
+        metric clustered 0 broker=art244 jmx=localhost:19333
+        metric node 1 broker=art244 jmx=localhost:19333 node_id=5a5ad52e-e72e-11f1-b36c-8a9af21f6fd2
+        metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=amqp
+        metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=artemis
+        metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=hornetq
+        metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=mqtt
+        metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=stomp
+  PASS  artemis: a wrong password fails the run
+  PASS  artemis: and says why
+  PASS  artemis: a certificate it cannot trust fails the run
+  PASS  artemis: and says why
+  PASS  artemis: a server that does not answer still runs
+  PASS  artemis: and reads as jmx_up 0
+  PASS  artemis: the password is written nowhere
+  PASS  artemis: metrics reach the backend
+21 passed, 0 failed
+        metric jmx_up 1 broker=art233 jmx=localhost:19331
+        metric version 1 broker=art233 jmx=localhost:19331 version=2.33.0
+        metric broker 1 broker=art233 jmx=localhost:19331 broker_name=0.0.0.0
+        metric ha_policy 1 broker=art233 jmx=localhost:19331 policy=Primary_Only
+        metric uptime_seconds 1335.816 broker=art233 jmx=localhost:19331
+        metric started 1 broker=art233 jmx=localhost:19331
+        metric active 1 broker=art233 jmx=localhost:19331
+        metric backup 0 broker=art233 jmx=localhost:19331
+        metric replica_sync 0 broker=art233 jmx=localhost:19331
+        metric clustered 0 broker=art233 jmx=localhost:19331
+        metric node 1 broker=art233 jmx=localhost:19331 node_id=5c4f2afd-e72e-11f1-a8a8-aa8b23951273
+        metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=amqp
+        metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=artemis
+        metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=hornetq
+        metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=mqtt
+        metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=stomp
+        metric jmx_up 1 broker=art240 jmx=localhost:19332
+        metric version 1 broker=art240 jmx=localhost:19332 version=2.40.0
+        metric broker 1 broker=art240 jmx=localhost:19332 broker_name=0.0.0.0
+        metric ha_policy 1 broker=art240 jmx=localhost:19332 policy=Primary_Only
+        metric uptime_seconds 1335.57 broker=art240 jmx=localhost:19332
+        metric started 1 broker=art240 jmx=localhost:19332
+        metric active 1 broker=art240 jmx=localhost:19332
+        metric backup 0 broker=art240 jmx=localhost:19332
+        metric replica_sync 0 broker=art240 jmx=localhost:19332
+        metric clustered 0 broker=art240 jmx=localhost:19332
+        metric node 1 broker=art240 jmx=localhost:19332 node_id=5c977e58-e72e-11f1-8fc0-12c7ce8acc73
+        metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=amqp
+        metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=artemis
+        metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=hornetq
+        metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=mqtt
+        metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=stomp
+        metric jmx_up 1 broker=art244 jmx=localhost:19333
+        metric version 1 broker=art244 jmx=localhost:19333 version=2.44.0
+        metric broker 1 broker=art244 jmx=localhost:19333 broker_name=0.0.0.0
+        metric ha_policy 1 broker=art244 jmx=localhost:19333 policy=Primary_Only
+        metric uptime_seconds 1339.554 broker=art244 jmx=localhost:19333
+        metric started 1 broker=art244 jmx=localhost:19333
+        metric active 1 broker=art244 jmx=localhost:19333
+        metric backup 0 broker=art244 jmx=localhost:19333
+        metric replica_sync 0 broker=art244 jmx=localhost:19333
+        metric clustered 0 broker=art244 jmx=localhost:19333
+        metric node 1 broker=art244 jmx=localhost:19333 node_id=5a5ad52e-e72e-11f1-b36c-8a9af21f6fd2
+        metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=amqp
+        metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=artemis
+        metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=hornetq
+        metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=mqtt
+        metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=stomp
+  PASS  artemis: every job runs on the JRE, from the release
+  PASS  artemis: and every server answers
+2 passed, 0 failed
