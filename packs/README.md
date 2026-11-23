@@ -818,6 +818,8 @@ A JVM that is not running reports `running 0` (`jvm_process`) and `up 0` (`jvm_s
   - Windows 11, on Windows PowerShell 5.1 and PowerShell 7: [the console output](../tests/integration/backends/reports/runs/2026-11-22/windows/pack-jvm-1.2.0-windows/console.txt).
   - Windows Server 2025, on Windows PowerShell 5.1: [the console output](../tests/integration/backends/reports/runs/2026-11-22/windows-server-2025/pack-jvm-1.2.0-windows/console.txt).
 
+**Version 1.2.1** carries the probe with the words the Tomcat, Jetty and ActiveMQ packs need: nothing of the jvm pack's own changes, and its client is the same, byte for byte (`fb88b458…`). Tested on 2026-11-23 the same way, against the same eight JVMs, then every job on Temurin's JRE 11: **110 passed, 0 failed** ([the console output](../tests/integration/backends/reports/runs/2026-11-23/fedora/pack-jvm-1.2.1/console.txt)).
+
 ### nginx
 
 An nginx server on this machine, from its `stub_status` page, which you turn on once, reachable from this machine only:
