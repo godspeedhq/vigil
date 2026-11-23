@@ -44,7 +44,7 @@ dc() { docker compose -p vigil-artemis --project-directory "$bk_dir" -f "$bk_dir
 pw=$(openssl rand -hex 16)
 apw=$(openssl rand -hex 16)
 kspw=$(openssl rand -hex 16)
-export ARTEMIS_ADMIN_PASSWORD=$apw
+export ARTEMIS_ADMIN_PASSWORD=$apw ARTEMIS_KS_PASSWORD=$kspw
 trap 'dc down -v > /dev/null 2>&1; evidence_save "$pw" "$apw" "$kspw"; rm -rf "$work"' EXIT
 
 tls=$work/tls
@@ -58,14 +58,12 @@ mkdir -p "$tls"
         KS=$kspw openssl pkcs12 -export -in server.crt -inkey server.key -name jmx -out server.p12 -passout env:KS > /dev/null 2>&1 &&
         chmod 644 server.p12 ca.crt
 ) || die 'cannot make the test certificate'
-# Each broker's etc-override: its JMX connector's ports, its users (admin
+# Each broker's etc-override: its JMX roles, its users (admin
 # of role amq; monitor of role view, which may only read) and its roles.
-for b in art233:19331:19341 art240:19332:19342 art244:19333:19343; do
-    n=${b%%:*} r=${b#*:}
-    port=${r%%:*} rmi=${r#*:}
+for n in art233 art240 art244; do
     d=$work/etc/$n
     mkdir -p "$d"
-    sed -e "s|@PORT@|$port|" -e "s|@RMIPORT@|$rmi|" -e "s|@KS@|$kspw|" "$bk_dir/workloads/artemis/management.xml" > "$d/management.xml"
+    cp "$bk_dir/workloads/artemis/management.xml" "$d/"
     printf 'admin = %s\nmonitor = %s\n' "$apw" "$pw" > "$d/artemis-users.properties"
     printf 'amq = admin\nview = monitor\n' > "$d/artemis-roles.properties"
     cp "$bk_dir/workloads/artemis/broker.properties" "$d/"

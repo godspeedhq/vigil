@@ -169,8 +169,8 @@ PACK = dict(
     description='Apache ActiveMQ Artemis over JMX: health and HA, address memory and disk against their limits, '
                 'addresses and paging, queues (the deepest first, the oldest message), dead letter and expiry '
                 'queues, logins refused, cluster connections and bridges',
-    works_with="Apache ActiveMQ Artemis 2.x (tested: 2.33, 2.40 and 2.44), with management.xml's JMX connector on; Classic is the activemq pack's",
-    needs=["each broker's JMX in ARTEMIS_JMX (art1: jmxs=host:port): the connector in its management.xml, with TLS "
+    works_with="Apache ActiveMQ Artemis 2.x (tested: 2.33, 2.40 and 2.44), with the JVM's JMX on, logging in as the broker's users; Classic is the activemq pack's",
+    needs=["each broker's JMX in ARTEMIS_JMX (art1: jmxs=host:port): the JVM's JMX, with TLS on the registry too, logging in through the broker's realm (com.sun.management.jmxremote.login.config=activemq) "
            "(packs/README.md shows how)",
            "a broker user for it, of a role management.xml lets read (get*, is* and list*), in ARTEMIS_JMX_USER, "
            "and its password a secret line on the jobs: secret = ARTEMIS_JMX_PASSWORD=secret:ARTEMIS_JMX_PASSWORD, "
