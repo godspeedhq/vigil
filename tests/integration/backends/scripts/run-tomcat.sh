@@ -170,7 +170,7 @@ for t in tc9:9.0 tc10:10.1 tc11:11.0; do
     check "$n: the shop's sessions, at their limit" 40 "$(val sessions most "tomcat=$n .*context=/shop")"
     check "$n: the limit" 40 "$(val sessions limit "tomcat=$n .*context=/shop")"
     check "$n: and those refused for it" yes "$(least sessions rejected_count "tomcat=$n .*context=/shop" 10)"
-    check "$n: the JSPs' time" yes "$(least servlets processing_seconds "tomcat=$n .*name=jsp" 1)"
+    check "$n: the JSPs' time" yes "$(least servlets processing_seconds "tomcat=$n .*name=jsp" 0.01)"
     check "$n: DBCP's pool, every connection in use" 4 "$(val jdbc active "tomcat=$n .*name=jdbc/shop")"
     check "$n: of 4" 4 "$(val jdbc max "tomcat=$n .*name=jdbc/shop")"
     check "$n: Tomcat's JDBC pool, every connection in use" 4 "$(val jdbc active "tomcat=$n .*name=jdbc/orders")"

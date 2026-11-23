@@ -62,7 +62,14 @@
                                    out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+      metric lookups_count 10 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+      metric hits_count 4 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+      metric size_bytes 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+      metric max_bytes 10485760 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+      metric jsps 4 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
+      metric jsp_reloads_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
+      metric jsp_unloads_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
 
     Reading the results (starting points: tune them to your Tomcat):
       Healthy  hits_count close to lookups_count; size_bytes below max_bytes;

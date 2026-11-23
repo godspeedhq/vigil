@@ -45,7 +45,12 @@
                               out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+      metric version 1 tomcat=tc11 jmx=localhost:19303 version=11.0.29.0
+      metric up 1 tomcat=tc11 jmx=localhost:19303
+      metric engine_up 1 tomcat=tc11 jmx=localhost:19303
+      metric host_up 1 tomcat=tc11 jmx=localhost:19303 host=localhost
+      metric connector_up 1 tomcat=tc11 jmx=localhost:19303 port=8080
 
     Reading the results (starting points: tune them to your Tomcat):
       Healthy  jmx_up 1; up, engine_up, host_up and every connector_up 1.

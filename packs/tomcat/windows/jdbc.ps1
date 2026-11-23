@@ -102,7 +102,20 @@
                                    left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+      metric active 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+      metric idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+      metric max 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+      metric max_idle 2 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+      metric min_idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+      metric max_wait_seconds 1 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+      metric size 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+      metric waiting 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+      metric borrowed_count 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+      metric returned_count 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+      metric created_count 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+      metric released_count 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+      metric abandoned_count 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
 
     Reading the results (starting points: tune them to your Tomcat):
       Healthy  active well below max; waiting and hikari_waiting 0;

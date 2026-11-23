@@ -57,7 +57,14 @@
 #                                 100, left out (the largest are shown)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+#   metric up 1 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+#   metric uptime_seconds 32 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+#   metric startup_seconds 0.048 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+#   metric errors_count 14 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+#   metric requests_count 68 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+#   metric processing_seconds 0.93 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+#   metric slowest_seconds 0.814 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
 #
 # Reading the results (starting points: tune them to your Tomcat):
 #   Healthy  up 1 for every app; uptime_seconds only growing; errors_count

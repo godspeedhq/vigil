@@ -56,7 +56,13 @@
                                     100, left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+      metric requests_count 54 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+      metric errors_count 14 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+      metric sent_bytes 46386 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+      metric received_bytes 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+      metric processing_seconds 1.038 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+      metric slowest_seconds 0.854 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
 
     Reading the results (starting points: tune them to your Tomcat):
       Healthy  errors_count rising far slower than requests_count;

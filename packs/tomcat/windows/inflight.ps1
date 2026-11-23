@@ -52,7 +52,10 @@
                                     100, left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+      metric running_seconds 21.328 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest1
+      metric stuck_threads 14 tomcat=tc11 jmx=localhost:19303 host=localhost
+      metric stuck_threshold_seconds 5 tomcat=tc11 jmx=localhost:19303 host=localhost
 
     Reading the results (starting points: tune them to your Tomcat):
       Healthy  running_seconds of a second or less; stuck_threads 0.

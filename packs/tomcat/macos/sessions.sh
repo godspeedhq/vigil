@@ -75,7 +75,17 @@
 #                                 first 100, left out (the largest are shown)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+#   metric active 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+#   metric most 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+#   metric limit 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+#   metric rejected_count 11 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+#   metric created_count 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+#   metric expired_count 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+#   metric created_per_minute 79 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+#   metric expired_per_minute 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+#   metric average_alive_seconds 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+#   metric longest_alive_seconds 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
 #
 # Reading the results (starting points: tune them to your Tomcat):
 #   Healthy  active rising and falling with traffic; rejected_count 0.

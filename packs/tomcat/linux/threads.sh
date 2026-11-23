@@ -89,7 +89,22 @@
 #                                 100, left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+#   metric busy 8 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+#   metric threads 8 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+#   metric max_threads 6 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+#   metric connections 13 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+#   metric max_connections 8192 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+#   metric keep_alive 12 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+#   metric backlog_max 10 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+#   metric paused 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+#   metric executor_busy 8 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+#   metric executor_threads 8 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+#   metric executor_max_threads 8 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+#   metric executor_largest 8 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+#   metric executor_queue 4 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+#   metric executor_max_queue 10 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+#   metric executor_done_count 91 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
 #
 # Reading the results (starting points: tune them to your Tomcat):
 #   Healthy  busy, or executor_busy, well below max_threads; executor_queue 0;

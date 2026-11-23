@@ -50,7 +50,11 @@
                                     100, left out (the largest are shown)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+      metric processing_seconds 0.93 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+      metric requests_count 68 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+      metric errors_count 14 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+      metric slowest_seconds 0.814 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
 
     Reading the results (starting points: tune them to your Tomcat):
       Healthy  processing_seconds rising in step with requests_count;

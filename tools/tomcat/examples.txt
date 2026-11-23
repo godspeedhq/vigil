@@ -1,0 +1,91 @@
+# Each job's example output, for its script's header: real lines from
+# tests/integration/backends/scripts/run-tomcat.sh's Tomcat 11.0 (tc11), with
+# trouble on purpose, 2026-11-23. tools/tomcat/gen.py reads it.
+== status
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric version 1 tomcat=tc11 jmx=localhost:19303 version=11.0.29.0
+metric up 1 tomcat=tc11 jmx=localhost:19303
+metric engine_up 1 tomcat=tc11 jmx=localhost:19303
+metric host_up 1 tomcat=tc11 jmx=localhost:19303 host=localhost
+metric connector_up 1 tomcat=tc11 jmx=localhost:19303 port=8080
+== requests
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric requests_count 54 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric errors_count 14 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric sent_bytes 46386 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric received_bytes 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric processing_seconds 1.038 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric slowest_seconds 0.854 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+== threads
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric busy 8 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric threads 8 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric max_threads 6 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric connections 13 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric max_connections 8192 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric keep_alive 12 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric backlog_max 10 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric paused 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric executor_busy 8 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+metric executor_threads 8 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+metric executor_max_threads 8 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+metric executor_largest 8 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+metric executor_queue 4 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+metric executor_max_queue 10 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+metric executor_done_count 91 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+== inflight
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric running_seconds 21.328 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest1
+metric stuck_threads 14 tomcat=tc11 jmx=localhost:19303 host=localhost
+metric stuck_threshold_seconds 5 tomcat=tc11 jmx=localhost:19303 host=localhost
+== apps
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric up 1 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric uptime_seconds 32 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric startup_seconds 0.048 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric errors_count 14 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric requests_count 68 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric processing_seconds 0.93 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric slowest_seconds 0.814 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+== sessions
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric active 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric most 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric limit 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric rejected_count 11 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric created_count 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric expired_count 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric created_per_minute 79 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric expired_per_minute 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric average_alive_seconds 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric longest_alive_seconds 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+== servlets
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric processing_seconds 0.93 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric requests_count 68 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric errors_count 14 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric slowest_seconds 0.814 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+== jdbc
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric active 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric max 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric max_idle 2 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric min_idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric max_wait_seconds 1 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric size 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric waiting 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric borrowed_count 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric returned_count 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric created_count 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric released_count 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric abandoned_count 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+== cache
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric lookups_count 10 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric hits_count 4 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric size_bytes 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric max_bytes 10485760 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric jsps 4 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
+metric jsp_reloads_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
+metric jsp_unloads_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
