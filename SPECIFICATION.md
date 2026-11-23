@@ -2183,7 +2183,7 @@ Version Platforms             Needs Vigil Release
 
 **Programs** are this platform's; for a pack with no scripts here, those of the platforms it has (`curl (on Linux and macOS)`). A version published before its pack had `info` records shows the first four lines only.
 
-**In the repository** a pack is a folder with `pack.config`, in the configuration format, and a folder of scripts per platform: `linux/`, `macos/` and `windows/`.
+**In the repository** a pack is a folder with `pack.config`, in the configuration format, a folder of scripts per platform: `linux/`, `macos/` and `windows/`, and its page, `README.md`: what it reads, how to turn it on, what to alert on, how it was tested. The page is documentation: it is never installed, never in a pack's archive, and not in its source digest, so it can be mended without a new version of the pack.
 
 ```ini
 [pack]

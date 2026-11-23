@@ -13,7 +13,7 @@ You sign nothing and hold no keys. A contribution is a pull request: it is revie
 
 ## Your first pack
 
-A pack never touches Vigil itself: everything you write is under `packs/<name>/`, plus a section in `packs/README.md`. You need a clone of this repository and bash (on Windows, Git Bash).
+A pack never touches Vigil itself: everything you write is under `packs/<name>/`, its page (`packs/<name>/README.md`) too, plus an entry in `packs/README.md`. You need a clone of this repository and bash (on Windows, Git Bash).
 
 1. **Start it:**
 
@@ -24,7 +24,7 @@ A pack never touches Vigil itself: everything you write is under `packs/<name>/`
 
    This makes `packs/redis/pack.config` and the job's script for Linux, macOS and Windows, each with its header ready and a `TODO` wherever only you know the answer. A job that cannot run on a platform simply has no script there: delete it.
 2. **Write the scripts,** to the rules below. More jobs are more `[job.<name>]` sections in `pack.config`, each with its scripts. Give `needs` a line for each thing the jobs need that Vigil cannot see, such as a database role: `vigil pack enable` shows it, with the secrets and `env` settings it reads from the jobs themselves. [`packs/base`](packs/base) and [`packs/nginx`](packs/nginx) are good examples.
-3. **Add a section** `### redis` to [`packs/README.md`](packs/README.md): what it needs, how to turn it on, and its jobs.
+3. **Write its page**, `packs/redis/README.md` (`new-pack.sh` starts it): what it reads, what it needs, how to turn it on, its jobs, what to alert on and how it was tested. A pack's page is the whole story of it, so someone who opens `packs/redis/` needs nothing else. [`packs/tomcat/README.md`](packs/tomcat/README.md) is a full one. Then **add an entry** `### redis` to [`packs/README.md`](packs/README.md): a line or two, and a link to its page. Then `python tools/pack-grid.py . redis` puts on it the grid of every metric and what good, watch and bad look like, from the scripts' headers; CI checks it stays what they say. The page is not in the pack's archive or its source digest: mending it needs no new version.
 4. **Check it:**
 
    ```
@@ -39,7 +39,7 @@ A pack never touches Vigil itself: everything you write is under `packs/<name>/`
 
 ## A pack in Java
 
-Some packs carry Java: the [jvm](packs/README.md#jvm) and [kafka](packs/README.md#kafka) packs today, and any pack for an application that speaks JMX (Tomcat, Jetty, ActiveMQ). Everything above still holds. A Java pack has a few rules of its own, whether you are writing a new one or changing one of these.
+Some packs carry Java: the [jvm](packs/jvm/README.md) and [kafka](packs/kafka/README.md) packs today, and any pack for an application that speaks JMX (Tomcat, Jetty, ActiveMQ). Everything above still holds. A Java pack has a few rules of its own, whether you are writing a new one or changing one of these.
 
 - **Edit `tools/<pack>/`, never `packs/<pack>/` by hand.** A Java pack is written by its generator, `tools/<pack>/gen.py`: the scripts for every platform, `pack.config` and each script's header, from the sources beside it (`_client.java`, `_probe.tables`, and `examples.txt`, the real output each header shows). Change those, run `python tools/<pack>/gen.py .`, and commit the sources and the pack it wrote together. An edit made only in `packs/<pack>/` is lost the next time the generator runs.
 - **Start from the probe, not from code.** An application that speaks JMX needs no Java of its own: its jobs are rows in `_probe.tables`, which the shared probe reads ([`tools/probe/DESIGN.md`](tools/probe/DESIGN.md) has the format), and its scripts run `_probe.jar` with them. Add a `_client.java` only for what a table cannot do: an API that needs the application's own library (Kafka's admin API), or work beyond JMX (the jvm pack's processes, the JVM's own counters, GC logs).
@@ -92,7 +92,7 @@ CI checks that every script carries the licence and disclaimer.
 - **The checks, in CI.** A pull request that changes packs only is checked by `tools/check-pack.sh --run` on Linux: the rules, every script parsing (the PowerShell ones too), and each Linux job that needs no service run through a throwaway Vigil. That is all CI does for it. Run `tools/check-pack.sh --run` on macOS and `tools/Check-Pack.ps1` on Windows yourself, for the scripts you wrote for them; a change to Vigil itself runs them all in CI. A pack gets no CI job of its own: there will be many packs, and a broken one fails only its own runs, never Vigil.
 - **The evidence, from you.** A pack that reads a service shows, before it is merged, that it works against the real service: its jobs run against a real server (in Docker is fine), their output, and the readings set beside what the service itself says. Show its bad states too, made on purpose where you can: the service down, a lock held, a replica stopped. Keep it as the postgres and mysql packs' is:
   - the run's console output in `tests/integration/backends/reports/runs/<date>/<host>/pack-<name>-<what>/console.txt`, with a header saying when, where, which Vigil commit and which versions of the service and its client; `tests/integration/backends/scripts/run-replication.sh` writes one, and is a model for a pack's own;
-  - a few lines of that output in the pack's section of `packs/README.md`, with a link to the file.
+  - a few lines of that output on the pack's page (`packs/<name>/README.md`), with a link to the file.
 
   The site's Real systems pages show every run kept there.
 - The postgres, mysql, redis and nginx packs are also tested against real servers in CI (`tests/integration/service-packs.sh`). That stays, but it is not the model: a new pack brings evidence instead.
@@ -103,7 +103,7 @@ The maintainer merging a script checks:
 
 - [ ] It only reads, and uses only what ships with each platform.
 - [ ] It works on bash 3.2 and PowerShell 5.1: the pack check passes in CI, and the evidence covers each platform it has scripts for.
-- [ ] A pack that reads a service comes with evidence of it working against the real service, kept in `reports/runs/` and shown in `packs/README.md`.
+- [ ] A pack that reads a service comes with evidence of it working against the real service, kept in `reports/runs/` and shown on the pack's page, `packs/<name>/README.md`.
 - [ ] Its metrics are named as above, listed in `pack.config`, and documented in its header.
 - [ ] Any credential comes through a `secret:` reference, for a read-only account.
 - [ ] It is bounded in time, and reports, rather than hides, a source it cannot read.

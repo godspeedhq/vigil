@@ -17,7 +17,8 @@
 # of the pack, its jobs and their metrics, that each job has a script and
 # each script a job, the scripts' headers (the notice, every metric named, no
 # TODO left), that they parse (bash -n; PowerShell's parser when there is a
-# PowerShell), and that packs/README.md has a section for the pack.
+# PowerShell), that the pack has its page (packs/<name>/README.md), and that
+# packs/README.md has an entry for it.
 #
 # --run also runs the pack, on Linux and macOS (tools/Check-Pack.ps1 does the
 # same for the Windows scripts): in a throwaway Vigil, vigil pack enable turns
@@ -283,8 +284,8 @@ check_pack() {
 
     for f in "$dir"/*; do
         case ${f##*/} in
-            pack.config | linux | macos | windows) ;;
-            *) fail "$f: a pack holds only pack.config and linux/, macos/ and windows/" ;;
+            pack.config | README.md | linux | macos | windows) ;;
+            *) fail "$f: a pack holds only pack.config, its page (README.md) and linux/, macos/ and windows/" ;;
         esac
     done
     for os in linux macos windows; do
@@ -310,9 +311,11 @@ check_pack() {
             esac
         done
     done
+    # Its page, and for a service pack, its entry on the packs' front door.
+    [ -s "packs/$name/README.md" ] || fail "packs/$name/README.md needs to be there: the pack's page (CONTRIBUTING.md, Your first pack)"
     if [ "$name" != base ]; then
         read_text packs/README.md
-        [[ $_text == *$'\n'"### $name"$'\n'* ]] || fail "packs/README.md needs a section: ### $name"
+        [[ $_text == *$'\n'"### $name"$'\n'* ]] || fail "packs/README.md needs an entry: ### $name, and a line linking to packs/$name/README.md"
     fi
 
     if [ "$run" -eq 1 ] && [ "$failed" -eq "$before" ]; then

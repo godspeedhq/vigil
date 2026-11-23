@@ -123,6 +123,10 @@ jobs:
       - name: every pack, checked and run (/bin/bash)
         if: matrix.part == 'engine'
         run: /bin/bash tools/check-pack.sh --run
+      # Each pack's page shows its metrics as the scripts' headers say them.
+      - name: every pack's grid, as its scripts say
+        if: matrix.part == 'engine'
+        run: python3 tools/pack-grid.py . --check
       - name: conformance (/bin/bash)
         if: matrix.part == 'engine'
         run: /bin/bash tests/run-conformance.sh
@@ -679,6 +683,8 @@ jobs:
         run: /bin/bash tools/check-headers.sh
       - name: every pack, checked and run (/bin/bash)
         run: /bin/bash tools/check-pack.sh --run
+      - name: every pack's grid, as its scripts say
+        run: python3 tools/pack-grid.py . --check
       # Its archives and index; the jars are the pack-java job's, for the
       # packs the change can break.
       - name: every pack, built as a release, without its jars
