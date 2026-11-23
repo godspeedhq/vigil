@@ -74,6 +74,11 @@
 #                                        and a consumer group with lag
 #                                        (compose.kafka.yaml has all of these;
 #                                        scripts/run-kafka.sh sets them up)
+#   VIGIL_IT_BEAM_DIST, _COOKIE          Erlang nodes and their cookie, with
+#                                        _ERLANG, _PROMETHEUS, _DUMPS and
+#                                        _TROUBLE (scripts/run-beam.sh)
+#   VIGIL_IT_RABBITMQ_TARGETS            RabbitMQ nodes' Prometheus pages
+#                                        (scripts/run-rabbitmq.sh)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
@@ -150,7 +155,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres mysql redis mssql kafka jvm beam nginx; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq nginx; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1301,6 +1306,59 @@ else
     check "$pp: the password is written nowhere" '' "$(grep -rlF -- "$VIGIL_IT_PROBE_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
 
+# --- rabbitmq ---------------------------------------------------------------
+# RabbitMQ nodes, through Vigil, as scripts/run-rabbitmq.sh sets them up:
+# VIGIL_IT_RABBITMQ_TARGETS their Prometheus pages (name=address;...).
+if [ -z "${VIGIL_IT_RABBITMQ_TARGETS-}" ]; then
+    printf '  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)\n'
+else
+    unset RABBITMQ_TARGETS RABBITMQ_CACERT
+    printf 'rabbitmq: %s\n' "$VIGIL_IT_RABBITMQ_TARGETS"
+    rjobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/rabbitmq/pack.config")
+    rn=$(printf '%s\n' $rjobs | wc -l | tr -d ' ')
+    rjobs_on() { vigil pack list | awk '$1 ~ /^rabbitmq_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    rval() { grep -h " out metric $2 " "$root/logs/jobs/rabbitmq_$1"/*.log 2> /dev/null | grep -- "${3-}" | tail -n 1 | awk '{ print $6 }'; }
+    rsaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/rabbitmq_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    rrun() { vigil run "rabbitmq_$1" > "$work/out" 2>&1; echo $?; }
+    check 'rabbitmq: off until enabled' "off=$rn" "$(rjobs_on)"
+    out=$(vigil pack enable rabbitmq 2>&1)
+    check 'rabbitmq: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check "rabbitmq: it says its VM is the beam pack's" yes "$(printf '%s\n' "$out" | tr '\n' ' ' | tr -s ' ' | grep -q 'the beam pack, not this one' && echo yes || echo no)"
+    check 'rabbitmq: its jobs are on' "on=$rn" "$(rjobs_on)"
+    set_env RABBITMQ_TARGETS "$VIGIL_IT_RABBITMQ_TARGETS"
+    check 'rabbitmq: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    failed=''
+    for j in $rjobs; do
+        [ "$(rrun "$j")" = 0 ] || failed="$failed $j"
+    done
+    check 'rabbitmq: every job runs' '' "$failed"
+    for j in $failed; do sed 's/^/        /' "$root/logs/jobs/rabbitmq_$j"/*.log | tail -n 4; done
+    for j in $rjobs; do
+        printf '        %s: %s lines\n' "$j" "$(grep -h ' out metric ' "$root/logs/jobs/rabbitmq_$j"/*.log | wc -l | tr -d ' ')"
+    done
+    for t in $(printf '%s\n' "$VIGIL_IT_RABBITMQ_TARGETS" | tr ';' '\n' | sed -n 's/^ *\([^=]*\)=.*/\1/p'); do
+        check "rabbitmq: $t answers" 1 "$(rval status up "node=$t\$")"
+    done
+    check 'rabbitmq: a queue read' yes "$([ "$(rval queues queues)" -ge 0 ] 2> /dev/null && grep -qh ' out metric messages ' "$root/logs/jobs/rabbitmq_queues"/*.log && echo yes || echo no)"
+    # A node that does not answer is a reading; a page that is not
+    # RabbitMQ's fails the run and says why.
+    set_env RABBITMQ_TARGETS 'gone=http://127.0.0.1:1'
+    check 'rabbitmq: a node that does not answer still runs' 0 "$(rrun status)"
+    check 'rabbitmq: and reads as up 0' 0 "$(rval status up 'node=gone')"
+    first=$(printf '%s' "$VIGIL_IT_RABBITMQ_TARGETS" | cut -d';' -f1 | sed 's/^ *[^=]*=//')
+    set_env RABBITMQ_TARGETS "wrong=$first/nothing-here"
+    check 'rabbitmq: a page that is not there fails the run' 2 "$(rrun status)"
+    check 'rabbitmq: and says why' yes "$(rsaid status 'did not give a page')"
+    set_env RABBITMQ_TARGETS "$VIGIL_IT_RABBITMQ_TARGETS"
+    [ "$(rrun status)" = 0 ] || true
+fi
+
 # --- beam -------------------------------------------------------------------
 # Erlang VMs, through Vigil, as scripts/run-beam.sh sets them up:
 # VIGIL_IT_BEAM_DIST its nodes (name=node;...), VIGIL_IT_BEAM_COOKIE their
@@ -1450,6 +1508,10 @@ fi
 if [ -n "${VIGIL_IT_BEAM_DIST-}" ] && [ -n "${VIGIL_IT_BEAM_COOKIE-}" ]; then
     for _ in $(seq 1 20); do grep -q '^beam_vm_up{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
     check 'beam: metrics reach the backend' yes "$(grep -q '^beam_vm_up{' "$root/metrics/vigil.prom" && grep -q '^beam_processes_mailbox_messages{' "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
+if [ -n "${VIGIL_IT_RABBITMQ_TARGETS-}" ]; then
+    for _ in $(seq 1 20); do grep -q '^rabbitmq_queues_messages{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check 'rabbitmq: metrics reach the backend' yes "$(grep -q '^rabbitmq_up{' "$root/metrics/vigil.prom" && grep -q '^rabbitmq_queues_messages{' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
     check 'nginx: metrics reach the backend' yes "$(grep -q '^nginx_requests_count{' "$root/metrics/vigil.prom" && echo yes || echo no)"

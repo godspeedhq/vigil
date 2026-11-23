@@ -1,0 +1,87 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# RabbitMQ for the rabbitmq pack (scripts/run-rabbitmq.sh). Not somewhere
+# Vigil sends: what its pack reads, each on its Prometheus page.
+#
+#   rmq-a, rmq-b, rmq-c   RabbitMQ 4.2, one cluster   127.0.0.1:15691..15693
+#   rmq41                 RabbitMQ 4.1, alone, a memory watermark it is past
+#                         at once (its memory alarm on)   127.0.0.1:15694
+#   rmq313                RabbitMQ 3.13, alone, a free disk limit no disk
+#                         meets (its disk alarm on)        127.0.0.1:15695
+#
+# The cluster's cookie is RMQ_WORK's cookie file, put into each node's data
+# volume by the cookie service (owned by rabbitmq, 400) before it starts:
+# never on a command line. The nodes start one after another, so the first
+# forms the cluster and the others join it. AMQP on 5671..5675 on this
+# machine only, for the run's own clients. Each takes 512 MB.
+
+x-node: &node
+  mem_limit: 512m
+  healthcheck:
+    test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+    interval: 5s
+    timeout: 10s
+    retries: 30
+
+services:
+  cookie:
+    image: alpine:3
+    volumes:
+      - ${RMQ_WORK:-/nonexistent}/cookie:/src/cookie:ro,z
+      - rmq-a:/a
+      - rmq-b:/b
+      - rmq-c:/c
+    command: ["sh", "-c", "for d in /a /b /c; do cp /src/cookie $$d/.erlang.cookie && chown 999:999 $$d $$d/.erlang.cookie && chmod 400 $$d/.erlang.cookie; done"]
+  rmq-a:
+    <<: *node
+    image: rabbitmq:4.2-management
+    hostname: rmq-a
+    depends_on: { cookie: { condition: service_completed_successfully } }
+    volumes:
+      - rmq-a:/var/lib/rabbitmq
+      - ./configs/services/rabbitmq/cluster.conf:/etc/rabbitmq/conf.d/90-cluster.conf:ro,z
+    ports: ["127.0.0.1:15691:15692", "127.0.0.1:5671:5672"]
+  rmq-b:
+    <<: *node
+    image: rabbitmq:4.2-management
+    hostname: rmq-b
+    depends_on: { rmq-a: { condition: service_healthy } }
+    volumes:
+      - rmq-b:/var/lib/rabbitmq
+      - ./configs/services/rabbitmq/cluster.conf:/etc/rabbitmq/conf.d/90-cluster.conf:ro,z
+    ports: ["127.0.0.1:15692:15692", "127.0.0.1:5672:5672"]
+  rmq-c:
+    <<: *node
+    image: rabbitmq:4.2-management
+    hostname: rmq-c
+    depends_on: { rmq-b: { condition: service_healthy } }
+    volumes:
+      - rmq-c:/var/lib/rabbitmq
+      - ./configs/services/rabbitmq/cluster.conf:/etc/rabbitmq/conf.d/90-cluster.conf:ro,z
+    ports: ["127.0.0.1:15693:15692", "127.0.0.1:5673:5672"]
+  rmq41:
+    <<: *node
+    image: rabbitmq:4.1-management
+    hostname: rmq41
+    volumes:
+      - ./configs/services/rabbitmq/low-memory.conf:/etc/rabbitmq/conf.d/90-test.conf:ro,z
+    ports: ["127.0.0.1:15694:15692", "127.0.0.1:5674:5672"]
+  rmq313:
+    <<: *node
+    image: rabbitmq:3.13-management
+    hostname: rmq313
+    volumes:
+      - ./configs/services/rabbitmq/no-disk.conf:/etc/rabbitmq/conf.d/90-test.conf:ro,z
+    ports: ["127.0.0.1:15695:15692", "127.0.0.1:5675:5672"]
+
+volumes:
+  rmq-a:
+  rmq-b:
+  rmq-c:
