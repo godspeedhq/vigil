@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # plugins.sh - Jenkins' plugins: how many, those with an update, those not
-# active
+# active, pinned or about to go; and the update sites
 #
 # Copyright (c) Bankole Ogundero and the Vigil contributors
 # SPDX-License-Identifier: Apache-2.0
@@ -12,8 +12,9 @@
 # for any claim, damages or other liability arising from its use. See the
 # LICENSE file for the full terms.
 #
-# The plugin manager (/pluginManager/api/json). It needs more than a
-# read-only user: Overall/SystemRead (Jenkins started with
+# The plugin manager (/pluginManager/api/json) and the update sites
+# (/updateCenter/api/json). The plugins need more than a read-only user:
+# Overall/SystemRead (Jenkins started with
 # -Djenkins.security.SystemReadPermission=true) or Overall/Administer.
 # Without it, this job says readable 0, and nothing else: no failure.
 #
@@ -23,17 +24,25 @@
 # certificate is checked against JENKINS_CACERT when it is set.
 #
 # Metrics:
-#   up              1 when Jenkins answers, else 0
-#   readable        1 when this user may read the plugins, else 0
-#   plugins         plugins installed
-#   updates         of those, with a newer version to install
-#   inactive        of those, not active (failed to load, or a dependency
-#                   missing)
-#   disabled        of those, disabled
-#   update          always 1, for one plugin with an update, tagged
-#                   plugin=<its name> and version=<the version installed>
-#   inactive_plugin always 1, for one plugin not active, tagged the same
-#   updates_not_shown  past the first 100, how many were left out
+#   up                  1 when Jenkins answers, else 0
+#   readable            1 when this user may read the plugins, else 0
+#   plugins             plugins installed
+#   updates             of those, with a newer version to install
+#   inactive            of those, not active (failed to load, or a
+#                       dependency missing)
+#   disabled            of those, disabled
+#   pinned              of those, pinned to their version
+#   bundled             of those, that came with Jenkins
+#   deleted             of those, to be removed at the next restart
+#   downgradable        of those, with an older version kept to go back to
+#   update              always 1, for one plugin with an update, tagged
+#                       plugin=<its name> and version=<the version
+#                       installed>
+#   inactive_plugin     always 1, for one plugin not active, tagged the
+#                       same
+#   sites               update sites
+#   sites_with_updates  of those, offering updates
+#   updates_not_shown   past the first 100, how many were left out
 #
 # Example output:
 #   metric up 1
@@ -41,8 +50,8 @@
 # Reading the results (starting points: tune them to the controller):
 #   Healthy  inactive 0; updates few, and applied on a schedule.
 #   Watch    updates climbing: plugins left behind (and their security
-#            fixes); readable 0: give the user Overall/SystemRead to see
-#            them.
+#            fixes); deleted above 0: a restart is due; readable 0: give the
+#            user Overall/SystemRead to see the plugins.
 #   Act      inactive above 0: a plugin failed to load, and what depends
 #            on it does not work (the reason is in Jenkins' log).
 #
@@ -103,7 +112,7 @@ read_page() {
     esac
 }
 
-get '/pluginManager/api/json?depth=1&tree=plugins[shortName,version,active,enabled,hasUpdate]'
+get '/pluginManager/api/json?depth=1&tree=plugins[shortName,version,active,enabled,hasUpdate,pinned,bundled,deleted,downgradable]'
 case $? in
     0) ;;
     2) echo "metric up 0"; exit 0 ;;
@@ -118,8 +127,15 @@ jq -r "$defs"'
     "metric updates \([$p[] | select(.hasUpdate)] | length)",
     "metric inactive \([$p[] | select(.active | not)] | length)",
     "metric disabled \([$p[] | select(.enabled | not)] | length)",
+    "metric pinned \([$p[] | select(.pinned == true)] | length)",
+    "metric bundled \([$p[] | select(.bundled == true)] | length)",
+    "metric deleted \([$p[] | select(.deleted == true)] | length)",
+    "metric downgradable \([$p[] | select(.downgradable == true)] | length)",
     ([$p[] | select(.hasUpdate)][0:100][] | "metric update 1 plugin=\(.shortName | safe) version=\(.version | safe)"),
     ([$p[] | select(.active | not)][0:100][] | "metric inactive_plugin 1 plugin=\(.shortName | safe) version=\(.version | safe)"),
     "metric updates_not_shown \([([$p[] | select(.hasUpdate)] | length) - 100, 0] | max)"
 ' "$work/body" || exit 1
+if get '/updateCenter/api/json?tree=sites[id,hasUpdates]'; then
+    jq -r '"metric sites \(.sites | length)", "metric sites_with_updates \([.sites[] | select(.hasUpdates)] | length)"' "$work/body" || exit 1
+fi
 exit 0

@@ -26,7 +26,10 @@
 #   up                1 when Jenkins answers, else 0
 #   queue_length      items waiting
 #   oldest_seconds    how long the oldest has waited
+#   average_seconds   how long they have waited, on average
 #   stuck             items waiting far longer than they should
+#   blocked           items blocked (by another build of the job, a lock)
+#   buildable         items ready, waiting for an executor
 #   waiting_seconds   how long one item has waited, tagged job=<the job's
 #                     full name>, state=<stuck, blocked, buildable or
 #                     waiting> and why=<Jenkins' reason>
@@ -39,8 +42,7 @@
 #   Healthy  queue_length near 0 most of the time; oldest_seconds in
 #            seconds.
 #   Watch    oldest_seconds in minutes with state=buildable: builds wait for
-#            an executor (jenkins_status executors_busy_pct at 100); add
-#            agents or executors.
+#            an executor (jenkins_labels says which label is full).
 #   Act      stuck above 0: a build that will not start (its label matches
 #            no node online, every such node is offline); why says which.
 #
@@ -107,7 +109,10 @@ jq -r --argjson now "$now" "$defs"'
     [.items[] | . + {age: ([($now - (.inQueueSince / 1000)), 0] | max)}] | sort_by(-.age) as $q |
     "metric queue_length \($q | length)",
     "metric oldest_seconds \(($q[0].age // 0) | floor)",
+    "metric average_seconds \(if ($q | length) > 0 then ([$q[].age] | add / length | floor) else 0 end)",
     "metric stuck \([$q[] | select(.stuck)] | length)",
+    "metric blocked \([$q[] | select(.blocked)] | length)",
+    "metric buildable \([$q[] | select(.buildable)] | length)",
     ($q[0:100][] |
         "metric waiting_seconds \(.age | floor) job=\(.task | fullname | safe) state=\(if .stuck then "stuck" elif .blocked then "blocked" elif .buildable then "buildable" else "waiting" end) why=\((.why // "none") | safe)"),
     "metric items_not_shown \([($q | length) - 100, 0] | max)"

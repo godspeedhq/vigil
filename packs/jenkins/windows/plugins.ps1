@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    plugins.ps1 - Jenkins' plugins: how many, those with an update, those not active
+    plugins.ps1 - Jenkins' plugins: how many, those with an update, those not active, pinned or about to go; and the update sites
 .NOTES
     Copyright (c) Bankole Ogundero and the Vigil contributors
     SPDX-License-Identifier: Apache-2.0
@@ -13,8 +13,9 @@
     for any claim, damages or other liability arising from its use. See the
     LICENSE file for the full terms.
 .DESCRIPTION
-    The plugin manager (/pluginManager/api/json). It needs more than a
-    read-only user: Overall/SystemRead (Jenkins started with
+    The plugin manager (/pluginManager/api/json) and the update sites
+    (/updateCenter/api/json). The plugins need more than a read-only user:
+    Overall/SystemRead (Jenkins started with
     -Djenkins.security.SystemReadPermission=true) or Overall/Administer.
     Without it, this job says readable 0, and nothing else: no failure.
 
@@ -24,17 +25,25 @@
     certificate must be one Windows trusts (JENKINS_CACERT is not read here).
 
     Metrics:
-      up              1 when Jenkins answers, else 0
-      readable        1 when this user may read the plugins, else 0
-      plugins         plugins installed
-      updates         of those, with a newer version to install
-      inactive        of those, not active (failed to load, or a dependency
-                      missing)
-      disabled        of those, disabled
-      update          always 1, for one plugin with an update, tagged
-                      plugin=<its name> and version=<the version installed>
-      inactive_plugin always 1, for one plugin not active, tagged the same
-      updates_not_shown  past the first 100, how many were left out
+      up                  1 when Jenkins answers, else 0
+      readable            1 when this user may read the plugins, else 0
+      plugins             plugins installed
+      updates             of those, with a newer version to install
+      inactive            of those, not active (failed to load, or a
+                          dependency missing)
+      disabled            of those, disabled
+      pinned              of those, pinned to their version
+      bundled             of those, that came with Jenkins
+      deleted             of those, to be removed at the next restart
+      downgradable        of those, with an older version kept to go back to
+      update              always 1, for one plugin with an update, tagged
+                          plugin=<its name> and version=<the version
+                          installed>
+      inactive_plugin     always 1, for one plugin not active, tagged the
+                          same
+      sites               update sites
+      sites_with_updates  of those, offering updates
+      updates_not_shown   past the first 100, how many were left out
 
     Example output:
       metric up 1
@@ -42,8 +51,8 @@
     Reading the results (starting points: tune them to the controller):
       Healthy  inactive 0; updates few, and applied on a schedule.
       Watch    updates climbing: plugins left behind (and their security
-               fixes); readable 0: give the user Overall/SystemRead to see
-               them.
+               fixes); deleted above 0: a restart is due; readable 0: give the
+               user Overall/SystemRead to see the plugins.
       Act      inactive above 0: a plugin failed to load, and what depends
                on it does not work (the reason is in Jenkins' log).
 
@@ -105,19 +114,29 @@ function Full-Name([string]$u) {
 }
 function Num([double]$v, [string]$f = '0') { return $v.ToString($f, $inv) }
 
-$p = Get-Json '/pluginManager/api/json?depth=1&tree=plugins[shortName,version,active,enabled,hasUpdate]'
+$p = Get-Json '/pluginManager/api/json?depth=1&tree=plugins[shortName,version,active,enabled,hasUpdate,pinned,bundled,deleted,downgradable]'
 if ($p -is [string] -and $p -eq 'down') { Write-Output 'metric up 0'; exit 0 }
 if ($p -is [string] -and $p -eq 'forbidden') { Write-Output 'metric up 1'; Write-Output 'metric readable 0'; exit 0 }
 Write-Output 'metric up 1'
 Write-Output 'metric readable 1'
-$all = @($p.plugins)
+$all = @($p.plugins | Where-Object { $_ })
 $upd = @($all | Where-Object { $_.hasUpdate })
 $ina = @($all | Where-Object { -not $_.active })
 Write-Output "metric plugins $($all.Count)"
 Write-Output "metric updates $($upd.Count)"
 Write-Output "metric inactive $($ina.Count)"
 Write-Output "metric disabled $(@($all | Where-Object { -not $_.enabled }).Count)"
+Write-Output "metric pinned $(@($all | Where-Object { $_.pinned -eq $true }).Count)"
+Write-Output "metric bundled $(@($all | Where-Object { $_.bundled -eq $true }).Count)"
+Write-Output "metric deleted $(@($all | Where-Object { $_.deleted -eq $true }).Count)"
+Write-Output "metric downgradable $(@($all | Where-Object { $_.downgradable -eq $true }).Count)"
 foreach ($x in ($upd | Select-Object -First 100)) { Write-Output "metric update 1 plugin=$(Safe $x.shortName) version=$(Safe $x.version)" }
 foreach ($x in ($ina | Select-Object -First 100)) { Write-Output "metric inactive_plugin 1 plugin=$(Safe $x.shortName) version=$(Safe $x.version)" }
 Write-Output "metric updates_not_shown $([Math]::Max(0, $upd.Count - 100))"
+$u = Get-Json '/updateCenter/api/json?tree=sites[id,hasUpdates]'
+if ($u -isnot [string]) {
+    $sites = @($u.sites | Where-Object { $_ })
+    Write-Output "metric sites $($sites.Count)"
+    Write-Output "metric sites_with_updates $(@($sites | Where-Object { $_.hasUpdates }).Count)"
+}
 exit 0

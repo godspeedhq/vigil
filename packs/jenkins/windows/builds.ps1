@@ -15,8 +15,8 @@
 .DESCRIPTION
     Every build running on an executor (/computer/api/json), pipelines too
     (their flyweight executors): how long it has run, Jenkins' estimate from
-    its last builds, and how far past it. Past the longest 100, the rest
-    counted.
+    its last builds, how far past it, and whether Jenkins itself thinks it
+    stuck. Past the longest 100, the rest counted.
 
     Reads Jenkins' REST API at JENKINS_URL, as JENKINS_USER with the API token
     in JENKINS_API_TOKEN (a secret), with Invoke-WebRequest; the token goes in a header made
@@ -27,24 +27,29 @@
       up                  1 when Jenkins answers, else 0
       running             builds running now
       overdue             of those, running more than twice their estimate
+      likely_stuck        of those, that Jenkins thinks stuck (far past the
+                          time its builds take)
       running_seconds     how long one build has run, tagged job=<the job's
                           full name>, build=<its number> and node=<where it
                           runs>
       estimated_seconds   how long Jenkins expects it to take (from its last
                           successful builds), tagged the same
       estimate_pct        running_seconds, as a percentage of the estimate
+      progress_pct        how far along Jenkins thinks it is (0 to 99; none
+                          when it has no estimate)
+      stuck               1 when Jenkins thinks this build stuck, else 0
       builds_not_shown    past the longest 100, how many were left out
 
     Example output:
       metric up 1
 
     Reading the results (starting points: tune them to the controller):
-      Healthy  overdue 0; estimate_pct below 150 for every build.
+      Healthy  overdue and likely_stuck 0; estimate_pct below 150.
       Watch    estimate_pct above 150: slower than usual (a slow agent, a
                slow dependency, tests that grew).
-      Act      overdue above 0, and estimate_pct climbing run after run: a
-               build hung (waiting for input, a lock, a network call), holding
-               its executor.
+      Act      likely_stuck or overdue above 0, estimate_pct climbing run after
+               run: a build hung (waiting for input, a lock, a network call),
+               holding its executor.
 
     Requires: Windows PowerShell 5.1 or PowerShell 7
     Exit code: 0 on success, Jenkins up or down; 1 if a setting is wrong, the login is refused, or the address is not Jenkins
@@ -104,7 +109,7 @@ function Full-Name([string]$u) {
 }
 function Num([double]$v, [string]$f = '0') { return $v.ToString($f, $inv) }
 
-$c = Read-Page '/computer/api/json?tree=computer[displayName,executors[currentExecutable[url,number,timestamp,estimatedDuration]],oneOffExecutors[currentExecutable[url,number,timestamp,estimatedDuration]]]'
+$c = Read-Page '/computer/api/json?tree=computer[displayName,executors[likelyStuck,progress,currentExecutable[url,number,timestamp,estimatedDuration]],oneOffExecutors[likelyStuck,progress,currentExecutable[url,number,timestamp,estimatedDuration]]]'
 Write-Output 'metric up 1'
 $seen = @{}
 $builds = New-Object System.Collections.Generic.List[object]
@@ -117,12 +122,14 @@ foreach ($n in @($c.computer)) {
         $builds.Add([pscustomobject]@{
                 Job = ((Full-Name $b.url) -replace '/[0-9]+$', ''); Number = $b.number; Node = $n.displayName
                 Secs = [Math]::Max(0, ($nowMs - [double]$b.timestamp) / 1000); Est = [double]$b.estimatedDuration / 1000
+                Stuck = ($e.likelyStuck -eq $true); Progress = $(if ($null -ne $e.progress) { [int]$e.progress } else { -1 })
             })
     }
 }
 $sorted = @($builds | Sort-Object Secs -Descending)
 Write-Output "metric running $($sorted.Count)"
 Write-Output "metric overdue $(@($sorted | Where-Object { $_.Est -gt 0 -and $_.Secs -gt 2 * $_.Est }).Count)"
+Write-Output "metric likely_stuck $(@($sorted | Where-Object { $_.Stuck }).Count)"
 foreach ($b in ($sorted | Select-Object -First 100)) {
     $t = "job=$(Safe $b.Job) build=$($b.Number) node=$(Safe $b.Node)"
     Write-Output "metric running_seconds $(Num ([Math]::Floor($b.Secs))) $t"
@@ -130,6 +137,8 @@ foreach ($b in ($sorted | Select-Object -First 100)) {
         Write-Output "metric estimated_seconds $(Num ([Math]::Floor($b.Est))) $t"
         Write-Output "metric estimate_pct $(Num (100 * $b.Secs / $b.Est) '0.##') $t"
     }
+    if ($b.Progress -ge 0) { Write-Output "metric progress_pct $($b.Progress) $t" }
+    Write-Output "metric stuck $(if ($b.Stuck) { 1 } else { 0 }) $t"
 }
 Write-Output "metric builds_not_shown $([Math]::Max(0, $sorted.Count - 100))"
 exit 0

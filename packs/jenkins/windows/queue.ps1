@@ -27,7 +27,10 @@
       up                1 when Jenkins answers, else 0
       queue_length      items waiting
       oldest_seconds    how long the oldest has waited
+      average_seconds   how long they have waited, on average
       stuck             items waiting far longer than they should
+      blocked           items blocked (by another build of the job, a lock)
+      buildable         items ready, waiting for an executor
       waiting_seconds   how long one item has waited, tagged job=<the job's
                         full name>, state=<stuck, blocked, buildable or
                         waiting> and why=<Jenkins' reason>
@@ -40,8 +43,7 @@
       Healthy  queue_length near 0 most of the time; oldest_seconds in
                seconds.
       Watch    oldest_seconds in minutes with state=buildable: builds wait for
-               an executor (jenkins_status executors_busy_pct at 100); add
-               agents or executors.
+               an executor (jenkins_labels says which label is full).
       Act      stuck above 0: a build that will not start (its label matches
                no node online, every such node is offline); why says which.
 
@@ -105,10 +107,13 @@ function Num([double]$v, [string]$f = '0') { return $v.ToString($f, $inv) }
 
 $q = Read-Page '/queue/api/json?tree=items[inQueueSince,why,blocked,buildable,stuck,task[name,url]]'
 Write-Output 'metric up 1'
-$items = @($q.items | ForEach-Object { $_ | Add-Member -NotePropertyName age -NotePropertyValue ([Math]::Max(0, ($nowMs - [double]$_.inQueueSince) / 1000)) -PassThru } | Sort-Object age -Descending)
+$items = @($q.items | Where-Object { $_ } | ForEach-Object { $_ | Add-Member -NotePropertyName age -NotePropertyValue ([Math]::Max(0, ($nowMs - [double]$_.inQueueSince) / 1000)) -PassThru } | Sort-Object age -Descending)
 Write-Output "metric queue_length $($items.Count)"
 Write-Output "metric oldest_seconds $(if ($items.Count) { Num ([Math]::Floor($items[0].age)) } else { 0 })"
+Write-Output "metric average_seconds $(if ($items.Count) { Num ([Math]::Floor((($items | Measure-Object age -Average).Average))) } else { 0 })"
 Write-Output "metric stuck $(@($items | Where-Object { $_.stuck }).Count)"
+Write-Output "metric blocked $(@($items | Where-Object { $_.blocked }).Count)"
+Write-Output "metric buildable $(@($items | Where-Object { $_.buildable }).Count)"
 foreach ($i in ($items | Select-Object -First 100)) {
     $state = if ($i.stuck) { 'stuck' } elseif ($i.blocked) { 'blocked' } elseif ($i.buildable) { 'buildable' } else { 'waiting' }
     $why = if ($i.why) { $i.why } else { 'none' }

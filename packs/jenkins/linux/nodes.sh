@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
-# nodes.sh - each Jenkins node: online or not and why, its executors, and
-# what Jenkins' own monitors say of it: disk, temporary space, memory, swap,
-# response time, clock
+# nodes.sh - each Jenkins node: online or not, why and since when, its
+# executors, and what Jenkins' own monitors say of it
 #
 # Copyright (c) Bankole Ogundero and the Vigil contributors
 # SPDX-License-Identifier: Apache-2.0
@@ -13,11 +12,11 @@
 # for any claim, damages or other liability arising from its use. See the
 # LICENSE file for the full terms.
 #
-# The built-in node and every agent, as /computer/api/json gives them.
-# Jenkins shows its node monitors (disk, memory, swap, response time,
-# clock) to administrators only: a read-only user gets the rest, and
-# monitors_readable 0. A node a monitor took offline (free disk below its
-# threshold, 1 GB by default) says so in its reason, which any user sees.
+# The built-in node and every agent (/computer/api/json). Jenkins shows its
+# node monitors (disk, memory, swap, response time, clock) to administrators
+# only: a read-only user gets the rest, and monitors_readable 0. A node a
+# monitor took offline (free disk below its threshold, 1 GB by default)
+# says so in its reason, which any user sees.
 #
 # Reads Jenkins' REST API at JENKINS_URL, as JENKINS_USER with the API token
 # in JENKINS_API_TOKEN (a secret), with curl and jq; the token goes to curl
@@ -31,11 +30,16 @@
 #                         monitors (an administrator), else 0
 #   online                1 when a node is online, else 0, tagged
 #                         node=<its name> and, when offline, reason=<why>
-#   temporarily_offline   1 when someone took it offline, tagged the same
+#   temporarily_offline   1 when someone took it offline, tagged
+#                         node=<its name>
+#   offline_seconds       how long it has been offline, when Jenkins knows
 #   executors             its executors
 #   busy                  of those, running a build now
+#   idle                  of those, idle
+#   stuck                 of those, running a build Jenkins thinks stuck
 #   disk_free_bytes       free space where it keeps its workspace
-#   disk_threshold_bytes  the free space below which Jenkins takes it offline
+#   disk_threshold_bytes  the free space below which Jenkins takes it
+#                         offline
 #   tmp_free_bytes        free space in its temporary folder
 #   memory_free_bytes     free physical memory
 #   memory_total_bytes    physical memory
@@ -49,13 +53,13 @@
 #
 # Reading the results (starting points: tune them to the controller):
 #   Healthy  online 1 for every node you expect; disk_free_bytes far above
-#            disk_threshold_bytes; clock_diff_ms within a second.
+#            disk_threshold_bytes; clock_diff_ms within a second; stuck 0.
 #   Watch    disk_free_bytes under twice disk_threshold_bytes: Jenkins will
-#            take the node offline; response_ms in the seconds: the agent
-#            or its network is struggling; swap_free_bytes falling.
-#   Act      online 0 where temporarily_offline is 0: the node dropped
-#            (its reason says why: the agent stopped, its disk filled);
-#            clock_diff_ms in the minutes: builds and their logs disagree.
+#            take the node offline; response_ms in the seconds; a node
+#            temporarily_offline for days: someone forgot it.
+#   Act      online 0 where temporarily_offline is 0 (its reason says why:
+#            the agent stopped, its disk filled); stuck above 0; clock_diff_ms
+#            in the minutes.
 #
 # Requires: bash, curl and jq
 # Exit code: 0 on success, Jenkins up or down; 1 if curl or jq is missing,
@@ -114,8 +118,9 @@ read_page() {
     esac
 }
 
-read_page '/computer/api/json?tree=computer[displayName,offline,temporarilyOffline,offlineCauseReason,numExecutors,executors[idle],monitorData[*]]'
-jq -r "$defs"'
+read_page '/computer/api/json?tree=computer[displayName,offline,temporarilyOffline,offlineCauseReason,offlineCause[timestamp],numExecutors,executors[idle,likelyStuck],oneOffExecutors[likelyStuck],monitorData[*]]'
+now=$(date +%s)
+jq -r --argjson now "$now" "$defs"'
     .computer as $c |
     "metric nodes \($c | length)",
     "metric monitors_readable \(if ([$c[] | (.monitorData // {}) | length] | add // 0) > 0 then 1 else 0 end)",
@@ -125,8 +130,11 @@ jq -r "$defs"'
         "node=\($n)" as $t |
         "metric online \(if .offline then 0 else 1 end) \($t)\(if .offline and (.offlineCauseReason // "") != "" then " reason=\(.offlineCauseReason | safe)" else "" end)",
         "metric temporarily_offline \(if .temporarilyOffline then 1 else 0 end) \($t)",
+        (if .offline and .offlineCause.timestamp then "metric offline_seconds \([($now - .offlineCause.timestamp / 1000), 0] | max | floor) \($t)" else empty end),
         "metric executors \(.numExecutors // 0) \($t)",
         "metric busy \([(.executors // [])[] | select(.idle == false)] | length) \($t)",
+        "metric idle \([(.executors // [])[] | select(.idle == true)] | length) \($t)",
+        "metric stuck \([((.executors // []) + (.oneOffExecutors // []))[] | select(.likelyStuck == true)] | length) \($t)",
         ($m["hudson.node_monitors.DiskSpaceMonitor"] // empty | select(type == "object") |
             "metric disk_free_bytes \(.size) \($t)", "metric disk_threshold_bytes \(.threshold) \($t)"),
         ($m["hudson.node_monitors.TemporarySpaceMonitor"] // empty | select(type == "object") | "metric tmp_free_bytes \(.size) \($t)"),

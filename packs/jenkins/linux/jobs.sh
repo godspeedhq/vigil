@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # jobs.sh - every Jenkins job, folders and multibranch pipelines too:
-# failing, unstable or disabled, and how long since it last succeeded
+# failing, unstable or disabled, its health, its last ten builds, and how
+# long since it last succeeded
 #
 # Copyright (c) Bankole Ogundero and the Vigil contributors
 # SPDX-License-Identifier: Apache-2.0
@@ -12,10 +13,11 @@
 # for any claim, damages or other liability arising from its use. See the
 # LICENSE file for the full terms.
 #
-# Every job (/api/json, four levels of folders deep), its last completed
-# build's result and when it last succeeded. The worst first: failing,
-# then unstable, then the longest without a success; past 100, the rest
-# counted in the totals only.
+# Every job (/api/json, four levels of folders deep): its last completed
+# build's result, its health (Jenkins' weather), when it last succeeded and
+# failed, its last ten builds. The worst first: failing, then unstable,
+# then the longest without a success; past 100, the rest counted in the
+# totals only.
 #
 # Reads Jenkins' REST API at JENKINS_URL, as JENKINS_USER with the API token
 # in JENKINS_API_TOKEN (a secret), with curl and jq; the token goes to curl
@@ -28,28 +30,42 @@
 #   failing                   of those, whose last completed build failed
 #   unstable                  of those, whose last completed build was
 #                             unstable (tests failed)
+#   aborted                   of those, whose last completed build was
+#                             aborted
 #   disabled                  of those, disabled
 #   never_built               of those, never built
 #   building                  of those, building now
+#   in_queue                  of those, waiting in the queue
+#   builds_last_hour          builds started in the last hour (of each
+#                             job's last ten)
+#   failures_last_hour        of those, failed
 #   job_failing               1 when one job's last completed build
 #                             failed, else 0, tagged job=<its full name>
 #   job_unstable              1 when it was unstable, tagged the same
-#   last_success_age_seconds  how long since its last successful build,
-#                             tagged the same
-#   last_duration_seconds     how long its last build took, tagged the same
+#   health_score              Jenkins' health for it, 0 to 100 (its
+#                             weather: the share of recent builds that
+#                             passed), tagged the same
+#   success_rate_pct          of its last ten completed builds, the share
+#                             that succeeded
+#   builds_since_success      builds since its last success
+#   last_success_age_seconds  how long since its last successful build
+#   last_failure_age_seconds  how long since its last failed build
+#   last_build_age_seconds    how long since its last build started
+#   last_duration_seconds     how long its last build took
 #   jobs_not_shown            past the worst 100, how many were left out
 #
 # Example output:
 #   metric up 1
 #
 # Reading the results (starting points: tune them to the controller):
-#   Healthy  failing and unstable 0, or a known few; last success recent
-#            for the jobs you build often.
-#   Watch    unstable rising: tests failing; last_success_age_seconds of a
-#            nightly job past a day and a half: it has not succeeded since
-#            yesterday.
+#   Healthy  failing and unstable 0, or a known few; health_score high;
+#            last_success_age_seconds recent for the jobs you build often.
+#   Watch    unstable rising: tests failing; success_rate_pct falling: a
+#            flaky job; builds_since_success above 0 for a job you release
+#            from; a nightly job past a day and a half without a success.
 #   Act      failing rising, or a job_failing you depend on (a release, a
-#            deploy) 1; last_duration_seconds climbing build after build.
+#            deploy) 1; failures_last_hour climbing; last_duration_seconds
+#            climbing build after build.
 #
 # Requires: bash, curl and jq
 # Exit code: 0 on success, Jenkins up or down; 1 if curl or jq is missing,
@@ -108,25 +124,37 @@ read_page() {
     esac
 }
 
-read_page '/api/json?tree=jobs[name,url,color,lastBuild[number,result,timestamp,duration],lastSuccessfulBuild[timestamp],lastCompletedBuild[result],jobs[name,url,color,lastBuild[number,result,timestamp,duration],lastSuccessfulBuild[timestamp],lastCompletedBuild[result],jobs[name,url,color,lastBuild[number,result,timestamp,duration],lastSuccessfulBuild[timestamp],lastCompletedBuild[result],jobs[name,url,color,lastBuild[number,result,timestamp,duration],lastSuccessfulBuild[timestamp],lastCompletedBuild[result]]]]]'
+read_page '/api/json?tree=jobs[name,url,color,inQueue,healthReport[score],lastBuild[number,result,timestamp,duration],lastSuccessfulBuild[number,timestamp],lastFailedBuild[timestamp],lastCompletedBuild[result],builds[result,timestamp]{0,10},jobs[name,url,color,inQueue,healthReport[score],lastBuild[number,result,timestamp,duration],lastSuccessfulBuild[number,timestamp],lastFailedBuild[timestamp],lastCompletedBuild[result],builds[result,timestamp]{0,10},jobs[name,url,color,inQueue,healthReport[score],lastBuild[number,result,timestamp,duration],lastSuccessfulBuild[number,timestamp],lastFailedBuild[timestamp],lastCompletedBuild[result],builds[result,timestamp]{0,10},jobs[name,url,color,inQueue,healthReport[score],lastBuild[number,result,timestamp,duration],lastSuccessfulBuild[number,timestamp],lastFailedBuild[timestamp],lastCompletedBuild[result],builds[result,timestamp]{0,10}]]]]'
 now=$(date +%s)
 jq -r --argjson now "$now" "$defs"'
+    def age(t): if t then ([($now - (t / 1000)), 0] | max) else -1 end;
     [.. | objects | select(has("color"))] as $all |
     [$all[] | . + {
         res: (.lastCompletedBuild.result // "NONE"),
-        age: (if .lastSuccessfulBuild.timestamp then ([($now - (.lastSuccessfulBuild.timestamp / 1000)), 0] | max) else -1 end)
+        age: age(.lastSuccessfulBuild.timestamp),
+        recent: [(.builds // [])[] | select(.result != null)]
     }] as $j |
+    [$j[].builds // [] | .[] | select(.timestamp != null and ($now - .timestamp / 1000) < 3600)] as $hour |
     "metric jobs \($j | length)",
     "metric failing \([$j[] | select(.res == "FAILURE")] | length)",
     "metric unstable \([$j[] | select(.res == "UNSTABLE")] | length)",
+    "metric aborted \([$j[] | select(.res == "ABORTED")] | length)",
     "metric disabled \([$j[] | select(.color == "disabled")] | length)",
     "metric never_built \([$j[] | select(.lastBuild == null)] | length)",
     "metric building \([$j[] | select(.color | tostring | endswith("_anime"))] | length)",
+    "metric in_queue \([$j[] | select(.inQueue == true)] | length)",
+    "metric builds_last_hour \($hour | length)",
+    "metric failures_last_hour \([$hour[] | select(.result == "FAILURE")] | length)",
     ($j | sort_by([(if .res == "FAILURE" then 0 elif .res == "UNSTABLE" then 1 else 2 end), -.age]) | .[0:100][] |
         "job=\(. | fullname | safe)" as $t |
         "metric job_failing \(if .res == "FAILURE" then 1 else 0 end) \($t)",
         "metric job_unstable \(if .res == "UNSTABLE" then 1 else 0 end) \($t)",
+        ((.healthReport // [])[0].score // empty | "metric health_score \(.) \($t)"),
+        (if (.recent | length) > 0 then "metric success_rate_pct \(100 * ([.recent[] | select(.result == "SUCCESS")] | length) / (.recent | length) * 100 | round / 100) \($t)" else empty end),
+        (if .lastBuild.number then "metric builds_since_success \(.lastBuild.number - (.lastSuccessfulBuild.number // 0)) \($t)" else empty end),
         (if .age >= 0 then "metric last_success_age_seconds \(.age | floor) \($t)" else empty end),
+        (age(.lastFailedBuild.timestamp) | if . >= 0 then "metric last_failure_age_seconds \(floor) \($t)" else empty end),
+        (age(.lastBuild.timestamp) | if . >= 0 then "metric last_build_age_seconds \(floor) \($t)" else empty end),
         (if .lastBuild.duration and .lastBuild.duration > 0 then "metric last_duration_seconds \(.lastBuild.duration / 1000 | floor) \($t)" else empty end)),
     "metric jobs_not_shown \([($j | length) - 100, 0] | max)"
 ' "$work/body" || exit 1

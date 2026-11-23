@@ -14,8 +14,8 @@
 #
 # Every build running on an executor (/computer/api/json), pipelines too
 # (their flyweight executors): how long it has run, Jenkins' estimate from
-# its last builds, and how far past it. Past the longest 100, the rest
-# counted.
+# its last builds, how far past it, and whether Jenkins itself thinks it
+# stuck. Past the longest 100, the rest counted.
 #
 # Reads Jenkins' REST API at JENKINS_URL, as JENKINS_USER with the API token
 # in JENKINS_API_TOKEN (a secret), with curl and jq; the token goes to curl
@@ -26,24 +26,29 @@
 #   up                  1 when Jenkins answers, else 0
 #   running             builds running now
 #   overdue             of those, running more than twice their estimate
+#   likely_stuck        of those, that Jenkins thinks stuck (far past the
+#                       time its builds take)
 #   running_seconds     how long one build has run, tagged job=<the job's
 #                       full name>, build=<its number> and node=<where it
 #                       runs>
 #   estimated_seconds   how long Jenkins expects it to take (from its last
 #                       successful builds), tagged the same
 #   estimate_pct        running_seconds, as a percentage of the estimate
+#   progress_pct        how far along Jenkins thinks it is (0 to 99; none
+#                       when it has no estimate)
+#   stuck               1 when Jenkins thinks this build stuck, else 0
 #   builds_not_shown    past the longest 100, how many were left out
 #
 # Example output:
 #   metric up 1
 #
 # Reading the results (starting points: tune them to the controller):
-#   Healthy  overdue 0; estimate_pct below 150 for every build.
+#   Healthy  overdue and likely_stuck 0; estimate_pct below 150.
 #   Watch    estimate_pct above 150: slower than usual (a slow agent, a
 #            slow dependency, tests that grew).
-#   Act      overdue above 0, and estimate_pct climbing run after run: a
-#            build hung (waiting for input, a lock, a network call), holding
-#            its executor.
+#   Act      likely_stuck or overdue above 0, estimate_pct climbing run after
+#            run: a build hung (waiting for input, a lock, a network call),
+#            holding its executor.
 #
 # Requires: bash, curl and jq
 # Exit code: 0 on success, Jenkins up or down; 1 if curl or jq is missing,
@@ -102,19 +107,24 @@ read_page() {
     esac
 }
 
-read_page '/computer/api/json?tree=computer[displayName,executors[currentExecutable[url,number,timestamp,estimatedDuration]],oneOffExecutors[currentExecutable[url,number,timestamp,estimatedDuration]]]'
+read_page '/computer/api/json?tree=computer[displayName,executors[likelyStuck,progress,currentExecutable[url,number,timestamp,estimatedDuration]],oneOffExecutors[likelyStuck,progress,currentExecutable[url,number,timestamp,estimatedDuration]]]'
 now=$(date +%s)
 jq -r --argjson now "$now" "$defs"'
-    [.computer[] | .displayName as $n | ((.executors // []) + (.oneOffExecutors // []))[] | .currentExecutable | select(. != null and .url != null) | . + {node: $n}]
+    [.computer[] | .displayName as $n | ((.executors // []) + (.oneOffExecutors // []))[] |
+        select(.currentExecutable != null and .currentExecutable.url != null) |
+        .currentExecutable + {node: $n, stuckNow: (.likelyStuck == true), progress: (.progress // -1)}]
     | unique_by(.url)
     | map(. + {secs: ([($now - (.timestamp / 1000)), 0] | max), est: ((.estimatedDuration // -1) / 1000)})
     | sort_by(-.secs) as $b |
     "metric running \($b | length)",
     "metric overdue \([$b[] | select(.est > 0 and .secs > 2 * .est)] | length)",
+    "metric likely_stuck \([$b[] | select(.stuckNow)] | length)",
     ($b[0:100][] |
         "job=\(. | fullname | sub("/[0-9]+$"; "") | safe) build=\(.number) node=\(.node | safe)" as $t |
         "metric running_seconds \(.secs | floor) \($t)",
-        (if .est > 0 then "metric estimated_seconds \(.est | floor) \($t)", "metric estimate_pct \(100 * .secs / .est * 100 | round / 100) \($t)" else empty end)),
+        (if .est > 0 then "metric estimated_seconds \(.est | floor) \($t)", "metric estimate_pct \(100 * .secs / .est * 100 | round / 100) \($t)" else empty end),
+        (if .progress >= 0 then "metric progress_pct \(.progress) \($t)" else empty end),
+        "metric stuck \(if .stuckNow then 1 else 0 end) \($t)"),
     "metric builds_not_shown \([($b | length) - 100, 0] | max)"
 ' "$work/body" || exit 1
 exit 0
