@@ -1,0 +1,238 @@
+pack     rabbitmq 1.0.0, Vigil commit 9082e3f (a copy), from the repository
+account  vigil-test, by SSH key
+servers  RabbitMQ 4.4.1 (its generic Unix build) on Erlang/OTP 28 (erlef/otp_builds), on this Mac, with a home of the run's own; queues and messages made through its HTTP API
+
+host     Bankoles-MacBook-Air, macOS 12.7.6 (x86_64), bash 3.2.57(1)-release
+commit   9082e3f46f65be5ce8d0685cb4aff4ee5e15cf80
+Offline change; changes will take effect at broker restart.
+rabbitmq RabbitMQ 4.4.1 on Erlang/OTP 28.5.0.8
+sent     40 messages to a queue nobody reads, 40 to a queue of 10 at most, 40 to a quorum queue, 40 that no queue takes
+
+# Every job, as the pack's macOS scripts print it.
+
+$ bash packs/rabbitmq/macos/status.sh
+metric nodes 1
+metric up 1 node=mac
+metric version 1 node=mac rabbitmq=4.4.1 erlang=28.5.0.8 rabbitmq_node=rabbit@Bankoles-MacBook-Air cluster=rabbit@Bankoles-MacBook-Air
+metric memory_used_bytes 81227776 node=mac
+metric memory_limit_bytes 5153960755 node=mac
+metric memory_pct 1.58 node=mac
+metric disk_free_bytes 824173068288 node=mac
+metric disk_free_limit_bytes 50000000 node=mac
+metric alarm_memory 0 node=mac
+metric alarm_disk 0 node=mac
+metric fds_used 51 node=mac
+metric fds_max 256 node=mac
+metric fd_pct 19.92 node=mac
+metric erlang_processes 410 node=mac
+metric erlang_processes_limit 1048576 node=mac
+metric erlang_process_pct 0.04 node=mac
+metric run_queue 1 node=mac
+metric uptime_seconds 20 node=mac
+metric unreachable_peers 0 node=mac
+metric connections 0 node=mac
+metric channels 0 node=mac
+metric consumers 0 node=mac
+metric queues 4 node=mac
+metric publishers 0 node=mac
+  PASS  rabbitmq_status runs
+
+$ bash packs/rabbitmq/macos/traffic.sh
+metric nodes 1
+metric up 1 node=mac
+metric received_count 160 node=mac
+metric received_confirm_count 160 node=mac
+metric confirmed_count 160 node=mac
+metric routed_count 120 node=mac
+metric unroutable_dropped_count 0 node=mac
+metric unroutable_returned_count 40 node=mac
+metric delivered_count 0 node=mac
+metric delivered_manual_ack_count 0 node=mac
+metric delivered_auto_ack_count 0 node=mac
+metric redelivered_count 0 node=mac
+metric acknowledged_count 0 node=mac
+metric get_empty_count 0 node=mac
+metric dead_lettered_count 0 node=mac reason=expired
+metric dead_lettered_count 30 node=mac reason=maxlen
+metric dead_lettered_count 0 node=mac reason=rejected
+metric dead_lettered_count 0 node=mac reason=delivery_limit
+metric unacked 0 node=mac
+metric unconfirmed 0 node=mac
+metric message_avg_bytes 5 node=mac
+metric connections_opened_count 160 node=mac
+metric connections_closed_count 160 node=mac
+metric channels_opened_count 160 node=mac
+metric channels_closed_count 160 node=mac
+metric queues_declared_count 4 node=mac
+metric queues_created_count 4 node=mac
+metric queues_deleted_count 0 node=mac
+metric logins_count 165 node=mac
+metric logins_failed_count 0 node=mac
+  PASS  rabbitmq_traffic runs
+
+$ bash packs/rabbitmq/macos/queues.sh
+metric nodes 1
+metric up 1 node=mac
+metric queues 4 node=mac
+metric messages_total 120 node=mac
+metric without_consumers 4 node=mac
+metric messages 40 node=mac vhost=/ queue=orders type=quorum
+metric ready 40 node=mac vhost=/ queue=orders type=quorum
+metric unacked 0 node=mac vhost=/ queue=orders type=quorum
+metric consumers 0 node=mac vhost=/ queue=orders type=quorum
+metric utilisation_pct 0.00 node=mac vhost=/ queue=orders type=quorum
+metric bytes 231 node=mac vhost=/ queue=orders type=quorum
+metric memory_bytes 63212 node=mac vhost=/ queue=orders type=quorum
+metric published_count 40 node=mac vhost=/ queue=orders type=quorum
+metric messages 40 node=mac vhost=/ queue=idle type=classic
+metric ready 40 node=mac vhost=/ queue=idle type=classic
+metric unacked 0 node=mac vhost=/ queue=idle type=classic
+metric consumers 0 node=mac vhost=/ queue=idle type=classic
+metric utilisation_pct 0.00 node=mac vhost=/ queue=idle type=classic
+metric bytes 151 node=mac vhost=/ queue=idle type=classic
+metric memory_bytes 109608 node=mac vhost=/ queue=idle type=classic
+metric published_count 40 node=mac vhost=/ queue=idle type=classic
+metric messages 30 node=mac vhost=/ queue=dlq type=classic
+metric ready 30 node=mac vhost=/ queue=dlq type=classic
+metric unacked 0 node=mac vhost=/ queue=dlq type=classic
+metric consumers 0 node=mac vhost=/ queue=dlq type=classic
+metric utilisation_pct 0.00 node=mac vhost=/ queue=dlq type=classic
+metric bytes 111 node=mac vhost=/ queue=dlq type=classic
+metric memory_bytes 68184 node=mac vhost=/ queue=dlq type=classic
+metric messages 10 node=mac vhost=/ queue=capped type=classic
+metric ready 10 node=mac vhost=/ queue=capped type=classic
+metric unacked 0 node=mac vhost=/ queue=capped type=classic
+metric consumers 0 node=mac vhost=/ queue=capped type=classic
+metric utilisation_pct 0.00 node=mac vhost=/ queue=capped type=classic
+metric bytes 40 node=mac vhost=/ queue=capped type=classic
+metric memory_bytes 109640 node=mac vhost=/ queue=capped type=classic
+metric published_count 40 node=mac vhost=/ queue=capped type=classic
+metric queues_not_shown 0 node=mac
+  PASS  rabbitmq_queues runs
+
+$ bash packs/rabbitmq/macos/quorum.sh
+metric nodes 1
+metric up 1 node=mac
+metric members 2 node=mac
+metric leaders 1 node=mac
+metric term 1 node=mac vhost=/ queue=orders role=leader
+metric commit_latency_seconds 0.004000 node=mac vhost=/ queue=orders role=leader
+metric commit_lag 0 node=mac vhost=/ queue=orders role=leader
+metric apply_lag 0 node=mac vhost=/ queue=orders role=leader
+metric segments 0 node=mac vhost=/ queue=orders role=leader
+metric term 1 node=mac system=rabbit_khepri
+metric commit_latency_seconds 0.002000 node=mac system=rabbit_khepri
+metric commit_lag 0 node=mac system=rabbit_khepri
+metric apply_lag 0 node=mac system=rabbit_khepri
+metric segments 0 node=mac system=rabbit_khepri
+metric members_not_shown 0 node=mac
+  PASS  rabbitmq_quorum runs
+
+$ bash packs/rabbitmq/macos/memory.sh
+metric nodes 1
+metric up 1 node=mac
+metric served 1 node=mac
+metric connection_readers_bytes 0 node=mac
+metric connection_writers_bytes 0 node=mac
+metric channels_bytes 0 node=mac
+metric connection_other_bytes 71328 node=mac
+metric classic_queues_bytes 77240 node=mac
+metric quorum_queues_bytes 86532 node=mac
+metric quorum_queues_dlx_bytes 2752 node=mac
+metric quorum_ets_bytes 76744 node=mac
+metric streams_bytes 2736 node=mac
+metric binaries_bytes 379496 node=mac
+metric message_index_bytes 161744 node=mac
+metric metadata_store_bytes 170948 node=mac
+metric metrics_bytes 887720 node=mac
+metric management_bytes 166912 node=mac
+metric plugins_bytes 1420332 node=mac
+metric code_bytes 22772371 node=mac
+metric atoms_bytes 1088930 node=mac
+metric other_processes_bytes 16697212 node=mac
+metric other_tables_bytes 2572504 node=mac
+metric other_system_bytes 20836899 node=mac
+metric allocated_unused_bytes 15610864 node=mac
+metric reserved_unallocated_bytes 0 node=mac
+  PASS  rabbitmq_memory runs
+
+$ bash packs/rabbitmq/macos/storage.sh
+metric nodes 1
+metric up 1 node=mac
+metric counted 0 node=mac
+  PASS  rabbitmq_storage runs
+
+$ bash packs/rabbitmq/macos/cluster.sh
+metric nodes 1
+metric up 1 node=mac
+metric peers 0 node=mac
+metric unreachable_peers 0 node=mac
+metric peers_not_shown 0 node=mac
+metric vhosts 1 node=mac
+metric vhosts_down 0 node=mac
+metric vhost_up 1 node=mac vhost=/
+metric vhosts_not_shown 0 node=mac
+metric exchanges 5 node=mac
+metric bindings 0 node=mac
+  PASS  rabbitmq_cluster runs
+
+# What they read.
+  PASS  status: up
+  PASS  status: RabbitMQ 4.4
+  PASS  queues: the queue nobody reads, 40
+  PASS  queues: the quorum queue, 40
+  PASS  queues: the capped queue, 10
+  PASS  queues: without consumers
+  PASS  traffic: dead-lettered for its length
+  PASS  quorum: the quorum queue, its leader here
+  PASS  quorum: the metadata store
+  PASS  storage: 4.4 does not count its file I/O
+  PASS  cluster: alone
+
+# The pack through Vigil.
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+rabbitmq: mac=http://127.0.0.1:15692
+  PASS  rabbitmq: off until enabled
+  PASS  rabbitmq: enabled
+        on: rabbitmq_status
+        on: rabbitmq_traffic
+        on: rabbitmq_queues
+        on: rabbitmq_quorum
+        on: rabbitmq_memory
+        on: rabbitmq_storage
+        on: rabbitmq_cluster
+        needs each node's Prometheus page (port 15692), reachable from this machine: RABBITMQ_TARGETS=<name>=http://<host>:15692, every node of a cluster
+        needs for https: RABBITMQ_CACERT, the CA that signed the plugin's certificate, or none for the system's own CAs
+        needs for the node's Erlang VM (its memory by kind, processes, atoms, run queues, crash dumps): the beam pack, not this one: vigil pack install beam, with BEAM_PROMETHEUS set to the same pages
+        settings in vigil.config: RABBITMQ_TARGETS= RABBITMQ_CACERT=
+  PASS  rabbitmq: it says its VM is the beam pack's
+  PASS  rabbitmq: its jobs are on
+  PASS  rabbitmq: precheck is happy
+  PASS  rabbitmq: every job runs
+        status: 24 lines
+        traffic: 30 lines
+        queues: 37 lines
+        quorum: 15 lines
+        memory: 25 lines
+        storage: 3 lines
+        cluster: 11 lines
+  PASS  rabbitmq: mac answers
+  PASS  rabbitmq: a queue read
+  PASS  rabbitmq: a node that does not answer still runs
+  PASS  rabbitmq: and reads as up 0
+  PASS  rabbitmq: a page that is not there fails the run
+  PASS  rabbitmq: and says why
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  PASS  rabbitmq: metrics reach the backend
+15 passed, 0 failed
+directly: 18 passed, 0 failed

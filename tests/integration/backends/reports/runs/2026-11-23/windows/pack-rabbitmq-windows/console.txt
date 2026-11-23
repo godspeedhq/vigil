@@ -1,0 +1,559 @@
+pack     rabbitmq 1.0.0, Vigil commit 9082e3f (a copy), from the repository
+account  vigil-test, not an administrator, by SSH key
+servers  RabbitMQ 4.4.1 (its Windows zip) on Erlang/OTP 28.5 (its Windows zip), on this machine, its home and base the run's own; queues and messages made through its HTTP API
+
+host     APHC-LPT-1, Microsoft Windows NT 10.0.26300.0
+commit   9082e3f46f65be5ce8d0685cb4aff4ee5e15cf80
+Offline change; changes will take effect at broker restart.
+rabbitmq rabbitmq_build_info{rabbitmq_version="4.4.1",prometheus_plugin_version="4.4.1",prometheus_client_version="6.1.1",erlang_version="28.5"} 1
+sent     40 messages to a queue nobody reads, 40 to a queue of 10 at most, 40 to a quorum queue, 40 that no queue takes
+
+# Every job, as the pack's Windows scripts print it, powershell.
+
+> powershell packs\rabbitmq\windows\status.ps1
+metric nodes 1
+metric up 1 node=win
+metric version 1 node=win rabbitmq=4.4.1 erlang=28.5 rabbitmq_node=rabbit@APHC-LPT-1 cluster=rabbit@APHC-LPT-1
+metric memory_used_bytes 72777728 node=win
+metric memory_limit_bytes 10236388147 node=win
+metric memory_pct 0.71 node=win
+metric disk_free_bytes 781859110912 node=win
+metric disk_free_limit_bytes 50000000 node=win
+metric alarm_memory 0 node=win
+metric alarm_disk 0 node=win
+metric fds_used 0 node=win
+metric fds_max 65536 node=win
+metric fd_pct 0.00 node=win
+metric erlang_processes 490 node=win
+metric erlang_processes_limit 1048576 node=win
+metric erlang_process_pct 0.05 node=win
+metric run_queue 1 node=win
+metric uptime_seconds 23 node=win
+metric unreachable_peers 0 node=win
+metric connections 0 node=win
+metric channels 0 node=win
+metric consumers 0 node=win
+metric queues 4 node=win
+metric publishers 0 node=win
+  PASS  rabbitmq_status runs (powershell)
+
+> powershell packs\rabbitmq\windows\traffic.ps1
+metric nodes 1
+metric up 1 node=win
+metric received_count 160 node=win
+metric received_confirm_count 160 node=win
+metric confirmed_count 160 node=win
+metric routed_count 120 node=win
+metric unroutable_dropped_count 0 node=win
+metric unroutable_returned_count 40 node=win
+metric delivered_count 0 node=win
+metric delivered_manual_ack_count 0 node=win
+metric delivered_auto_ack_count 0 node=win
+metric redelivered_count 0 node=win
+metric acknowledged_count 0 node=win
+metric get_empty_count 0 node=win
+metric dead_lettered_count 0 node=win reason=expired
+metric dead_lettered_count 30 node=win reason=maxlen
+metric dead_lettered_count 0 node=win reason=rejected
+metric dead_lettered_count 0 node=win reason=delivery_limit
+metric unacked 0 node=win
+metric unconfirmed 0 node=win
+metric message_avg_bytes 5 node=win
+metric connections_opened_count 160 node=win
+metric connections_closed_count 160 node=win
+metric channels_opened_count 160 node=win
+metric channels_closed_count 160 node=win
+metric queues_declared_count 4 node=win
+metric queues_created_count 4 node=win
+metric queues_deleted_count 0 node=win
+metric logins_count 166 node=win
+metric logins_failed_count 0 node=win
+  PASS  rabbitmq_traffic runs (powershell)
+
+> powershell packs\rabbitmq\windows\queues.ps1
+metric nodes 1
+metric up 1 node=win
+metric queues 4 node=win
+metric messages_total 120 node=win
+metric without_consumers 4 node=win
+metric messages 40 node=win vhost=/ queue=orders type=quorum
+metric ready 40 node=win vhost=/ queue=orders type=quorum
+metric unacked 0 node=win vhost=/ queue=orders type=quorum
+metric consumers 0 node=win vhost=/ queue=orders type=quorum
+metric utilisation_pct 0.00 node=win vhost=/ queue=orders type=quorum
+metric bytes 231 node=win vhost=/ queue=orders type=quorum
+metric memory_bytes 68548 node=win vhost=/ queue=orders type=quorum
+metric published_count 40 node=win vhost=/ queue=orders type=quorum
+metric messages 40 node=win vhost=/ queue=idle type=classic
+metric ready 40 node=win vhost=/ queue=idle type=classic
+metric unacked 0 node=win vhost=/ queue=idle type=classic
+metric consumers 0 node=win vhost=/ queue=idle type=classic
+metric utilisation_pct 0.00 node=win vhost=/ queue=idle type=classic
+metric bytes 151 node=win vhost=/ queue=idle type=classic
+metric memory_bytes 122384 node=win vhost=/ queue=idle type=classic
+metric published_count 40 node=win vhost=/ queue=idle type=classic
+metric messages 30 node=win vhost=/ queue=dlq type=classic
+metric ready 30 node=win vhost=/ queue=dlq type=classic
+metric unacked 0 node=win vhost=/ queue=dlq type=classic
+metric consumers 0 node=win vhost=/ queue=dlq type=classic
+metric utilisation_pct 0.00 node=win vhost=/ queue=dlq type=classic
+metric bytes 111 node=win vhost=/ queue=dlq type=classic
+metric memory_bytes 122368 node=win vhost=/ queue=dlq type=classic
+metric messages 10 node=win vhost=/ queue=capped type=classic
+metric ready 10 node=win vhost=/ queue=capped type=classic
+metric unacked 0 node=win vhost=/ queue=capped type=classic
+metric consumers 0 node=win vhost=/ queue=capped type=classic
+metric utilisation_pct 0.00 node=win vhost=/ queue=capped type=classic
+metric bytes 40 node=win vhost=/ queue=capped type=classic
+metric memory_bytes 109592 node=win vhost=/ queue=capped type=classic
+metric published_count 40 node=win vhost=/ queue=capped type=classic
+metric queues_not_shown 0 node=win
+  PASS  rabbitmq_queues runs (powershell)
+
+> powershell packs\rabbitmq\windows\quorum.ps1
+metric nodes 1
+metric up 1 node=win
+metric members 2 node=win
+metric leaders 1 node=win
+metric term 1 node=win vhost=/ queue=orders role=leader
+metric commit_latency_seconds 0.003000 node=win vhost=/ queue=orders role=leader
+metric commit_lag 0 node=win vhost=/ queue=orders role=leader
+metric apply_lag 0 node=win vhost=/ queue=orders role=leader
+metric segments 0 node=win vhost=/ queue=orders role=leader
+metric term 1 node=win system=rabbit_khepri
+metric commit_latency_seconds 0.002000 node=win system=rabbit_khepri
+metric commit_lag 0 node=win system=rabbit_khepri
+metric apply_lag 0 node=win system=rabbit_khepri
+metric segments 0 node=win system=rabbit_khepri
+metric members_not_shown 0 node=win
+  PASS  rabbitmq_quorum runs (powershell)
+
+> powershell packs\rabbitmq\windows\memory.ps1
+metric nodes 1
+metric up 1 node=win
+metric served 1 node=win
+metric connection_readers_bytes 0 node=win
+metric connection_writers_bytes 0 node=win
+metric channels_bytes 0 node=win
+metric connection_other_bytes 66560 node=win
+metric classic_queues_bytes 77240 node=win
+metric quorum_queues_bytes 93756 node=win
+metric quorum_queues_dlx_bytes 2752 node=win
+metric quorum_ets_bytes 77464 node=win
+metric streams_bytes 2768 node=win
+metric binaries_bytes 653728 node=win
+metric message_index_bytes 226336 node=win
+metric metadata_store_bytes 226924 node=win
+metric metrics_bytes 1270552 node=win
+metric management_bytes 165288 node=win
+metric plugins_bytes 1096732 node=win
+metric code_bytes 24677119 node=win
+metric atoms_bytes 1081644 node=win
+metric other_processes_bytes 18122396 node=win
+metric other_tables_bytes 2418208 node=win
+metric other_system_bytes 22949733 node=win
+metric allocated_unused_bytes 0 node=win
+metric reserved_unallocated_bytes 0 node=win
+  PASS  rabbitmq_memory runs (powershell)
+
+> powershell packs\rabbitmq\windows\storage.ps1
+metric nodes 1
+metric up 1 node=win
+metric counted 0 node=win
+  PASS  rabbitmq_storage runs (powershell)
+
+> powershell packs\rabbitmq\windows\cluster.ps1
+metric nodes 1
+metric up 1 node=win
+metric peers 0 node=win
+metric unreachable_peers 0 node=win
+metric peers_not_shown 0 node=win
+metric vhosts 1 node=win
+metric vhosts_down 0 node=win
+metric vhost_up 1 node=win vhost=/
+metric vhosts_not_shown 0 node=win
+metric exchanges 5 node=win
+metric bindings 0 node=win
+  PASS  rabbitmq_cluster runs (powershell)
+  PASS  status: up (powershell)
+  PASS  queues: the queue nobody reads, 40 (powershell)
+  PASS  queues: the capped queue, 10 (powershell)
+  PASS  queues: the quorum queue, 40 (powershell)
+  PASS  traffic: dead-lettered for its length, 30 (powershell)
+  PASS  quorum: the metadata store (powershell)
+  PASS  storage: 4.4 does not count its file I/O (powershell)
+
+# Every job, as the pack's Windows scripts print it, pwsh.
+
+> pwsh packs\rabbitmq\windows\status.ps1
+metric nodes 1
+metric up 1 node=win
+metric version 1 node=win rabbitmq=4.4.1 erlang=28.5 rabbitmq_node=rabbit@APHC-LPT-1 cluster=rabbit@APHC-LPT-1
+metric memory_used_bytes 71729152 node=win
+metric memory_limit_bytes 10236388147 node=win
+metric memory_pct 0.70 node=win
+metric disk_free_bytes 781859110912 node=win
+metric disk_free_limit_bytes 50000000 node=win
+metric alarm_memory 0 node=win
+metric alarm_disk 0 node=win
+metric fds_used 0 node=win
+metric fds_max 65536 node=win
+metric fd_pct 0.00 node=win
+metric erlang_processes 490 node=win
+metric erlang_processes_limit 1048576 node=win
+metric erlang_process_pct 0.05 node=win
+metric run_queue 1 node=win
+metric uptime_seconds 28 node=win
+metric unreachable_peers 0 node=win
+metric connections 0 node=win
+metric channels 0 node=win
+metric consumers 0 node=win
+metric queues 4 node=win
+metric publishers 0 node=win
+  PASS  rabbitmq_status runs (pwsh)
+
+> pwsh packs\rabbitmq\windows\traffic.ps1
+metric nodes 1
+metric up 1 node=win
+metric received_count 160 node=win
+metric received_confirm_count 160 node=win
+metric confirmed_count 160 node=win
+metric routed_count 120 node=win
+metric unroutable_dropped_count 0 node=win
+metric unroutable_returned_count 40 node=win
+metric delivered_count 0 node=win
+metric delivered_manual_ack_count 0 node=win
+metric delivered_auto_ack_count 0 node=win
+metric redelivered_count 0 node=win
+metric acknowledged_count 0 node=win
+metric get_empty_count 0 node=win
+metric dead_lettered_count 0 node=win reason=expired
+metric dead_lettered_count 30 node=win reason=maxlen
+metric dead_lettered_count 0 node=win reason=rejected
+metric dead_lettered_count 0 node=win reason=delivery_limit
+metric unacked 0 node=win
+metric unconfirmed 0 node=win
+metric message_avg_bytes 5 node=win
+metric connections_opened_count 160 node=win
+metric connections_closed_count 160 node=win
+metric channels_opened_count 160 node=win
+metric channels_closed_count 160 node=win
+metric queues_declared_count 4 node=win
+metric queues_created_count 4 node=win
+metric queues_deleted_count 0 node=win
+metric logins_count 166 node=win
+metric logins_failed_count 0 node=win
+  PASS  rabbitmq_traffic runs (pwsh)
+
+> pwsh packs\rabbitmq\windows\queues.ps1
+metric nodes 1
+metric up 1 node=win
+metric queues 4 node=win
+metric messages_total 120 node=win
+metric without_consumers 4 node=win
+metric messages 40 node=win vhost=/ queue=idle type=classic
+metric ready 40 node=win vhost=/ queue=idle type=classic
+metric unacked 0 node=win vhost=/ queue=idle type=classic
+metric consumers 0 node=win vhost=/ queue=idle type=classic
+metric utilisation_pct 0.00 node=win vhost=/ queue=idle type=classic
+metric bytes 151 node=win vhost=/ queue=idle type=classic
+metric memory_bytes 122384 node=win vhost=/ queue=idle type=classic
+metric published_count 40 node=win vhost=/ queue=idle type=classic
+metric messages 40 node=win vhost=/ queue=orders type=quorum
+metric ready 40 node=win vhost=/ queue=orders type=quorum
+metric unacked 0 node=win vhost=/ queue=orders type=quorum
+metric consumers 0 node=win vhost=/ queue=orders type=quorum
+metric utilisation_pct 0.00 node=win vhost=/ queue=orders type=quorum
+metric bytes 231 node=win vhost=/ queue=orders type=quorum
+metric memory_bytes 42516 node=win vhost=/ queue=orders type=quorum
+metric published_count 40 node=win vhost=/ queue=orders type=quorum
+metric messages 30 node=win vhost=/ queue=dlq type=classic
+metric ready 30 node=win vhost=/ queue=dlq type=classic
+metric unacked 0 node=win vhost=/ queue=dlq type=classic
+metric consumers 0 node=win vhost=/ queue=dlq type=classic
+metric utilisation_pct 0.00 node=win vhost=/ queue=dlq type=classic
+metric bytes 111 node=win vhost=/ queue=dlq type=classic
+metric memory_bytes 122368 node=win vhost=/ queue=dlq type=classic
+metric messages 10 node=win vhost=/ queue=capped type=classic
+metric ready 10 node=win vhost=/ queue=capped type=classic
+metric unacked 0 node=win vhost=/ queue=capped type=classic
+metric consumers 0 node=win vhost=/ queue=capped type=classic
+metric utilisation_pct 0.00 node=win vhost=/ queue=capped type=classic
+metric bytes 40 node=win vhost=/ queue=capped type=classic
+metric memory_bytes 109592 node=win vhost=/ queue=capped type=classic
+metric published_count 40 node=win vhost=/ queue=capped type=classic
+metric queues_not_shown 0 node=win
+  PASS  rabbitmq_queues runs (pwsh)
+
+> pwsh packs\rabbitmq\windows\quorum.ps1
+metric nodes 1
+metric up 1 node=win
+metric members 2 node=win
+metric leaders 1 node=win
+metric term 1 node=win vhost=/ queue=orders role=leader
+metric commit_latency_seconds 0.003000 node=win vhost=/ queue=orders role=leader
+metric commit_lag 0 node=win vhost=/ queue=orders role=leader
+metric apply_lag 0 node=win vhost=/ queue=orders role=leader
+metric segments 0 node=win vhost=/ queue=orders role=leader
+metric term 1 node=win system=rabbit_khepri
+metric commit_latency_seconds 0.002000 node=win system=rabbit_khepri
+metric commit_lag 0 node=win system=rabbit_khepri
+metric apply_lag 0 node=win system=rabbit_khepri
+metric segments 0 node=win system=rabbit_khepri
+metric members_not_shown 0 node=win
+  PASS  rabbitmq_quorum runs (pwsh)
+
+> pwsh packs\rabbitmq\windows\memory.ps1
+metric nodes 1
+metric up 1 node=win
+metric served 1 node=win
+metric connection_readers_bytes 0 node=win
+metric connection_writers_bytes 0 node=win
+metric channels_bytes 0 node=win
+metric connection_other_bytes 66560 node=win
+metric classic_queues_bytes 77240 node=win
+metric quorum_queues_bytes 67724 node=win
+metric quorum_queues_dlx_bytes 2752 node=win
+metric quorum_ets_bytes 77464 node=win
+metric streams_bytes 2768 node=win
+metric binaries_bytes 654384 node=win
+metric message_index_bytes 226336 node=win
+metric metadata_store_bytes 247788 node=win
+metric metrics_bytes 1270552 node=win
+metric management_bytes 165936 node=win
+metric plugins_bytes 1078828 node=win
+metric code_bytes 24677119 node=win
+metric atoms_bytes 1081644 node=win
+metric other_processes_bytes 18147804 node=win
+metric other_tables_bytes 2418680 node=win
+metric other_system_bytes 23218421 node=win
+metric allocated_unused_bytes 1392880 node=win
+metric reserved_unallocated_bytes 0 node=win
+  PASS  rabbitmq_memory runs (pwsh)
+
+> pwsh packs\rabbitmq\windows\storage.ps1
+metric nodes 1
+metric up 1 node=win
+metric counted 0 node=win
+  PASS  rabbitmq_storage runs (pwsh)
+
+> pwsh packs\rabbitmq\windows\cluster.ps1
+metric nodes 1
+metric up 1 node=win
+metric peers 0 node=win
+metric unreachable_peers 0 node=win
+metric peers_not_shown 0 node=win
+metric vhosts 1 node=win
+metric vhosts_down 0 node=win
+metric vhost_up 1 node=win vhost=/
+metric vhosts_not_shown 0 node=win
+metric exchanges 5 node=win
+metric bindings 0 node=win
+  PASS  rabbitmq_cluster runs (pwsh)
+  PASS  status: up (pwsh)
+  PASS  queues: the queue nobody reads, 40 (pwsh)
+  PASS  queues: the capped queue, 10 (pwsh)
+  PASS  queues: the quorum queue, 40 (pwsh)
+  PASS  traffic: dead-lettered for its length, 30 (pwsh)
+  PASS  quorum: the metadata store (pwsh)
+  PASS  storage: 4.4 does not count its file I/O (pwsh)
+
+== powershell tests\integration\Service-Packs.ps1
+PowerShell 5.1.26100.10068
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+rabbitmq: win=http://127.0.0.1:15692
+  PASS  rabbitmq: off until enabled
+  PASS  rabbitmq: enabled
+        on: rabbitmq_status
+        on: rabbitmq_traffic
+        on: rabbitmq_queues
+        on: rabbitmq_quorum
+        on: rabbitmq_memory
+        on: rabbitmq_storage
+        on: rabbitmq_cluster
+        needs each node's Prometheus page (port 15692), reachable from this machine: RABBITMQ_TARGETS=<name>=http://<host>:15692, every node of a cluster
+        needs for https: RABBITMQ_CACERT, the CA that signed the plugin's certificate, or none for the system's own CAs
+        needs for the node's Erlang VM (its memory by kind, processes, atoms, run queues, crash dumps): the beam pack, not this one: vigil pack install beam, with BEAM_PROMETHEUS set to the same pages
+        settings in vigil.config: RABBITMQ_TARGETS= RABBITMQ_CACERT=
+  PASS  rabbitmq: it says its VM is the beam pack's
+  PASS  rabbitmq: its jobs are on
+  PASS  rabbitmq: precheck is happy
+  PASS  rabbitmq: every job runs
+  PASS  rabbitmq: win answers
+        metric nodes 1
+        metric up 1 node=win
+        metric version 1 node=win rabbitmq=4.4.1 erlang=28.5 rabbitmq_node=rabbit@APHC-LPT-1 cluster=rabbit@APHC-LPT-1
+        metric memory_used_bytes 72777728 node=win
+        metric memory_limit_bytes 10236388147 node=win
+        metric memory_pct 0.71 node=win
+        metric disk_free_bytes 781858349056 node=win
+        metric disk_free_limit_bytes 50000000 node=win
+        metric alarm_memory 0 node=win
+        metric alarm_disk 0 node=win
+        metric fds_used 0 node=win
+        metric fds_max 65536 node=win
+        metric fd_pct 0.00 node=win
+        metric erlang_processes 489 node=win
+        metric erlang_processes_limit 1048576 node=win
+        metric erlang_process_pct 0.05 node=win
+        metric run_queue 1 node=win
+        metric uptime_seconds 53 node=win
+        metric unreachable_peers 0 node=win
+        metric connections 0 node=win
+        metric channels 0 node=win
+        metric consumers 0 node=win
+        metric queues 4 node=win
+        metric publishers 0 node=win
+        metric nodes 1
+        metric up 1 node=win
+        metric queues 4 node=win
+        metric messages_total 120 node=win
+        metric without_consumers 4 node=win
+        metric messages 40 node=win vhost=/ queue=orders type=quorum
+        metric ready 40 node=win vhost=/ queue=orders type=quorum
+        metric unacked 0 node=win vhost=/ queue=orders type=quorum
+        metric consumers 0 node=win vhost=/ queue=orders type=quorum
+        metric utilisation_pct 0.00 node=win vhost=/ queue=orders type=quorum
+        metric bytes 231 node=win vhost=/ queue=orders type=quorum
+        metric memory_bytes 68116 node=win vhost=/ queue=orders type=quorum
+        metric published_count 40 node=win vhost=/ queue=orders type=quorum
+        metric messages 40 node=win vhost=/ queue=idle type=classic
+        metric ready 40 node=win vhost=/ queue=idle type=classic
+        metric unacked 0 node=win vhost=/ queue=idle type=classic
+        metric consumers 0 node=win vhost=/ queue=idle type=classic
+        metric utilisation_pct 0.00 node=win vhost=/ queue=idle type=classic
+        metric bytes 151 node=win vhost=/ queue=idle type=classic
+        metric memory_bytes 122384 node=win vhost=/ queue=idle type=classic
+        metric published_count 40 node=win vhost=/ queue=idle type=classic
+        metric messages 30 node=win vhost=/ queue=dlq type=classic
+        metric ready 30 node=win vhost=/ queue=dlq type=classic
+        metric unacked 0 node=win vhost=/ queue=dlq type=classic
+        metric consumers 0 node=win vhost=/ queue=dlq type=classic
+        metric utilisation_pct 0.00 node=win vhost=/ queue=dlq type=classic
+        metric bytes 111 node=win vhost=/ queue=dlq type=classic
+        metric memory_bytes 122368 node=win vhost=/ queue=dlq type=classic
+        metric messages 10 node=win vhost=/ queue=capped type=classic
+        metric ready 10 node=win vhost=/ queue=capped type=classic
+        metric unacked 0 node=win vhost=/ queue=capped type=classic
+        metric consumers 0 node=win vhost=/ queue=capped type=classic
+        metric utilisation_pct 0.00 node=win vhost=/ queue=capped type=classic
+        metric bytes 40 node=win vhost=/ queue=capped type=classic
+        metric memory_bytes 109592 node=win vhost=/ queue=capped type=classic
+        metric published_count 40 node=win vhost=/ queue=capped type=classic
+        metric queues_not_shown 0 node=win
+  PASS  rabbitmq: a node that does not answer still runs
+  PASS  rabbitmq: and reads as up 0
+  PASS  rabbitmq: a page that is not there fails the run
+  PASS  rabbitmq: and says why
+  PASS  rabbitmq: metrics reach the backend
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+14 passed, 0 failed
+
+== pwsh tests\integration\Service-Packs.ps1
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+rabbitmq: win=http://127.0.0.1:15692
+  PASS  rabbitmq: off until enabled
+  PASS  rabbitmq: enabled
+        on: rabbitmq_status
+        on: rabbitmq_traffic
+        on: rabbitmq_queues
+        on: rabbitmq_quorum
+        on: rabbitmq_memory
+        on: rabbitmq_storage
+        on: rabbitmq_cluster
+        needs each node's Prometheus page (port 15692), reachable from this machine: RABBITMQ_TARGETS=<name>=http://<host>:15692, every node of a cluster
+        needs for https: RABBITMQ_CACERT, the CA that signed the plugin's certificate, or none for the system's own CAs
+        needs for the node's Erlang VM (its memory by kind, processes, atoms, run queues, crash dumps): the beam pack, not this one: vigil pack install beam, with BEAM_PROMETHEUS set to the same pages
+        settings in vigil.config: RABBITMQ_TARGETS= RABBITMQ_CACERT=
+  PASS  rabbitmq: it says its VM is the beam pack's
+  PASS  rabbitmq: its jobs are on
+  PASS  rabbitmq: precheck is happy
+  PASS  rabbitmq: every job runs
+  PASS  rabbitmq: win answers
+        metric nodes 1
+        metric up 1 node=win
+        metric version 1 node=win rabbitmq=4.4.1 erlang=28.5 rabbitmq_node=rabbit@APHC-LPT-1 cluster=rabbit@APHC-LPT-1
+        metric memory_used_bytes 73826304 node=win
+        metric memory_limit_bytes 10236388147 node=win
+        metric memory_pct 0.72 node=win
+        metric disk_free_bytes 781855731712 node=win
+        metric disk_free_limit_bytes 50000000 node=win
+        metric alarm_memory 0 node=win
+        metric alarm_disk 0 node=win
+        metric fds_used 0 node=win
+        metric fds_max 65536 node=win
+        metric fd_pct 0.00 node=win
+        metric erlang_processes 489 node=win
+        metric erlang_processes_limit 1048576 node=win
+        metric erlang_process_pct 0.05 node=win
+        metric run_queue 0 node=win
+        metric uptime_seconds 150 node=win
+        metric unreachable_peers 0 node=win
+        metric connections 0 node=win
+        metric channels 0 node=win
+        metric consumers 0 node=win
+        metric queues 4 node=win
+        metric publishers 0 node=win
+        metric nodes 1
+        metric up 1 node=win
+        metric queues 4 node=win
+        metric messages_total 120 node=win
+        metric without_consumers 4 node=win
+        metric messages 40 node=win vhost=/ queue=orders type=quorum
+        metric ready 40 node=win vhost=/ queue=orders type=quorum
+        metric unacked 0 node=win vhost=/ queue=orders type=quorum
+        metric consumers 0 node=win vhost=/ queue=orders type=quorum
+        metric utilisation_pct 0.00 node=win vhost=/ queue=orders type=quorum
+        metric bytes 231 node=win vhost=/ queue=orders type=quorum
+        metric memory_bytes 47404 node=win vhost=/ queue=orders type=quorum
+        metric published_count 40 node=win vhost=/ queue=orders type=quorum
+        metric messages 40 node=win vhost=/ queue=idle type=classic
+        metric ready 40 node=win vhost=/ queue=idle type=classic
+        metric unacked 0 node=win vhost=/ queue=idle type=classic
+        metric consumers 0 node=win vhost=/ queue=idle type=classic
+        metric utilisation_pct 0.00 node=win vhost=/ queue=idle type=classic
+        metric bytes 151 node=win vhost=/ queue=idle type=classic
+        metric memory_bytes 122384 node=win vhost=/ queue=idle type=classic
+        metric published_count 40 node=win vhost=/ queue=idle type=classic
+        metric messages 30 node=win vhost=/ queue=dlq type=classic
+        metric ready 30 node=win vhost=/ queue=dlq type=classic
+        metric unacked 0 node=win vhost=/ queue=dlq type=classic
+        metric consumers 0 node=win vhost=/ queue=dlq type=classic
+        metric utilisation_pct 0.00 node=win vhost=/ queue=dlq type=classic
+        metric bytes 111 node=win vhost=/ queue=dlq type=classic
+        metric memory_bytes 122368 node=win vhost=/ queue=dlq type=classic
+        metric messages 10 node=win vhost=/ queue=capped type=classic
+        metric ready 10 node=win vhost=/ queue=capped type=classic
+        metric unacked 0 node=win vhost=/ queue=capped type=classic
+        metric consumers 0 node=win vhost=/ queue=capped type=classic
+        metric utilisation_pct 0.00 node=win vhost=/ queue=capped type=classic
+        metric bytes 40 node=win vhost=/ queue=capped type=classic
+        metric memory_bytes 109592 node=win vhost=/ queue=capped type=classic
+        metric published_count 40 node=win vhost=/ queue=capped type=classic
+        metric queues_not_shown 0 node=win
+  PASS  rabbitmq: a node that does not answer still runs
+  PASS  rabbitmq: and reads as up 0
+  PASS  rabbitmq: a page that is not there fails the run
+  PASS  rabbitmq: and says why
+  PASS  rabbitmq: metrics reach the backend
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+14 passed, 0 failed
+
+directly: 28 passed, 0 failed
+left running: 
+cookie file in the profile: False
