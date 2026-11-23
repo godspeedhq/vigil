@@ -44,7 +44,7 @@ pack=$bk_repo/packs/rabbitmq/linux
 
 dc up -d --wait > "$work/up.log" 2>&1 || { tail -n 20 "$work/up.log"; dc logs --tail 20; die 'the nodes would not start'; }
 printf 'nodes    %s\n' "$(dc ps --format '{{.Service}} {{.Image}}' | grep -v cookie | sort | tr '\n' ';' | sed 's/;$//; s/;/; /g')"
-docker exec vigil-rabbitmq-rmq-a-1 rabbitmqctl -q cluster_status 2>&1 | sed -n '/Running Nodes/,/^$/p' | sed 's/^/         /'
+docker exec vigil-rabbitmq-rmq-a-1 rabbitmqctl -q cluster_status 2>&1 | sed -n '/Running Nodes/,/Versions/p' | grep '^rabbit@' | sed 's/^/         /'
 
 say() { printf '\n# %s\n' "$*"; }
 pass=0 fail=0

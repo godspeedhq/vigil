@@ -28,7 +28,8 @@ x-node: &node
     test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
     interval: 5s
     timeout: 10s
-    retries: 30
+    retries: 60
+    start_period: 30s
 
 services:
   cookie:

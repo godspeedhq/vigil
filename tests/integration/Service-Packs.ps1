@@ -253,6 +253,10 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $bk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\beam\pack.config') -Destination $bk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\beam\windows') | Copy-Item -Destination $bk
+    $qk = Join-Path $root 'packs\rabbitmq'
+    [void](New-Item -ItemType Directory -Force -Path $qk)
+    Copy-Item -LiteralPath (Join-Path $repo 'packs\rabbitmq\pack.config') -Destination $qk
+    Get-ChildItem -LiteralPath (Join-Path $repo 'packs\rabbitmq\windows') | Copy-Item -Destination $qk
     $list = (Invoke-Vigil pack list).Text
     # pack list indents each job under its pack.
     Test-Equal 'the pack is off until enabled' 'off off' ((@($list.Split("`n") | Where-Object { $_ -match '^\s*postgres_(status|size)\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })) -join ' ')
@@ -1144,6 +1148,60 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "${pp}: metrics reach the backend" 'True' ([string](($prom -match "(?m)^$($env:VIGIL_IT_PROBE_EXPECT)\{") -and ($prom -match "(?m)^${pp}_jmx_up\{")))
+    }
+
+    # --- rabbitmq ----------------------------------------------------------
+    # RabbitMQ nodes, through Vigil: VIGIL_IT_RABBITMQ_TARGETS their
+    # Prometheus pages (name=address;...).
+    if (-not $env:VIGIL_IT_RABBITMQ_TARGETS) { Write-Host '  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS' }
+    else {
+        foreach ($v in 'RABBITMQ_TARGETS', 'RABBITMQ_CACERT') { Remove-Item "Env:\$v" -ErrorAction SilentlyContinue }
+        Write-Host "rabbitmq: $($env:VIGIL_IT_RABBITMQ_TARGETS)"
+        $qjobs = @(([System.IO.File]::ReadAllLines((Join-Path $qk 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] }))
+        $qn = $qjobs.Count
+        function Get-RabbitJobsOn {
+            $list = (Invoke-Vigil pack list).Text
+            $s = @($list.Split("`n") | Where-Object { $_ -match '^\s*rabbitmq_\w+\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            return (@($s | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        function Invoke-QJob { param([string]$Job) return [string](Invoke-Vigil run "rabbitmq_$Job").Code }
+        Test-Equal 'rabbitmq: off until enabled' "off=$qn" (Get-RabbitJobsOn)
+        $r = Invoke-Vigil pack enable rabbitmq
+        Test-Equal 'rabbitmq: enabled' '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "rabbitmq: it says its VM is the beam pack's" 'True' ([string](($r.Text -replace '\s+', ' ').Contains('the beam pack, not this one')))
+        Test-Equal 'rabbitmq: its jobs are on' "on=$qn" (Get-RabbitJobsOn)
+        Set-Env RABBITMQ_TARGETS $env:VIGIL_IT_RABBITMQ_TARGETS
+        $r = Invoke-Vigil precheck
+        Test-Equal 'rabbitmq: precheck is happy' '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $qjobs) { if ((Invoke-QJob $j) -ne '0') { $failed += $j } }
+        Test-Equal 'rabbitmq: every job runs' '' ($failed -join ' ')
+        foreach ($j in $failed) { Show-LastRun "rabbitmq_$j" }
+        foreach ($t in $env:VIGIL_IT_RABBITMQ_TARGETS.Split(';')) {
+            if ($t -match '^\s*([^=]+)=') { Test-Equal "rabbitmq: $($Matches[1].Trim()) answers" '1' (Get-Printed rabbitmq_status up "node=$($Matches[1].Trim())") }
+        }
+        Show-LastRun rabbitmq_status
+        Show-LastRun rabbitmq_queues
+        Set-Env RABBITMQ_TARGETS 'gone=http://127.0.0.1:1'
+        Test-Equal 'rabbitmq: a node that does not answer still runs' '0' (Invoke-QJob status)
+        Test-Equal 'rabbitmq: and reads as up 0' '0' (Get-Printed rabbitmq_status up 'node=gone')
+        $first = (($env:VIGIL_IT_RABBITMQ_TARGETS.Split(';')[0]) -replace '^\s*[^=]+=', '').Trim()
+        Set-Env RABBITMQ_TARGETS "wrong=$first/nothing-here"
+        Test-Equal 'rabbitmq: a page that is not there fails the run' '2' (Invoke-QJob status)
+        Test-Equal 'rabbitmq: and says why' 'True' (Test-Said rabbitmq_status 'did not give a page')
+        Set-Env RABBITMQ_TARGETS $env:VIGIL_IT_RABBITMQ_TARGETS
+        [void](Invoke-QJob status)
+        [void](Invoke-QJob queues)
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match '(?m)^rabbitmq_queues_messages\{') { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal 'rabbitmq: metrics reach the backend' 'True' ([string](($prom -match '(?m)^rabbitmq_up\{') -and ($prom -match '(?m)^rabbitmq_queues_queues\{')))
     }
 
     # --- beam --------------------------------------------------------------
