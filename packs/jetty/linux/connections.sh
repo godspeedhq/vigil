@@ -87,7 +87,23 @@
 #                                 100, left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 jetty=j121 jmx=localhost:19314
+#   metric open 40 jetty=j121 jmx=localhost:19314
+#   metric open_max 40 jetty=j121 jmx=localhost:19314
+#   metric opened_count 97 jetty=j121 jmx=localhost:19314
+#   metric duration_max_seconds 1.345 jetty=j121 jmx=localhost:19314
+#   metric duration_mean_seconds 0.0293 jetty=j121 jmx=localhost:19314
+#   metric received_bytes 5259 jetty=j121 jmx=localhost:19314
+#   metric sent_bytes 37333 jetty=j121 jmx=localhost:19314
+#   metric received_messages_count 57 jetty=j121 jmx=localhost:19314
+#   metric sent_messages_count 57 jetty=j121 jmx=localhost:19314
+#   metric limited 40 jetty=j121 jmx=localhost:19314
+#   metric limit 40 jetty=j121 jmx=localhost:19314
+#   metric limit_pending 0 jetty=j121 jmx=localhost:19314
+#   metric qos_max 16 jetty=j121 jmx=localhost:19314
+#   metric qos_suspended 24 jetty=j121 jmx=localhost:19314
+#   metric qos_exceeded_count 0 jetty=j121 jmx=localhost:19314
+#   metric qos_expired_count 0 jetty=j121 jmx=localhost:19314
 #
 # Reading the results (starting points: tune them to your Jetty):
 #   Healthy  open well below limit; limit_pending 0; qos_exceeded_count flat.

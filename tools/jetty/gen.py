@@ -41,12 +41,12 @@ JOBS = [
          rows=[('version', SRV, 'version', '@version', "always 1, tagged version=<Jetty's version, 12.1.15>"),
                ('up', SRV, 'state', '=STARTED', '1 when the server is started, else 0'),
                ('uptime_seconds', SRV, 'startupTime', 'age', 'since the server started (9.4 to 11: 12 gives it as a text)'),
-               ('app_up', WA, 'state', 'context/ =STARTED', '1 when the web application is started, else 0 (FAILED, STOPPED), tagged context=<its name>'),
+               ('app_up', WA, 'state', 'context/ =STARTED', '1 when the web application is started, else 0 (FAILED, STOPPED), tagged context=<its name>. Jetty keeps an app whose start failed STARTED and answers 503, unless it throws (throwUnavailableOnStartupException): its 503s show in jetty_requests'),
                ('low_on_resources', LR, 'lowOnResources', '', '1 when the low resources monitor says so, else 0'),
                ('low_since_seconds', LR, 'lowResourcesStarted', 'age', 'how long it has been low on resources, when it is')],
          healthy="jmx_up 1; up 1 and every app_up 1; low_on_resources 0.",
          watch="uptime_seconds falling back: Jetty restarted; version older than the newest of its line.",
-         act="jmx_up 0: Jetty or its JMX is down; app_up 0: that app answers 404; low_on_resources 1: Jetty is "
+         act="jmx_up 0: Jetty or its JMX is down; app_up 0: that app answers 404 (and responses_5xx_count rising may be an app that failed to start, answering 503); low_on_resources 1: Jetty is "
              "closing idle connections early and may stop accepting."),
     dict(job='requests', metric_name='jetty.requests', when='run_every   = 1m', title="a Jetty's requests and responses",
          what="Reports the statistics module's figures for the whole server: requests and those active now, "
@@ -60,7 +60,7 @@ JOBS = [
                ('responses_2xx_count', ST, 'responses2xx', '', 'with a 2xx status'),
                ('responses_3xx_count', ST, 'responses3xx', '', 'with a 3xx status'),
                ('responses_4xx_count', ST, 'responses4xx', '', 'with a 4xx status'),
-               ('responses_5xx_count', ST, 'responses5xx', '', 'with a 5xx status'),
+               ('responses_5xx_count', ST, 'responses5xx', '', 'with a 5xx status (on 9.4 to 11, not those that threw: thrown_count)'),
                ('failures_count', ST12, 'failures', '', 'requests that failed (12)'),
                ('failures_count', ST9, 'errors', '', ''),
                ('handling_failures_count', ST12, 'handlingFailures', '', 'failures while handling (12)'),

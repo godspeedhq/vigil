@@ -72,7 +72,20 @@
                                  left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric jmx_up 1 jetty=j121 jmx=localhost:19314
+      metric threads 24 jetty=j121 jmx=localhost:19314 id=0
+      metric busy 18 jetty=j121 jmx=localhost:19314 id=0
+      metric idle 2 jetty=j121 jmx=localhost:19314 id=0
+      metric ready 6 jetty=j121 jmx=localhost:19314 id=0
+      metric utilized 16 jetty=j121 jmx=localhost:19314 id=0
+      metric max_threads 24 jetty=j121 jmx=localhost:19314 id=0
+      metric min_threads 4 jetty=j121 jmx=localhost:19314 id=0
+      metric queue 0 jetty=j121 jmx=localhost:19314 id=0
+      metric utilization_pct 72.7273 jetty=j121 jmx=localhost:19314 id=0
+      metric low_on_threads 0 jetty=j121 jmx=localhost:19314 id=0
+      metric leased 2 jetty=j121 jmx=localhost:19314 id=0
+      metric reserved 4 jetty=j121 jmx=localhost:19314 id=0
+      metric max_available 22 jetty=j121 jmx=localhost:19314 id=0
 
     Reading the results (starting points: tune them to your Jetty):
       Healthy  busy well below max_threads; queue 0; low_on_threads 0.

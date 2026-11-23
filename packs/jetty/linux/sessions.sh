@@ -58,7 +58,13 @@
 #                                 100, left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 jetty=j121 jmx=localhost:19314
+#   metric current 51 jetty=j121 jmx=localhost:19314 context=_shop
+#   metric most 51 jetty=j121 jmx=localhost:19314 context=_shop
+#   metric cached_count 51 jetty=j121 jmx=localhost:19314 context=_shop
+#   metric created_count 0 jetty=j121 jmx=localhost:19314 context=_broken
+#   metric alive_mean_seconds 0 jetty=j121 jmx=localhost:19314 context=_broken
+#   metric timeout_seconds 1800 jetty=j121 jmx=localhost:19314 context=_broken
 #
 # Reading the results (starting points: tune them to your Jetty):
 #   Healthy  current rising and falling with traffic.

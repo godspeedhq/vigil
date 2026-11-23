@@ -37,7 +37,11 @@
 #   uptime_seconds               since the server started (9.4 to 11: 12 gives
 #                                it as a text)
 #   app_up                       1 when the web application is started, else 0
-#                                (FAILED, STOPPED), tagged context=<its name>
+#                                (FAILED, STOPPED), tagged context=<its name>.
+#                                Jetty keeps an app whose start failed STARTED
+#                                and answers 503, unless it throws
+#                                (throwUnavailableOnStartupException): its
+#                                503s show in jetty_requests
 #   low_on_resources             1 when the low resources monitor says so,
 #                                else 0
 #   low_since_seconds            how long it has been low on resources, when
@@ -55,15 +59,20 @@
 #                                100, left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 jetty=j121 jmx=localhost:19314
+#   metric version 1 jetty=j121 jmx=localhost:19314 version=12.1.15
+#   metric up 1 jetty=j121 jmx=localhost:19314
+#   metric app_up 1 jetty=j121 jmx=localhost:19314 context=_broken
+#   metric low_on_resources 0 jetty=j121 jmx=localhost:19314
 #
 # Reading the results (starting points: tune them to your Jetty):
 #   Healthy  jmx_up 1; up 1 and every app_up 1; low_on_resources 0.
 #   Watch    uptime_seconds falling back: Jetty restarted; version older than
 #            the newest of its line.
 #   Act      jmx_up 0: Jetty or its JMX is down; app_up 0: that app answers
-#            404; low_on_resources 1: Jetty is closing idle connections early
-#            and may stop accepting.
+#            404 (and responses_5xx_count rising may be an app that failed to
+#            start, answering 503); low_on_resources 1: Jetty is closing idle
+#            connections early and may stop accepting.
 #
 # Requires: bash, Java 11 or later (JAVA_HOME, or java on the PATH), a JDK or
 #   a JRE, to run _probe.jar, beside this script, once it matches its digest;

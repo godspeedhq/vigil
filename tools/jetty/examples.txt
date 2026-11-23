@@ -1,0 +1,74 @@
+# Each job's example output, for its script's header: real lines from
+# tests/integration/backends/scripts/run-jetty.sh's Jetty 12.1 (j121), with
+# trouble on purpose, 2026-11-23. tools/jetty/gen.py reads it.
+== status
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric version 1 jetty=j121 jmx=localhost:19314 version=12.1.15
+metric up 1 jetty=j121 jmx=localhost:19314
+metric app_up 1 jetty=j121 jmx=localhost:19314 context=_broken
+metric low_on_resources 0 jetty=j121 jmx=localhost:19314
+== requests
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric requests_count 97 jetty=j121 jmx=localhost:19314
+metric active 40 jetty=j121 jmx=localhost:19314
+metric active_max 40 jetty=j121 jmx=localhost:19314
+metric responses_1xx_count 0 jetty=j121 jmx=localhost:19314
+metric responses_2xx_count 51 jetty=j121 jmx=localhost:19314
+metric responses_3xx_count 0 jetty=j121 jmx=localhost:19314
+metric responses_4xx_count 3 jetty=j121 jmx=localhost:19314
+metric responses_5xx_count 3 jetty=j121 jmx=localhost:19314
+metric failures_count 0 jetty=j121 jmx=localhost:19314
+metric handling_failures_count 0 jetty=j121 jmx=localhost:19314
+metric handling_active 16 jetty=j121 jmx=localhost:19314
+metric received_bytes 0 jetty=j121 jmx=localhost:19314
+metric sent_bytes 21981 jetty=j121 jmx=localhost:19314
+metric slowest_seconds 1.2819 jetty=j121 jmx=localhost:19314
+metric mean_seconds 0.027 jetty=j121 jmx=localhost:19314
+metric total_seconds 1.5392 jetty=j121 jmx=localhost:19314
+== threads
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric threads 24 jetty=j121 jmx=localhost:19314 id=0
+metric busy 18 jetty=j121 jmx=localhost:19314 id=0
+metric idle 2 jetty=j121 jmx=localhost:19314 id=0
+metric ready 6 jetty=j121 jmx=localhost:19314 id=0
+metric utilized 16 jetty=j121 jmx=localhost:19314 id=0
+metric max_threads 24 jetty=j121 jmx=localhost:19314 id=0
+metric min_threads 4 jetty=j121 jmx=localhost:19314 id=0
+metric queue 0 jetty=j121 jmx=localhost:19314 id=0
+metric utilization_pct 72.7273 jetty=j121 jmx=localhost:19314 id=0
+metric low_on_threads 0 jetty=j121 jmx=localhost:19314 id=0
+metric leased 2 jetty=j121 jmx=localhost:19314 id=0
+metric reserved 4 jetty=j121 jmx=localhost:19314 id=0
+metric max_available 22 jetty=j121 jmx=localhost:19314 id=0
+== connections
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric open 40 jetty=j121 jmx=localhost:19314
+metric open_max 40 jetty=j121 jmx=localhost:19314
+metric opened_count 97 jetty=j121 jmx=localhost:19314
+metric duration_max_seconds 1.345 jetty=j121 jmx=localhost:19314
+metric duration_mean_seconds 0.0293 jetty=j121 jmx=localhost:19314
+metric received_bytes 5259 jetty=j121 jmx=localhost:19314
+metric sent_bytes 37333 jetty=j121 jmx=localhost:19314
+metric received_messages_count 57 jetty=j121 jmx=localhost:19314
+metric sent_messages_count 57 jetty=j121 jmx=localhost:19314
+metric limited 40 jetty=j121 jmx=localhost:19314
+metric limit 40 jetty=j121 jmx=localhost:19314
+metric limit_pending 0 jetty=j121 jmx=localhost:19314
+metric qos_max 16 jetty=j121 jmx=localhost:19314
+metric qos_suspended 24 jetty=j121 jmx=localhost:19314
+metric qos_exceeded_count 0 jetty=j121 jmx=localhost:19314
+metric qos_expired_count 0 jetty=j121 jmx=localhost:19314
+== sessions
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric current 51 jetty=j121 jmx=localhost:19314 context=_shop
+metric most 51 jetty=j121 jmx=localhost:19314 context=_shop
+metric cached_count 51 jetty=j121 jmx=localhost:19314 context=_shop
+metric created_count 0 jetty=j121 jmx=localhost:19314 context=_broken
+metric alive_mean_seconds 0 jetty=j121 jmx=localhost:19314 context=_broken
+metric timeout_seconds 1800 jetty=j121 jmx=localhost:19314 context=_broken
+== buffers
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric direct_bytes 49152 jetty=j121 jmx=localhost:19314
+metric heap_bytes 8192 jetty=j121 jmx=localhost:19314
+metric direct_free_bytes 49152 jetty=j121 jmx=localhost:19314
+metric heap_free_bytes 8192 jetty=j121 jmx=localhost:19314

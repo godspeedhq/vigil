@@ -40,7 +40,8 @@
 #   responses_2xx_count           with a 2xx status
 #   responses_3xx_count           with a 3xx status
 #   responses_4xx_count           with a 4xx status
-#   responses_5xx_count           with a 5xx status
+#   responses_5xx_count           with a 5xx status (on 9.4 to 11, not those
+#                                 that threw: thrown_count)
 #   failures_count                requests that failed (12)
 #   handling_failures_count       failures while handling (12)
 #   thrown_count                  requests that ended in an exception (9.4 to
@@ -111,7 +112,23 @@
 #                                 left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 jetty=j121 jmx=localhost:19314
+#   metric requests_count 97 jetty=j121 jmx=localhost:19314
+#   metric active 40 jetty=j121 jmx=localhost:19314
+#   metric active_max 40 jetty=j121 jmx=localhost:19314
+#   metric responses_1xx_count 0 jetty=j121 jmx=localhost:19314
+#   metric responses_2xx_count 51 jetty=j121 jmx=localhost:19314
+#   metric responses_3xx_count 0 jetty=j121 jmx=localhost:19314
+#   metric responses_4xx_count 3 jetty=j121 jmx=localhost:19314
+#   metric responses_5xx_count 3 jetty=j121 jmx=localhost:19314
+#   metric failures_count 0 jetty=j121 jmx=localhost:19314
+#   metric handling_failures_count 0 jetty=j121 jmx=localhost:19314
+#   metric handling_active 16 jetty=j121 jmx=localhost:19314
+#   metric received_bytes 0 jetty=j121 jmx=localhost:19314
+#   metric sent_bytes 21981 jetty=j121 jmx=localhost:19314
+#   metric slowest_seconds 1.2819 jetty=j121 jmx=localhost:19314
+#   metric mean_seconds 0.027 jetty=j121 jmx=localhost:19314
+#   metric total_seconds 1.5392 jetty=j121 jmx=localhost:19314
 #
 # Reading the results (starting points: tune them to your Jetty):
 #   Healthy  responses_5xx_count flat; active well below the thread pool's

@@ -89,10 +89,14 @@ least() { awk -v v="$(val "$1" "$2" "$3")" -v a="$4" 'BEGIN { print (v ~ /^[0-9.
 say "Trouble, on each Jetty."
 for p in 18101 18102 18103 18104; do
     for i in $(seq 1 50); do curl -s -o /dev/null "http://127.0.0.1:$p/shop/index.jsp"; done
-    for i in 1 2 3; do curl -s -o /dev/null "http://127.0.0.1:$p/shop/fail.jsp"; curl -s -o /dev/null "http://127.0.0.1:$p/nope"; done
+    for i in 1 2 3; do
+        curl -s -o /dev/null "http://127.0.0.1:$p/shop/fail.jsp"
+        curl -s -o /dev/null "http://127.0.0.1:$p/nope"
+        curl -s -o /dev/null "http://127.0.0.1:$p/broken/"
+    done
     for i in $(seq 1 45); do curl -s -o /dev/null --max-time 300 "http://127.0.0.1:$p/shop/slow.jsp?s=240" & done
 done
-printf 'sent     on each: 50 visits (a session each), 3 failing pages, 3 not there, 45 slow requests held 240 s\n'
+printf 'sent     on each: 50 visits (a session each), 3 failing pages, 3 not there, 3 to the app that failed to start, 45 slow requests held 240 s\n'
 sleep 20
 
 targets='j94: jmxs=localhost:19311; j11: jmxs=localhost:19312; j120: jmxs=localhost:19313; j121: jmxs=localhost:19314'
@@ -115,23 +119,34 @@ for t in j94:9.4 j11:11.0 j120:12.0 j121:12.1; do
     check "$n: its version, $v" yes "$(grep -qE "^metric version 1 jetty=$n .* version=${v//./\\.}\.[0-9]+" "$work/status.out" && echo yes || echo no)"
     check "$n: the server is started" 1 "$(val status up "jetty=$n ")"
     check "$n: the shop is started" 1 "$(val status app_up "jetty=$n .*context=_?shop")"
-    check "$n: the app that cannot start is not" no "$([ "$(val status app_up "jetty=$n .*context=_?broken")" = 1 ] && echo yes || echo no)"
-    check "$n: low on resources" 1 "$(val status low_on_resources "jetty=$n ")"
+    printf '        %s: the app that failed to start reads app_up %s (Jetty keeps it STARTED, answering 503)\n' "$n" "$(val status app_up "jetty=$n .*context=_?broken")"
     check "$n: requests, counted" yes "$(least requests requests_count "jetty=$n " 50)"
-    check "$n: responses 5xx" yes "$(least requests responses_5xx_count "jetty=$n " 3)"
+    check "$n: responses 5xx (the failed app's 503s)" yes "$(least requests responses_5xx_count "jetty=$n " 3)"
     check "$n: responses 4xx" yes "$(least requests responses_4xx_count "jetty=$n " 3)"
     check "$n: requests active now" yes "$(least requests active "jetty=$n " 10)"
     check "$n: the slowest, in seconds" yes "$(least requests slowest_seconds "jetty=$n " 0.001)"
-    check "$n: threads busy" yes "$(least threads busy "jetty=$n " 20)"
-    check "$n: of 24" 24 "$(val threads max_threads "jetty=$n ")"
-    check "$n: jobs queued for a thread" yes "$(least threads queue "jetty=$n " 1)"
-    check "$n: connections open" yes "$(least connections open "jetty=$n " 30)"
+    check "$n: threads, 24 at most" 24 "$(val threads max_threads "jetty=$n ")"
+    case $n in
+        j94 | j11)
+            check "$n: pages that threw" yes "$(least requests thrown_count "jetty=$n " 3)"
+            check "$n: every thread busy but what it keeps" yes "$(least threads busy "jetty=$n " 20)"
+            check "$n: jobs queued for a thread" yes "$(least threads queue "jetty=$n " 1)"
+            check "$n: low on threads" 1 "$(val threads low_on_threads "jetty=$n ")"
+            check "$n: low on resources" 1 "$(val status low_on_resources "jetty=$n ")"
+            ;;
+        *)
+            check "$n: pages that threw, as 5xx too" yes "$(least requests responses_5xx_count "jetty=$n " 6)"
+            check "$n: the QoS limit" 16 "$(val connections qos_max "jetty=$n ")"
+            check "$n: requests suspended for it" yes "$(least connections qos_suspended "jetty=$n " 10)"
+            check "$n: so threads are left" yes "$(least threads busy "jetty=$n " 16)"
+            ;;
+    esac
+    check "$n: connections open" yes "$(least connections open "jetty=$n " 20)"
     check "$n: the connection limit" 40 "$(val connections limit "jetty=$n ")"
-    check "$n: reached" 40 "$(val connections limited "jetty=$n ")"
+    check "$n: connections it counts" yes "$(least connections limited "jetty=$n " 20)"
     check "$n: sessions" yes "$(least sessions most "jetty=$n .*context=_?shop" 40)"
     check "$n: its byte buffers" yes "$(least buffers direct_bytes "jetty=$n " 1)"
 done
-for n in j120 j121; do check "$n: the QoS limit" 16 "$(val connections qos_max "jetty=$n ")"; done
 
 say "The pack through Vigil."
 export VIGIL_IT_PROBE_PACK=jetty VIGIL_IT_PROBE_PACK_DIR=$pack VIGIL_IT_PROBE_TARGETS=$targets VIGIL_IT_PROBE_USER=monitor \

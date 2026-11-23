@@ -46,7 +46,11 @@
 #                                left out
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric jmx_up 1 jetty=j121 jmx=localhost:19314
+#   metric direct_bytes 49152 jetty=j121 jmx=localhost:19314
+#   metric heap_bytes 8192 jetty=j121 jmx=localhost:19314
+#   metric direct_free_bytes 49152 jetty=j121 jmx=localhost:19314
+#   metric heap_free_bytes 8192 jetty=j121 jmx=localhost:19314
 #
 # Reading the results (starting points: tune them to your Jetty):
 #   Healthy  direct_bytes and heap_bytes steady.
