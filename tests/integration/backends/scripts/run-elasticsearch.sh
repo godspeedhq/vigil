@@ -17,7 +17,7 @@
 # nodes, over https; 8.19.25, two nodes) and, in each, as the elastic user:
 # a user that may only monitor (vigil); an index lifecycle that fails (a
 # rollover with no alias); snapshot policies, one to a read-only repository;
-# a transform that fails (a runtime field reading a field no document has);
+# a transform that fails (a runtime field dividing by zero, for a later document);
 # an ingest pipeline that fails half its documents;
 # an index red (a primary no node may take), one yellow (more replicas than
 # nodes), one closed, one blocked for writes; the request breaker tripped;
@@ -97,11 +97,15 @@ trouble() {
     es "$b" PUT _slm/policy/nightly-ro -d '{"schedule":"0 30 2 * * ?","name":"<ro-{now/d}>","repository":"ro-repo","config":{"indices":["logs-ok"]}}' > /dev/null
     es "$b" POST _slm/policy/nightly-ok/_execute > /dev/null
     es "$b" POST _slm/policy/nightly-ro/_execute > /dev/null
-    # A transform grouping by a runtime field that reads a field no
-    # document has: its first search fails, and so does it.
-    es "$b" PUT '_transform/broken?defer_validation=true' -d '{"source":{"index":"logs-ok","runtime_mappings":{"bad":{"type":"keyword","script":"emit(doc[\"nope\"].value)"}}},"dest":{"index":"t-dest"},"pivot":{"group_by":{"bad":{"terms":{"field":"bad"}}},"aggregations":{"c":{"value_count":{"field":"n"}}}},"settings":{"num_failure_retries":0}}' > /dev/null
-    es "$b" POST _transform/broken/_start > /dev/null
-    for i in $(seq 1 30); do es "$b" GET _transform/broken/_stats | grep -q '"state":"failed"' && break; sleep 1; done
+    # A transform, running, grouping by a runtime field that divides by n - 9;
+    # then a document with n 9: its next checkpoint fails, and so does it.
+    # (Elasticsearch tests a transform's query as it starts: one that fails
+    # from the start is refused, not failed.)
+    es "$b" PUT _transform/later -d '{"source":{"index":"logs-app-default","runtime_mappings":{"bad":{"type":"keyword","script":"if (doc.containsKey(\"n\") && doc[\"n\"].size() > 0) { emit(String.valueOf(10 / (doc[\"n\"].value - 9))) } else { emit(\"x\") }"}}},"dest":{"index":"t-later"},"frequency":"1s","sync":{"time":{"field":"@timestamp","delay":"1s"}},"pivot":{"group_by":{"bad":{"terms":{"field":"bad"}}},"aggregations":{"c":{"value_count":{"field":"@timestamp"}}}},"settings":{"num_failure_retries":0}}' > /dev/null
+    es "$b" POST _transform/later/_start > /dev/null
+    for i in $(seq 1 30); do es "$b" GET _transform/later/_stats | jq -e '.transforms[0].checkpointing.last.checkpoint >= 1' > /dev/null 2>&1 && break; sleep 1; done
+    es "$b" POST logs-app-default/_doc -d "{\"@timestamp\":\"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\",\"n\":9}" > /dev/null
+    for i in $(seq 1 30); do es "$b" GET _transform/later/_stats | grep -q '"state":"failed"' && break; sleep 1; done
     # Ingest: half the documents fail.
     es "$b" PUT _ingest/pipeline/parse -d '{"processors":[{"fail":{"if":"ctx.n % 2 == 0","message":"even"}}]}' > /dev/null
     for k in 1 2 3 4 5 6; do es "$b" POST 'logs-ok/_doc?pipeline=parse' -d "{\"n\":$k}" -o /dev/null; done
@@ -193,7 +197,7 @@ for s in es95:https://127.0.0.1:19200:9.5.5:3 es819:http://127.0.0.1:19201:8.19.
     check "$name: the other's last success" yes "$(has lifecycle slm_last_success_age_seconds 'policy=nightly-ok')"
     check "$name: snapshots in the repository" '0' "$(val snapshots last_status 'repository=backups')"
     check "$name: the cluster's license" yes "$(has cluster license 'type=basic status=active')"
-    check "$name: the failed transform, and why" yes "$(has features transform_failed '1 transform=broken reason=')"
+    check "$name: the failed transform, and why" yes "$(has features transform_failed '1 transform=later reason=')"
 
     ELASTICSEARCH_PASSWORD=not-the-password bash "$pack/status.sh" > "$work/wrong.out" 2>&1
     check "$name: a wrong password fails the run" 1 "$?"

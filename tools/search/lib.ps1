@@ -164,7 +164,10 @@ function Get-Page([string]$path, [string]$body) {
 # Need-Page <path> [<request body>]: the answer, as objects, or stop, saying why.
 function Need-Page([string]$path, [string]$body) {
     $r = Get-Page $path $body
-    if ($r.State -eq 'ok') { return , $r.Data }
+    # As it is: an array's items one by one (callers collect them with
+    # @()), so that Windows PowerShell 5.1, whose ConvertFrom-Json gives an
+    # array as one object, and PowerShell 7 give the same.
+    if ($r.State -eq 'ok') { return $r.Data }
     Stop-Why $r.State $path
 }
 # Stop-Why <Get-Page's state> <path>: stop, saying why.
