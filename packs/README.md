@@ -989,9 +989,9 @@ Apache ActiveMQ Classic 5.18 to 6.x, on this machine or any it can reach, over J
 | Metric | Healthy | Watch | Act | In our tests |
 | --- | --- | --- | --- | --- |
 | `activemq.jmx_up`, `activemq.healthy` | 1 | | 0: the broker, or its JMX, is down, or its health check is not Good | `jmx_up` 0 for a target where nothing listens; `healthy` 1 on each |
-| `activemq.broker.temp_pct`, `store_pct`, `memory_pct` | Well below 100 | Above 70 | At 100: flow control holds producers back, or sends fail | `temp_pct` 100 on each, full of 10,171 non-persistent messages nobody read; `memory_pct` 11, `store_pct` 1 |
+| `activemq.broker.temp_pct`, `store_pct`, `memory_pct` | Well below 100 | Above 70 | At 100: flow control holds producers back, or sends fail | `temp_pct` 100 on each, full of 10,169 to 10,174 non-persistent messages nobody read; `memory_pct` 11, `store_pct` 1 |
 | `activemq.producer.blocked`, `blocked_pct` | 0 | | 1, and its share near 100: the producer waits, and nothing it sends arrives | 1 and 100 for the producer of `bulk` |
-| `activemq.queue.size` with `consumers` 0 | Rising and falling | Growing on one queue | Growing with nobody reading it | `bulk` 10,171 and `orders` 2,999 deepest first; `orders` with 900 in flight to a slow consumer |
+| `activemq.queue.size` with `consumers` 0 | Rising and falling | Growing on one queue | Growing with nobody reading it | `bulk` (10,169 to 10,174) and `orders` (2,998 or 2,999) deepest first; `orders` with 899 or 900 in flight to a slow consumer |
 | `activemq.queue.memory_pct` | Well below 100 | Above 70 | At 100: that queue's sends are held back | 89 for `orders` |
 | `activemq.dlq.size` | 0, or flat | `enqueued_count` rising | Growing | 50, every message that expired |
 | `activemq.subscriber.pending` with `active` 0 | Near 0 | Growing | Growing for hours: an offline durable subscriber keeps every message on disk | 500 for `sub-billing`, gone |
@@ -1039,7 +1039,7 @@ Apache ActiveMQ Artemis 2.x, on this machine or any it can reach, over JMX with 
 | `artemis.address.limit_pct` on an address that blocks | Well below 100 | Above 70 | At 100: its producers are blocked | 102 for `blocked`, its producer held |
 | `artemis.address.paging`, `pages` | 0 | 1: the address holds more than memory allows, on disk | `pages` growing for hours | 1 and 1 page for `orders`, at 99 of its limit |
 | `artemis.address.unrouted_count` (as a rate) | Flat | | Rising: messages sent where no queue reads them are lost | 50 for `nowhere` |
-| `artemis.queue.oldest_seconds` | Small | Growing: consumers fall behind | Hours | 116 for `orders`, read by a consumer too slow |
+| `artemis.queue.oldest_seconds` | Small | Growing: consumers fall behind | Hours | 139 to 378 for `orders` (the brokers got their trouble one after another), read by a consumer too slow |
 | `artemis.queue.messages` with `consumers` 0 | Rising and falling | Growing on one queue | Growing with nobody reading | 2,999 in `orders`, 434 being delivered to its slow consumer |
 | `artemis.dlq.expired`, `dead` | 0, or flat | Rising | Growing | 100 in `ExpiryQueue`, every message that expired; `dead` 0 |
 | `artemis.broker.login_failed_count` (as a rate) | Flat | | Rising: a client with a wrong password, or someone guessing | 9 on 2.40 and 2.44 after 3 refused clients (each tried again); 2.33 does not count them |
