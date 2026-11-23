@@ -80,7 +80,7 @@ works_with  = TODO: the $name versions it is meant for, and tested with
 programs_linux = TODO: the programs the Linux scripts need, such as a client
 programs_macos = TODO: the programs the macOS scripts need
 programs_windows = TODO: the programs the Windows scripts need
-docs        = https://github.com/godspeedhq/vigil/blob/main/packs/README.md#$name
+docs        = https://github.com/godspeedhq/vigil/blob/main/packs/$name/README.md
 # needs: what the jobs need that Vigil cannot see from them, one line each,
 # shown by vigil pack enable and vigil pack list (a role, a page to turn on).
 # Their secrets and env settings are shown without it. Delete it if none.
@@ -160,16 +160,57 @@ $(printf '%s\n' "$notice" | sed 's/^# \{0,1\}/    /; s/^    $//')
 Write-Output 'metric up 1'
 EOF
 
+# Its page: everything about it, in one place, as every pack's.
+cat > "$dir/README.md" << EOF
+# The $name pack
+
+TODO: what it watches, on which servers, and how it reads them.
+
+TODO: how to turn it on: what the server needs (a role, a page), vigil pack
+enable $name, and the settings and secrets of its jobs.
+
+## What it needs
+
+| | Linux | macOS | Windows |
+| --- | --- | --- | --- |
+| On the Vigil machine | TODO | | |
+
+## Its jobs
+
+| Job | Reports | Every |
+| --- | --- | --- |
+| \`${name}_$job\` | TODO | minute |
+
+## What to alert on
+
+| Metric | Healthy | Watch | Act | In our tests |
+| --- | --- | --- | --- | --- |
+| \`$name.up\` | 1 | | 0 | TODO: what the real server showed |
+
+## How it was tested
+
+TODO: when, where, against which versions, the trouble caused on purpose, the
+results, and a link to the console output (CONTRIBUTING.md, Tests and
+evidence).
+
+---
+
+[All packs](../README.md) · [Writing a pack](../../CONTRIBUTING.md#your-first-pack)
+EOF
+
 cat << EOF
 made $dir:
   $dir/pack.config
+  $dir/README.md
   $dir/linux/$job.sh
   $dir/macos/$job.sh
   $dir/windows/$job.ps1
 
 Next:
-  1. Fill in every TODO. Delete a platform's script if the job cannot run there.
-  2. Add a section for $name to packs/README.md.
+  1. Fill in every TODO, its page too. Delete a platform's script if the job
+     cannot run there.
+  2. Add an entry for $name to packs/README.md: ### $name, a line or two, and
+     a link to its page.
   3. tools/check-pack.sh $name          checks it
      tools/check-pack.sh --run $name    and runs its jobs here, through Vigil
   4. Open a pull request. CONTRIBUTING.md has the rest.

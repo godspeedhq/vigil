@@ -133,10 +133,12 @@ client_libs() {
     done < "$1/client.lib"
 }
 
-# The digest of a pack's source: every file's name and content, in order.
+# The digest of a pack's source: every file's name and content, in order,
+# but its page (README.md): documentation, not what runs, and not in the
+# archives, so a page can be mended without a new version of the pack.
 digest() {
     local d=$1 f
-    (cd "$d" && find . -type f | LC_ALL=C sort | while IFS= read -r f; do printf '%s ' "$f"; sha "$f"; done) |
+    (cd "$d" && find . -type f ! -path ./README.md | LC_ALL=C sort | while IFS= read -r f; do printf '%s ' "$f"; sha "$f"; done) |
         openssl dgst -sha256 | sed 's/^.*= *//'
 }
 
