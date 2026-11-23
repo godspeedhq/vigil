@@ -3,6 +3,15 @@
 <#
 .SYNOPSIS
     epmd.ps1 - the Erlang nodes epmd knows, on each machine named
+.NOTES
+    Copyright (c) Bankole Ogundero and the Vigil contributors
+    SPDX-License-Identifier: Apache-2.0
+
+    Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+    implied. Run it at your own risk: review it first, and test it before you
+    rely on it. In no event shall the authors or copyright holders be liable
+    for any claim, damages or other liability arising from its use. See the
+    LICENSE file for the full terms.
 .DESCRIPTION
     Asks epmd, the Erlang Port Mapper Daemon, which nodes it has: the
     names request of its protocol (what epmd -names sends), over TCP from
@@ -35,15 +44,6 @@
 
     Requires: Windows PowerShell 5.1 or PowerShell 7
     Exit code: 0 on success, epmd up or down; 1 if BEAM_EPMD is wrong
-.NOTES
-    Copyright (c) Bankole Ogundero and the Vigil contributors
-    SPDX-License-Identifier: Apache-2.0
-
-    Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
-    implied. Run it at your own risk: review it first, and test it before you
-    rely on it. In no event shall the authors or copyright holders be liable
-    for any claim, damages or other liability arising from its use. See the
-    LICENSE file for the full terms.
 #>
 
 $ErrorActionPreference = 'Stop'

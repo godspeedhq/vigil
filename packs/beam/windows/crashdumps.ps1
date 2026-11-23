@@ -3,6 +3,15 @@
 <#
 .SYNOPSIS
     crashdumps.ps1 - the crash dumps Erlang VMs left behind, and why they died
+.NOTES
+    Copyright (c) Bankole Ogundero and the Vigil contributors
+    SPDX-License-Identifier: Apache-2.0
+
+    Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+    implied. Run it at your own risk: review it first, and test it before you
+    rely on it. In no event shall the authors or copyright holders be liable
+    for any claim, damages or other liability arising from its use. See the
+    LICENSE file for the full terms.
 .DESCRIPTION
     An Erlang VM that dies writes a crash dump (erl_crash.dump, or where
     ERL_CRASH_DUMP says), whose first lines say why: its slogan, such as
@@ -45,15 +54,6 @@
 
     Requires: Windows PowerShell 5.1 or PowerShell 7
     Exit code: 0 on success, dumps or none
-.NOTES
-    Copyright (c) Bankole Ogundero and the Vigil contributors
-    SPDX-License-Identifier: Apache-2.0
-
-    Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
-    implied. Run it at your own risk: review it first, and test it before you
-    rely on it. In no event shall the authors or copyright holders be liable
-    for any claim, damages or other liability arising from its use. See the
-    LICENSE file for the full terms.
 #>
 
 $ErrorActionPreference = 'Stop'

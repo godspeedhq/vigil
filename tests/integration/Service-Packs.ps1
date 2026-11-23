@@ -1225,7 +1225,7 @@ try {
         Show-LastRun beam_vm
         if ($benv) { $keep = $env:VIGIL_IT_BEAM_COOKIE; $env:VIGIL_IT_BEAM_COOKIE = 'not-the-cookie' }
         else { Set-VigilSecret BEAM_COOKIE 'not-the-cookie' }
-        Test-Equal 'beam: a wrong cookie fails the run' '1' (Invoke-BJob vm)
+        Test-Equal 'beam: a wrong cookie fails the run' '2' (Invoke-BJob vm)
         Test-Equal "beam: and says the cookie, or the name, is not the node's" 'True' (Test-Said beam_vm 'is not its cookie, or')
         if ($benv) { $env:VIGIL_IT_BEAM_COOKIE = $keep } else { Set-VigilSecret BEAM_COOKIE $env:VIGIL_IT_BEAM_COOKIE }
         Set-Env BEAM_DIST 'gone=vigil_gone@127.0.0.1'

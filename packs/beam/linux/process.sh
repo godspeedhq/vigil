@@ -2,6 +2,15 @@
 #
 # process.sh - every Erlang VM on this machine, as the OS sees it
 #
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
 # Finds each beam.smp process and reports its memory, CPU, threads, open
 # files and uptime, named by its node name (-sname or -name, on its command
 # line or in its -args_file), else by what it was started with (-s rabbit:
@@ -52,15 +61,6 @@
 #
 # Requires: bash and /proc
 # Exit code: 0 on success, VMs or none
-#
-# Copyright (c) Bankole Ogundero and the Vigil contributors
-# SPDX-License-Identifier: Apache-2.0
-#
-# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
-# implied. Run it at your own risk: review it first, and test it before you
-# rely on it. In no event shall the authors or copyright holders be liable
-# for any claim, damages or other liability arising from its use. See the
-# LICENSE file for the full terms.
 
 set -u
 

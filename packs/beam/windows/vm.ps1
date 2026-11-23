@@ -3,6 +3,15 @@
 <#
 .SYNOPSIS
     vm.ps1 - what each Erlang VM says about itself: memory, limits, run queues
+.NOTES
+    Copyright (c) Bankole Ogundero and the Vigil contributors
+    SPDX-License-Identifier: Apache-2.0
+
+    Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+    implied. Run it at your own risk: review it first, and test it before you
+    rely on it. In no event shall the authors or copyright holders be liable
+    for any claim, damages or other liability arising from its use. See the
+    LICENSE file for the full terms.
 .DESCRIPTION
     Reads each node two ways, whichever is set on the job:
       BEAM_PROMETHEUS  <name>=<url> separated by ;: a node's Prometheus page
@@ -89,15 +98,6 @@
     Exit code: 0 on success, nodes up or down; 1 if escript.exe is missing,
       a setting is wrong, a page is not Erlang's, or a node refused the
       cookie
-.NOTES
-    Copyright (c) Bankole Ogundero and the Vigil contributors
-    SPDX-License-Identifier: Apache-2.0
-
-    Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
-    implied. Run it at your own risk: review it first, and test it before you
-    rely on it. In no event shall the authors or copyright holders be liable
-    for any claim, damages or other liability arising from its use. See the
-    LICENSE file for the full terms.
 #>
 
 $ErrorActionPreference = 'Stop'

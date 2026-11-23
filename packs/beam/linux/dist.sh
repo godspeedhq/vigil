@@ -2,6 +2,15 @@
 #
 # dist.sh - each Erlang VM's peers: the nodes it is connected to
 #
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
 # Reads the connections of each node in BEAM_DIST (<name>=<node> separated
 # by ;) with its cookie (BEAM_COOKIE, a secret), by _beam.escript beside
 # this script, with Erlang's escript (BEAM_ERLANG, where Erlang is, else the
@@ -48,15 +57,6 @@
 # Requires: bash; Erlang/OTP 25 or later (escript)
 # Exit code: 0 on success, nodes up or down, or none named; 1 if escript is
 #   missing, BEAM_DIST or BEAM_COOKIE is wrong, or a node refused the cookie
-#
-# Copyright (c) Bankole Ogundero and the Vigil contributors
-# SPDX-License-Identifier: Apache-2.0
-#
-# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
-# implied. Run it at your own risk: review it first, and test it before you
-# rely on it. In no event shall the authors or copyright holders be liable
-# for any claim, damages or other liability arising from its use. See the
-# LICENSE file for the full terms.
 
 set -u
 

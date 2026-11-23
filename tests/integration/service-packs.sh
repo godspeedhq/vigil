@@ -1380,7 +1380,7 @@ else
     # A wrong cookie fails the run and says why; a node that is down is a
     # reading.
     printf 'not-the-cookie' | vigil secret set BEAM_COOKIE --stdin > /dev/null
-    check 'beam: a wrong cookie fails the run' 1 "$(brun vm)"
+    check 'beam: a wrong cookie fails the run' 2 "$(brun vm)"
     check 'beam: and says the cookie, or the name, is not the node'"'"'s' yes "$(bsaid vm 'is not its cookie, or')"
     printf '%s' "$VIGIL_IT_BEAM_COOKIE" | vigil secret set BEAM_COOKIE --stdin > /dev/null
     set_env BEAM_DIST 'gone=vigil_gone@127.0.0.1'
