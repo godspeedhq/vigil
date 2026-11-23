@@ -39,6 +39,18 @@
 
     Example output:
       metric up 1
+      metric version 1 version=2.580.2
+      metric quieting_down 0
+      metric executors_total 2
+      metric executors_busy 1
+      metric executors_busy_pct 50
+      metric nodes 3
+      metric nodes_offline 2
+      metric nodes_temporarily_offline 1
+      metric queue_length 1
+      metric queue_buildable 1
+      metric queue_blocked 0
+      metric queue_stuck 1
 
     Reading the results (starting points: tune them to the controller):
       Healthy  up 1; quieting_down 0; executors_busy_pct below 80 most of the

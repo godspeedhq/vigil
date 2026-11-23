@@ -51,6 +51,21 @@
 
     Example output:
       metric up 1
+      metric nodes 3
+      metric monitors_readable 0
+      metric online 1 node=Built-In_Node
+      metric temporarily_offline 0 node=Built-In_Node
+      metric executors 2 node=Built-In_Node
+      metric busy 1 node=Built-In_Node
+      metric idle 1 node=Built-In_Node
+      metric stuck 1 node=Built-In_Node
+      metric online 0 node=linux-agent
+      metric temporarily_offline 0 node=linux-agent
+      metric executors 1 node=linux-agent
+      metric busy 0 node=linux-agent
+      metric idle 1 node=linux-agent
+      metric stuck 0 node=linux-agent
+      metric online 0 node=maint-agent reason=patching__back_Monday
 
     Reading the results (starting points: tune them to the controller):
       Healthy  online 1 for every node you expect; disk_free_bytes far above

@@ -38,6 +38,14 @@
 
     Example output:
       metric up 1
+      metric queue_length 1
+      metric oldest_seconds 75
+      metric average_seconds 75
+      metric stuck 1
+      metric blocked 0
+      metric buildable 1
+      metric waiting_seconds 75 job=waiting state=stuck why=There_are_no_nodes_with_the_label__nowhere_
+      metric items_not_shown 0
 
     Reading the results (starting points: tune them to the controller):
       Healthy  queue_length near 0 most of the time; oldest_seconds in

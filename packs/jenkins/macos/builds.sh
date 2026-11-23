@@ -41,6 +41,15 @@
 #
 # Example output:
 #   metric up 1
+#   metric running 1
+#   metric overdue 1
+#   metric likely_stuck 0
+#   metric running_seconds 23 job=slow build=2 node=Built-In_Node
+#   metric estimated_seconds 3 job=slow build=2 node=Built-In_Node
+#   metric estimate_pct 725.97 job=slow build=2 node=Built-In_Node
+#   metric progress_pct 99 job=slow build=2 node=Built-In_Node
+#   metric stuck 0 job=slow build=2 node=Built-In_Node
+#   metric builds_not_shown 0
 #
 # Reading the results (starting points: tune them to the controller):
 #   Healthy  overdue and likely_stuck 0; estimate_pct below 150.

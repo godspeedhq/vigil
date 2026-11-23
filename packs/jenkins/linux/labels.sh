@@ -37,6 +37,21 @@
 #
 # Example output:
 #   metric up 1
+#   metric labels 4
+#   metric executors_total 0 label=agents
+#   metric executors_busy 0 label=agents
+#   metric executors_idle 0 label=agents
+#   metric nodes 2 label=agents
+#   metric nodes_offline 2 label=agents
+#   metric tied_jobs 0 label=agents
+#   metric executors_total 2 label=built-in
+#   metric executors_busy 1 label=built-in
+#   metric executors_idle 1 label=built-in
+#   metric busy_pct 50 label=built-in
+#   metric nodes 1 label=built-in
+#   metric nodes_offline 0 label=built-in
+#   metric tied_jobs 0 label=built-in
+#   metric executors_total 0 label=linux-agent
 #
 # Reading the results (starting points: tune them to the controller):
 #   Healthy  busy_pct below 80 most of the time; nodes_offline 0.

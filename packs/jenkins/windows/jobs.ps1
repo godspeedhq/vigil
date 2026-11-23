@@ -56,6 +56,21 @@
 
     Example output:
       metric up 1
+      metric jobs 8
+      metric failing 2
+      metric unstable 1
+      metric aborted 0
+      metric disabled 1
+      metric never_built 3
+      metric building 1
+      metric in_queue 1
+      metric builds_last_hour 6
+      metric failures_last_hour 2
+      metric job_failing 1 job=fail
+      metric job_unstable 0 job=fail
+      metric health_score 0 job=fail
+      metric success_rate_pct 0 job=fail
+      metric builds_since_success 1 job=fail
 
     Reading the results (starting points: tune them to the controller):
       Healthy  failing and unstable 0, or a known few; health_score high;

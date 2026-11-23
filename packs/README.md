@@ -33,6 +33,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`artemis`](artemis/README.md) | Apache ActiveMQ Artemis over JMX: health and HA, address memory and disk against their limits, addresses and paging, queues (the deepest first, the oldest message), dead letter and expiry queues, logins refused, cluster connections and bridges | [packs/artemis/README.md](artemis/README.md) |
 | [`beam`](beam/README.md) | Erlang and Elixir VMs: process, epmd, memory by kind, processes, ports, atoms and ETS against their limits, run queues, GC, mailboxes, ETS tables, distribution, applications, crash dumps | [packs/beam/README.md](beam/README.md) |
 | [`rabbitmq`](rabbitmq/README.md) | RabbitMQ: up, memory, disk and file descriptors against their limits and alarms, messages in and out and lost, queues (the deepest first), quorum queues, memory by use, disk work, cluster links, vhosts | [packs/rabbitmq/README.md](rabbitmq/README.md) |
+| [`jenkins`](jenkins/README.md) | Jenkins: up, version, executors, labels, the queue and what is stuck, nodes online and why not, builds running and stuck, jobs failing, unstable and their health, load averages, plugins | [packs/jenkins/README.md](jenkins/README.md) |
 | [`nginx`](nginx/README.md) | nginx: up, connections and requests, from stub_status | [packs/nginx/README.md](nginx/README.md) |
 
 ## Service packs
@@ -110,6 +111,12 @@ Erlang and Elixir virtual machines: any application on the BEAM (RabbitMQ, Couch
 RabbitMQ 3.13 and 4.x, a node or a cluster, from the Prometheus pages it serves itself, read with `curl`: no login, no cookie. Each node's memory, disk and file descriptors against their limits and its alarms; messages received, routed, delivered, acknowledged and lost; every queue, the deepest first; quorum queues' Raft logs and the metadata store; what its memory holds; its links to the other nodes. Its Erlang VM is the beam pack's. Linux, macOS and Windows.
 
 **Its page: [packs/rabbitmq/README.md](rabbitmq/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### jenkins
+
+A Jenkins controller, from its REST API, as a read-only user with an API token, with `curl` and `jq` (on Windows, PowerShell alone). Its nodes online or not and why, each label's executors, the queue and what is stuck in it, the builds running against their estimate, every job failing or unstable with its health and recent builds, Jenkins' own load averages, its plugins. Its JVM is the jvm pack's. Linux, macOS and Windows.
+
+**Its page: [packs/jenkins/README.md](jenkins/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ### nginx
 

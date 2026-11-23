@@ -40,6 +40,21 @@
 
     Example output:
       metric up 1
+      metric queue_length 0.57 window=10s
+      metric queue_length 0.1 window=1m
+      metric queue_length 0 window=1h
+      metric queue_length_total 0.57 window=10s
+      metric queue_length_total 0.1 window=1m
+      metric queue_length_total 0 window=1h
+      metric executors_busy 0 window=10s
+      metric executors_busy 0 window=1m
+      metric executors_busy 0 window=1h
+      metric executors_idle 0 window=10s
+      metric executors_idle 0 window=1m
+      metric executors_idle 0 window=1h
+      metric executors_available 0 window=10s
+      metric executors_available 0 window=1m
+      metric executors_available 0 window=1h
 
     Reading the results (starting points: tune them to the controller):
       Healthy  queue_length window=1h below 1; executors_busy window=1h

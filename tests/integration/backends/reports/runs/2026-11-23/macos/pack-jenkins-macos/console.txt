@@ -1,0 +1,489 @@
+pack     jenkins 1.0.0, Vigil commit 33e8224 (a copy), from the repository
+account  vigil-test, by SSH key
+servers  run-jenkins.sh's Jenkins on the Fedora test machine (2.580.2 on Java 21, 2.528.3 on Java 17, each in trouble on purpose), through SSH tunnels; jq 1.8.2 (its release, checksum-verified)
+
+host     Bankoles-MacBook-Air, macOS 12.7.6 (x86_64), bash 3.2.57(1)-release
+tools    curl 8.7.1; jq-1.8.2
+commit   33e8224981251322f67ed24c23e5dd2a75456f77
+
+# Jenkins 2.580.2, through the tunnel: every job, as the macOS scripts print it.
+
+$ bash packs/jenkins/macos/status.sh
+metric up 1
+metric version 1 version=2.580.2
+metric quieting_down 0
+metric executors_total 2
+metric executors_busy 1
+metric executors_busy_pct 50
+metric nodes 3
+metric nodes_offline 2
+metric nodes_temporarily_offline 1
+metric queue_length 1
+metric queue_buildable 1
+metric queue_blocked 0
+metric queue_stuck 1
+  PASS  jk2580: jenkins_status runs
+
+$ bash packs/jenkins/macos/nodes.sh
+metric up 1
+metric nodes 3
+metric monitors_readable 0
+metric online 1 node=Built-In_Node
+metric temporarily_offline 0 node=Built-In_Node
+metric executors 2 node=Built-In_Node
+metric busy 1 node=Built-In_Node
+metric idle 1 node=Built-In_Node
+metric stuck 1 node=Built-In_Node
+metric online 0 node=linux-agent
+metric temporarily_offline 0 node=linux-agent
+metric executors 1 node=linux-agent
+metric busy 0 node=linux-agent
+metric idle 1 node=linux-agent
+metric stuck 0 node=linux-agent
+metric online 0 node=maint-agent reason=patching__back_Monday
+metric temporarily_offline 1 node=maint-agent
+metric offline_seconds 75 node=maint-agent
+metric executors 1 node=maint-agent
+metric busy 0 node=maint-agent
+metric idle 1 node=maint-agent
+metric stuck 0 node=maint-agent
+metric nodes_not_shown 0
+  PASS  jk2580: jenkins_nodes runs
+
+$ bash packs/jenkins/macos/labels.sh
+metric up 1
+metric labels 4
+metric executors_total 0 label=agents
+metric executors_busy 0 label=agents
+metric executors_idle 0 label=agents
+metric nodes 2 label=agents
+metric nodes_offline 2 label=agents
+metric tied_jobs 0 label=agents
+metric executors_total 2 label=built-in
+metric executors_busy 1 label=built-in
+metric executors_idle 1 label=built-in
+metric busy_pct 50 label=built-in
+metric nodes 1 label=built-in
+metric nodes_offline 0 label=built-in
+metric tied_jobs 0 label=built-in
+metric executors_total 0 label=linux-agent
+metric executors_busy 0 label=linux-agent
+metric executors_idle 0 label=linux-agent
+metric nodes 1 label=linux-agent
+metric nodes_offline 1 label=linux-agent
+metric tied_jobs 0 label=linux-agent
+metric executors_total 0 label=maint-agent
+metric executors_busy 0 label=maint-agent
+metric executors_idle 0 label=maint-agent
+metric nodes 1 label=maint-agent
+metric nodes_offline 1 label=maint-agent
+metric tied_jobs 0 label=maint-agent
+metric labels_not_shown 0
+  PASS  jk2580: jenkins_labels runs
+
+$ bash packs/jenkins/macos/queue.sh
+metric up 1
+metric queue_length 1
+metric oldest_seconds 66
+metric average_seconds 66
+metric stuck 1
+metric blocked 0
+metric buildable 1
+metric waiting_seconds 66 job=waiting state=stuck why=There_are_no_nodes_with_the_label__nowhere_
+metric items_not_shown 0
+  PASS  jk2580: jenkins_queue runs
+
+$ bash packs/jenkins/macos/builds.sh
+metric up 1
+metric running 1
+metric overdue 1
+metric likely_stuck 1
+metric running_seconds 67 job=slow build=2 node=Built-In_Node
+metric estimated_seconds 3 job=slow build=2 node=Built-In_Node
+metric estimate_pct 2171.11 job=slow build=2 node=Built-In_Node
+metric progress_pct 99 job=slow build=2 node=Built-In_Node
+metric stuck 1 job=slow build=2 node=Built-In_Node
+metric builds_not_shown 0
+  PASS  jk2580: jenkins_builds runs
+
+$ bash packs/jenkins/macos/jobs.sh
+metric up 1
+metric jobs 8
+metric failing 2
+metric unstable 1
+metric aborted 0
+metric disabled 1
+metric never_built 3
+metric building 1
+metric in_queue 1
+metric builds_last_hour 6
+metric failures_last_hour 2
+metric job_failing 1 job=fail
+metric job_unstable 0 job=fail
+metric health_score 0 job=fail
+metric success_rate_pct 0 job=fail
+metric builds_since_success 1 job=fail
+metric last_failure_age_seconds 73 job=fail
+metric last_build_age_seconds 73 job=fail
+metric last_duration_seconds 0 job=fail
+metric job_failing 1 job=team/nightly
+metric job_unstable 0 job=team/nightly
+metric health_score 0 job=team/nightly
+metric success_rate_pct 0 job=team/nightly
+metric builds_since_success 1 job=team/nightly
+metric last_failure_age_seconds 72 job=team/nightly
+metric last_build_age_seconds 72 job=team/nightly
+metric last_duration_seconds 0 job=team/nightly
+metric job_failing 0 job=unstable
+metric job_unstable 1 job=unstable
+metric health_score 100 job=unstable
+metric success_rate_pct 0 job=unstable
+metric builds_since_success 0 job=unstable
+metric last_success_age_seconds 73 job=unstable
+metric last_build_age_seconds 73 job=unstable
+metric last_duration_seconds 5 job=unstable
+metric job_failing 0 job=pass
+metric job_unstable 0 job=pass
+metric health_score 100 job=pass
+metric success_rate_pct 100 job=pass
+metric builds_since_success 0 job=pass
+metric last_success_age_seconds 73 job=pass
+metric last_build_age_seconds 73 job=pass
+metric last_duration_seconds 0 job=pass
+metric job_failing 0 job=slow
+metric job_unstable 0 job=slow
+metric health_score 100 job=slow
+metric success_rate_pct 100 job=slow
+metric builds_since_success 1 job=slow
+metric last_success_age_seconds 72 job=slow
+metric last_build_age_seconds 67 job=slow
+metric job_failing 0 job=disabled
+metric job_unstable 0 job=disabled
+metric job_failing 0 job=never
+metric job_unstable 0 job=never
+metric job_failing 0 job=waiting
+metric job_unstable 0 job=waiting
+metric jobs_not_shown 0
+  PASS  jk2580: jenkins_jobs runs
+
+$ bash packs/jenkins/macos/load.sh
+metric up 1
+metric queue_length 0.52 window=10s
+metric queue_length 0.1 window=1m
+metric queue_length 0 window=1h
+metric queue_length_total 0.52 window=10s
+metric queue_length_total 0.1 window=1m
+metric queue_length_total 0 window=1h
+metric executors_busy 0 window=10s
+metric executors_busy 0 window=1m
+metric executors_busy 0 window=1h
+metric executors_idle 0 window=10s
+metric executors_idle 0 window=1m
+metric executors_idle 0 window=1h
+metric executors_available 0 window=10s
+metric executors_available 0 window=1m
+metric executors_available 0 window=1h
+metric executors_online 0 window=10s
+metric executors_online 0 window=1m
+metric executors_online 0 window=1h
+metric executors_connecting 0 window=10s
+metric executors_connecting 0 window=1m
+metric executors_connecting 0 window=1h
+metric executors_defined 1.14 window=10s
+metric executors_defined 0.2 window=1m
+metric executors_defined 0 window=1h
+metric executors_total 0 window=10s
+metric executors_total 0 window=1m
+metric executors_total 0 window=1h
+  PASS  jk2580: jenkins_load runs
+
+$ bash packs/jenkins/macos/plugins.sh
+metric up 1
+metric readable 1
+metric plugins 52
+metric updates 0
+metric inactive 0
+metric disabled 0
+metric pinned 0
+metric bundled 0
+metric deleted 0
+metric downgradable 0
+metric updates_not_shown 0
+metric sites 1
+metric sites_with_updates 0
+  PASS  jk2580: jenkins_plugins runs
+  PASS  jk2580: Jenkins 2.580.2
+  PASS  jk2580: two nodes offline
+  PASS  jk2580: two jobs failing
+  PASS  jk2580: the item waiting for a label no node has
+  PASS  jk2580: the plugins, with SystemRead
+  PASS  jk2580: without SystemRead, readable 0
+
+# Jenkins 2.528.3, through the tunnel: every job, as the macOS scripts print it.
+
+$ bash packs/jenkins/macos/status.sh
+metric up 1
+metric version 1 version=2.528.3
+metric quieting_down 0
+metric executors_total 2
+metric executors_busy 1
+metric executors_busy_pct 50
+metric nodes 3
+metric nodes_offline 2
+metric nodes_temporarily_offline 1
+metric queue_length 1
+metric queue_buildable 1
+metric queue_blocked 0
+metric queue_stuck 1
+  PASS  jk2528: jenkins_status runs
+
+$ bash packs/jenkins/macos/nodes.sh
+metric up 1
+metric nodes 3
+metric monitors_readable 0
+metric online 1 node=Built-In_Node
+metric temporarily_offline 0 node=Built-In_Node
+metric executors 2 node=Built-In_Node
+metric busy 1 node=Built-In_Node
+metric idle 1 node=Built-In_Node
+metric stuck 1 node=Built-In_Node
+metric online 0 node=linux-agent
+metric temporarily_offline 0 node=linux-agent
+metric executors 1 node=linux-agent
+metric busy 0 node=linux-agent
+metric idle 1 node=linux-agent
+metric stuck 0 node=linux-agent
+metric online 0 node=maint-agent reason=patching__back_Monday
+metric temporarily_offline 1 node=maint-agent
+metric offline_seconds 81 node=maint-agent
+metric executors 1 node=maint-agent
+metric busy 0 node=maint-agent
+metric idle 1 node=maint-agent
+metric stuck 0 node=maint-agent
+metric nodes_not_shown 0
+  PASS  jk2528: jenkins_nodes runs
+
+$ bash packs/jenkins/macos/labels.sh
+metric up 1
+metric labels 4
+metric executors_total 0 label=agents
+metric executors_busy 0 label=agents
+metric executors_idle 0 label=agents
+metric nodes 2 label=agents
+metric nodes_offline 2 label=agents
+metric tied_jobs 0 label=agents
+metric executors_total 2 label=built-in
+metric executors_busy 1 label=built-in
+metric executors_idle 1 label=built-in
+metric busy_pct 50 label=built-in
+metric nodes 1 label=built-in
+metric nodes_offline 0 label=built-in
+metric tied_jobs 0 label=built-in
+metric executors_total 0 label=linux-agent
+metric executors_busy 0 label=linux-agent
+metric executors_idle 0 label=linux-agent
+metric nodes 1 label=linux-agent
+metric nodes_offline 1 label=linux-agent
+metric tied_jobs 0 label=linux-agent
+metric executors_total 0 label=maint-agent
+metric executors_busy 0 label=maint-agent
+metric executors_idle 0 label=maint-agent
+metric nodes 1 label=maint-agent
+metric nodes_offline 1 label=maint-agent
+metric tied_jobs 0 label=maint-agent
+metric labels_not_shown 0
+  PASS  jk2528: jenkins_labels runs
+
+$ bash packs/jenkins/macos/queue.sh
+metric up 1
+metric queue_length 1
+metric oldest_seconds 73
+metric average_seconds 73
+metric stuck 1
+metric blocked 0
+metric buildable 1
+metric waiting_seconds 73 job=waiting state=stuck why=There_are_no_nodes_with_the_label__nowhere_
+metric items_not_shown 0
+  PASS  jk2528: jenkins_queue runs
+
+$ bash packs/jenkins/macos/builds.sh
+metric up 1
+metric running 1
+metric overdue 1
+metric likely_stuck 1
+metric running_seconds 73 job=slow build=2 node=Built-In_Node
+metric estimated_seconds 3 job=slow build=2 node=Built-In_Node
+metric estimate_pct 2382.96 job=slow build=2 node=Built-In_Node
+metric progress_pct 99 job=slow build=2 node=Built-In_Node
+metric stuck 1 job=slow build=2 node=Built-In_Node
+metric builds_not_shown 0
+  PASS  jk2528: jenkins_builds runs
+
+$ bash packs/jenkins/macos/jobs.sh
+metric up 1
+metric jobs 8
+metric failing 2
+metric unstable 1
+metric aborted 0
+metric disabled 1
+metric never_built 3
+metric building 1
+metric in_queue 1
+metric builds_last_hour 6
+metric failures_last_hour 2
+metric job_failing 1 job=fail
+metric job_unstable 0 job=fail
+metric health_score 0 job=fail
+metric success_rate_pct 0 job=fail
+metric builds_since_success 1 job=fail
+metric last_failure_age_seconds 79 job=fail
+metric last_build_age_seconds 79 job=fail
+metric last_duration_seconds 0 job=fail
+metric job_failing 1 job=team/nightly
+metric job_unstable 0 job=team/nightly
+metric health_score 0 job=team/nightly
+metric success_rate_pct 0 job=team/nightly
+metric builds_since_success 1 job=team/nightly
+metric last_failure_age_seconds 78 job=team/nightly
+metric last_build_age_seconds 78 job=team/nightly
+metric last_duration_seconds 0 job=team/nightly
+metric job_failing 0 job=unstable
+metric job_unstable 1 job=unstable
+metric health_score 100 job=unstable
+metric success_rate_pct 0 job=unstable
+metric builds_since_success 0 job=unstable
+metric last_success_age_seconds 79 job=unstable
+metric last_build_age_seconds 79 job=unstable
+metric last_duration_seconds 4 job=unstable
+metric job_failing 0 job=pass
+metric job_unstable 0 job=pass
+metric health_score 100 job=pass
+metric success_rate_pct 100 job=pass
+metric builds_since_success 0 job=pass
+metric last_success_age_seconds 79 job=pass
+metric last_build_age_seconds 79 job=pass
+metric last_duration_seconds 0 job=pass
+metric job_failing 0 job=slow
+metric job_unstable 0 job=slow
+metric health_score 100 job=slow
+metric success_rate_pct 100 job=slow
+metric builds_since_success 1 job=slow
+metric last_success_age_seconds 78 job=slow
+metric last_build_age_seconds 73 job=slow
+metric job_failing 0 job=disabled
+metric job_unstable 0 job=disabled
+metric job_failing 0 job=never
+metric job_unstable 0 job=never
+metric job_failing 0 job=waiting
+metric job_unstable 0 job=waiting
+metric jobs_not_shown 0
+  PASS  jk2528: jenkins_jobs runs
+
+$ bash packs/jenkins/macos/load.sh
+metric up 1
+metric queue_length 0.52 window=10s
+metric queue_length 0.1 window=1m
+metric queue_length 0 window=1h
+metric queue_length_total 0.52 window=10s
+metric queue_length_total 0.1 window=1m
+metric queue_length_total 0 window=1h
+metric executors_busy 0 window=10s
+metric executors_busy 0 window=1m
+metric executors_busy 0 window=1h
+metric executors_idle 0 window=10s
+metric executors_idle 0 window=1m
+metric executors_idle 0 window=1h
+metric executors_available 0 window=10s
+metric executors_available 0 window=1m
+metric executors_available 0 window=1h
+metric executors_online 0 window=10s
+metric executors_online 0 window=1m
+metric executors_online 0 window=1h
+metric executors_connecting 0 window=10s
+metric executors_connecting 0 window=1m
+metric executors_connecting 0 window=1h
+metric executors_defined 1.14 window=10s
+metric executors_defined 0.2 window=1m
+metric executors_defined 0 window=1h
+metric executors_total 0 window=10s
+metric executors_total 0 window=1m
+metric executors_total 0 window=1h
+  PASS  jk2528: jenkins_load runs
+
+$ bash packs/jenkins/macos/plugins.sh
+metric up 1
+metric readable 1
+metric plugins 52
+metric updates 0
+metric inactive 0
+metric disabled 0
+metric pinned 0
+metric bundled 0
+metric deleted 0
+metric downgradable 0
+metric updates_not_shown 0
+metric sites 1
+metric sites_with_updates 0
+  PASS  jk2528: jenkins_plugins runs
+  PASS  jk2528: Jenkins 2.528.3
+  PASS  jk2528: two nodes offline
+  PASS  jk2528: two jobs failing
+  PASS  jk2528: the item waiting for a label no node has
+  PASS  jk2528: the plugins, with SystemRead
+  PASS  jk2528: without SystemRead, readable 0
+
+# The pack through Vigil.
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+jenkins: http://127.0.0.1:18081 as monitor
+  PASS  jenkins: off until enabled
+  PASS  jenkins: enabled
+        on: jenkins_status
+        on: jenkins_nodes
+        on: jenkins_labels
+        on: jenkins_queue
+        on: jenkins_builds
+        on: jenkins_jobs
+        on: jenkins_load
+        on: jenkins_plugins
+        needs a Jenkins user with Overall/Read, Job/Read and Agent/Read, and its API token as a secret: secret = JENKINS_API_TOKEN=secret:JENKINS_API_TOKEN, then vigil secret set JENKINS_API_TOKEN
+        needs for the plugins: Overall/SystemRead too (Jenkins started with -Djenkins.security.SystemReadPermission=true); without it, jenkins_plugins says readable 0
+        needs for Jenkins' JVM (heap, garbage collection, threads, CPU): the jvm pack, not this one: vigil pack install jvm
+        settings in vigil.config: JENKINS_URL= JENKINS_USER= JENKINS_CACERT=
+  PASS  jenkins: it says its JVM is the jvm pack's
+  PASS  jenkins: its jobs are on
+  PASS  jenkins: no secret line until the token is asked for
+  PASS  jenkins: the token is a secret reference, on every job
+  PASS  jenkins: precheck is happy
+  PASS  jenkins: every job runs
+        status: 13 lines
+        nodes: 23 lines
+        labels: 28 lines
+        queue: 9 lines
+        builds: 10 lines
+        jobs: 57 lines
+        load: 28 lines
+        plugins: 13 lines
+  PASS  jenkins: answers
+  PASS  jenkins: nodes offline seen
+  PASS  jenkins: failing jobs seen
+  PASS  jenkins: the queue read
+  PASS  jenkins: a wrong token fails the run
+  PASS  jenkins: and says why
+  PASS  jenkins: a Jenkins that does not answer still runs
+  PASS  jenkins: and reads as up 0
+  PASS  jenkins: the token is written nowhere
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  PASS  jenkins: metrics reach the backend
+20 passed, 0 failed
+directly: 28 passed, 0 failed

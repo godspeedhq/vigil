@@ -46,6 +46,18 @@
 #
 # Example output:
 #   metric up 1
+#   metric readable 1
+#   metric plugins 52
+#   metric updates 0
+#   metric inactive 0
+#   metric disabled 0
+#   metric pinned 0
+#   metric bundled 0
+#   metric deleted 0
+#   metric downgradable 0
+#   metric updates_not_shown 0
+#   metric sites 1
+#   metric sites_with_updates 0
 #
 # Reading the results (starting points: tune them to the controller):
 #   Healthy  inactive 0; updates few, and applied on a schedule.
