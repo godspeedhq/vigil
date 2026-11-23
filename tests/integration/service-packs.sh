@@ -1220,6 +1220,87 @@ else
     fi
 fi
 
+# --- a pack on the probe: tomcat, jetty, activemq, artemis -------------------
+# One of the packs that are only tables for the probe, through Vigil, as its
+# scripts/run-<pack>.sh sets it up: VIGIL_IT_PROBE_PACK its name,
+# VIGIL_IT_PROBE_PACK_DIR the pack with its jar built, VIGIL_IT_PROBE_TARGETS
+# its servers (name: jmxs=host:port; ...), VIGIL_IT_PROBE_USER and
+# VIGIL_IT_PROBE_PASSWORD their JMX login, VIGIL_IT_PROBE_CACERT their CA, and
+# VIGIL_IT_PROBE_EXPECT a metric that must reach the backend (tomcat_up).
+if [ -z "${VIGIL_IT_PROBE_PACK-}" ]; then
+    printf '  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)\n'
+elif [ -z "${JAVA_HOME-}" ] && ! command -v java > /dev/null 2>&1; then
+    printf '  SKIP  %s: java is not installed here\n' "$VIGIL_IT_PROBE_PACK"
+else
+    pp=$VIGIL_IT_PROBE_PACK
+    PP=$(printf '%s' "$pp" | tr '[:lower:]' '[:upper:]')
+    # The jobs have their servers, login and CA from Vigil: never from this
+    # test's own environment.
+    unset "${PP}_JMX" "${PP}_JMX_USER" "${PP}_JMX_PASSWORD" "${PP}_CACERT"
+    printf '%s: %s\n' "$pp" "$VIGIL_IT_PROBE_TARGETS"
+    rm -rf "$root/packs/$pp" && mkdir -p "$root/packs/$pp" && cp "$VIGIL_IT_PROBE_PACK_DIR"/* "$root/packs/$pp/"
+    pjobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$root/packs/$pp/pack.config")
+    pn=$(printf '%s\n' $pjobs | wc -l | tr -d ' ')
+    pjobs_on() { vigil pack list | awk -v p="^${pp}_" '$1 ~ p { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    # The value job <pack>_$1's last run printed for metric $2, in a line with $3.
+    pval() { grep -h " out metric $2 " "$root/logs/jobs/${pp}_$1"/*.log 2> /dev/null | grep -- "${3-}" | tail -n 1 | awk '{ print $6 }'; }
+    psaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/${pp}_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    prun() { vigil run "${pp}_$1" > "$work/out" 2>&1; echo $?; }
+    check "$pp: off until enabled" "off=$pn" "$(pjobs_on)"
+    out=$(vigil pack enable "$pp" 2>&1)
+    check "$pp: enabled" 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check "$pp: it says its JVM is the jvm pack's" yes "$(printf '%s\n' "$out" | grep -q "the jvm pack, not this one" && echo yes || echo no)"
+    check "$pp: its jobs are on" "on=$pn" "$(pjobs_on)"
+    check "$pp: no secret line until JMX asks for one" 0 "$(grep -c "^secret *= ${PP}_JMX_PASSWORD=" "$root/config/vigil.config")"
+    # JMX with a password: a secret line on each job, as packs/README.md says.
+    awk -v e="^env *= ${PP}_CACERT=" -v s="secret      = ${PP}_JMX_PASSWORD=secret:${PP}_JMX_PASSWORD" '{ print } $0 ~ e { print s }' \
+        "$root/config/vigil.config" > "$work/cfg" && cat "$work/cfg" > "$root/config/vigil.config"
+    check "$pp: the password is a secret reference, on every job" "$pn" "$(grep -c "^secret *= ${PP}_JMX_PASSWORD=secret:${PP}_JMX_PASSWORD" "$root/config/vigil.config")"
+    printf '%s' "$VIGIL_IT_PROBE_PASSWORD" | vigil secret set "${PP}_JMX_PASSWORD" --stdin > /dev/null
+    set_env "${PP}_JMX" "$VIGIL_IT_PROBE_TARGETS"
+    set_env "${PP}_JMX_USER" "$VIGIL_IT_PROBE_USER"
+    set_env "${PP}_CACERT" "${VIGIL_IT_PROBE_CACERT-}"
+    check "$pp: precheck is happy" 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+
+    failed=''
+    for j in $pjobs; do
+        [ "$(prun "$j")" = 0 ] || failed="$failed $j"
+    done
+    check "$pp: every job runs" '' "$failed"
+    for j in $failed; do sed 's/^/        /' "$root/logs/jobs/${pp}_$j"/*.log | tail -n 4; done
+    for t in $(printf '%s\n' "$VIGIL_IT_PROBE_TARGETS" | tr ';' '\n' | sed -n 's/^ *\([A-Za-z0-9_.-]*\): .*/\1/p'); do
+        check "$pp: $t answers over JMX" 1 "$(pval status jmx_up "=$t ")"
+    done
+    for j in $pjobs; do
+        printf '        %s: %s lines\n' "$j" "$(grep -h ' out metric ' "$root/logs/jobs/${pp}_$j"/*.log | wc -l | tr -d ' ')"
+    done
+
+    # What fails the run, saying why: a wrong password, a certificate it
+    # cannot trust. A server that does not answer is a reading.
+    printf 'not-the-password' | vigil secret set "${PP}_JMX_PASSWORD" --stdin > /dev/null
+    check "$pp: a wrong password fails the run" 2 "$(prun status)"
+    check "$pp: and says why" yes "$(psaid status 'refused the login')"
+    printf '%s' "$VIGIL_IT_PROBE_PASSWORD" | vigil secret set "${PP}_JMX_PASSWORD" --stdin > /dev/null
+    if [ -n "${VIGIL_IT_PROBE_CACERT-}" ]; then
+        set_env "${PP}_CACERT" ''
+        check "$pp: a certificate it cannot trust fails the run" 2 "$(prun status)"
+        check "$pp: and says why" yes "$(psaid status 'certificate is not trusted')"
+        set_env "${PP}_CACERT" "$VIGIL_IT_PROBE_CACERT"
+    fi
+    set_env "${PP}_JMX" 'gone: jmx=127.0.0.1:1'
+    check "$pp: a server that does not answer still runs" 0 "$(prun status)"
+    check "$pp: and reads as jmx_up 0" 0 "$(pval status jmx_up '=gone ')"
+    set_env "${PP}_JMX" "$VIGIL_IT_PROBE_TARGETS"
+    vigil run "${pp}_status" > /dev/null 2>&1
+    check "$pp: the password is written nowhere" '' "$(grep -rlF -- "$VIGIL_IT_PROBE_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+fi
+
 # --- nginx ------------------------------------------------------------------
 if [ -z "${VIGIL_IT_NGINX_URL-}" ]; then
     printf '  SKIP  nginx: set VIGIL_IT_NGINX_URL\n'
@@ -1270,6 +1351,10 @@ if [ -n "${VIGIL_IT_JVM_TARGETS-}" ] && [ -n "${VIGIL_IT_JVM_PASSWORD-}" ]; then
     # merging them, in the background.
     for _ in $(seq 1 40); do grep -q '^jvm_deadlocks_deadlocked{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
     check 'jvm: metrics reach the backend' yes "$(grep -q '^jvm_heap_used_bytes{' "$root/metrics/vigil.prom" && grep -q '^jvm_deadlocks_deadlocked{' "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
+if [ -n "${VIGIL_IT_PROBE_PACK-}" ] && [ -n "${VIGIL_IT_PROBE_EXPECT-}" ]; then
+    for _ in $(seq 1 20); do grep -q "^${VIGIL_IT_PROBE_EXPECT}{" "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check "$VIGIL_IT_PROBE_PACK: metrics reach the backend" yes "$(grep -q "^${VIGIL_IT_PROBE_EXPECT}{" "$root/metrics/vigil.prom" && grep -q "^${VIGIL_IT_PROBE_PACK}_jmx_up{" "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
     check 'nginx: metrics reach the backend' yes "$(grep -q '^nginx_requests_count{' "$root/metrics/vigil.prom" && echo yes || echo no)"

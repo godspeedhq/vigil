@@ -1041,6 +1041,106 @@ try {
         }
         Test-Equal 'jvm: metrics reach the backend' 'True' ([string](($prom -match '(?m)^jvm_heap_used_bytes\{.*jvm="win"') -and ($prom -match '(?m)^jvm_threads_live\{')))
     }
+
+    # --- a pack on the probe: tomcat, jetty, activemq, artemis -------------
+    # One of the packs that are only tables for the probe, through Vigil, as
+    # its scripts/run-<pack>.sh sets it up: VIGIL_IT_PROBE_PACK its name,
+    # VIGIL_IT_PROBE_RELEASE a folder of packs.sh's archives (its own among
+    # them), VIGIL_IT_PROBE_TARGETS its servers, VIGIL_IT_PROBE_USER and
+    # VIGIL_IT_PROBE_PASSWORD their JMX login, VIGIL_IT_PROBE_CACERT their CA,
+    # VIGIL_IT_PROBE_EXPECT a metric that must reach the backend.
+    $pjava = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { [string](Get-Command java.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source) }
+    if (-not $env:VIGIL_IT_PROBE_PACK) { Write-Host '  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)' }
+    elseif (-not $pjava -or -not (Test-Path -LiteralPath $pjava)) { Write-Host "  SKIP  $($env:VIGIL_IT_PROBE_PACK): java is not installed here" }
+    elseif (-not $env:VIGIL_IT_PROBE_RELEASE) { Write-Host "  SKIP  $($env:VIGIL_IT_PROBE_PACK): set VIGIL_IT_PROBE_RELEASE to a folder of packs.sh's archives" }
+    else {
+        $pp = $env:VIGIL_IT_PROBE_PACK
+        $PU = $pp.ToUpperInvariant()
+        foreach ($v in "${PU}_JMX", "${PU}_JMX_USER", "${PU}_JMX_PASSWORD", "${PU}_CACERT") { Remove-Item "Env:\$v" -ErrorAction SilentlyContinue }
+        Write-Host "${pp}: $($env:VIGIL_IT_PROBE_TARGETS)"
+        $pzip = @(Get-ChildItem -LiteralPath $env:VIGIL_IT_PROBE_RELEASE -Filter "vigil-pack-$pp-*-windows.zip" | Sort-Object Name)[-1]
+        $pkx = Join-Path $work "$pp-pack"
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($pzip.FullName, $pkx)
+        $pk = Join-Path $root "packs\$pp"
+        Remove-Item -LiteralPath $pk -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item -LiteralPath (Join-Path $pkx $pp) -Destination $pk -Recurse
+        $pjobs = @(([System.IO.File]::ReadAllLines((Join-Path $pk 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] }))
+        $pn = $pjobs.Count
+        function Get-ProbeJobsOn {
+            $list = (Invoke-Vigil pack list).Text
+            $s = @($list.Split("`n") | Where-Object { $_ -match "^\s*${pp}_\w+\s" } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            return (@($s | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        function Invoke-PJob { param([string]$Job) return [string](Invoke-Vigil run "${pp}_$Job").Code }
+        Test-Equal "${pp}: off until enabled" "off=$pn" (Get-ProbeJobsOn)
+        $r = Invoke-Vigil pack enable $pp
+        Test-Equal "${pp}: enabled" '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "${pp}: it says its JVM is the jvm pack's" 'True' ([string]$r.Text.Contains('the jvm pack, not this one'))
+        Test-Equal "${pp}: its jobs are on" "on=$pn" (Get-ProbeJobsOn)
+        $cfg = Join-Path $root 'config\vigil.config'
+        Test-Equal "${pp}: no secret line until JMX asks for one" '0' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), "(?m)^secret\s*=\s*${PU}_JMX_PASSWORD=")).Count)
+        [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace "(?m)^(env\s*=\s*${PU}_CACERT=[^\r\n]*)(\r?\n)", "`$1`$2secret      = ${PU}_JMX_PASSWORD=secret:${PU}_JMX_PASSWORD`$2"))
+        Test-Equal "${pp}: the password is a secret reference, on every job" "$pn" ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), "(?m)^secret\s*=\s*${PU}_JMX_PASSWORD=secret:${PU}_JMX_PASSWORD")).Count)
+        # A logon with no password (SSH with a key) cannot use the secret
+        # store: then the jobs take it by an env: reference, as such a logon
+        # would.
+        $penv = $false
+        Set-VigilSecret "${PU}_JMX_PASSWORD" $env:VIGIL_IT_PROBE_PASSWORD
+        if ((Invoke-Vigil secret list).Text -notmatch "${PU}_JMX_PASSWORD") {
+            $penv = $true
+            Write-Host "  note  ${pp}: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_PROBE_PASSWORD"
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace "(?m)^(secret\s*=\s*${PU}_JMX_PASSWORD=)secret:${PU}_JMX_PASSWORD", '${1}env:VIGIL_IT_PROBE_PASSWORD'))
+        }
+        Set-Env "${PU}_JMX" $env:VIGIL_IT_PROBE_TARGETS
+        Set-Env "${PU}_JMX_USER" $env:VIGIL_IT_PROBE_USER
+        Set-Env "${PU}_CACERT" ([string]$env:VIGIL_IT_PROBE_CACERT)
+        $r = Invoke-Vigil precheck
+        Test-Equal "${pp}: precheck is happy" '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $pjobs) { if ((Invoke-PJob $j) -ne '0') { $failed += $j } }
+        Test-Equal "${pp}: every job runs" '' ($failed -join ' ')
+        foreach ($j in $failed) { Show-LastRun "${pp}_$j" }
+        foreach ($t in $env:VIGIL_IT_PROBE_TARGETS.Split(';')) {
+            if ($t -match '^\s*([A-Za-z0-9_.-]+):\s') { Test-Equal "${pp}: $($Matches[1]) answers over JMX" '1' (Get-Printed "${pp}_status" jmx_up "=$($Matches[1]) ") }
+        }
+        Show-LastRun "${pp}_status"
+        # What fails the run, saying why; a server that does not answer is a reading.
+        if ($penv) { $keep = $env:VIGIL_IT_PROBE_PASSWORD; $env:VIGIL_IT_PROBE_PASSWORD = 'not-the-password' }
+        else { Set-VigilSecret "${PU}_JMX_PASSWORD" 'not-the-password' }
+        Test-Equal "${pp}: a wrong password fails the run" '2' (Invoke-PJob status)
+        Test-Equal "${pp}: and says why" 'True' (Test-Said "${pp}_status" 'refused the login')
+        if ($penv) { $env:VIGIL_IT_PROBE_PASSWORD = $keep } else { Set-VigilSecret "${PU}_JMX_PASSWORD" $env:VIGIL_IT_PROBE_PASSWORD }
+        if ($env:VIGIL_IT_PROBE_CACERT) {
+            Set-Env "${PU}_CACERT" ''
+            Test-Equal "${pp}: a certificate it cannot trust fails the run" '2' (Invoke-PJob status)
+            Test-Equal "${pp}: and says why" 'True' (Test-Said "${pp}_status" 'certificate is not trusted')
+            Set-Env "${PU}_CACERT" $env:VIGIL_IT_PROBE_CACERT
+        }
+        Set-Env "${PU}_JMX" 'gone: jmx=127.0.0.1:1'
+        Test-Equal "${pp}: a server that does not answer still runs" '0' (Invoke-PJob status)
+        Test-Equal "${pp}: and reads as jmx_up 0" '0' (Get-Printed "${pp}_status" jmx_up '=gone ')
+        Set-Env "${PU}_JMX" $env:VIGIL_IT_PROBE_TARGETS
+        [void](Invoke-PJob status)
+        $leaks = @()
+        foreach ($d in 'logs', 'state', 'spool', 'metrics') {
+            foreach ($f in Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue) {
+                if ([System.IO.File]::ReadAllText($f.FullName).Contains($env:VIGIL_IT_PROBE_PASSWORD)) { $leaks += $f.Name }
+            }
+        }
+        if ([System.IO.File]::ReadAllText($cfg).Contains($env:VIGIL_IT_PROBE_PASSWORD)) { $leaks += 'vigil.config' }
+        Test-Equal "${pp}: the password is written nowhere" '' ($leaks -join ' ')
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match "(?m)^$($env:VIGIL_IT_PROBE_EXPECT)\{") { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal "${pp}: metrics reach the backend" 'True' ([string](($prom -match "(?m)^$($env:VIGIL_IT_PROBE_EXPECT)\{") -and ($prom -match "(?m)^${pp}_jmx_up\{")))
+    }
 }
 finally {
     # The mssql test's own connections, holding a lock or waiting on one.

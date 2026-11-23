@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) Bankole Ogundero and the Vigil contributors
+  SPDX-License-Identifier: Apache-2.0
+
+  Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+  implied. Run it at your own risk: review it first, and test it before you
+  rely on it. In no event shall the authors or copyright holders be liable
+  for any claim, damages or other liability arising from its use. See the
+  LICENSE file for the full terms.
+
+  server.xml - a Tomcat (9, 10.1 or 11) for the tomcat pack's tests
+  (scripts/run-tomcat.sh), small on purpose so trouble comes quickly:
+    http   ${tomcat.port}, on a shared Executor of 8 threads (exec-), with
+           room for 10 more connections waiting
+    admin  ${tomcat.port2}, its own pool of 6 threads
+  and a valve that calls a request stuck after 5 seconds. The address is
+  ${tomcat.address}: 0.0.0.0 in a container, 127.0.0.1 on a machine.
+-->
+<Server port="-1" shutdown="SHUTDOWN">
+  <Service name="Catalina">
+    <Executor name="tomcatThreadPool" namePrefix="exec-" maxThreads="8" minSpareThreads="2" maxQueueSize="10"/>
+    <Connector port="${tomcat.port}" address="${tomcat.address}" protocol="HTTP/1.1" executor="tomcatThreadPool"
+               connectionTimeout="20000" acceptCount="10"/>
+    <Connector port="${tomcat.port2}" address="${tomcat.address}" protocol="HTTP/1.1" maxThreads="6" minSpareThreads="1"
+               connectionTimeout="20000"/>
+    <Engine name="Catalina" defaultHost="localhost">
+      <Host name="localhost" appBase="webapps" unpackWARs="true" autoDeploy="false">
+        <Valve className="org.apache.catalina.valves.StuckThreadDetectionValve" threshold="5"/>
+      </Host>
+    </Engine>
+  </Service>
+</Server>

@@ -1,0 +1,69 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Tomcats for the tomcat pack (scripts/run-tomcat.sh), one of each line, on
+# a Java of its own, each with workloads/tomcat's server.xml and apps (a
+# shop to trouble, an app that cannot start), and JMX with a password and
+# TLS. Not somewhere Vigil sends: what its pack reads.
+#
+#   tc9    Tomcat 9.0,  Java 11   JMX 19301   http 18091, admin 18092
+#   tc10   Tomcat 10.1, Java 17   JMX 19302   http 18093, admin 18094
+#   tc11   Tomcat 11.0, Java 21   JMX 19303   http 18095, admin 18096
+#
+# JMX: user monitor (readonly), password TOMCAT_JMX_PASSWORD; TLS with the
+# certificate in TOMCAT_TLS_DIR (server.p12, naming localhost and 127.0.0.1,
+# its password in TOMCAT_KS_PASSWORD). The apps' libraries (H2, HikariCP
+# and SLF4J's API) are in TOMCAT_LIB_DIR. Each takes 448 MB, its heap 192 MB.
+
+x-tomcat: &tomcat
+  mem_limit: 448m
+  entrypoint: ["/bin/sh", "/vigil/start.sh"]
+  volumes:
+    - ./configs/services/tomcat/start.sh:/vigil/start.sh:ro,z
+    - ./workloads/tomcat:/vigil/workload:ro,z
+    - ${TOMCAT_LIB_DIR:-./.tomcat-lib}:/vigil/lib:ro,z
+    - ${TOMCAT_TLS_DIR:-./.tomcat-tls}:/tls:ro,z
+
+x-env: &env
+  JMX_PASSWORD: ${TOMCAT_JMX_PASSWORD:-}
+  KS_PASSWORD: ${TOMCAT_KS_PASSWORD:-}
+
+services:
+  tc9:
+    <<: *tomcat
+    image: tomcat:9.0-jre11
+    environment:
+      <<: *env
+      JMX_PORT: "19301"
+    ports:
+      - "127.0.0.1:19301:19301"
+      - "127.0.0.1:18091:8080"
+      - "127.0.0.1:18092:8081"
+
+  tc10:
+    <<: *tomcat
+    image: tomcat:10.1-jre17
+    environment:
+      <<: *env
+      JMX_PORT: "19302"
+    ports:
+      - "127.0.0.1:19302:19302"
+      - "127.0.0.1:18093:8080"
+      - "127.0.0.1:18094:8081"
+
+  tc11:
+    <<: *tomcat
+    image: tomcat:11.0-jre21
+    environment:
+      <<: *env
+      JMX_PORT: "19303"
+    ports:
+      - "127.0.0.1:19303:19303"
+      - "127.0.0.1:18095:8080"
+      - "127.0.0.1:18096:8081"
