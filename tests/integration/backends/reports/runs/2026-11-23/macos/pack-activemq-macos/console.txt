@@ -1,0 +1,334 @@
+pack     activemq 1.0.0, Vigil commit a0aa32d (a copy); its jar built there by tools/release/client-jar.sh
+servers  run-activemq.sh's brokers on the Fedora test machine (ActiveMQ Classic 5.18, 5.19 and 6.2, each with trouble on purpose; JMX with a password and TLS), through SSH tunnels
+
+######## the jar built, every job, then on a JRE, then tests/integration/service-packs.sh through Vigil
+
+host     Bankoles-MacBook-Air, macOS 12.7.6, bash 3.2.57(1)-release
+java     openjdk version "21.0.13.1" 2026-11-17 LTS
+jar      _probe.jar 1c3abd00acbfa9e4fbe4985965706c70f76d99adbf5a7ce6cc96ee0e3f87be36 (javac 21.0.13.1)
+servers  a518: jmxs=localhost:19321; a519: jmxs=localhost:19322; a62: jmxs=localhost:19323
+
+# Every job, from the jar.
+
+$ bash packs/activemq/status.sh
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric version 1 broker=a518 jmx=localhost:19321 version=5.18.7
+metric broker 1 broker=a518 jmx=localhost:19321 broker_name=a518
+metric uptime_seconds 345.465 broker=a518 jmx=localhost:19321
+metric healthy 1 broker=a518 jmx=localhost:19321
+metric slave 0 broker=a518 jmx=localhost:19321
+metric connector_up 1 broker=a518 jmx=localhost:19321 connectorName=openwire
+metric connections_refused_count 0 broker=a518 jmx=localhost:19321 connectorName=openwire
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric version 1 broker=a519 jmx=localhost:19322 version=5.19.2
+metric broker 1 broker=a519 jmx=localhost:19322 broker_name=a519
+metric uptime_seconds 344.966 broker=a519 jmx=localhost:19322
+metric healthy 1 broker=a519 jmx=localhost:19322
+metric slave 0 broker=a519 jmx=localhost:19322
+metric connector_up 1 broker=a519 jmx=localhost:19322 connectorName=openwire
+metric connections_refused_count 0 broker=a519 jmx=localhost:19322 connectorName=openwire
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric version 1 broker=a62 jmx=localhost:19323 version=6.2.0
+metric broker 1 broker=a62 jmx=localhost:19323 broker_name=a62
+metric uptime_seconds 349.239 broker=a62 jmx=localhost:19323
+metric healthy 1 broker=a62 jmx=localhost:19323
+metric slave 0 broker=a62 jmx=localhost:19323
+metric connector_up 1 broker=a62 jmx=localhost:19323 connectorName=openwire
+metric connections_refused_count 0 broker=a62 jmx=localhost:19323 connectorName=openwire
+  PASS  activemq_status runs
+
+$ bash packs/activemq/broker.sh
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric memory_pct 11 broker=a518 jmx=localhost:19321
+metric memory_limit_bytes 16777216 broker=a518 jmx=localhost:19321
+metric store_pct 1 broker=a518 jmx=localhost:19321
+metric store_limit_bytes 209715200 broker=a518 jmx=localhost:19321
+metric temp_pct 100 broker=a518 jmx=localhost:19321
+metric temp_limit_bytes 104857600 broker=a518 jmx=localhost:19321
+metric scheduler_pct 0 broker=a518 jmx=localhost:19321
+metric scheduler_limit_bytes 0 broker=a518 jmx=localhost:19321
+metric store_bytes 2735113 broker=a518 jmx=localhost:19321
+metric connections 3 broker=a518 jmx=localhost:19321
+metric connections_count 10 broker=a518 jmx=localhost:19321
+metric producers 1 broker=a518 jmx=localhost:19321
+metric consumers 4 broker=a518 jmx=localhost:19321
+metric messages 13550 broker=a518 jmx=localhost:19321
+metric enqueued_count 14247 broker=a518 jmx=localhost:19321
+metric dequeued_count 53 broker=a518 jmx=localhost:19321
+metric message_mean_bytes 8170 broker=a518 jmx=localhost:19321
+metric message_max_bytes 11024 broker=a518 jmx=localhost:19321
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric memory_pct 11 broker=a519 jmx=localhost:19322
+metric memory_limit_bytes 16777216 broker=a519 jmx=localhost:19322
+metric store_pct 1 broker=a519 jmx=localhost:19322
+metric store_limit_bytes 209715200 broker=a519 jmx=localhost:19322
+metric temp_pct 100 broker=a519 jmx=localhost:19322
+metric temp_limit_bytes 104857600 broker=a519 jmx=localhost:19322
+metric scheduler_pct 0 broker=a519 jmx=localhost:19322
+metric scheduler_limit_bytes 0 broker=a519 jmx=localhost:19322
+metric store_bytes 2733934 broker=a519 jmx=localhost:19322
+metric connections 2 broker=a519 jmx=localhost:19322
+metric connections_count 9 broker=a519 jmx=localhost:19322
+metric producers 1 broker=a519 jmx=localhost:19322
+metric consumers 2 broker=a519 jmx=localhost:19322
+metric messages 13547 broker=a519 jmx=localhost:19322
+metric enqueued_count 14239 broker=a519 jmx=localhost:19322
+metric dequeued_count 52 broker=a519 jmx=localhost:19322
+metric message_mean_bytes 8171 broker=a519 jmx=localhost:19322
+metric message_max_bytes 11024 broker=a519 jmx=localhost:19322
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric memory_pct 11 broker=a62 jmx=localhost:19323
+... (61 lines)
+  PASS  activemq_broker runs
+
+$ bash packs/activemq/queues.sh
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric size 10173 broker=a518 jmx=localhost:19321 destinationName=bulk
+metric size 2997 broker=a518 jmx=localhost:19321 destinationName=orders
+metric size 300 broker=a518 jmx=localhost:19321 destinationName=invoices
+metric size 50 broker=a518 jmx=localhost:19321 destinationName=ActiveMQ.DLQ
+metric size 30 broker=a518 jmx=localhost:19321 destinationName=refunds
+metric size 0 broker=a518 jmx=localhost:19321 destinationName=late
+metric enqueued_count 10173 broker=a518 jmx=localhost:19321 destinationName=bulk
+metric enqueued_count 3000 broker=a518 jmx=localhost:19321 destinationName=orders
+metric enqueued_count 300 broker=a518 jmx=localhost:19321 destinationName=invoices
+metric enqueued_count 50 broker=a518 jmx=localhost:19321 destinationName=ActiveMQ.DLQ
+metric enqueued_count 30 broker=a518 jmx=localhost:19321 destinationName=refunds
+metric enqueued_count 50 broker=a518 jmx=localhost:19321 destinationName=late
+metric dequeued_count 0 broker=a518 jmx=localhost:19321 destinationName=bulk
+metric dequeued_count 3 broker=a518 jmx=localhost:19321 destinationName=orders
+metric dequeued_count 0 broker=a518 jmx=localhost:19321 destinationName=invoices
+metric dequeued_count 0 broker=a518 jmx=localhost:19321 destinationName=ActiveMQ.DLQ
+metric dequeued_count 0 broker=a518 jmx=localhost:19321 destinationName=refunds
+metric dequeued_count 50 broker=a518 jmx=localhost:19321 destinationName=late
+metric dispatched_count 0 broker=a518 jmx=localhost:19321 destinationName=bulk
+metric dispatched_count 901 broker=a518 jmx=localhost:19321 destinationName=orders
+metric dispatched_count 0 broker=a518 jmx=localhost:19321 destinationName=invoices
+metric dispatched_count 0 broker=a518 jmx=localhost:19321 destinationName=ActiveMQ.DLQ
+metric dispatched_count 0 broker=a518 jmx=localhost:19321 destinationName=refunds
+metric dispatched_count 0 broker=a518 jmx=localhost:19321 destinationName=late
+metric expired_count 0 broker=a518 jmx=localhost:19321 destinationName=bulk
+metric expired_count 0 broker=a518 jmx=localhost:19321 destinationName=orders
+metric expired_count 0 broker=a518 jmx=localhost:19321 destinationName=invoices
+metric expired_count 0 broker=a518 jmx=localhost:19321 destinationName=ActiveMQ.DLQ
+metric expired_count 0 broker=a518 jmx=localhost:19321 destinationName=refunds
+metric expired_count 50 broker=a518 jmx=localhost:19321 destinationName=late
+metric in_flight 0 broker=a518 jmx=localhost:19321 destinationName=bulk
+metric in_flight 898 broker=a518 jmx=localhost:19321 destinationName=orders
+metric in_flight 0 broker=a518 jmx=localhost:19321 destinationName=invoices
+metric in_flight 0 broker=a518 jmx=localhost:19321 destinationName=ActiveMQ.DLQ
+metric in_flight 0 broker=a518 jmx=localhost:19321 destinationName=refunds
+metric in_flight 0 broker=a518 jmx=localhost:19321 destinationName=late
+metric consumers 0 broker=a518 jmx=localhost:19321 destinationName=bulk
+metric consumers 2 broker=a518 jmx=localhost:19321 destinationName=orders
+metric consumers 0 broker=a518 jmx=localhost:19321 destinationName=invoices
+... (489 lines)
+  PASS  activemq_queues runs
+
+$ bash packs/activemq/topics.sh
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric pending 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric enqueued_count 500 broker=a518 jmx=localhost:19321 destinationName=prices
+metric dequeued_count 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric dispatched_count 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric expired_count 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric consumers 2 broker=a518 jmx=localhost:19321 destinationName=prices
+metric producers 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric memory_pct 49 broker=a518 jmx=localhost:19321 destinationName=prices
+metric blocked_sends_count 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric pending 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric enqueued_count 500 broker=a519 jmx=localhost:19322 destinationName=prices
+metric dequeued_count 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric dispatched_count 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric expired_count 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric consumers 1 broker=a519 jmx=localhost:19322 destinationName=prices
+metric producers 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric memory_pct 49 broker=a519 jmx=localhost:19322 destinationName=prices
+metric blocked_sends_count 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric pending 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric enqueued_count 500 broker=a62 jmx=localhost:19323 destinationName=prices
+metric dequeued_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric dispatched_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric expired_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric consumers 1 broker=a62 jmx=localhost:19323 destinationName=prices
+metric producers 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric memory_pct 49 broker=a62 jmx=localhost:19323 destinationName=prices
+metric blocked_sends_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+  PASS  activemq_topics runs
+
+$ bash packs/activemq/dlq.sh
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric size 50 broker=a518 jmx=localhost:19321 destinationName=ActiveMQ.DLQ
+metric enqueued_count 50 broker=a518 jmx=localhost:19321 destinationName=ActiveMQ.DLQ
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric size 50 broker=a519 jmx=localhost:19322 destinationName=ActiveMQ.DLQ
+metric enqueued_count 50 broker=a519 jmx=localhost:19322 destinationName=ActiveMQ.DLQ
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric size 50 broker=a62 jmx=localhost:19323 destinationName=ActiveMQ.DLQ
+metric enqueued_count 50 broker=a62 jmx=localhost:19323 destinationName=ActiveMQ.DLQ
+  PASS  activemq_dlq runs
+
+$ bash packs/activemq/subscribers.sh
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric pending 500 broker=a518 jmx=localhost:19321 destinationName=prices clientId=sub-billing
+metric pending 0 broker=a518 jmx=localhost:19321 destinationName=orders clientId=ID_c3382d314059-36933-1795428544329-0_1
+metric pending 0 broker=a518 jmx=localhost:19321 destinationName=prices clientId=to-a62_a62_inbound_a518
+metric pending 0 broker=a518 jmx=localhost:19321 destinationName=orders clientId=to-a62_a62_inbound_a518
+metric dispatched 0 broker=a518 jmx=localhost:19321 destinationName=prices clientId=sub-billing
+metric dispatched 898 broker=a518 jmx=localhost:19321 destinationName=orders clientId=ID_c3382d314059-36933-1795428544329-0_1
+metric dispatched 0 broker=a518 jmx=localhost:19321 destinationName=prices clientId=to-a62_a62_inbound_a518
+metric dispatched 0 broker=a518 jmx=localhost:19321 destinationName=orders clientId=to-a62_a62_inbound_a518
+metric enqueued_count 500 broker=a518 jmx=localhost:19321 destinationName=prices clientId=sub-billing
+metric enqueued_count 901 broker=a518 jmx=localhost:19321 destinationName=orders clientId=ID_c3382d314059-36933-1795428544329-0_1
+metric enqueued_count 0 broker=a518 jmx=localhost:19321 destinationName=prices clientId=to-a62_a62_inbound_a518
+metric enqueued_count 0 broker=a518 jmx=localhost:19321 destinationName=orders clientId=to-a62_a62_inbound_a518
+metric dequeued_count 0 broker=a518 jmx=localhost:19321 destinationName=prices clientId=sub-billing
+metric dequeued_count 3 broker=a518 jmx=localhost:19321 destinationName=orders clientId=ID_c3382d314059-36933-1795428544329-0_1
+metric dequeued_count 0 broker=a518 jmx=localhost:19321 destinationName=prices clientId=to-a62_a62_inbound_a518
+metric dequeued_count 0 broker=a518 jmx=localhost:19321 destinationName=orders clientId=to-a62_a62_inbound_a518
+metric active 0 broker=a518 jmx=localhost:19321 destinationName=prices clientId=sub-billing
+metric active 1 broker=a518 jmx=localhost:19321 destinationName=orders clientId=ID_c3382d314059-36933-1795428544329-0_1
+metric active 1 broker=a518 jmx=localhost:19321 destinationName=prices clientId=to-a62_a62_inbound_a518
+metric active 1 broker=a518 jmx=localhost:19321 destinationName=orders clientId=to-a62_a62_inbound_a518
+metric slow 0 broker=a518 jmx=localhost:19321 destinationName=prices clientId=sub-billing
+metric slow 0 broker=a518 jmx=localhost:19321 destinationName=orders clientId=ID_c3382d314059-36933-1795428544329-0_1
+metric slow 0 broker=a518 jmx=localhost:19321 destinationName=prices clientId=to-a62_a62_inbound_a518
+metric slow 0 broker=a518 jmx=localhost:19321 destinationName=orders clientId=to-a62_a62_inbound_a518
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric pending 500 broker=a519 jmx=localhost:19322 destinationName=prices clientId=sub-billing
+metric pending 0 broker=a519 jmx=localhost:19322 destinationName=orders clientId=ID_9853a5d39d9e-39671-1795428619640-0_1
+metric dispatched 0 broker=a519 jmx=localhost:19322 destinationName=prices clientId=sub-billing
+metric dispatched 899 broker=a519 jmx=localhost:19322 destinationName=orders clientId=ID_9853a5d39d9e-39671-1795428619640-0_1
+metric enqueued_count 500 broker=a519 jmx=localhost:19322 destinationName=prices clientId=sub-billing
+metric enqueued_count 901 broker=a519 jmx=localhost:19322 destinationName=orders clientId=ID_9853a5d39d9e-39671-1795428619640-0_1
+metric dequeued_count 0 broker=a519 jmx=localhost:19322 destinationName=prices clientId=sub-billing
+metric dequeued_count 2 broker=a519 jmx=localhost:19322 destinationName=orders clientId=ID_9853a5d39d9e-39671-1795428619640-0_1
+metric active 0 broker=a519 jmx=localhost:19322 destinationName=prices clientId=sub-billing
+metric active 1 broker=a519 jmx=localhost:19322 destinationName=orders clientId=ID_9853a5d39d9e-39671-1795428619640-0_1
+metric slow 0 broker=a519 jmx=localhost:19322 destinationName=prices clientId=sub-billing
+metric slow 0 broker=a519 jmx=localhost:19322 destinationName=orders clientId=ID_9853a5d39d9e-39671-1795428619640-0_1
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric pending 500 broker=a62 jmx=localhost:19323 destinationName=prices clientId=sub-billing
+... (51 lines)
+  PASS  activemq_subscribers runs
+
+$ bash packs/activemq/producers.sh
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric blocked_seconds 0 broker=a518 jmx=localhost:19321 destinationName=bulk clientId=ID_c3382d314059-35835-1795428542378-0_1
+metric blocked 1 broker=a518 jmx=localhost:19321 destinationName=bulk clientId=ID_c3382d314059-35835-1795428542378-0_1
+metric blocked_pct 100 broker=a518 jmx=localhost:19321 destinationName=bulk clientId=ID_c3382d314059-35835-1795428542378-0_1
+metric sent_count 0 broker=a518 jmx=localhost:19321 destinationName=bulk clientId=ID_c3382d314059-35835-1795428542378-0_1
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric blocked_seconds 0 broker=a519 jmx=localhost:19322 destinationName=bulk clientId=ID_9853a5d39d9e-44611-1795428618662-0_1
+metric blocked 1 broker=a519 jmx=localhost:19322 destinationName=bulk clientId=ID_9853a5d39d9e-44611-1795428618662-0_1
+metric blocked_pct 100 broker=a519 jmx=localhost:19322 destinationName=bulk clientId=ID_9853a5d39d9e-44611-1795428618662-0_1
+metric sent_count 0 broker=a519 jmx=localhost:19322 destinationName=bulk clientId=ID_9853a5d39d9e-44611-1795428618662-0_1
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric blocked_seconds 0 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_cb17bb0cf78b-34581-1795428690987-0_1
+metric blocked 1 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_cb17bb0cf78b-34581-1795428690987-0_1
+metric blocked_pct 100 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_cb17bb0cf78b-34581-1795428690987-0_1
+metric sent_count 0 broker=a62 jmx=localhost:19323 destinationName=bulk clientId=ID_cb17bb0cf78b-34581-1795428690987-0_1
+  PASS  activemq_producers runs
+
+$ bash packs/activemq/connections.sh
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric dispatch_queue 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_c3382d314059-35835-1795428542378-0_1
+metric dispatch_queue 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_c3382d314059-36933-1795428544329-0_1
+metric blocked 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_c3382d314059-35835-1795428542378-0_1
+metric blocked 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_c3382d314059-36933-1795428544329-0_1
+metric slow 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_c3382d314059-35835-1795428542378-0_1
+metric slow 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_c3382d314059-36933-1795428544329-0_1
+metric transactions 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_c3382d314059-35835-1795428542378-0_1
+metric transactions 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_c3382d314059-36933-1795428544329-0_1
+metric bridge 1 broker=a518 jmx=localhost:19321 networkConnectorName=to-a62 remote=a62
+metric bridge_enqueued_count 0 broker=a518 jmx=localhost:19321 networkConnectorName=to-a62 networkBridge=tcp_//172.20.0.2_61616
+metric bridge_dequeued_count 0 broker=a518 jmx=localhost:19321 networkConnectorName=to-a62 networkBridge=tcp_//172.20.0.2_61616
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric dispatch_queue 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_9853a5d39d9e-39671-1795428619640-0_1
+metric dispatch_queue 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_9853a5d39d9e-44611-1795428618662-0_1
+metric blocked 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_9853a5d39d9e-39671-1795428619640-0_1
+metric blocked 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_9853a5d39d9e-44611-1795428618662-0_1
+metric slow 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_9853a5d39d9e-39671-1795428619640-0_1
+metric slow 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_9853a5d39d9e-44611-1795428618662-0_1
+metric transactions 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_9853a5d39d9e-39671-1795428619640-0_1
+metric transactions 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_9853a5d39d9e-44611-1795428618662-0_1
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric dispatch_queue 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_cb17bb0cf78b-34581-1795428690987-0_1
+metric dispatch_queue 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_cb17bb0cf78b-36005-1795428691064-0_1
+metric dispatch_queue 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=to-a62_a518_outbound
+metric blocked 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_cb17bb0cf78b-34581-1795428690987-0_1
+metric blocked 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_cb17bb0cf78b-36005-1795428691064-0_1
+metric blocked 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=to-a62_a518_outbound
+metric slow 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_cb17bb0cf78b-34581-1795428690987-0_1
+metric slow 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_cb17bb0cf78b-36005-1795428691064-0_1
+metric slow 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=to-a62_a518_outbound
+metric transactions 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_cb17bb0cf78b-34581-1795428690987-0_1
+metric transactions 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_cb17bb0cf78b-36005-1795428691064-0_1
+metric transactions 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=to-a62_a518_outbound
+  PASS  activemq_connections runs
+  PASS  every server answers
+  PASS  the repository's copy, without its jar, does not run
+  PASS  and says so
+        activemq_status: _probe.jar not found: this copy of the pack has none: install the pack from a packs release (vigil pack install activemq), or build it (tools/release/client-jar.sh)
+
+# On a JRE.
+jre      openjdk version "21.0.13.1" 2026-11-17 LTS
+  PASS  the JRE has no compiler
+  PASS  every job runs on the JRE
+  PASS  and reads the same servers
+14 passed, 0 failed
+
+# The pack through Vigil.
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+activemq: a518: jmxs=localhost:19321; a519: jmxs=localhost:19322; a62: jmxs=localhost:19323
+  PASS  activemq: off until enabled
+  PASS  activemq: enabled
+        on: activemq_status
+        on: activemq_broker
+        on: activemq_queues
+        on: activemq_topics
+        on: activemq_dlq
+        on: activemq_subscribers
+        on: activemq_producers
+        on: activemq_connections
+        needs each broker's JMX in ACTIVEMQ_JMX (amq1: jmxs=host:port): -Dcom.sun.management.jmxremote.port and a password and TLS in ACTIVEMQ_SUNJMX_START (packs/README.md shows how)
+        needs for JMX with a password: a secret line on the jobs: secret = ACTIVEMQ_JMX_PASSWORD=secret:ACTIVEMQ_JMX_PASSWORD, then vigil secret set ACTIVEMQ_JMX_PASSWORD
+        needs for the broker's JVM (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: vigil pack install jvm, with each broker in JVM_TARGETS named as here (amq1: jmxs=host:port)
+        settings in vigil.config: ACTIVEMQ_JMX= ACTIVEMQ_JMX_USER= ACTIVEMQ_CACERT=
+  PASS  activemq: it says its JVM is the jvm pack's
+  PASS  activemq: its jobs are on
+  PASS  activemq: no secret line until JMX asks for one
+  PASS  activemq: the password is a secret reference, on every job
+  PASS  activemq: precheck is happy
+  PASS  activemq: every job runs
+  PASS  activemq: a518 answers over JMX
+  PASS  activemq: a519 answers over JMX
+  PASS  activemq: a62 answers over JMX
+        status: 24 lines
+        broker: 61 lines
+        queues: 489 lines
+        topics: 30 lines
+        dlq: 9 lines
+        subscribers: 51 lines
+        producers: 15 lines
+        connections: 34 lines
+  PASS  activemq: a wrong password fails the run
+  PASS  activemq: and says why
+  PASS  activemq: a certificate it cannot trust fails the run
+  PASS  activemq: and says why
+  PASS  activemq: a server that does not answer still runs
+  PASS  activemq: and reads as jmx_up 0
+  PASS  activemq: the password is written nowhere
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  PASS  activemq: metrics reach the backend
+21 passed, 0 failed
