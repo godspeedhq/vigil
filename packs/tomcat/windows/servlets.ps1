@@ -39,6 +39,7 @@
       errors_count                  requests that ended in an exception, tagged
                                     the same
       slowest_seconds               the slowest request, tagged the same
+      load_seconds                  how long it took to load, tagged the same
       processing_seconds_not_shown
                                     of processing_seconds, those past the first
                                     100, left out (the largest are shown)
@@ -48,6 +49,8 @@
                                     left out (the largest are shown)
       slowest_seconds_not_shown     of slowest_seconds, those past the first
                                     100, left out (the largest are shown)
+      load_seconds_not_shown        of load_seconds, those past the first 100,
+                                    left out (the largest are shown)
 
     Example output (the rest are in the same form):
       metric jmx_up 1 tomcat=tc11 jmx=localhost:19303

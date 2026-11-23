@@ -31,59 +31,69 @@ low_on_resources   org.eclipse.jetty.server:type=lowresourcemonitor,*  lowOnReso
 low_since_seconds  org.eclipse.jetty.server:type=lowresourcemonitor,*  lowResourcesStarted  age
 
 [requests]
-requests_count           org.eclipse.jetty.server.handler:type=statisticshandler,*               requests
-active                   org.eclipse.jetty.server.handler:type=statisticshandler,*               requestsActive
-active_max               org.eclipse.jetty.server.handler:type=statisticshandler,*               requestsActiveMax
-responses_1xx_count      org.eclipse.jetty.server.handler:type=statisticshandler,*               responses1xx
-responses_2xx_count      org.eclipse.jetty.server.handler:type=statisticshandler,*               responses2xx
-responses_3xx_count      org.eclipse.jetty.server.handler:type=statisticshandler,*               responses3xx
-responses_4xx_count      org.eclipse.jetty.server.handler:type=statisticshandler,*               responses4xx
-responses_5xx_count      org.eclipse.jetty.server.handler:type=statisticshandler,*               responses5xx
-failures_count           org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  failures
-failures_count           org.eclipse.jetty.server.handler:type=statisticshandler,id=*            errors
-handling_failures_count  org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  handlingFailures
-thrown_count             org.eclipse.jetty.server.handler:type=statisticshandler,id=*            responsesThrown
-dispatched_count         org.eclipse.jetty.server.handler:type=statisticshandler,id=*            dispatched
-dispatched_active        org.eclipse.jetty.server.handler:type=statisticshandler,id=*            dispatchedActive
-handling_active          org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  handleActive
-async_count              org.eclipse.jetty.server.handler:type=statisticshandler,id=*            asyncRequests
-async_waiting            org.eclipse.jetty.server.handler:type=statisticshandler,id=*            asyncRequestsWaiting
-expired_count            org.eclipse.jetty.server.handler:type=statisticshandler,id=*            expires
-received_bytes           org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  bytesRead
-sent_bytes               org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  bytesWritten
-sent_bytes               org.eclipse.jetty.server.handler:type=statisticshandler,id=*            responsesBytesTotal
-slowest_seconds          org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  requestTimeMax        *0.000000001
-slowest_seconds          org.eclipse.jetty.server.handler:type=statisticshandler,id=*            requestTimeMax        *0.001
-mean_seconds             org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  requestTimeMean       *0.000000001
-mean_seconds             org.eclipse.jetty.server.handler:type=statisticshandler,id=*            requestTimeMean       *0.001
-total_seconds            org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  requestTimeTotal      *0.000000001
-total_seconds            org.eclipse.jetty.server.handler:type=statisticshandler,id=*            requestTimeTotal      *0.001
+requests_count              org.eclipse.jetty.server.handler:type=statisticshandler,*               requests
+active                      org.eclipse.jetty.server.handler:type=statisticshandler,*               requestsActive
+active_max                  org.eclipse.jetty.server.handler:type=statisticshandler,*               requestsActiveMax
+responses_1xx_count         org.eclipse.jetty.server.handler:type=statisticshandler,*               responses1xx
+responses_2xx_count         org.eclipse.jetty.server.handler:type=statisticshandler,*               responses2xx
+responses_3xx_count         org.eclipse.jetty.server.handler:type=statisticshandler,*               responses3xx
+responses_4xx_count         org.eclipse.jetty.server.handler:type=statisticshandler,*               responses4xx
+responses_5xx_count         org.eclipse.jetty.server.handler:type=statisticshandler,*               responses5xx
+failures_count              org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  failures
+failures_count              org.eclipse.jetty.server.handler:type=statisticshandler,id=*            errors
+handling_failures_count     org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  handlingFailures
+thrown_count                org.eclipse.jetty.server.handler:type=statisticshandler,id=*            responsesThrown
+dispatched_count            org.eclipse.jetty.server.handler:type=statisticshandler,id=*            dispatched
+dispatched_active           org.eclipse.jetty.server.handler:type=statisticshandler,id=*            dispatchedActive
+handling_active             org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  handleActive
+async_count                 org.eclipse.jetty.server.handler:type=statisticshandler,id=*            asyncRequests
+async_waiting               org.eclipse.jetty.server.handler:type=statisticshandler,id=*            asyncRequestsWaiting
+expired_count               org.eclipse.jetty.server.handler:type=statisticshandler,id=*            expires
+received_bytes              org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  bytesRead
+sent_bytes                  org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  bytesWritten
+sent_bytes                  org.eclipse.jetty.server.handler:type=statisticshandler,id=*            responsesBytesTotal
+slowest_seconds             org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  requestTimeMax           *0.000000001
+slowest_seconds             org.eclipse.jetty.server.handler:type=statisticshandler,id=*            requestTimeMax           *0.001
+mean_seconds                org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  requestTimeMean          *0.000000001
+mean_seconds                org.eclipse.jetty.server.handler:type=statisticshandler,id=*            requestTimeMean          *0.001
+total_seconds               org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  requestTimeTotal         *0.000000001
+total_seconds               org.eclipse.jetty.server.handler:type=statisticshandler,id=*            requestTimeTotal         *0.001
+handling_slowest_seconds    org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  handleTimeMax            *0.000000001
+handling_mean_seconds       org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  handleTimeMean           *0.000000001
+handling_active_max         org.eclipse.jetty.server.handler:type=statisticshandler,context=*,id=*  handleActiveMax
+dispatched_slowest_seconds  org.eclipse.jetty.server.handler:type=statisticshandler,id=*            dispatchedTimeMax        *0.001
+dispatched_mean_seconds     org.eclipse.jetty.server.handler:type=statisticshandler,id=*            dispatchedTimeMean       *0.001
+dispatched_active_max       org.eclipse.jetty.server.handler:type=statisticshandler,id=*            dispatchedActiveMax
+async_waiting_max           org.eclipse.jetty.server.handler:type=statisticshandler,id=*            asyncRequestsWaitingMax
+stats_seconds               org.eclipse.jetty.server.handler:type=statisticshandler,id=*            statsOnMs                *0.001
 
 [threads]
-threads          org.eclipse.jetty.util.thread:type=queuedthreadpool,*  threads                   id
-busy             org.eclipse.jetty.util.thread:type=queuedthreadpool,*  busyThreads               id
-idle             org.eclipse.jetty.util.thread:type=queuedthreadpool,*  idleThreads               id
-ready            org.eclipse.jetty.util.thread:type=queuedthreadpool,*  readyThreads              id
-utilized         org.eclipse.jetty.util.thread:type=queuedthreadpool,*  utilizedThreads           id
-max_threads      org.eclipse.jetty.util.thread:type=queuedthreadpool,*  maxThreads                id
-min_threads      org.eclipse.jetty.util.thread:type=queuedthreadpool,*  minThreads                id
-queue            org.eclipse.jetty.util.thread:type=queuedthreadpool,*  queueSize                 id
-utilization_pct  org.eclipse.jetty.util.thread:type=queuedthreadpool,*  utilizationRate           id *100
-low_on_threads   org.eclipse.jetty.util.thread:type=queuedthreadpool,*  lowOnThreads              id
-leased           org.eclipse.jetty.util.thread:type=queuedthreadpool,*  leasedThreads             id
-reserved         org.eclipse.jetty.util.thread:type=queuedthreadpool,*  availableReservedThreads  id
-max_available    org.eclipse.jetty.util.thread:type=queuedthreadpool,*  maxAvailableThreads       id
+threads            org.eclipse.jetty.util.thread:type=queuedthreadpool,*        threads                   id
+busy               org.eclipse.jetty.util.thread:type=queuedthreadpool,*        busyThreads               id
+idle               org.eclipse.jetty.util.thread:type=queuedthreadpool,*        idleThreads               id
+ready              org.eclipse.jetty.util.thread:type=queuedthreadpool,*        readyThreads              id
+utilized           org.eclipse.jetty.util.thread:type=queuedthreadpool,*        utilizedThreads           id
+max_threads        org.eclipse.jetty.util.thread:type=queuedthreadpool,*        maxThreads                id
+min_threads        org.eclipse.jetty.util.thread:type=queuedthreadpool,*        minThreads                id
+queue              org.eclipse.jetty.util.thread:type=queuedthreadpool,*        queueSize                 id
+utilization_pct    org.eclipse.jetty.util.thread:type=queuedthreadpool,*        utilizationRate           id *100
+low_on_threads     org.eclipse.jetty.util.thread:type=queuedthreadpool,*        lowOnThreads              id
+leased             org.eclipse.jetty.util.thread:type=queuedthreadpool,*        leasedThreads             id
+reserved           org.eclipse.jetty.util.thread:type=queuedthreadpool,*        availableReservedThreads  id
+max_available      org.eclipse.jetty.util.thread:type=queuedthreadpool,*        maxAvailableThreads       id
+reserved_capacity  org.eclipse.jetty.util.thread:type=reservedthreadexecutor,*  capacity
+reserved_pending   org.eclipse.jetty.util.thread:type=reservedthreadexecutor,*  pending
 
 [connections]
-open                     org.eclipse.jetty.io:type=connectionstatistics,*    connections                sum
-open_max                 org.eclipse.jetty.io:type=connectionstatistics,*    connectionsMax             sum
-opened_count             org.eclipse.jetty.io:type=connectionstatistics,*    connectionsTotal           sum
-duration_max_seconds     org.eclipse.jetty.io:type=connectionstatistics,*    connectionDurationMax      sum *0.001
-duration_mean_seconds    org.eclipse.jetty.io:type=connectionstatistics,*    connectionDurationMean     sum *0.001
-received_bytes           org.eclipse.jetty.io:type=connectionstatistics,*    receivedBytes              sum
-sent_bytes               org.eclipse.jetty.io:type=connectionstatistics,*    sentBytes                  sum
-received_messages_count  org.eclipse.jetty.io:type=connectionstatistics,*    receivedMessages           sum
-sent_messages_count      org.eclipse.jetty.io:type=connectionstatistics,*    sentMessages               sum
+open                     org.eclipse.jetty.io:type=connectionstatistics,*    connections                 sum
+open_max                 org.eclipse.jetty.io:type=connectionstatistics,*    connectionsMax              sum
+opened_count             org.eclipse.jetty.io:type=connectionstatistics,*    connectionsTotal            sum
+duration_max_seconds     org.eclipse.jetty.io:type=connectionstatistics,*    connectionDurationMax       sum *0.001
+duration_mean_seconds    org.eclipse.jetty.io:type=connectionstatistics,*    connectionDurationMean      sum *0.001
+received_bytes           org.eclipse.jetty.io:type=connectionstatistics,*    receivedBytes               sum
+sent_bytes               org.eclipse.jetty.io:type=connectionstatistics,*    sentBytes                   sum
+received_messages_count  org.eclipse.jetty.io:type=connectionstatistics,*    receivedMessages            sum
+sent_messages_count      org.eclipse.jetty.io:type=connectionstatistics,*    sentMessages                sum
 limited                  org.eclipse.jetty.server:type=connectionlimit,*     connections
 limit                    org.eclipse.jetty.server:type=connectionlimit,*     maxConnections
 limit_pending            org.eclipse.jetty.server:type=connectionlimit,*     pendingConnections
@@ -91,6 +101,11 @@ qos_max                  org.eclipse.jetty.server.handler:type=qoshandler,*  max
 qos_suspended            org.eclipse.jetty.server.handler:type=qoshandler,*  suspendedRequestCount
 qos_exceeded_count       org.eclipse.jetty.server.handler:type=qoshandler,*  totalExceededRequestCount
 qos_expired_count        org.eclipse.jetty.server.handler:type=qoshandler,*  totalExpiredRequestCount
+qos_requests_count       org.eclipse.jetty.server.handler:type=qoshandler,*  totalRequestCount
+qos_suspended_count      org.eclipse.jetty.server.handler:type=qoshandler,*  totalSuspendedRequestCount
+qos_max_suspended        org.eclipse.jetty.server.handler:type=qoshandler,*  maxSuspendedRequestCount
+selector_keys            org.eclipse.jetty.io:type=managedselector,*         totalKeys                   sum
+selects_count            org.eclipse.jetty.io:type=managedselector,*         selectCount                 sum
 
 [sessions]
 current             org.eclipse.jetty*:type=*sessioncache,*   sessionsCurrent      context/ top

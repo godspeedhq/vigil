@@ -60,6 +60,18 @@
 #   slowest_seconds               the slowest request
 #   mean_seconds                  the mean time of a request
 #   total_seconds                 the time of every request, added up
+#   handling_slowest_seconds      the slowest time in the application, apart
+#                                 from reading and writing (12)
+#   handling_mean_seconds         the mean time in the application (12)
+#   handling_active_max           the most in the application at once (12)
+#   dispatched_slowest_seconds    the slowest dispatch to the application (9.4
+#                                 to 11)
+#   dispatched_mean_seconds       the mean time of a dispatch (9.4 to 11)
+#   dispatched_active_max         the most dispatches at once (9.4 to 11)
+#   async_waiting_max             the most asynchronous requests waiting at
+#                                 once (9.4 to 11)
+#   stats_seconds                 since these statistics began (9.4 to 11):
+#                                 the totals count from then
 #   requests_count_not_shown      of requests_count, those past the first 100,
 #                                 left out
 #   active_not_shown              of active, those past the first 100, left
@@ -109,6 +121,28 @@
 #   mean_seconds_not_shown        of mean_seconds, those past the first 100,
 #                                 left out
 #   total_seconds_not_shown       of total_seconds, those past the first 100,
+#                                 left out
+#   handling_slowest_seconds_not_shown
+#                                 of handling_slowest_seconds, those past the
+#                                 first 100, left out
+#   handling_mean_seconds_not_shown
+#                                 of handling_mean_seconds, those past the
+#                                 first 100, left out
+#   handling_active_max_not_shown
+#                                 of handling_active_max, those past the first
+#                                 100, left out
+#   dispatched_slowest_seconds_not_shown
+#                                 of dispatched_slowest_seconds, those past
+#                                 the first 100, left out
+#   dispatched_mean_seconds_not_shown
+#                                 of dispatched_mean_seconds, those past the
+#                                 first 100, left out
+#   dispatched_active_max_not_shown
+#                                 of dispatched_active_max, those past the
+#                                 first 100, left out
+#   async_waiting_max_not_shown   of async_waiting_max, those past the first
+#                                 100, left out
+#   stats_seconds_not_shown       of stats_seconds, those past the first 100,
 #                                 left out
 #
 # Example output (the rest are in the same form):

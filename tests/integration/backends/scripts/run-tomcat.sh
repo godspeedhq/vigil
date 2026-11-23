@@ -176,6 +176,9 @@ for t in tc9:9.0 tc10:10.1 tc11:11.0; do
     check "$n: Tomcat's JDBC pool, every connection in use" 4 "$(val jdbc active "tomcat=$n .*name=jdbc/orders")"
     check "$n: and its connections borrowed" yes "$(least jdbc borrowed_count "tomcat=$n .*name=jdbc/orders" 4)"
     check "$n: HikariCP's pool, every connection in use" 3 "$(val jdbc hikari_active "tomcat=$n ")"
+    check "$n: of its 3" 3 "$(val jdbc hikari_max "tomcat=$n ")"
+    check "$n: Tomcat's utility executor" yes "$(least threads utility_threads "tomcat=$n " 1)"
+    check "$n: the JSP servlet's load time, read" yes "$(grep -qE "^metric load_seconds [0-9.]+ tomcat=$n .*name=jsp\$" "$work/servlets.out" && echo yes || echo no)"
     check "$n: the shop's JSPs, loaded" yes "$(least cache jsps "tomcat=$n .*WebModule=//localhost/shop" 3)"
     check "$n: its resource cache, looked in" yes "$(least cache lookups_count "tomcat=$n .*context=/shop" 1)"
 done

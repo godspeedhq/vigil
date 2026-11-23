@@ -41,6 +41,9 @@
 #                                same
 #   jsp_queue                    JSPs waiting to be unloaded, when there is a
 #                                limit, tagged the same
+#   string_cache_lookups_count   lookups in Tomcat's string cache (when it is
+#                                on)
+#   string_cache_hits_count      of those, found
 #   lookups_count_not_shown      of lookups_count, those past the first 100,
 #                                left out
 #   hits_count_not_shown         of hits_count, those past the first 100, left

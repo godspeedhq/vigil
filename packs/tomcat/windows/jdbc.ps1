@@ -32,74 +32,87 @@
     _probe.tables, beside this script: nothing of Tomcat's is needed here.
 
     Metrics:
-      jmx_up                       1 when JMX answers, else 0, tagged
-                                   tomcat=<its name> and jmx=<its address>
-      active                       connections in use, tagged context=<the app,
-                                   or none for a global one> and name=<its JNDI
-                                   name>
-      idle                         connections idle in the pool, tagged the same
-      max                          the most it may open (DBCP maxTotal, the JDBC
-                                   pool maxActive), tagged the same
-      max_idle                     the most it keeps idle, tagged the same
-      min_idle                     the fewest it keeps idle, tagged the same
-      max_wait_seconds             how long a request waits for a connection
-                                   before it fails, tagged the same
-      size                         connections open, in use or idle (the JDBC
-                                   pool), tagged the same
-      waiting                      threads waiting for a connection now (the
-                                   JDBC pool), tagged the same
-      borrowed_count               connections taken from it (the JDBC pool),
-                                   tagged the same
-      returned_count               connections given back (the JDBC pool),
-                                   tagged the same
-      created_count                connections opened (the JDBC pool), tagged
-                                   the same
-      released_count               connections closed (the JDBC pool), tagged
-                                   the same
-      abandoned_count              connections taken back from code that never
-                                   returned them (the JDBC pool,
-                                   removeAbandoned), tagged the same
-      reconnected_count            connections reopened (the JDBC pool), tagged
-                                   the same
-      hikari_active                a HikariCP pool's connections in use, tagged
-                                   type=<Pool (its name)>
-      hikari_idle                  its connections idle, tagged the same
-      hikari_total                 its connections open, tagged the same
-      hikari_waiting               threads waiting for one of its connections,
-                                   tagged the same
-      active_not_shown             of active, those past the first 100, left out
-      idle_not_shown               of idle, those past the first 100, left out
-      max_not_shown                of max, those past the first 100, left out
-      max_idle_not_shown           of max_idle, those past the first 100, left
-                                   out
-      min_idle_not_shown           of min_idle, those past the first 100, left
-                                   out
-      max_wait_seconds_not_shown   of max_wait_seconds, those past the first
-                                   100, left out
-      size_not_shown               of size, those past the first 100, left out
-      waiting_not_shown            of waiting, those past the first 100, left
-                                   out
-      borrowed_count_not_shown     of borrowed_count, those past the first 100,
-                                   left out
-      returned_count_not_shown     of returned_count, those past the first 100,
-                                   left out
-      created_count_not_shown      of created_count, those past the first 100,
-                                   left out
-      released_count_not_shown     of released_count, those past the first 100,
-                                   left out
-      abandoned_count_not_shown    of abandoned_count, those past the first 100,
-                                   left out
-      reconnected_count_not_shown
-                                   of reconnected_count, those past the first
-                                   100, left out
-      hikari_active_not_shown      of hikari_active, those past the first 100,
-                                   left out
-      hikari_idle_not_shown        of hikari_idle, those past the first 100,
-                                   left out
-      hikari_total_not_shown       of hikari_total, those past the first 100,
-                                   left out
-      hikari_waiting_not_shown     of hikari_waiting, those past the first 100,
-                                   left out
+      jmx_up                        1 when JMX answers, else 0, tagged
+                                    tomcat=<its name> and jmx=<its address>
+      active                        connections in use, tagged context=<the app,
+                                    or none for a global one> and name=<its JNDI
+                                    name>
+      idle                          connections idle in the pool, tagged the
+                                    same
+      max                           the most it may open (DBCP maxTotal, the
+                                    JDBC pool maxActive), tagged the same
+      max_idle                      the most it keeps idle, tagged the same
+      min_idle                      the fewest it keeps idle, tagged the same
+      max_wait_seconds              how long a request waits for a connection
+                                    before it fails, tagged the same
+      size                          connections open, in use or idle (the JDBC
+                                    pool), tagged the same
+      waiting                       threads waiting for a connection now (the
+                                    JDBC pool), tagged the same
+      borrowed_count                connections taken from it (the JDBC pool),
+                                    tagged the same
+      returned_count                connections given back (the JDBC pool),
+                                    tagged the same
+      created_count                 connections opened (the JDBC pool), tagged
+                                    the same
+      released_count                connections closed (the JDBC pool), tagged
+                                    the same
+      abandoned_count               connections taken back from code that never
+                                    returned them (the JDBC pool,
+                                    removeAbandoned), tagged the same
+      reconnected_count             connections reopened (the JDBC pool), tagged
+                                    the same
+      hikari_active                 a HikariCP pool's connections in use, tagged
+                                    type=<Pool (its name)>
+      hikari_idle                   its connections idle, tagged the same
+      hikari_total                  its connections open, tagged the same
+      hikari_waiting                threads waiting for one of its connections,
+                                    tagged the same
+      hikari_max                    a HikariCP pool's most connections, tagged
+                                    type=<PoolConfig (its name)>
+      hikari_min_idle               the fewest it keeps idle, tagged the same
+      hikari_timeout_seconds        how long a request waits for a connection
+                                    before it fails, tagged the same
+      active_not_shown              of active, those past the first 100, left
+                                    out
+      idle_not_shown                of idle, those past the first 100, left out
+      max_not_shown                 of max, those past the first 100, left out
+      max_idle_not_shown            of max_idle, those past the first 100, left
+                                    out
+      min_idle_not_shown            of min_idle, those past the first 100, left
+                                    out
+      max_wait_seconds_not_shown    of max_wait_seconds, those past the first
+                                    100, left out
+      size_not_shown                of size, those past the first 100, left out
+      waiting_not_shown             of waiting, those past the first 100, left
+                                    out
+      borrowed_count_not_shown      of borrowed_count, those past the first 100,
+                                    left out
+      returned_count_not_shown      of returned_count, those past the first 100,
+                                    left out
+      created_count_not_shown       of created_count, those past the first 100,
+                                    left out
+      released_count_not_shown      of released_count, those past the first 100,
+                                    left out
+      abandoned_count_not_shown     of abandoned_count, those past the first
+                                    100, left out
+      reconnected_count_not_shown   of reconnected_count, those past the first
+                                    100, left out
+      hikari_active_not_shown       of hikari_active, those past the first 100,
+                                    left out
+      hikari_idle_not_shown         of hikari_idle, those past the first 100,
+                                    left out
+      hikari_total_not_shown        of hikari_total, those past the first 100,
+                                    left out
+      hikari_waiting_not_shown      of hikari_waiting, those past the first 100,
+                                    left out
+      hikari_max_not_shown          of hikari_max, those past the first 100,
+                                    left out
+      hikari_min_idle_not_shown     of hikari_min_idle, those past the first
+                                    100, left out
+      hikari_timeout_seconds_not_shown
+                                    of hikari_timeout_seconds, those past the
+                                    first 100, left out
 
     Example output (the rest are in the same form):
       metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
