@@ -884,6 +884,8 @@ Starting points, not rules: Vigil runs the jobs and delivers what they print, an
 
 **Version 1.2.1** carries the probe with the words the Tomcat, Jetty and ActiveMQ packs need: nothing of the jvm pack's own changes, and its client is the same, byte for byte (`fb88b458…`). Tested on 2026-11-23 the same way, against the same eight JVMs, then every job on Temurin's JRE 11: **110 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-23/fedora/pack-jvm-1.2.1/console.txt)).
 
+**Java 8 with JMX over TLS**, tested on 2026-11-23 the same way, with a ninth JVM: Java 8 (Temurin 8) with JMX over TLS and a password, beside the Java 8 with a password alone. It answered over JMX with TLS, said it was Java 8, and its heap and threads were read; then every job on Temurin's JRE 11: **116 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-23/fedora/pack-jvm-java8-tls/console.txt)). The pack is unchanged: version 1.2.1.
+
 ---
 
 [All packs](../README.md) · [Writing a pack](../../CONTRIBUTING.md#your-first-pack) · [The packs releases](https://github.com/godspeedhq/vigil/releases)
