@@ -32,10 +32,12 @@
 #                       out
 #
 # Example output:
-#   metric dumps 1
-#   metric dump 1 file=/var/log/rabbitmq/erl_crash.dump node=rabbit@db1 slogan=eheap_alloc:_Cannot_allocate_2545496_bytes_of_memory_(of_type_heap).
-#   metric age_seconds 412 file=/var/log/rabbitmq/erl_crash.dump
-#   metric newest_age_seconds 412
+#   metric dump 1 file=/tmp/vigil-beam-it.91YOCA/dumps/memory.dump node=dead28@127.0.0.1 slogan=eheap_alloc:_Cannot_allocate_41262936_bytes_of_memory_(of_type_heap).
+#   metric age_seconds 129 file=/tmp/vigil-beam-it.91YOCA/dumps/memory.dump
+#   metric dump 1 file=/tmp/vigil-beam-it.91YOCA/dumps/atoms.dump node=dead27@127.0.0.1 slogan=no_more_index_entries_in_atom_tab_(max=20000)
+#   metric age_seconds 133 file=/tmp/vigil-beam-it.91YOCA/dumps/atoms.dump
+#   metric dumps 2
+#   metric newest_age_seconds 129
 #   metric dumps_not_shown 0
 #
 # Reading the results (starting points: tune them to the machine):

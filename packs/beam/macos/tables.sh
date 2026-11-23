@@ -35,13 +35,15 @@
 #                       same
 #
 # Example output:
-#   metric nodes 1
-#   metric up 1 node=n28 source=dist
-#   metric tables 21 node=n28 source=dist
-#   metric objects 2386 node=n28 source=dist
-#   metric memory_bytes 381616 node=n28 source=dist
-#   metric table_memory_bytes 105848 node=n28 source=dist table=code_names owner=code_server
-#   metric table_objects 1006 node=n28 source=dist table=code_names owner=code_server
+#   metric nodes 4
+#   metric up 1 node=t28 source=dist
+#   metric tables 22 node=t28 source=dist
+#   metric objects 10963 node=t28 source=dist
+#   metric memory_bytes 2620088 node=t28 source=dist
+#   metric table_memory_bytes 2350152 node=t28 source=dist table=leaky_cache owner=trouble:cache/1
+#   metric table_memory_bytes 139824 node=t28 source=dist table=code_server owner=code_server
+#   metric table_objects 10480 node=t28 source=dist table=leaky_cache owner=trouble:cache/1
+#   metric table_objects 396 node=t28 source=dist table=code_server owner=code_server
 #
 # Reading the results (starting points: tune them to the node):
 #   Healthy  tables steady; the largest tables the same ones, at a size

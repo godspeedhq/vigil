@@ -1,0 +1,263 @@
+pack     beam 1.0.0, Vigil commit e97d6fa (a copy), from the repository
+account  vigil-test, not an administrator, by SSH key
+servers  a node in trouble on purpose (workloads/beam/trouble.erl) on Erlang/OTP 28.5 (the Windows zip), RabbitMQ 4.4.1 (its Windows zip) for Prometheus, a VM dead of atoms for its dump: all on this machine
+
+=e97d6fa52cc21d7005ec11e77daf11c9a5c15ee2 : The term '=e97d6fa52cc21d7005ec11e77daf11c9a5c15ee2' 
+is not recognized as the name of a cmdlet, function, script file, or operable program. Check the 
+spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ ='e97d6fa52cc21d7005ec11e77daf11c9a5c15ee2'; & C:\Users\vigil-test\r3 ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=e97d6fa52cc21d...daf11c9a5c15ee2:String) [], Comm 
+   andNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+host     APHC-LPT-1, Microsoft Windows NT 10.0.26300.0
+erlang   erts-16.4, Erlang/OTP 28.5
+rabbitmq 4.4.1
+commit   
+cookie file in the profile before: False
+
+# A VM dies of atoms, for its dump.
+Crash dump is being written to: C:\Users\vigil-test\r351\w\dumps\atoms.dump...done
+
+# The node in trouble, and RabbitMQ.
+Offline change; changes will take effect at broker restart.
+rabbitmq prometheus up: True
+
+== powershell tests\integration\Service-Packs.ps1
+PowerShell 5.1.26100.10068
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+beam: tw=tw@APHC-LPT-1; rabbit=http://127.0.0.1:15692/metrics
+  PASS  beam: off until enabled
+  PASS  beam: enabled
+        on: beam_process
+        on: beam_epmd
+        on: beam_vm
+        on: beam_processes
+        on: beam_tables
+        on: beam_dist
+        on: beam_apps
+        on: beam_crashdumps
+        needs for the process tier: nothing; another account's VMs need root or an administrator for their open files (Linux) and command lines (Windows)
+        needs for epmd: its address in BEAM_EPMD (host or host:port; this machine's, unless set)
+        needs for Prometheus: a node's /metrics in BEAM_PROMETHEUS (<name>=<url>; RabbitMQ's on port 15692)
+        needs for the cookie: the node in BEAM_DIST (<name>=<node>), Erlang/OTP 25 or later here, and a secret line: secret = BEAM_COOKIE=secret:BEAM_COOKIE, then vigil secret set BEAM_COOKIE. WARNING: the cookie lets whoever holds it run anything on the node; this pack only reads
+        settings in vigil.config: BEAM_EPMD= BEAM_PROMETHEUS= BEAM_DIST= BEAM_ERLANG= BEAM_CRASH_DUMPS=
+  PASS  beam: it warns what the cookie allows
+  PASS  beam: its jobs are on
+  PASS  beam: no secret line until the cookie is asked for
+  PASS  beam: the cookie is a secret reference, on the five jobs that read it
+  note  beam: this logon cannot use the secret store (it has no password): the jobs take the cookie by env:VIGIL_IT_BEAM_COOKIE
+  PASS  beam: precheck is happy
+  PASS  beam: every job runs
+  PASS  beam: process: the VMs are seen
+  PASS  beam: epmd answers
+  PASS  beam: tw answers with the cookie
+  PASS  beam: tw says its version
+  PASS  beam: rabbit answers on Prometheus
+  PASS  beam: rabbit's atoms are counted
+  PASS  beam: the mailbox nobody reads is the longest
+  PASS  beam: the cache that never evicts is the largest table
+  PASS  beam: its applications are listed
+  PASS  beam: the crash dumps are found
+  PASS  beam: and why the VM died
+        metric nodes 2
+        metric up 1 node=rabbit source=prometheus
+        metric memory_bytes 71699472 node=rabbit source=prometheus kind=total
+        metric memory_bytes 20910024 node=rabbit source=prometheus kind=processes
+        metric memory_bytes 50789448 node=rabbit source=prometheus kind=system
+        metric memory_bytes 1052552 node=rabbit source=prometheus kind=atom
+        metric memory_bytes 353808 node=rabbit source=prometheus kind=binary
+        metric memory_bytes 23272583 node=rabbit source=prometheus kind=code
+        metric memory_bytes 3667440 node=rabbit source=prometheus kind=ets
+        metric processes 420 node=rabbit source=prometheus
+        metric process_limit 1048576 node=rabbit source=prometheus
+        metric process_pct 0.04 node=rabbit source=prometheus
+        metric ports 9 node=rabbit source=prometheus
+        metric port_limit 65536 node=rabbit source=prometheus
+        metric port_pct 0.01 node=rabbit source=prometheus
+        metric atoms 31630 node=rabbit source=prometheus
+        metric atom_limit 5000000 node=rabbit source=prometheus
+        metric atom_pct 0.63 node=rabbit source=prometheus
+        metric ets_tables 181 node=rabbit source=prometheus
+        metric ets_limit 50000 node=rabbit source=prometheus
+        metric ets_pct 0.36 node=rabbit source=prometheus
+        metric schedulers_online 8 node=rabbit source=prometheus
+        metric run_queue 0 node=rabbit source=prometheus
+        metric dirty_cpu_run_queue 0 node=rabbit source=prometheus
+        metric dirty_io_run_queue 0 node=rabbit source=prometheus
+        metric reductions_count 24049780 node=rabbit source=prometheus
+        metric gcs_count 6468 node=rabbit source=prometheus
+        metric gc_reclaimed_bytes 280219856 node=rabbit source=prometheus
+        metric context_switches_count 106627 node=rabbit source=prometheus
+        metric received_bytes 7355 node=rabbit source=prometheus
+        metric sent_bytes 207241 node=rabbit source=prometheus
+        metric up 1 node=tw source=dist
+        metric memory_bytes 44329840 node=tw source=dist kind=total
+        metric memory_bytes 15107024 node=tw source=dist kind=processes
+        metric memory_bytes 29222816 node=tw source=dist kind=system
+        metric memory_bytes 317682 node=tw source=dist kind=atom
+        metric memory_bytes 9488256 node=tw source=dist kind=binary
+        metric memory_bytes 6360399 node=tw source=dist kind=code
+        metric memory_bytes 1909584 node=tw source=dist kind=ets
+        metric version 1 node=tw source=dist otp=28 erts=16.4
+        metric processes 421 node=tw source=dist
+        metric process_limit 1048576 node=tw source=dist
+        metric process_pct 0.04 node=tw source=dist
+        metric ports 3 node=tw source=dist
+        metric port_limit 8192 node=tw source=dist
+        metric port_pct 0.04 node=tw source=dist
+        metric atoms 11610 node=tw source=dist
+        metric atom_limit 1048576 node=tw source=dist
+        metric atom_pct 1.11 node=tw source=dist
+        metric ets_tables 22 node=tw source=dist
+        metric ets_limit 8192 node=tw source=dist
+        metric ets_pct 0.27 node=tw source=dist
+        metric schedulers_online 8 node=tw source=dist
+        metric run_queue 1 node=tw source=dist
+        metric dirty_cpu_run_queue 0 node=tw source=dist
+        metric dirty_io_run_queue 0 node=tw source=dist
+        metric reductions_count 21333999029 node=tw source=dist
+        metric gcs_count 1310 node=tw source=dist
+        metric gc_reclaimed_bytes 4286944 node=tw source=dist
+        metric context_switches_count 5350852 node=tw source=dist
+        metric received_bytes 2733 node=tw source=dist
+        metric sent_bytes 3446 node=tw source=dist
+        metric uptime_seconds 73 node=tw source=dist
+  PASS  beam: a wrong cookie fails the run
+  PASS  beam: and says the cookie, or the name, is not the node's
+  PASS  beam: a node that is down still runs
+  PASS  beam: and reads as up 0
+  PASS  beam: the cookie is written nowhere
+  PASS  beam: and Erlang wrote no cookie file into this profile
+  PASS  beam: no home of a run is left behind
+  PASS  beam: metrics reach the backend
+29 passed, 0 failed
+
+== pwsh tests\integration\Service-Packs.ps1
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+beam: tw=tw@APHC-LPT-1; rabbit=http://127.0.0.1:15692/metrics
+  PASS  beam: off until enabled
+  PASS  beam: enabled
+        on: beam_process
+        on: beam_epmd
+        on: beam_vm
+        on: beam_processes
+        on: beam_tables
+        on: beam_dist
+        on: beam_apps
+        on: beam_crashdumps
+        needs for the process tier: nothing; another account's VMs need root or an administrator for their open files (Linux) and command lines (Windows)
+        needs for epmd: its address in BEAM_EPMD (host or host:port; this machine's, unless set)
+        needs for Prometheus: a node's /metrics in BEAM_PROMETHEUS (<name>=<url>; RabbitMQ's on port 15692)
+        needs for the cookie: the node in BEAM_DIST (<name>=<node>), Erlang/OTP 25 or later here, and a secret line: secret = BEAM_COOKIE=secret:BEAM_COOKIE, then vigil secret set BEAM_COOKIE. WARNING: the cookie lets whoever holds it run anything on the node; this pack only reads
+        settings in vigil.config: BEAM_EPMD= BEAM_PROMETHEUS= BEAM_DIST= BEAM_ERLANG= BEAM_CRASH_DUMPS=
+  PASS  beam: it warns what the cookie allows
+  PASS  beam: its jobs are on
+  PASS  beam: no secret line until the cookie is asked for
+  PASS  beam: the cookie is a secret reference, on the five jobs that read it
+  note  beam: this logon cannot use the secret store (it has no password): the jobs take the cookie by env:VIGIL_IT_BEAM_COOKIE
+  PASS  beam: precheck is happy
+  PASS  beam: every job runs
+  PASS  beam: process: the VMs are seen
+  PASS  beam: epmd answers
+  PASS  beam: tw answers with the cookie
+  PASS  beam: tw says its version
+  PASS  beam: rabbit answers on Prometheus
+  PASS  beam: rabbit's atoms are counted
+  PASS  beam: the mailbox nobody reads is the longest
+  PASS  beam: the cache that never evicts is the largest table
+  PASS  beam: its applications are listed
+  PASS  beam: the crash dumps are found
+  PASS  beam: and why the VM died
+        metric nodes 2
+        metric up 1 node=rabbit source=prometheus
+        metric memory_bytes 71760288 node=rabbit source=prometheus kind=total
+        metric memory_bytes 20972472 node=rabbit source=prometheus kind=processes
+        metric memory_bytes 50787816 node=rabbit source=prometheus kind=system
+        metric memory_bytes 1052552 node=rabbit source=prometheus kind=atom
+        metric memory_bytes 351104 node=rabbit source=prometheus kind=binary
+        metric memory_bytes 23272583 node=rabbit source=prometheus kind=code
+        metric memory_bytes 3669888 node=rabbit source=prometheus kind=ets
+        metric processes 420 node=rabbit source=prometheus
+        metric process_limit 1048576 node=rabbit source=prometheus
+        metric process_pct 0.04 node=rabbit source=prometheus
+        metric ports 9 node=rabbit source=prometheus
+        metric port_limit 65536 node=rabbit source=prometheus
+        metric port_pct 0.01 node=rabbit source=prometheus
+        metric atoms 31630 node=rabbit source=prometheus
+        metric atom_limit 5000000 node=rabbit source=prometheus
+        metric atom_pct 0.63 node=rabbit source=prometheus
+        metric ets_tables 181 node=rabbit source=prometheus
+        metric ets_limit 50000 node=rabbit source=prometheus
+        metric ets_pct 0.36 node=rabbit source=prometheus
+        metric schedulers_online 8 node=rabbit source=prometheus
+        metric run_queue 0 node=rabbit source=prometheus
+        metric dirty_cpu_run_queue 0 node=rabbit source=prometheus
+        metric dirty_io_run_queue 0 node=rabbit source=prometheus
+        metric reductions_count 28259777 node=rabbit source=prometheus
+        metric gcs_count 7747 node=rabbit source=prometheus
+        metric gc_reclaimed_bytes 345099936 node=rabbit source=prometheus
+        metric context_switches_count 126111 node=rabbit source=prometheus
+        metric received_bytes 8871 node=rabbit source=prometheus
+        metric sent_bytes 718895 node=rabbit source=prometheus
+        metric up 1 node=tw source=dist
+        metric memory_bytes 52441888 node=tw source=dist kind=total
+        metric memory_bytes 17121336 node=tw source=dist kind=processes
+        metric memory_bytes 35320552 node=tw source=dist kind=system
+        metric memory_bytes 429262 node=tw source=dist kind=atom
+        metric memory_bytes 13157328 node=tw source=dist kind=binary
+        metric memory_bytes 6485143 node=tw source=dist kind=code
+        metric memory_bytes 3864144 node=tw source=dist kind=ets
+        metric version 1 node=tw source=dist otp=28 erts=16.4
+        metric processes 899 node=tw source=dist
+        metric process_limit 1048576 node=tw source=dist
+        metric process_pct 0.09 node=tw source=dist
+        metric ports 3 node=tw source=dist
+        metric port_limit 8192 node=tw source=dist
+        metric port_pct 0.04 node=tw source=dist
+        metric atoms 13599 node=tw source=dist
+        metric atom_limit 1048576 node=tw source=dist
+        metric atom_pct 1.3 node=tw source=dist
+        metric ets_tables 22 node=tw source=dist
+        metric ets_limit 8192 node=tw source=dist
+        metric ets_pct 0.27 node=tw source=dist
+        metric schedulers_online 8 node=tw source=dist
+        metric run_queue 1 node=tw source=dist
+        metric dirty_cpu_run_queue 0 node=tw source=dist
+        metric dirty_io_run_queue 0 node=tw source=dist
+        metric reductions_count 44999620079 node=tw source=dist
+        metric gcs_count 2617 node=tw source=dist
+        metric gc_reclaimed_bytes 6725288 node=tw source=dist
+        metric context_switches_count 11289238 node=tw source=dist
+        metric received_bytes 92677 node=tw source=dist
+        metric sent_bytes 141132 node=tw source=dist
+        metric uptime_seconds 169 node=tw source=dist
+  PASS  beam: a wrong cookie fails the run
+  PASS  beam: and says the cookie, or the name, is not the node's
+  PASS  beam: a node that is down still runs
+  PASS  beam: and reads as up 0
+  PASS  beam: the cookie is written nowhere
+  PASS  beam: and Erlang wrote no cookie file into this profile
+  PASS  beam: no home of a run is left behind
+  PASS  beam: metrics reach the backend
+29 passed, 0 failed
+
+cookie file in the profile after: False
+left running: 

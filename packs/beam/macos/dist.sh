@@ -36,14 +36,12 @@
 #                     (+zdbbl)
 #
 # Example output:
-#   metric nodes 1
-#   metric up 1 node=rabbit1 source=dist
-#   metric peers 2 node=rabbit1 source=dist
-#   metric hidden_peers 0 node=rabbit1 source=dist
-#   metric peer 1 node=rabbit1 source=dist peer=rabbit@rabbit2 hidden=false
-#   metric peer_queue_bytes 0 node=rabbit1 source=dist peer=rabbit@rabbit2 hidden=false
-#   metric peers_not_shown 0 node=rabbit1 source=dist
-#   metric busy_limit_bytes 1048576 node=rabbit1 source=dist
+#   metric nodes 4
+#   metric up 1 node=t28 source=dist
+#   metric peers 0 node=t28 source=dist
+#   metric hidden_peers 0 node=t28 source=dist
+#   metric peers_not_shown 0 node=t28 source=dist
+#   metric busy_limit_bytes 1048576 node=t28 source=dist
 #
 # Reading the results (starting points: tune them to the cluster):
 #   Healthy  peers as many as the cluster's other nodes; peer_queue_bytes

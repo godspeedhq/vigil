@@ -46,15 +46,14 @@
                                 out
 
     Example output:
-      metric beams 1
-      metric running 1 node=rabbit erts=16.4.0.7
-      metric rss_bytes 160710656 node=rabbit
-      metric cpu_seconds 4211.47 node=rabbit
-      metric threads 63 node=rabbit
-      metric open_files 812 node=rabbit
-      metric uptime_seconds 864000 node=rabbit
-      metric cookie_on_command_line 0 node=rabbit
-      metric beams_not_shown 0
+      metric beams 2
+      metric running 1 node=pid67664
+      metric rss_bytes 106344448 node=pid67664
+      metric cpu_seconds 5.75 node=pid67664
+      metric threads 55 node=pid67664
+      metric open_files 302 node=pid67664
+      metric uptime_seconds 47 node=pid67664
+      metric cookie_on_command_line 0 node=pid67664
 
     Reading the results (starting points: tune them to the node):
       Healthy  beams as many as you run; rss_bytes steady over days;

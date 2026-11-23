@@ -33,10 +33,10 @@
 #                       out
 #
 # Example output:
+#   metric dump 1 file=/private/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-beam-mac.5gUild/dumps/atoms.dump node=deadm@Bankoles-MacBook-Air slogan=no_more_index_entries_in_atom_tab_(max=20000)
+#   metric age_seconds 60 file=/private/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-beam-mac.5gUild/dumps/atoms.dump
 #   metric dumps 1
-#   metric dump 1 file=/opt/homebrew/var/log/rabbitmq/erl_crash.dump node=rabbit@mac1 slogan=eheap_alloc:_Cannot_allocate_2545496_bytes_of_memory_(of_type_heap).
-#   metric age_seconds 412 file=/opt/homebrew/var/log/rabbitmq/erl_crash.dump
-#   metric newest_age_seconds 412
+#   metric newest_age_seconds 60
 #   metric dumps_not_shown 0
 #
 # Reading the results (starting points: tune them to the machine):

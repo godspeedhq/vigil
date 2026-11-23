@@ -38,12 +38,12 @@
 
     Example output:
       metric nodes 1
-      metric up 1 node=n28 source=dist
-      metric tables 21 node=n28 source=dist
-      metric objects 2386 node=n28 source=dist
-      metric memory_bytes 381616 node=n28 source=dist
-      metric table_memory_bytes 105848 node=n28 source=dist table=code_names owner=code_server
-      metric table_objects 1006 node=n28 source=dist table=code_names owner=code_server
+      metric up 1 node=tw source=dist
+      metric tables 22 node=tw source=dist
+      metric objects 8194 node=tw source=dist
+      metric memory_bytes 2033664 node=tw source=dist
+      metric table_memory_bytes 1738288 node=tw source=dist table=leaky_cache owner=trouble:cache/1
+      metric table_memory_bytes 143304 node=tw source=dist table=code_server owner=code_server
 
     Reading the results (starting points: tune them to the node):
       Healthy  tables steady; the largest tables the same ones, at a size

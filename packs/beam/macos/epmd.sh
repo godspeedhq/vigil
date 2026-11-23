@@ -27,9 +27,11 @@
 #
 # Example output:
 #   metric epmd_up 1 host=127.0.0.1:4369
-#   metric nodes 2 host=127.0.0.1:4369
-#   metric node 1 host=127.0.0.1:4369 name=rabbit port=25672
-#   metric node 1 host=127.0.0.1:4369 name=rabbitmqcli-512-rabbit port=36093
+#   metric nodes 4 host=127.0.0.1:4369
+#   metric node 1 host=127.0.0.1:4369 name=t26 port=19526
+#   metric node 1 host=127.0.0.1:4369 name=t28 port=19528
+#   metric node 1 host=127.0.0.1:4369 name=t27 port=19527
+#   metric node 1 host=127.0.0.1:4369 name=t25 port=19525
 #   metric nodes_not_shown 0 host=127.0.0.1:4369
 #
 # Reading the results (starting points: tune them to the machine):

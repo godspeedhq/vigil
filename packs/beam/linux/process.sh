@@ -37,15 +37,14 @@
 #   beams_not_shown         past the first 100 VMs, how many were left out
 #
 # Example output:
-#   metric beams 1
-#   metric running 1 node=rabbit@db1 erts=16.1.2
-#   metric rss_bytes 160710656 node=rabbit@db1
-#   metric cpu_seconds 4211.47 node=rabbit@db1
-#   metric threads 63 node=rabbit@db1
-#   metric open_files 112 node=rabbit@db1
-#   metric open_files_max 65536 node=rabbit@db1
-#   metric uptime_seconds 864000 node=rabbit@db1
-#   metric cookie_on_command_line 0 node=rabbit@db1
+#   metric beams 5
+#   metric running 1 node=t28@127.0.0.1 erts=16.4.0.7
+#   metric rss_bytes 68915200 node=t28@127.0.0.1
+#   metric cpu_seconds 71.67 node=t28@127.0.0.1
+#   metric threads 24 node=t28@127.0.0.1
+#   metric open_files_max 1024 node=t28@127.0.0.1
+#   metric uptime_seconds 101 node=t28@127.0.0.1
+#   metric cookie_on_command_line 0 node=t28@127.0.0.1
 #   metric beams_not_shown 0
 #
 # Reading the results (starting points: tune them to the node):

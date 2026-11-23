@@ -29,8 +29,9 @@
 
     Example output:
       metric epmd_up 1 host=127.0.0.1:4369
-      metric nodes 1 host=127.0.0.1:4369
+      metric nodes 2 host=127.0.0.1:4369
       metric node 1 host=127.0.0.1:4369 name=rabbit port=25672
+      metric node 1 host=127.0.0.1:4369 name=tw port=62893
       metric nodes_not_shown 0 host=127.0.0.1:4369
 
     Reading the results (starting points: tune them to the machine):

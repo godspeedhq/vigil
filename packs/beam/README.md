@@ -1,6 +1,6 @@
 # The beam pack
 
-Erlang and Elixir virtual machines, the BEAM, and any application that runs on one: RabbitMQ, CouchDB, ejabberd, EMQX, a Phoenix app, your own release. The pack reads the VM as the OS sees it, the nodes epmd knows, the VM's own figures (memory by kind, processes, ports, atoms and ETS tables against their limits, run queues, garbage collection), what runs inside it (the longest mailboxes, the largest processes and ETS tables), its peers in a cluster, its applications, and the crash dumps a VM leaves when it dies. It reports the VM's, never the application's: a queue's depth is the rabbitmq pack's. Linux, macOS and Windows.
+Erlang and Elixir virtual machines, the BEAM, and any application that runs on one: RabbitMQ, CouchDB, ejabberd, EMQX, a Phoenix app, your own release. The pack reads the VM as the OS sees it, the nodes epmd knows, the VM's own figures (memory by kind, processes, ports, atoms and ETS tables against their limits, run queues, garbage collection), what runs inside it (the longest mailboxes, the largest processes and ETS tables), its peers in a cluster, its applications, and the crash dumps a VM leaves when it dies. It reports the VM's, never the application's: a RabbitMQ queue's depth is for a pack of its own. Linux, macOS and Windows.
 
 **No Java, no agent, nothing to install in the VM.** The pack is shell and PowerShell, and one Erlang script (`_beam.escript`) for the tier that needs the cookie. Each tier is used where it reaches, and each works without the others:
 
@@ -268,11 +268,26 @@ Starting points, from the same figures each script's header explains; "In our te
 
 | Metric | Healthy | Watch | Act | In our tests |
 | --- | --- | --- | --- | --- |
-| `beam.vm.up`, `beam.epmd.epmd_up` | 1 | | 0: the node, or epmd, is down | IN_OUR_TESTS |
+| `beam.vm.up`, `beam.epmd.epmd_up` | 1 | | 0: the node, or epmd, is down; a wrong cookie fails the run instead, saying so | 0 for a node that was not there, and for an epmd port where nothing listened |
+| `beam.process.beams` | As many as you run | | Fewer: a VM is gone (`beam.crashdumps` says why) | 5 on Fedora: the four nodes and RabbitMQ, RabbitMQ named `rabbit` by its `-s` module |
+| `beam.vm.atom_pct` | Low and flat | Rising and never falling: atoms made from input, never freed | Past 80: at 100 the VM dies | 1.2 on Erlang/OTP 28, rising 20 a second; a VM given 20,000 atoms died of it (below) |
+| `beam.vm.process_pct`, `port_pct`, `ets_pct` | Low and flat | Climbing: a leak | Past 80: at 100 nothing new starts | 591 processes and climbing, 5 more a second, far below the limit of 1,048,576 |
+| `beam.processes.mailboxes_over_1000`; `mailbox` | 0; near 0 | A mailbox growing run after run | Above 0 and rising: a process falling behind, its memory growing with its mailbox | 1, `slow_consumer`, with 5,316 messages after two minutes, the longest mailbox on every node |
+| `beam.tables.table_objects`, `table_memory_bytes` | Steady, the same tables | One rising and never falling: a cache that never evicts | A large share of `beam.vm.memory_bytes` total, climbing | `leaky_cache`, 10,480 objects in 2.3 MB, owned by `trouble:cache/1`, the largest table on every node |
+| `beam.vm.memory_bytes` `kind=binary` | Steady | Climbing: binaries held on to | Near the machine's memory | 14.2 MB of a 49.5 MB VM, held by `hoarder` |
+| `beam.vm.run_queue` against `schedulers_online` | Near 0 | Above `schedulers_online` for minutes: short of CPU | | 1 of 4: the busy loop, `spinner`, the busiest process by far (15 billion reductions) |
+| `beam.process.cookie_on_command_line` | 0 | 1: every account here can read the cookie | | 1 for the two nodes started with `-setcookie`, 0 for the two reading `.erlang.cookie` and for RabbitMQ |
+| `beam.crashdumps.newest_age_seconds` | No dumps, or old ones you have read | Under a day | Under an hour: a VM died just now; its `slogan` says why | 2 dumps, 129 seconds old: `no more index entries in atom_tab (max=20000)` and `eheap_alloc: Cannot allocate 41262936 bytes of memory (of type "heap")` |
+| `beam.dist.peers` | As many as the cluster's other nodes | Hidden peers you do not expect | Fewer: a node down or cut off | 0: the nodes ran alone (a cluster is for RabbitMQ's own pack to test) |
 
 ## How it was tested
 
-TESTED
+**Tested** on 2026-11-23 on the Fedora 44 test machine by `tests/integration/backends/scripts/run-beam.sh`, against **Erlang/OTP 25, 26, 27 and 28**, each a node in Docker on the machine's own network (one epmd for them all) running `workloads/beam/trouble.erl`: a mailbox nobody reads, a cache that never evicts, atoms and processes leaking, a process holding binaries, a busy loop. Two take their cookie on their command lines, two from `.erlang.cookie`. Beside them, **RabbitMQ 4.2** for its Prometheus page, and two VMs that died on purpose first for their crash dumps: one of atoms (`+t 20000`), one of memory (`ulimit -v`). The cookie tier ran with each image's own `escript`, 28's then 25's, in a container on the machine's network, the cookie passed in by name.
+- **On Fedora**: every job directly, each reading checked on all four nodes, the escript of Erlang/OTP 25 reading them all too, a wrong cookie failing the run and saying so, a node and an epmd that are not there read as 0; then `service-packs.sh` through Vigil (enable and its warning, the secret line on the five jobs that read the cookie, every job, a wrong cookie failing the run, a node that is down read as `up 0`, the cookie written nowhere, no cookie file written into the home, no run's home left behind): **74 passed, 0 failed**, and through Vigil **37 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-23/fedora/pack-beam/console.txt)).
+- **On macOS**, on the Intel Mac test machine (macOS 12.7.6, bash 3.2), with Erlang/OTP 28 from [erlef/otp_builds](https://github.com/erlef/otp_builds) and RabbitMQ 4.4.1's generic Unix build, a node in trouble, RabbitMQ and a dump, all on the Mac: every job, **26 passed, 0 failed**; through Vigil, **31 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-23/macos/pack-beam-macos/console.txt)).
+- **On Windows**, on Windows 11 as an account that is not an administrator, with Erlang/OTP 28.5's Windows zip and RabbitMQ 4.4.1's, a node in trouble, RabbitMQ and a dump, all on the machine: `Service-Packs.ps1` through Vigil, **29 passed, 0 failed** on Windows PowerShell 5.1 and on PowerShell 7 ([the console output](../../tests/integration/backends/reports/runs/2026-11-23/windows/pack-beam-windows/console.txt)). The cookie came from an `env:` reference: Windows refuses its data protection to a logon by SSH key, as the test machine's was. Windows refused the command lines to that logon too (CIM), so `beam_process` named each VM by its process id, as it says it will.
+
+Erlang's Windows zip needs the Visual C++ runtime, which its installer brings and the zip does not (`vc_redist.exe`, in the zip, installs it, as an administrator): without it, `erl.exe` and `escript.exe` do not start.
 
 ---
 
