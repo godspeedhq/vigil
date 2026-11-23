@@ -1,0 +1,60 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Artemis brokers for the artemis pack (scripts/run-artemis.sh), each with
+# workloads/artemis's broker.properties and its own JMX connector over TLS
+# (management.xml), logging in as the broker's users. Not somewhere Vigil
+# sends: what its pack reads.
+#
+#   art233   Artemis 2.33   JMX 19331 (and 19341)
+#   art240   Artemis 2.40   JMX 19332 (and 19342)
+#   art244   Artemis 2.44   JMX 19333 (and 19343)
+#
+# Each broker's etc-override comes from ARTEMIS_ETC_DIR/<name>: its
+# management.xml, users (admin, and monitor of role view) and roles, as
+# run-artemis.sh writes them; its TLS certificate from ARTEMIS_TLS_DIR
+# (server.p12). Each takes 512 MB.
+
+x-artemis: &artemis
+  mem_limit: 512m
+  environment: &env
+    ARTEMIS_USER: admin
+    ARTEMIS_PASSWORD: ${ARTEMIS_ADMIN_PASSWORD:-}
+    JAVA_ARGS_APPEND: -Djava.rmi.server.hostname=localhost -Xmx256m
+
+services:
+  art233:
+    <<: *artemis
+    image: apache/activemq-artemis:2.33.0
+    volumes:
+      - ${ARTEMIS_ETC_DIR:-./.artemis-etc}/art233:/var/lib/artemis-instance/etc-override:ro,z
+      - ${ARTEMIS_TLS_DIR:-./.artemis-tls}:/tls:ro,z
+    ports:
+      - "127.0.0.1:19331:19331"
+      - "127.0.0.1:19341:19341"
+
+  art240:
+    <<: *artemis
+    image: apache/activemq-artemis:2.40.0
+    volumes:
+      - ${ARTEMIS_ETC_DIR:-./.artemis-etc}/art240:/var/lib/artemis-instance/etc-override:ro,z
+      - ${ARTEMIS_TLS_DIR:-./.artemis-tls}:/tls:ro,z
+    ports:
+      - "127.0.0.1:19332:19332"
+      - "127.0.0.1:19342:19342"
+
+  art244:
+    <<: *artemis
+    image: apache/activemq-artemis:2.44.0
+    volumes:
+      - ${ARTEMIS_ETC_DIR:-./.artemis-etc}/art244:/var/lib/artemis-instance/etc-override:ro,z
+      - ${ARTEMIS_TLS_DIR:-./.artemis-tls}:/tls:ro,z
+    ports:
+      - "127.0.0.1:19333:19333"
+      - "127.0.0.1:19343:19343"

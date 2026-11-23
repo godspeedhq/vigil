@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) Bankole Ogundero and the Vigil contributors
+  SPDX-License-Identifier: Apache-2.0
+
+  Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+  implied. Run it at your own risk: review it first, and test it before you
+  rely on it. In no event shall the authors or copyright holders be liable
+  for any claim, damages or other liability arising from its use. See the
+  LICENSE file for the full terms.
+
+  management.xml - an Artemis broker's JMX for the artemis pack's tests:
+  its own connector, over TLS (the registry too), logging in as the broker's
+  users; role amq may do anything, role view only read (get*, is*, list*),
+  which is all the pack needs. run-artemis.sh puts in the ports (@PORT@,
+  @RMIPORT@) and the keystore's password (@KS@).
+-->
+<management-context xmlns="http://activemq.apache.org/schema">
+   <connector connector-host="0.0.0.0" connector-port="@PORT@" rmi-registry-port="@RMIPORT@" secured="true"
+              key-store-path="/tls/server.p12" key-store-password="@KS@" key-store-type="PKCS12"/>
+   <authorisation>
+      <allowlist>
+         <entry domain="hawtio"/>
+      </allowlist>
+      <default-access>
+         <access method="list*" roles="amq"/>
+         <access method="get*" roles="amq"/>
+         <access method="is*" roles="amq"/>
+         <access method="set*" roles="amq"/>
+         <access method="*" roles="amq"/>
+      </default-access>
+      <role-access>
+         <match domain="org.apache.activemq.artemis">
+            <access method="list*" roles="amq,view"/>
+            <access method="get*" roles="amq,view"/>
+            <access method="is*" roles="amq,view"/>
+            <access method="set*" roles="amq"/>
+            <access method="*" roles="amq"/>
+         </match>
+      </role-access>
+   </authorisation>
+</management-context>
