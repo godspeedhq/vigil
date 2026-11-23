@@ -1,0 +1,58 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Erlang nodes in trouble on purpose for the beam pack (scripts/run-beam.sh),
+# each running workloads/beam/trouble.erl, on this machine's network (one
+# epmd for them all, as on a real machine), and a RabbitMQ node for its
+# Prometheus page. Not somewhere Vigil sends: what its pack reads.
+#
+#   t25      Erlang/OTP 25   t25@127.0.0.1, distribution on 19525
+#   t26      Erlang/OTP 26   t26@127.0.0.1, distribution on 19526
+#   t27      Erlang/OTP 27   t27@127.0.0.1, distribution on 19527
+#   t28      Erlang/OTP 28   t28@127.0.0.1, distribution on 19528
+#   rabbit   RabbitMQ 4.2    Prometheus on 127.0.0.1:15692
+#
+# BEAM_WORK holds the run's own: trouble.beam, and the cookie, twice: in
+# cookie, which t25 and t26 take on their command lines (-setcookie, the
+# way the pack's beam.process warns about), and in home/.erlang.cookie,
+# which t27 and t28 read, as they should. Each takes 256 MB.
+
+x-node: &node
+  network_mode: host
+  mem_limit: 256m
+  volumes:
+    - ${BEAM_WORK:-/nonexistent}:/w:ro,z
+
+services:
+  t25:
+    <<: *node
+    image: erlang:25
+    command: ["sh", "-c", "exec erl -noshell -name t25@127.0.0.1 -setcookie \"$$(cat /w/cookie)\" -kernel inet_dist_listen_min 19525 inet_dist_listen_max 19525 -pa /w -s trouble start"]
+  t26:
+    <<: *node
+    image: erlang:26
+    command: ["sh", "-c", "exec erl -noshell -name t26@127.0.0.1 -setcookie \"$$(cat /w/cookie)\" -kernel inet_dist_listen_min 19526 inet_dist_listen_max 19526 -pa /w -s trouble start"]
+  t27:
+    <<: *node
+    image: erlang:27
+    environment:
+      HOME: /w/home
+    command: ["erl", "-noshell", "-name", "t27@127.0.0.1", "-kernel", "inet_dist_listen_min", "19527", "inet_dist_listen_max", "19527", "-pa", "/w", "-s", "trouble", "start"]
+  t28:
+    <<: *node
+    image: erlang:28
+    environment:
+      HOME: /w/home
+    command: ["erl", "-noshell", "-name", "t28@127.0.0.1", "-kernel", "inet_dist_listen_min", "19528", "inet_dist_listen_max", "19528", "-pa", "/w", "-s", "trouble", "start"]
+  rabbit:
+    image: rabbitmq:4.2-management
+    hostname: rabbit1
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:15692:15692"

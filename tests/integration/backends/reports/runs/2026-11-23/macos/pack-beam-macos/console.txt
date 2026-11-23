@@ -1,0 +1,281 @@
+pack     beam 1.0.0, Vigil commit e97d6fa (a copy), from the repository
+account  vigil-test, by SSH key
+servers  a node in trouble on purpose (workloads/beam/trouble.erl) on Erlang/OTP 28 (erlef/otp_builds), RabbitMQ 4.4.1 (its generic Unix build) for Prometheus, a VM dead of atoms for its dump: all on this Mac
+
+host     Bankoles-MacBook-Air, macOS 12.7.6 (x86_64), bash 3.2.57(1)-release
+erlang   Erlang/OTP 28, erts 16.4.0.7
+rabbitmq rabbitmq 4.4.1
+commit   e97d6fa52cc21d7005ec11e77daf11c9a5c15ee2
+
+# A VM dies of atoms, for its dump.
+Crash dump is being written to: /private/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-beam-mac.5gUild/dumps/atoms.dump...done
+
+# The node in trouble, and RabbitMQ.
+Offline change; changes will take effect at broker restart.
+rabbitmq prometheus: 200
+
+# Every job, as the pack's macOS scripts print it.
+
+$ bash packs/beam/macos/process.sh
+metric beams 2
+metric running 1 node=tm erts=16.4.0.7
+metric rss_bytes 48087040 node=tm
+metric cpu_seconds 55.12 node=tm
+metric threads 24 node=tm
+metric open_files 32 node=tm
+metric uptime_seconds 56 node=tm
+metric cookie_on_command_line 0 node=tm
+metric running 1 node=rabbit erts=16.4.0.7
+metric rss_bytes 77357056 node=rabbit
+metric cpu_seconds 5.00 node=rabbit
+metric threads 24 node=rabbit
+metric open_files 49 node=rabbit
+metric uptime_seconds 51 node=rabbit
+metric cookie_on_command_line 0 node=rabbit
+metric beams_not_shown 0
+  PASS  beam_process runs
+
+$ bash packs/beam/macos/epmd.sh
+metric epmd_up 1 host=127.0.0.1:4369
+metric nodes 2 host=127.0.0.1:4369
+metric node 1 host=127.0.0.1:4369 name=rabbit port=25672
+metric node 1 host=127.0.0.1:4369 name=tm port=63078
+metric nodes_not_shown 0 host=127.0.0.1:4369
+  PASS  beam_epmd runs
+
+$ bash packs/beam/macos/vm.sh
+metric nodes 2
+metric up 1 node=rabbit source=prometheus
+metric memory_bytes 64037864 node=rabbit source=prometheus kind=total
+metric memory_bytes 17363104 node=rabbit source=prometheus kind=processes
+metric memory_bytes 46674760 node=rabbit source=prometheus kind=system
+metric memory_bytes 1060424 node=rabbit source=prometheus kind=atom
+metric memory_bytes 310344 node=rabbit source=prometheus kind=binary
+metric memory_bytes 21528661 node=rabbit source=prometheus kind=code
+metric memory_bytes 3425904 node=rabbit source=prometheus kind=ets
+metric processes 366 node=rabbit source=prometheus
+metric process_limit 1048576 node=rabbit source=prometheus
+metric process_pct 0.03 node=rabbit source=prometheus
+metric ports 8 node=rabbit source=prometheus
+metric port_limit 65536 node=rabbit source=prometheus
+metric port_pct 0.01 node=rabbit source=prometheus
+metric atoms 31794 node=rabbit source=prometheus
+metric atom_limit 5000000 node=rabbit source=prometheus
+metric atom_pct 0.64 node=rabbit source=prometheus
+metric ets_tables 181 node=rabbit source=prometheus
+metric ets_limit 50000 node=rabbit source=prometheus
+metric ets_pct 0.36 node=rabbit source=prometheus
+metric schedulers_online 4 node=rabbit source=prometheus
+metric run_queue 0 node=rabbit source=prometheus
+metric dirty_cpu_run_queue 0 node=rabbit source=prometheus
+metric dirty_io_run_queue 0 node=rabbit source=prometheus
+metric reductions_count 21503459 node=rabbit source=prometheus
+metric gcs_count 5982 node=rabbit source=prometheus
+metric gc_reclaimed_bytes 217540328 node=rabbit source=prometheus
+metric context_switches_count 96605 node=rabbit source=prometheus
+metric received_bytes 67708 node=rabbit source=prometheus
+metric sent_bytes 294011 node=rabbit source=prometheus
+metric up 1 node=tm source=dist
+metric memory_bytes 41112600 node=tm source=dist kind=total
+metric memory_bytes 14820360 node=tm source=dist kind=processes
+metric memory_bytes 26292240 node=tm source=dist kind=system
+metric memory_bytes 322030 node=tm source=dist kind=atom
+metric memory_bytes 7445992 node=tm source=dist kind=binary
+metric memory_bytes 6246081 node=tm source=dist kind=code
+metric memory_bytes 1603496 node=tm source=dist kind=ets
+metric version 1 node=tm source=dist otp=28 erts=16.4.0.7
+metric processes 347 node=tm source=dist
+metric process_limit 1048576 node=tm source=dist
+metric process_pct 0.03 node=tm source=dist
+metric ports 4 node=tm source=dist
+metric port_limit 65536 node=tm source=dist
+metric port_pct 0.01 node=tm source=dist
+metric atoms 12116 node=tm source=dist
+metric atom_limit 1048576 node=tm source=dist
+metric atom_pct 1.16 node=tm source=dist
+metric ets_tables 22 node=tm source=dist
+metric ets_limit 8192 node=tm source=dist
+metric ets_pct 0.27 node=tm source=dist
+metric schedulers_online 4 node=tm source=dist
+metric run_queue 0 node=tm source=dist
+metric dirty_cpu_run_queue 0 node=tm source=dist
+metric dirty_io_run_queue 0 node=tm source=dist
+metric reductions_count 5043161988 node=tm source=dist
+metric gcs_count 1070 node=tm source=dist
+metric gc_reclaimed_bytes 4497328 node=tm source=dist
+metric context_switches_count 1275107 node=tm source=dist
+metric received_bytes 2753 node=tm source=dist
+metric sent_bytes 3476 node=tm source=dist
+metric uptime_seconds 57 node=tm source=dist
+  PASS  beam_vm runs
+
+$ bash packs/beam/macos/processes.sh
+metric nodes 1
+metric up 1 node=tm source=dist
+metric processes_read 349 node=tm source=dist
+metric processes_not_read 0 node=tm source=dist
+metric mailbox_messages 2712 node=tm source=dist
+metric mailboxes_over_1000 1 node=tm source=dist
+metric mailbox 2712 node=tm source=dist process=slow_consumer
+metric process_memory_bytes 426464 node=tm source=dist process=code_server
+metric process_memory_bytes 391352 node=tm source=dist process=slow_consumer
+metric process_memory_bytes 34568 node=tm source=dist process=application_controller
+metric process_memory_bytes 26568 node=tm source=dist process=release_handler
+metric process_memory_bytes 24448 node=tm source=dist process=trouble:atoms/1
+metric process_memory_bytes 21608 node=tm source=dist process=init
+metric process_memory_bytes 17032 node=tm source=dist process=net_kernel
+metric process_memory_bytes 16680 node=tm source=dist process=file_server_2
+metric process_memory_bytes 16544 node=tm source=dist process=hoarder
+metric process_memory_bytes 13784 node=tm source=dist process=auth
+metric process_reductions_count 5095932000 node=tm source=dist process=spinner
+metric process_reductions_count 149756 node=tm source=dist process=code_server
+metric process_reductions_count 118777 node=tm source=dist process=hoarder
+metric process_reductions_count 89271 node=tm source=dist process=trouble:cache/1
+metric process_reductions_count 24414 node=tm source=dist process=slow_consumer
+metric process_reductions_count 14209 node=tm source=dist process=erl_prim_loader
+metric process_reductions_count 13837 node=tm source=dist process=trouble:feed/1
+metric process_reductions_count 6835 node=tm source=dist process=trouble:atoms/1
+metric process_reductions_count 6817 node=tm source=dist process=init
+metric process_reductions_count 5561 node=tm source=dist process=kernel_sup
+  PASS  beam_processes runs
+
+$ bash packs/beam/macos/tables.sh
+metric nodes 1
+metric up 1 node=tm source=dist
+metric tables 22 node=tm source=dist
+metric objects 5738 node=tm source=dist
+metric memory_bytes 1481504 node=tm source=dist
+metric table_memory_bytes 1187968 node=tm source=dist table=leaky_cache owner=trouble:cache/1
+metric table_memory_bytes 154392 node=tm source=dist table=code_server owner=code_server
+metric table_memory_bytes 45448 node=tm source=dist table=code_names(unnamed) owner=code_server
+metric table_memory_bytes 37048 node=tm source=dist table=logger owner=logger
+metric table_memory_bytes 10032 node=tm source=dist table=ac_tab owner=application_controller
+metric table_memory_bytes 5232 node=tm source=dist table=inet_db owner=inet_db
+metric table_memory_bytes 3120 node=tm source=dist table=sys_dist owner=net_kernel
+metric table_memory_bytes 2936 node=tm source=dist table=rex_nodes_observer(unnamed) owner=rpc:nodes_observer_loop/1
+metric table_memory_bytes 2880 node=tm source=dist table=global_names owner=global_name_server
+metric table_memory_bytes 2496 node=tm source=dist table=cookies(unnamed) owner=auth
+metric table_objects 5251 node=tm source=dist table=leaky_cache owner=trouble:cache/1
+metric table_objects 399 node=tm source=dist table=code_server owner=code_server
+metric table_objects 37 node=tm source=dist table=code_names(unnamed) owner=code_server
+metric table_objects 32 node=tm source=dist table=inet_db owner=inet_db
+metric table_objects 14 node=tm source=dist table=ac_tab owner=application_controller
+metric table_objects 3 node=tm source=dist table=logger owner=logger
+metric table_objects 1 node=tm source=dist table=sys_dist owner=net_kernel
+metric table_objects 1 node=tm source=dist table=rex_nodes_observer(unnamed) owner=rpc:nodes_observer_loop/1
+metric table_objects 0 node=tm source=dist table=cookies(unnamed) owner=auth
+metric table_objects 0 node=tm source=dist table=global_node_resources owner=global_name_server
+  PASS  beam_tables runs
+
+$ bash packs/beam/macos/dist.sh
+metric nodes 1
+metric up 1 node=tm source=dist
+metric peers 0 node=tm source=dist
+metric hidden_peers 0 node=tm source=dist
+metric peers_not_shown 0 node=tm source=dist
+metric busy_limit_bytes 1048576 node=tm source=dist
+  PASS  beam_dist runs
+
+$ bash packs/beam/macos/apps.sh
+metric nodes 1
+metric up 1 node=tm source=dist
+metric apps 3 node=tm source=dist
+metric app 1 node=tm source=dist app=sasl version=4.3.2
+metric app 1 node=tm source=dist app=stdlib version=7.3.0.3
+metric app 1 node=tm source=dist app=kernel version=10.6.3.4
+metric apps_not_shown 0 node=tm source=dist
+  PASS  beam_apps runs
+
+$ bash packs/beam/macos/crashdumps.sh
+metric dump 1 file=/private/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-beam-mac.5gUild/dumps/atoms.dump node=deadm@Bankoles-MacBook-Air slogan=no_more_index_entries_in_atom_tab_(max=20000)
+metric age_seconds 60 file=/private/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T/vigil-beam-mac.5gUild/dumps/atoms.dump
+metric dumps 1
+metric newest_age_seconds 60
+metric dumps_not_shown 0
+  PASS  beam_crashdumps runs
+
+# What they read.
+  PASS  process: the node and RabbitMQ, at least
+  PASS  process: the node, by its name
+  PASS  process: RabbitMQ, by its -s module
+  PASS  process: its cookie is not on its command line
+  PASS  process: its open files, from lsof
+  PASS  epmd: answers
+  PASS  epmd: knows the node
+  PASS  epmd: and RabbitMQ
+  PASS  vm: the node answers with the cookie
+  PASS  vm: Erlang/OTP 28
+  PASS  vm: RabbitMQ answers on Prometheus
+  PASS  processes: the mailbox nobody reads
+  PASS  tables: the cache that never evicts, the largest
+  PASS  apps: kernel
+  PASS  crashdumps: the one out of atoms, and why
+  PASS  a wrong cookie fails the run
+  PASS  and says so
+
+# The pack through Vigil.
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+beam: tm=tm@Bankoles-MacBook-Air; rabbit=http://127.0.0.1:15692/metrics
+  PASS  beam: off until enabled
+  PASS  beam: enabled
+        on: beam_process
+        on: beam_epmd
+        on: beam_vm
+        on: beam_processes
+        on: beam_tables
+        on: beam_dist
+        on: beam_apps
+        on: beam_crashdumps
+        needs for the process tier: nothing; another account's VMs need root or an administrator for their open files (Linux) and command lines (Windows)
+        needs for epmd: its address in BEAM_EPMD (host or host:port; this machine's, unless set)
+        needs for Prometheus: a node's /metrics in BEAM_PROMETHEUS (<name>=<url>; RabbitMQ's on port 15692)
+        needs for the cookie: the node in BEAM_DIST (<name>=<node>), Erlang/OTP 25 or later here, and a secret line: secret = BEAM_COOKIE=secret:BEAM_COOKIE, then vigil secret set BEAM_COOKIE. WARNING: the cookie lets whoever holds it run anything on the node; this pack only reads
+        settings in vigil.config: BEAM_EPMD= BEAM_PROMETHEUS= BEAM_DIST= BEAM_ERLANG= BEAM_CRASH_DUMPS=
+  PASS  beam: it warns what the cookie allows
+  PASS  beam: its jobs are on
+  PASS  beam: no secret line until the cookie is asked for
+  PASS  beam: the cookie is a secret reference, on the five jobs that read it
+  PASS  beam: precheck is happy
+  PASS  beam: every job runs
+        process: 16 lines
+        epmd: 5 lines
+        vm: 63 lines
+        processes: 27 lines
+        tables: 25 lines
+        dist: 6 lines
+        apps: 7 lines
+        crashdumps: 5 lines
+  PASS  beam: process: the VMs are seen
+  PASS  beam: epmd answers
+  PASS  beam: tm answers with the cookie
+  PASS  beam: tm says its version
+  PASS  beam: rabbit answers on Prometheus
+  PASS  beam: rabbit's atoms are counted
+  PASS  beam: the mailbox nobody reads is the longest
+  PASS  beam: and over 1,000 waiting, once it has run a minute
+  PASS  beam: the cache that never evicts is the largest table
+  PASS  beam: the busy loop is the busiest process
+  PASS  beam: its applications are listed
+  PASS  beam: the crash dumps are found
+  PASS  beam: and why the VM died
+  PASS  beam: a wrong cookie fails the run
+  PASS  beam: and says the cookie, or the name, is not the node's
+  PASS  beam: a node that is down still runs
+  PASS  beam: and reads as up 0
+  PASS  beam: the cookie is written nowhere
+  PASS  beam: and Erlang wrote no cookie file into this home
+  PASS  beam: no home of a run is left behind
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  PASS  beam: metrics reach the backend
+31 passed, 0 failed
+  PASS  Erlang wrote no cookie file into this home
+directly: 26 passed, 0 failed

@@ -302,8 +302,13 @@ check_pack() {
                         fail "$f is not tools/probe/_probe.java as it is now: py tools/probe/gen.py ., then the pack's own gen.py"
                     ;;
                 # A file the scripts share, such as the jvm pack's client:
-                # named for no job, it is never run as one.
-                _*) ;;
+                # named for no job, it is never run as one. When its source
+                # is in tools/<pack>/, it is that, as it is now.
+                _*)
+                    if [ -f "tools/$name/$job" ]; then
+                        cmp -s "$f" "tools/$name/$job" || fail "$f is not tools/$name/$job as it is now: copy it"
+                    fi
+                    ;;
                 *.$ext)
                     case " $jobs " in *" ${job%.$ext} "*) ;; *) fail "$f has no [job.${job%.$ext}] in pack.config" ;; esac
                     ;;

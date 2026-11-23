@@ -31,6 +31,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`jetty`](jetty/README.md) | Eclipse Jetty over JMX: server and apps, low resources, requests and responses by class, request times, the thread pool, connections and limits, QoS, sessions and byte buffers | [packs/jetty/README.md](jetty/README.md) |
 | [`activemq`](activemq/README.md) | Apache ActiveMQ Classic over JMX: health, memory, store and temp limits, queues (the deepest first), topics, dead letter queues, durable subscribers, connections and network bridges | [packs/activemq/README.md](activemq/README.md) |
 | [`artemis`](artemis/README.md) | Apache ActiveMQ Artemis over JMX: health and HA, address memory and disk against their limits, addresses and paging, queues (the deepest first, the oldest message), dead letter and expiry queues, logins refused, cluster connections and bridges | [packs/artemis/README.md](artemis/README.md) |
+| [`beam`](beam/README.md) | Erlang and Elixir VMs: process, epmd, memory by kind, processes, ports, atoms and ETS against their limits, run queues, GC, mailboxes, ETS tables, distribution, applications, crash dumps | [packs/beam/README.md](beam/README.md) |
 | [`nginx`](nginx/README.md) | nginx: up, connections and requests, from stub_status | [packs/nginx/README.md](nginx/README.md) |
 
 ## Service packs
@@ -96,6 +97,12 @@ Apache ActiveMQ Classic 5.18 to 6.x, on this machine or any it can reach, over J
 Apache ActiveMQ Artemis 2.x, on this machine or any it can reach, over JMX with a password and TLS: the broker's health and high availability role, its address memory and disk against their limits, its addresses (paging, blocked, messages routed nowhere), its queues (the deepest first, with the age of the oldest message), dead letter and expiry queues, logins refused, cluster connections and bridges. ActiveMQ Classic is the [activemq pack](activemq/README.md)'s; the broker's JVM is the [jvm pack](jvm/README.md)'s. Linux, macOS and Windows.
 
 **Its page: [packs/artemis/README.md](artemis/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### beam
+
+Erlang and Elixir virtual machines: any application on the BEAM (RabbitMQ, CouchDB, ejabberd, EMQX, Phoenix, a release of your own) through the VM it runs on. The VM, not the application: its process, the nodes epmd knows, memory by kind, processes, ports, atoms and ETS tables against their limits, run queues, garbage collection, the longest mailboxes and largest tables, its peers, its applications, and the crash dumps a VM leaves when it dies. No Java: shell, PowerShell and one Erlang script. Its deepest tier needs the node's cookie, which lets whoever holds it run anything on the node: the pack only reads, and its page says how, call by call. Linux, macOS and Windows; Erlang/OTP 25 and later.
+
+**Its page: [packs/beam/README.md](beam/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ### nginx
 
