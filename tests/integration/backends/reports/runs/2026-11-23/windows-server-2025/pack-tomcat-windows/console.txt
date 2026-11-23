@@ -1,0 +1,100 @@
+pack     tomcat 1.0.0, Vigil commit dd2c163 (a copy); the pack from a packs release built by tools/release/packs.sh
+account  vigil-test, not an administrator, by SSH key
+servers  run-tomcat.sh's Tomcats on the Fedora test machine (9.0 on Java 11, 10.1 on Java 17, 11.0 on Java 21, each with trouble on purpose; JMX with a password and TLS), through SSH tunnels
+
+######## tests\integration\Service-Packs.ps1 through Vigil, then every job on a JRE, powershell.exe
+
+host     WIN-R50M4Q63SR9, Windows Server 2025 Datacenter Evaluation 24H2 build 26100
+shell    C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe 5.1.26100.7462
+java     openjdk version "21.0.13.1" 2026-11-17 LTS
+jre      openjdk version "21.0.13.1" 2026-11-17 LTS
+servers  tc9: jmxs=localhost:19301; tc10: jmxs=localhost:19302; tc11: jmxs=localhost:19303
+PowerShell 5.1.26100.7462
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+tomcat: tc9: jmxs=localhost:19301; tc10: jmxs=localhost:19302; tc11: jmxs=localhost:19303
+  PASS  tomcat: off until enabled
+  PASS  tomcat: enabled
+        on: tomcat_status
+        on: tomcat_requests
+        on: tomcat_threads
+        on: tomcat_inflight
+        on: tomcat_apps
+        on: tomcat_sessions
+        on: tomcat_servlets
+        on: tomcat_jdbc
+        on: tomcat_cache
+        needs each Tomcat's JMX in TOMCAT_JMX (web1: jmxs=host:port): -Dcom.sun.management.jmxremote.port and a password and TLS in CATALINA_OPTS (packs/README.md shows how)
+        needs for JMX with a password: a secret line on the jobs: secret = TOMCAT_JMX_PASSWORD=secret:TOMCAT_JMX_PASSWORD, then vigil secret set TOMCAT_JMX_PASSWORD
+        needs for stuck requests: Tomcat's StuckThreadDetectionValve on the Host or the app (packs/README.md shows how)
+        needs for Tomcat's JVM (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: vigil pack install jvm, with each Tomcat in JVM_TARGETS named as here (web1: jmxs=host:port)
+        settings in vigil.config: TOMCAT_JMX= TOMCAT_JMX_USER= TOMCAT_CACERT=
+  PASS  tomcat: it says its JVM is the jvm pack's
+  PASS  tomcat: its jobs are on
+  PASS  tomcat: no secret line until JMX asks for one
+  PASS  tomcat: the password is a secret reference, on every job
+  note  tomcat: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_PROBE_PASSWORD
+  PASS  tomcat: precheck is happy
+  PASS  tomcat: every job runs
+  PASS  tomcat: tc9 answers over JMX
+  PASS  tomcat: tc10 answers over JMX
+  PASS  tomcat: tc11 answers over JMX
+        metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+        metric version 1 tomcat=tc9 jmx=localhost:19301 version=9.0.124.0
+        metric up 1 tomcat=tc9 jmx=localhost:19301
+        metric engine_up 1 tomcat=tc9 jmx=localhost:19301
+        metric host_up 1 tomcat=tc9 jmx=localhost:19301 host=localhost
+        metric connector_up 1 tomcat=tc9 jmx=localhost:19301 port=8080
+        metric connector_up 1 tomcat=tc9 jmx=localhost:19301 port=8081
+        metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+        metric version 1 tomcat=tc10 jmx=localhost:19302 version=10.1.62.0
+        metric up 1 tomcat=tc10 jmx=localhost:19302
+        metric engine_up 1 tomcat=tc10 jmx=localhost:19302
+        metric host_up 1 tomcat=tc10 jmx=localhost:19302 host=localhost
+        metric connector_up 1 tomcat=tc10 jmx=localhost:19302 port=8080
+        metric connector_up 1 tomcat=tc10 jmx=localhost:19302 port=8081
+        metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+        metric version 1 tomcat=tc11 jmx=localhost:19303 version=11.0.29.0
+        metric up 1 tomcat=tc11 jmx=localhost:19303
+        metric engine_up 1 tomcat=tc11 jmx=localhost:19303
+        metric host_up 1 tomcat=tc11 jmx=localhost:19303 host=localhost
+        metric connector_up 1 tomcat=tc11 jmx=localhost:19303 port=8080
+        metric connector_up 1 tomcat=tc11 jmx=localhost:19303 port=8081
+  PASS  tomcat: a wrong password fails the run
+  PASS  tomcat: and says why
+  PASS  tomcat: a certificate it cannot trust fails the run
+  PASS  tomcat: and says why
+  PASS  tomcat: a server that does not answer still runs
+  PASS  tomcat: and reads as jmx_up 0
+  PASS  tomcat: the password is written nowhere
+  PASS  tomcat: metrics reach the backend
+21 passed, 0 failed
+        metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+        metric version 1 tomcat=tc9 jmx=localhost:19301 version=9.0.124.0
+        metric up 1 tomcat=tc9 jmx=localhost:19301
+        metric engine_up 1 tomcat=tc9 jmx=localhost:19301
+        metric host_up 1 tomcat=tc9 jmx=localhost:19301 host=localhost
+        metric connector_up 1 tomcat=tc9 jmx=localhost:19301 port=8080
+        metric connector_up 1 tomcat=tc9 jmx=localhost:19301 port=8081
+        metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+        metric version 1 tomcat=tc10 jmx=localhost:19302 version=10.1.62.0
+        metric up 1 tomcat=tc10 jmx=localhost:19302
+        metric engine_up 1 tomcat=tc10 jmx=localhost:19302
+        metric host_up 1 tomcat=tc10 jmx=localhost:19302 host=localhost
+        metric connector_up 1 tomcat=tc10 jmx=localhost:19302 port=8080
+        metric connector_up 1 tomcat=tc10 jmx=localhost:19302 port=8081
+        metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+        metric version 1 tomcat=tc11 jmx=localhost:19303 version=11.0.29.0
+        metric up 1 tomcat=tc11 jmx=localhost:19303
+        metric engine_up 1 tomcat=tc11 jmx=localhost:19303
+        metric host_up 1 tomcat=tc11 jmx=localhost:19303 host=localhost
+        metric connector_up 1 tomcat=tc11 jmx=localhost:19303 port=8080
+        metric connector_up 1 tomcat=tc11 jmx=localhost:19303 port=8081
+  PASS  tomcat: every job runs on the JRE, from the release
+  PASS  tomcat: and every server answers
+2 passed, 0 failed
