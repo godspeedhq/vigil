@@ -35,6 +35,8 @@
                               11.0.29.0>
       up                      1 when the server is started, else 0
       engine_up               1 when the engine is started, else 0
+      jvm_route               always 1, tagged route=<its jvmRoute>, when it has
+                              one (behind a load balancer)
       host_up                 1 when the host is started, else 0, tagged
                               host=<its name>
       connector_up            1 when the connector is started, else 0 (stopped,

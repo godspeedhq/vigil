@@ -32,6 +32,8 @@ WA = 'org.eclipse.jetty*:type=webappcontext,*'
 SC = 'org.eclipse.jetty*:type=*sessioncache,*'
 SH = 'org.eclipse.jetty*:type=sessionhandler,*'
 BP = 'org.eclipse.jetty.io:type=*bytebufferpool,*'
+SEL = 'org.eclipse.jetty.io:type=managedselector,*'
+RTE = 'org.eclipse.jetty.util.thread:type=reservedthreadexecutor,*'
 
 JOBS = [
     dict(job='status', metric_name='jetty', when='run_every   = 1m', title="a Jetty's health",
@@ -79,7 +81,15 @@ JOBS = [
                ('mean_seconds', ST12, 'requestTimeMean', '*0.000000001', 'the mean time of a request'),
                ('mean_seconds', ST9, 'requestTimeMean', '*0.001', ''),
                ('total_seconds', ST12, 'requestTimeTotal', '*0.000000001', 'the time of every request, added up'),
-               ('total_seconds', ST9, 'requestTimeTotal', '*0.001', '')],
+               ('total_seconds', ST9, 'requestTimeTotal', '*0.001', ''),
+               ('handling_slowest_seconds', ST12, 'handleTimeMax', '*0.000000001', 'the slowest time in the application, apart from reading and writing (12)'),
+               ('handling_mean_seconds', ST12, 'handleTimeMean', '*0.000000001', 'the mean time in the application (12)'),
+               ('handling_active_max', ST12, 'handleActiveMax', '', 'the most in the application at once (12)'),
+               ('dispatched_slowest_seconds', ST9, 'dispatchedTimeMax', '*0.001', 'the slowest dispatch to the application (9.4 to 11)'),
+               ('dispatched_mean_seconds', ST9, 'dispatchedTimeMean', '*0.001', 'the mean time of a dispatch (9.4 to 11)'),
+               ('dispatched_active_max', ST9, 'dispatchedActiveMax', '', 'the most dispatches at once (9.4 to 11)'),
+               ('async_waiting_max', ST9, 'asyncRequestsWaitingMax', '', 'the most asynchronous requests waiting at once (9.4 to 11)'),
+               ('stats_seconds', ST9, 'statsOnMs', '*0.001', 'since these statistics began (9.4 to 11): the totals count from then')],
          healthy="responses_5xx_count flat; active well below the thread pool's max; mean_seconds steady.",
          watch="responses_4xx_count rising faster than requests: clients asking for what is not there, or refused.",
          act="responses_5xx_count rising: the server or the apps are failing; active near the pool's max: "
@@ -100,7 +110,9 @@ JOBS = [
                ('low_on_threads', QTP, 'lowOnThreads', 'id', '1 when it is low on threads, else 0, tagged the same'),
                ('leased', QTP, 'leasedThreads', 'id', "threads leased to Jetty's own work (acceptors, selectors), tagged the same"),
                ('reserved', QTP, 'availableReservedThreads', 'id', 'threads reserved and available, tagged the same'),
-               ('max_available', QTP, 'maxAvailableThreads', 'id', 'the most that could run the application, tagged the same')],
+               ('max_available', QTP, 'maxAvailableThreads', 'id', 'the most that could run the application, tagged the same'),
+               ('reserved_capacity', RTE, 'capacity', '', 'the most threads it keeps reserved for quick work'),
+               ('reserved_pending', RTE, 'pending', '', 'reserved threads starting now')],
          healthy="busy well below max_threads; queue 0; low_on_threads 0.",
          watch="utilization_pct above 80 for minutes; queue above 0 now and then.",
          act="queue growing and low_on_threads 1: every thread is busy and requests wait. Find what holds them "
@@ -125,7 +137,12 @@ JOBS = [
                ('qos_max', QOS, 'maxRequestCount', '', "the QoS handler's limit of requests at once (12)"),
                ('qos_suspended', QOS, 'suspendedRequestCount', '', 'requests suspended for it now (12)'),
                ('qos_exceeded_count', QOS, 'totalExceededRequestCount', '', 'requests refused for it (12)'),
-               ('qos_expired_count', QOS, 'totalExpiredRequestCount', '', 'requests that waited too long for it (12)')],
+               ('qos_expired_count', QOS, 'totalExpiredRequestCount', '', 'requests that waited too long for it (12)'),
+               ('qos_requests_count', QOS, 'totalRequestCount', '', 'requests it has seen (12)'),
+               ('qos_suspended_count', QOS, 'totalSuspendedRequestCount', '', 'requests it has suspended (12)'),
+               ('qos_max_suspended', QOS, 'maxSuspendedRequestCount', '', 'the most it suspends, then it refuses (12)'),
+               ('selector_keys', SEL, 'totalKeys', 'sum', "connections Jetty's selectors watch, every one added up"),
+               ('selects_count', SEL, 'selectCount', 'sum', 'times they have selected')],
          healthy="open well below limit; limit_pending 0; qos_exceeded_count flat.",
          watch="open near limit; qos_suspended above 0: requests wait for the QoS handler.",
          act="limited at limit with limit_pending above 0: Jetty is not accepting more; qos_exceeded_count "

@@ -30,44 +30,56 @@
 # _probe.tables, beside this script: nothing of Jetty's is needed here.
 #
 # Metrics:
-#   jmx_up                     1 when JMX answers, else 0, tagged jetty=<its
-#                              name> and jmx=<its address>
-#   threads                    threads it has, tagged id=<the pool>
-#   busy                       busy threads, tagged the same
-#   idle                       idle threads, tagged the same
-#   ready                      threads ready for a job now, tagged the same
-#   utilized                   threads running a job of the application,
-#                              tagged the same
-#   max_threads                the most it may have, tagged the same
-#   min_threads                the fewest it keeps, tagged the same
-#   queue                      jobs waiting for a thread, tagged the same
-#   utilization_pct            how much of the pool is in use, tagged the same
-#   low_on_threads             1 when it is low on threads, else 0, tagged the
-#                              same
-#   leased                     threads leased to Jetty's own work (acceptors,
-#                              selectors), tagged the same
-#   reserved                   threads reserved and available, tagged the same
-#   max_available              the most that could run the application, tagged
-#                              the same
-#   threads_not_shown          of threads, those past the first 100, left out
-#   busy_not_shown             of busy, those past the first 100, left out
-#   idle_not_shown             of idle, those past the first 100, left out
-#   ready_not_shown            of ready, those past the first 100, left out
-#   utilized_not_shown         of utilized, those past the first 100, left out
-#   max_threads_not_shown      of max_threads, those past the first 100, left
-#                              out
-#   min_threads_not_shown      of min_threads, those past the first 100, left
-#                              out
-#   queue_not_shown            of queue, those past the first 100, left out
-#   utilization_pct_not_shown
-#                              of utilization_pct, those past the first 100,
-#                              left out
-#   low_on_threads_not_shown   of low_on_threads, those past the first 100,
-#                              left out
-#   leased_not_shown           of leased, those past the first 100, left out
-#   reserved_not_shown         of reserved, those past the first 100, left out
-#   max_available_not_shown    of max_available, those past the first 100,
-#                              left out
+#   jmx_up                       1 when JMX answers, else 0, tagged jetty=<its
+#                                name> and jmx=<its address>
+#   threads                      threads it has, tagged id=<the pool>
+#   busy                         busy threads, tagged the same
+#   idle                         idle threads, tagged the same
+#   ready                        threads ready for a job now, tagged the same
+#   utilized                     threads running a job of the application,
+#                                tagged the same
+#   max_threads                  the most it may have, tagged the same
+#   min_threads                  the fewest it keeps, tagged the same
+#   queue                        jobs waiting for a thread, tagged the same
+#   utilization_pct              how much of the pool is in use, tagged the
+#                                same
+#   low_on_threads               1 when it is low on threads, else 0, tagged
+#                                the same
+#   leased                       threads leased to Jetty's own work
+#                                (acceptors, selectors), tagged the same
+#   reserved                     threads reserved and available, tagged the
+#                                same
+#   max_available                the most that could run the application,
+#                                tagged the same
+#   reserved_capacity            the most threads it keeps reserved for quick
+#                                work
+#   reserved_pending             reserved threads starting now
+#   threads_not_shown            of threads, those past the first 100, left
+#                                out
+#   busy_not_shown               of busy, those past the first 100, left out
+#   idle_not_shown               of idle, those past the first 100, left out
+#   ready_not_shown              of ready, those past the first 100, left out
+#   utilized_not_shown           of utilized, those past the first 100, left
+#                                out
+#   max_threads_not_shown        of max_threads, those past the first 100,
+#                                left out
+#   min_threads_not_shown        of min_threads, those past the first 100,
+#                                left out
+#   queue_not_shown              of queue, those past the first 100, left out
+#   utilization_pct_not_shown    of utilization_pct, those past the first 100,
+#                                left out
+#   low_on_threads_not_shown     of low_on_threads, those past the first 100,
+#                                left out
+#   leased_not_shown             of leased, those past the first 100, left out
+#   reserved_not_shown           of reserved, those past the first 100, left
+#                                out
+#   max_available_not_shown      of max_available, those past the first 100,
+#                                left out
+#   reserved_capacity_not_shown
+#                                of reserved_capacity, those past the first
+#                                100, left out
+#   reserved_pending_not_shown   of reserved_pending, those past the first
+#                                100, left out
 #
 # Example output (the rest are in the same form):
 #   metric jmx_up 1 jetty=j121 jmx=localhost:19314

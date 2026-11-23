@@ -55,6 +55,10 @@
 #   executor_max_queue            the most that may wait, then they are
 #                                 refused, tagged the same
 #   executor_done_count           requests it has handled, tagged the same
+#   utility_busy                  Tomcat's utility executor's threads busy
+#                                 (background work: session expiry, reloading)
+#   utility_threads               its threads
+#   utility_tasks_count           tasks given to it
 #   busy_not_shown                of busy, those past the first 100, left out
 #   threads_not_shown             of threads, those past the first 100, left
 #                                 out

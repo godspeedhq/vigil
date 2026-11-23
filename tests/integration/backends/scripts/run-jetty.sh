@@ -133,17 +133,22 @@ for t in j94:9.4 j11:11.0 j120:12.0 j121:12.1; do
             check "$n: jobs queued for a thread" yes "$(least threads queue "jetty=$n " 1)"
             check "$n: low on threads" 1 "$(val threads low_on_threads "jetty=$n ")"
             check "$n: low on resources" 1 "$(val status low_on_resources "jetty=$n ")"
+            check "$n: since its statistics began" yes "$(least requests stats_seconds "jetty=$n " 10)"
+            check "$n: the slowest dispatch" yes "$(least requests dispatched_slowest_seconds "jetty=$n " 0.001)"
             ;;
         *)
             check "$n: pages that threw, as 5xx too" yes "$(least requests responses_5xx_count "jetty=$n " 6)"
             check "$n: the QoS limit" 16 "$(val connections qos_max "jetty=$n ")"
             check "$n: requests suspended for it" yes "$(least connections qos_suspended "jetty=$n " 10)"
             check "$n: so threads are left" yes "$(least threads busy "jetty=$n " 16)"
+            check "$n: requests the QoS handler has seen" yes "$(least connections qos_requests_count "jetty=$n " 50)"
+            check "$n: time in the application, apart" yes "$(least requests handling_slowest_seconds "jetty=$n " 0.001)"
             ;;
     esac
     check "$n: connections open" yes "$(least connections open "jetty=$n " 20)"
     check "$n: the connection limit" 40 "$(val connections limit "jetty=$n ")"
     check "$n: connections it counts" yes "$(least connections limited "jetty=$n " 20)"
+    check "$n: connections its selectors watch" yes "$(least connections selector_keys "jetty=$n " 10)"
     check "$n: sessions" yes "$(least sessions most "jetty=$n .*context=_?shop" 40)"
     check "$n: its byte buffers" yes "$(least buffers direct_bytes "jetty=$n " 1)"
 done

@@ -24,6 +24,7 @@ MG = 'Catalina:type=Manager,*'
 SV = 'Catalina:j2eeType=Servlet,*'
 DS = 'Catalina:type=DataSource,*'
 HK = 'com.zaxxer.hikari:type=Pool?(*'
+HKC = 'com.zaxxer.hikari:type=PoolConfig?(*'
 RC = 'Catalina:type=WebResourceRoot,name=Cache,*'
 JSP = 'Catalina:type=JspMonitor,*'
 NOKIDS = '-connectionpool=*'
@@ -35,6 +36,7 @@ JOBS = [
          rows=[('version', S, 'serverNumber', '@version', "always 1, tagged version=<Tomcat's version, 11.0.29.0>"),
                ('up', S, 'stateName', '=STARTED', '1 when the server is started, else 0'),
                ('engine_up', 'Catalina:type=Engine', 'stateName', '=STARTED', '1 when the engine is started, else 0'),
+               ('jvm_route', 'Catalina:type=Engine', 'jvmRoute', '@route', 'always 1, tagged route=<its jvmRoute>, when it has one (behind a load balancer)'),
                ('host_up', 'Catalina:type=Host,*', 'stateName', 'host =STARTED', '1 when the host is started, else 0, tagged host=<its name>'),
                ('connector_up', 'Catalina:type=Connector,*', 'stateName', 'port =STARTED',
                 '1 when the connector is started, else 0 (stopped, or its port taken), tagged port=<its port>')],
@@ -74,7 +76,10 @@ JOBS = [
                ('executor_largest', EX, 'largestPoolSize', 'name', 'the most it has had at once, tagged the same'),
                ('executor_queue', EX, 'queueSize', 'name', 'requests waiting for a thread, tagged the same'),
                ('executor_max_queue', EX, 'maxQueueSize', 'name', 'the most that may wait, then they are refused, tagged the same'),
-               ('executor_done_count', EX, 'completedTaskCount', 'name', 'requests it has handled, tagged the same')],
+               ('executor_done_count', EX, 'completedTaskCount', 'name', 'requests it has handled, tagged the same'),
+               ('utility_busy', 'Catalina:type=UtilityExecutor', 'activeCount', '', "Tomcat's utility executor's threads busy (background work: session expiry, reloading)"),
+               ('utility_threads', 'Catalina:type=UtilityExecutor', 'poolSize', '', 'its threads'),
+               ('utility_tasks_count', 'Catalina:type=UtilityExecutor', 'taskCount', '', 'tasks given to it')],
          healthy="busy, or executor_busy, well below max_threads; executor_queue 0; connections well below max_connections.",
          watch="busy near max_threads for minutes; executor_queue above 0: requests are waiting for a thread.",
          act="busy at max_threads with executor_queue near executor_max_queue, or connections at max_connections: "
@@ -136,7 +141,8 @@ JOBS = [
                 'time spent in the servlet, tagged WebModule=<//host/path> and name=<the servlet>; the most first'),
                ('requests_count', SV, 'requestCount', 'WebModule name', 'requests, tagged the same'),
                ('errors_count', SV, 'errorCount', 'WebModule name', 'requests that ended in an exception, tagged the same'),
-               ('slowest_seconds', SV, 'maxTime', 'WebModule name *0.001', 'the slowest request, tagged the same')],
+               ('slowest_seconds', SV, 'maxTime', 'WebModule name *0.001', 'the slowest request, tagged the same'),
+               ('load_seconds', SV, 'loadTime', 'WebModule name *0.001', 'how long it took to load, tagged the same')],
          healthy="processing_seconds rising in step with requests_count; errors_count flat.",
          watch="one servlet's share of the time growing.",
          act="a servlet's errors_count rising: it is failing; its processing_seconds per request climbing: it is slow."),
@@ -164,7 +170,10 @@ JOBS = [
                ('hikari_active', HK, 'ActiveConnections', 'type', "a HikariCP pool's connections in use, tagged type=<Pool (its name)>"),
                ('hikari_idle', HK, 'IdleConnections', 'type', 'its connections idle, tagged the same'),
                ('hikari_total', HK, 'TotalConnections', 'type', 'its connections open, tagged the same'),
-               ('hikari_waiting', HK, 'ThreadsAwaitingConnection', 'type', 'threads waiting for one of its connections, tagged the same')],
+               ('hikari_waiting', HK, 'ThreadsAwaitingConnection', 'type', 'threads waiting for one of its connections, tagged the same'),
+               ('hikari_max', HKC, 'MaximumPoolSize', 'type', "a HikariCP pool's most connections, tagged type=<PoolConfig (its name)>"),
+               ('hikari_min_idle', HKC, 'MinimumIdle', 'type', 'the fewest it keeps idle, tagged the same'),
+               ('hikari_timeout_seconds', HKC, 'ConnectionTimeout', 'type *0.001', 'how long a request waits for a connection before it fails, tagged the same')],
          healthy="active well below max; waiting and hikari_waiting 0; abandoned_count flat.",
          watch="active at max now and then; waiting above 0: requests queue for a connection.",
          act="active at max and waiting above 0 for minutes: requests fail after max_wait_seconds. Either the "
@@ -179,7 +188,9 @@ JOBS = [
                ('jsps', JSP, 'jspCount', 'WebModule', 'JSPs loaded, tagged WebModule=<//host/path>'),
                ('jsp_reloads_count', JSP, 'jspReloadCount', 'WebModule', 'JSPs reloaded after a change, tagged the same'),
                ('jsp_unloads_count', JSP, 'jspUnloadCount', 'WebModule', 'JSPs unloaded (maxLoadedJsps), tagged the same'),
-               ('jsp_queue', JSP, 'jspQueueLength', 'WebModule >=0', 'JSPs waiting to be unloaded, when there is a limit, tagged the same')],
+               ('jsp_queue', JSP, 'jspQueueLength', 'WebModule >=0', 'JSPs waiting to be unloaded, when there is a limit, tagged the same'),
+               ('string_cache_lookups_count', 'Catalina:type=StringCache', 'accessCount', '', "lookups in Tomcat's string cache (when it is on)"),
+               ('string_cache_hits_count', 'Catalina:type=StringCache', 'hitCount', '', 'of those, found')],
          healthy="hits_count close to lookups_count; size_bytes below max_bytes; jsp_reloads_count flat in production.",
          watch="size_bytes at max_bytes with hits falling behind lookups: the cache is too small (Tomcat warns).",
          act="jsp_reloads_count rising in production: JSPs are being changed under a running Tomcat."),

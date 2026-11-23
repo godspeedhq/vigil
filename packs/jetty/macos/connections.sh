@@ -50,6 +50,12 @@
 #   qos_suspended                 requests suspended for it now (12)
 #   qos_exceeded_count            requests refused for it (12)
 #   qos_expired_count             requests that waited too long for it (12)
+#   qos_requests_count            requests it has seen (12)
+#   qos_suspended_count           requests it has suspended (12)
+#   qos_max_suspended             the most it suspends, then it refuses (12)
+#   selector_keys                 connections Jetty's selectors watch, every
+#                                 one added up
+#   selects_count                 times they have selected
 #   open_not_shown                of open, those past the first 100, left out
 #   open_max_not_shown            of open_max, those past the first 100, left
 #                                 out
@@ -85,6 +91,18 @@
 #                                 100, left out
 #   qos_expired_count_not_shown   of qos_expired_count, those past the first
 #                                 100, left out
+#   qos_requests_count_not_shown
+#                                 of qos_requests_count, those past the first
+#                                 100, left out
+#   qos_suspended_count_not_shown
+#                                 of qos_suspended_count, those past the first
+#                                 100, left out
+#   qos_max_suspended_not_shown   of qos_max_suspended, those past the first
+#                                 100, left out
+#   selector_keys_not_shown       of selector_keys, those past the first 100,
+#                                 left out
+#   selects_count_not_shown       of selects_count, those past the first 100,
+#                                 left out
 #
 # Example output (the rest are in the same form):
 #   metric jmx_up 1 jetty=j121 jmx=localhost:19314
