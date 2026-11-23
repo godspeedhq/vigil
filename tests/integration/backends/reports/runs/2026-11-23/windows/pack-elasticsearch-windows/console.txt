@@ -1,0 +1,2090 @@
+pack     elasticsearch 1.0.0, Vigil commit 9a93fb9 (a copy), from the repository
+account  vigil-test, not an administrator, by SSH key
+servers  run-elasticsearch.sh's clusters on the Fedora test machine (9.5.5, three nodes, over https with its own CA; 8.19.25, two nodes; each in trouble on purpose), through SSH tunnels
+
+host     APHC-LPT-1, Microsoft Windows NT 10.0.26300.0
+commit   9a93fb9762202e4d2d9665d2e3412dbea1aa120b
+
+# Elasticsearch 9.5.5, through the tunnel, powershell.
+
+> powershell packs\elasticsearch\windows\status.ps1
+metric up 1
+metric version 1 version=9.5.5 cluster=vigil95
+metric status 2 status=red
+metric timed_out 0
+metric nodes 3
+metric data_nodes 3
+metric active_primary_shards 15
+metric active_shards 28
+metric active_shards_pct 93.33
+metric relocating_shards 0
+metric initializing_shards 0
+metric unassigned_shards 2
+metric unassigned_primary_shards 1
+metric delayed_unassigned_shards 0
+metric pending_tasks 0
+metric task_max_wait_ms 0
+metric in_flight_fetch 0
+metric master 1 node=es95a
+  PASS  es95: elasticsearch_status runs (powershell)
+
+> powershell packs\elasticsearch\windows\health.ps1
+metric up 1
+metric served 1
+metric status 2 status=red
+metric indicators_red 2
+metric indicators_yellow 1
+metric indicator 0 indicator=cluster_state_encryption symptom=Cluster_state_encryption_is_not_configured.
+metric indicator 0 indicator=data_stream_lifecycle symptom=No_data_stream_lifecycle_health_data_available_yet._Health_information_will_be_reported_after_the_first_run.
+metric indicator 1 indicator=disk symptom=3_nodes_with_roles:__data__data_cold__data_content__data_frozen__data_hot__data_warm__ingest__master__ml__remote_cluster
+metric indicator 0 indicator=file_settings symptom=No_file-based_setting_changes_have_occurred
+metric indicator 0 indicator=ilm symptom=Index_Lifecycle_Management_is_running
+metric indicator 0 indicator=master_is_stable symptom=The_cluster_has_a_stable_master_node
+metric indicator 0 indicator=repository_integrity symptom=All_repositories_are_healthy.
+metric indicator 2 indicator=shards_availability symptom=This_cluster_has_1_unavailable_primary_shard__1_unavailable_replica_shard.
+metric indicator 2 indicator=shards_capacity symptom=Cluster_is_close_to_reaching_the_configured_maximum_number_of_shards_for_data_nodes.
+metric indicator 0 indicator=slm symptom=Snapshot_Lifecycle_Management_is_running
+  PASS  es95: elasticsearch_health runs (powershell)
+
+> powershell packs\elasticsearch\windows\nodes.ps1
+metric up 1
+metric nodes 3
+metric master_eligible 3
+metric data_nodes 3
+metric ingest_nodes 3
+metric coordinating_only 0
+metric versions 1
+metric info 1 node=es95a version=9.5.5 roles=cdfhilmrstw
+metric master 1 node=es95a
+metric cpu_pct 24 node=es95a
+metric load_1m 5.04 node=es95a
+metric load_5m 9.8 node=es95a
+metric load_15m 8.76 node=es95a
+metric mem_used_pct 85 node=es95a
+metric process_cpu_pct 8 node=es95a
+metric open_fds 980 node=es95a
+metric max_fds 524288 node=es95a
+metric fds_pct 0.19 node=es95a
+metric disk_total_bytes 117884059648 node=es95a
+metric disk_free_bytes 40797683712 node=es95a
+metric disk_used_pct 65.39 node=es95a
+metric http_open 1 node=es95a
+metric http_opened 440 node=es95a
+metric transport_open 26 node=es95a
+metric transport_rx_bytes 2306974 node=es95a
+metric transport_tx_bytes 3050118 node=es95a
+metric indexing_pressure_bytes 0 node=es95a
+metric indexing_pressure_limit_bytes 40265318 node=es95a
+metric indexing_pressure_pct 0 node=es95a
+metric indexing_rejections 0 node=es95a
+metric info 1 node=es95b version=9.5.5 roles=cdfhilmrstw
+metric master 0 node=es95b
+metric cpu_pct 25 node=es95b
+metric load_1m 5.04 node=es95b
+metric load_5m 9.8 node=es95b
+metric load_15m 8.76 node=es95b
+metric mem_used_pct 81 node=es95b
+metric process_cpu_pct 2 node=es95b
+metric open_fds 978 node=es95b
+metric max_fds 524288 node=es95b
+... (77 lines)
+  PASS  es95: elasticsearch_nodes runs (powershell)
+
+> powershell packs\elasticsearch\windows\thread_pools.ps1
+metric up 1
+metric rejected_total 285
+metric queued_total 0
+metric active_total 7
+metric active 0 node=es95a pool=write
+metric queue 0 node=es95a pool=write
+metric queue_pct 0 node=es95a pool=write
+metric rejected 166 node=es95a pool=write
+metric completed 109 node=es95a pool=write
+metric threads 1 node=es95a pool=write
+metric largest 1 node=es95a pool=write
+metric active 0 node=es95b pool=write
+metric queue 0 node=es95b pool=write
+metric queue_pct 0 node=es95b pool=write
+metric rejected 119 node=es95b pool=write
+metric completed 178 node=es95b pool=write
+metric threads 1 node=es95b pool=write
+metric largest 1 node=es95b pool=write
+metric active 0 node=es95a pool=get
+metric queue 0 node=es95a pool=get
+metric queue_pct 0 node=es95a pool=get
+metric rejected 0 node=es95a pool=get
+metric completed 8 node=es95a pool=get
+metric threads 7 node=es95a pool=get
+metric largest 7 node=es95a pool=get
+metric active 1 node=es95a pool=inference_utility
+metric queue 0 node=es95a pool=inference_utility
+metric rejected 0 node=es95a pool=inference_utility
+metric completed 5160 node=es95a pool=inference_utility
+metric threads 0 node=es95a pool=inference_utility
+metric largest 5 node=es95a pool=inference_utility
+metric active 2 node=es95a pool=management
+metric queue 0 node=es95a pool=management
+metric rejected 0 node=es95a pool=management
+metric completed 1214 node=es95a pool=management
+metric threads 0 node=es95a pool=management
+metric largest 4 node=es95a pool=management
+metric active 0 node=es95a pool=search
+metric queue 0 node=es95a pool=search
+metric queue_pct 0 node=es95a pool=search
+... (104 lines)
+  PASS  es95: elasticsearch_thread_pools runs (powershell)
+
+> powershell packs\elasticsearch\windows\breakers.ps1
+metric up 1
+metric tripped_total 12
+metric max_used_pct 41.13
+metric estimated_bytes 0 node=es95a breaker=eql_sequence
+metric limit_bytes 201326592 node=es95a breaker=eql_sequence
+metric used_pct 0 node=es95a breaker=eql_sequence
+metric tripped 0 node=es95a breaker=eql_sequence
+metric estimated_bytes 0 node=es95a breaker=fielddata
+metric limit_bytes 161061273 node=es95a breaker=fielddata
+metric used_pct 0 node=es95a breaker=fielddata
+metric tripped 0 node=es95a breaker=fielddata
+metric estimated_bytes 0 node=es95a breaker=inflight_requests
+metric limit_bytes 402653184 node=es95a breaker=inflight_requests
+metric used_pct 0 node=es95a breaker=inflight_requests
+metric tripped 0 node=es95a breaker=inflight_requests
+metric estimated_bytes 0 node=es95a breaker=model_inference
+metric limit_bytes 201326592 node=es95a breaker=model_inference
+metric used_pct 0 node=es95a breaker=model_inference
+metric tripped 0 node=es95a breaker=model_inference
+metric estimated_bytes 151355920 node=es95a breaker=parent
+metric limit_bytes 382520524 node=es95a breaker=parent
+metric used_pct 39.57 node=es95a breaker=parent
+metric tripped 0 node=es95a breaker=parent
+metric estimated_bytes 0 node=es95a breaker=request
+metric limit_bytes 241591910 node=es95a breaker=request
+metric used_pct 0 node=es95a breaker=request
+metric tripped 3 node=es95a breaker=request
+metric estimated_bytes 0 node=es95b breaker=eql_sequence
+metric limit_bytes 201326592 node=es95b breaker=eql_sequence
+metric used_pct 0 node=es95b breaker=eql_sequence
+metric tripped 0 node=es95b breaker=eql_sequence
+metric estimated_bytes 0 node=es95b breaker=fielddata
+metric limit_bytes 161061273 node=es95b breaker=fielddata
+metric used_pct 0 node=es95b breaker=fielddata
+metric tripped 0 node=es95b breaker=fielddata
+metric estimated_bytes 47 node=es95b breaker=inflight_requests
+metric limit_bytes 402653184 node=es95b breaker=inflight_requests
+metric used_pct 0 node=es95b breaker=inflight_requests
+metric tripped 0 node=es95b breaker=inflight_requests
+metric estimated_bytes 0 node=es95b breaker=model_inference
+... (76 lines)
+  PASS  es95: elasticsearch_breakers runs (powershell)
+
+> powershell packs\elasticsearch\windows\indices.ps1
+metric up 1
+metric indices 13
+metric open 12
+metric closed 1
+metric green 11
+metric yellow 1
+metric red 1
+metric hidden 5
+metric docs 39297
+metric deleted_docs 0
+metric store_bytes 4816291
+metric primary_store_bytes 2779949
+metric blocked 1
+metric write_blocked 1
+metric health 2 index=archive-red
+metric is_open 1 index=archive-red
+metric index_docs 0 index=archive-red
+metric deleted_pct 0 index=archive-red
+metric index_store_bytes 0 index=archive-red
+metric index_primary_store_bytes 0 index=archive-red
+metric primaries 1 index=archive-red
+metric replicas 0 index=archive-red
+metric age_days 0 index=archive-red
+metric health 1 index=orders
+metric is_open 1 index=orders
+metric index_docs 0 index=orders
+metric deleted_pct 0 index=orders
+metric index_store_bytes 681 index=orders
+metric index_primary_store_bytes 227 index=orders
+metric primaries 1 index=orders
+metric replicas 3 index=orders
+metric age_days 0 index=orders
+metric health 0 index=blocked
+metric is_open 1 index=blocked
+metric index_docs 0 index=blocked
+metric deleted_pct 0 index=blocked
+metric index_store_bytes 227 index=blocked
+metric index_primary_store_bytes 227 index=blocked
+metric primaries 1 index=blocked
+metric replicas 0 index=blocked
+... (133 lines)
+  PASS  es95: elasticsearch_indices runs (powershell)
+
+> powershell packs\elasticsearch\windows\shards.ps1
+metric up 1
+metric shards 30
+metric primaries 16
+metric replicas 14
+metric started 28
+metric relocating 0
+metric initializing 0
+metric unassigned 2
+metric unassigned_primaries 1
+metric unassigned_replicas 1
+metric largest_shard_bytes 1617388
+metric largest_shard_docs 25768
+metric shards_over_50gb 0
+metric shards_over_200m_docs 0
+metric node_shards 10 node=es95a
+metric node_shards 9 node=es95b
+metric node_shards 9 node=es95c
+metric unassigned_seconds 166 index=archive-red shard=0 prirep=p reason=INDEX_CREATED
+metric unassigned_seconds 167 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric unassigned_not_shown 0
+metric explained 1 index=archive-red shard=0 prirep=p can_allocate=no decider=filter why=node_does_not_match_index_setting__index.routing.allocation.require__filters___name:_nowhere__
+metric recoveries 0
+metric recoveries_not_shown 0
+  PASS  es95: elasticsearch_shards runs (powershell)
+
+> powershell packs\elasticsearch\windows\allocation.ps1
+metric up 1
+metric shards 10 node=es95a
+metric undesired_shards 0 node=es95a
+metric disk_indices_bytes 1168651 node=es95a
+metric disk_used_bytes 77086375936 node=es95a
+metric disk_free_bytes 40797683712 node=es95a
+metric disk_total_bytes 117884059648 node=es95a
+metric disk_used_pct 65 node=es95a
+metric watermark 2 node=es95a
+metric shards 9 node=es95b
+metric undesired_shards 0 node=es95b
+metric disk_indices_bytes 1840766 node=es95b
+metric disk_used_bytes 77086375936 node=es95b
+metric disk_free_bytes 40797683712 node=es95b
+metric disk_total_bytes 117884059648 node=es95b
+metric disk_used_pct 65 node=es95b
+metric watermark 2 node=es95b
+metric shards 9 node=es95c
+metric undesired_shards 0 node=es95c
+metric disk_indices_bytes 2051106 node=es95c
+metric disk_used_bytes 77086375936 node=es95c
+metric disk_free_bytes 40797683712 node=es95c
+metric disk_total_bytes 117884059648 node=es95c
+metric disk_used_pct 65 node=es95c
+metric watermark 2 node=es95c
+metric nodes_over_low 3
+metric nodes_over_high 3
+metric nodes_over_flood 0
+metric watermark_free_bytes 109951162777600 level=low
+metric watermark_free_bytes 54975581388800 level=high
+metric watermark_free_bytes 1073741824 level=flood_stage
+metric disk_threshold_enabled 1
+metric allocation_enabled 0 setting=primaries
+metric rebalance_enabled 1 setting=all
+metric exclusions 1
+metric exclusion 1 attribute=_name value=decommissioned-1
+metric max_shards_per_node 12
+metric shards_capacity_pct 83.33
+metric nodes_not_shown 0
+  PASS  es95: elasticsearch_allocation runs (powershell)
+
+> powershell packs\elasticsearch\windows\operations.ps1
+metric up 1
+metric docs 13545 node=es95a
+metric store_bytes 1168651 node=es95a
+metric index_total 13543 node=es95a
+metric index_time_ms 20905 node=es95a
+metric index_current 0 node=es95a
+metric index_failed 0 node=es95a
+metric delete_total 0 node=es95a
+metric index_throttle_ms 0 node=es95a
+metric query_total 33 node=es95a
+metric query_time_ms 787 node=es95a
+metric query_current 0 node=es95a
+metric fetch_total 21 node=es95a
+metric fetch_time_ms 303 node=es95a
+metric scroll_current 0 node=es95a
+metric open_contexts 1 node=es95a
+metric get_total 35 node=es95a
+metric get_missing 29 node=es95a
+metric get_time_ms 182 node=es95a
+metric merges_current 0 node=es95a
+metric merges_total 3 node=es95a
+metric merges_time_ms 6236 node=es95a
+metric merges_throttled_ms 0 node=es95a
+metric refresh_total 91 node=es95a
+metric refresh_time_ms 14151 node=es95a
+metric flush_total 4 node=es95a
+metric flush_time_ms 313 node=es95a
+metric query_cache_bytes 0 node=es95a
+metric query_cache_hits 0 node=es95a
+metric query_cache_misses 4 node=es95a
+metric query_cache_evictions 0 node=es95a
+metric request_cache_bytes 976 node=es95a
+metric request_cache_hits 7 node=es95a
+metric request_cache_misses 7 node=es95a
+metric request_cache_evictions 0 node=es95a
+metric fielddata_bytes 0 node=es95a
+metric fielddata_evictions 0 node=es95a
+metric segments 23 node=es95a
+metric translog_ops 8485 node=es95a
+metric translog_bytes 823626 node=es95a
+... (122 lines)
+  PASS  es95: elasticsearch_operations runs (powershell)
+
+> powershell packs\elasticsearch\windows\ingest.ps1
+metric up 1
+metric count 8
+metric failed 3
+metric time_ms 94
+metric current 0
+metric failed_pct 37.5
+metric pipelines 2
+metric pipeline_count 6 pipeline=parse
+metric pipeline_failed 3 pipeline=parse
+metric pipeline_failed_pct 50 pipeline=parse
+metric pipeline_time_ms 10 pipeline=parse
+metric pipeline_avg_ms 1.67 pipeline=parse
+metric pipeline_count 2 pipeline=logs@default-pipeline
+metric pipeline_failed 0 pipeline=logs@default-pipeline
+metric pipeline_failed_pct 0 pipeline=logs@default-pipeline
+metric pipeline_time_ms 24 pipeline=logs@default-pipeline
+metric pipeline_avg_ms 12 pipeline=logs@default-pipeline
+metric pipelines_not_shown 0
+  PASS  es95: elasticsearch_ingest runs (powershell)
+
+> powershell packs\elasticsearch\windows\tasks.ps1
+metric up 1
+metric tasks 1
+metric longest_seconds 147
+metric over_60s 1
+metric cancellable 1
+metric cancelled 0
+metric searches 0
+metric action_tasks 1 action=indices:data/write/reindex
+metric running_seconds 147 action=indices:data/write/reindex node=es95a what=reindex_from__logs-ok__to__logs-slow_
+metric tasks_not_shown 0
+metric pending 0
+metric pending_oldest_ms 0
+  PASS  es95: elasticsearch_tasks runs (powershell)
+
+> powershell packs\elasticsearch\windows\snapshots.ps1
+metric up 1
+metric running 0
+metric repositories 2
+metric repositories_not_shown 0
+metric readable 1 repository=backups
+metric snapshots 1 repository=backups
+metric failed 0 repository=backups
+metric partial 0 repository=backups
+metric last_status 0 repository=backups status=SUCCESS
+metric last_age_seconds 186 repository=backups
+metric last_duration_seconds 3 repository=backups
+metric last_failed_shards 0 repository=backups
+metric last_success_age_seconds 186 repository=backups
+metric readable 1 repository=ro-repo
+metric snapshots 1 repository=ro-repo
+metric failed 0 repository=ro-repo
+metric partial 0 repository=ro-repo
+metric last_status 0 repository=ro-repo status=SUCCESS
+metric last_age_seconds 186 repository=ro-repo
+metric last_duration_seconds 3 repository=ro-repo
+metric last_failed_shards 0 repository=ro-repo
+metric last_success_age_seconds 186 repository=ro-repo
+  PASS  es95: elasticsearch_snapshots runs (powershell)
+
+> powershell packs\elasticsearch\windows\cluster.ps1
+metric up 1
+metric indices 14
+metric shards 28
+metric primary_shards 15
+metric replication 0.87
+metric docs 39332
+metric deleted_docs 1
+metric store_bytes 5060523
+metric segments 74
+metric fields 93
+metric fielddata_bytes 0
+metric query_cache_bytes 0
+metric nodes 3
+metric role_nodes 0 role=coordinating_only
+metric role_nodes 3 role=data
+metric role_nodes 3 role=data_cold
+metric role_nodes 3 role=data_content
+metric role_nodes 3 role=data_frozen
+metric role_nodes 3 role=data_hot
+metric role_nodes 3 role=data_warm
+metric role_nodes 0 role=index
+metric role_nodes 3 role=ingest
+metric role_nodes 3 role=master
+metric role_nodes 3 role=ml
+metric role_nodes 3 role=remote_cluster_client
+metric role_nodes 0 role=search
+metric role_nodes 3 role=transform
+metric role_nodes 0 role=voting_only
+metric versions 1
+metric version_info 1 version=9.5.5
+metric processors 12
+metric fs_total_bytes 353652178944
+metric fs_free_bytes 122393051136
+metric fs_used_pct 65.39
+metric pipelines 22
+metric plugins 0
+metric license 1 type=basic status=active
+  PASS  es95: elasticsearch_cluster runs (powershell)
+
+> powershell packs\elasticsearch\windows\lifecycle.ps1
+metric up 1
+metric ilm_running 1 mode=RUNNING
+metric ilm_managed 3
+metric ilm_errors 1
+metric ilm_stuck 0
+metric ilm_in_phase 3 phase=hot
+metric ilm_error 1 index=ilm-broken policy=rollover-broken step=check-rollover-ready reason=setting__index.lifecycle.rollover_alias__for_index__ilm-broken__is_empty_or_not_defined
+metric ilm_error_retries 11 index=ilm-broken
+metric slm_running 1 mode=RUNNING
+metric slm_policies 2
+metric slm_failing 0 policy=nightly-ok reason=none
+metric slm_last_success_age_seconds 186 policy=nightly-ok
+metric slm_taken 1 policy=nightly-ok
+metric slm_failed 0 policy=nightly-ok
+metric slm_next_seconds 7294 policy=nightly-ok
+metric slm_failing 1 policy=nightly-ro reason=_ro-repo__cannot_create_snapshot_in_a_readonly_repository
+metric slm_last_failure_age_seconds 190 policy=nightly-ro
+metric slm_taken 0 policy=nightly-ro
+metric slm_failed 1 policy=nightly-ro
+metric slm_next_seconds 10894 policy=nightly-ro
+metric dlm_data_streams 3
+metric dlm_backing_indices 2
+metric dlm_errors 0
+  PASS  es95: elasticsearch_lifecycle runs (powershell)
+
+> powershell packs\elasticsearch\windows\features.ps1
+metric up 1
+metric transforms 1
+metric transforms_started 0
+metric transforms_failed 1
+metric transform_failed 1 transform=later reason=Failed_to_execute_script_with_error:__org.elasticsearch.script.ScriptException:_runtime_error__org.elasticsearch.common.
+metric transform_health 2 transform=later
+metric transforms_not_shown 0
+metric watcher_nodes 3
+metric watcher_started 3
+metric watches 0
+metric watches_queued 0
+metric enrich_queued 0
+metric enrich_in_flight 0
+metric enrich_executing 0
+  PASS  es95: elasticsearch_features runs (powershell)
+  PASS  es95: Elasticsearch 9.5.5 (powershell)
+  PASS  es95: red, 3 nodes (powershell)
+  PASS  es95: the elected node (powershell)
+  PASS  es95: the unassigned primary, and why (powershell)
+  PASS  es95: writes refused (powershell)
+  PASS  es95: the breaker tripped (powershell)
+  PASS  es95: an index blocked for writes (powershell)
+  PASS  es95: every node past the high watermark (powershell)
+  PASS  es95: allocation left at primaries (powershell)
+  PASS  es95: the pipeline failing half (powershell)
+  PASS  es95: the health report, red (powershell)
+  PASS  es95: the lifecycle error (powershell)
+  PASS  es95: the snapshot policy failing (powershell)
+  PASS  es95: the failed transform (powershell)
+  PASS  es95: a wrong password fails the run (powershell)
+  PASS  es95: and says so (powershell)
+
+# Elasticsearch 8.19.25, through the tunnel, powershell.
+
+> powershell packs\elasticsearch\windows\status.ps1
+metric up 1
+metric version 1 version=8.19.25 cluster=vigil819
+metric status 2 status=red
+metric timed_out 0
+metric nodes 2
+metric data_nodes 2
+metric active_primary_shards 15
+metric active_shards 27
+metric active_shards_pct 90
+metric relocating_shards 0
+metric initializing_shards 0
+metric unassigned_shards 3
+metric unassigned_primary_shards 1
+metric delayed_unassigned_shards 0
+metric pending_tasks 0
+metric task_max_wait_ms 0
+metric in_flight_fetch 0
+metric master 1 node=es819a
+  PASS  es819: elasticsearch_status runs (powershell)
+
+> powershell packs\elasticsearch\windows\health.ps1
+metric up 1
+metric served 1
+metric status 2 status=red
+metric indicators_red 2
+metric indicators_yellow 1
+metric indicator 0 indicator=data_stream_lifecycle symptom=No_data_stream_lifecycle_health_data_available_yet._Health_information_will_be_reported_after_the_first_run.
+metric indicator 1 indicator=disk symptom=2_nodes_with_roles:__data__data_cold__data_content__data_frozen__data_hot__data_warm__ingest__master__ml__remote_cluster
+metric indicator 0 indicator=ilm symptom=Index_Lifecycle_Management_is_running
+metric indicator 0 indicator=master_is_stable symptom=The_cluster_has_a_stable_master_node
+metric indicator 0 indicator=repository_integrity symptom=All_repositories_are_healthy.
+metric indicator 2 indicator=shards_availability symptom=This_cluster_has_1_unavailable_primary_shard__2_unavailable_replica_shards.
+metric indicator 2 indicator=shards_capacity symptom=Cluster_is_close_to_reaching_the_configured_maximum_number_of_shards_for_data_nodes.
+metric indicator 0 indicator=slm symptom=Snapshot_Lifecycle_Management_is_running
+  PASS  es819: elasticsearch_health runs (powershell)
+
+> powershell packs\elasticsearch\windows\nodes.ps1
+metric up 1
+metric nodes 2
+metric master_eligible 2
+metric data_nodes 2
+metric ingest_nodes 2
+metric coordinating_only 0
+metric versions 1
+metric info 1 node=es819a version=8.19.25 roles=cdfhilmrstw
+metric master 1 node=es819a
+metric cpu_pct 39 node=es819a
+metric load_1m 3.82 node=es819a
+metric load_5m 9.12 node=es819a
+metric load_15m 8.56 node=es819a
+metric mem_used_pct 74 node=es819a
+metric process_cpu_pct 1 node=es819a
+metric open_fds 656 node=es819a
+metric max_fds 524288 node=es819a
+metric fds_pct 0.13 node=es819a
+metric disk_total_bytes 117884059648 node=es819a
+metric disk_free_bytes 40797642752 node=es819a
+metric disk_used_pct 65.39 node=es819a
+metric http_open 1 node=es819a
+metric http_opened 382 node=es819a
+metric transport_open 13 node=es819a
+metric transport_rx_bytes 1373245 node=es819a
+metric transport_tx_bytes 1032485 node=es819a
+metric indexing_pressure_bytes 0 node=es819a
+metric indexing_pressure_limit_bytes 40265318 node=es819a
+metric indexing_pressure_pct 0 node=es819a
+metric indexing_rejections 0 node=es819a
+metric info 1 node=es819b version=8.19.25 roles=cdfhilmrstw
+metric master 0 node=es819b
+metric cpu_pct 39 node=es819b
+metric load_1m 3.82 node=es819b
+metric load_5m 9.12 node=es819b
+metric load_15m 8.56 node=es819b
+metric mem_used_pct 86 node=es819b
+metric process_cpu_pct 0 node=es819b
+metric open_fds 651 node=es819b
+metric max_fds 524288 node=es819b
+... (54 lines)
+  PASS  es819: elasticsearch_nodes runs (powershell)
+
+> powershell packs\elasticsearch\windows\thread_pools.ps1
+metric up 1
+metric rejected_total 203
+metric queued_total 0
+metric active_total 4
+metric active 0 node=es819a pool=write
+metric queue 0 node=es819a pool=write
+metric queue_pct 0 node=es819a pool=write
+metric rejected 203 node=es819a pool=write
+metric completed 218 node=es819a pool=write
+metric threads 1 node=es819a pool=write
+metric largest 1 node=es819a pool=write
+metric active 0 node=es819a pool=get
+metric queue 0 node=es819a pool=get
+metric queue_pct 0 node=es819a pool=get
+metric rejected 0 node=es819a pool=get
+metric completed 7 node=es819a pool=get
+metric threads 7 node=es819a pool=get
+metric largest 7 node=es819a pool=get
+metric active 3 node=es819a pool=management
+metric queue 0 node=es819a pool=management
+metric rejected 0 node=es819a pool=management
+metric completed 806 node=es819a pool=management
+metric threads 0 node=es819a pool=management
+metric largest 4 node=es819a pool=management
+metric active 0 node=es819a pool=search
+metric queue 0 node=es819a pool=search
+metric queue_pct 0 node=es819a pool=search
+metric rejected 0 node=es819a pool=search
+metric completed 52 node=es819a pool=search
+metric threads 7 node=es819a pool=search
+metric largest 7 node=es819a pool=search
+metric active 0 node=es819b pool=get
+metric queue 0 node=es819b pool=get
+metric queue_pct 0 node=es819b pool=get
+metric rejected 0 node=es819b pool=get
+metric completed 1 node=es819b pool=get
+metric threads 7 node=es819b pool=get
+metric largest 1 node=es819b pool=get
+metric active 1 node=es819b pool=management
+metric queue 0 node=es819b pool=management
+... (59 lines)
+  PASS  es819: elasticsearch_thread_pools runs (powershell)
+
+> powershell packs\elasticsearch\windows\breakers.ps1
+metric up 1
+metric tripped_total 12
+metric max_used_pct 74.6
+metric estimated_bytes 0 node=es819a breaker=eql_sequence
+metric limit_bytes 201326592 node=es819a breaker=eql_sequence
+metric used_pct 0 node=es819a breaker=eql_sequence
+metric tripped 0 node=es819a breaker=eql_sequence
+metric estimated_bytes 0 node=es819a breaker=fielddata
+metric limit_bytes 161061273 node=es819a breaker=fielddata
+metric used_pct 0 node=es819a breaker=fielddata
+metric tripped 0 node=es819a breaker=fielddata
+metric estimated_bytes 0 node=es819a breaker=inflight_requests
+metric limit_bytes 402653184 node=es819a breaker=inflight_requests
+metric used_pct 0 node=es819a breaker=inflight_requests
+metric tripped 0 node=es819a breaker=inflight_requests
+metric estimated_bytes 0 node=es819a breaker=model_inference
+metric limit_bytes 201326592 node=es819a breaker=model_inference
+metric used_pct 0 node=es819a breaker=model_inference
+metric tripped 0 node=es819a breaker=model_inference
+metric estimated_bytes 285353712 node=es819a breaker=parent
+metric limit_bytes 382520524 node=es819a breaker=parent
+metric used_pct 74.6 node=es819a breaker=parent
+metric tripped 0 node=es819a breaker=parent
+metric estimated_bytes 0 node=es819a breaker=request
+metric limit_bytes 241591910 node=es819a breaker=request
+metric used_pct 0 node=es819a breaker=request
+metric tripped 6 node=es819a breaker=request
+metric estimated_bytes 0 node=es819b breaker=eql_sequence
+metric limit_bytes 201326592 node=es819b breaker=eql_sequence
+metric used_pct 0 node=es819b breaker=eql_sequence
+metric tripped 0 node=es819b breaker=eql_sequence
+metric estimated_bytes 0 node=es819b breaker=fielddata
+metric limit_bytes 161061273 node=es819b breaker=fielddata
+metric used_pct 0 node=es819b breaker=fielddata
+metric tripped 0 node=es819b breaker=fielddata
+metric estimated_bytes 47 node=es819b breaker=inflight_requests
+metric limit_bytes 402653184 node=es819b breaker=inflight_requests
+metric used_pct 0 node=es819b breaker=inflight_requests
+metric tripped 0 node=es819b breaker=inflight_requests
+metric estimated_bytes 0 node=es819b breaker=model_inference
+... (52 lines)
+  PASS  es819: elasticsearch_breakers runs (powershell)
+
+> powershell packs\elasticsearch\windows\indices.ps1
+metric up 1
+metric indices 13
+metric open 12
+metric closed 1
+metric green 11
+metric yellow 1
+metric red 1
+metric hidden 5
+metric docs 14318
+metric deleted_docs 0
+metric store_bytes 2171615
+metric primary_store_bytes 1123727
+metric blocked 1
+metric write_blocked 1
+metric health 2 index=archive-red
+metric is_open 1 index=archive-red
+metric index_docs 0 index=archive-red
+metric deleted_pct 0 index=archive-red
+metric index_store_bytes 0 index=archive-red
+metric index_primary_store_bytes 0 index=archive-red
+metric primaries 1 index=archive-red
+metric replicas 0 index=archive-red
+metric age_days 0 index=archive-red
+metric health 1 index=orders
+metric is_open 1 index=orders
+metric index_docs 0 index=orders
+metric deleted_pct 0 index=orders
+metric index_store_bytes 454 index=orders
+metric index_primary_store_bytes 227 index=orders
+metric primaries 1 index=orders
+metric replicas 3 index=orders
+metric age_days 0 index=orders
+metric health 0 index=blocked
+metric is_open 1 index=blocked
+metric index_docs 0 index=blocked
+metric deleted_pct 0 index=blocked
+metric index_store_bytes 227 index=blocked
+metric index_primary_store_bytes 227 index=blocked
+metric primaries 1 index=blocked
+metric replicas 0 index=blocked
+... (133 lines)
+  PASS  es819: elasticsearch_indices runs (powershell)
+
+> powershell packs\elasticsearch\windows\shards.ps1
+metric up 1
+metric shards 30
+metric primaries 16
+metric replicas 14
+metric started 27
+metric relocating 0
+metric initializing 0
+metric unassigned 3
+metric unassigned_primaries 1
+metric unassigned_replicas 2
+metric largest_shard_bytes 675444
+metric largest_shard_docs 9008
+metric shards_over_50gb 0
+metric shards_over_200m_docs 0
+metric node_shards 14 node=es819a
+metric node_shards 13 node=es819b
+metric unassigned_seconds 122 index=archive-red shard=0 prirep=p reason=INDEX_CREATED
+metric unassigned_seconds 123 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric unassigned_seconds 123 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric unassigned_not_shown 0
+metric explained 1 index=archive-red shard=0 prirep=p can_allocate=no decider=filter why=node_does_not_match_index_setting__index.routing.allocation.require__filters___name:_nowhere__
+metric recoveries 0
+metric recoveries_not_shown 0
+  PASS  es819: elasticsearch_shards runs (powershell)
+
+> powershell packs\elasticsearch\windows\allocation.ps1
+metric up 1
+metric shards 14 node=es819a
+metric undesired_shards 0 node=es819a
+metric disk_indices_bytes 1136740 node=es819a
+metric disk_used_bytes 77086416896 node=es819a
+metric disk_free_bytes 40797642752 node=es819a
+metric disk_total_bytes 117884059648 node=es819a
+metric disk_used_pct 65 node=es819a
+metric watermark 2 node=es819a
+metric shards 13 node=es819b
+metric undesired_shards 0 node=es819b
+metric disk_indices_bytes 1237308 node=es819b
+metric disk_used_bytes 77086416896 node=es819b
+metric disk_free_bytes 40797642752 node=es819b
+metric disk_total_bytes 117884059648 node=es819b
+metric disk_used_pct 65 node=es819b
+metric watermark 2 node=es819b
+metric nodes_over_low 2
+metric nodes_over_high 2
+metric nodes_over_flood 0
+metric watermark_free_bytes 109951162777600 level=low
+metric watermark_free_bytes 54975581388800 level=high
+metric watermark_free_bytes 1073741824 level=flood_stage
+metric disk_threshold_enabled 1
+metric allocation_enabled 0 setting=primaries
+metric rebalance_enabled 1 setting=all
+metric exclusions 1
+metric exclusion 1 attribute=_name value=decommissioned-1
+metric max_shards_per_node 12
+metric shards_capacity_pct 125
+metric nodes_not_shown 0
+  PASS  es819: elasticsearch_allocation runs (powershell)
+
+> powershell packs\elasticsearch\windows\operations.ps1
+metric up 1
+metric docs 14355 node=es819a
+metric store_bytes 1136740 node=es819a
+metric index_total 14107 node=es819a
+metric index_time_ms 11827 node=es819a
+metric index_current 0 node=es819a
+metric index_failed 0 node=es819a
+metric delete_total 0 node=es819a
+metric index_throttle_ms 0 node=es819a
+metric query_total 35 node=es819a
+metric query_time_ms 437 node=es819a
+metric query_current 0 node=es819a
+metric fetch_total 25 node=es819a
+metric fetch_time_ms 115 node=es819a
+metric scroll_current 1 node=es819a
+metric open_contexts 1 node=es819a
+metric get_total 4 node=es819a
+metric get_missing 0 node=es819a
+metric get_time_ms 2 node=es819a
+metric merges_current 0 node=es819a
+metric merges_total 2 node=es819a
+metric merges_time_ms 1401 node=es819a
+metric merges_throttled_ms 0 node=es819a
+metric refresh_total 107 node=es819a
+metric refresh_time_ms 9094 node=es819a
+metric flush_total 9 node=es819a
+metric flush_time_ms 1184 node=es819a
+metric query_cache_bytes 0 node=es819a
+metric query_cache_hits 0 node=es819a
+metric query_cache_misses 0 node=es819a
+metric query_cache_evictions 0 node=es819a
+metric request_cache_bytes 592 node=es819a
+metric request_cache_hits 10 node=es819a
+metric request_cache_misses 7 node=es819a
+metric request_cache_evictions 0 node=es819a
+metric fielddata_bytes 0 node=es819a
+metric fielddata_evictions 0 node=es819a
+metric segments 33 node=es819a
+metric translog_ops 8783 node=es819a
+metric translog_bytes 903907 node=es819a
+... (82 lines)
+  PASS  es819: elasticsearch_operations runs (powershell)
+
+> powershell packs\elasticsearch\windows\ingest.ps1
+metric up 1
+metric count 8
+metric failed 3
+metric time_ms 69
+metric current 0
+metric failed_pct 37.5
+metric pipelines 2
+metric pipeline_count 6 pipeline=parse
+metric pipeline_failed 3 pipeline=parse
+metric pipeline_failed_pct 50 pipeline=parse
+metric pipeline_time_ms 13 pipeline=parse
+metric pipeline_avg_ms 2.17 pipeline=parse
+metric pipeline_count 2 pipeline=logs@default-pipeline
+metric pipeline_failed 0 pipeline=logs@default-pipeline
+metric pipeline_failed_pct 0 pipeline=logs@default-pipeline
+metric pipeline_time_ms 11 pipeline=logs@default-pipeline
+metric pipeline_avg_ms 5.5 pipeline=logs@default-pipeline
+metric pipelines_not_shown 0
+  PASS  es819: elasticsearch_ingest runs (powershell)
+
+> powershell packs\elasticsearch\windows\tasks.ps1
+metric up 1
+metric tasks 1
+metric longest_seconds 116
+metric over_60s 1
+metric cancellable 1
+metric cancelled 0
+metric searches 0
+metric action_tasks 1 action=indices:data/write/reindex
+metric running_seconds 116 action=indices:data/write/reindex node=es819a what=reindex_from__logs-ok__to__logs-slow_
+metric tasks_not_shown 0
+metric pending 0
+metric pending_oldest_ms 0
+  PASS  es819: elasticsearch_tasks runs (powershell)
+
+> powershell packs\elasticsearch\windows\snapshots.ps1
+metric up 1
+metric running 0
+metric repositories 2
+metric repositories_not_shown 0
+metric readable 1 repository=backups
+metric snapshots 1 repository=backups
+metric failed 0 repository=backups
+metric partial 0 repository=backups
+metric last_status 0 repository=backups status=SUCCESS
+metric last_age_seconds 135 repository=backups
+metric last_duration_seconds 2 repository=backups
+metric last_failed_shards 0 repository=backups
+metric last_success_age_seconds 135 repository=backups
+metric readable 1 repository=ro-repo
+metric snapshots 1 repository=ro-repo
+metric failed 0 repository=ro-repo
+metric partial 0 repository=ro-repo
+metric last_status 0 repository=ro-repo status=SUCCESS
+metric last_age_seconds 135 repository=ro-repo
+metric last_duration_seconds 2 repository=ro-repo
+metric last_failed_shards 0 repository=ro-repo
+metric last_success_age_seconds 135 repository=ro-repo
+  PASS  es819: elasticsearch_snapshots runs (powershell)
+
+> powershell packs\elasticsearch\windows\cluster.ps1
+metric up 1
+metric indices 14
+metric shards 27
+metric primary_shards 15
+metric replication 0.8
+metric docs 14356
+metric deleted_docs 1
+metric store_bytes 2374048
+metric segments 64
+metric fields 91
+metric fielddata_bytes 0
+metric query_cache_bytes 0
+metric nodes 2
+metric role_nodes 0 role=coordinating_only
+metric role_nodes 2 role=data
+metric role_nodes 2 role=data_cold
+metric role_nodes 2 role=data_content
+metric role_nodes 2 role=data_frozen
+metric role_nodes 2 role=data_hot
+metric role_nodes 2 role=data_warm
+metric role_nodes 0 role=index
+metric role_nodes 2 role=ingest
+metric role_nodes 2 role=master
+metric role_nodes 2 role=ml
+metric role_nodes 2 role=remote_cluster_client
+metric role_nodes 0 role=search
+metric role_nodes 2 role=transform
+metric role_nodes 0 role=voting_only
+metric versions 1
+metric version_info 1 version=8.19.25
+metric processors 8
+metric fs_total_bytes 235768119296
+metric fs_free_bytes 81595285504
+metric fs_used_pct 65.39
+metric pipelines 23
+metric plugins 0
+metric license 1 type=basic status=active
+  PASS  es819: elasticsearch_cluster runs (powershell)
+
+> powershell packs\elasticsearch\windows\lifecycle.ps1
+metric up 1
+metric ilm_running 1 mode=RUNNING
+metric ilm_managed 3
+metric ilm_errors 1
+metric ilm_stuck 0
+metric ilm_in_phase 3 phase=hot
+metric ilm_error 1 index=ilm-broken policy=rollover-broken step=check-rollover-ready reason=setting__index.lifecycle.rollover_alias__for_index__ilm-broken__is_empty_or_not_defined
+metric ilm_error_retries 4 index=ilm-broken
+metric slm_running 1 mode=RUNNING
+metric slm_policies 2
+metric slm_failing 0 policy=nightly-ok reason=none
+metric slm_last_success_age_seconds 134 policy=nightly-ok
+metric slm_taken 1 policy=nightly-ok
+metric slm_failed 0 policy=nightly-ok
+metric slm_next_seconds 7280 policy=nightly-ok
+metric slm_failing 1 policy=nightly-ro reason=_ro-repo__cannot_create_snapshot_in_a_readonly_repository
+metric slm_last_failure_age_seconds 138 policy=nightly-ro
+metric slm_taken 0 policy=nightly-ro
+metric slm_failed 1 policy=nightly-ro
+metric slm_next_seconds 10880 policy=nightly-ro
+metric dlm_data_streams 2
+metric dlm_backing_indices 2
+metric dlm_errors 0
+  PASS  es819: elasticsearch_lifecycle runs (powershell)
+
+> powershell packs\elasticsearch\windows\features.ps1
+metric up 1
+metric transforms 1
+metric transforms_started 0
+metric transforms_failed 1
+metric transform_failed 1 transform=later reason=Failed_to_execute_script_with_error:__org.elasticsearch.script.ScriptException:_runtime_error__org.elasticsearch.common.
+metric transform_health 2 transform=later
+metric transforms_not_shown 0
+metric watcher_nodes 2
+metric watcher_started 2
+metric watches 0
+metric watches_queued 0
+metric enrich_queued 0
+metric enrich_in_flight 0
+metric enrich_executing 0
+  PASS  es819: elasticsearch_features runs (powershell)
+  PASS  es819: Elasticsearch 8.19.25 (powershell)
+  PASS  es819: red, 2 nodes (powershell)
+  PASS  es819: the elected node (powershell)
+  PASS  es819: the unassigned primary, and why (powershell)
+  PASS  es819: writes refused (powershell)
+  PASS  es819: the breaker tripped (powershell)
+  PASS  es819: an index blocked for writes (powershell)
+  PASS  es819: every node past the high watermark (powershell)
+  PASS  es819: allocation left at primaries (powershell)
+  PASS  es819: the pipeline failing half (powershell)
+  PASS  es819: the health report, red (powershell)
+  PASS  es819: the lifecycle error (powershell)
+  PASS  es819: the snapshot policy failing (powershell)
+  PASS  es819: the failed transform (powershell)
+  PASS  es819: a wrong password fails the run (powershell)
+  PASS  es819: and says so (powershell)
+
+# Elasticsearch 9.5.5, through the tunnel, pwsh.
+
+> pwsh packs\elasticsearch\windows\status.ps1
+metric up 1
+metric version 1 version=9.5.5 cluster=vigil95
+metric status 2 status=red
+metric timed_out 0
+metric nodes 3
+metric data_nodes 3
+metric active_primary_shards 15
+metric active_shards 28
+metric active_shards_pct 93.33
+metric relocating_shards 0
+metric initializing_shards 0
+metric unassigned_shards 2
+metric unassigned_primary_shards 1
+metric delayed_unassigned_shards 0
+metric pending_tasks 0
+metric task_max_wait_ms 0
+metric in_flight_fetch 0
+metric master 1 node=es95a
+  PASS  es95: elasticsearch_status runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\health.ps1
+metric up 1
+metric served 1
+metric status 2 status=red
+metric indicators_red 2
+metric indicators_yellow 1
+metric indicator 0 indicator=cluster_state_encryption symptom=Cluster_state_encryption_is_not_configured.
+metric indicator 0 indicator=data_stream_lifecycle symptom=No_data_stream_lifecycle_health_data_available_yet._Health_information_will_be_reported_after_the_first_run.
+metric indicator 1 indicator=disk symptom=3_nodes_with_roles:__data__data_cold__data_content__data_frozen__data_hot__data_warm__ingest__master__ml__remote_cluster
+metric indicator 0 indicator=file_settings symptom=No_file-based_setting_changes_have_occurred
+metric indicator 0 indicator=ilm symptom=Index_Lifecycle_Management_is_running
+metric indicator 0 indicator=master_is_stable symptom=The_cluster_has_a_stable_master_node
+metric indicator 0 indicator=repository_integrity symptom=All_repositories_are_healthy.
+metric indicator 2 indicator=shards_availability symptom=This_cluster_has_1_unavailable_primary_shard__1_unavailable_replica_shard.
+metric indicator 2 indicator=shards_capacity symptom=Cluster_is_close_to_reaching_the_configured_maximum_number_of_shards_for_data_nodes.
+metric indicator 0 indicator=slm symptom=Snapshot_Lifecycle_Management_is_running
+  PASS  es95: elasticsearch_health runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\nodes.ps1
+metric up 1
+metric nodes 3
+metric master_eligible 3
+metric data_nodes 3
+metric ingest_nodes 3
+metric coordinating_only 0
+metric versions 1
+metric info 1 node=es95a version=9.5.5 roles=cdfhilmrstw
+metric master 1 node=es95a
+metric cpu_pct 42 node=es95a
+metric load_1m 3.13 node=es95a
+metric load_5m 8.71 node=es95a
+metric load_15m 8.44 node=es95a
+metric mem_used_pct 85 node=es95a
+metric process_cpu_pct 4 node=es95a
+metric open_fds 985 node=es95a
+metric max_fds 524288 node=es95a
+metric fds_pct 0.19 node=es95a
+metric disk_total_bytes 117884059648 node=es95a
+metric disk_free_bytes 40797642752 node=es95a
+metric disk_used_pct 65.39 node=es95a
+metric http_open 1 node=es95a
+metric http_opened 573 node=es95a
+metric transport_open 26 node=es95a
+metric transport_rx_bytes 2958487 node=es95a
+metric transport_tx_bytes 3169718 node=es95a
+metric indexing_pressure_bytes 0 node=es95a
+metric indexing_pressure_limit_bytes 40265318 node=es95a
+metric indexing_pressure_pct 0 node=es95a
+metric indexing_rejections 0 node=es95a
+metric info 1 node=es95b version=9.5.5 roles=cdfhilmrstw
+metric master 0 node=es95b
+metric cpu_pct 42 node=es95b
+metric load_1m 3.13 node=es95b
+metric load_5m 8.71 node=es95b
+metric load_15m 8.44 node=es95b
+metric mem_used_pct 81 node=es95b
+metric process_cpu_pct 0 node=es95b
+metric open_fds 978 node=es95b
+metric max_fds 524288 node=es95b
+... (77 lines)
+  PASS  es95: elasticsearch_nodes runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\thread_pools.ps1
+metric up 1
+metric rejected_total 285
+metric queued_total 0
+metric active_total 6
+metric active 0 node=es95a pool=write
+metric queue 0 node=es95a pool=write
+metric queue_pct 0 node=es95a pool=write
+metric rejected 166 node=es95a pool=write
+metric completed 111 node=es95a pool=write
+metric threads 1 node=es95a pool=write
+metric largest 1 node=es95a pool=write
+metric active 0 node=es95b pool=write
+metric queue 0 node=es95b pool=write
+metric queue_pct 0 node=es95b pool=write
+metric rejected 119 node=es95b pool=write
+metric completed 178 node=es95b pool=write
+metric threads 1 node=es95b pool=write
+metric largest 1 node=es95b pool=write
+metric active 0 node=es95a pool=get
+metric queue 0 node=es95a pool=get
+metric queue_pct 0 node=es95a pool=get
+metric rejected 0 node=es95a pool=get
+metric completed 12 node=es95a pool=get
+metric threads 7 node=es95a pool=get
+metric largest 7 node=es95a pool=get
+metric active 1 node=es95a pool=inference_utility
+metric queue 0 node=es95a pool=inference_utility
+metric rejected 0 node=es95a pool=inference_utility
+metric completed 5857 node=es95a pool=inference_utility
+metric threads 0 node=es95a pool=inference_utility
+metric largest 5 node=es95a pool=inference_utility
+metric active 1 node=es95a pool=management
+metric queue 0 node=es95a pool=management
+metric rejected 0 node=es95a pool=management
+metric completed 1553 node=es95a pool=management
+metric threads 0 node=es95a pool=management
+metric largest 4 node=es95a pool=management
+metric active 0 node=es95a pool=search
+metric queue 0 node=es95a pool=search
+metric queue_pct 0 node=es95a pool=search
+... (104 lines)
+  PASS  es95: elasticsearch_thread_pools runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\breakers.ps1
+metric up 1
+metric tripped_total 12
+metric max_used_pct 75.75
+metric estimated_bytes 0 node=es95a breaker=eql_sequence
+metric limit_bytes 201326592 node=es95a breaker=eql_sequence
+metric used_pct 0 node=es95a breaker=eql_sequence
+metric tripped 0 node=es95a breaker=eql_sequence
+metric estimated_bytes 0 node=es95a breaker=fielddata
+metric limit_bytes 161061273 node=es95a breaker=fielddata
+metric used_pct 0 node=es95a breaker=fielddata
+metric tripped 0 node=es95a breaker=fielddata
+metric estimated_bytes 0 node=es95a breaker=inflight_requests
+metric limit_bytes 402653184 node=es95a breaker=inflight_requests
+metric used_pct 0 node=es95a breaker=inflight_requests
+metric tripped 0 node=es95a breaker=inflight_requests
+metric estimated_bytes 0 node=es95a breaker=model_inference
+metric limit_bytes 201326592 node=es95a breaker=model_inference
+metric used_pct 0 node=es95a breaker=model_inference
+metric tripped 0 node=es95a breaker=model_inference
+metric estimated_bytes 289767952 node=es95a breaker=parent
+metric limit_bytes 382520524 node=es95a breaker=parent
+metric used_pct 75.75 node=es95a breaker=parent
+metric tripped 0 node=es95a breaker=parent
+metric estimated_bytes 0 node=es95a breaker=request
+metric limit_bytes 241591910 node=es95a breaker=request
+metric used_pct 0 node=es95a breaker=request
+metric tripped 3 node=es95a breaker=request
+metric estimated_bytes 0 node=es95b breaker=eql_sequence
+metric limit_bytes 201326592 node=es95b breaker=eql_sequence
+metric used_pct 0 node=es95b breaker=eql_sequence
+metric tripped 0 node=es95b breaker=eql_sequence
+metric estimated_bytes 0 node=es95b breaker=fielddata
+metric limit_bytes 161061273 node=es95b breaker=fielddata
+metric used_pct 0 node=es95b breaker=fielddata
+metric tripped 0 node=es95b breaker=fielddata
+metric estimated_bytes 47 node=es95b breaker=inflight_requests
+metric limit_bytes 402653184 node=es95b breaker=inflight_requests
+metric used_pct 0 node=es95b breaker=inflight_requests
+metric tripped 0 node=es95b breaker=inflight_requests
+metric estimated_bytes 0 node=es95b breaker=model_inference
+... (76 lines)
+  PASS  es95: elasticsearch_breakers runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\indices.ps1
+metric up 1
+metric indices 13
+metric open 12
+metric closed 1
+metric green 11
+metric yellow 1
+metric red 1
+metric hidden 5
+metric docs 39297
+metric deleted_docs 0
+metric store_bytes 4816291
+metric primary_store_bytes 2779949
+metric blocked 1
+metric write_blocked 1
+metric health 2 index=archive-red
+metric is_open 1 index=archive-red
+metric index_docs 0 index=archive-red
+metric deleted_pct 0 index=archive-red
+metric index_store_bytes 0 index=archive-red
+metric index_primary_store_bytes 0 index=archive-red
+metric primaries 1 index=archive-red
+metric replicas 0 index=archive-red
+metric age_days 0 index=archive-red
+metric health 1 index=orders
+metric is_open 1 index=orders
+metric index_docs 0 index=orders
+metric deleted_pct 0 index=orders
+metric index_store_bytes 681 index=orders
+metric index_primary_store_bytes 227 index=orders
+metric primaries 1 index=orders
+metric replicas 3 index=orders
+metric age_days 0 index=orders
+metric health 0 index=blocked
+metric is_open 1 index=blocked
+metric index_docs 0 index=blocked
+metric deleted_pct 0 index=blocked
+metric index_store_bytes 227 index=blocked
+metric index_primary_store_bytes 227 index=blocked
+metric primaries 1 index=blocked
+metric replicas 0 index=blocked
+... (133 lines)
+  PASS  es95: elasticsearch_indices runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\shards.ps1
+metric up 1
+metric shards 30
+metric primaries 16
+metric replicas 14
+metric started 28
+metric relocating 0
+metric initializing 0
+metric unassigned 2
+metric unassigned_primaries 1
+metric unassigned_replicas 1
+metric largest_shard_bytes 1617388
+metric largest_shard_docs 25768
+metric shards_over_50gb 0
+metric shards_over_200m_docs 0
+metric node_shards 10 node=es95a
+metric node_shards 9 node=es95b
+metric node_shards 9 node=es95c
+metric unassigned_seconds 199 index=archive-red shard=0 prirep=p reason=INDEX_CREATED
+metric unassigned_seconds 200 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric unassigned_not_shown 0
+metric explained 1 index=archive-red shard=0 prirep=p can_allocate=no decider=filter why=node_does_not_match_index_setting__index.routing.allocation.require__filters___name:_nowhere__
+metric recoveries 0
+metric recoveries_not_shown 0
+  PASS  es95: elasticsearch_shards runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\allocation.ps1
+metric up 1
+metric shards 10 node=es95a
+metric undesired_shards 0 node=es95a
+metric disk_indices_bytes 1168651 node=es95a
+metric disk_used_bytes 77086416896 node=es95a
+metric disk_free_bytes 40797642752 node=es95a
+metric disk_total_bytes 117884059648 node=es95a
+metric disk_used_pct 65 node=es95a
+metric watermark 2 node=es95a
+metric shards 9 node=es95b
+metric undesired_shards 0 node=es95b
+metric disk_indices_bytes 1840766 node=es95b
+metric disk_used_bytes 77086416896 node=es95b
+metric disk_free_bytes 40797642752 node=es95b
+metric disk_total_bytes 117884059648 node=es95b
+metric disk_used_pct 65 node=es95b
+metric watermark 2 node=es95b
+metric shards 9 node=es95c
+metric undesired_shards 0 node=es95c
+metric disk_indices_bytes 2051106 node=es95c
+metric disk_used_bytes 77086416896 node=es95c
+metric disk_free_bytes 40797642752 node=es95c
+metric disk_total_bytes 117884059648 node=es95c
+metric disk_used_pct 65 node=es95c
+metric watermark 2 node=es95c
+metric nodes_over_low 3
+metric nodes_over_high 3
+metric nodes_over_flood 0
+metric watermark_free_bytes 109951162777600 level=low
+metric watermark_free_bytes 54975581388800 level=high
+metric watermark_free_bytes 1073741824 level=flood_stage
+metric disk_threshold_enabled 1
+metric allocation_enabled 0 setting=primaries
+metric rebalance_enabled 1 setting=all
+metric exclusions 1
+metric exclusion 1 attribute=_name value=decommissioned-1
+metric max_shards_per_node 12
+metric shards_capacity_pct 83.33
+metric nodes_not_shown 0
+  PASS  es95: elasticsearch_allocation runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\operations.ps1
+metric up 1
+metric docs 13545 node=es95a
+metric store_bytes 1168651 node=es95a
+metric index_total 13553 node=es95a
+metric index_time_ms 20912 node=es95a
+metric index_current 0 node=es95a
+metric index_failed 0 node=es95a
+metric delete_total 0 node=es95a
+metric index_throttle_ms 0 node=es95a
+metric query_total 37 node=es95a
+metric query_time_ms 793 node=es95a
+metric query_current 0 node=es95a
+metric fetch_total 24 node=es95a
+metric fetch_time_ms 305 node=es95a
+metric scroll_current 0 node=es95a
+metric open_contexts 1 node=es95a
+metric get_total 37 node=es95a
+metric get_missing 29 node=es95a
+metric get_time_ms 184 node=es95a
+metric merges_current 0 node=es95a
+metric merges_total 3 node=es95a
+metric merges_time_ms 6236 node=es95a
+metric merges_throttled_ms 0 node=es95a
+metric refresh_total 91 node=es95a
+metric refresh_time_ms 14151 node=es95a
+metric flush_total 4 node=es95a
+metric flush_time_ms 313 node=es95a
+metric query_cache_bytes 0 node=es95a
+metric query_cache_hits 0 node=es95a
+metric query_cache_misses 5 node=es95a
+metric query_cache_evictions 0 node=es95a
+metric request_cache_bytes 976 node=es95a
+metric request_cache_hits 7 node=es95a
+metric request_cache_misses 7 node=es95a
+metric request_cache_evictions 0 node=es95a
+metric fielddata_bytes 0 node=es95a
+metric fielddata_evictions 0 node=es95a
+metric segments 23 node=es95a
+metric translog_ops 8495 node=es95a
+metric translog_bytes 824596 node=es95a
+... (122 lines)
+  PASS  es95: elasticsearch_operations runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\ingest.ps1
+metric up 1
+metric count 8
+metric failed 3
+metric time_ms 94
+metric current 0
+metric failed_pct 37.5
+metric pipelines 2
+metric pipeline_count 6 pipeline=parse
+metric pipeline_failed 3 pipeline=parse
+metric pipeline_failed_pct 50 pipeline=parse
+metric pipeline_time_ms 10 pipeline=parse
+metric pipeline_avg_ms 1.67 pipeline=parse
+metric pipeline_count 2 pipeline=logs@default-pipeline
+metric pipeline_failed 0 pipeline=logs@default-pipeline
+metric pipeline_failed_pct 0 pipeline=logs@default-pipeline
+metric pipeline_time_ms 24 pipeline=logs@default-pipeline
+metric pipeline_avg_ms 12 pipeline=logs@default-pipeline
+metric pipelines_not_shown 0
+  PASS  es95: elasticsearch_ingest runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\tasks.ps1
+metric up 1
+metric tasks 1
+metric longest_seconds 177
+metric over_60s 1
+metric cancellable 1
+metric cancelled 0
+metric searches 0
+metric action_tasks 1 action=indices:data/write/reindex
+metric running_seconds 177 action=indices:data/write/reindex node=es95a what=reindex_from__logs-ok__to__logs-slow_
+metric tasks_not_shown 0
+metric pending 0
+metric pending_oldest_ms 0
+  PASS  es95: elasticsearch_tasks runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\snapshots.ps1
+metric up 1
+metric running 0
+metric repositories 2
+metric repositories_not_shown 0
+metric readable 1 repository=backups
+metric snapshots 1 repository=backups
+metric failed 0 repository=backups
+metric partial 0 repository=backups
+metric last_status 0 repository=backups status=SUCCESS
+metric last_age_seconds 216 repository=backups
+metric last_duration_seconds 3 repository=backups
+metric last_failed_shards 0 repository=backups
+metric last_success_age_seconds 216 repository=backups
+metric readable 1 repository=ro-repo
+metric snapshots 1 repository=ro-repo
+metric failed 0 repository=ro-repo
+metric partial 0 repository=ro-repo
+metric last_status 0 repository=ro-repo status=SUCCESS
+metric last_age_seconds 216 repository=ro-repo
+metric last_duration_seconds 3 repository=ro-repo
+metric last_failed_shards 0 repository=ro-repo
+metric last_success_age_seconds 216 repository=ro-repo
+  PASS  es95: elasticsearch_snapshots runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\cluster.ps1
+metric up 1
+metric indices 14
+metric shards 28
+metric primary_shards 15
+metric replication 0.87
+metric docs 39332
+metric deleted_docs 1
+metric store_bytes 5060523
+metric segments 74
+metric fields 93
+metric fielddata_bytes 0
+metric query_cache_bytes 0
+metric nodes 3
+metric role_nodes 0 role=coordinating_only
+metric role_nodes 3 role=data
+metric role_nodes 3 role=data_cold
+metric role_nodes 3 role=data_content
+metric role_nodes 3 role=data_frozen
+metric role_nodes 3 role=data_hot
+metric role_nodes 3 role=data_warm
+metric role_nodes 0 role=index
+metric role_nodes 3 role=ingest
+metric role_nodes 3 role=master
+metric role_nodes 3 role=ml
+metric role_nodes 3 role=remote_cluster_client
+metric role_nodes 0 role=search
+metric role_nodes 3 role=transform
+metric role_nodes 0 role=voting_only
+metric versions 1
+metric version_info 1 version=9.5.5
+metric processors 12
+metric fs_total_bytes 353652178944
+metric fs_free_bytes 122392928256
+metric fs_used_pct 65.39
+metric pipelines 22
+metric plugins 0
+metric license 1 type=basic status=active
+  PASS  es95: elasticsearch_cluster runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\lifecycle.ps1
+metric up 1
+metric ilm_running 1 mode=RUNNING
+metric ilm_managed 3
+metric ilm_errors 1
+metric ilm_stuck 0
+metric ilm_in_phase 3 phase=hot
+metric ilm_error 1 index=ilm-broken policy=rollover-broken step=check-rollover-ready reason=setting__index.lifecycle.rollover_alias__for_index__ilm-broken__is_empty_or_not_defined
+metric ilm_error_retries 11 index=ilm-broken
+metric slm_running 1 mode=RUNNING
+metric slm_policies 2
+metric slm_failing 0 policy=nightly-ok reason=none
+metric slm_last_success_age_seconds 216 policy=nightly-ok
+metric slm_taken 1 policy=nightly-ok
+metric slm_failed 0 policy=nightly-ok
+metric slm_next_seconds 7264 policy=nightly-ok
+metric slm_failing 1 policy=nightly-ro reason=_ro-repo__cannot_create_snapshot_in_a_readonly_repository
+metric slm_last_failure_age_seconds 220 policy=nightly-ro
+metric slm_taken 0 policy=nightly-ro
+metric slm_failed 1 policy=nightly-ro
+metric slm_next_seconds 10864 policy=nightly-ro
+metric dlm_data_streams 3
+metric dlm_backing_indices 2
+metric dlm_errors 0
+  PASS  es95: elasticsearch_lifecycle runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\features.ps1
+metric up 1
+metric transforms 1
+metric transforms_started 0
+metric transforms_failed 1
+metric transform_failed 1 transform=later reason=Failed_to_execute_script_with_error:__org.elasticsearch.script.ScriptException:_runtime_error__org.elasticsearch.common.
+metric transform_health 2 transform=later
+metric transforms_not_shown 0
+metric watcher_nodes 3
+metric watcher_started 3
+metric watches 0
+metric watches_queued 0
+metric enrich_queued 0
+metric enrich_in_flight 0
+metric enrich_executing 0
+  PASS  es95: elasticsearch_features runs (pwsh)
+  PASS  es95: Elasticsearch 9.5.5 (pwsh)
+  PASS  es95: red, 3 nodes (pwsh)
+  PASS  es95: the elected node (pwsh)
+  PASS  es95: the unassigned primary, and why (pwsh)
+  PASS  es95: writes refused (pwsh)
+  PASS  es95: the breaker tripped (pwsh)
+  PASS  es95: an index blocked for writes (pwsh)
+  PASS  es95: every node past the high watermark (pwsh)
+  PASS  es95: allocation left at primaries (pwsh)
+  PASS  es95: the pipeline failing half (pwsh)
+  PASS  es95: the health report, red (pwsh)
+  PASS  es95: the lifecycle error (pwsh)
+  PASS  es95: the snapshot policy failing (pwsh)
+  PASS  es95: the failed transform (pwsh)
+  PASS  es95: a wrong password fails the run (pwsh)
+  PASS  es95: and says so (pwsh)
+
+# Elasticsearch 8.19.25, through the tunnel, pwsh.
+
+> pwsh packs\elasticsearch\windows\status.ps1
+metric up 1
+metric version 1 version=8.19.25 cluster=vigil819
+metric status 2 status=red
+metric timed_out 0
+metric nodes 2
+metric data_nodes 2
+metric active_primary_shards 15
+metric active_shards 27
+metric active_shards_pct 90
+metric relocating_shards 0
+metric initializing_shards 0
+metric unassigned_shards 3
+metric unassigned_primary_shards 1
+metric delayed_unassigned_shards 0
+metric pending_tasks 0
+metric task_max_wait_ms 0
+metric in_flight_fetch 0
+metric master 1 node=es819a
+  PASS  es819: elasticsearch_status runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\health.ps1
+metric up 1
+metric served 1
+metric status 2 status=red
+metric indicators_red 2
+metric indicators_yellow 1
+metric indicator 0 indicator=data_stream_lifecycle symptom=Data_streams_are_executing_their_lifecycles_without_issues
+metric indicator 1 indicator=disk symptom=2_nodes_with_roles:__data__data_cold__data_content__data_frozen__data_hot__data_warm__ingest__master__ml__remote_cluster
+metric indicator 0 indicator=ilm symptom=Index_Lifecycle_Management_is_running
+metric indicator 0 indicator=master_is_stable symptom=The_cluster_has_a_stable_master_node
+metric indicator 0 indicator=repository_integrity symptom=All_repositories_are_healthy.
+metric indicator 2 indicator=shards_availability symptom=This_cluster_has_1_unavailable_primary_shard__2_unavailable_replica_shards.
+metric indicator 2 indicator=shards_capacity symptom=Cluster_is_close_to_reaching_the_configured_maximum_number_of_shards_for_data_nodes.
+metric indicator 0 indicator=slm symptom=Snapshot_Lifecycle_Management_is_running
+  PASS  es819: elasticsearch_health runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\nodes.ps1
+metric up 1
+metric nodes 2
+metric master_eligible 2
+metric data_nodes 2
+metric ingest_nodes 2
+metric coordinating_only 0
+metric versions 1
+metric info 1 node=es819a version=8.19.25 roles=cdfhilmrstw
+metric master 1 node=es819a
+metric cpu_pct 50 node=es819a
+metric load_1m 2.65 node=es819a
+metric load_5m 8.33 node=es819a
+metric load_15m 8.32 node=es819a
+metric mem_used_pct 74 node=es819a
+metric process_cpu_pct 1 node=es819a
+metric open_fds 656 node=es819a
+metric max_fds 524288 node=es819a
+metric fds_pct 0.13 node=es819a
+metric disk_total_bytes 117884059648 node=es819a
+metric disk_free_bytes 40797597696 node=es819a
+metric disk_used_pct 65.39 node=es819a
+metric http_open 1 node=es819a
+metric http_opened 471 node=es819a
+metric transport_open 13 node=es819a
+metric transport_rx_bytes 1599136 node=es819a
+metric transport_tx_bytes 1079466 node=es819a
+metric indexing_pressure_bytes 0 node=es819a
+metric indexing_pressure_limit_bytes 40265318 node=es819a
+metric indexing_pressure_pct 0 node=es819a
+metric indexing_rejections 0 node=es819a
+metric info 1 node=es819b version=8.19.25 roles=cdfhilmrstw
+metric master 0 node=es819b
+metric cpu_pct 50 node=es819b
+metric load_1m 2.65 node=es819b
+metric load_5m 8.33 node=es819b
+metric load_15m 8.32 node=es819b
+metric mem_used_pct 86 node=es819b
+metric process_cpu_pct 0 node=es819b
+metric open_fds 651 node=es819b
+metric max_fds 524288 node=es819b
+... (54 lines)
+  PASS  es819: elasticsearch_nodes runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\thread_pools.ps1
+metric up 1
+metric rejected_total 203
+metric queued_total 0
+metric active_total 3
+metric active 0 node=es819a pool=write
+metric queue 0 node=es819a pool=write
+metric queue_pct 0 node=es819a pool=write
+metric rejected 203 node=es819a pool=write
+metric completed 218 node=es819a pool=write
+metric threads 1 node=es819a pool=write
+metric largest 1 node=es819a pool=write
+metric active 0 node=es819a pool=get
+metric queue 0 node=es819a pool=get
+metric queue_pct 0 node=es819a pool=get
+metric rejected 0 node=es819a pool=get
+metric completed 9 node=es819a pool=get
+metric threads 7 node=es819a pool=get
+metric largest 7 node=es819a pool=get
+metric active 2 node=es819a pool=management
+metric queue 0 node=es819a pool=management
+metric rejected 0 node=es819a pool=management
+metric completed 1014 node=es819a pool=management
+metric threads 0 node=es819a pool=management
+metric largest 4 node=es819a pool=management
+metric active 0 node=es819a pool=search
+metric queue 0 node=es819a pool=search
+metric queue_pct 0 node=es819a pool=search
+metric rejected 0 node=es819a pool=search
+metric completed 52 node=es819a pool=search
+metric threads 7 node=es819a pool=search
+metric largest 7 node=es819a pool=search
+metric active 0 node=es819b pool=get
+metric queue 0 node=es819b pool=get
+metric queue_pct 0 node=es819b pool=get
+metric rejected 0 node=es819b pool=get
+metric completed 1 node=es819b pool=get
+metric threads 7 node=es819b pool=get
+metric largest 1 node=es819b pool=get
+metric active 1 node=es819b pool=management
+metric queue 0 node=es819b pool=management
+... (59 lines)
+  PASS  es819: elasticsearch_thread_pools runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\breakers.ps1
+metric up 1
+metric tripped_total 12
+metric max_used_pct 52.65
+metric estimated_bytes 0 node=es819a breaker=eql_sequence
+metric limit_bytes 201326592 node=es819a breaker=eql_sequence
+metric used_pct 0 node=es819a breaker=eql_sequence
+metric tripped 0 node=es819a breaker=eql_sequence
+metric estimated_bytes 0 node=es819a breaker=fielddata
+metric limit_bytes 161061273 node=es819a breaker=fielddata
+metric used_pct 0 node=es819a breaker=fielddata
+metric tripped 0 node=es819a breaker=fielddata
+metric estimated_bytes 0 node=es819a breaker=inflight_requests
+metric limit_bytes 402653184 node=es819a breaker=inflight_requests
+metric used_pct 0 node=es819a breaker=inflight_requests
+metric tripped 0 node=es819a breaker=inflight_requests
+metric estimated_bytes 0 node=es819a breaker=model_inference
+metric limit_bytes 201326592 node=es819a breaker=model_inference
+metric used_pct 0 node=es819a breaker=model_inference
+metric tripped 0 node=es819a breaker=model_inference
+metric estimated_bytes 118670056 node=es819a breaker=parent
+metric limit_bytes 382520524 node=es819a breaker=parent
+metric used_pct 31.02 node=es819a breaker=parent
+metric tripped 0 node=es819a breaker=parent
+metric estimated_bytes 0 node=es819a breaker=request
+metric limit_bytes 241591910 node=es819a breaker=request
+metric used_pct 0 node=es819a breaker=request
+metric tripped 6 node=es819a breaker=request
+metric estimated_bytes 0 node=es819b breaker=eql_sequence
+metric limit_bytes 201326592 node=es819b breaker=eql_sequence
+metric used_pct 0 node=es819b breaker=eql_sequence
+metric tripped 0 node=es819b breaker=eql_sequence
+metric estimated_bytes 0 node=es819b breaker=fielddata
+metric limit_bytes 161061273 node=es819b breaker=fielddata
+metric used_pct 0 node=es819b breaker=fielddata
+metric tripped 0 node=es819b breaker=fielddata
+metric estimated_bytes 47 node=es819b breaker=inflight_requests
+metric limit_bytes 402653184 node=es819b breaker=inflight_requests
+metric used_pct 0 node=es819b breaker=inflight_requests
+metric tripped 0 node=es819b breaker=inflight_requests
+metric estimated_bytes 0 node=es819b breaker=model_inference
+... (52 lines)
+  PASS  es819: elasticsearch_breakers runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\indices.ps1
+metric up 1
+metric indices 13
+metric open 12
+metric closed 1
+metric green 11
+metric yellow 1
+metric red 1
+metric hidden 5
+metric docs 14318
+metric deleted_docs 0
+metric store_bytes 2171615
+metric primary_store_bytes 1123727
+metric blocked 1
+metric write_blocked 1
+metric health 2 index=archive-red
+metric is_open 1 index=archive-red
+metric index_docs 0 index=archive-red
+metric deleted_pct 0 index=archive-red
+metric index_store_bytes 0 index=archive-red
+metric index_primary_store_bytes 0 index=archive-red
+metric primaries 1 index=archive-red
+metric replicas 0 index=archive-red
+metric age_days 0 index=archive-red
+metric health 1 index=orders
+metric is_open 1 index=orders
+metric index_docs 0 index=orders
+metric deleted_pct 0 index=orders
+metric index_store_bytes 454 index=orders
+metric index_primary_store_bytes 227 index=orders
+metric primaries 1 index=orders
+metric replicas 3 index=orders
+metric age_days 0 index=orders
+metric health 0 index=blocked
+metric is_open 1 index=blocked
+metric index_docs 0 index=blocked
+metric deleted_pct 0 index=blocked
+metric index_store_bytes 227 index=blocked
+metric index_primary_store_bytes 227 index=blocked
+metric primaries 1 index=blocked
+metric replicas 0 index=blocked
+... (133 lines)
+  PASS  es819: elasticsearch_indices runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\shards.ps1
+metric up 1
+metric shards 30
+metric primaries 16
+metric replicas 14
+metric started 27
+metric relocating 0
+metric initializing 0
+metric unassigned 3
+metric unassigned_primaries 1
+metric unassigned_replicas 2
+metric largest_shard_bytes 675444
+metric largest_shard_docs 9008
+metric shards_over_50gb 0
+metric shards_over_200m_docs 0
+metric node_shards 14 node=es819a
+metric node_shards 13 node=es819b
+metric unassigned_seconds 159 index=archive-red shard=0 prirep=p reason=INDEX_CREATED
+metric unassigned_seconds 160 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric unassigned_seconds 160 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric unassigned_not_shown 0
+metric explained 1 index=archive-red shard=0 prirep=p can_allocate=no decider=filter why=node_does_not_match_index_setting__index.routing.allocation.require__filters___name:_nowhere__
+metric recoveries 0
+metric recoveries_not_shown 0
+  PASS  es819: elasticsearch_shards runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\allocation.ps1
+metric up 1
+metric shards 14 node=es819a
+metric undesired_shards 0 node=es819a
+metric disk_indices_bytes 1136740 node=es819a
+metric disk_used_bytes 77086461952 node=es819a
+metric disk_free_bytes 40797597696 node=es819a
+metric disk_total_bytes 117884059648 node=es819a
+metric disk_used_pct 65 node=es819a
+metric watermark 2 node=es819a
+metric shards 13 node=es819b
+metric undesired_shards 0 node=es819b
+metric disk_indices_bytes 1237308 node=es819b
+metric disk_used_bytes 77086461952 node=es819b
+metric disk_free_bytes 40797597696 node=es819b
+metric disk_total_bytes 117884059648 node=es819b
+metric disk_used_pct 65 node=es819b
+metric watermark 2 node=es819b
+metric nodes_over_low 2
+metric nodes_over_high 2
+metric nodes_over_flood 0
+metric watermark_free_bytes 109951162777600 level=low
+metric watermark_free_bytes 54975581388800 level=high
+metric watermark_free_bytes 1073741824 level=flood_stage
+metric disk_threshold_enabled 1
+metric allocation_enabled 0 setting=primaries
+metric rebalance_enabled 1 setting=all
+metric exclusions 1
+metric exclusion 1 attribute=_name value=decommissioned-1
+metric max_shards_per_node 12
+metric shards_capacity_pct 125
+metric nodes_not_shown 0
+  PASS  es819: elasticsearch_allocation runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\operations.ps1
+metric up 1
+metric docs 14355 node=es819a
+metric store_bytes 1136740 node=es819a
+metric index_total 14117 node=es819a
+metric index_time_ms 11830 node=es819a
+metric index_current 0 node=es819a
+metric index_failed 0 node=es819a
+metric delete_total 0 node=es819a
+metric index_throttle_ms 0 node=es819a
+metric query_total 38 node=es819a
+metric query_time_ms 441 node=es819a
+metric query_current 0 node=es819a
+metric fetch_total 28 node=es819a
+metric fetch_time_ms 118 node=es819a
+metric scroll_current 1 node=es819a
+metric open_contexts 1 node=es819a
+metric get_total 6 node=es819a
+metric get_missing 0 node=es819a
+metric get_time_ms 3 node=es819a
+metric merges_current 0 node=es819a
+metric merges_total 2 node=es819a
+metric merges_time_ms 1401 node=es819a
+metric merges_throttled_ms 0 node=es819a
+metric refresh_total 107 node=es819a
+metric refresh_time_ms 9094 node=es819a
+metric flush_total 9 node=es819a
+metric flush_time_ms 1184 node=es819a
+metric query_cache_bytes 0 node=es819a
+metric query_cache_hits 0 node=es819a
+metric query_cache_misses 0 node=es819a
+metric query_cache_evictions 0 node=es819a
+metric request_cache_bytes 592 node=es819a
+metric request_cache_hits 10 node=es819a
+metric request_cache_misses 7 node=es819a
+metric request_cache_evictions 0 node=es819a
+metric fielddata_bytes 0 node=es819a
+metric fielddata_evictions 0 node=es819a
+metric segments 33 node=es819a
+metric translog_ops 8793 node=es819a
+metric translog_bytes 904917 node=es819a
+... (82 lines)
+  PASS  es819: elasticsearch_operations runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\ingest.ps1
+metric up 1
+metric count 8
+metric failed 3
+metric time_ms 69
+metric current 0
+metric failed_pct 37.5
+metric pipelines 2
+metric pipeline_count 6 pipeline=parse
+metric pipeline_failed 3 pipeline=parse
+metric pipeline_failed_pct 50 pipeline=parse
+metric pipeline_time_ms 13 pipeline=parse
+metric pipeline_avg_ms 2.17 pipeline=parse
+metric pipeline_count 2 pipeline=logs@default-pipeline
+metric pipeline_failed 0 pipeline=logs@default-pipeline
+metric pipeline_failed_pct 0 pipeline=logs@default-pipeline
+metric pipeline_time_ms 11 pipeline=logs@default-pipeline
+metric pipeline_avg_ms 5.5 pipeline=logs@default-pipeline
+metric pipelines_not_shown 0
+  PASS  es819: elasticsearch_ingest runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\tasks.ps1
+metric up 1
+metric tasks 1
+metric longest_seconds 156
+metric over_60s 1
+metric cancellable 1
+metric cancelled 0
+metric searches 0
+metric action_tasks 1 action=indices:data/write/reindex
+metric running_seconds 156 action=indices:data/write/reindex node=es819a what=reindex_from__logs-ok__to__logs-slow_
+metric tasks_not_shown 0
+metric pending 0
+metric pending_oldest_ms 0
+  PASS  es819: elasticsearch_tasks runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\snapshots.ps1
+metric up 1
+metric running 0
+metric repositories 2
+metric repositories_not_shown 0
+metric readable 1 repository=backups
+metric snapshots 1 repository=backups
+metric failed 0 repository=backups
+metric partial 0 repository=backups
+metric last_status 0 repository=backups status=SUCCESS
+metric last_age_seconds 176 repository=backups
+metric last_duration_seconds 2 repository=backups
+metric last_failed_shards 0 repository=backups
+metric last_success_age_seconds 176 repository=backups
+metric readable 1 repository=ro-repo
+metric snapshots 1 repository=ro-repo
+metric failed 0 repository=ro-repo
+metric partial 0 repository=ro-repo
+metric last_status 0 repository=ro-repo status=SUCCESS
+metric last_age_seconds 176 repository=ro-repo
+metric last_duration_seconds 2 repository=ro-repo
+metric last_failed_shards 0 repository=ro-repo
+metric last_success_age_seconds 176 repository=ro-repo
+  PASS  es819: elasticsearch_snapshots runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\cluster.ps1
+metric up 1
+metric indices 14
+metric shards 27
+metric primary_shards 15
+metric replication 0.8
+metric docs 14356
+metric deleted_docs 1
+metric store_bytes 2374274
+metric segments 64
+metric fields 91
+metric fielddata_bytes 0
+metric query_cache_bytes 0
+metric nodes 2
+metric role_nodes 0 role=coordinating_only
+metric role_nodes 2 role=data
+metric role_nodes 2 role=data_cold
+metric role_nodes 2 role=data_content
+metric role_nodes 2 role=data_frozen
+metric role_nodes 2 role=data_hot
+metric role_nodes 2 role=data_warm
+metric role_nodes 0 role=index
+metric role_nodes 2 role=ingest
+metric role_nodes 2 role=master
+metric role_nodes 2 role=ml
+metric role_nodes 2 role=remote_cluster_client
+metric role_nodes 0 role=search
+metric role_nodes 2 role=transform
+metric role_nodes 0 role=voting_only
+metric versions 1
+metric version_info 1 version=8.19.25
+metric processors 8
+metric fs_total_bytes 235768119296
+metric fs_free_bytes 81595195392
+metric fs_used_pct 65.39
+metric pipelines 23
+metric plugins 0
+metric license 1 type=basic status=active
+  PASS  es819: elasticsearch_cluster runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\lifecycle.ps1
+metric up 1
+metric ilm_running 1 mode=RUNNING
+metric ilm_managed 3
+metric ilm_errors 1
+metric ilm_stuck 0
+metric ilm_in_phase 3 phase=hot
+metric ilm_error 1 index=ilm-broken policy=rollover-broken step=check-rollover-ready reason=setting__index.lifecycle.rollover_alias__for_index__ilm-broken__is_empty_or_not_defined
+metric ilm_error_retries 4 index=ilm-broken
+metric slm_running 1 mode=RUNNING
+metric slm_policies 2
+metric slm_failing 0 policy=nightly-ok reason=none
+metric slm_last_success_age_seconds 176 policy=nightly-ok
+metric slm_taken 1 policy=nightly-ok
+metric slm_failed 0 policy=nightly-ok
+metric slm_next_seconds 7238 policy=nightly-ok
+metric slm_failing 1 policy=nightly-ro reason=_ro-repo__cannot_create_snapshot_in_a_readonly_repository
+metric slm_last_failure_age_seconds 180 policy=nightly-ro
+metric slm_taken 0 policy=nightly-ro
+metric slm_failed 1 policy=nightly-ro
+metric slm_next_seconds 10838 policy=nightly-ro
+metric dlm_data_streams 2
+metric dlm_backing_indices 2
+metric dlm_errors 0
+  PASS  es819: elasticsearch_lifecycle runs (pwsh)
+
+> pwsh packs\elasticsearch\windows\features.ps1
+metric up 1
+metric transforms 1
+metric transforms_started 0
+metric transforms_failed 1
+metric transform_failed 1 transform=later reason=Failed_to_execute_script_with_error:__org.elasticsearch.script.ScriptException:_runtime_error__org.elasticsearch.common.
+metric transform_health 2 transform=later
+metric transforms_not_shown 0
+metric watcher_nodes 2
+metric watcher_started 2
+metric watches 0
+metric watches_queued 0
+metric enrich_queued 0
+metric enrich_in_flight 0
+metric enrich_executing 0
+  PASS  es819: elasticsearch_features runs (pwsh)
+  PASS  es819: Elasticsearch 8.19.25 (pwsh)
+  PASS  es819: red, 2 nodes (pwsh)
+  PASS  es819: the elected node (pwsh)
+  PASS  es819: the unassigned primary, and why (pwsh)
+  PASS  es819: writes refused (pwsh)
+  PASS  es819: the breaker tripped (pwsh)
+  PASS  es819: an index blocked for writes (pwsh)
+  PASS  es819: every node past the high watermark (pwsh)
+  PASS  es819: allocation left at primaries (pwsh)
+  PASS  es819: the pipeline failing half (pwsh)
+  PASS  es819: the health report, red (pwsh)
+  PASS  es819: the lifecycle error (pwsh)
+  PASS  es819: the snapshot policy failing (pwsh)
+  PASS  es819: the failed transform (pwsh)
+  PASS  es819: a wrong password fails the run (pwsh)
+  PASS  es819: and says so (pwsh)
+
+== powershell tests\integration\Service-Packs.ps1
+PowerShell 5.1.26100.10068
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+elasticsearch: https://127.0.0.1:19200 as vigil
+  PASS  elasticsearch: off until enabled
+  PASS  elasticsearch: enabled
+        on: elasticsearch_status
+        on: elasticsearch_health
+        on: elasticsearch_nodes
+        on: elasticsearch_thread_pools
+        on: elasticsearch_breakers
+        on: elasticsearch_indices
+        on: elasticsearch_shards
+        on: elasticsearch_allocation
+        on: elasticsearch_operations
+        on: elasticsearch_ingest
+        on: elasticsearch_tasks
+        on: elasticsearch_snapshots
+        on: elasticsearch_cluster
+        on: elasticsearch_lifecycle
+        on: elasticsearch_features
+        needs a user with a role that may only monitor: cluster privileges monitor, read_ilm, read_slm and monitor_snapshot; index privileges monitor and view_index_metadata on * (packs/elasticsearch/README.md has it), and its password as a secret: secret = ELASTICSEARCH_PASSWORD=secret:ELASTICSEARCH_PASSWORD, then vigil secret set ELASTICSEARCH_PASSWORD
+        needs or, instead of a user and password, an API key with the same privileges: secret = ELASTICSEARCH_API_KEY=secret:ELASTICSEARCH_API_KEY, then vigil secret set ELASTICSEARCH_API_KEY
+        needs for Elasticsearch's JVM (heap, garbage collection, threads): the jvm pack, not this one: vigil pack install jvm
+        settings in vigil.config: ELASTICSEARCH_URL= ELASTICSEARCH_USER= ELASTICSEARCH_CACERT=
+  PASS  elasticsearch: it says its JVM is the jvm pack's
+  PASS  elasticsearch: its jobs are on
+  PASS  elasticsearch: the password is a secret reference, on every job
+  note  elasticsearch: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_ES_PASSWORD
+  PASS  elasticsearch: precheck is happy
+  PASS  elasticsearch: every job runs
+  PASS  elasticsearch: answers
+  PASS  elasticsearch: the cluster read as red
+  PASS  elasticsearch: the unassigned primary explained
+  PASS  elasticsearch: write rejections seen
+  PASS  elasticsearch: the write-blocked index seen
+        metric up 1
+        metric version 1 version=9.5.5 cluster=vigil95
+        metric status 2 status=red
+        metric timed_out 0
+        metric nodes 3
+        metric data_nodes 3
+        metric active_primary_shards 15
+        metric active_shards 28
+        metric active_shards_pct 93.33
+        metric relocating_shards 0
+        metric initializing_shards 0
+        metric unassigned_shards 2
+        metric unassigned_primary_shards 1
+        metric delayed_unassigned_shards 0
+        metric pending_tasks 0
+        metric task_max_wait_ms 0
+        metric in_flight_fetch 0
+        metric master 1 node=es95a
+  PASS  elasticsearch: a wrong password fails the run
+  PASS  elasticsearch: and says why
+  PASS  elasticsearch: a cluster that does not answer still runs
+  PASS  elasticsearch: and reads as up 0
+  PASS  elasticsearch: the password is written nowhere
+  PASS  elasticsearch: metrics reach the backend
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+20 passed, 0 failed
+
+== pwsh tests\integration\Service-Packs.ps1
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+elasticsearch: https://127.0.0.1:19200 as vigil
+  PASS  elasticsearch: off until enabled
+  PASS  elasticsearch: enabled
+        on: elasticsearch_status
+        on: elasticsearch_health
+        on: elasticsearch_nodes
+        on: elasticsearch_thread_pools
+        on: elasticsearch_breakers
+        on: elasticsearch_indices
+        on: elasticsearch_shards
+        on: elasticsearch_allocation
+        on: elasticsearch_operations
+        on: elasticsearch_ingest
+        on: elasticsearch_tasks
+        on: elasticsearch_snapshots
+        on: elasticsearch_cluster
+        on: elasticsearch_lifecycle
+        on: elasticsearch_features
+        needs a user with a role that may only monitor: cluster privileges monitor, read_ilm, read_slm and monitor_snapshot; index privileges monitor and view_index_metadata on * (packs/elasticsearch/README.md has it), and its password as a secret: secret = ELASTICSEARCH_PASSWORD=secret:ELASTICSEARCH_PASSWORD, then vigil secret set ELASTICSEARCH_PASSWORD
+        needs or, instead of a user and password, an API key with the same privileges: secret = ELASTICSEARCH_API_KEY=secret:ELASTICSEARCH_API_KEY, then vigil secret set ELASTICSEARCH_API_KEY
+        needs for Elasticsearch's JVM (heap, garbage collection, threads): the jvm pack, not this one: vigil pack install jvm
+        settings in vigil.config: ELASTICSEARCH_URL= ELASTICSEARCH_USER= ELASTICSEARCH_CACERT=
+  PASS  elasticsearch: it says its JVM is the jvm pack's
+  PASS  elasticsearch: its jobs are on
+  PASS  elasticsearch: the password is a secret reference, on every job
+  note  elasticsearch: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_ES_PASSWORD
+  PASS  elasticsearch: precheck is happy
+  PASS  elasticsearch: every job runs
+  PASS  elasticsearch: answers
+  PASS  elasticsearch: the cluster read as red
+  PASS  elasticsearch: the unassigned primary explained
+  PASS  elasticsearch: write rejections seen
+  PASS  elasticsearch: the write-blocked index seen
+        metric up 1
+        metric version 1 version=9.5.5 cluster=vigil95
+        metric status 2 status=red
+        metric timed_out 0
+        metric nodes 3
+        metric data_nodes 3
+        metric active_primary_shards 15
+        metric active_shards 28
+        metric active_shards_pct 93.33
+        metric relocating_shards 0
+        metric initializing_shards 0
+        metric unassigned_shards 2
+        metric unassigned_primary_shards 1
+        metric delayed_unassigned_shards 0
+        metric pending_tasks 0
+        metric task_max_wait_ms 0
+        metric in_flight_fetch 0
+        metric master 1 node=es95a
+  PASS  elasticsearch: a wrong password fails the run
+  PASS  elasticsearch: and says why
+  PASS  elasticsearch: a cluster that does not answer still runs
+  PASS  elasticsearch: and reads as up 0
+  PASS  elasticsearch: the password is written nowhere
+  PASS  elasticsearch: metrics reach the backend
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+20 passed, 0 failed
+
+directly: 124 passed, 0 failed

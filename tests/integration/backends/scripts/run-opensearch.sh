@@ -19,8 +19,9 @@
 # (vigil, a role of the security plugin); Index State Management that fails
 # (a rollover with no alias) and snapshot management to a repository and
 # to a read-only one, given time to act first (snapshot management skips
-# every run while a cluster is red); an ingest pipeline that fails half its
-# documents; an index red, one yellow, one closed, one blocked for writes;
+# every run while a cluster is red), then stopped; an ingest pipeline that
+# fails half its documents; an index red, one yellow, one closed, one
+# blocked for writes;
 # the request breaker tripped; writes refused (one write thread, a queue of
 # ten); a reindex crawling; then settings left behind after maintenance:
 # allocation for primaries only, a node excluded, disk watermarks the disks
@@ -126,6 +127,10 @@ for b in https://127.0.0.1:19210 https://127.0.0.1:19211; do
             [ "$(os "$b" GET '_plugins/_sm/policies/*/_explain' | jq '[.policies[]?.creation.latest_execution.status // empty | select(. == "SUCCESS" or . == "FAILED")] | length')" -ge 2 ] && break
         sleep 6
     done
+    # Stopped once each has a result: run every minute, the next run would
+    # be under way (IN_PROGRESS, RETRYING) when the jobs read them.
+    os "$b" POST _plugins/_sm/policies/nightly-ok/_stop > /dev/null
+    os "$b" POST _plugins/_sm/policies/nightly-ro/_stop > /dev/null
 done
 for b in https://127.0.0.1:19210 https://127.0.0.1:19211; do trouble "$b"; done
 sleep 10
