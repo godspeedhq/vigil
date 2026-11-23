@@ -37,6 +37,22 @@ A pack never touches Vigil itself: everything you write is under `packs/<name>/`
 5. **Show it working,** for a pack that reads a service (a database, a web server): run it against the real thing, in Docker or wherever you have one, and keep the console output as evidence (below).
 6. **Open a pull request** with the evidence. A pull request that changes packs only runs one check in CI, `tools/check-pack.sh --run` on Linux, in about a minute; Vigil's own suites are not run for it, since a pack cannot break them.
 
+## A pack in Java
+
+Some packs carry Java: the [jvm](packs/README.md#jvm) and [kafka](packs/README.md#kafka) packs today, and any pack for an application that speaks JMX (Tomcat, Jetty, ActiveMQ). Everything above still holds. A Java pack has a few rules of its own, whether you are writing a new one or changing one of these.
+
+- **Edit `tools/<pack>/`, never `packs/<pack>/` by hand.** A Java pack is written by its generator, `tools/<pack>/gen.py`: the scripts for every platform, `pack.config` and each script's header, from the sources beside it (`_client.java`, `_probe.tables`, and `examples.txt`, the real output each header shows). Change those, run `python tools/<pack>/gen.py .`, and commit the sources and the pack it wrote together. An edit made only in `packs/<pack>/` is lost the next time the generator runs.
+- **Start from the probe, not from code.** An application that speaks JMX needs no Java of its own: its jobs are rows in `_probe.tables`, which the shared probe reads ([`tools/probe/DESIGN.md`](tools/probe/DESIGN.md) has the format), and its scripts run `_probe.jar` with them. Add a `_client.java` only for what a table cannot do: an API that needs the application's own library (Kafka's admin API), or work beyond JMX (the jvm pack's processes, the JVM's own counters, GC logs).
+- **A client uses the probe's engine.** It is compiled with `_probe.jar` on its class path and run with both jars. It prints through `Jmx.say` and fails through `Jmx.fail`, as the jvm and kafka clients do, and reaches JMX only through `Jmx.connect`, as the jvm client does. Never write a JMX connection, a trust manager or TLS code of your own: that is the code that must never be wrong, and it lives once, in `tools/probe/Jmx.java`.
+- **The probe is shared: change it on purpose.** Every pack's `_probe.java` must be `tools/probe/_probe.java`, byte for byte, and `tools/check-pack.sh` refuses a pack whose copy differs. To change the probe, edit `Jmx.java` or `Probe.java`, run `python tools/probe/gen.py .`, then the generator of every pack that carries it, and raise the version of each of them. A change only one pack needs belongs in that pack's client.
+- **Nothing compiled in the repository.** The release builds the jars (`tools/release/client-jar.sh`) and writes their SHA-256 into the scripts in place of `@CLIENT_JAR_SHA256@` and `@PROBE_JAR_SHA256@`, and each script checks both before it starts Java. A copy straight from the repository has no jars and runs nothing, on purpose. To run your change, build a copy as the release does: copy `packs/<pack>/pack.config` and `packs/<pack>/<os>/*` into a folder of their own, then run `tools/release/client-jar.sh <folder>` with a JDK 17 or later, adding the libraries a client compiles against.
+- **An application's library is never shipped.** A client that compiles against one lists it in `tools/<pack>/client.lib`. A `build` line names the oldest version the pack accepts, which the release compiles against. A `check` line names the newest, which CI compiles against too, so a method it removed fails a pull request and not a user's run. Each line gives the jar's Maven Central URL and SHA-256. Whoever installs the pack supplies the library, as the kafka pack's `KAFKA_HOME` does.
+- **Java 11 to run, any Java to watch.** The jars are Java 11 bytecode, so the machine that watches needs Java 11 or later, a JDK or a JRE. The applications it watches may run on older Java: the jvm pack watches Java 8.
+- **Read only.** Read attributes. Run an operation only when it reads (the jvm pack's search for deadlocks), and keep the pack working, with less, for a JMX user that may only read: say in the log what it could not read, and print the rest.
+- **The JVM belongs to the jvm pack.** A pack for Tomcat or ActiveMQ reports the application: its requests, sessions, queues and pools. Heap, garbage collection, threads, CPU and open files are the jvm pack's. Advise installing it in `needs` and in the README section, and never repeat its metrics.
+- **CI checks the Java a change can break.** A pull request touching `tools/<pack>/` or `packs/<pack>/` checks that pack, and one touching `tools/probe/` checks every pack that carries the probe. `tools/release/client-check.sh` compiles each client against every library in its `client.lib` and builds each platform's jars. Run it yourself first: `tools/release/client-check.sh <pack>`.
+- **Evidence on a JRE too.** Besides the evidence against the real service, show the jars built twice with the same digests, every job run from the jars on a JRE (no compiler), and a jar changed by one byte refused. `tests/integration/backends/scripts/run-jvm.sh` and `run-kafka.sh` do all of this, and are models for a new pack's own.
+
 ## What a pack script must be
 
 A pack is a folder in `packs/` with a `pack.config` and a folder of scripts for each platform, `linux/`, `macos/` and `windows/` ([SPECIFICATION.md](SPECIFICATION.md), section 18.10). A job runs `<job>.sh` on Linux and macOS and `<job>.ps1` on Windows.
@@ -92,6 +108,7 @@ The maintainer merging a script checks:
 - [ ] Any credential comes through a `secret:` reference, for a read-only account.
 - [ ] It is bounded in time, and reports, rather than hides, a source it cannot read.
 - [ ] It has the header, the licence and the disclaimer.
+- [ ] A pack in Java: its sources in `tools/<pack>/` and the pack its generator wrote are committed together, no jar is committed, `client-check.sh` passes, any new JMX code is in the probe's engine and not a copy, and a change to the probe raises the version of every pack that carries it.
 
 ## Vigil itself
 
