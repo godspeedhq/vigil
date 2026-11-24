@@ -19,9 +19,10 @@
     against those running, every worker's state from the scoreboard, its
     connections (with the event MPM: writing, keep-alive, closing), and, with
     mod_ssl, its TLS session cache. Then, on Linux and macOS, whether a file in
-    its configuration folder changed after its oldest worker process started: a
-    graceful restart replaces them all, so that is an edit httpd has not loaded.
-    It only reads: it changes nothing.
+    its configuration folder changed after its youngest worker process started:
+    a graceful restart starts new ones, so that is an edit httpd has not loaded
+    (a worker httpd starts later for more load hides an older edit). It only
+    reads: it changes nothing.
 
     Reads HTTPD_STATUS_URL?auto (default http://127.0.0.1/server-status), which
     you turn on once: <Location "/server-status"> SetHandler server-status;
@@ -80,8 +81,9 @@
       ssl_cache_discards_count  sessions thrown out for lack of room (a running
                                 total)
       config_changed            files under the configuration folder changed
-                                after the oldest worker process started: an edit
-                                not loaded yet (0 when none; Linux and macOS)
+                                after the youngest worker process started: an
+                                edit not loaded yet (0 when none; Linux and
+                                macOS)
 
     Example output (the rest are in the same form):
       metric up 1

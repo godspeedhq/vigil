@@ -28,3 +28,7 @@ Five packs from one source: `nginx`, `httpd`, `caddy`, `haproxy` and `phpfpm`. T
 - httpd's scoreboard has a slot for ServerLimit times ThreadLimit workers, not MaxRequestWorkers, and server-status does not say MaxRequestWorkers: `busy_pct` is of the workers running.
 - Windows PowerShell 5.1 hands back a JSON array as one object: kept in a variable first, `@()` makes it the list.
 - On macOS's bash 3.2, an empty array is unset under `set -u`: `${list[@]+"${list[@]}"}`.
+- httpd's graceful restart does not reset `ServerUptimeSeconds`, and an old worker holding a kept-alive connection (a load balancer's, or Caddy's health checks in our tests) outlives it: an edit not loaded is one made after the *youngest* worker started.
+- PHP-FPM serves its status page with a worker of the pool: when every worker is busy, the page waits too (`timed_out 1`). Its slow-request count needs ptrace (Docker: `cap_add: SYS_PTRACE`).
+- Caddy 2.11.9 stopped reporting its HTTP metrics and its upstreams' health after any configuration reload through its admin API (refused or not), until it restarted: `servers_reporting 0` says so.
+- awk: `>` in `printf`'s arguments is a redirection (parenthesise a `?:`); mawk prints integers past 2^31 as `3e+09`, so counters are printed as the server wrote them, and sums with `%.0f` (`%.15g` for Prometheus values).

@@ -29,8 +29,8 @@ job(pack='httpd', job='status', metric='', when='run_every   = 1m', runtime='30s
          "(busy, idle, finishing) against those running, every worker's state from the scoreboard, its "
          "connections (with the event MPM: writing, keep-alive, closing), and, with mod_ssl, its TLS session "
          "cache. Then, on Linux and macOS, whether a file in its configuration folder changed after its "
-         "oldest worker process started: a graceful restart replaces them all, so that is an edit httpd "
-         "has not loaded.",
+         "youngest worker process started: a graceful restart starts new ones, so that is an edit httpd "
+         "has not loaded (a worker httpd starts later for more load hides an older edit).",
     reads="Reads HTTPD_STATUS_URL?auto (default http://127.0.0.1/server-status), which you turn on once: "
           "<Location \"/server-status\"> SetHandler server-status; Require local </Location>, with "
           "ExtendedStatus On for the totals. HTTPD_CONF is the main configuration file (by default, the "
@@ -64,7 +64,7 @@ job(pack='httpd', job='status', metric='', when='run_every   = 1m', runtime='30s
               ('ssl_cache_hits_count', 'sessions resumed from it (a running total)'),
               ('ssl_cache_misses_count', 'sessions looked for and not found (a running total)'),
               ('ssl_cache_discards_count', 'sessions thrown out for lack of room (a running total)'),
-              ('config_changed', 'files under the configuration folder changed after the oldest worker '
+              ('config_changed', 'files under the configuration folder changed after the youngest worker '
                                  'process started: an edit not loaded yet (0 when none; Linux and macOS)')),
     healthy='up 1; busy_pct well below 100; config_changed 0.',
     watch='busy_pct above 70; workers_in_state state=reading high (slow clients, or a slow-request attack); '
@@ -138,19 +138,21 @@ if [ -z "$pidf" ]; then
     for pidf in @PID@; do [ -e "$pidf" ] && break; done
 fi
 parent=$(tr -dc '0-9' < "$pidf" 2> /dev/null)
-# The oldest worker process: every one is newer than the last graceful
-# restart, so a file changed after it started has not been loaded.
+# The youngest worker process: a graceful restart starts new ones, so a
+# file changed after even the youngest started has not been loaded. (Not
+# the oldest: an old worker holding a kept-alive connection, a load
+# balancer's, lives on after the restart.)
 if [ -n "$parent" ] && [ -r "$conf" ]; then
-    oldest=$(ps ax -o ppid= -o etime= 2> /dev/null | awk -v m="$parent" '
+    age=$(ps ax -o ppid= -o etime= 2> /dev/null | awk -v m="$parent" -v young=1 '
         function secs(t,   d, a, n) {
             d = 0
             if (index(t, "-")) { split(t, a, "-"); d = a[1]; t = a[2] }
             n = split(t, a, ":")
             return d * 86400 + (n == 3 ? a[1] * 3600 + a[2] * 60 + a[3] : a[1] * 60 + a[2])
         }
-        $1 == m { s = secs($2); if (s > o) o = s }
-        END { print o + 0 }')
-    [ "${oldest:-0}" -gt 0 ] && echo "metric config_changed $(changed_since $((now - oldest)) "$(dirname "$conf")")"
+        $1 == m { s = secs($2); if (o == "" || (young ? s < o : s > o)) o = s }
+        END { print (o == "" ? -1 : o) }')
+    [ "${age:--1}" -ge 0 ] && echo "metric config_changed $(changed_since $((now - age)) "$(dirname "$conf")")"
 fi
 exit 0
 '''.replace('@SCORE@', ' '.join('%s=%s' % (c, n) for c, n, _ in SCORE)).replace('@CONF@', CONF_SH).replace('@PID@', PID_SH),
