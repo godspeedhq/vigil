@@ -468,12 +468,14 @@ Test-Equal '16: worker.after_spool: no token left' '' (Get-Locks 'w')
 # 16b. The same, for a job that failed and printed a metric of its own
 # called steps.succeeded, and for one that succeeded and printed
 # rows.failures: the outcome is the worker's own line of the spool file,
-# never one the job printed (V-01).
+# never one the job printed (V-01). Each waits as w.cmd does: the sender
+# the launching tick started has gone by the time the events are written,
+# and cannot deliver them before the supervisor reads them.
 $wKeep = [System.IO.File]::ReadAllText("$root\scripts\w.cmd")
-Set-Content -LiteralPath "$root\scripts\w.cmd" -Value @('@echo off', 'echo %VIGIL_RUN_ID%>>"%IT_ROOT%\wmarks"', 'echo metric steps.succeeded 1', 'exit /b 2')
+Set-Content -LiteralPath "$root\scripts\w.cmd" -Value @('@echo off', 'echo %VIGIL_RUN_ID%>>"%IT_ROOT%\wmarks"', 'echo metric steps.succeeded 1', 'ping -n 9 127.0.0.1 >nul', 'exit /b 2')
 Invoke-WCrash 'worker.after_spool'
 Test-Equal '16b: a failed run that printed steps.succeeded is reconciled as failed' "failed|reconciled from the spool file|$wrid" "$(Get-WState 'status')|$(Get-WState 'reason')|$(Get-WState 'run_id')"
-Set-Content -LiteralPath "$root\scripts\w.cmd" -Value @('@echo off', 'echo %VIGIL_RUN_ID%>>"%IT_ROOT%\wmarks"', 'echo metric rows.failures 0')
+Set-Content -LiteralPath "$root\scripts\w.cmd" -Value @('@echo off', 'echo %VIGIL_RUN_ID%>>"%IT_ROOT%\wmarks"', 'echo metric rows.failures 0', 'ping -n 9 127.0.0.1 >nul')
 Invoke-WCrash 'worker.after_spool'
 Test-Equal '16b: a run that succeeded and printed rows.failures is reconciled as succeeded' "succeeded|reconciled from the spool file|$wrid" "$(Get-WState 'status')|$(Get-WState 'reason')|$(Get-WState 'run_id')"
 [System.IO.File]::WriteAllText("$root\scripts\w.cmd", $wKeep)

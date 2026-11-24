@@ -477,12 +477,14 @@ check "16: worker.after_spool: no token left" "" "$(locks w)"
 # 16b. The same, for a job that failed and printed a metric of its own
 # called steps.succeeded, and for one that succeeded and printed
 # rows.failures: the outcome is the worker's own line of the spool file,
-# never one the job printed (V-01).
+# never one the job printed (V-01). Each sleeps as w.sh does: the sender
+# the launching tick started has gone by the time the events are written,
+# and cannot deliver them before the supervisor reads them.
 cp "$root/scripts/w.sh" "$root/scripts/w.sh.keep"
-printf '%s\n' 'echo "$VIGIL_RUN_ID" >> "$IT_ROOT/wmarks"' 'echo "metric steps.succeeded 1"' 'exit 2' > "$root/scripts/w.sh"
+printf '%s\n' 'echo "$VIGIL_RUN_ID" >> "$IT_ROOT/wmarks"' 'echo "metric steps.succeeded 1"' 'sleep 4' 'exit 2' > "$root/scripts/w.sh"
 w_crash worker.after_spool
 check "16b: a failed run that printed steps.succeeded is reconciled as failed" "failed|reconciled from the spool file|$rid" "$(w_state status)|$(w_state reason)|$(w_state run_id)"
-printf '%s\n' 'echo "$VIGIL_RUN_ID" >> "$IT_ROOT/wmarks"' 'echo "metric rows.failures 0"' > "$root/scripts/w.sh"
+printf '%s\n' 'echo "$VIGIL_RUN_ID" >> "$IT_ROOT/wmarks"' 'echo "metric rows.failures 0"' 'sleep 4' > "$root/scripts/w.sh"
 w_crash worker.after_spool
 check "16b: a run that succeeded and printed rows.failures is reconciled as succeeded" "succeeded|reconciled from the spool file|$rid" "$(w_state status)|$(w_state reason)|$(w_state run_id)"
 mv -f "$root/scripts/w.sh.keep" "$root/scripts/w.sh"

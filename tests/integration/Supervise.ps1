@@ -625,34 +625,52 @@ $root = $mainRoot
 # --- What the core verification found (V-02, V-03, V-04, V-07, V-08) -------
 # Each in a root of its own, with nothing of the tests above in it.
 $mainRoot = $root
-$root = "$mainRoot.v"
-$vcfg = Join-Path $root 'config\vigil.config'
+# A root of its own for each test: what one leaves running or logged is
+# never counted by the next.
 function New-VRoot {
-    param([string]$Tick)
-    Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
+    param([string]$Name, [string]$Tick)
+    $script:root = "$mainRoot.v-$Name"
+    $script:vcfg = Join-Path $root 'config\vigil.config'
     [void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'config'), (Join-Path $root 'scripts'))
     [System.IO.File]::WriteAllText($vcfg, "[vigil]`ninstance = v`n`n[scheduler]`ntick = $Tick`n")
 }
 function Add-VConfig { param([string]$Text) [System.IO.File]::AppendAllText($vcfg, $Text) }
 function Set-VScript { param([string]$Name, [string[]]$Lines) Set-Content -LiteralPath (Join-Path $root "scripts\$Name") -Value (@('@echo off') + $Lines) }
-function Get-VCount {
-    param([string]$Pattern)
-    $d = Join-Path $root 'logs\supervisor'
-    if (-not (Test-Path -LiteralPath $d)) { return 0 }
-    @(Get-ChildItem -LiteralPath $d -Filter '2*.log' | ForEach-Object { [System.IO.File]::ReadAllLines($_.FullName) } | Where-Object { $_ -match $Pattern }).Count
+# A job that runs until Stop-VLoop, not for a time a slow machine may
+# outlast before the checks; ten minutes at most, so it never outlives a
+# failed run. While one runs, a tick is Invoke-OnceAlone: Invoke-Once waits
+# for the worker the tick started, which holds its output.
+function Set-VLoop { param([string]$Name) Set-VScript "$Name.cmd" @('set n=0', ':w', "if exist `"%~dp0$Name.stop`" exit /b 0", 'set /a n+=1', 'if %n% geq 600 exit /b 0', 'ping -n 2 127.0.0.1 >nul', 'goto w') }
+function Stop-VLoop { param([string]$Name) [System.IO.File]::WriteAllText((Join-Path $root "scripts\$Name.stop"), '') }
+# The lines of the day's logs in a directory under the root. A log may be
+# open for writing by the supervisor or a worker while it is read here.
+function Read-VLog {
+    param([string]$Dir)
+    $d = Join-Path $root $Dir
+    if (-not (Test-Path -LiteralPath $d)) { return }
+    foreach ($f in @(Get-ChildItem -LiteralPath $d -Filter '2*.log')) {
+        try {
+            $fs = New-Object System.IO.FileStream($f.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+            try { $rd = New-Object System.IO.StreamReader($fs); $rd.ReadToEnd() -split "`r?`n" } finally { $fs.Dispose() }
+        }
+        catch { }
+    }
 }
+function Get-VCount { param([string]$Pattern) @(Read-VLog 'logs\supervisor' | Where-Object { $_ -match $Pattern }).Count }
 function Get-VStatus { param([string]$Job) Get-StateValue (Join-Path $root "state\jobs\$Job.state") 'status' }
 function Get-VLocks { param([string]$Filter) @(Get-ChildItem -LiteralPath (Join-Path $root 'state\locks') -Filter $Filter -ErrorAction SilentlyContinue).Count }
 # Ticks, a second apart, until $Until holds; at most $Tries.
-function Invoke-TickUntil { param([scriptblock]$Until, [int]$Tries = 40) for ($i = 0; $i -lt $Tries; $i++) { if (& $Until) { return }; [void](Invoke-Once); Start-Sleep -Seconds 1 } }
+function Invoke-TickUntil { param([scriptblock]$Until, [int]$Tries = 40) for ($i = 0; $i -lt $Tries; $i++) { if (& $Until) { return }; Invoke-OnceAlone; Start-Sleep -Seconds 1 } }
 function Wait-Until { param([scriptblock]$Until, [int]$Tries = 80) for ($i = 0; $i -lt $Tries; $i++) { if (& $Until) { return }; Start-Sleep -Milliseconds 500 } }
 function Start-VSupervisor {
     Start-Process -FilePath $shell -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$vigil`"", '-Root', "`"$root`"", 'supervise')
 }
-# Ends the supervisor this test started, and what it started under this root.
+# Ends the supervisor this test started, lets its looping jobs go, and ends
+# what else was started under this root (where the account may list it).
 function Stop-VRoot {
     param($Supervisor)
     if ($Supervisor) { Stop-Process -Id $Supervisor.Id -Force -ErrorAction SilentlyContinue }
+    Get-ChildItem -LiteralPath (Join-Path $root 'scripts') -Filter '*.cmd' | ForEach-Object { Stop-VLoop $_.BaseName }
     try {
         Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($root) -and $_.ProcessId -ne $PID } |
             ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
@@ -661,7 +679,7 @@ function Stop-VRoot {
 }
 
 Write-Host 'Numbers with a leading zero (V-03)'
-New-VRoot '08s'
+New-VRoot 'zero' '08s'
 Set-VScript 'ok.cmd' @('exit /b 0')
 Add-VConfig "`n[log]`nmax_file_mb = 08`nretain_days = 08`n`n[spool]`nmax_mb = 08`n`n[job.ok]`nfile = scripts\ok.cmd`nrun_every = 08m`nmax_runtime = 08s`n"
 Test-Equal 'a supervisor reads 08 as eight, and runs' '0' ([string](Invoke-Once))
@@ -669,8 +687,8 @@ Test-Equal 'a supervisor reads 08 as eight, and runs' '0' ([string](Invoke-Once)
 Test-Equal 'so does a worker' '0' "$LASTEXITCODE"
 
 Write-Host 'A launch that throws, after another job''s succeeded (V-02)'
-New-VRoot '1s'
-Set-VScript 'a.cmd' @('ping -n 41 127.0.0.1 >nul')
+New-VRoot 'launch' '1s'
+Set-VLoop 'a'
 Set-VScript 'b.cmd' @('exit /b 0')
 $vsup = Start-VSupervisor
 # The temporary name of every launch record b could get in the next minutes
@@ -678,69 +696,82 @@ $vsup = Start-VSupervisor
 # exist, so that their first slot finds it there.
 [void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'state\locks'))
 $t0 = [DateTime]::UtcNow
-for ($s = 0; $s -lt 70; $s++) {
+for ($s = 0; $s -lt 150; $s++) {
     $ts = $t0.AddSeconds($s).ToString('yyyyMMddTHHmmssZ', [System.Globalization.CultureInfo]::InvariantCulture)
-    foreach ($seq in 1..60) { [void][System.IO.Directory]::CreateDirectory((Join-Path $root "state\locks\b.$ts-$($vsup.Id)-$seq.launch.tmp.$($vsup.Id)")) }
+    foreach ($seq in 1..40) { [void][System.IO.Directory]::CreateDirectory((Join-Path $root "state\locks\b.$ts-$($vsup.Id)-$seq.launch.tmp.$($vsup.Id)")) }
 }
 Add-VConfig "`n[job.a]`nfile = scripts\a.cmd`nrun_every = 2s`n`n[job.b]`nfile = scripts\b.cmd`nrun_every = 2s`n"
-Wait-Until { (Get-VCount 'job b: could not be launched') -ge 2 } 120
+Wait-Until { (Get-VCount 'job b: could not be launched') -ge 2 } 300
 Test-Equal 'the job whose launch throws is said, each time' 'True' ([string]((Get-VCount 'job b: could not be launched') -ge 2))
 Test-Equal 'the job started before it is started once, not again every tick' '1' ([string](Get-VCount 'job a: run .* started'))
-Test-Equal 'one worker, one token' '1' ([string](Get-VLocks 'a.*.token'))
+# Its worker may still be starting: the token is its claim of the launch.
+Wait-Until { (Get-VLocks 'a.*.token') -ge 1 } 240
+Test-Equal 'one worker, one token' '1 0' "$(Get-VLocks 'a.*.token') $(Get-VLocks 'a.*.launch')"
 Test-Equal 'and the tick did not fail for it' '0' ([string](Get-VCount 'tick failed'))
+Stop-VLoop 'a'
 Stop-VRoot $vsup
 
 Write-Host 'A run held by queue_one, and its job then disabled (V-08)'
-New-VRoot '1s'
-Set-VScript 'q.cmd' @('ping -n 21 127.0.0.1 >nul')
+New-VRoot 'held' '1s'
+Set-VLoop 'q'
 Add-VConfig "`n[job.q]`nfile = scripts\q.cmd`nrun_every = 2s`noverlap = queue_one`n"
 Invoke-TickUntil { (Get-VCount 'job q: run .* started') -ge 1 }
 $vpending = Join-Path $root 'state\pending'
-Invoke-TickUntil { (Test-Path -LiteralPath $vpending) -and ([System.IO.File]::ReadAllText($vpending) -match '(?m)^queued=\s*q\s*$') }
-Test-Equal 'queue_one holds the next run' 'True' ([string]((Test-Path -LiteralPath $vpending) -and ([System.IO.File]::ReadAllText($vpending) -match '(?m)^queued=\s*q\s*$')))
+$vheld = { (Test-Path -LiteralPath $vpending) -and ([System.IO.File]::ReadAllText($vpending) -match '(?m)^queued=\s*q\s*$') }
+Invoke-TickUntil $vheld
+Test-Equal 'queue_one holds the next run' 'True' ([string](& $vheld))
 Add-VConfig "enabled = false`n"
-[void](Invoke-Once)
+Invoke-OnceAlone
 Test-Equal 'disabled: the held run is dropped, and it is said' '1' ([string](Get-VCount 'job q: the run held for it is dropped: the job is disabled'))
 # The active run ends; nothing must start in its place.
-Wait-Until { (Get-VLocks 'q.*.token') -eq 0 } 80
-[void](Invoke-Once); Start-Sleep -Seconds 1; [void](Invoke-Once)
+Stop-VLoop 'q'
+Wait-Until { (Get-VLocks 'q.*.token') -eq 0 } 120
+Invoke-OnceAlone; Start-Sleep -Seconds 1; Invoke-OnceAlone
 Test-Equal 'and it is never started' '1' ([string](Get-VCount 'job q: run .* started'))
 Stop-VRoot $null
 
 Write-Host 'Waiting for a first fetch, with a run in progress (V-04)'
-New-VRoot '1s'
-Set-VScript 'long.cmd' @('ping -n 91 127.0.0.1 >nul')
-Add-VConfig "`n[job.long]`nfile = scripts\long.cmd`nrun_every = 2s`nmax_runtime = 3s`n"
-Invoke-TickUntil { (Get-VStatus 'long') -ceq 'running' }
-# A source that cannot be fetched, and a job that needs it.
+New-VRoot 'waiting' '1s'
+Set-VLoop 'long'
+Add-VConfig "`n[job.long]`nfile = scripts\long.cmd`nrun_every = 2s`nmax_runtime = 20s`n"
+Invoke-TickUntil { (Get-VCount 'job long: run .* started') -ge 1 }
+# No tick until its worker has recorded it, then at once: a source that
+# cannot be fetched, and a job that needs it.
+Wait-Until { (Get-VStatus 'long') -ceq 'running' } 240
 Add-VConfig "`n[source.extra]`ntype = local`npath = $root\nowhere`n`n[job.fromsource]`nsource = extra`nfile = check.cmd`nrun_every = 1h`n"
-Invoke-TickUntil { (Get-VStatus 'long') -cne 'running' } 30
+Invoke-TickUntil { (Get-VStatus 'long') -cne 'running' } 60
 $vjobs = Join-Path $root 'logs\supervisor\jobs.log'
 Test-Equal 'the configuration waits for its first fetch' 'True' ([string]((Test-Path -LiteralPath $vjobs) -and [System.IO.File]::ReadAllText($vjobs).Contains('waiting for the first fetch')))
 Test-Equal 'a run in progress is still held to its max_runtime' 'timed_out' (Get-VStatus 'long')
+Test-Equal 'by the supervisor, while it waited' 'True' ([string]((Get-VCount 'job long: run .* passed max_runtime') -ge 1))
+Stop-VLoop 'long'
 Stop-VRoot $null
 
 Write-Host 'state_dir changed while a run is in progress (V-07)'
-New-VRoot '1s'
-Set-VScript 'long.cmd' @('ping -n 13 127.0.0.1 >nul')
+New-VRoot 'statedir' '1s'
+Set-VLoop 'long'
 Add-VConfig "`n[job.long]`nfile = scripts\long.cmd`nrun_every = 2s`n"
 $vsup = Start-VSupervisor
-Wait-Until { (Get-VLocks 'long.*.token') -ge 1 } 120
+Wait-Until { (Get-VLocks 'long.*.token') -ge 1 } 300
 Test-Equal 'a run is in progress' '1' ([string](Get-VLocks 'long.*.token'))
 [System.IO.File]::WriteAllText($vcfg, ([System.IO.File]::ReadAllText($vcfg) -replace '(?m)^instance = v$', "instance = v`nstate_dir = state2"))
-Wait-Until { (Get-VCount 'state_dir is now .* takes effect when Vigil is next started') -ge 1 } 40
+Wait-Until { (Get-VCount 'state_dir is now .* takes effect when Vigil is next started') -ge 1 } 240
 Test-Equal 'the supervisor says the change waits for the next start' '1' ([string](Get-VCount 'state_dir is now .* takes effect when Vigil is next started'))
 Test-Equal 'it keeps the state directory it started with' 'False' ([string](Test-Path -LiteralPath (Join-Path $root 'state2\locks')))
 Test-Equal 'and starts no second run beside the first' '1' ([string](Get-VCount 'job long: run .* started'))
-# The first run ends; the next one's worker must find its launch record in
-# the supervisor's directory, whatever the file says now.
-Wait-Until { (Get-VCount 'job long: run .* started') -ge 2 } 120
-Wait-Until { (Get-VLocks 'long.*.token') -ge 1 } 60
-Test-Equal 'a run started after the edit claims its launch there' '1 0' "$(Get-VLocks 'long.*.token') $(Get-VLocks 'long.*.launch')"
+# The first run is let go, and every later one ends at once. A worker
+# started after the edit must find its launch record in the supervisor's
+# directory, whatever the file says now: one that does not never runs the
+# job, and writes no "run start".
+Stop-VLoop 'long'
+$vran = { @(Read-VLog 'logs\jobs\long' | Where-Object { $_ -match ' run start$' }).Count }
+Wait-Until { (& $vran) -ge 2 } 480
+Test-Equal 'a run started after the edit claims its launch there, and runs' 'True' ([string]((& $vran) -ge 2))
+Test-Equal 'and nothing was ever put in the other directory' 'False' ([string](Test-Path -LiteralPath (Join-Path $root 'state2\locks')))
 Stop-VRoot $vsup
 Start-Sleep -Seconds 2
-Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
 $root = $mainRoot
+Get-ChildItem -Path "$mainRoot.v-*" -Directory -ErrorAction SilentlyContinue | ForEach-Object { Remove-Item -Recurse -Force -LiteralPath $_.FullName -ErrorAction SilentlyContinue }
 
 # Workers started by the last ticks may still be finishing.
 Start-Sleep -Seconds 6
