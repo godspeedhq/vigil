@@ -50,7 +50,22 @@
       sites_not_shown            sites past the first 100, left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric uptime_seconds 12285
+      metric sites 5
+      metric connections 4
+      metric site_uptime_seconds 12285 site=Default_Web_Site
+      metric site_connections 0 site=Default_Web_Site
+      metric site_connections_max 0 site=Default_Web_Site
+      metric site_requests_count 0 site=Default_Web_Site
+      metric site_method_count 0 site=Default_Web_Site method=get
+      metric site_method_count 0 site=Default_Web_Site method=post
+      metric site_not_found_count 0 site=Default_Web_Site
+      metric site_locked_count 0 site=Default_Web_Site
+      metric site_bytes_sent_count 0 site=Default_Web_Site
+      metric site_bytes_received_count 0 site=Default_Web_Site
+      metric site_users 0 site=Default_Web_Site kind=anonymous
+      metric site_users 0 site=Default_Web_Site kind=authenticated
 
     Reading the results (starting points: tune them to the server):
       Healthy  up 1; every site_uptime_seconds above 0; site_not_found_count

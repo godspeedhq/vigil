@@ -71,6 +71,7 @@ function Code([string]$u) { try { [int]$client.GetAsync($u).Result.StatusCode } 
 # https, to a certificate that signed itself: synchronously, so the check
 # PowerShell lets through runs on this thread.
 [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 function Get-Https([string]$u) { try { [int](Invoke-WebRequest $u -UseBasicParsing -TimeoutSec 20).StatusCode } catch { if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 } } }
 
 $crashRunning = (Get-Counter '\APP_POOL_WAS(vigil-crash)\Current Application Pool State' -ErrorAction SilentlyContinue).CounterSamples[0].CookedValue -eq 3
@@ -99,9 +100,9 @@ Start-Sleep -Seconds 3
 $hash = ((netsh http show sslcert ipport=0.0.0.0:8443) -match 'Certificate Hash' -replace '.*:\s*', '').Trim()
 $cer = Join-Path $work 'binding.cer'
 try { [IO.File]::WriteAllBytes($cer, (Get-Item "Cert:\LocalMachine\My\$hash").Export('Cert')) } catch { "  note  the binding's certificate could not be read: $($_.Exception.Message)" }
+Run-Job 'workers' '' @{}
 Run-Job 'sites' '' @{}
 Run-Job 'pools' '' @{}
-Run-Job 'workers' '' @{}
 Run-Job 'log' '' @{}
 Run-Job 'tls' '' @{ IIS_CACERT = $cer }
 Run-Job 'events' '' @{}

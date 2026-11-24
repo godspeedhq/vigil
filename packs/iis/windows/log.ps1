@@ -69,7 +69,22 @@
       sites_not_shown   site folders past the first 50, left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric log_readable 1
+      metric sites_logging 2
+      metric window_complete 1
+      metric requests 57 site=W3SVC2
+      metric status_1xx 0 site=W3SVC2
+      metric status_2xx 41 site=W3SVC2
+      metric status_3xx 0 site=W3SVC2
+      metric status_4xx 16 site=W3SVC2
+      metric status_5xx 0 site=W3SVC2
+      metric errors_5xx_pct 0 site=W3SVC2
+      metric status 41 site=W3SVC2 code=200.0
+      metric status 11 site=W3SVC2 code=404.0
+      metric method 52 site=W3SVC2 method=GET
+      metric method 5 site=W3SVC2 method=POST
+      metric win32_errors 16 site=W3SVC2
+      metric time_avg_ms 6.9 site=W3SVC2
 
     Reading the results (starting points: tune them to the server):
       Healthy  errors_5xx_pct below 1; rejected_total 0; time_p99_ms steady.

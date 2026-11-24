@@ -41,6 +41,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`caddy`](caddy/README.md) | Caddy: its configuration and reloads, traffic per server, reverse proxy upstreams and their health, the certificate of every site, from its admin API | [packs/caddy/README.md](caddy/README.md) |
 | [`haproxy`](haproxy/README.md) | HAProxy: connections, rates, TLS and load; frontends, backends and every server with its health check, queues, times and errors, from its runtime API | [packs/haproxy/README.md](haproxy/README.md) |
 | [`phpfpm`](phpfpm/README.md) | PHP-FPM: each pool's workers, listen queue, max_children reached, slow requests, the busiest worker, and a status page that waits because every worker is busy | [packs/phpfpm/README.md](phpfpm/README.md) |
+| [`iis`](iis/README.md) | IIS on Windows, with no administrator: sites, application pools and their request queues, worker processes, each site's log and what HTTP.sys turned away, pools stopped by rapid-fail protection and crashed workers, certificate expiry | [packs/iis/README.md](iis/README.md) |
 
 ## Service packs
 
@@ -165,6 +166,12 @@ An HAProxy process, from its runtime API at `level user` (`show info` and `show 
 PHP-FPM's pools, from their status pages, passed on by the web server: workers, the listen queue, `pm.max_children` reached, slow requests, the busiest worker, and a status page that does not answer in time because every worker is busy. With `curl`. Linux and macOS.
 
 **Its page: [packs/phpfpm/README.md](phpfpm/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### iis
+
+IIS on this Windows machine, read by an account that is not an administrator: its sites, its application pools and their request queues in HTTP.sys, its worker processes, each site's log minute by minute and HTTP.sys's own error log (what it turned away before any site saw it), its events (pools stopped by rapid-fail protection, workers that crashed or hung), and the certificates its https bindings serve. From the performance counters, the event logs and `netsh`, with PowerShell alone. Windows only.
+
+**Its page: [packs/iis/README.md](iis/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ## Writing a pack
 

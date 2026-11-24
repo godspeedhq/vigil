@@ -49,7 +49,22 @@
       workers_not_shown       worker processes past the first 100, left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric workers 2
+      metric active_requests 0 pool=vigil-ok pid=11136
+      metric requests_count 73 pool=vigil-ok pid=11136
+      metric requests_rate 0 pool=vigil-ok pid=11136
+      metric threads_active 0 pool=vigil-ok pid=11136
+      metric threads 5 pool=vigil-ok pid=11136
+      metric threads_max 256 pool=vigil-ok pid=11136
+      metric sent_500_pct 0 pool=vigil-ok pid=11136
+      metric sent_404_pct 0 pool=vigil-ok pid=11136
+      metric sent_403_pct 0 pool=vigil-ok pid=11136
+      metric sent_401_pct 0 pool=vigil-ok pid=11136
+      metric websockets 0 pool=vigil-ok pid=11136
+      metric file_cache_bytes 58 pool=vigil-ok pid=11136
+      metric output_cache_bytes 0 pool=vigil-ok pid=11136
+      metric uri_cache_hits_count 179 pool=vigil-ok pid=11136
+      metric uri_cache_misses_count 15 pool=vigil-ok pid=11136
 
     Reading the results (starting points: tune them to the server):
       Healthy  sent_500_pct near 0; active_requests low; threads_active below

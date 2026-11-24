@@ -42,7 +42,12 @@
       certs_not_shown    endpoints past the first 50, left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric bindings_found 1
+      metric tls_up 1 endpoint=127.0.0.1:8443/localhost
+      metric cert_expires_days 9 endpoint=127.0.0.1:8443/localhost
+      metric cert_valid 1 endpoint=127.0.0.1:8443/localhost
+      metric cert_verified 1 endpoint=127.0.0.1:8443/localhost reason=ok
+      metric cert_info 1 endpoint=127.0.0.1:8443/localhost issuer=localhost protocol=Tls12
 
     Reading the results (starting points: tune them to the server):
       Healthy  tls_up 1; cert_expires_days above 30; cert_verified 1.

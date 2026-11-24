@@ -48,7 +48,19 @@
       events_not_shown      kinds past the first 50, left out
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric readable 1
+      metric events 4
+      metric errors 1
+      metric warnings 3
+      metric rapid_fail_count 1
+      metric crashes_count 3
+      metric unresponsive_count 0
+      metric start_failures_count 0
+      metric recycles_count 0
+      metric idle_shutdowns_count 0
+      metric event 3 id=5011 pool=vigil-crash level=warning
+      metric event 1 id=5002 pool=vigil-crash level=error
+      metric events_not_shown 0
 
     Reading the results (starting points: tune them to the server):
       Healthy  rapid_fail_count 0; crashes_count 0; unresponsive_count 0.
