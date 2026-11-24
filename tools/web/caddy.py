@@ -153,9 +153,14 @@ job(pack='caddy', job='traffic', metric='traffic', when='run_every   = 1m', runt
               ('status_4xx_count', 'answers 4xx, tagged server'),
               ('status_5xx_count', 'answers 5xx, tagged server'),
               ('duration_avg_ms', 'time to answer, on average since Caddy started, tagged server'),
+              ('servers_reporting', 'servers with HTTP metrics to report (0 with metrics_enabled 1 while '
+                                    'Caddy serves traffic: in our tests, Caddy 2.11.9 stopped reporting them after '
+                                    'any configuration reload through its admin API, until it restarted)'),
               ('servers_not_shown', 'servers past the first 50, left out')),
     healthy='status_5xx_count and handler_errors_count flat (graph the _count totals as rates).',
-    watch='status_4xx_count rising faster than requests_count; in_flight climbing.',
+    watch='status_4xx_count rising faster than requests_count; in_flight climbing; servers_reporting 0 '
+          'with metrics_enabled 1 on a Caddy that serves traffic: its metrics stopped after a reload '
+          '(restart Caddy to have them back).',
     act='status_5xx_count or handler_errors_count rising: requests failing (the upstreams job says '
         'whether an upstream is down).',
     sh=ADMIN_SH + PROM_SH + r'''# On or not is in the configuration: after a reload, the counters are
@@ -189,6 +194,7 @@ while read -r s n; do
             printf "metric duration_avg_ms %.2f %s\n", (n > 0 ? 1000 * sum / n : 0), t
         }' "$work/metrics"
 done < "$work/servers"
+echo "metric servers_reporting $(prom caddy_http_requests_total server | wc -l | tr -d ' ')"
 echo "metric servers_not_shown $(( $(prom caddy_http_requests_total server | wc -l) - $(wc -l < "$work/servers") ))"
 exit 0
 ''',
@@ -216,6 +222,7 @@ foreach ($s in @($names | Select-Object -First 50)) {
     $sum = Sum-Prom $mine 'caddy_http_request_duration_seconds_sum'
     M 'duration_avg_ms' $(if ($n -gt 0) { [Math]::Round(1000 * $sum / $n, 2) } else { 0 }) $t
 }
+M 'servers_reporting' $names.Count
 M 'servers_not_shown' ([Math]::Max($names.Count - 50, 0))
 exit 0
 ''',

@@ -38,6 +38,11 @@
 #   status_5xx_count      answers 5xx, tagged server
 #   duration_avg_ms       time to answer, on average since Caddy started,
 #                         tagged server
+#   servers_reporting     servers with HTTP metrics to report (0 with
+#                         metrics_enabled 1 while Caddy serves traffic: in our
+#                         tests, Caddy 2.11.9 stopped reporting them after any
+#                         configuration reload through its admin API, until it
+#                         restarted)
 #   servers_not_shown     servers past the first 50, left out
 #
 # Example output (the rest are in the same form):
@@ -62,7 +67,9 @@
 #   Healthy  status_5xx_count and handler_errors_count flat (graph the _count
 #            totals as rates).
 #   Watch    status_4xx_count rising faster than requests_count; in_flight
-#            climbing.
+#            climbing; servers_reporting 0 with metrics_enabled 1 on a Caddy
+#            that serves traffic: its metrics stopped after a reload (restart
+#            Caddy to have them back).
 #   Act      status_5xx_count or handler_errors_count rising: requests failing
 #            (the upstreams job says whether an upstream is down).
 #
@@ -120,5 +127,6 @@ while read -r s n; do
             printf "metric duration_avg_ms %.2f %s\n", (n > 0 ? 1000 * sum / n : 0), t
         }' "$work/metrics"
 done < "$work/servers"
+echo "metric servers_reporting $(prom caddy_http_requests_total server | wc -l | tr -d ' ')"
 echo "metric servers_not_shown $(( $(prom caddy_http_requests_total server | wc -l) - $(wc -l < "$work/servers") ))"
 exit 0
