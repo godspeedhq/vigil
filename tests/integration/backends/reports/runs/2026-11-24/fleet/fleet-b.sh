@@ -37,3 +37,5 @@ done
 tick
 say 'vigil status'
 v status 2>&1 | sed -n '/^LAST RUN/,$p'
+say 'the job logs: a run that failed, and why'
+grep -h 'run end failed' "$R"/logs/jobs/*/*.log 2> /dev/null | tail -n 4

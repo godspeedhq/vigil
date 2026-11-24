@@ -19,10 +19,10 @@ Packs are released on their own, as packs releases tagged `packs-<date>`: each n
 Where each host's configuration is fetched from Git or another source, Vigil never edits it: `vigil pack enable` refuses there and says what to do instead. The order is **install, then commit**:
 
 1. Install the pack on each host, with whatever deploys software there: `vigil pack install nginx`. It stays off.
-2. Print its jobs, anywhere, even on a laptop with no pack installed: `vigil pack config nginx --os linux` (or `macos`, `windows`, since each platform's jobs name their own scripts). `--store vault` writes the jobs' secrets as `store:vault/<NAME>`.
-3. Paste the block into the configuration the hosts fetch, set what differs per host in the per-host files, and commit. Each host picks it up at its next `check_every`.
+2. Print its jobs, anywhere, even on a laptop with no pack installed: `vigil pack config nginx --os linux` (or `macos`, `windows`, since each platform's jobs name their own scripts).
+3. Paste the block into the configuration the hosts fetch, set what differs per host in the per-host files (and, for secrets kept in a store, change `secret:` to `store:<store>/…`), and commit. Each host picks it up at its next `check_every`.
 
-A host that doesn't have the pack, or has a version without one of its jobs, fails just those jobs, and `vigil precheck` and `vigil status` say why: `(pack nginx is not installed here: vigil pack install nginx)`. Secrets are placed however the fleet places them (`vigil secret set --stdin` as the service account, the environment, a secret store): Vigil only needs them there, and right, when the job runs.
+A host that doesn't have the pack, or has a version without one of its jobs, fails just those jobs, and `vigil precheck` and the job's log say why: `(pack nginx is not installed here: vigil pack install nginx)`. Secrets are placed however the fleet places them (`vigil secret set --stdin` as the service account, the environment, a secret store): Vigil only needs them there, and right, when the job runs.
 
 ## The packs
 

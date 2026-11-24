@@ -53,7 +53,7 @@
     vigil [-Root <dir>] pack enable <what> | disable <what> | update [--check] [<name>...]
     vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>
     vigil [-Root <dir>] pack verify [<name>...] [--from <folder>]
-    vigil [-Root <dir>] pack config <name>[@<version>] [--os linux|macos|windows] [--store <name>]
+    vigil [-Root <dir>] pack config <name>[@<version>] [--os linux|macos|windows]
         The packs of scripts and jobs (18.10), from the pack repository:
         search it, install a pack, then enable its jobs. What is a pack or a
         pack_job. download writes packs for a machine offline, which installs
@@ -166,7 +166,7 @@ else {
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]`n       vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...`n       vigil [-Root <dir>] pack enable <what> | disable <what> | verify [<name>...] [--from <folder>]`n       vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>`n       vigil [-Root <dir>] pack config <name>[@<version>] [--os linux|macos|windows] [--store <name>]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]`n       vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...`n       vigil [-Root <dir>] pack enable <what> | disable <what> | verify [<name>...] [--from <folder>]`n       vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>`n       vigil [-Root <dir>] pack config <name>[@<version>] [--os linux|macos|windows]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -461,22 +461,22 @@ switch ($Command) {
             Remove-VigilPack -Root $Root -Names @($argv | Where-Object { $_ -cne '--disable' }) -Disable:($argv -ccontains '--disable') | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
         }
         elseif ($Job -ceq 'config') {
-            # config <name>[@<version>] [--os <os>] [--store <name>]: the
+            # config <name>[@<version>] [--os <os>]: the
             # pack's jobs printed, for a configuration from a source.
-            $os = 'windows'; $store = ''
+            $os = 'windows'
             $names = New-Object 'System.Collections.Generic.List[string]'
             for ($i = 0; $i -lt $argv.Count; $i++) {
                 $a = $argv[$i]
-                if ($a -ceq '--os' -or $a -ceq '--store') {
+                if ($a -ceq '--os') {
                     if ($i + 1 -ge $argv.Count) { Exit-Usage }
                     $i++
-                    if ($a -ceq '--os') { $os = $argv[$i] } else { $store = $argv[$i] }
+                    $os = $argv[$i]
                 }
                 elseif ($a.StartsWith('-')) { Exit-Usage }
                 else { $names.Add($a) }
             }
             if ($names.Count -ne 1) { Exit-Usage }
-            Get-VigilPackConfig -Root $Root -App $app -Spec $names[0] -Os $os -Store $store | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+            Get-VigilPackConfig -Root $Root -App $app -Spec $names[0] -Os $os | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
         }
         elseif ($Job -ceq 'install' -or $Job -ceq 'download') {
             $from = ''; $os = 'windows'; $to = ''

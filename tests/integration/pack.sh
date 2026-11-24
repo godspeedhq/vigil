@@ -408,19 +408,11 @@ out=$(vigil pack enable base 2>&1); rc=$?
 check 'so is enable, saying what to do' "vigil: this host's configuration comes from [source.remote] (vigil.config): Vigil does not edit it.|To turn pack base on, add its jobs there: vigil pack config base prints them, ready to paste.|1" "$(printf '%s' "$out" | tr '\n' '|')|$rc"
 check 'is not edited' "$was" "$(cksum < "$cfg")"
 out=$(vigil pack install web@1.0.0 2>&1)
-check 'install says it, in place of enable' "installed pack web 1.0.0|off until enabled: web_status|this host's configuration comes from [source.remote] (vigil.config): Vigil does not edit it.|To turn pack web on, add its jobs there: vigil pack config web prints them, ready to paste." "$(printf '%s' "$out" | tr '\n' '|' | sed 's/|$//')"
+check 'install says it, in place of enable' "installed pack web 1.0.0|this host's configuration comes from [source.remote] (vigil.config): Vigil does not edit it.|Its jobs run once it names them: vigil pack config web prints them, ready to paste." "$(printf '%s' "$out" | tr '\n' '|' | sed 's/|$//')"
 check 'and installs' yes "$(yes_no test -f "$root/packs/web/status.sh")"
 out=$(vigil pack config web 2>&1)
 check 'config: this host'"'"'s copy' "# pack web 1.0.0 for $osname, as installed here." "$(printf '%s' "$out" | head -n 1)"
 check 'the block enable writes' '# pack web: vigil pack disable takes these out|[job.web_status]|file = packs/web/status.sh|# end of pack web' "$(printf '%s' "$out" | grep '^# pack web:\|^\[job\|^file\|^# end' | tr '\n' '|' | sed 's/|$//')"
-vigil pack remove web > /dev/null 2>&1
-# Committed before the install: the active configuration has its job already.
-mkdir -p "$root/state/configs"
-printf '[job.web_status]\nfile = packs/web/status.sh\nrun_every = 1h\n' > "$root/state/configs/t.config"
-printf '[active]\nschema_version = 1\nconfig         = t\n' > "$root/state/config.active"
-out=$(vigil pack install web@1.0.0 2>&1)
-check 'install: its jobs in the configuration from the source are on' 'installed pack web 1.0.0|on, from [source.remote]: web_status' "$(printf '%s' "$out" | tr '\n' '|' | sed 's/|$//')"
-rm -f "$root/state/config.active" "$root/state/configs/t.config"
 vigil pack remove web > /dev/null 2>&1
 check 'config: from the repository' "# pack web 1.0.0 for $osname, from packs-2026.01.02." "$(vigil pack config web@1.0.0 2>&1 | head -n 1)"
 check 'with no pack here, and none installed' no "$(yes_no test -e "$root/packs/web")"
@@ -445,7 +437,6 @@ for j in a b; do
     printf '[job.%s]\nmetric_name = svc.%s\nmetrics = up\nrun_every = 1h\nmax_runtime = 30s\nenv = SVC_HOST=localhost\nenv = SVC_PORT=1\nsecret = SVC_PASSWORD=secret:SVC_PW\n\n' "$j" "$j" >> "$root/packs/svc/pack.config"
     printf 'echo "metric up 1"\n' > "$root/packs/svc/$j.sh"
 done
-check 'config --store: each secret from the store' 'secret = SVC_PASSWORD=store:vault/SVC_PW|secret = SVC_PASSWORD=store:vault/SVC_PW' "$(vigil pack config svc --store vault 2>&1 | grep '^secret' | tr '\n' '|' | sed 's/|$//')"
 check 'config: its needs, as comments' '# needs a role: CREATE ROLE it|# needs its page on' "$(vigil pack config svc 2>&1 | grep '^# needs' | tr '\n' '|' | sed 's/|$//')"
 out=$(vigil pack enable svc 2>&1)
 check 'turns on, and says what it needs' 'on: svc_a|on: svc_b|needs secret:SVC_PW: not set: vigil secret set SVC_PW, as the account Vigil runs as|needs a role: CREATE ROLE it|needs its page on|settings in vigil.config: SVC_HOST=localhost SVC_PORT=1' "$(printf '%s' "$out" | tr '\n' '|')"

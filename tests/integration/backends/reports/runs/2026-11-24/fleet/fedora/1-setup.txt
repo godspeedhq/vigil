@@ -22,7 +22,7 @@ vigil: this host's configuration comes from [source.central] (hosts/fedora.confi
 To turn pack postgres on, add its jobs there: vigil pack config postgres prints them, ready to paste.
 (exit 1)
 
-$ vigil pack config postgres --store bao     # printed, then pasted into hosts/fedora.config
+$ vigil pack config postgres     # printed, then pasted into hosts/fedora.config
 # pack postgres 1.2.1 for Linux, as installed here.
 # Its jobs, for a configuration that comes from a source: paste them
 # into it. Each env line holds the pack's default: set it for your
@@ -38,4 +38,4 @@ run_every = 1m
 ...
 
 $ git log --oneline     # the source
-9123016 fedora: the postgres pack
+0fcc1c1 fedora: the postgres pack

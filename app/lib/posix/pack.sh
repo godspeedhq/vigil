@@ -458,6 +458,7 @@ _vigil_pack_elsewhere() {
     printf "this host's configuration comes from [source.%s] (%s): Vigil does not edit it.\n" "$_vp_csrc" "$_vp_cfile"
     case $2 in
         disable) printf 'To turn pack %s off, take its jobs out of it there.\n' "$1" ;;
+        install) printf 'Its jobs run once it names them: vigil pack config %s prints them, ready to paste.\n' "$1" ;;
         *) printf 'To turn pack %s on, add its jobs there: vigil pack config %s prints them, ready to paste.\n' "$1" "$1" ;;
     esac
 }
@@ -900,24 +901,9 @@ _vigil_pack_put() {
     # turned on blind.
     _vigil_pack_read "$root/packs/$name" "$name"
     if _vigil_pack_pointer "$root"; then
-        # The configuration comes from a source, so enable would refuse: its
-        # jobs already there (committed before this install) are on; for the
-        # rest, say loudly how to turn them on there (backlog 67).
-        local on='' off='' act='' _vw_root=$root
-        _vigil_wk_dir vigil state_dir state
-        vigil_active_read "$_vw_dir" && act=$VIGIL_ACT_CONFIG
-        for j in $_vp_jobs; do
-            if [ -n "$act" ] && grep -q "^[[:space:]]*\[job\.${name}_$j\][[:space:]]*\$" "$act"; then
-                on="$on ${name}_$j"
-            else
-                off="$off ${name}_$j"
-            fi
-        done
-        [ -z "$on" ] || printf 'on, from [source.%s]:%s\n' "$_vp_csrc" "$on"
-        if [ -n "$off" ]; then
-            printf 'off until enabled:%s\n' "$off"
-            _vigil_pack_elsewhere "$name" install
-        fi
+        # The configuration comes from a source, so enable would refuse: say
+        # loudly where its jobs go instead (backlog 67).
+        _vigil_pack_elsewhere "$name" install
     else
         printf 'off until enabled:'
         for j in $_vp_jobs; do printf ' %s_%s' "$name" "$j"; done
@@ -947,15 +933,14 @@ _vigil_pack_install() {
     return "$rc"
 }
 
-# vigil pack config <name>[@<version>] [--os <os>] [--store <name>]: the block
+# vigil pack config <name>[@<version>] [--os <os>]: the block
 # vigil pack enable would write, printed, for the configuration a source
 # serves (backlog 67). This host's copy when it has the pack, --os is its own
 # and no version is asked; else the newest version (or the one asked), its
 # archive for that platform checked against the signed index: no pack
-# installed, and no configuration needed. With --store, each secret: reference
-# becomes store:<store>/<name>. Changes nothing.
+# installed, and no configuration needed. Changes nothing.
 _vigil_pack_config() {
-    local root=$1 app=$2 spec=$3 os=$4 store=$5 dir ext osname from j var all='' left='' line
+    local root=$1 app=$2 spec=$3 os=$4 dir ext osname from j var all='' left='' line
     _vigil_pack_spec "$spec" || return 1
     _vigil_pack_os
     [ -n "$os" ] || os=$_vp_os
@@ -964,9 +949,6 @@ _vigil_pack_config() {
         macos) osname=macOS ext=sh ;;
         windows) osname=Windows ext=ps1 ;;
         *) _vigil_pack_die "--os takes linux, macos or windows, not $os"; return 1 ;;
-    esac
-    case $store in
-        *[!A-Za-z0-9_-]*) _vigil_pack_die "not a secret store's name: $store"; return 1 ;;
     esac
     if [ -z "$_vp_at" ] && [ "$os" = "$_vp_os" ] && [ -f "$root/packs/$_vp_name/pack.config" ]; then
         dir=$root/packs/$_vp_name from='as installed here'
@@ -1004,11 +986,7 @@ EOF
     for j in $_vp_jobs; do
         var=_vp_section_$j
         printf '\n'
-        if [ -n "$store" ]; then
-            printf '%s' "${!var}" | sed "s#^\(secret = [^=]*=\)secret:#\1store:$store/#"
-        else
-            printf '%s' "${!var}"
-        fi
+        printf '%s' "${!var}"
     done
     _vigil_pack_end "$_vp_name"
 }

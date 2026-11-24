@@ -442,19 +442,11 @@ try {
     Test-Equal 'so is enable, saying what to do' "vigil: $where|To turn pack base on, add its jobs there: vigil pack config base prints them, ready to paste.|1" "$($r.Text.Split("`n") -join '|')|$($r.Code)"
     Test-Equal 'is not edited' $was (Get-Text $cfg)
     $r = Invoke-Vigil pack install web@1.0.0
-    Test-Equal 'install says it, in place of enable' "installed pack web 1.0.0|off until enabled: web_status|$where|To turn pack web on, add its jobs there: vigil pack config web prints them, ready to paste." ($r.Text.TrimEnd().Split("`n") -join '|')
+    Test-Equal 'install says it, in place of enable' "installed pack web 1.0.0|$where|Its jobs run once it names them: vigil pack config web prints them, ready to paste." ($r.Text.TrimEnd().Split("`n") -join '|')
     Test-Equal 'and installs' 'True' ([string][System.IO.File]::Exists("$root\packs\web\status.ps1"))
     $r = Invoke-Vigil pack config web
     Test-Equal "config: this host's copy" '# pack web 1.0.0 for Windows, as installed here.' $r.Text.Split("`n")[0]
     Test-Equal 'the block enable writes' '# pack web: vigil pack disable takes these out|[job.web_status]|file = packs/web/status.ps1|# end of pack web' (@($r.Text.Split("`n") | Where-Object { $_ -cmatch '^(# pack web:|\[job|file|# end)' }) -join '|')
-    [void](Invoke-Vigil pack remove web)
-    # Committed before the install: the active configuration has its job already.
-    [void](New-Item -ItemType Directory -Force -Path "$root\state\configs")
-    [System.IO.File]::WriteAllText("$root\state\configs\t.config", "[job.web_status]`nfile = packs/web/status.ps1`nrun_every = 1h`n")
-    [System.IO.File]::WriteAllText("$root\state\config.active", "[active]`nschema_version = 1`nconfig         = t`n")
-    $r = Invoke-Vigil pack install web@1.0.0
-    Test-Equal 'install: its jobs in the configuration from the source are on' 'installed pack web 1.0.0|on, from [source.remote]: web_status' ($r.Text.TrimEnd().Split("`n") -join '|')
-    Remove-Item -Force "$root\state\config.active", "$root\state\configs\t.config"
     [void](Invoke-Vigil pack remove web)
     Test-Equal 'config: from the repository' '# pack web 1.0.0 for Windows, from packs-2026.01.02.' (Invoke-Vigil pack config web@1.0.0).Text.Split("`n")[0]
     Test-Equal 'with no pack here, and none installed' 'False' ([string](Test-Path "$root\packs\web"))
@@ -483,7 +475,6 @@ try {
         [System.IO.File]::WriteAllText("$svc\$j.ps1", "Write-Output 'metric up 1'`n")
     }
     [System.IO.File]::WriteAllText("$svc\pack.config", $m)
-    Test-Equal 'config --store: each secret from the store' 'secret = SVC_PASSWORD=store:vault/SVC_PW|secret = SVC_PASSWORD=store:vault/SVC_PW' (@((Invoke-Vigil pack config svc --store vault).Text.Split("`n") | Where-Object { $_.StartsWith('secret') }) -join '|')
     Test-Equal 'config: its needs, as comments' '# needs a role: CREATE ROLE it|# needs its page on' (@((Invoke-Vigil pack config svc).Text.Split("`n") | Where-Object { $_.StartsWith('# needs') }) -join '|')
     $r = Invoke-Vigil pack enable svc
     Test-Equal 'turns on, and says what it needs' 'on: svc_a|on: svc_b|needs secret:SVC_PW: not set: vigil secret set SVC_PW, as the account Vigil runs as (an elevated prompt for a system install)|needs a role: CREATE ROLE it|needs its page on|settings in vigil.config: SVC_HOST=localhost SVC_PORT=1' ($r.Text.Split("`n") -join '|')

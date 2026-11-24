@@ -16,5 +16,5 @@ $ vigil pack config nginx --os macos     # from the repository, for the Mac: pas
 ...
 
 $ git log --oneline
-1dd00e1 mac: the nginx pack
-9123016 fedora: the postgres pack
+dedef0e mac: the nginx pack
+0fcc1c1 fedora: the postgres pack

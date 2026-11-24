@@ -836,7 +836,6 @@ The folder holds the signed index too, so the offline machine checks the packs e
 ```sh
 vigil pack install nginx                          # on each host (Ansible, Puppet, Chef...): off until configured
 vigil pack config nginx --os linux > nginx.jobs   # anywhere: the jobs enable would write, ready to paste
-vigil pack config postgres --store vault          # secret: references written as store:vault/...
 ```
 
 Paste the block into the configuration, set what differs per host in the per-host files, and commit: each host picks it up at its next `check_every`. A host that doesn't have the pack yet fails just those jobs, and `vigil precheck` says why: `(pack nginx is not installed here: vigil pack install nginx)`. Secrets are yours to place, as for any job: Vigil only needs them to be there and right when the job runs, set with `vigil secret set --stdin` as the service account, in the environment, or in a secret store.

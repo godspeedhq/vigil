@@ -67,8 +67,8 @@ cat "$R/config/vigil.config"
 say 'vigil pack enable postgres         # now its configuration comes from a source'
 v pack enable postgres; echo "(exit $?)"
 
-say 'vigil pack config postgres --store bao     # printed, then pasted into hosts/fedora.config'
-v pack config postgres --store bao > "$W/postgres.jobs"
+say 'vigil pack config postgres     # printed, then pasted into hosts/fedora.config'
+v pack config postgres > "$W/postgres.jobs"
 sed -n '1,12p' "$W/postgres.jobs"; echo '...'
 
 mkdir admin && git -C admin init -q -b main && git -C admin remote add origin "$URL"
@@ -77,8 +77,9 @@ base='[scheduler]\ntick = 10s\n\n[backend.file]\npath = metrics/vigil.prom\n\n[r
 {
     printf '[vigil]\ninstance = fedora-e2e\n\n'"$base"'\n'
     printf '[secret_store.bao]\ntype     = hashicorp_vault\nurl      = https://127.0.0.1:8200\nauth     = token\ntoken    = secret:BAO_TOKEN\nca_file  = config/store-ca.pem\n\n'
-    # What differs on this host: PostgreSQL on 127.0.0.1:55432.
-    sed 's/^env = PGHOST=localhost$/env = PGHOST=127.0.0.1/; s/^env = PGPORT=5432$/env = PGPORT=55432/' "$W/postgres.jobs"
+    # What differs on this host: PostgreSQL on 127.0.0.1:55432, and its
+    # password in OpenBao (secret: changed to store:bao/, as an operator would).
+    sed 's/^env = PGHOST=localhost$/env = PGHOST=127.0.0.1/; s/^env = PGPORT=5432$/env = PGPORT=55432/; s#^\(secret = [A-Z_]*=\)secret:#\1store:bao/#' "$W/postgres.jobs"
 } > admin/hosts/fedora.config
 git -C admin add -A && git -C admin commit -q -m 'fedora: the postgres pack' && git -C admin push -q origin main 2>&1 | grep -v '^Warning: Permanently added'
 say 'git log --oneline     # the source'

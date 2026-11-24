@@ -1,20 +1,23 @@
-2026-11-24T13:14:05Z INFO supervisor waiting for the first fetch from the configuration's sources
-2026-11-24T13:14:05Z INFO supervisor supervisor started, pid 74828
-2026-11-24T13:14:05Z INFO supervisor job vigil_fetch: run 20261124T131405Z-74828-1 started
-2026-11-24T13:14:05Z INFO supervisor supervisor stopped; running workers continue
-2026-11-24T13:14:07Z INFO supervisor configuration revision 97c5b4d7a4a6 loaded (source.central hosts/mac.config)
-2026-11-24T13:14:07Z INFO supervisor supervisor started, pid 75299
-2026-11-24T13:14:07Z INFO supervisor supervisor stopped; running workers continue
-2026-11-24T13:14:11Z INFO supervisor configuration revision 97c5b4d7a4a6 loaded (source.central hosts/mac.config)
-2026-11-24T13:14:11Z INFO supervisor supervisor started, pid 76425
-2026-11-24T13:14:12Z INFO supervisor supervisor stopped; running workers continue
-2026-11-24T13:14:15Z INFO supervisor configuration revision 97c5b4d7a4a6 loaded (source.central hosts/mac.config)
-2026-11-24T13:14:15Z INFO supervisor supervisor started, pid 76687
-2026-11-24T13:14:16Z INFO supervisor job vigil_fetch: run 20261124T131416Z-76687-2 started
-2026-11-24T13:14:16Z INFO supervisor supervisor stopped; running workers continue
-2026-11-24T13:14:17Z INFO supervisor configuration revision 97c5b4d7a4a6 loaded (source.central hosts/mac.config)
-2026-11-24T13:14:17Z INFO supervisor supervisor started, pid 77079
-2026-11-24T13:14:17Z INFO supervisor supervisor stopped; running workers continue
-2026-11-24T13:14:20Z INFO supervisor configuration revision 97c5b4d7a4a6 loaded (source.central hosts/mac.config)
-2026-11-24T13:14:20Z INFO supervisor supervisor started, pid 77920
-2026-11-24T13:14:20Z INFO supervisor supervisor stopped; running workers continue
+2026-11-24T14:19:51Z INFO supervisor waiting for the first fetch from the configuration's sources
+2026-11-24T14:19:51Z INFO supervisor supervisor started, pid 28567
+2026-11-24T14:19:51Z INFO supervisor job vigil_fetch: run 20261124T141951Z-28567-1 started
+2026-11-24T14:19:51Z INFO supervisor supervisor stopped; running workers continue
+2026-11-24T14:19:53Z INFO supervisor configuration revision 97c5b4d7a4a6 loaded (source.central hosts/mac.config)
+2026-11-24T14:19:53Z INFO supervisor supervisor started, pid 28750
+2026-11-24T14:19:53Z INFO supervisor supervisor stopped; running workers continue
+2026-11-24T14:19:57Z INFO supervisor configuration revision 97c5b4d7a4a6 loaded (source.central hosts/mac.config)
+2026-11-24T14:19:57Z INFO supervisor supervisor started, pid 29621
+2026-11-24T14:19:57Z INFO supervisor supervisor stopped; running workers continue
+2026-11-24T14:19:59Z INFO supervisor configuration revision 97c5b4d7a4a6 loaded (source.central hosts/mac.config)
+2026-11-24T14:19:59Z INFO supervisor supervisor started, pid 29877
+2026-11-24T14:19:59Z INFO supervisor job vigil_fetch: run 20261124T142000Z-29877-2 started
+2026-11-24T14:19:59Z INFO supervisor supervisor stopped; running workers continue
+2026-11-24T14:20:00Z INFO supervisor configuration revision 97c5b4d7a4a6 loaded (source.central hosts/mac.config)
+2026-11-24T14:20:00Z INFO supervisor supervisor started, pid 30111
+2026-11-24T14:20:00Z INFO supervisor job nginx_status: run 20261124T142001Z-30111-1 started
+2026-11-24T14:20:00Z INFO supervisor job nginx_server: run 20261124T142001Z-30111-2 started
+2026-11-24T14:20:00Z INFO supervisor job nginx_log: run 20261124T142001Z-30111-3 started
+2026-11-24T14:20:00Z INFO supervisor supervisor stopped; running workers continue
+2026-11-24T14:20:04Z INFO supervisor configuration revision 97c5b4d7a4a6 loaded (source.central hosts/mac.config)
+2026-11-24T14:20:04Z INFO supervisor supervisor started, pid 30680
+2026-11-24T14:20:04Z INFO supervisor supervisor stopped; running workers continue

@@ -67,7 +67,7 @@
 #   vigil [--root <dir>] pack enable <what> | disable <what> | update [--check] [<name>...]
 #   vigil [--root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>
 #   vigil [--root <dir>] pack verify [<name>...] [--from <folder>]
-#   vigil [--root <dir>] pack config <name>[@<version>] [--os linux|macos|windows] [--store <name>]
+#   vigil [--root <dir>] pack config <name>[@<version>] [--os linux|macos|windows]
 #       The packs of scripts and jobs (18.10), from the pack repository:
 #       search it, install a pack, then enable its jobs. What is a pack or a
 #       pack_job. download writes packs for a machine offline, which installs
@@ -117,7 +117,7 @@ elif vigil_packaged "$app" && [ -n "$_vp_root" ]; then
 fi
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status [--watch]\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]\n       vigil [--root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...\n       vigil [--root <dir>] pack enable <what> | disable <what>\n       vigil [--root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>\n       vigil [--root <dir>] pack config <name>[@<version>] [--os linux|macos|windows] [--store <name>]\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status [--watch]\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]\n       vigil [--root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...\n       vigil [--root <dir>] pack enable <what> | disable <what>\n       vigil [--root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>\n       vigil [--root <dir>] pack config <name>[@<version>] [--os linux|macos|windows]\n' >&2
     exit 64
 }
 
@@ -458,19 +458,18 @@ case ${1-} in
                 fi
                 ;;
             config:*)
-                # config <name>[@<version>] [--os <os>] [--store <name>]: the
+                # config <name>[@<version>] [--os <os>]: the
                 # pack's jobs printed, for a configuration from a source.
-                os='' store='' names=()
+                os='' names=()
                 while [ "$#" -gt 0 ]; do
                     case $1 in
                         --os) [ "$#" -ge 2 ] || usage; os=$2; shift 2 ;;
-                        --store) [ "$#" -ge 2 ] || usage; store=$2; shift 2 ;;
                         -*) usage ;;
                         *) names+=("$1"); shift ;;
                     esac
                 done
                 [ "${#names[@]}" -eq 1 ] || usage
-                vigil_pack_config "$root" "$app" "${names[0]}" "$os" "$store"
+                vigil_pack_config "$root" "$app" "${names[0]}" "$os"
                 ;;
             *) usage ;;
         esac
