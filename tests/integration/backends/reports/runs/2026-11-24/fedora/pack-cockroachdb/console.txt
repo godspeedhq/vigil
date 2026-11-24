@@ -1,0 +1,582 @@
+== pack-cockroachdb
+date     2026-11-24T17:28:54Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    d994bfa + local changes (the cockroachdb-pack branch) (deployed copy)
+command  tests/integration/backends/scripts/run-cockroachdb.sh
+bash     5.3.9(1)-release
+git      git version 2.56.0
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.18.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.cockroachdb.yaml pins them)
+         cockroachdb/cockroach:v25.4.21
+         debian:13-slim
+
+crdb26   v26.4.1, its binary (checked against its published SHA-256 when downloaded): a8cd9f93762fb35d...
+cockroachdb  crdb1 debian:13-slim; crdb25 cockroachdb/cockroach:v25.4.21; crdb2 debian:13-slim; crdb3 debian:13-slim
+
+# 26.4.1 in trouble on purpose, as root.
+users    vigil (VIEWCLUSTERMETADATA, VIEWCLUSTERSETTING, VIEWJOB), nopriv (none)
+workload kv, 20 seconds, at most 40 operations a second
+note     refused: SET allow_unsafe_internals = true; SET statement_timeout = '5s'; SELECT crdb_internal.force_retry('300ms')
+sql      a table of 1,000 rows; a full scan; transactions restarted (force_retry); three statements that fail (1 / 0)
+NOTICE: resolved (5s) messages will not be emitted more frequently than the default min_checkpoint_frequency (30s), but may be emitted less frequently
+changefeeds  one to a sink that never answers; another, paused
+backups  one into a folder that is a file (fails); a nightly schedule, paused
+settings cluster.preserve_downgrade_option = 26.4; server.time_until_store_dead = 1m15s
+
+# 26.4.1, node 1: every job, as the pack's scripts print it, as vigil.
+
+$ bash packs/cockroachdb/linux/status.sh
+metric up 1
+metric ready 1
+metric node_id 1
+metric info 1 version=v26.4.1
+metric uptime_seconds 72
+metric live_nodes 3
+metric heartbeat_failures_count 0
+metric clock_offset_ms 0.01
+metric clock_offset_stddev_ms 0.14
+metric cpu_pct 11.67
+metric rss_bytes 495845376
+metric goroutines 615
+metric runnable_per_cpu 0.11
+metric cpu_queue 0
+metric cpu_slots_exhausted_seconds 56.45
+metric fds_open 60
+metric fds_pct 0.01
+metric cert_days 3659 cert=ca
+metric cert_days 1829 cert=client
+metric cert_days 9 cert=node
+metric cert_days_min 9
+
+$ bash packs/cockroachdb/linux/replication.sh
+metric up 1
+metric ranges 46
+metric replicas 89
+metric leaseholders 46
+metric raft_leaders 46
+metric leaders_not_leaseholders 0
+metric ranges_unavailable 0
+metric ranges_underreplicated 0
+metric ranges_overreplicated 0
+metric ranges_decommissioning 0
+metric slow_raft 0
+metric slow_lease 0
+metric slow_latch 0
+metric slow_distsender 0
+metric replicate_queue_pending 0
+metric splits_count 2
+metric merges_count 0
+
+$ bash packs/cockroachdb/linux/storage.sh
+metric up 1
+metric stores 1
+metric disk_bytes 117884059648
+metric disk_free_bytes 75972853760
+metric disk_used_pct 35.55
+metric used_bytes 28817232
+metric live_bytes 5776543
+metric l0_sublevels 0
+metric l0_files 0
+metric read_amp 0
+metric io_overload 0
+metric io_queue 0
+metric io_tokens_exhausted_seconds 0
+metric write_stalls_count 0
+metric write_stall_seconds 0
+metric disk_slow_count 0
+metric wal_fsync_seconds 56.12
+metric wal_fsyncs_count 9320
+
+$ bash packs/cockroachdb/linux/sql.sh
+metric up 1
+metric connections 0
+metric statements_active 0
+metric transactions_open 0
+metric memory_bytes 2672640
+metric connections_count 30
+metric selects_count 8
+metric inserts_count 795
+metric updates_count 0
+metric deletes_count 0
+metric ddl_count 8
+metric failures_count 5
+metric full_scans_count 8
+metric commits_count 1
+metric aborts_count 0
+metric restarts_count 1
+metric statement_seconds 22.03
+metric statements_count 813
+metric transaction_seconds 29.24
+metric transactions_count 848
+
+$ bash packs/cockroachdb/linux/cluster.sh
+metric up 1
+metric nodes 3
+metric live 3
+metric dead 0
+metric unavailable 0
+metric draining 0
+metric decommissioning 0
+metric decommissioned 0
+metric versions 1
+metric version_info 1 version=v26.4.1
+metric cluster_version 1 version=26.4
+metric upgrade_pending 0
+metric downgrade_preserved 1
+metric node_status 3 node=1 status=live version=v26.4.1 address=crdb1:26257
+metric node_uptime_seconds 80 node=1
+metric node_status 3 node=2 status=live version=v26.4.1 address=crdb2:26257
+metric node_uptime_seconds 80 node=2
+metric node_status 3 node=3 status=live version=v26.4.1 address=crdb3:26257
+metric node_uptime_seconds 79 node=3
+metric nodes_not_shown 0
+
+$ bash packs/cockroachdb/linux/jobs.sh
+metric up 1
+metric running 1
+metric paused 1
+metric failed 1
+metric reverting 0
+metric jobs 1 type=BACKUP status=failed
+metric jobs 1 type=CHANGEFEED status=paused
+metric jobs 1 type=CHANGEFEED status=running
+metric jobs 2 type=MIGRATION status=succeeded
+metric job_failed 1 id=1230343346540085249 type=BACKUP
+metric job_paused_seconds 38 id=1230343341822181377 type=CHANGEFEED
+metric jobs_not_shown 0
+metric schedules 3
+metric schedules_paused 1
+metric schedules_late 0
+metric changefeeds 1
+metric changefeed_behind_seconds 38.7
+
+# 26.4.1: what they read.
+  PASS  26.4.1: status runs
+  PASS  26.4.1: replication runs
+  PASS  26.4.1: storage runs
+  PASS  26.4.1: sql runs
+  PASS  26.4.1: cluster runs
+  PASS  26.4.1: jobs runs
+  PASS  26.4.1: up and ready
+  PASS  26.4.1: its version
+  PASS  26.4.1: three nodes live, as node 1 sees them
+  PASS  26.4.1: the node certificate, ten days or fewer
+  PASS  26.4.1: and the fewest days, the node one
+  PASS  26.4.1: ranges on node 1
+  PASS  26.4.1: none unavailable
+  PASS  26.4.1: a disk, its size
+  PASS  26.4.1: the write-ahead log fsynced
+  PASS  26.4.1: SELECTs counted
+  PASS  26.4.1: the statements that failed
+  PASS  26.4.1: the full scan
+  PASS  26.4.1: the transactions restarted
+  PASS  26.4.1: the cluster: 3 nodes, 3 live, none dead
+  PASS  26.4.1: its version, 26.4, not behind its nodes
+  PASS  26.4.1: the upgrade held back, seen
+  PASS  26.4.1: the failed backup
+  PASS  26.4.1: the paused changefeed
+  PASS  26.4.1: the paused schedule
+  PASS  26.4.1: the changefeed that cannot send
+  PASS  26.4.1: and how far behind it is
+  PASS  26.4.1: no job description printed
+
+# 25.4.21, one node, insecure: every job, with no login.
+
+$ bash packs/cockroachdb/linux/status.sh
+metric up 1
+metric ready 1
+metric node_id 1
+metric info 1 version=v25.4.21
+metric uptime_seconds 81
+metric live_nodes 1
+metric heartbeat_failures_count 0
+metric clock_offset_ms 0.00
+metric clock_offset_stddev_ms 0
+metric cpu_pct 8.52
+metric rss_bytes 418201600
+metric goroutines 377
+metric runnable_per_cpu 0.04
+metric cpu_queue 0
+metric cpu_slots_exhausted_seconds 0.01
+metric fds_open 37
+metric fds_pct 0.01
+
+$ bash packs/cockroachdb/linux/replication.sh
+metric up 1
+metric ranges 78
+metric replicas 78
+metric leaseholders 78
+metric raft_leaders 78
+metric leaders_not_leaseholders 0
+metric ranges_unavailable 0
+metric ranges_underreplicated 0
+metric ranges_overreplicated 0
+metric ranges_decommissioning 0
+metric slow_raft 0
+metric slow_lease 0
+metric slow_latch 0
+metric slow_distsender 0
+metric replicate_queue_pending 0
+metric splits_count 0
+metric merges_count 0
+
+$ bash packs/cockroachdb/linux/storage.sh
+metric up 1
+metric stores 1
+metric disk_bytes 117884059648
+metric disk_free_bytes 75972853760
+metric disk_used_pct 35.55
+metric used_bytes 5813096
+metric live_bytes 1474246
+metric l0_sublevels 0
+metric l0_files 0
+metric read_amp 0
+metric io_overload 0
+metric io_queue 0
+metric io_tokens_exhausted_seconds 0
+metric write_stalls_count 0
+metric write_stall_seconds 0
+metric disk_slow_count 0
+metric wal_fsync_seconds 28.52
+metric wal_fsyncs_count 1823
+
+$ bash packs/cockroachdb/linux/sql.sh
+metric up 1
+metric connections 0
+metric statements_active 0
+metric transactions_open 0
+metric memory_bytes 1536000
+metric connections_count 2
+metric selects_count 1
+metric inserts_count 0
+metric updates_count 0
+metric deletes_count 0
+metric ddl_count 0
+metric failures_count 0
+metric full_scans_count 0
+metric commits_count 0
+metric aborts_count 0
+metric restarts_count 1
+metric statement_seconds 0.01
+metric statements_count 1
+metric transaction_seconds 0.01
+metric transactions_count 1
+
+$ bash packs/cockroachdb/linux/cluster.sh
+metric up 1
+metric nodes 1
+metric live 1
+metric dead 0
+metric unavailable 0
+metric draining 0
+metric decommissioning 0
+metric decommissioned 0
+metric versions 1
+metric version_info 1 version=v25.4.21
+metric cluster_version 1 version=25.4
+metric upgrade_pending 0
+metric downgrade_preserved 0
+metric node_status 3 node=1 status=live version=v25.4.21 address=127.0.0.1:26257
+metric node_uptime_seconds 83 node=1
+metric nodes_not_shown 0
+
+$ bash packs/cockroachdb/linux/jobs.sh
+metric up 1
+metric running 0
+metric paused 0
+metric failed 0
+metric reverting 0
+metric jobs 2 type=MIGRATION status=succeeded
+metric jobs_not_shown 0
+metric schedules 2
+metric schedules_paused 0
+metric schedules_late 0
+metric changefeeds 0
+  PASS  25.4.21: status runs
+  PASS  25.4.21: replication runs
+  PASS  25.4.21: storage runs
+  PASS  25.4.21: sql runs
+  PASS  25.4.21: cluster runs
+  PASS  25.4.21: jobs runs
+  PASS  25.4.21: up, ready, its version
+  PASS  25.4.21: insecure: no certificate
+  PASS  25.4.21: the cluster: one node, live
+
+# Logins and privileges, on 26.4.1.
+  PASS  a user without VIEWCLUSTERMETADATA fails the cluster job
+  PASS  and says which privilege
+        metric up 0
+        cluster: this user may not read the nodes: GRANT SYSTEM VIEWCLUSTERMETADATA TO it (packs/cockroachdb/README.md)
+  PASS  a wrong password fails the run
+  PASS  and says so
+        metric up 0
+        cluster: CockroachDB refused the login (HTTP 401): COCKROACH_USER or COCKROACH_PASSWORD is wrong
+  PASS  a user with no password set fails, and says how to set it
+  PASS  a node that does not answer: status still runs, up 0
+  PASS  a node that does not answer: replication still runs, up 0
+  PASS  a node that does not answer: storage still runs, up 0
+  PASS  a node that does not answer: sql still runs, up 0
+  PASS  a node that does not answer: cluster still runs, up 0
+
+# The pack through Vigil.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+cockroachdb: https://localhost:18081 as vigil
+  PASS  cockroachdb: off until enabled
+  PASS  cockroachdb: enabled
+        on: cockroachdb_status
+        on: cockroachdb_replication
+        on: cockroachdb_storage
+        on: cockroachdb_sql
+        on: cockroachdb_cluster
+        on: cockroachdb_jobs
+        needs secret:COCKROACH_PASSWORD: not set: vigil secret set COCKROACH_PASSWORD, as the account Vigil runs as
+        needs the node's HTTP port (8080 by default) reachable from this machine, and over https the cluster's CA file: env = COCKROACH_CACERT=<its certs folder>/ca.crt
+        needs for the cluster and jobs jobs, a user with three read-only system privileges, as an admin: CREATE USER vigil WITH PASSWORD '...'; GRANT SYSTEM VIEWCLUSTERMETADATA, VIEWCLUSTERSETTING, VIEWJOB TO vigil; then vigil secret set COCKROACH_PASSWORD
+        needs on an insecure cluster, no user: env = COCKROACH_USER= and take out the secret line
+        settings in vigil.config: COCKROACH_URL= COCKROACH_CACERT= COCKROACH_USER=vigil
+  PASS  cockroachdb: its jobs are on
+  PASS  cockroachdb: it names the secret it needs, not set
+  PASS  cockroachdb: the password is a secret reference, on the two jobs that log in
+  PASS  cockroachdb: precheck is happy
+  PASS  cockroachdb: every job runs
+        status: 21 lines
+        replication: 17 lines
+        storage: 18 lines
+        sql: 20 lines
+        cluster: 20 lines
+        jobs: 17 lines
+  PASS  cockroachdb: up and ready
+  PASS  cockroachdb: the cluster, three live
+  PASS  cockroachdb: the failed backup seen
+  PASS  cockroachdb: the paused changefeed seen
+  PASS  cockroachdb: a wrong password fails the run
+  PASS  cockroachdb: and says why
+  PASS  cockroachdb: a node that does not answer still runs
+  PASS  cockroachdb: and reads as up 0
+  PASS  cockroachdb: the password is written nowhere
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+18 passed, 0 failed
+hold     the clusters stay up, on 18081-3 and 18090, until /home/vigil-test/crdb-hold is deleted
+
+# A node leaves 26.4.1: crdb3 (node 3) stops.
+
+$ bash packs/cockroachdb/linux/status.sh   (crdb3 stopped)
+metric up 1
+metric ready 1
+metric node_id 1
+metric info 1 version=v26.4.1
+metric uptime_seconds 1452
+metric live_nodes 2
+metric heartbeat_failures_count 0
+metric clock_offset_ms 0.00
+metric clock_offset_stddev_ms 0.13
+metric cpu_pct 5.60
+metric rss_bytes 590581760
+metric goroutines 514
+metric runnable_per_cpu 0.02
+metric cpu_queue 0
+metric cpu_slots_exhausted_seconds 56.45
+metric fds_open 60
+metric fds_pct 0.01
+metric cert_days 9 cert=node
+metric cert_days 3659 cert=ca
+metric cert_days 1829 cert=client
+metric cert_days_min 9
+
+$ bash packs/cockroachdb/linux/replication.sh   (crdb3 stopped)
+metric up 1
+metric ranges 50
+metric replicas 89
+metric leaseholders 50
+metric raft_leaders 50
+metric leaders_not_leaseholders 0
+metric ranges_unavailable 0
+metric ranges_underreplicated 50
+metric ranges_overreplicated 0
+metric ranges_decommissioning 0
+metric slow_raft 0
+metric slow_lease 0
+metric slow_latch 0
+metric slow_distsender 0
+metric replicate_queue_pending 0
+metric splits_count 2
+metric merges_count 0
+
+$ bash packs/cockroachdb/linux/cluster.sh   (crdb3 stopped)
+metric up 1
+metric nodes 3
+metric live 2
+metric dead 0
+metric unavailable 0
+metric draining 1
+metric decommissioning 0
+metric decommissioned 0
+metric versions 1
+metric version_info 1 version=v26.4.1
+metric cluster_version 1 version=26.4
+metric upgrade_pending 0
+metric downgrade_preserved 1
+metric node_status 6 node=3 status=draining version=v26.4.1 address=crdb3:26257
+metric node_uptime_seconds 1452 node=3
+metric node_status 3 node=1 status=live version=v26.4.1 address=crdb1:26257
+metric node_uptime_seconds 1453 node=1
+metric node_status 3 node=2 status=live version=v26.4.1 address=crdb2:26257
+metric node_uptime_seconds 1453 node=2
+metric nodes_not_shown 0
+  PASS  crdb3 stopped: node 1 sees two nodes live
+  PASS  crdb3 stopped: ranges under-replicated
+  PASS  crdb3 stopped: the cluster: two live of three
+  PASS  crdb3 stopped: it comes first, not live
+  PASS  crdb3 stopped: its own status job reads up 0
+
+(waiting for it to be declared dead: server.time_until_store_dead is 1m15s)
+
+$ bash packs/cockroachdb/linux/cluster.sh   (crdb3 stopped for longer than 1m15s)
+metric up 1
+metric nodes 3
+metric live 2
+metric dead 1
+metric unavailable 0
+metric draining 0
+metric decommissioning 0
+metric decommissioned 0
+metric versions 1
+metric version_info 1 version=v26.4.1
+metric cluster_version 1 version=26.4
+metric upgrade_pending 0
+metric downgrade_preserved 1
+metric node_status 1 node=3 status=dead version=v26.4.1 address=crdb3:26257
+metric node_uptime_seconds 1509 node=3
+metric node_status 3 node=1 status=live version=v26.4.1 address=crdb1:26257
+metric node_uptime_seconds 1510 node=1
+metric node_status 3 node=2 status=live version=v26.4.1 address=crdb2:26257
+metric node_uptime_seconds 1510 node=2
+metric nodes_not_shown 0
+  PASS  crdb3 dead
+
+# crdb3 comes back; then it is decommissioned, in a cluster of three that has nowhere to move its replicas.
+  PASS  crdb3 back: three live
+
+$ cockroach node decommission 3 --wait=none --checks=skip
+
+id	is_live	replicas	is_decommissioning	membership	is_draining
+3	true	88	true	decommissioning	false
+
+$ bash packs/cockroachdb/linux/cluster.sh   (node 3 decommissioning)
+metric up 1
+metric nodes 3
+metric live 2
+metric dead 0
+metric unavailable 0
+metric draining 0
+metric decommissioning 1
+metric decommissioned 0
+metric versions 1
+metric version_info 1 version=v26.4.1
+metric cluster_version 1 version=26.4
+metric upgrade_pending 0
+metric downgrade_preserved 1
+metric node_status 4 node=3 status=decommissioning version=v26.4.1 address=crdb3:26257
+metric node_uptime_seconds 5 node=3
+metric node_status 3 node=1 status=live version=v26.4.1 address=crdb1:26257
+metric node_uptime_seconds 1520 node=1
+metric node_status 3 node=2 status=live version=v26.4.1 address=crdb2:26257
+metric node_uptime_seconds 1520 node=2
+metric nodes_not_shown 0
+
+$ bash packs/cockroachdb/linux/replication.sh   (node 3 decommissioning)
+metric up 1
+metric ranges 49
+metric replicas 89
+metric leaseholders 49
+metric raft_leaders 49
+metric leaders_not_leaseholders 0
+metric ranges_unavailable 0
+metric ranges_underreplicated 0
+metric ranges_overreplicated 0
+metric ranges_decommissioning 49
+metric slow_raft 0
+metric slow_lease 0
+metric slow_latch 0
+metric slow_distsender 0
+metric replicate_queue_pending 0
+metric splits_count 2
+metric merges_count 0
+  PASS  decommissioning: seen
+  PASS  decommissioning: its ranges counted
+  PASS  recommissioned: none decommissioning
+
+# Two nodes stop: crdb2 and crdb3. Node 1 has no quorum.
+
+$ bash packs/cockroachdb/linux/status.sh   (no quorum)
+metric up 1
+metric ready 0
+metric node_id 1
+metric info 1 version=v26.4.1
+metric uptime_seconds 1542
+metric live_nodes 0
+metric heartbeat_failures_count 6
+metric clock_offset_ms 0.03
+metric clock_offset_stddev_ms 0.09
+metric cpu_pct 2.53
+metric rss_bytes 586190848
+metric goroutines 502
+metric runnable_per_cpu 0.01
+metric cpu_queue 0
+metric cpu_slots_exhausted_seconds 57.51
+metric fds_open 55
+metric fds_pct 0.01
+metric cert_days 9 cert=node
+metric cert_days 3659 cert=ca
+metric cert_days 1829 cert=client
+metric cert_days_min 9
+  PASS  no quorum: the status job still runs
+  PASS  no quorum: node 1 up, and sees fewer than two live
+
+$ bash packs/cockroachdb/linux/replication.sh   (no quorum)
+metric up 1
+metric ranges 0
+metric replicas 89
+metric leaseholders 0
+metric raft_leaders 0
+metric leaders_not_leaseholders 0
+metric ranges_unavailable 0
+metric ranges_underreplicated 0
+metric ranges_overreplicated 0
+metric ranges_decommissioning 0
+metric slow_raft 0
+metric slow_lease 0
+metric slow_latch 2
+metric slow_distsender 0
+metric replicate_queue_pending 0
+metric splits_count 2
+metric merges_count 0
+  PASS  no quorum: the replication job still runs
+
+$ bash packs/cockroachdb/linux/cluster.sh   (no quorum)
+metric up 0
+  PASS  no quorum: the cluster job ends, within its 50 s max_runtime
+61 passed, 0 failed
+evidence: reports/runs/2026-11-24/fedora/pack-cockroachdb

@@ -116,7 +116,7 @@ echo 'workload kv, 20 seconds, at most 40 operations a second'
 for s in "CREATE TABLE t (id INT PRIMARY KEY, v STRING, w INT)" \
     "INSERT INTO t SELECT i, 'x', i FROM generate_series(1, 1000) AS g(i)" \
     "SELECT count(*) FROM t WHERE w = 7" \
-    "SET allow_unsafe_internals = true; SELECT crdb_internal.force_retry('300ms')" \
+    "SET allow_unsafe_internals = true; SET statement_timeout = '5s'; SELECT crdb_internal.force_retry('300ms')" \
     "SET CLUSTER SETTING kv.rangefeed.enabled = true" \
     "SET CLUSTER SETTING cluster.preserve_downgrade_option = '26.4'" \
     "SET CLUSTER SETTING server.time_until_store_dead = '1m15s'"; do
@@ -238,7 +238,10 @@ say "crdb3 comes back; then it is decommissioned, in a cluster of three that has
 dc start crdb3 > /dev/null 2>&1
 for _ in $(seq 1 60); do bash "$pack/cluster.sh" > "$work/cluster.out" 2> /dev/null; [ "$(val cluster live '')" = 3 ] && break; sleep 3; done
 check 'crdb3 back: three live' 3 "$(val cluster live '')"
-c26 node decommission "$n3" --wait=none > /dev/null 2>&1
+# Its pre-flight checks refuse it, rightly: two nodes cannot hold three
+# replicas. Skipped, it starts, and cannot finish: what the jobs should show.
+printf '\n$ cockroach node decommission %s --wait=none --checks=skip\n' "$n3"
+c26 node decommission "$n3" --wait=none --checks=skip 2>&1 | head -n 5
 for _ in $(seq 1 30); do bash "$pack/replication.sh" > "$work/replication.out" 2> /dev/null; [ "$(least replication ranges_decommissioning '' 1)" = yes ] && break; sleep 2; done
 run cluster "node $n3 decommissioning"
 run replication "node $n3 decommissioning"

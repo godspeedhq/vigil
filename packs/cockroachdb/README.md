@@ -120,7 +120,9 @@ Every job, every metric it prints and what it measures, and what good, watch and
 |       replaces a dead node's replicas after 5 minutes, server.time_until_store_dead);            |
 |       ranges_decommissioning not falling; replicate_queue_pending growing.                       |
 | BAD   ranges_unavailable above 0: some data cannot be read or written until the lost nodes       |
-|       return; slow_raft, slow_lease or slow_latch above 0 for more than a few minutes.           |
+|       return; slow_raft, slow_lease or slow_latch above 0 for more than a few minutes. A node    |
+|       cut off from a quorum counts no range unavailable (no lease is left to count them): there, |
+|       the status job's ready 0 and live_nodes 0 say it.                                          |
 +--------------------------------------------------------------------------------------------------+
 
 +--------------------------------------------------------------------------------------------------+
@@ -258,9 +260,33 @@ Starting points, from the same figures each script's header explains; "In our te
 
 | Metric | Healthy | Watch | Act | In our tests |
 | --- | --- | --- | --- | --- |
-| `cockroachdb.up`, `ready` | 1; 1 | | 0 for more than a few minutes: the node is down, or cut off | |
+| `cockroachdb.up`, `ready` | 1; 1 on every node | | `up` 0, or `ready` 0, for more than a few minutes: the node is down, draining, or cut off from a quorum | `up 0` for a stopped node; `ready 0` on the last node of three, with no quorum |
+| `cockroachdb.live_nodes` | The cluster's size | Below it | Below a majority: ranges lose their quorum | 3; 2 with a node stopped; 0 with no quorum (the node does not count itself) |
+| `cockroachdb.cert_days_min` | Above 30 | Below 30 | Below 7: a node with an expired certificate cannot join | 9, the node certificate made to last ten days (the CA 3,659, the client 1,829) |
+| `cockroachdb.clock_offset_ms` | Far below 500 | Past 100 | Near 400: at 80% of the maximum offset the node stops itself | 0.01 |
+| `cockroachdb.replication.ranges_unavailable` | 0 | | Above 0: data that cannot be read or written | 0, even with no quorum: no lease was left to count them, and `ready 0` said it |
+| `cockroachdb.replication.ranges_underreplicated` | 0 | Above 0 for minutes after a node left | Not falling once the node is dead: no room for new replicas | 50 on node 1 with a node stopped, 0 again when it came back |
+| `cockroachdb.replication.ranges_decommissioning` | 0 | Above 0, falling | Above 0 and not falling: the decommission cannot finish | 49 on node 1, decommissioning one node of three (nowhere to move its replicas) |
+| `cockroachdb.storage.disk_used_pct`, `io_overload`, `write_stalls_count` | Below 60; below 0.5; flat | Past 70; past 0.5 | Past 85; 1 and above (writes throttled); rising | 35.55; 0; 0 |
+| `cockroachdb.sql.failures_count`, `restarts_count`, `full_scans_count` | Flat, or slow against the statements | Restarts or full scans rising with the load | Failures rising fast | 5 failures (three `1 / 0` and others), 8 full scans, restarts counted |
+| `cockroachdb.cluster.live`, `dead`, `unavailable`, `draining` | `live` equal to `nodes`; 0; 0; 0 | `unavailable` or `draining` above 0 | `dead` above 0; `live` below a majority | A stopped node: `draining 1` at once (SIGTERM drains it), then `dead 1` after `server.time_until_store_dead` (1m15s here); the cluster job `up 0` with no quorum, inside its 50 s |
+| `cockroachdb.cluster.decommissioning`, `upgrade_pending`, `downgrade_preserved` | 0; 0; 0 | `decommissioning` above 0; `downgrade_preserved` 1 during an upgrade | `upgrade_pending` 1 for long: the upgrade did not finish | `decommissioning 1` (`node_status 4 ... status=decommissioning`); `downgrade_preserved 1` with `cluster.preserve_downgrade_option` set |
+| `cockroachdb.jobs.failed`, `paused`, `schedules_paused` | 0; 0 or on purpose; 0 | `paused` above 0 for long; a schedule paused | `failed` above 0 with `type=BACKUP`: the backup did not run | `failed 1` (`job_failed 1 id=... type=BACKUP`, into a folder that was a file), `paused 1` (a changefeed, 38 s), `schedules_paused 1` |
+| `cockroachdb.jobs.changefeed_behind_seconds` | Near the changefeed's resolved interval | Growing | Growing without end: its sink is down, and the history it still has to send is kept | 38.7 s, a changefeed to a sink that never answered |
 
 ## How it was tested
+
+**Tested** on 2026-11-24 on the Fedora 44 test machine by `tests/integration/backends/scripts/run-cockroachdb.sh`, against `compose.cockroachdb.yaml`: **CockroachDB 26.4.1, three nodes, secure**, with a CA of its own (so `COCKROACH_CACERT` is tested) and a node certificate made to last ten days, and **CockroachDB 25.4.21, one node, insecure** (no login at all). 26.4.1's images need an x86-64-v3 CPU (AVX2), which the test machine's Sandy Bridge lacks, so it ran CockroachDB's own Linux binary, checked against its published SHA-256, on Debian. In 26.4.1, as root: a user with the three read-only privileges (`vigil`) and one with none; a `kv` workload, statements that fail, a full scan, transactions restarted on purpose; a backup that fails (into a folder that is a file), a changefeed to a sink that never answers and another paused, a nightly backup schedule paused, and an upgrade held back (`cluster.preserve_downgrade_option`). The passwords were made by the run and kept out of the evidence.
+
+- **On Fedora**: every job directly as `vigil`, on both clusters, each reading checked; a user without `VIEWCLUSTERMETADATA` failing, naming it; a wrong password failing, saying so; no password set, saying how to set it; a node that does not answer read as `up 0`. Then `service-packs.sh` through Vigil (enable, the secret named and set, every job, a wrong password, a node down, the password written nowhere). Then the cluster's nodes left: one stopped (draining, its ranges under-replicated, then dead after 1m15s), came back, was decommissioned (49 ranges stuck, two nodes cannot hold three replicas) and recommissioned; then two stopped, and the last had no quorum (`ready 0`, `live_nodes 0`, the cluster job `up 0` within its time): **61 passed, 0 failed**, and through Vigil **18 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-24/fedora/pack-cockroachdb/console.txt)).
+- **On macOS**, on the Intel Mac test machine (macOS 12.7.6, bash 3.2, BSD awk), against both clusters through SSH tunnels: every job, **29 passed, 0 failed**; through Vigil, **18 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-24/macos/pack-cockroachdb-macos/console.txt)).
+- **On Windows**, as an account that is not an administrator, against both clusters through SSH tunnels, the CA checked by the scripts' own TLS: on Windows 11 under Windows PowerShell 5.1 and PowerShell 7.6, **58 passed, 0 failed** directly and **18 passed, 0 failed** through Vigil under each ([the console output](../../tests/integration/backends/reports/runs/2026-11-24/windows/pack-cockroachdb-windows/console.txt)); on Windows Server 2025 under Windows PowerShell 5.1, **29 passed, 0 failed** and **18 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-24/windows-server-2025/pack-cockroachdb-windows/console.txt)). The Windows scripts printed the same lines, values apart, as the Linux ones against the same clusters.
+
+**What CockroachDB 26 taught the pack:**
+
+- **`crdb_internal` is restricted** to sessions that set `allow_unsafe_internals` ("unsupported in production"). The pack reads none of it: only `/_status/vars`, `/health`, `/api/v2/nodes/`, and `SHOW` statements.
+- **A node stopped gracefully drains first.** `/api/v2/nodes/` read it as draining at once, unavailable about 25 seconds later, and dead at `server.time_until_store_dead`.
+- **With no quorum, a node counts no range unavailable**: the leaseholders count them, and no lease is left. `ready 0` and `live_nodes 0` are the readings to alert on there.
 
 ---
 

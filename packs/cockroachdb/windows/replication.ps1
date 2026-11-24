@@ -67,7 +67,9 @@
                not falling; replicate_queue_pending growing.
       Act      ranges_unavailable above 0: some data cannot be read or written
                until the lost nodes return; slow_raft, slow_lease or slow_latch
-               above 0 for more than a few minutes.
+               above 0 for more than a few minutes. A node cut off from a
+               quorum counts no range unavailable (no lease is left to count
+               them): there, the status job's ready 0 and live_nodes 0 say it.
 
     Requires: Windows PowerShell 5.1 or PowerShell 7
     Exit code: 0 on success, node up or down; 1 if

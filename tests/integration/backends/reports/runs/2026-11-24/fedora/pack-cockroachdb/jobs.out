@@ -1,0 +1,11 @@
+metric up 1
+metric running 0
+metric paused 0
+metric failed 0
+metric reverting 0
+metric jobs 2 type=MIGRATION status=succeeded
+metric jobs_not_shown 0
+metric schedules 2
+metric schedules_paused 0
+metric schedules_late 0
+metric changefeeds 0

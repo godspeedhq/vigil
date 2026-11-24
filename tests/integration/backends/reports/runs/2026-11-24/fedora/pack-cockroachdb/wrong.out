@@ -1,0 +1,2 @@
+metric up 0
+cluster: CockroachDB refused the login (HTTP 401): COCKROACH_USER or COCKROACH_PASSWORD is wrong
