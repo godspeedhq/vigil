@@ -47,13 +47,12 @@ simple, without Vigil ever writing the central configuration.
      job's settings (`env` lines, with the pack's defaults), its `secret`
      lines, and above them, as comments, the pack's `needs` lines and which
      settings usually differ per host.
-   - **`--store <name>`** writes each `secret` as `store:<name>/<NAME>`
-     instead of `secret:<NAME>`, for a fleet whose secrets are in a
-     `[secret_store.<name>]` (Vault, Key Vault, Secrets Manager, Secret
-     Manager, a helper): put the secret in the store once, commit the block,
-     and no host has a secret to set. A store's own credential stays per host
-     (`secret:`), or there is none (managed identity, an instance profile),
-     as now (§6.5.3).
+   - **Each job's `secret` lines, with the names the pack expects**
+     (`secret = POSTGRES_MONITOR_PASSWORD=secret:POSTGRES_MONITOR_PASSWORD`),
+     so the fleet's own tool knows exactly what to set on each host.
+   - **`--store <name>`**, a plain option, writes them as
+     `store:<name>/<NAME>` instead, for those who keep a fleet's secrets in a
+     `[secret_store.<name>]`.
    - It changes nothing, and needs no configuration, on any host.
 5. **`vigil precheck` and `vigil status` catch a pack missing or too old.**
    A job whose `file` is under `packs/<name>/` on a host where:
@@ -67,17 +66,30 @@ simple, without Vigil ever writing the central configuration.
    So the order a fleet follows, install first, then commit, is the one the
    tools explain when it is not followed.
 
-## Secrets across a fleet
+## Secrets across a fleet (decided 2026-11-24)
 
-- **One secret for every host** (one monitoring user): `store:` references
-  in the central configuration, the secret set once in the store. Rotating it
-  there reaches every host at its next run. This is what `--store` writes.
-- **A different secret on some hosts:** those hosts' own files in the source
-  (their pointer files name them) carry their own `store:` references. No
-  `{host}` substitution is needed, and none is added unless real use asks
-  for it.
-- **Packs with no secret** (nginx, httpd, caddy, haproxy, phpfpm, iis): their
-  rollout is install, then commit.
+**Vigil enforces nothing, and nudges nothing.** A job's `secret` line is a
+reference resolved when the run starts: Vigil does not care whether a fleet's
+tool (Ansible, Puppet, Chef) set it with `vigil secret set`, wrote it to the
+service's environment, or keeps it in a store, only that it exists and is
+right. A fleet already has what tells it when one is not:
+
+- **Missing:** `vigil precheck` names, on each host, a secret that is not set,
+  and `vigil pack enable` says `needs secret:X: not set`.
+- **Wrong:** the job fails, saying why (a refused login is a failed run with
+  its reason, never a quiet `up 0`).
+
+What the fleet guide says, and nothing more:
+
+- `vigil secret set` runs as the account Vigil runs as, and takes the value
+  on `--stdin`, never the command line: a fleet's tool must do both.
+- An `env:` value reaches Linux and macOS runs only after Vigil restarts
+  (§6.5.1): a tool that rotates one must restart Vigil; `secret:` and `store:`
+  are read at each run.
+- A secret can never be in the configuration itself (only references are
+  allowed), so never in the source's repository.
+- Packs with no secret (nginx, httpd, caddy, haproxy, phpfpm, iis) roll out
+  with install, then commit.
 
 ## Not in scope
 
