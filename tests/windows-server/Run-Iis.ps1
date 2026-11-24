@@ -68,9 +68,11 @@ function Send([string]$u, [int]$n, [string]$method = 'GET') {
 }
 function Wait-All($tasks) { foreach ($t in $tasks) { try { [void]$t.Wait(60000) } catch { } } }
 function Code([string]$u) { try { [int]$client.GetAsync($u).Result.StatusCode } catch { 0 } }
-# https, to a certificate that signed itself: synchronously, so the check
-# PowerShell lets through runs on this thread.
-[Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+# https, to a certificate that signed itself, for this test's own requests:
+# a check compiled, as .NET calls it on a thread where a PowerShell script
+# block cannot run ("There is no Runspace available").
+Add-Type -TypeDefinition 'public static class VigilTestTrust { public static bool Any(object s, System.Security.Cryptography.X509Certificates.X509Certificate c, System.Security.Cryptography.X509Certificates.X509Chain ch, System.Net.Security.SslPolicyErrors e) { return true; } }'
+[Net.ServicePointManager]::ServerCertificateValidationCallback = [Delegate]::CreateDelegate([Net.Security.RemoteCertificateValidationCallback], [VigilTestTrust].GetMethod('Any'))
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 function Get-Https([string]$u) { try { [int](Invoke-WebRequest $u -UseBasicParsing -TimeoutSec 20).StatusCode } catch { if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 } } }
 
@@ -128,6 +130,7 @@ Check 'iis: the binding found in HTTP.sys' 1 (Val $out['tls'] 'bindings_found' '
 Check 'iis: its certificate, days left' 'yes' (Least $out['tls'] 'cert_expires_days' 'endpoint=127.0.0.1:8443/localhost' 1)
 Check 'iis: and it checks, against its own public half' 1 (Val $out['tls'] 'cert_verified' 'endpoint=127.0.0.1:8443/localhost')
 Check 'iis: the event logs readable' 1 (Val $out['events'] 'readable' '')
+Check 'iis: the https requests logged too (W3SVC2)' 'yes' (Least $out['log'] 'requests' 'site=W3SVC2$' 65)
 
 ""; '# A log this account may not read.'
 $deny = Join-Path $work 'logs\W3SVC9'
