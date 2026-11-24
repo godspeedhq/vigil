@@ -194,11 +194,11 @@ _vigil_sup_isnum() {
 
 # Reads state file $1. Sets _ss (missing, unreadable, running or final),
 # _ss_status, _ss_run_id, _ss_boot, _ss_started, _ss_deadline, _ss_job_pid,
-# _ss_worker_pid, _ss_ended and _ss_duration.
+# _ss_worker_pid, _ss_ended, _ss_duration and _ss_reason.
 _vigil_sup_read_state() {
     local line key value header=0
     _ss=missing _ss_status='' _ss_run_id='' _ss_boot='' _ss_started='' _ss_deadline='' _ss_job_pid='' _ss_worker_pid=''
-    _ss_ended='' _ss_duration=''
+    _ss_ended='' _ss_duration='' _ss_reason=''
     [ -e "$1" ] || return 0
     _ss=unreadable
     [ -r "$1" ] || return 0
@@ -225,6 +225,7 @@ _vigil_sup_read_state() {
             worker_pid) _ss_worker_pid=$value ;;
             ended_at) _ss_ended=$value ;;
             duration_seconds) _ss_duration=$value ;;
+            reason) _ss_reason=$value ;;
         esac
     done < "$1"
     [ "$header" -eq 1 ] || return 0
@@ -1007,6 +1008,8 @@ _vigil_sup_tick() {
                 sl="$job: $_ss_status"
                 [ -n "$_ss_ended" ] && sl="$sl at $_ss_ended"
                 [ -n "$_ss_duration" ] && sl="$sl, took ${_ss_duration}s"
+                # And why, when it did not succeed (a pack not here: backlog 67).
+                [ -n "$_ss_reason" ] && [ "$_ss_status" != succeeded ] && sl="$sl: $_ss_reason"
                 _su_status_last="$_su_status_last$sl"$'\n'
             fi
         fi

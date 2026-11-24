@@ -561,10 +561,13 @@ vigil_worker() {
         esac
         # The job's own file must exist too, whatever runs it.
         _vigil_wk_get "job.$_vw_job" file ''
+        local jobfile=$_vw_value
         _vigil_cmd_path "$_vw_value" posix "$_vw_root"
         [ -n "$_vw_script" ] && _vc_path=$_vw_script
         if [ -z "$reason" ] && [ ! -f "$_vc_path" ]; then
             reason="file not found: $_vc_path"
+            # A pack's job: whether the pack is here, and has it (backlog 67).
+            if [ -z "$_vw_script" ] && vigil_pack_missing "$_vw_root" "$jobfile"; then reason="$reason ($_vc_pack_why)"; fi
         fi
     fi
 

@@ -97,11 +97,11 @@ function Test-VigilNumber {
 
 # Reads a state file: @{ Kind (missing, unreadable, running, final);
 # Status; RunId; Boot; Started; Deadline; JobPid; JobName; JobStart;
-# WorkerPid; Ended; Duration }.
+# WorkerPid; Ended; Duration; Reason }.
 function Read-VigilRunState {
     param([string]$Path)
     $r = @{ Kind = 'missing'; Status = ''; RunId = ''; Boot = ''; Started = ''; Deadline = ''; JobPid = ''; JobName = ''; JobStart = ''; WorkerPid = ''
-        Ended = ''; Duration = ''
+        Ended = ''; Duration = ''; Reason = ''
     }
     if (-not [System.IO.File]::Exists($Path)) { return $r }
     $r.Kind = 'unreadable'
@@ -125,6 +125,7 @@ function Read-VigilRunState {
             'worker_pid' { $r.WorkerPid = $v }
             'ended_at' { $r.Ended = $v }
             'duration_seconds' { $r.Duration = $v }
+            'reason' { $r.Reason = $v }
         }
     }
     # A number that is not one makes the record unreadable, like any other
@@ -922,6 +923,8 @@ function Invoke-VigilSupervisor {
                     $line = "${job}: $($acc.State.Status)"
                     if ($acc.State.Ended) { $line += " at $($acc.State.Ended)" }
                     if ($acc.State.Duration) { $line += ", took $($acc.State.Duration)s" }
+                    # And why, when it did not succeed (a pack not here: backlog 67).
+                    if ($acc.State.Reason -and $acc.State.Status -cne 'succeeded') { $line += ": $($acc.State.Reason)" }
                     $status.Last += $line
                 }
             }

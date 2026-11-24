@@ -38,6 +38,32 @@
 # escaping for cmd.exe is not reliable (the "BatBadBut" class of flaw).
 _vigil_cmd_batch_unsafe='["%!&|<>^]'
 
+# Why a pack's script is not here, when a job's file names one
+# (packs/<pack>/<job>.sh or .ps1): into _vc_pack_why, to follow "file not
+# found" (backlog 67). The pack not installed, or installed in a version
+# without that job. Returns 1 when the file names no pack's script.
+#   vigil_pack_missing <root> <the job's file, as written>
+vigil_pack_missing() {
+    local root=$1 f=$2 p j v
+    _vc_pack_why=''
+    case $f in packs/*/*.sh | packs/*/*.ps1) ;; *) return 1 ;; esac
+    p=${f#packs/}
+    j=${p#*/}
+    p=${p%%/*}
+    j=${j%.*}
+    case $p:$j in *[!a-z0-9_:]*) return 1 ;; esac
+    if [ ! -f "$root/packs/$p/pack.config" ]; then
+        _vc_pack_why="pack $p is not installed here: vigil pack install $p"
+        return 0
+    fi
+    v=$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$root/packs/$p/pack.config" | head -n 1)
+    if grep -q "^[[:space:]]*\[job\.$j\][[:space:]]*\$" "$root/packs/$p/pack.config"; then
+        _vc_pack_why="pack $p $v has no ${f##*.} script for its job $j"
+    else
+        _vc_pack_why="pack $p $v has no job $j; vigil pack update $p may bring it"
+    fi
+}
+
 # Resolves a path against the install root. Sets _vc_path.
 #   _vigil_cmd_path <path> <platform> <root>
 _vigil_cmd_path() {

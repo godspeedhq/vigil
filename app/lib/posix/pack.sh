@@ -101,10 +101,11 @@ _vigil_pack_get() {
 
 # Reads manifest $1/pack.config of pack $2: _vp_version, _vp_vigil and _vp_about,
 # _vp_needs (its needs lines, one per line), and in _vp_jobs the jobs with a
-# script here, in order, each with its section in _vp_section_<job>. Returns 1
-# when it cannot be read.
+# script here, in order, each with its section in _vp_section_<job>; their
+# scripts end in .$3 (sh by default; ps1 for Windows, for vigil pack config).
+# Returns 1 when it cannot be read.
 _vigil_pack_read() {
-    local dir=$1 name=$2 j=0 sec job text i end
+    local dir=$1 name=$2 ext=${3:-sh} j=0 sec job text i end
     _vp_version='' _vp_vigil='' _vp_about='' _vp_jobs='' _vp_needs=''
     [ -f "$dir/pack.config" ] || return 1
     vigil_config_parse "$dir/pack.config" || return 1
@@ -127,8 +128,8 @@ _vigil_pack_read() {
                 ;;
             job.*)
                 job=${sec#job.}
-                if [ -f "$dir/$job.sh" ]; then
-                    text="[job.${name}_$job]"$'\n'"file = packs/$name/$job.sh"$'\n'
+                if [ -f "$dir/$job.$ext" ]; then
+                    text="[job.${name}_$job]"$'\n'"file = packs/$name/$job.$ext"$'\n'
                     i=${VIGIL_CFG_SEC_FIRST[$j]}
                     end=$((i + VIGIL_CFG_SEC_COUNT[j]))
                     while [ "$i" -lt "$end" ]; do
@@ -373,8 +374,21 @@ _vigil_pack_unpack() {
         return 1
     fi
     rm -rf "$_vp_work/x"
-    mkdir "$_vp_work/x" && tar --no-same-owner -xzf "$_vp_work/$f" -C "$_vp_work/x" 2> /dev/null ||
-        { _vigil_pack_die "cannot unpack $f"; return 1; }
+    mkdir "$_vp_work/x" || { _vigil_pack_die "cannot unpack $f"; return 1; }
+    case $f in
+        *.zip)
+            # A Windows archive, read here only by vigil pack config --os windows.
+            if command -v unzip > /dev/null 2>&1; then
+                unzip -q -o "$_vp_work/$f" -d "$_vp_work/x" > /dev/null 2>&1 || { _vigil_pack_die "cannot unpack $f"; return 1; }
+            elif tar --version 2> /dev/null | grep -q bsdtar; then
+                tar -xf "$_vp_work/$f" -C "$_vp_work/x" 2> /dev/null || { _vigil_pack_die "cannot unpack $f"; return 1; }
+            else
+                _vigil_pack_die "unzip not found: needed to read $f, the Windows archive"
+                return 1
+            fi
+            ;;
+        *) tar --no-same-owner -xzf "$_vp_work/$f" -C "$_vp_work/x" 2> /dev/null || { _vigil_pack_die "cannot unpack $f"; return 1; } ;;
+    esac
     _vp_src=$_vp_work/x/$name
     [ -f "$_vp_src/pack.config" ] || { _vigil_pack_die "$f holds no pack $name"; return 1; }
 }
@@ -424,16 +438,40 @@ _vigil_pack_compare() {
 }
 
 
-# What may stop an edit of the configuration.
+# Whether this host's configuration comes from a source (6.8): its source in
+# _vp_csrc, the file in it in _vp_cfile. Parses the configuration.
+_vigil_pack_pointer() {
+    local cfg=$1/config/vigil.config
+    _vp_csrc='' _vp_cfile=''
+    [ -r "$cfg" ] && vigil_config_parse "$cfg" 2> /dev/null || return 1
+    _vigil_wk_get vigil config_source ''
+    _vp_csrc=$_vw_value
+    _vigil_wk_get vigil config_file ''
+    _vp_cfile=$_vw_value
+    [ -n "$_vp_csrc" ]
+}
+
+# What to do instead, on a host whose configuration comes from a source: the
+# operator changes it there (backlog 67). $1 is the pack, $2 enable, disable
+# or install.
+_vigil_pack_elsewhere() {
+    printf "this host's configuration comes from [source.%s] (%s): Vigil does not edit it.\n" "$_vp_csrc" "$_vp_cfile"
+    case $2 in
+        disable) printf 'To turn pack %s off, take its jobs out of it there.\n' "$1" ;;
+        *) printf 'To turn pack %s on, add its jobs there: vigil pack config %s prints them, ready to paste.\n' "$1" "$1" ;;
+    esac
+}
+
+# What may stop an edit of the configuration for pack $2, which $3 (enable or
+# disable) is about to make.
 _vigil_pack_writable() {
     local root=$1 cfg=$1/config/vigil.config
     local denied
     if denied=$(vigil_denied "$cfg"); then _vigil_pack_die "$(vigil_denied_message "$denied")"; return 1; fi
     [ -f "$cfg" ] || { _vigil_pack_die 'no configuration here: run vigil init first'; return 1; }
     vigil_config_parse "$cfg" || { _vigil_pack_die "$cfg has errors: fix them first (vigil precheck)"; return 1; }
-    _vigil_wk_get vigil config_source ''
-    if [ -n "$_vw_value" ]; then
-        _vigil_pack_die "the configuration comes from [source.$_vw_value]: add the pack's jobs there"
+    if _vigil_pack_pointer "$root"; then
+        _vigil_pack_die "$(_vigil_pack_elsewhere "${2-}" "${3-enable}")"
         return 1
     fi
     if [ ! -w "$cfg" ]; then
@@ -662,7 +700,7 @@ vigil_pack_list() {
 vigil_pack_enable() {
     local root=$1 what=$2 add='' j list new
     _vigil_pack_name "$root" "$what" || return 1
-    _vigil_pack_writable "$root" || return 1
+    _vigil_pack_writable "$root" "$_vp_pack" enable || return 1
     _vigil_pack_read "$root/packs/$_vp_pack" "$_vp_pack" || { _vigil_pack_die "cannot read pack $_vp_pack"; return 1; }
     list=$_vp_jobs
     # Its pack.config ships everywhere, its scripts only where they run: nothing
@@ -698,7 +736,7 @@ vigil_pack_enable() {
 vigil_pack_disable() {
     local root=$1 what=$2 new drop
     _vigil_pack_name "$root" "$what" || return 1
-    _vigil_pack_writable "$root" || return 1
+    _vigil_pack_writable "$root" "$_vp_pack" disable || return 1
     drop=all
     if [ -n "$_vp_job" ]; then
         _vigil_pack_on "$what" || { printf '%s is already off\n' "$what"; return 0; }
@@ -861,9 +899,30 @@ _vigil_pack_put() {
     # Installed, and off: what it has and what it needs, so it is never
     # turned on blind.
     _vigil_pack_read "$root/packs/$name" "$name"
-    printf 'off until enabled:'
-    for j in $_vp_jobs; do printf ' %s_%s' "$name" "$j"; done
-    printf '\nTo turn them all on: vigil pack enable %s\n' "$name"
+    if _vigil_pack_pointer "$root"; then
+        # The configuration comes from a source, so enable would refuse: its
+        # jobs already there (committed before this install) are on; for the
+        # rest, say loudly how to turn them on there (backlog 67).
+        local on='' off='' act='' _vw_root=$root
+        _vigil_wk_dir vigil state_dir state
+        vigil_active_read "$_vw_dir" && act=$VIGIL_ACT_CONFIG
+        for j in $_vp_jobs; do
+            if [ -n "$act" ] && grep -q "^[[:space:]]*\[job\.${name}_$j\][[:space:]]*\$" "$act"; then
+                on="$on ${name}_$j"
+            else
+                off="$off ${name}_$j"
+            fi
+        done
+        [ -z "$on" ] || printf 'on, from [source.%s]:%s\n' "$_vp_csrc" "$on"
+        if [ -n "$off" ]; then
+            printf 'off until enabled:%s\n' "$off"
+            _vigil_pack_elsewhere "$name" install
+        fi
+    else
+        printf 'off until enabled:'
+        for j in $_vp_jobs; do printf ' %s_%s' "$name" "$j"; done
+        printf '\nTo turn them all on: vigil pack enable %s\n' "$name"
+    fi
     vigil_config_parse "$root/config/vigil.config" 2> /dev/null
     _vigil_pack_needs "$root" "$name" ''
 }
@@ -886,6 +945,72 @@ _vigil_pack_install() {
         _vigil_pack_put "$root" "$_vp_name" || rc=1
     done
     return "$rc"
+}
+
+# vigil pack config <name>[@<version>] [--os <os>] [--store <name>]: the block
+# vigil pack enable would write, printed, for the configuration a source
+# serves (backlog 67). This host's copy when it has the pack, --os is its own
+# and no version is asked; else the newest version (or the one asked), its
+# archive for that platform checked against the signed index: no pack
+# installed, and no configuration needed. With --store, each secret: reference
+# becomes store:<store>/<name>. Changes nothing.
+_vigil_pack_config() {
+    local root=$1 app=$2 spec=$3 os=$4 store=$5 dir ext osname from j var all='' left='' line
+    _vigil_pack_spec "$spec" || return 1
+    _vigil_pack_os
+    [ -n "$os" ] || os=$_vp_os
+    case $os in
+        linux) osname=Linux ext=sh ;;
+        macos) osname=macOS ext=sh ;;
+        windows) osname=Windows ext=ps1 ;;
+        *) _vigil_pack_die "--os takes linux, macos or windows, not $os"; return 1 ;;
+    esac
+    case $store in
+        *[!A-Za-z0-9_-]*) _vigil_pack_die "not a secret store's name: $store"; return 1 ;;
+    esac
+    if [ -z "$_vp_at" ] && [ "$os" = "$_vp_os" ] && [ -f "$root/packs/$_vp_name/pack.config" ]; then
+        dir=$root/packs/$_vp_name from='as installed here'
+    else
+        _vigil_pack_begin "$root" "$app" '' || return 1
+        _vigil_pack_pick "$_vp_name" "$_vp_at" "$os" '' || { _vigil_pack_die "$_vp_why"; return 1; }
+        _vigil_pack_unpack "$_vp_name" || return 1
+        dir=$_vp_src from="from $_vp_pick_rel"
+    fi
+    _vigil_pack_read "$dir" "$_vp_name" "$ext" || { _vigil_pack_die "cannot read pack $_vp_name"; return 1; }
+    [ -n "$_vp_jobs" ] || { _vigil_pack_die "pack $_vp_name has no scripts for $osname"; return 1; }
+    # Its jobs with no script for that platform (vigil_config_parse kept them).
+    j=0
+    while [ "$j" -lt "${#VIGIL_CFG_SEC_NAME[@]}" ]; do
+        case ${VIGIL_CFG_SEC_NAME[$j]} in
+            job.*)
+                all=${VIGIL_CFG_SEC_NAME[$j]#job.}
+                case " $_vp_jobs " in *" $all "*) ;; *) left="$left ${_vp_name}_$all" ;; esac
+                ;;
+        esac
+        j=$((j + 1))
+    done
+    printf '# pack %s %s for %s, %s.\n' "$_vp_name" "$_vp_version" "$osname" "$from"
+    printf '# Its jobs, for a configuration that comes from a source: paste them\n'
+    printf '# into it. Each env line holds the pack'"'"'s default: set it for your\n'
+    printf '# hosts. It runs on Vigil %s or later.\n' "${_vp_vigil:-0.3.0}"
+    while IFS= read -r line; do
+        [ -n "$line" ] && printf '# needs %s\n' "$line"
+    done << EOF
+$_vp_needs
+EOF
+    [ -z "$left" ] || printf '# no %s script, so not here:%s\n' "$osname" "$left"
+    printf '\n'
+    _vigil_pack_start "$_vp_name"
+    for j in $_vp_jobs; do
+        var=_vp_section_$j
+        printf '\n'
+        if [ -n "$store" ]; then
+            printf '%s' "${!var}" | sed "s#^\(secret = [^=]*=\)secret:#\1store:$store/#"
+        else
+            printf '%s' "${!var}"
+        fi
+    done
+    _vigil_pack_end "$_vp_name"
 }
 
 _vigil_pack_update() {
@@ -1382,3 +1507,4 @@ vigil_pack_search() { _vigil_pack_run _vigil_pack_search "$@"; }
 vigil_pack_available() { _vigil_pack_run _vigil_pack_available "$@"; }
 vigil_pack_info() { _vigil_pack_run _vigil_pack_info "$@"; }
 vigil_pack_download() { _vigil_pack_run _vigil_pack_download "$@"; }
+vigil_pack_config() { _vigil_pack_run _vigil_pack_config "$@"; }

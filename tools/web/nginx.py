@@ -178,7 +178,7 @@ exit 0
 ''',
     exit_sh='0 on success, nginx running or not; 1 if ps is missing')
 
-log_job('nginx', '/var/log/nginx/access.log', r'C:\nginx\logs\access.log',
+log_job('nginx', '/var/log/nginx/access.log /usr/local/var/log/nginx/access.log /opt/homebrew/var/log/nginx/access.log', r'C:\nginx\logs\access.log',
         'rt=$request_time at the end of the log_format', upstream=True)
 
 tls_job('nginx',

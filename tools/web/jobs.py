@@ -69,7 +69,9 @@ exit 0
 def log_job(pack, logdefault, logwin, logtime, upstream, healthy_extra=''):
     metrics = [(n, d.replace('@LOGTIME@', logtime)) for n, d in LOG_METRICS] + (UPSTREAM_METRICS if upstream else [])
     job(pack=pack, job='log', metric='log', when='run_every   = 1m', runtime='50s',
-        env=[('@E@_ACCESS_LOG', '' if ' ' in logdefault else logdefault), ('@E@_LOG_MAX_MB', '32')],
+        # Empty: each platform's script takes its own default (a Linux path
+        # in pack.config would reach Windows too, through vigil pack enable).
+        env=[('@E@_ACCESS_LOG', ''), ('@E@_LOG_MAX_MB', '32')],
         needs_sh=[],
         title="@P@'s access log, minute by minute",
         what="Reads the last whole minute of @P@'s access log, in the combined format, and reports the "

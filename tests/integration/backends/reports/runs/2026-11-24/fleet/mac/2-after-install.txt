@@ -1,0 +1,43 @@
+$ vigil pack install nginx
+installed pack nginx 1.2.0
+on, from [source.central]: nginx_status nginx_server nginx_log nginx_tls
+needs its stub_status page, reachable from this machine only: location = /nginx_status { stub_status; allow 127.0.0.1; deny all; }
+needs for the log job, read access to the access log: on Debian and Ubuntu, usermod -aG adm vigil; elsewhere, the log folder's group (packs/nginx/README.md); with rt=$request_time urt=$upstream_response_time at the end of the log_format for response times
+needs for nginx's CPU and memory: the base pack's processes job
+(exit 0)
+
+$ cat state/config.active      # the fetched configuration, now active
+[active]
+schema_version = 1
+revision       = 97c5b4d7a4a6
+config         = a244fc0aa8106e2bf70c0b456ffe3888d6926309d2f92ace9319a972e1958c73
+origin         = source.central hosts/mac.config
+activated_epoch = 1795526046
+
+$ vigil precheck
+Configuration /Users/vigil-test/fleet-e2e/mac/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  note  no metrics backend: metrics go nowhere until you add one
+  ok    source.central: git
+  ok    configuration revision 97c5b4d7a4a6 is active (source.central hosts/mac.config)
+  ok    job.nginx_status
+  ok    job.nginx_server
+  ok    job.nginx_log
+  ok    job.nginx_tls
+  ok    state directory: /Users/vigil-test/fleet-e2e/mac/state
+  ok    log directory: /Users/vigil-test/fleet-e2e/mac/logs
+  ok    spool directory: /Users/vigil-test/fleet-e2e/mac/spool
+  note  busiest minute in the next 24 hours: 13:15, 4 jobs start together
+
+precheck passed
+(exit 0)
+
+$ vigil status
+LAST RUN
+  nginx_status: succeeded at 2026-11-24T13:14:19Z, took 0s
+  nginx_server: succeeded at 2026-11-24T13:14:19Z, took 0s
+  nginx_log: succeeded at 2026-11-24T13:14:19Z, took 0s
+  nginx_tls: succeeded at 2026-11-24T13:14:20Z, took 0s

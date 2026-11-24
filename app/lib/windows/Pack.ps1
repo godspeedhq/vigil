@@ -66,16 +66,18 @@ function Stop-VigilPack {
 function Get-VigilPackStart { param([string]$Name) "# pack ${Name}: vigil pack disable takes these out" }
 function Get-VigilPackEnd { param([string]$Name) "# end of pack $Name" }
 
-# Reads a pack's manifest: @{ Version; Vigil; About; Needs; Jobs; Sections },
-# Needs its needs lines, and the jobs with a script here, in order, each with
-# its section's lines; $null when it cannot be read.
+# Reads a pack's manifest: @{ Version; Vigil; About; Needs; Jobs; Sections;
+# All }, Needs its needs lines, and the jobs with a script here, in order,
+# each with its section's lines, All every job it names; their scripts end in
+# .$Ext (ps1; sh for Linux and macOS, for vigil pack config). $null when it
+# cannot be read.
 function Read-VigilPack {
-    param([string]$Dir, [string]$Name)
+    param([string]$Dir, [string]$Name, [string]$Ext = 'ps1')
     $f = Join-Path $Dir 'pack.config'
     if (-not [System.IO.File]::Exists($f)) { return $null }
     $p = ConvertFrom-VigilConfig -Path $f
     if ($p.Errors.Count -gt 0) { return $null }
-    $r = @{ Version = ''; Vigil = ''; About = ''; Needs = @(); Jobs = (New-Object 'System.Collections.Generic.List[string]'); Sections = @{} }
+    $r = @{ Version = ''; Vigil = ''; About = ''; Needs = @(); Jobs = (New-Object 'System.Collections.Generic.List[string]'); Sections = @{}; All = (New-Object 'System.Collections.Generic.List[string]') }
     foreach ($s in $p.Sections) {
         if ($s.Name -ceq 'pack') {
             $r.Version = Get-VigilConfigValue $p 'pack' 'version' ''
@@ -85,10 +87,11 @@ function Read-VigilPack {
         }
         elseif ($s.Name.StartsWith('job.', [System.StringComparison]::Ordinal)) {
             $job = $s.Name.Substring(4)
-            if (-not [System.IO.File]::Exists((Join-Path $Dir "$job.ps1"))) { continue }
+            $r.All.Add($job)
+            if (-not [System.IO.File]::Exists((Join-Path $Dir "$job.$Ext"))) { continue }
             $text = New-Object 'System.Collections.Generic.List[string]'
             $text.Add("[job.${Name}_$job]")
-            $text.Add("file = packs/$Name/$job.ps1")
+            $text.Add("file = packs/$Name/$job.$Ext")
             foreach ($e in $p.Entries) {
                 if ($e.Section -ceq $s.Name -and $e.Key -cne 'metrics' -and $e.Key -cne 'file') { $text.Add("$($e.Key) = $($e.Value)") }
             }
@@ -344,11 +347,22 @@ function Expand-VigilPackPick {
     }
     $x = Join-Path $Repo.Work 'x'
     if (Test-Path -LiteralPath $x) { Remove-Item -LiteralPath $x -Recurse -Force }
-    $saved = $ProgressPreference
-    $ProgressPreference = 'SilentlyContinue'
-    try { Expand-Archive -LiteralPath $f -DestinationPath $x -ErrorAction Stop }
-    catch { Stop-VigilPack "cannot unpack $($Pick.File)"; return $null }
-    finally { $ProgressPreference = $saved }
+    if ($Pick.File.EndsWith('.tar.gz', [System.StringComparison]::Ordinal)) {
+        # A Linux or macOS archive, read here only by vigil pack config --os:
+        # Windows' own tar (Windows 10, Server 2019 and later).
+        $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+        if (-not [System.IO.File]::Exists($tar)) { Stop-VigilPack "tar not found: needed to read $($Pick.File), a Linux or macOS archive (Windows 10 and Server 2019 have it)"; return $null }
+        [void](New-Item -ItemType Directory -Path $x)
+        & $tar -xzf $f -C $x 2>$null
+        if ($LASTEXITCODE -ne 0) { Stop-VigilPack "cannot unpack $($Pick.File)"; return $null }
+    }
+    else {
+        $saved = $ProgressPreference
+        $ProgressPreference = 'SilentlyContinue'
+        try { Expand-Archive -LiteralPath $f -DestinationPath $x -ErrorAction Stop }
+        catch { Stop-VigilPack "cannot unpack $($Pick.File)"; return $null }
+        finally { $ProgressPreference = $saved }
+    }
     $src = Join-Path $x $Name
     if (-not [System.IO.File]::Exists((Join-Path $src 'pack.config'))) { Stop-VigilPack "$($Pick.File) holds no pack $Name"; return $null }
     # Verified: the downloaded-from-the-internet mark would make a
@@ -396,16 +410,38 @@ function Compare-VigilPackFiles {
 }
 
 # What may stop an edit of the configuration.
-function Test-VigilPackWritable {
+# Whether this host's configuration comes from a source (6.8): @{ Source;
+# File; State }, State its state directory, or $null.
+function Get-VigilPackPointer {
     param([string]$Root)
+    $cfg = Join-Path $Root 'config\vigil.config'
+    if (-not [System.IO.File]::Exists($cfg)) { return $null }
+    try { $p = ConvertFrom-VigilConfig -Path $cfg } catch { return $null }
+    $src = Get-VigilConfigValue $p 'vigil' 'config_source' ''
+    if (-not $src) { return $null }
+    $state = Resolve-VigilPath -Path (Get-VigilConfigValue $p 'vigil' 'state_dir' 'state') -Platform 'windows' -Root $Root
+    return @{ Source = $src; File = (Get-VigilConfigValue $p 'vigil' 'config_file' ''); State = $state }
+}
+
+# What to do instead, on a host whose configuration comes from a source: the
+# operator changes it there (backlog 67). $Action: enable, disable or install.
+function Get-VigilPackElsewhere {
+    param($Pointer, [string]$Name, [string]$Action)
+    "this host's configuration comes from [source.$($Pointer.Source)] ($($Pointer.File)): Vigil does not edit it."
+    if ($Action -ceq 'disable') { "To turn pack $Name off, take its jobs out of it there." }
+    else { "To turn pack $Name on, add its jobs there: vigil pack config $Name prints them, ready to paste." }
+}
+
+function Test-VigilPackWritable {
+    param([string]$Root, [string]$Name = '', [string]$Action = 'enable')
     $cfg = Join-Path $Root 'config\vigil.config'
     $denied = Get-VigilDenied $cfg
     if ($denied) { Stop-VigilPack (Get-VigilDeniedMessage $denied); return $false }
     if (-not [System.IO.File]::Exists($cfg)) { Stop-VigilPack 'no configuration here: run vigil init first'; return $false }
     $p = ConvertFrom-VigilConfig -Path $cfg
     if ($p.Errors.Count -gt 0) { Stop-VigilPack "$cfg has errors: fix them first (vigil precheck)"; return $false }
-    $src = Get-VigilConfigValue $p 'vigil' 'config_source' ''
-    if ($src) { Stop-VigilPack "the configuration comes from [source.$src]: add the pack's jobs there"; return $false }
+    $ptr = Get-VigilPackPointer -Root $Root
+    if ($ptr) { Stop-VigilPack ((Get-VigilPackElsewhere -Pointer $ptr -Name $Name -Action $Action) -join "`n"); return $false }
     try { ([System.IO.File]::Open($cfg, 'Open', 'Write', 'ReadWrite')).Dispose() }
     catch { Stop-VigilPack "$cfg is not writable: run this from an elevated prompt for a system install"; return $false }
     return $true
@@ -607,7 +643,7 @@ function Enable-VigilPack {
     param([string]$Root, [string]$What)
     $w = Get-VigilPackName -Root $Root -What $What
     if (-not $w) { return 1 }
-    if (-not (Test-VigilPackWritable -Root $Root)) { return 1 }
+    if (-not (Test-VigilPackWritable -Root $Root -Name $w.Pack -Action enable)) { return 1 }
     $m = Read-VigilPack -Dir (Join-Path $Root "packs\$($w.Pack)") -Name $w.Pack
     if (-not $m) { Stop-VigilPack "cannot read pack $($w.Pack)"; return 1 }
     $list = @($m.Jobs)
@@ -633,7 +669,7 @@ function Disable-VigilPack {
     param([string]$Root, [string]$What)
     $w = Get-VigilPackName -Root $Root -What $What
     if (-not $w) { return 1 }
-    if (-not (Test-VigilPackWritable -Root $Root)) { return 1 }
+    if (-not (Test-VigilPackWritable -Root $Root -Name $w.Pack -Action disable)) { return 1 }
     $cfg = Join-Path $Root 'config\vigil.config'
     $t = [System.IO.File]::ReadAllText($cfg)
     if ($w.Job) {
@@ -816,8 +852,25 @@ function Install-VigilPackPick {
     # Installed, and off: what it has and what it needs, so it is never
     # turned on blind.
     $now = Read-VigilPack -Dir $dir -Name $Name
-    Write-Output "off until enabled: $(@($now.Jobs | ForEach-Object { "${Name}_$_" }) -join ' ')"
-    Write-Output "To turn them all on: vigil pack enable $Name"
+    $ptr = Get-VigilPackPointer -Root $Root
+    if ($ptr) {
+        # The configuration comes from a source, so enable would refuse: its
+        # jobs already there (committed before this install) are on; for the
+        # rest, say loudly how to turn them on there (backlog 67).
+        $act = Read-VigilActive -Root $Root -State $ptr.State
+        $text = if ($act) { [System.IO.File]::ReadAllText($act.Config) } else { '' }
+        $on = @($now.Jobs | Where-Object { $text -match "(?m)^\s*\[job\.${Name}_$_\]\s*$" } | ForEach-Object { "${Name}_$_" })
+        $off = @($now.Jobs | Where-Object { $text -notmatch "(?m)^\s*\[job\.${Name}_$_\]\s*$" } | ForEach-Object { "${Name}_$_" })
+        if ($on.Count) { Write-Output "on, from [source.$($ptr.Source)]: $($on -join ' ')" }
+        if ($off.Count) {
+            Write-Output "off until enabled: $($off -join ' ')"
+            Get-VigilPackElsewhere -Pointer $ptr -Name $Name -Action install
+        }
+    }
+    else {
+        Write-Output "off until enabled: $(@($now.Jobs | ForEach-Object { "${Name}_$_" }) -join ' ')"
+        Write-Output "To turn them all on: vigil pack enable $Name"
+    }
     $cfg = Join-Path $Root 'config\vigil.config'
     $p = if ([System.IO.File]::Exists($cfg)) { ConvertFrom-VigilConfig -Path $cfg } else { $null }
     Get-VigilPackNeeds -Root $Root -Name $Name -Pack $now -Parsed $p -Lead ''
@@ -1245,6 +1298,63 @@ function Get-VigilPackInfo {
         return 0
     }
     finally { Close-VigilPackRepo $repo }
+}
+
+# vigil pack config <name>[@<version>] [--os <os>] [--store <name>]: the block
+# vigil pack enable would write, printed, for the configuration a source
+# serves (backlog 67). This host's copy when it has the pack, --os is
+# windows and no version is asked; else the newest version (or the one
+# asked), its archive for that platform checked against the signed index: no
+# pack installed, and no configuration needed. With --store, each secret:
+# reference becomes store:<store>/<name>. Changes nothing. Returns an exit
+# code.
+function Get-VigilPackConfig {
+    param([string]$Root, [string]$App, [string]$Spec, [string]$Os = 'windows', [string]$Store = '')
+    $x = Split-VigilPackSpec $Spec
+    if (-not $x) { return 1 }
+    $osName = @{ linux = 'Linux'; macos = 'macOS'; windows = 'Windows' }[$Os]
+    if (-not $osName) { Stop-VigilPack "--os takes linux, macos or windows, not $Os"; return 1 }
+    $ext = if ($Os -ceq 'windows') { 'ps1' } else { 'sh' }
+    if ($Store -and $Store -cnotmatch '^[A-Za-z0-9_-]+$') { Stop-VigilPack "not a secret store's name: $Store"; return 1 }
+    $repo = $null
+    try {
+        $here = Join-Path $Root "packs\$($x.Name)"
+        if (-not $x.At -and $Os -ceq 'windows' -and [System.IO.File]::Exists((Join-Path $here 'pack.config'))) {
+            $dir = $here; $from = 'as installed here'
+        }
+        else {
+            $repo = Open-VigilPackRepo -Root $Root -App $App
+            if (-not $repo.Ok) { return 1 }
+            $pick = Select-VigilPackVersion -Repo $repo -Name $x.Name -Want $x.At -Os $Os -Mine ''
+            if (-not $pick.Version) { Stop-VigilPack $pick.Why; return 1 }
+            $dir = Expand-VigilPackPick -Repo $repo -Name $x.Name -Pick $pick
+            if (-not $dir) { return 1 }
+            $from = "from $($pick.Release)"
+        }
+        $m = Read-VigilPack -Dir $dir -Name $x.Name -Ext $ext
+        if (-not $m) { Stop-VigilPack "cannot read pack $($x.Name)"; return 1 }
+        if ($m.Jobs.Count -eq 0) { Stop-VigilPack "pack $($x.Name) has no scripts for $osName"; return 1 }
+        $vigil = if ($m.Vigil) { $m.Vigil } else { '0.3.0' }
+        Write-Output "# pack $($x.Name) $($m.Version) for $osName, $from."
+        Write-Output '# Its jobs, for a configuration that comes from a source: paste them'
+        Write-Output "# into it. Each env line holds the pack's default: set it for your"
+        Write-Output "# hosts. It runs on Vigil $vigil or later."
+        foreach ($n in $m.Needs) { Write-Output "# needs $n" }
+        $left = @($m.All | Where-Object { -not $m.Jobs.Contains($_) } | ForEach-Object { "$($x.Name)_$_" })
+        if ($left.Count) { Write-Output "# no $osName script, so not here: $($left -join ' ')" }
+        Write-Output ''
+        Write-Output (Get-VigilPackStart $x.Name)
+        foreach ($j in $m.Jobs) {
+            Write-Output ''
+            foreach ($l in $m.Sections[$j]) {
+                if ($Store -and $l -cmatch '^(secret = [^=]*=)secret:(.*)$') { $l = "$($Matches[1])store:$Store/$($Matches[2])" }
+                Write-Output $l
+            }
+        }
+        Write-Output (Get-VigilPackEnd $x.Name)
+        return 0
+    }
+    finally { if ($repo) { Close-VigilPackRepo $repo } }
 }
 
 function Save-VigilPack {

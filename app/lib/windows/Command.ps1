@@ -33,6 +33,23 @@
 # escaping for cmd.exe is not reliable (the "BatBadBut" class of flaw).
 $Script:VigilBatchUnsafe = '["%!&|<>^]'
 
+# Why a pack's script is not here, when a job's file names one
+# (packs/<pack>/<job>.ps1 or .sh): the reason, to follow "file not found"
+# (backlog 67), the pack not installed or installed in a version without
+# that job; '' when the file names no pack's script.
+function Get-VigilPackMissing {
+    param([string]$Root, [string]$File)
+    if ($File -cnotmatch '^packs[/\\]([a-z0-9_]+)[/\\]([a-z0-9_]+)\.(ps1|sh)$') { return '' }
+    $p = $Matches[1]; $j = $Matches[2]; $ext = $Matches[3]
+    $cfg = Join-Path $Root "packs\$p\pack.config"
+    if (-not [System.IO.File]::Exists($cfg)) { return "pack $p is not installed here: vigil pack install $p" }
+    $lines = [System.IO.File]::ReadAllLines($cfg)
+    $v = ''
+    foreach ($l in $lines) { if ($l -match '^\s*version\s*=\s*(\S+)') { $v = $Matches[1]; break } }
+    if (@($lines | Where-Object { $_ -match "^\s*\[job\.$j\]\s*$" }).Count) { return "pack $p $v has no $ext script for its job $j" }
+    return "pack $p $v has no job $j; vigil pack update $p may bring it"
+}
+
 function Resolve-VigilPath {
     param([string]$Path, [string]$Platform, [string]$Root)
     if ($Platform -ceq 'windows') {

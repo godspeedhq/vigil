@@ -668,6 +668,7 @@ check_every = 5m
 - The fetched file cannot set `config_source`, `config_file` or `state_dir` (`E_NOT_FROM_SOURCE`): where the configuration comes from, and where Vigil keeps its state, are decided on the host. Configuration is never chained.
 - A new version of the fetched file is picked up every `check_every`. It is validated as a whole and becomes active only when it, and every script it names, is present and verified (§16.5). A broken or unreachable configuration never replaces a working one.
 - The fetched file can name the Vigil release to run, `[vigil] version`, so a fleet is updated by changing one line (§18.11).
+- Vigil never edits it, nor the pointer file: `vigil pack enable` and `disable` refuse on such a host, and a pack's jobs are added at the source, from `vigil pack config` (§18.10).
 
 Jobs are the same in both modes: each job names a script, local or from a source (§6.9). The three common layouts are:
 
@@ -1265,7 +1266,7 @@ Retention (`retain_days`) and a per-file size cap (`max_file_mb`) apply to every
 - `RUNNING` (PID, elapsed, time to `max_runtime`; `starting` until the worker has written the run's state). A job held after its run ended, until `vigil resolve` (§11.4), is listed under `UNCERTAIN` only.
 - `WAITING` (next scheduled time)
 - `DISABLED`
-- `LAST RUN` (outcome, end time, duration)
+- `LAST RUN` (outcome, end time, duration, and the reason when it did not succeed)
 
 A healthy system shows only `WAITING`, `RUNNING` and `LAST RUN`.
 
@@ -2137,6 +2138,8 @@ vigil pack download <name>[@<version>]...     packs and the signed index into a 
           [--os linux|macos|windows] --to <folder>
 vigil pack verify [<name>...]                 the packs here, or those named, file by file against their release
           [--from <folder>]                   from a folder vigil pack download wrote
+vigil pack config <name>[@<version>]          the jobs enable would write, printed, for a configuration from a source
+          [--os linux|macos|windows] [--store <name>]
 ```
 
 `<what>` is a pack (`base`) or one of its jobs (`base_cpu`). `search`, `info` and `list --available` read the newest index, as `install` does, so a pack released since the last command is found. Every index fetched is saved as `packs/.index`, when `packs/` is writable. When the newest release is the one the saved index is of, and its signature checks, that one is read and not downloaded again: a published release's index does not change. When the repository cannot be reached, they read that one instead, saying so on stderr (`vigil: cannot find the latest packs release on GitHub: …; showing the index saved here, of packs-2026.11.20`), and fail only when there is none.
@@ -2231,9 +2234,21 @@ From GitHub, the newest packs release is the first `packs-` tag in the API's lis
 - **`vigil pack verify`** checks the packs installed here (or those named, each of which must be) against the release each version came from: it fetches the archive of the version installed, for this platform, checks it against the signed index as `install` does, and compares every file, byte for byte. It reads only. Per pack, `pack web 1.0.0: its 2 files match packs-2026.01.02`, or `pack web 1.0.0: differs from packs-2026.01.02` with a line for each file `changed`, `missing` (in the release, not here) or `added` (here, not in the release), and `To put it back as released: vigil pack install web@1.0.0`. A script the pack dropped that a job still runs (kept, above) is a `kept` line, not a difference. A pack the repository does not have, at that version (one of your own), is `not in the repository, not checked`. A name may not carry a version: it checks the version here. With `--from`, the archives and the signed index come from a folder `vigil pack download` wrote, with no network. Exit code 0 when every pack checked matches, 1 otherwise.
 - **Offline.** `vigil pack download` writes the archives, `packs.index` and `packs.index.sig` to a folder, flat, for the platform named with `--os` (this one's by default): without `@`, the version `install` would take here; with it, that version, whatever Vigil it needs. On a machine that cannot reach the repository, `vigil pack install <name> --from <folder>` verifies the index's signature and the archive's SHA-256 exactly as online, choosing among the versions whose archive is in the folder. A site always offline can instead keep a full copy (§18.7), and then plain `install` and `update` work.
 - A new script stays off until `vigil pack enable` puts its job in the configuration. `vigil pack install` and `vigil pack update` name it.
-- A pack with no scripts for this platform (every `pack.config` ships everywhere; nginx has no Windows script) has nothing to turn on: `vigil pack enable` refuses (`pack nginx has no scripts for Windows`, exit 1), and `vigil pack list` shows it as `not available here`.
+- A pack with no scripts for this platform (every `pack.config` ships everywhere; iis has only Windows scripts) has nothing to turn on: `vigil pack enable` refuses (`pack iis has no scripts for Linux`, exit 1), and `vigil pack list` shows it as `not available here`.
 - A script the pack dropped stays, while a job in the configuration runs it, and is reported, so an update can never break a working configuration.
 - Only `vigil init`, `vigil pack enable` and `vigil pack disable` change the configuration, and only when asked. The new configuration is validated first, judged by the pack's own jobs, and refused when it fails; then it replaces the old file whole (a file beside it, renamed over it, keeping its owner, mode or ACL), so a crash or a full disk leaves the old configuration or the new one, never part of one. A configuration from a source (§6.8) is not edited.
+- **A fleet whose configuration comes from a source** turns packs on there, never on the host. Installing stays on each host, as before, and is off until its jobs are in the configuration: on such a host, `vigil pack install` says so in place of its `vigil pack enable` hint (its jobs already in the active configuration, committed before the install, it lists as `on, from [source.central]: …`), and `vigil pack enable` and `vigil pack disable` refuse (exit 1), saying where it comes from:
+
+  ```text
+  $ vigil pack install nginx
+  installed pack nginx 1.2.1
+  off until enabled: nginx_status nginx_server nginx_log nginx_tls
+  this host's configuration comes from [source.central] (hosts/web01.config): Vigil does not edit it.
+  To turn pack nginx on, add its jobs there: vigil pack config nginx prints them, ready to paste.
+  ```
+
+  `vigil pack config <name>[@<version>] [--os linux|macos|windows] [--store <name>]` prints the block `vigil pack enable` would write, between the same markers, with the pack's needs as comments above it, and changes nothing. It reads this host's copy when the pack is here, `--os` is this platform and no version is asked; otherwise the newest version (or the one asked) from the repository, its archive for that platform checked against the signed index, so it runs anywhere, on a machine with no pack installed and no configuration. A job with no script for that platform is named in a comment and left out. `--store` writes each `secret:` reference as `store:<name>/<NAME>` (§12), for a fleet whose secrets are in a store. The fleet's steps: install the pack on each host (as a deployment tool does today), paste the block into the configuration served, set what differs per host in the per-host files, and commit; each host picks it up at its next `check_every`. A host whose configuration names a pack's script that is not there fails that job, and only it, with the reason: `vigil precheck` and the job's run say `file not found: …/packs/nginx/log.sh (pack nginx is not installed here: vigil pack install nginx)`, or `(pack nginx 1.1.1 has no job log; vigil pack update nginx may bring it)`.
+- **Vigil enforces nothing about where a fleet keeps its secrets.** A secret named in a job, as `secret:`, `env:` or `store:`, must exist and be right on the host when the job runs; how it got there (a deployment tool running `vigil secret set --stdin` as the service account, an environment, a secret store) is the fleet's choice. A missing one is named by `vigil precheck` and by `vigil pack enable`'s needs; a wrong one fails the job, saying why. Secrets are never in a configuration, so pasting a pack's jobs never pastes one.
 - **A pack is never turned on blind.** `vigil pack enable` says, after its `on:` lines and again when the pack is already on, what the pack's jobs in the configuration need, and `vigil pack list` says it under each pack:
 
   ```
