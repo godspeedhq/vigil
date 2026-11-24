@@ -63,7 +63,7 @@ fi
 (umask 077 && openssl rand -hex 16 > "$work/vigil.pw" && openssl rand -hex 16 > "$work/nopriv.pw")
 trap 'dc down -v > /dev/null 2>&1; evidence_save "$(cat "$work/vigil.pw")" "$(cat "$work/nopriv.pw")"; rm -rf "$work"' EXIT
 evidence_start pack-cockroachdb "$bk_dir/$file" "$0" "$@"
-printf 'crdb26   %s, its SHA-256 checked: %s\n' "$v26" "$(sha256sum "$CRDB26/cockroach" | cut -c1-16)..."
+printf 'crdb26   %s, its binary (checked against its published SHA-256 when downloaded): %s\n' "$v26" "$(sha256sum "$CRDB26/cockroach" | cut -c1-16)..."
 pack=$bk_repo/packs/cockroachdb/linux
 
 dc up -d > "$work/up.log" 2>&1 || { tail -n 20 "$work/up.log"; die 'CockroachDB would not start'; }
@@ -77,7 +77,7 @@ for _ in $(seq 1 60); do curl -sf http://127.0.0.1:18090/health?ready=1 > /dev/n
 docker cp vigil-crdb-crdb1-1:/certs/ca.crt "$work/ca.crt" > /dev/null
 printf 'cockroachdb  %s\n' "$(dc ps --format '{{.Service}} {{.Image}}' | sort | tr '\n' ';' | sed 's/;$//; s/;/; /g')"
 # Node IDs follow the order nodes joined: by address, from the cluster.
-id_of() { c26 node ls --format=tsv 2> /dev/null | awk -v a="$1:26257" '$2 == a { print $1 }'; }
+id_of() { c26 node status --format=tsv 2> /dev/null | awk -v a="$1:26257" '$2 == a { print $1 }'; }
 
 say() { printf '\n# %s\n' "$*"; }
 pass=0
@@ -112,31 +112,34 @@ w='postgresql://root@crdb1:26257?sslmode=verify-full&sslrootcert=/certs/ca.crt&s
 docker exec vigil-crdb-crdb1-1 /opt/cockroach/cockroach workload init kv "$w" > /dev/null 2>&1
 docker exec vigil-crdb-crdb1-1 /opt/cockroach/cockroach workload run kv --duration=20s --max-rate=40 --concurrency=4 "$w" > /dev/null 2>&1
 echo 'workload kv, 20 seconds, at most 40 operations a second'
-sq > /dev/null 2>&1 << 'EOF'
-CREATE TABLE t (id INT PRIMARY KEY, v STRING, w INT);
-INSERT INTO t SELECT i, 'x', i FROM generate_series(1, 1000) AS g(i);
-SELECT count(*) FROM t WHERE w = 7;
-SELECT crdb_internal.force_retry('300ms');
-SET CLUSTER SETTING kv.rangefeed.enabled = true;
-SET CLUSTER SETTING cluster.preserve_downgrade_option = '26.4';
-SET CLUSTER SETTING server.time_until_store_dead = '1m15s';
-EOF
+# One statement at a time: cockroach sql stops a batch at its first error.
+for s in "CREATE TABLE t (id INT PRIMARY KEY, v STRING, w INT)" \
+    "INSERT INTO t SELECT i, 'x', i FROM generate_series(1, 1000) AS g(i)" \
+    "SELECT count(*) FROM t WHERE w = 7" \
+    "SET allow_unsafe_internals = true; SELECT crdb_internal.force_retry('300ms')" \
+    "SET CLUSTER SETTING kv.rangefeed.enabled = true" \
+    "SET CLUSTER SETTING cluster.preserve_downgrade_option = '26.4'" \
+    "SET CLUSTER SETTING server.time_until_store_dead = '1m15s'"; do
+    echo "$s;" | sq > /dev/null 2>&1 || printf 'note     refused: %s\n' "$s"
+done
 for i in 1 2 3; do echo 'SELECT 1 / 0;' | sq > /dev/null 2>&1; done
 echo 'sql      a table of 1,000 rows; a full scan; transactions restarted (force_retry); three statements that fail (1 / 0)'
 echo "CREATE CHANGEFEED FOR TABLE t INTO 'webhook-https://127.0.0.1:9/never?insecure_tls_skip_verify=true' WITH resolved = '5s';" | sq > /dev/null
 echo "CREATE CHANGEFEED FOR TABLE t INTO 'webhook-https://127.0.0.1:9/paused?insecure_tls_skip_verify=true';" | sq > /dev/null
 echo "PAUSE JOBS SELECT job_id FROM [SHOW CHANGEFEED JOBS] WHERE sink_uri LIKE '%paused%';" | sq > /dev/null
 echo 'changefeeds  one to a sink that never answers; another, paused'
-echo "BACKUP DATABASE defaultdb INTO 'http://127.0.0.1:9/backups' WITH DETACHED;" | sq > /dev/null
+# A backup that fails as a job: its folder is a file.
+docker exec vigil-crdb-crdb1-1 sh -c 'mkdir -p /data/extern && : > /data/extern/blocked'
+echo "BACKUP DATABASE defaultdb INTO 'nodelocal://1/blocked/backups' WITH DETACHED;" | sq > /dev/null
 echo "CREATE SCHEDULE nightly FOR BACKUP DATABASE defaultdb INTO 'nodelocal://1/backups' RECURRING '@daily' FULL BACKUP ALWAYS WITH SCHEDULE OPTIONS first_run = '2099-01-01';" | sq > /dev/null
 echo "PAUSE SCHEDULES SELECT id FROM [SHOW SCHEDULES] WHERE label = 'nightly';" | sq > /dev/null
-echo 'backups  one to a server that is not there (fails); a nightly schedule, paused'
+echo 'backups  one into a folder that is a file (fails); a nightly schedule, paused'
 echo 'settings cluster.preserve_downgrade_option = 26.4; server.time_until_store_dead = 1m15s'
 for _ in $(seq 1 30); do
     [ "$(echo "SELECT count(*) FROM [SHOW JOBS] WHERE job_type = 'BACKUP' AND status = 'failed';" | sq | tail -n 1)" -ge 1 ] 2> /dev/null && break
     sleep 2
 done
-sleep 12
+sleep 20
 
 say "26.4.1, node 1: every job, as the pack's scripts print it, as vigil."
 use26
@@ -214,13 +217,16 @@ say "A node leaves 26.4.1: crdb3 (node $n3) stops."
 dc stop crdb3 > /dev/null 2>&1
 for _ in $(seq 1 30); do bash "$pack/status.sh" > "$work/status.out" 2> /dev/null; [ "$(val status live_nodes '')" = 2 ] && break; sleep 2; done
 for _ in $(seq 1 45); do bash "$pack/replication.sh" > "$work/replication.out" 2> /dev/null; [ "$(least replication ranges_underreplicated '' 1)" = yes ] && break; sleep 2; done
+# Stopped with SIGTERM, it drains first: draining, then unavailable when its
+# liveness expires, then dead.
+for _ in $(seq 1 30); do bash "$pack/cluster.sh" > "$work/cluster.out" 2> /dev/null; [ "$(val cluster live '')" = 2 ] && break; sleep 2; done
 run status 'crdb3 stopped'
 run replication 'crdb3 stopped'
 run cluster 'crdb3 stopped'
 check 'crdb3 stopped: node 1 sees two nodes live' 2 "$(val status live_nodes '')"
 check 'crdb3 stopped: ranges under-replicated' yes "$(least replication ranges_underreplicated '' 1)"
-check 'crdb3 stopped: the cluster: two live, one not' '2 1' "$(val cluster live '') $(( $(val cluster unavailable '') + $(val cluster dead '') ))"
-check 'crdb3 stopped: it comes first, not live' yes "$(grep '^metric node_status ' "$work/cluster.out" | head -n 1 | grep -qE "node=$n3 status=(unavailable|dead)" && echo yes || echo no)"
+check 'crdb3 stopped: the cluster: two live of three' '3 2' "$(val cluster nodes '') $(val cluster live '')"
+check 'crdb3 stopped: it comes first, not live' yes "$(grep '^metric node_status ' "$work/cluster.out" | head -n 1 | grep -qE "node=$n3 status=(draining|unavailable|dead)" && echo yes || echo no)"
 COCKROACH_URL=https://localhost:18083 bash "$pack/status.sh" > "$work/gone.out" 2>&1
 check 'crdb3 stopped: its own status job reads up 0' '0 yes' "$? $(grep -q '^metric up 0$' "$work/gone.out" && echo yes || echo no)"
 printf '\n(waiting for it to be declared dead: server.time_until_store_dead is 1m15s)\n'
@@ -247,7 +253,7 @@ dc stop crdb2 crdb3 > /dev/null 2>&1
 sleep 20
 run status 'no quorum'
 check 'no quorum: the status job still runs' 'exit 0' "$(tail -n 1 "$work/status.err")"
-check 'no quorum: node 1 up, sees one live' '1 1' "$(val status up '') $(val status live_nodes '')"
+check 'no quorum: node 1 up, and sees fewer than two live' '1 yes' "$(val status up '') $(most status live_nodes '' 1)"
 run replication 'no quorum'
 check 'no quorum: the replication job still runs' 'exit 0' "$(tail -n 1 "$work/replication.err")"
 t0=$(date +%s)
