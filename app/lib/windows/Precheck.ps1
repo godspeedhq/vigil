@@ -153,11 +153,16 @@ function Invoke-VigilPrecheck {
             if (-not [System.IO.File]::Exists($cmd.Program)) { & $fail "job.${Id}: not found: $($cmd.Program)" }
         }
         elseif (-not (Get-Command $cmd.Program -CommandType Application -ErrorAction SilentlyContinue)) { & $fail "job.${Id}: not found: $($cmd.Program)" }
-        $file = Resolve-VigilPath -Path (Get-VigilIndexValue -Index $Index -Section "job.$Id" -Key 'file').Value -Platform 'windows' -Root $Root
+        $jobFile = (Get-VigilIndexValue -Index $Index -Section "job.$Id" -Key 'file').Value
+        $file = Resolve-VigilPath -Path $jobFile -Platform 'windows' -Root $Root
         if ($Cached) { $file = $Cached }
         $denied = Get-VigilDenied $file
         if ($denied) { & $fail "job.${Id}: cannot read $denied from this account" }
-        elseif (-not [System.IO.File]::Exists($file)) { & $fail "job.${Id}: file not found: $file" }
+        elseif (-not [System.IO.File]::Exists($file)) {
+            # A pack's job: whether the pack is here, and has it (backlog 67).
+            $why = if ($Cached) { '' } else { Get-VigilPackMissing -Root $Root -File $jobFile }
+            if ($why) { & $fail "job.${Id}: file not found: $file ($why)" } else { & $fail "job.${Id}: file not found: $file" }
+        }
         $eff =Get-VigilEffectiveJob -Index $Index -Id $Id
         $provided = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
         foreach ($row in $eff) {

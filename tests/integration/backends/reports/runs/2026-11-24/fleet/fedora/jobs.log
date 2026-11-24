@@ -1,0 +1,22 @@
+Vigil fedora-e2e at 2026-11-24T14:19:15Z
+
+SOURCES
+  revision 31b53926a4a3 (source.central hosts/fedora.config)
+
+WAITING
+  postgres_status: next 2026-11-24T14:20:00Z
+  postgres_size: next 2026-11-24T14:25:00
+  postgres_activity: next 2026-11-24T14:20:00Z
+  postgres_replication: next 2026-11-24T14:20:00Z
+  postgres_wraparound: next 2026-11-24T14:20:00
+  postgres_vacuum: next 2026-11-24T14:30:00
+  postgres_io: next 2026-11-24T14:22:00
+
+LAST RUN
+  postgres_status: succeeded at 2026-11-24T14:19:09Z, took 0s
+  postgres_size: succeeded at 2026-11-24T14:19:11Z, took 0s
+  postgres_activity: succeeded at 2026-11-24T14:19:12Z, took 0s
+  postgres_replication: succeeded at 2026-11-24T14:19:13Z, took 1s
+  postgres_wraparound: succeeded at 2026-11-24T14:19:13Z, took 0s
+  postgres_vacuum: succeeded at 2026-11-24T14:19:14Z, took 0s
+  postgres_io: succeeded at 2026-11-24T14:19:15Z, took 1s

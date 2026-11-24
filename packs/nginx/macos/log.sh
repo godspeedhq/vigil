@@ -20,10 +20,11 @@
 # of any size, and keeps nothing between runs. It never prints a path, a query
 # or an address: only counts. It only reads: it changes nothing.
 #
-# Reads NGINX_ACCESS_LOG (default /var/log/nginx/access.log on Linux and
-# macOS, C:\nginx\logs\access.log on Windows). The account Vigil runs as must
-# be allowed to read it (packs/nginx/README.md says how); until it is, the job
-# reports log_readable 0 and nothing else.
+# Reads NGINX_ACCESS_LOG (default the first of /var/log/nginx/access.log,
+# /usr/local/var/log/nginx/access.log, /opt/homebrew/var/log/nginx/access.log
+# that is there on Linux and macOS, C:\nginx\logs\access.log on Windows). The
+# account Vigil runs as must be allowed to read it (packs/nginx/README.md says
+# how); until it is, the job reports log_readable 0 and nothing else.
 # What the scripts share is in _nginx.sh, beside this one.
 #
 # Metrics:
@@ -103,7 +104,7 @@ job=log
 
 f=${NGINX_ACCESS_LOG-}
 if [ -z "$f" ]; then
-    for f in /var/log/nginx/access.log; do [ -e "$f" ] && break; done
+    for f in /var/log/nginx/access.log /usr/local/var/log/nginx/access.log /opt/homebrew/var/log/nginx/access.log; do [ -e "$f" ] && break; done
 fi
 log_minute "$f" "${NGINX_LOG_MAX_MB:-32}"
 exit 0

@@ -1,0 +1,16 @@
+Vigil mac-e2e at 2026-11-24T14:20:04Z
+
+SOURCES
+  revision 97c5b4d7a4a6 (source.central hosts/mac.config)
+
+WAITING
+  nginx_status: next 2026-11-24T14:21:00Z
+  nginx_server: next 2026-11-24T14:21:00Z
+  nginx_log: next 2026-11-24T14:21:00Z
+  nginx_tls: next 2026-11-24T14:30:00Z
+
+LAST RUN
+  nginx_status: succeeded at 2026-11-24T14:20:02Z, took 0s
+  nginx_server: succeeded at 2026-11-24T14:20:03Z, took 0s
+  nginx_log: succeeded at 2026-11-24T14:20:03Z, took 0s
+  nginx_tls: succeeded at 2026-11-24T14:20:04Z, took 0s

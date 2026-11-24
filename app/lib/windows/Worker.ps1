@@ -775,7 +775,11 @@ function Invoke-VigilWorker {
     elseif ($secretError) { $reason = $secretError }
     elseif ($missing.Count -gt 0) { $reason = "missing environment variable $($missing -join ' ')" }
     elseif (-not [System.IO.Directory]::Exists($cmd.Cwd)) { $reason = "working directory not found: $($cmd.Cwd)" }
-    elseif (-not [System.IO.File]::Exists($filePath)) { $reason = "file not found: $filePath" }
+    elseif (-not [System.IO.File]::Exists($filePath)) {
+        $reason = "file not found: $filePath"
+        # A pack's job: whether the pack is here, and has it (backlog 67).
+        if (-not $ctx.Script) { $why = Get-VigilPackMissing -Root $Root -File $file; if ($why) { $reason = "$reason ($why)" } }
+    }
     elseif ($cmd.Program.Contains('\') -and -not [System.IO.File]::Exists($cmd.Program)) { $reason = "not found: $($cmd.Program)" }
     elseif (-not $cmd.Program.Contains('\') -and -not (Get-Command $cmd.Program -CommandType Application -ErrorAction SilentlyContinue)) {
         $reason = "not found: $($cmd.Program)"

@@ -1,0 +1,20 @@
+
+$ ls packs      # no nginx on this host
+postgres
+
+$ vigil pack config nginx --os macos     # from the repository, for the Mac: pasted into hosts/mac.config
+(exit 0)
+# pack nginx 1.2.0 for macOS, from packs-2026.11.24.2.
+# Its jobs, for a configuration that comes from a source: paste them
+# into it. Each env line holds the pack's default: set it for your
+# hosts. It runs on Vigil 0.3.0 or later.
+# needs its stub_status page, reachable from this machine only: location = /nginx_status { stub_status; allow 127.0.0.1; deny all; }
+# needs for the log job, read access to the access log: on Debian and Ubuntu, usermod -aG adm vigil; elsewhere, the log folder's group (packs/nginx/README.md); with rt=$request_time urt=$upstream_response_time at the end of the log_format for response times
+# needs for nginx's CPU and memory: the base pack's processes job
+
+# pack nginx: vigil pack disable takes these out
+...
+
+$ git log --oneline
+dedef0e mac: the nginx pack
+0fcc1c1 fedora: the postgres pack

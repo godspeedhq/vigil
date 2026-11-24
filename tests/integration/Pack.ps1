@@ -434,7 +434,36 @@ try {
     Write-Host 'A configuration from a source'
     $keep = Get-Text $cfg
     [System.IO.File]::WriteAllText($cfg, "[vigil]`nconfig_source = remote`nconfig_file = vigil.config`n`n[source.remote]`ntype = local`npath = C:\Windows`n")
-    Test-Equal 'is not edited' '1' ([string](Invoke-Vigil pack disable base).Code)
+    $was = Get-Text $cfg
+    $where = "this host's configuration comes from [source.remote] (vigil.config): Vigil does not edit it."
+    $r = Invoke-Vigil pack disable base
+    Test-Equal 'disable is refused, saying where' "vigil: $where|To turn pack base off, take its jobs out of it there.|1" "$($r.Text.Split("`n") -join '|')|$($r.Code)"
+    $r = Invoke-Vigil pack enable base
+    Test-Equal 'so is enable, saying what to do' "vigil: $where|To turn pack base on, add its jobs there: vigil pack config base prints them, ready to paste.|1" "$($r.Text.Split("`n") -join '|')|$($r.Code)"
+    Test-Equal 'is not edited' $was (Get-Text $cfg)
+    $r = Invoke-Vigil pack install web@1.0.0
+    Test-Equal 'install says it, in place of enable' "installed pack web 1.0.0|$where|Its jobs run once it names them: vigil pack config web prints them, ready to paste." ($r.Text.TrimEnd().Split("`n") -join '|')
+    Test-Equal 'and installs' 'True' ([string][System.IO.File]::Exists("$root\packs\web\status.ps1"))
+    $r = Invoke-Vigil pack config web
+    Test-Equal "config: this host's copy" '# pack web 1.0.0 for Windows, as installed here.' $r.Text.Split("`n")[0]
+    Test-Equal 'the block enable writes' '# pack web: vigil pack disable takes these out|[job.web_status]|file = packs/web/status.ps1|# end of pack web' (@($r.Text.Split("`n") | Where-Object { $_ -cmatch '^(# pack web:|\[job|file|# end)' }) -join '|')
+    [void](Invoke-Vigil pack remove web)
+    Test-Equal 'config: from the repository' '# pack web 1.0.0 for Windows, from packs-2026.01.02.' (Invoke-Vigil pack config web@1.0.0).Text.Split("`n")[0]
+    Test-Equal 'with no pack here, and none installed' 'False' ([string](Test-Path "$root\packs\web"))
+    $r = Invoke-Vigil pack config web --os linux
+    Test-Equal 'config: a platform it has no scripts for' 'vigil: pack web has no scripts for Linux|1' "$($r.Text.TrimEnd())|$($r.Code)"
+    Test-Equal 'config: not a platform' 'vigil: --os takes linux, macos or windows, not beos' (Invoke-Vigil pack config web --os beos).Text.TrimEnd()
+    Test-Equal 'config: one pack at a time' '64' ([string](Invoke-Vigil pack config web base).Code)
+    Test-Equal 'and nothing was edited' $was (Get-Text $cfg)
+    [System.IO.File]::WriteAllText($cfg, $keep)
+    # A job naming a pack's script that is not here: precheck says why.
+    [System.IO.File]::AppendAllText($cfg, "`n[job.gone_a]`nfile = packs/gone/a.ps1`nrun_every = 1h`n`n[job.base_nojob]`nfile = packs/base/nojob.ps1`nrun_every = 1h`n")
+    $url = $env:VIGIL_TEST_RELEASE_URL
+    Remove-Item Env:\VIGIL_TEST_RELEASE_URL
+    $lines = (Invoke-Vigil precheck).Text.Split("`n")
+    $env:VIGIL_TEST_RELEASE_URL = $url
+    Test-Equal 'a pack not installed' "  FAIL  job.gone_a: file not found: $root\packs\gone\a.ps1 (pack gone is not installed here: vigil pack install gone)" (@($lines | Where-Object { $_.Contains('job.gone_a') }) -join '|')
+    Test-Equal 'a pack without that job' "  FAIL  job.base_nojob: file not found: $root\packs\base\nojob.ps1 (pack base $(Get-PackVersion) has no job nojob; vigil pack update base may bring it)" (@($lines | Where-Object { $_.Contains('job.base_nojob') }) -join '|')
     [System.IO.File]::WriteAllText($cfg, $keep)
 
     Write-Host 'What a pack needs'
@@ -446,6 +475,7 @@ try {
         [System.IO.File]::WriteAllText("$svc\$j.ps1", "Write-Output 'metric up 1'`n")
     }
     [System.IO.File]::WriteAllText("$svc\pack.config", $m)
+    Test-Equal 'config: its needs, as comments' '# needs a role: CREATE ROLE it|# needs its page on' (@((Invoke-Vigil pack config svc).Text.Split("`n") | Where-Object { $_.StartsWith('# needs') }) -join '|')
     $r = Invoke-Vigil pack enable svc
     Test-Equal 'turns on, and says what it needs' 'on: svc_a|on: svc_b|needs secret:SVC_PW: not set: vigil secret set SVC_PW, as the account Vigil runs as (an elevated prompt for a system install)|needs a role: CREATE ROLE it|needs its page on|settings in vigil.config: SVC_HOST=localhost SVC_PORT=1' ($r.Text.Split("`n") -join '|')
     [void]('x' | & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'app\vigil.ps1') -Root $root secret set SVC_PW --stdin 2>&1)

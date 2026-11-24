@@ -1,0 +1,50 @@
+$ vigil pack install nginx
+installed pack nginx 1.2.0
+this host's configuration comes from [source.central] (hosts/mac.config): Vigil does not edit it.
+Its jobs run once it names them: vigil pack config nginx prints them, ready to paste.
+needs its stub_status page, reachable from this machine only: location = /nginx_status { stub_status; allow 127.0.0.1; deny all; }
+needs for the log job, read access to the access log: on Debian and Ubuntu, usermod -aG adm vigil; elsewhere, the log folder's group (packs/nginx/README.md); with rt=$request_time urt=$upstream_response_time at the end of the log_format for response times
+needs for nginx's CPU and memory: the base pack's processes job
+(exit 0)
+
+$ cat state/config.active      # the fetched configuration, now active
+[active]
+schema_version = 1
+revision       = 97c5b4d7a4a6
+config         = a244fc0aa8106e2bf70c0b456ffe3888d6926309d2f92ace9319a972e1958c73
+origin         = source.central hosts/mac.config
+activated_epoch = 1795529991
+
+$ vigil precheck
+Configuration /Users/vigil-test/fleet-e2e/mac/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  note  no metrics backend: metrics go nowhere until you add one
+  ok    source.central: git
+  ok    configuration revision 97c5b4d7a4a6 is active (source.central hosts/mac.config)
+  ok    job.nginx_status
+  ok    job.nginx_server
+  ok    job.nginx_log
+  ok    job.nginx_tls
+  ok    state directory: /Users/vigil-test/fleet-e2e/mac/state
+  ok    log directory: /Users/vigil-test/fleet-e2e/mac/logs
+  ok    spool directory: /Users/vigil-test/fleet-e2e/mac/spool
+  note  busiest minute in the next 24 hours: 14:30, 4 jobs start together
+
+precheck passed
+(exit 0)
+
+$ vigil status
+LAST RUN
+  nginx_status: succeeded at 2026-11-24T14:20:02Z, took 0s
+  nginx_server: succeeded at 2026-11-24T14:20:03Z, took 0s
+  nginx_log: succeeded at 2026-11-24T14:20:03Z, took 0s
+  nginx_tls: succeeded at 2026-11-24T14:20:04Z, took 0s
+
+$ the job logs: a run that failed, and why
+2026-11-24T14:19:56Z 20261124T141956Z-29534 run end failed (file not found: /Users/vigil-test/fleet-e2e/mac/packs/nginx/log.sh (pack nginx is not installed here: vigil pack install nginx)) in 0s, cpu 0.42s
+2026-11-24T14:19:56Z 20261124T141955Z-29492 run end failed (file not found: /Users/vigil-test/fleet-e2e/mac/packs/nginx/server.sh (pack nginx is not installed here: vigil pack install nginx)) in 0s, cpu 0.41s
+2026-11-24T14:19:55Z 20261124T141955Z-29400 run end failed (file not found: /Users/vigil-test/fleet-e2e/mac/packs/nginx/status.sh (pack nginx is not installed here: vigil pack install nginx)) in 0s, cpu 0.43s
+2026-11-24T14:19:57Z 20261124T141956Z-29578 run end failed (file not found: /Users/vigil-test/fleet-e2e/mac/packs/nginx/tls.sh (pack nginx is not installed here: vigil pack install nginx)) in 0s, cpu 0.46s

@@ -401,8 +401,33 @@ check 'and goes back' "$was" "$(cksum < "$cfg")"
 printf 'A configuration from a source\n'
 cp "$cfg" "$work/cfg.keep"
 printf '[vigil]\nconfig_source = remote\nconfig_file = vigil.config\n\n[source.remote]\ntype = local\npath = /tmp\n' > "$cfg"
-vigil pack disable base > /dev/null 2>&1
-check 'is not edited' 1 "$?"
+was=$(cksum < "$cfg")
+out=$(vigil pack disable base 2>&1); rc=$?
+check 'disable is refused, saying where' "vigil: this host's configuration comes from [source.remote] (vigil.config): Vigil does not edit it.|To turn pack base off, take its jobs out of it there.|1" "$(printf '%s' "$out" | tr '\n' '|')|$rc"
+out=$(vigil pack enable base 2>&1); rc=$?
+check 'so is enable, saying what to do' "vigil: this host's configuration comes from [source.remote] (vigil.config): Vigil does not edit it.|To turn pack base on, add its jobs there: vigil pack config base prints them, ready to paste.|1" "$(printf '%s' "$out" | tr '\n' '|')|$rc"
+check 'is not edited' "$was" "$(cksum < "$cfg")"
+out=$(vigil pack install web@1.0.0 2>&1)
+check 'install says it, in place of enable' "installed pack web 1.0.0|this host's configuration comes from [source.remote] (vigil.config): Vigil does not edit it.|Its jobs run once it names them: vigil pack config web prints them, ready to paste." "$(printf '%s' "$out" | tr '\n' '|' | sed 's/|$//')"
+check 'and installs' yes "$(yes_no test -f "$root/packs/web/status.sh")"
+out=$(vigil pack config web 2>&1)
+check 'config: this host'"'"'s copy' "# pack web 1.0.0 for $osname, as installed here." "$(printf '%s' "$out" | head -n 1)"
+check 'the block enable writes' '# pack web: vigil pack disable takes these out|[job.web_status]|file = packs/web/status.sh|# end of pack web' "$(printf '%s' "$out" | grep '^# pack web:\|^\[job\|^file\|^# end' | tr '\n' '|' | sed 's/|$//')"
+vigil pack remove web > /dev/null 2>&1
+check 'config: from the repository' "# pack web 1.0.0 for $osname, from packs-2026.01.02." "$(vigil pack config web@1.0.0 2>&1 | head -n 1)"
+check 'with no pack here, and none installed' no "$(yes_no test -e "$root/packs/web")"
+out=$(vigil pack config web --os windows 2>&1); rc=$?
+check 'config: a platform it has no scripts for' 'vigil: pack web has no scripts for Windows|1' "$out|$rc"
+check 'config: not a platform' "vigil: --os takes linux, macos or windows, not beos" "$(vigil pack config web --os beos 2>&1)"
+check 'config: one pack at a time' 64 "$(vigil pack config web base > /dev/null 2>&1; echo $?)"
+check 'and nothing was edited' "$was" "$(cksum < "$cfg")"
+cp "$work/cfg.keep" "$cfg"
+# A job naming a pack's script that is not here: precheck says why.
+printf '\n[job.gone_a]\nfile = packs/gone/a.sh\nrun_every = 1h\n\n[job.base_nojob]\nfile = packs/base/nojob.sh\nrun_every = 1h\n' >> "$cfg"
+had=$(sed -n 's/^version *= *//p' "$root/packs/base/pack.config")
+out=$(env -u VIGIL_TEST_RELEASE_URL bash "$root/app/vigil" --root "$root" precheck 2>&1)
+check 'a pack not installed' "  FAIL  job.gone_a: file not found: $root/packs/gone/a.sh (pack gone is not installed here: vigil pack install gone)" "$(printf '%s' "$out" | grep 'job.gone_a')"
+check 'a pack without that job' "  FAIL  job.base_nojob: file not found: $root/packs/base/nojob.sh (pack base $had has no job nojob; vigil pack update base may bring it)" "$(printf '%s' "$out" | grep 'job.base_nojob')"
 cp "$work/cfg.keep" "$cfg"
 
 printf 'What a pack needs\n'
@@ -412,6 +437,7 @@ for j in a b; do
     printf '[job.%s]\nmetric_name = svc.%s\nmetrics = up\nrun_every = 1h\nmax_runtime = 30s\nenv = SVC_HOST=localhost\nenv = SVC_PORT=1\nsecret = SVC_PASSWORD=secret:SVC_PW\n\n' "$j" "$j" >> "$root/packs/svc/pack.config"
     printf 'echo "metric up 1"\n' > "$root/packs/svc/$j.sh"
 done
+check 'config: its needs, as comments' '# needs a role: CREATE ROLE it|# needs its page on' "$(vigil pack config svc 2>&1 | grep '^# needs' | tr '\n' '|' | sed 's/|$//')"
 out=$(vigil pack enable svc 2>&1)
 check 'turns on, and says what it needs' 'on: svc_a|on: svc_b|needs secret:SVC_PW: not set: vigil secret set SVC_PW, as the account Vigil runs as|needs a role: CREATE ROLE it|needs its page on|settings in vigil.config: SVC_HOST=localhost SVC_PORT=1' "$(printf '%s' "$out" | tr '\n' '|')"
 printf 'x' | vigil secret set SVC_PW --stdin > /dev/null 2>&1
