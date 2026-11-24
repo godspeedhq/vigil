@@ -147,6 +147,12 @@ run_pack() {
             return
             ;;
     esac
+    # A pack for Windows alone (iis): nothing to run here, as Check-Pack.ps1
+    # skips a pack with no Windows scripts.
+    if [ ! -d "packs/$name/$os" ]; then
+        printf '  skip  %s: no %s scripts\n' "$name" "$os"
+        return
+    fi
     work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-pack.XXXXXX") || return
     root=$work/root
     mkdir -p "$root/packs/$name"
