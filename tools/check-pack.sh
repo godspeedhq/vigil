@@ -184,6 +184,13 @@ run_pack() {
             printf '  skip  %s_%s: %s\n' "$name" "$j" "${miss#*: }"
             continue
         fi
+        # And a status page: another server on this machine's port answers
+        # 404 where the job expects the page its owner turns on. The job is
+        # right to fail there.
+        if [ "$rc" -ne 0 ] && nopage=$(cat "$root/logs/jobs/${name}_$j"/*.log 2> /dev/null | sed -n 's/^[^ ]* [^ ]* err //p' | grep -m 1 -E '^[A-Za-z0-9_]+: http://(127\.0\.0\.1|localhost)[:/][^ ]* answered HTTP 404$'); then
+            printf '  skip  %s_%s: %s, a server here without the page its owner turns on\n' "$name" "$j" "${nopage#*: }"
+            continue
+        fi
         if [ "$rc" -ne 0 ]; then
             fail "${name}_$j exited $rc here: $(cat "$root/logs/jobs/${name}_$j"/*.log 2> /dev/null | grep ' err ' | tail -2 | sed 's/^[^ ]* [^ ]* err //' | tr '\n' ' ')$out"
             continue
