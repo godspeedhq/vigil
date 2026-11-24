@@ -86,11 +86,11 @@ jq -r '
     "metric sites \([$all[].routes[]?.match[]?.host[]?] | unique | length)",
     "metric reverse_proxies \([$all[] | .. | objects | select(.handler? == "reverse_proxy")] | length)",
     "metric file_servers \([$all[] | .. | objects | select(.handler? == "file_server")] | length)",
-    "metric tls_policies \([.apps.tls.automation.policies[]?] | length)"
+    "metric tls_policies \([.apps.tls.automation.policies[]?] | length)",
+    "metric metrics_enabled \(if (.apps.http.metrics != null) or ([$all[].metrics] | any(. != null)) then 1 else 0 end)"
 ' "$work/body" 2> /dev/null || { echo "$job: $admin/config/ is not a Caddy configuration" >&2; exit 1; }
 fetch "$admin/metrics" || exit 1
 cp "$work/body" "$work/metrics"
-echo "metric metrics_enabled $(grep -q '^caddy_http_requests_total' "$work/metrics" && echo 1 || echo 0)"
 ok=$(prom caddy_config_last_reload_successful)
 ts=$(prom caddy_config_last_reload_success_timestamp_seconds)
 [ -n "$ok" ] && echo "metric reload_ok $ok"
@@ -119,10 +119,10 @@ M 'sites' (@($routes | ForEach-Object { @($_.match) } | Where-Object { $_ } | Fo
 M 'reverse_proxies' (@($handlers | Where-Object { $_ -eq 'reverse_proxy' })).Count
 M 'file_servers' (@($handlers | Where-Object { $_ -eq 'file_server' })).Count
 M 'tls_policies' (@($c.apps.tls.automation.policies | Where-Object { $_ })).Count
+M 'metrics_enabled' (Test-CaddyMetrics $c)
 $r = Get-Http "$admin/metrics"
 if ($r.State -ne 'ok') { Stop-Run $r.Why }
 $script:Prom = @($r.Body -split "`r?`n" | Where-Object { $_ -and -not $_.StartsWith('#') })
-M 'metrics_enabled' $(if (@($script:Prom | Where-Object { $_.StartsWith('caddy_http_requests_total') }).Count) { 1 } else { 0 })
 $ok = Prom 'caddy_config_last_reload_successful'
 $ts = Prom 'caddy_config_last_reload_success_timestamp_seconds'
 if ($ok.Count) { M 'reload_ok' $ok[''] }
@@ -142,7 +142,8 @@ job(pack='caddy', job='traffic', metric='traffic', when='run_every   = 1m', runt
          "its handlers returned, its answers by status class, and how long they took on average, from "
          "Caddy's own metrics. These need Caddy's HTTP metrics on: the global option { metrics } in a "
          "Caddyfile.",
-    reads=READS + " It reads /metrics.",
+    reads=READS + " It reads /config/apps/http (whether the metrics are on) and /metrics.",
+    needs_sh=["curl", "jq"],
     metrics=M(('up', '1 when the admin API answers, else 0'), ('metrics_enabled', "1 when Caddy's HTTP metrics are on, else 0 (and nothing more is reported)"),
               ('requests_count', 'requests handled (a running total), tagged server=<its name>'),
               ('in_flight', 'requests being handled now, tagged server'),
@@ -157,19 +158,20 @@ job(pack='caddy', job='traffic', metric='traffic', when='run_every   = 1m', runt
     watch='status_4xx_count rising faster than requests_count; in_flight climbing.',
     act='status_5xx_count or handler_errors_count rising: requests failing (the upstreams job says '
         'whether an upstream is down).',
-    sh=ADMIN_SH + PROM_SH + r'''fetch "$admin/metrics"
+    sh=ADMIN_SH + PROM_SH + r'''# On or not is in the configuration: after a reload, the counters are
+# empty until a request comes.
+fetch "$admin/config/apps/http"
 case $? in
     0) ;;
     2) echo "metric up 0"; exit 0 ;;
     *) exit 1 ;;
 esac
 echo "metric up 1"
+on=$(jq -r 'if (.metrics != null) or ([(.servers // {})[].metrics] | any(. != null)) then 1 else 0 end' "$work/body" 2> /dev/null)
+echo "metric metrics_enabled ${on:-0}"
+[ "$on" = 1 ] || exit 0
+fetch "$admin/metrics" || exit 1
 cp "$work/body" "$work/metrics"
-if ! grep -q '^caddy_http_requests_total' "$work/metrics"; then
-    echo "metric metrics_enabled 0"
-    exit 0
-fi
-echo "metric metrics_enabled 1"
 prom caddy_http_requests_total server | sort | head -n 50 > "$work/servers"
 while read -r s n; do
     t="server=$(tag "$s")"
@@ -190,14 +192,17 @@ done < "$work/servers"
 echo "metric servers_not_shown $(( $(prom caddy_http_requests_total server | wc -l) - $(wc -l < "$work/servers") ))"
 exit 0
 ''',
-    ps=ADMIN_PS + PROM_PS + r'''$r = Get-Http "$admin/metrics"
+    ps=ADMIN_PS + PROM_PS + r'''$r = Get-Http "$admin/config/"
 if ($r.State -eq 'down') { M 'up' 0; exit 0 }
 if ($r.State -ne 'ok') { Stop-Run $r.Why }
 M 'up' 1
+$on = Test-CaddyMetrics ($r.Body | ConvertFrom-Json)
+M 'metrics_enabled' $on
+if (-not $on) { exit 0 }
+$r = Get-Http "$admin/metrics"
+if ($r.State -ne 'ok') { Stop-Run $r.Why }
 $script:Prom = @($r.Body -split "`r?`n" | Where-Object { $_ -and -not $_.StartsWith('#') })
 $req = Prom 'caddy_http_requests_total' 'server'
-if (-not $req.Count) { M 'metrics_enabled' 0; exit 0 }
-M 'metrics_enabled' 1
 $names = @($req.Keys | Sort-Object)
 foreach ($s in @($names | Select-Object -First 50)) {
     $t = "server=$(Safe $s)"
@@ -323,6 +328,14 @@ function Get-Handlers($o) {
             elseif ($null -ne $p.Value -and -not ($p.Value -is [string]) -and -not ($p.Value -is [ValueType])) { Get-Handlers $p.Value }
         }
     }
+}
+# 1 when Caddy's HTTP metrics are on in its configuration (the global option,
+# or a server's own), else 0.
+function Test-CaddyMetrics($c) {
+    if (-not $c) { return 0 }
+    if ($null -ne $c.apps.http.metrics) { return 1 }
+    foreach ($s in @(Props $c.apps.http.servers)) { if ($null -ne $s.Value.metrics) { return 1 } }
+    return 0
 }
 # The sum of a Prometheus metric's samples, among some lines.
 function Sum-Prom($lines, [string]$m) {

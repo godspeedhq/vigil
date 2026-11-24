@@ -169,6 +169,13 @@ $script:Keep = [System.Net.Security.RemoteCertificateValidationCallback] {
         $c.ChainPolicy.RevocationMode = [System.Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
         $c.ChainPolicy.VerificationFlags = [System.Security.Cryptography.X509Certificates.X509VerificationFlags]::AllowUnknownCertificateAuthority
         [void]$c.ChainPolicy.ExtraStore.Add($script:Ca)
+        # The intermediates the server sent (Caddy's local CA has one): .NET
+        # Framework has them in the chain's elements, PowerShell 7's .NET in
+        # its extra store.
+        if ($Chain) {
+            foreach ($e in @($Chain.ChainElements)) { if ($e.Certificate.Thumbprint -ne $script:Seen.Thumbprint) { [void]$c.ChainPolicy.ExtraStore.Add($e.Certificate) } }
+            foreach ($x in @($Chain.ChainPolicy.ExtraStore)) { if ($x) { [void]$c.ChainPolicy.ExtraStore.Add($x) } }
+        }
         if ($c.Build($script:Seen) -and $c.ChainElements[$c.ChainElements.Count - 1].Certificate.Thumbprint -eq $script:Ca.Thumbprint) {
             $script:SeenErrors = [System.Net.Security.SslPolicyErrors]::None
         }

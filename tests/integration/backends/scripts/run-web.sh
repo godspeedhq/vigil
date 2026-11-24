@@ -320,6 +320,14 @@ curl -s -o /dev/null -w '  POST /load: HTTP %{http_code}\n' -H 'Content-Type: ap
 job caddy status ca-refused "${CA[@]}"
 check 'caddy: the refused change seen' 0 "$(val ca-refused reload_ok)"
 check 'caddy: still serving the old one' 2 "$(val ca-refused servers)"
+# Caddy put its old configuration back: its counters and upstreams start
+# again with the next requests. Some, and a health check, for what follows.
+for i in $(seq 1 10); do curl -s -o /dev/null http://127.0.0.1:18380/; done
+for i in 1 2; do curl -s -o /dev/null -m 5 http://127.0.0.1:18380/noanswer; curl -s -o /dev/null -k --resolve shop.test:18343:127.0.0.1 https://shop.test:18343/boom; done
+sleep 6
+job caddy traffic ca-after "${CA[@]}"
+check 'caddy: its metrics still on after the refused change' 1 "$(val ca-after metrics_enabled)"
+check 'caddy: and counting again' yes "$(least ca-after requests_count '' 10 'server=srv1')"
 
 say "Every job again, on Debian 13 with Debian's own awk (mawk), as on Debian and Ubuntu."
 # The same scripts and settings, in a container sharing this machine's

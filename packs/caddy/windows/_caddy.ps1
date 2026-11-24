@@ -176,6 +176,13 @@ $script:Keep = [System.Net.Security.RemoteCertificateValidationCallback] {
         $c.ChainPolicy.RevocationMode = [System.Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
         $c.ChainPolicy.VerificationFlags = [System.Security.Cryptography.X509Certificates.X509VerificationFlags]::AllowUnknownCertificateAuthority
         [void]$c.ChainPolicy.ExtraStore.Add($script:Ca)
+        # The intermediates the server sent (Caddy's local CA has one): .NET
+        # Framework has them in the chain's elements, PowerShell 7's .NET in
+        # its extra store.
+        if ($Chain) {
+            foreach ($e in @($Chain.ChainElements)) { if ($e.Certificate.Thumbprint -ne $script:Seen.Thumbprint) { [void]$c.ChainPolicy.ExtraStore.Add($e.Certificate) } }
+            foreach ($x in @($Chain.ChainPolicy.ExtraStore)) { if ($x) { [void]$c.ChainPolicy.ExtraStore.Add($x) } }
+        }
         if ($c.Build($script:Seen) -and $c.ChainElements[$c.ChainElements.Count - 1].Certificate.Thumbprint -eq $script:Ca.Thumbprint) {
             $script:SeenErrors = [System.Net.Security.SslPolicyErrors]::None
         }
@@ -232,6 +239,14 @@ function Get-Handlers($o) {
             elseif ($null -ne $p.Value -and -not ($p.Value -is [string]) -and -not ($p.Value -is [ValueType])) { Get-Handlers $p.Value }
         }
     }
+}
+# 1 when Caddy's HTTP metrics are on in its configuration (the global option,
+# or a server's own), else 0.
+function Test-CaddyMetrics($c) {
+    if (-not $c) { return 0 }
+    if ($null -ne $c.apps.http.metrics) { return 1 }
+    foreach ($s in @(Props $c.apps.http.servers)) { if ($null -ne $s.Value.metrics) { return 1 } }
+    return 0
 }
 # The sum of a Prometheus metric's samples, among some lines.
 function Sum-Prom($lines, [string]$m) {

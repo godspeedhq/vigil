@@ -106,10 +106,10 @@ M 'sites' (@($routes | ForEach-Object { @($_.match) } | Where-Object { $_ } | Fo
 M 'reverse_proxies' (@($handlers | Where-Object { $_ -eq 'reverse_proxy' })).Count
 M 'file_servers' (@($handlers | Where-Object { $_ -eq 'file_server' })).Count
 M 'tls_policies' (@($c.apps.tls.automation.policies | Where-Object { $_ })).Count
+M 'metrics_enabled' (Test-CaddyMetrics $c)
 $r = Get-Http "$admin/metrics"
 if ($r.State -ne 'ok') { Stop-Run $r.Why }
 $script:Prom = @($r.Body -split "`r?`n" | Where-Object { $_ -and -not $_.StartsWith('#') })
-M 'metrics_enabled' $(if (@($script:Prom | Where-Object { $_.StartsWith('caddy_http_requests_total') }).Count) { 1 } else { 0 })
 $ok = Prom 'caddy_config_last_reload_successful'
 $ts = Prom 'caddy_config_last_reload_success_timestamp_seconds'
 if ($ok.Count) { M 'reload_ok' $ok[''] }

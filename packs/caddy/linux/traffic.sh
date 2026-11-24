@@ -19,7 +19,8 @@
 #
 # Reads Caddy's admin API at CADDY_ADMIN (default http://localhost:2019, where
 # Caddy listens unless told otherwise), with GET only: the API could change
-# Caddy's configuration, and this job never asks it to. It reads /metrics.
+# Caddy's configuration, and this job never asks it to. It reads
+# /config/apps/http (whether the metrics are on) and /metrics.
 # What the scripts share is in _caddy.sh, beside this one.
 #
 # Metrics:
@@ -65,7 +66,7 @@
 #   Act      status_5xx_count or handler_errors_count rising: requests failing
 #            (the upstreams job says whether an upstream is down).
 #
-# Requires: bash, curl
+# Requires: bash, curl, jq
 # Exit code: 0 on success, Caddy up or down; 1 if curl is missing, or the
 #   address is not Caddy's admin API
 
@@ -74,7 +75,7 @@ set -u
 job=traffic
 # shellcheck source=/dev/null
 . "$(dirname "$0")/_caddy.sh"
-needs curl
+needs curl jq
 
 admin=${CADDY_ADMIN:-http://localhost:2019}
 admin=${admin%/}
@@ -88,19 +89,20 @@ prom() {
         # %.15g: awk would print a timestamp with six digits (1.79551e+09).
         END { if (seen) for (k in s) printf "%s%.15g\n", (l == "" ? "" : k " "), s[k] }' "$work/metrics"
 }
-fetch "$admin/metrics"
+# On or not is in the configuration: after a reload, the counters are
+# empty until a request comes.
+fetch "$admin/config/apps/http"
 case $? in
     0) ;;
     2) echo "metric up 0"; exit 0 ;;
     *) exit 1 ;;
 esac
 echo "metric up 1"
+on=$(jq -r 'if (.metrics != null) or ([(.servers // {})[].metrics] | any(. != null)) then 1 else 0 end' "$work/body" 2> /dev/null)
+echo "metric metrics_enabled ${on:-0}"
+[ "$on" = 1 ] || exit 0
+fetch "$admin/metrics" || exit 1
 cp "$work/body" "$work/metrics"
-if ! grep -q '^caddy_http_requests_total' "$work/metrics"; then
-    echo "metric metrics_enabled 0"
-    exit 0
-fi
-echo "metric metrics_enabled 1"
 prom caddy_http_requests_total server | sort | head -n 50 > "$work/servers"
 while read -r s n; do
     t="server=$(tag "$s")"

@@ -21,7 +21,8 @@
 
     Reads Caddy's admin API at CADDY_ADMIN (default http://localhost:2019, where
     Caddy listens unless told otherwise), with GET only: the API could change
-    Caddy's configuration, and this job never asks it to. It reads /metrics.
+    Caddy's configuration, and this job never asks it to. It reads
+    /config/apps/http (whether the metrics are on) and /metrics.
     What the scripts share is in _caddy.ps1, beside this one.
 
     Metrics:
@@ -87,14 +88,17 @@ function Prom($m, $l) {
     }
     $s
 }
-$r = Get-Http "$admin/metrics"
+$r = Get-Http "$admin/config/"
 if ($r.State -eq 'down') { M 'up' 0; exit 0 }
 if ($r.State -ne 'ok') { Stop-Run $r.Why }
 M 'up' 1
+$on = Test-CaddyMetrics ($r.Body | ConvertFrom-Json)
+M 'metrics_enabled' $on
+if (-not $on) { exit 0 }
+$r = Get-Http "$admin/metrics"
+if ($r.State -ne 'ok') { Stop-Run $r.Why }
 $script:Prom = @($r.Body -split "`r?`n" | Where-Object { $_ -and -not $_.StartsWith('#') })
 $req = Prom 'caddy_http_requests_total' 'server'
-if (-not $req.Count) { M 'metrics_enabled' 0; exit 0 }
-M 'metrics_enabled' 1
 $names = @($req.Keys | Sort-Object)
 foreach ($s in @($names | Select-Object -First 50)) {
     $t = "server=$(Safe $s)"

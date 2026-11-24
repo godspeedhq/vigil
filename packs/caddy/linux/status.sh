@@ -107,11 +107,11 @@ jq -r '
     "metric sites \([$all[].routes[]?.match[]?.host[]?] | unique | length)",
     "metric reverse_proxies \([$all[] | .. | objects | select(.handler? == "reverse_proxy")] | length)",
     "metric file_servers \([$all[] | .. | objects | select(.handler? == "file_server")] | length)",
-    "metric tls_policies \([.apps.tls.automation.policies[]?] | length)"
+    "metric tls_policies \([.apps.tls.automation.policies[]?] | length)",
+    "metric metrics_enabled \(if (.apps.http.metrics != null) or ([$all[].metrics] | any(. != null)) then 1 else 0 end)"
 ' "$work/body" 2> /dev/null || { echo "$job: $admin/config/ is not a Caddy configuration" >&2; exit 1; }
 fetch "$admin/metrics" || exit 1
 cp "$work/body" "$work/metrics"
-echo "metric metrics_enabled $(grep -q '^caddy_http_requests_total' "$work/metrics" && echo 1 || echo 0)"
 ok=$(prom caddy_config_last_reload_successful)
 ts=$(prom caddy_config_last_reload_success_timestamp_seconds)
 [ -n "$ok" ] && echo "metric reload_ok $ok"
