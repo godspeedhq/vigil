@@ -261,6 +261,12 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $jk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
+    foreach ($sp in 'elasticsearch', 'opensearch') {
+        $sd = Join-Path $root "packs\$sp"
+        [void](New-Item -ItemType Directory -Force -Path $sd)
+        Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
+        Get-ChildItem -LiteralPath (Join-Path $repo "packs\$sp\windows") | Copy-Item -Destination $sd
+    }
     $list = (Invoke-Vigil pack list).Text
     # pack list indents each job under its pack.
     Test-Equal 'the pack is off until enabled' 'off off' ((@($list.Split("`n") | Where-Object { $_ -match '^\s*postgres_(status|size)\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })) -join ' ')
@@ -1227,6 +1233,91 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal 'jenkins: metrics reach the backend' 'True' ([string](($prom -match '(?m)^jenkins_up\{') -and ($prom -match '(?m)^jenkins_jobs_failing\{')))
+    }
+
+    # --- elasticsearch, opensearch ------------------------------------------
+    # A cluster, through Vigil, in trouble on purpose (red, write
+    # rejections), as scripts/run-elasticsearch.sh and run-opensearch.sh set
+    # it up: VIGIL_IT_ES_URL (or _OS_), a user that may only monitor in
+    # _USER, its password in _PASSWORD, and the cluster's CA in _CACERT.
+    foreach ($s in @(@('elasticsearch', 'ES', 'ELASTICSEARCH'), @('opensearch', 'OS', 'OPENSEARCH'))) {
+        $p = $s[0]; $k = $s[1]; $E = $s[2]
+        $url = [Environment]::GetEnvironmentVariable("VIGIL_IT_${k}_URL")
+        $user = [string][Environment]::GetEnvironmentVariable("VIGIL_IT_${k}_USER")
+        $pw = [Environment]::GetEnvironmentVariable("VIGIL_IT_${k}_PASSWORD")
+        $ca = [string][Environment]::GetEnvironmentVariable("VIGIL_IT_${k}_CACERT")
+        if (-not $url -or -not $pw) { Write-Host "  SKIP  ${p}: set VIGIL_IT_${k}_URL and VIGIL_IT_${k}_PASSWORD"; continue }
+        foreach ($v in 'URL', 'USER', 'PASSWORD', 'CACERT', 'API_KEY') { Remove-Item "Env:\${E}_$v" -ErrorAction SilentlyContinue }
+        Write-Host "${p}: $url as $user"
+        $sk = Join-Path $root "packs\$p"
+        $sjobs = @(([System.IO.File]::ReadAllLines((Join-Path $sk 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] }))
+        $sn = $sjobs.Count
+        $on = {
+            $list = (Invoke-Vigil pack list).Text
+            $st = @($list.Split("`n") | Where-Object { $_ -match "^\s*${p}_\w+\s" } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            (@($st | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        Test-Equal "${p}: off until enabled" "off=$sn" (& $on)
+        $r = Invoke-Vigil pack enable $p
+        Test-Equal "${p}: enabled" '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "${p}: it says its JVM is the jvm pack's" 'True' ([string](($r.Text -replace '\s+', ' ').Contains('the jvm pack, not this one')))
+        Test-Equal "${p}: its jobs are on" "on=$sn" (& $on)
+        $cfg = Join-Path $root 'config\vigil.config'
+        [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace "(?m)^(env\s*=\s*${E}_CACERT=[^\r\n]*)(\r?\n)", "`$1`$2secret      = ${E}_PASSWORD=secret:${E}_PASSWORD`$2"))
+        Test-Equal "${p}: the password is a secret reference, on every job" "$sn" ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), "(?m)^secret\s*=\s*${E}_PASSWORD=secret:${E}_PASSWORD")).Count)
+        # A logon with no password (SSH with a key) cannot use the secret
+        # store: then the jobs take it by an env: reference.
+        $senv = $false
+        Set-VigilSecret "${E}_PASSWORD" $pw
+        if ((Invoke-Vigil secret list).Text -notmatch "${E}_PASSWORD") {
+            $senv = $true
+            Write-Host "  note  ${p}: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_${k}_PASSWORD"
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace "(?m)^(secret\s*=\s*${E}_PASSWORD=)secret:${E}_PASSWORD", "`${1}env:VIGIL_IT_${k}_PASSWORD"))
+        }
+        Set-Env "${E}_URL" $url
+        Set-Env "${E}_USER" $user
+        Set-Env "${E}_CACERT" $ca
+        $r = Invoke-Vigil precheck
+        Test-Equal "${p}: precheck is happy" '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $sjobs) { if ([string](Invoke-Vigil run "${p}_$j").Code -ne '0') { $failed += $j } }
+        Test-Equal "${p}: every job runs" '' ($failed -join ' ')
+        foreach ($j in $failed) { Show-LastRun "${p}_$j" }
+        Test-Equal "${p}: answers" '1' (Get-Printed "${p}_status" up)
+        Test-Equal "${p}: the cluster read as red" '2' (Get-Printed "${p}_status" status)
+        Test-Equal "${p}: the unassigned primary explained" 'True' (Test-Said "${p}_shards" 'metric explained 1 index=archive-red')
+        Test-Equal "${p}: write rejections seen" 'yes' (Test-Between "${p}_thread_pools" rejected_total '' 1 1e12)
+        Test-Equal "${p}: the write-blocked index seen" 'yes' (Test-Between "${p}_indices" write_blocked '' 1 1e9)
+        Show-LastRun "${p}_status"
+        if ($senv) { $keep = $pw; [Environment]::SetEnvironmentVariable("VIGIL_IT_${k}_PASSWORD", 'not-the-password') }
+        else { Set-VigilSecret "${E}_PASSWORD" 'not-the-password' }
+        Test-Equal "${p}: a wrong password fails the run" '2' ([string](Invoke-Vigil run "${p}_status").Code)
+        Test-Equal "${p}: and says why" 'True' (Test-Said "${p}_status" 'refused the login (HTTP 401)')
+        if ($senv) { [Environment]::SetEnvironmentVariable("VIGIL_IT_${k}_PASSWORD", $keep) } else { Set-VigilSecret "${E}_PASSWORD" $pw }
+        Set-Env "${E}_URL" 'http://127.0.0.1:1'
+        Test-Equal "${p}: a cluster that does not answer still runs" '0' ([string](Invoke-Vigil run "${p}_status").Code)
+        Test-Equal "${p}: and reads as up 0" '0' (Get-Printed "${p}_status" up)
+        Set-Env "${E}_URL" $url
+        [void](Invoke-Vigil run "${p}_status")
+        [void](Invoke-Vigil run "${p}_shards")
+        $leaks = @()
+        foreach ($d in 'logs', 'state', 'spool', 'metrics') {
+            foreach ($f in Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue) {
+                if ([System.IO.File]::ReadAllText($f.FullName).Contains($pw)) { $leaks += $f.Name }
+            }
+        }
+        if ([System.IO.File]::ReadAllText($cfg).Contains($pw)) { $leaks += 'vigil.config' }
+        Test-Equal "${p}: the password is written nowhere" '' ($leaks -join ' ')
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match "(?m)^${p}_shards_unassigned\{") { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal "${p}: metrics reach the backend" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^${p}_shards_unassigned\{")))
     }
 
     # --- rabbitmq ----------------------------------------------------------

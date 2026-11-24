@@ -1,0 +1,993 @@
+pack     opensearch 1.0.0, Vigil commit 6a2ee62 (a copy), from the repository
+account  vigil-test, not an administrator, by SSH key
+servers  run-opensearch.sh's clusters on the Fedora test machine (3.10.0, three nodes; 2.19.7, two nodes; both over https with the security plugin's demo certificates, each in trouble on purpose), through SSH tunnels
+
+host     WIN-R50M4Q63SR9, Microsoft Windows NT 10.0.26100.0
+commit   6a2ee62eec7c726a39bfc64ab01f0b597e2a3335
+
+# OpenSearch 3.10.0, through the tunnel, powershell.
+
+> powershell packs\opensearch\windows\status.ps1
+metric up 1
+metric version 1 version=3.10.0 cluster=vigil310
+metric status 2 status=red
+metric timed_out 0
+metric nodes 3
+metric data_nodes 3
+metric active_primary_shards 16
+metric active_shards 34
+metric active_shards_pct 94.44
+metric relocating_shards 0
+metric initializing_shards 0
+metric unassigned_shards 2
+metric delayed_unassigned_shards 0
+metric pending_tasks 0
+metric task_max_wait_ms 0
+metric in_flight_fetch 0
+metric cluster_manager 1 node=os310b
+  PASS  os310: opensearch_status runs (powershell)
+
+> powershell packs\opensearch\windows\nodes.ps1
+metric up 1
+metric nodes 3
+metric master_eligible 3
+metric data_nodes 3
+metric ingest_nodes 3
+metric coordinating_only 0
+metric versions 1
+metric info 1 node=os310a version=3.10.0 roles=dimr
+metric cluster_manager 0 node=os310a
+metric cpu_pct 26 node=os310a
+metric load_1m 5.39 node=os310a
+metric load_5m 6.41 node=os310a
+metric load_15m 6.44 node=os310a
+metric mem_used_pct 82 node=os310a
+metric process_cpu_pct 6 node=os310a
+metric open_fds 1078 node=os310a
+metric max_fds 524288 node=os310a
+metric fds_pct 0.21 node=os310a
+metric disk_total_bytes 117884059648 node=os310a
+metric disk_free_bytes 40771194880 node=os310a
+metric disk_used_pct 65.41 node=os310a
+metric http_open 1 node=os310a
+metric http_opened 486 node=os310a
+metric transport_open 26 node=os310a
+metric transport_rx_bytes 5682213 node=os310a
+metric transport_tx_bytes 14936526 node=os310a
+metric indexing_pressure_bytes 0 node=os310a
+metric indexing_pressure_limit_bytes 40265318 node=os310a
+metric indexing_pressure_pct 0 node=os310a
+metric indexing_rejections 0 node=os310a
+metric info 1 node=os310b version=3.10.0 roles=dimr
+metric cluster_manager 1 node=os310b
+metric cpu_pct 27 node=os310b
+metric load_1m 5.39 node=os310b
+metric load_5m 6.41 node=os310b
+metric load_15m 6.44 node=os310b
+metric mem_used_pct 80 node=os310b
+metric process_cpu_pct 0 node=os310b
+metric open_fds 1065 node=os310b
+metric max_fds 524288 node=os310b
+... (77 lines)
+  PASS  os310: opensearch_nodes runs (powershell)
+
+> powershell packs\opensearch\windows\thread_pools.ps1
+metric up 1
+metric rejected_total 217
+metric queued_total 0
+metric active_total 3
+metric active 0 node=os310a pool=write
+metric queue 0 node=os310a pool=write
+metric queue_pct 0 node=os310a pool=write
+metric rejected 157 node=os310a pool=write
+metric completed 147 node=os310a pool=write
+metric threads 1 node=os310a pool=write
+metric largest 1 node=os310a pool=write
+metric active 0 node=os310c pool=write
+metric queue 0 node=os310c pool=write
+metric queue_pct 0 node=os310c pool=write
+metric rejected 60 node=os310c pool=write
+metric completed 248 node=os310c pool=write
+metric threads 1 node=os310c pool=write
+metric largest 1 node=os310c pool=write
+metric active 0 node=os310a pool=get
+metric queue 0 node=os310a pool=get
+metric queue_pct 0 node=os310a pool=get
+metric rejected 0 node=os310a pool=get
+metric completed 0 node=os310a pool=get
+metric threads 4 node=os310a pool=get
+metric largest 0 node=os310a pool=get
+metric active 1 node=os310a pool=management
+metric queue 0 node=os310a pool=management
+metric rejected 0 node=os310a pool=management
+metric completed 537 node=os310a pool=management
+metric threads 0 node=os310a pool=management
+metric largest 3 node=os310a pool=management
+metric active 0 node=os310a pool=search
+metric queue 0 node=os310a pool=search
+metric queue_pct 0 node=os310a pool=search
+metric rejected 0 node=os310a pool=search
+metric completed 37 node=os310a pool=search
+metric threads 7 node=os310a pool=search
+metric largest 7 node=os310a pool=search
+metric active 0 node=os310b pool=get
+metric queue 0 node=os310b pool=get
+... (86 lines)
+  PASS  os310: opensearch_thread_pools runs (powershell)
+
+> powershell packs\opensearch\windows\breakers.ps1
+metric up 1
+metric tripped_total 12
+metric max_used_pct 72.35
+metric estimated_bytes 0 node=os310a breaker=fielddata
+metric limit_bytes 161061273 node=os310a breaker=fielddata
+metric used_pct 0 node=os310a breaker=fielddata
+metric tripped 0 node=os310a breaker=fielddata
+metric estimated_bytes 16440 node=os310a breaker=in_flight_requests
+metric limit_bytes 402653184 node=os310a breaker=in_flight_requests
+metric used_pct 0 node=os310a breaker=in_flight_requests
+metric tripped 0 node=os310a breaker=in_flight_requests
+metric estimated_bytes 0 node=os310a breaker=neural_search
+metric limit_bytes 40265318 node=os310a breaker=neural_search
+metric used_pct 0 node=os310a breaker=neural_search
+metric tripped 0 node=os310a breaker=neural_search
+metric estimated_bytes 276745792 node=os310a breaker=parent
+metric limit_bytes 382520524 node=os310a breaker=parent
+metric used_pct 72.35 node=os310a breaker=parent
+metric tripped 0 node=os310a breaker=parent
+metric estimated_bytes 0 node=os310a breaker=request
+metric limit_bytes 241591910 node=os310a breaker=request
+metric used_pct 0 node=os310a breaker=request
+metric tripped 3 node=os310a breaker=request
+metric estimated_bytes 0 node=os310b breaker=fielddata
+metric limit_bytes 161061273 node=os310b breaker=fielddata
+metric used_pct 0 node=os310b breaker=fielddata
+metric tripped 0 node=os310b breaker=fielddata
+metric estimated_bytes 65 node=os310b breaker=in_flight_requests
+metric limit_bytes 402653184 node=os310b breaker=in_flight_requests
+metric used_pct 0 node=os310b breaker=in_flight_requests
+metric tripped 0 node=os310b breaker=in_flight_requests
+metric estimated_bytes 0 node=os310b breaker=neural_search
+metric limit_bytes 40265318 node=os310b breaker=neural_search
+metric used_pct 0 node=os310b breaker=neural_search
+metric tripped 0 node=os310b breaker=neural_search
+metric estimated_bytes 152277648 node=os310b breaker=parent
+metric limit_bytes 382520524 node=os310b breaker=parent
+metric used_pct 39.81 node=os310b breaker=parent
+metric tripped 0 node=os310b breaker=parent
+metric estimated_bytes 0 node=os310b breaker=request
+... (64 lines)
+  PASS  os310: opensearch_breakers runs (powershell)
+
+> powershell packs\opensearch\windows\indices.ps1
+metric up 1
+metric indices 16
+metric open 15
+metric closed 1
+metric green 14
+metric yellow 1
+metric red 1
+metric hidden 7
+metric docs 56038
+metric deleted_docs 91
+metric store_bytes 6653470
+metric primary_store_bytes 3150216
+metric blocked 1
+metric write_blocked 1
+metric health 2 index=archive-red
+metric is_open 1 index=archive-red
+metric index_docs 0 index=archive-red
+metric deleted_pct 0 index=archive-red
+metric index_store_bytes 0 index=archive-red
+metric index_primary_store_bytes 0 index=archive-red
+metric primaries 1 index=archive-red
+metric replicas 0 index=archive-red
+metric age_days 0 index=archive-red
+metric health 1 index=orders
+metric is_open 1 index=orders
+metric index_docs 0 index=orders
+metric deleted_pct 0 index=orders
+metric index_store_bytes 624 index=orders
+metric index_primary_store_bytes 208 index=orders
+metric primaries 1 index=orders
+metric replicas 3 index=orders
+metric age_days 0 index=orders
+metric health 0 index=blocked
+metric is_open 1 index=blocked
+metric index_docs 0 index=blocked
+metric deleted_pct 0 index=blocked
+metric index_store_bytes 208 index=blocked
+metric index_primary_store_bytes 208 index=blocked
+metric primaries 1 index=blocked
+metric replicas 0 index=blocked
+... (160 lines)
+  PASS  os310: opensearch_indices runs (powershell)
+
+> powershell packs\opensearch\windows\shards.ps1
+metric up 1
+metric shards 36
+metric primaries 17
+metric replicas 19
+metric started 34
+metric relocating 0
+metric initializing 0
+metric unassigned 2
+metric unassigned_primaries 1
+metric unassigned_replicas 1
+metric largest_shard_bytes 1767796
+metric largest_shard_docs 39945
+metric shards_over_50gb 0
+metric shards_over_200m_docs 0
+metric node_shards 12 node=os310a
+metric node_shards 11 node=os310b
+metric node_shards 11 node=os310c
+metric unassigned_seconds 149 index=archive-red shard=0 prirep=p reason=INDEX_CREATED
+metric unassigned_seconds 150 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric unassigned_not_shown 0
+metric explained 1 index=archive-red shard=0 prirep=p can_allocate=no decider=filter why=node_does_not_match_index_setting__index.routing.allocation.require__filters___name:_nowhere__
+metric recoveries 0
+metric recoveries_not_shown 0
+  PASS  os310: opensearch_shards runs (powershell)
+
+> powershell packs\opensearch\windows\allocation.ps1
+metric up 1
+metric shards 12 node=os310a
+metric disk_indices_bytes 1435516 node=os310a
+metric disk_used_bytes 77112864768 node=os310a
+metric disk_free_bytes 40771194880 node=os310a
+metric disk_total_bytes 117884059648 node=os310a
+metric disk_used_pct 65 node=os310a
+metric watermark 2 node=os310a
+metric shards 11 node=os310b
+metric disk_indices_bytes 2347113 node=os310b
+metric disk_used_bytes 77112864768 node=os310b
+metric disk_free_bytes 40771194880 node=os310b
+metric disk_total_bytes 117884059648 node=os310b
+metric disk_used_pct 65 node=os310b
+metric watermark 2 node=os310b
+metric shards 11 node=os310c
+metric disk_indices_bytes 2871071 node=os310c
+metric disk_used_bytes 77112864768 node=os310c
+metric disk_free_bytes 40771194880 node=os310c
+metric disk_total_bytes 117884059648 node=os310c
+metric disk_used_pct 65 node=os310c
+metric watermark 2 node=os310c
+metric nodes_over_low 3
+metric nodes_over_high 3
+metric nodes_over_flood 0
+metric watermark_free_bytes 109951162777600 level=low
+metric watermark_free_bytes 54975581388800 level=high
+metric watermark_free_bytes 1073741824 level=flood_stage
+metric disk_threshold_enabled 1
+metric allocation_enabled 0 setting=primaries
+metric rebalance_enabled 1 setting=all
+metric exclusions 1
+metric exclusion 1 attribute=_name value=decommissioned-1
+metric max_shards_per_node 12
+metric shards_capacity_pct 100
+metric nodes_not_shown 0
+  PASS  os310: opensearch_allocation runs (powershell)
+
+> powershell packs\opensearch\windows\operations.ps1
+metric up 1
+metric docs 16091 node=os310a
+metric store_bytes 1435516 node=os310a
+metric index_total 16244 node=os310a
+metric index_time_ms 19266 node=os310a
+metric index_current 0 node=os310a
+metric index_failed 0 node=os310a
+metric delete_total 1 node=os310a
+metric index_throttle_ms 0 node=os310a
+metric query_total 18 node=os310a
+metric query_time_ms 601 node=os310a
+metric query_current 0 node=os310a
+metric fetch_total 9 node=os310a
+metric fetch_time_ms 231 node=os310a
+metric scroll_current 1 node=os310a
+metric open_contexts 1 node=os310a
+metric get_total 81 node=os310a
+metric get_missing 10 node=os310a
+metric get_time_ms 348 node=os310a
+metric merges_current 0 node=os310a
+metric merges_total 7 node=os310a
+metric merges_time_ms 2188 node=os310a
+metric merges_throttled_ms 0 node=os310a
+metric refresh_total 155 node=os310a
+metric refresh_time_ms 18045 node=os310a
+metric flush_total 9 node=os310a
+metric flush_time_ms 537 node=os310a
+metric query_cache_bytes 0 node=os310a
+metric query_cache_hits 0 node=os310a
+metric query_cache_misses 4 node=os310a
+metric query_cache_evictions 0 node=os310a
+metric request_cache_bytes 0 node=os310a
+metric request_cache_hits 8 node=os310a
+metric request_cache_misses 1 node=os310a
+metric request_cache_evictions 0 node=os310a
+metric fielddata_bytes 0 node=os310a
+metric fielddata_evictions 0 node=os310a
+metric segments 29 node=os310a
+metric translog_ops 15777 node=os310a
+metric translog_bytes 1793099 node=os310a
+... (122 lines)
+  PASS  os310: opensearch_operations runs (powershell)
+
+> powershell packs\opensearch\windows\ingest.ps1
+metric up 1
+metric count 6
+metric failed 3
+metric time_ms 61
+metric current 0
+metric failed_pct 50
+metric pipelines 1
+metric pipeline_count 6 pipeline=parse
+metric pipeline_failed 3 pipeline=parse
+metric pipeline_failed_pct 50 pipeline=parse
+metric pipeline_time_ms 53 pipeline=parse
+metric pipeline_avg_ms 8.83 pipeline=parse
+metric pipelines_not_shown 0
+  PASS  os310: opensearch_ingest runs (powershell)
+
+> powershell packs\opensearch\windows\tasks.ps1
+metric up 1
+metric tasks 1
+metric longest_seconds 130
+metric over_60s 1
+metric cancellable 1
+metric cancelled 0
+metric searches 0
+metric action_tasks 1 action=indices:data/write/reindex
+metric running_seconds 130 action=indices:data/write/reindex node=os310a what=reindex_from__logs-ok__to__logs-slow_
+metric tasks_not_shown 0
+metric pending 0
+metric pending_oldest_ms 0
+  PASS  os310: opensearch_tasks runs (powershell)
+
+> powershell packs\opensearch\windows\snapshots.ps1
+metric up 1
+metric running 0
+metric repositories 2
+metric repositories_not_shown 0
+metric readable 1 repository=backups
+metric snapshots 2 repository=backups
+metric failed 0 repository=backups
+metric partial 0 repository=backups
+metric last_status 0 repository=backups status=SUCCESS
+metric last_age_seconds 249 repository=backups
+metric last_duration_seconds 0 repository=backups
+metric last_failed_shards 0 repository=backups
+metric last_success_age_seconds 249 repository=backups
+metric readable 1 repository=ro-repo
+metric snapshots 2 repository=ro-repo
+metric failed 0 repository=ro-repo
+metric partial 0 repository=ro-repo
+metric last_status 0 repository=ro-repo status=SUCCESS
+metric last_age_seconds 249 repository=ro-repo
+metric last_duration_seconds 0 repository=ro-repo
+metric last_failed_shards 0 repository=ro-repo
+metric last_success_age_seconds 249 repository=ro-repo
+  PASS  os310: opensearch_snapshots runs (powershell)
+
+> powershell packs\opensearch\windows\cluster.ps1
+metric up 1
+metric indices 15
+metric shards 34
+metric primary_shards 16
+metric replication 1.13
+metric docs 56040
+metric deleted_docs 91
+metric store_bytes 6653700
+metric segments 82
+metric fields 748
+metric fielddata_bytes 0
+metric query_cache_bytes 0
+metric nodes 3
+metric role_nodes 3 role=cluster_manager
+metric role_nodes 0 role=coordinating_only
+metric role_nodes 3 role=data
+metric role_nodes 3 role=ingest
+metric role_nodes 3 role=master
+metric role_nodes 3 role=remote_cluster_client
+metric role_nodes 0 role=search
+metric role_nodes 0 role=warm
+metric versions 1
+metric version_info 1 version=3.10.0
+metric processors 12
+metric fs_total_bytes 353652178944
+metric fs_free_bytes 122313584640
+metric fs_used_pct 65.41
+metric pipelines 1
+metric plugins 26
+  PASS  os310: opensearch_cluster runs (powershell)
+
+> powershell packs\opensearch\windows\backpressure.ps1
+metric up 1
+metric search_mode 1 node=os310a mode=monitor_only
+metric search_cancellations 0 node=os310a
+metric search_limit_reached 0 node=os310a
+metric search_cancelled_for 0 node=os310a reason=cpu_usage
+metric search_cancelled_for 0 node=os310a reason=elapsed_time
+metric search_cancelled_for 0 node=os310a reason=heap_usage
+metric shard_indexing_enabled 0 node=os310a
+metric shard_indexing_enforced 0 node=os310a
+metric shard_indexing_rejections 0 node=os310a limit=no_successful_request_limits
+metric shard_indexing_rejections 0 node=os310a limit=node_limits
+metric shard_indexing_rejections 0 node=os310a limit=throughput_degradation_limits
+metric search_mode 1 node=os310b mode=monitor_only
+metric search_cancellations 0 node=os310b
+metric search_limit_reached 0 node=os310b
+metric search_cancelled_for 0 node=os310b reason=cpu_usage
+metric search_cancelled_for 0 node=os310b reason=elapsed_time
+metric search_cancelled_for 0 node=os310b reason=heap_usage
+metric shard_indexing_enabled 0 node=os310b
+metric shard_indexing_enforced 0 node=os310b
+metric shard_indexing_rejections 0 node=os310b limit=no_successful_request_limits
+metric shard_indexing_rejections 0 node=os310b limit=node_limits
+metric shard_indexing_rejections 0 node=os310b limit=throughput_degradation_limits
+metric search_mode 1 node=os310c mode=monitor_only
+metric search_cancellations 0 node=os310c
+metric search_limit_reached 0 node=os310c
+metric search_cancelled_for 0 node=os310c reason=cpu_usage
+metric search_cancelled_for 0 node=os310c reason=elapsed_time
+metric search_cancelled_for 0 node=os310c reason=heap_usage
+metric shard_indexing_enabled 0 node=os310c
+metric shard_indexing_enforced 0 node=os310c
+metric shard_indexing_rejections 0 node=os310c limit=no_successful_request_limits
+metric shard_indexing_rejections 0 node=os310c limit=node_limits
+metric shard_indexing_rejections 0 node=os310c limit=throughput_degradation_limits
+metric nodes_not_shown 0
+  PASS  os310: opensearch_backpressure runs (powershell)
+
+> powershell packs\opensearch\windows\lifecycle.ps1
+metric up 1
+metric ism_managed 1
+metric ism_failed 1
+metric ism_disabled 1
+metric ism_in_state 1 state=hot
+metric ism_failure 1 index=ism-broken policy=rollover-broken action=rollover reason=Missing_rollover_alias_index_setting__index_ism-broken_
+metric ism_retries 1 index=ism-broken
+metric ism_not_shown 0
+metric sm_policies 2
+metric sm_enabled 0
+metric sm_last_status 0 policy=nightly-ok status=SUCCESS
+metric sm_failing 0 policy=nightly-ok reason=none
+metric sm_last_age_seconds 192 policy=nightly-ok
+metric sm_next_seconds 0 policy=nightly-ok
+metric sm_last_status 3 policy=nightly-ro status=FAILED
+metric sm_failing 1 policy=nightly-ro reason=not_given
+metric sm_last_age_seconds 192 policy=nightly-ro
+metric sm_next_seconds 0 policy=nightly-ro
+  PASS  os310: opensearch_lifecycle runs (powershell)
+  PASS  os310: OpenSearch 3.10.0 (powershell)
+  PASS  os310: red, 3 nodes (powershell)
+  PASS  os310: the elected node (powershell)
+  PASS  os310: the unassigned primary, and why (powershell)
+  PASS  os310: writes refused (powershell)
+  PASS  os310: the breaker tripped (powershell)
+  PASS  os310: an index blocked for writes (powershell)
+  PASS  os310: every node past the high watermark (powershell)
+  PASS  os310: allocation left at primaries (powershell)
+  PASS  os310: the pipeline failing half (powershell)
+  PASS  os310: search backpressure (powershell)
+  PASS  os310: ISM failing (powershell)
+  PASS  os310: snapshot management failing (powershell)
+  PASS  os310: a wrong password fails the run (powershell)
+  PASS  os310: and says so (powershell)
+
+# OpenSearch 2.19.7, through the tunnel, powershell.
+
+> powershell packs\opensearch\windows\status.ps1
+metric up 1
+metric version 1 version=2.19.7 cluster=vigil219
+metric status 2 status=red
+metric timed_out 0
+metric nodes 2
+metric data_nodes 2
+metric active_primary_shards 17
+metric active_shards 31
+metric active_shards_pct 91.18
+metric relocating_shards 0
+metric initializing_shards 0
+metric unassigned_shards 3
+metric delayed_unassigned_shards 0
+metric pending_tasks 0
+metric task_max_wait_ms 0
+metric in_flight_fetch 0
+metric cluster_manager 1 node=os219b
+  PASS  os219: opensearch_status runs (powershell)
+
+> powershell packs\opensearch\windows\nodes.ps1
+metric up 1
+metric nodes 2
+metric master_eligible 2
+metric data_nodes 2
+metric ingest_nodes 2
+metric coordinating_only 0
+metric versions 1
+metric info 1 node=os219a version=2.19.7 roles=dimr
+metric cluster_manager 0 node=os219a
+metric cpu_pct 61 node=os219a
+metric load_1m 4.87 node=os219a
+metric load_5m 6.19 node=os219a
+metric load_15m 6.36 node=os219a
+metric mem_used_pct 74 node=os219a
+metric process_cpu_pct 0 node=os219a
+metric open_fds 814 node=os219a
+metric max_fds 524288 node=os219a
+metric fds_pct 0.16 node=os219a
+metric disk_total_bytes 117884059648 node=os219a
+metric disk_free_bytes 40771108864 node=os219a
+metric disk_used_pct 65.41 node=os219a
+metric http_open 1 node=os219a
+metric http_opened 399 node=os219a
+metric transport_open 13 node=os219a
+metric transport_rx_bytes 9435814 node=os219a
+metric transport_tx_bytes 13043995 node=os219a
+metric indexing_pressure_bytes 0 node=os219a
+metric indexing_pressure_limit_bytes 40265318 node=os219a
+metric indexing_pressure_pct 0 node=os219a
+metric indexing_rejections 0 node=os219a
+metric info 1 node=os219b version=2.19.7 roles=dimr
+metric cluster_manager 1 node=os219b
+metric cpu_pct 61 node=os219b
+metric load_1m 4.87 node=os219b
+metric load_5m 6.19 node=os219b
+metric load_15m 6.36 node=os219b
+metric mem_used_pct 71 node=os219b
+metric process_cpu_pct 1 node=os219b
+metric open_fds 812 node=os219b
+metric max_fds 524288 node=os219b
+... (54 lines)
+  PASS  os219: opensearch_nodes runs (powershell)
+
+> powershell packs\opensearch\windows\thread_pools.ps1
+metric up 1
+metric rejected_total 306
+metric queued_total 0
+metric active_total 2
+metric active 0 node=os219a pool=write
+metric queue 0 node=os219a pool=write
+metric queue_pct 0 node=os219a pool=write
+metric rejected 186 node=os219a pool=write
+metric completed 220 node=os219a pool=write
+metric threads 1 node=os219a pool=write
+metric largest 1 node=os219a pool=write
+metric active 0 node=os219b pool=write
+metric queue 0 node=os219b pool=write
+metric queue_pct 0 node=os219b pool=write
+metric rejected 120 node=os219b pool=write
+metric completed 238 node=os219b pool=write
+metric threads 1 node=os219b pool=write
+metric largest 1 node=os219b pool=write
+metric active 0 node=os219a pool=get
+metric queue 0 node=os219a pool=get
+metric queue_pct 0 node=os219a pool=get
+metric rejected 0 node=os219a pool=get
+metric completed 0 node=os219a pool=get
+metric threads 4 node=os219a pool=get
+metric largest 0 node=os219a pool=get
+metric active 1 node=os219a pool=management
+metric queue 0 node=os219a pool=management
+metric rejected 0 node=os219a pool=management
+metric completed 679 node=os219a pool=management
+metric threads 0 node=os219a pool=management
+metric largest 4 node=os219a pool=management
+metric active 0 node=os219a pool=search
+metric queue 0 node=os219a pool=search
+metric queue_pct 0 node=os219a pool=search
+metric rejected 0 node=os219a pool=search
+metric completed 61 node=os219a pool=search
+metric threads 7 node=os219a pool=search
+metric largest 7 node=os219a pool=search
+metric active 0 node=os219b pool=get
+metric queue 0 node=os219b pool=get
+... (59 lines)
+  PASS  os219: opensearch_thread_pools runs (powershell)
+
+> powershell packs\opensearch\windows\breakers.ps1
+metric up 1
+metric tripped_total 12
+metric max_used_pct 47.4
+metric estimated_bytes 0 node=os219a breaker=fielddata
+metric limit_bytes 161061273 node=os219a breaker=fielddata
+metric used_pct 0 node=os219a breaker=fielddata
+metric tripped 0 node=os219a breaker=fielddata
+metric estimated_bytes 16440 node=os219a breaker=in_flight_requests
+metric limit_bytes 402653184 node=os219a breaker=in_flight_requests
+metric used_pct 0 node=os219a breaker=in_flight_requests
+metric tripped 0 node=os219a breaker=in_flight_requests
+metric estimated_bytes 181331408 node=os219a breaker=parent
+metric limit_bytes 382520524 node=os219a breaker=parent
+metric used_pct 47.4 node=os219a breaker=parent
+metric tripped 0 node=os219a breaker=parent
+metric estimated_bytes 0 node=os219a breaker=request
+metric limit_bytes 241591910 node=os219a breaker=request
+metric used_pct 0 node=os219a breaker=request
+metric tripped 6 node=os219a breaker=request
+metric estimated_bytes 0 node=os219b breaker=fielddata
+metric limit_bytes 161061273 node=os219b breaker=fielddata
+metric used_pct 0 node=os219b breaker=fielddata
+metric tripped 0 node=os219b breaker=fielddata
+metric estimated_bytes 64 node=os219b breaker=in_flight_requests
+metric limit_bytes 402653184 node=os219b breaker=in_flight_requests
+metric used_pct 0 node=os219b breaker=in_flight_requests
+metric tripped 0 node=os219b breaker=in_flight_requests
+metric estimated_bytes 173601280 node=os219b breaker=parent
+metric limit_bytes 382520524 node=os219b breaker=parent
+metric used_pct 45.38 node=os219b breaker=parent
+metric tripped 0 node=os219b breaker=parent
+metric estimated_bytes 0 node=os219b breaker=request
+metric limit_bytes 241591910 node=os219b breaker=request
+metric used_pct 0 node=os219b breaker=request
+metric tripped 6 node=os219b breaker=request
+metric breakers_not_shown 0
+  PASS  os219: opensearch_breakers runs (powershell)
+
+> powershell packs\opensearch\windows\indices.ps1
+metric up 1
+metric indices 17
+metric open 16
+metric closed 1
+metric green 15
+metric yellow 1
+metric red 1
+metric hidden 8
+metric docs 34045
+metric deleted_docs 92
+metric store_bytes 6168495
+metric primary_store_bytes 3106714
+metric blocked 1
+metric write_blocked 1
+metric health 2 index=archive-red
+metric is_open 1 index=archive-red
+metric index_docs 0 index=archive-red
+metric deleted_pct 0 index=archive-red
+metric index_store_bytes 0 index=archive-red
+metric index_primary_store_bytes 0 index=archive-red
+metric primaries 1 index=archive-red
+metric replicas 0 index=archive-red
+metric age_days 0 index=archive-red
+metric health 1 index=orders
+metric is_open 1 index=orders
+metric index_docs 0 index=orders
+metric deleted_pct 0 index=orders
+metric index_store_bytes 416 index=orders
+metric index_primary_store_bytes 208 index=orders
+metric primaries 1 index=orders
+metric replicas 3 index=orders
+metric age_days 0 index=orders
+metric health 0 index=blocked
+metric is_open 1 index=blocked
+metric index_docs 0 index=blocked
+metric deleted_pct 0 index=blocked
+metric index_store_bytes 208 index=blocked
+metric index_primary_store_bytes 208 index=blocked
+metric primaries 1 index=blocked
+metric replicas 0 index=blocked
+... (169 lines)
+  PASS  os219: opensearch_indices runs (powershell)
+
+> powershell packs\opensearch\windows\shards.ps1
+metric up 1
+metric shards 34
+metric primaries 18
+metric replicas 16
+metric started 31
+metric relocating 0
+metric initializing 0
+metric unassigned 3
+metric unassigned_primaries 1
+metric unassigned_replicas 2
+metric largest_shard_bytes 1396960
+metric largest_shard_docs 24995
+metric shards_over_50gb 0
+metric shards_over_200m_docs 0
+metric node_shards 16 node=os219a
+metric node_shards 15 node=os219b
+metric unassigned_seconds 134 index=archive-red shard=0 prirep=p reason=INDEX_CREATED
+metric unassigned_seconds 135 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric unassigned_seconds 135 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric unassigned_not_shown 0
+metric explained 1 index=archive-red shard=0 prirep=p can_allocate=no decider=filter why=node_does_not_match_index_setting__index.routing.allocation.require__filters___name:_nowhere__
+metric recoveries 0
+metric recoveries_not_shown 0
+  PASS  os219: opensearch_shards runs (powershell)
+
+> powershell packs\opensearch\windows\allocation.ps1
+metric up 1
+metric shards 16 node=os219a
+metric disk_indices_bytes 3126642 node=os219a
+metric disk_used_bytes 77112950784 node=os219a
+metric disk_free_bytes 40771108864 node=os219a
+metric disk_total_bytes 117884059648 node=os219a
+metric disk_used_pct 65 node=os219a
+metric watermark 2 node=os219a
+metric shards 15 node=os219b
+metric disk_indices_bytes 3042083 node=os219b
+metric disk_used_bytes 77112950784 node=os219b
+metric disk_free_bytes 40771108864 node=os219b
+metric disk_total_bytes 117884059648 node=os219b
+metric disk_used_pct 65 node=os219b
+metric watermark 2 node=os219b
+metric nodes_over_low 2
+metric nodes_over_high 2
+metric nodes_over_flood 0
+metric watermark_free_bytes 109951162777600 level=low
+metric watermark_free_bytes 54975581388800 level=high
+metric watermark_free_bytes 1073741824 level=flood_stage
+metric disk_threshold_enabled 1
+metric allocation_enabled 0 setting=primaries
+metric rebalance_enabled 1 setting=all
+metric exclusions 1
+metric exclusion 1 attribute=_name value=decommissioned-1
+metric max_shards_per_node 12
+metric shards_capacity_pct 141.67
+metric nodes_not_shown 0
+  PASS  os219: opensearch_allocation runs (powershell)
+
+> powershell packs\opensearch\windows\operations.ps1
+metric up 1
+metric docs 34045 node=os219a
+metric store_bytes 3126642 node=os219a
+metric index_total 35515 node=os219a
+metric index_time_ms 24397 node=os219a
+metric index_current 0 node=os219a
+metric index_failed 0 node=os219a
+metric delete_total 16 node=os219a
+metric index_throttle_ms 0 node=os219a
+metric query_total 150 node=os219a
+metric query_time_ms 1668 node=os219a
+metric query_current 0 node=os219a
+metric fetch_total 132 node=os219a
+metric fetch_time_ms 738 node=os219a
+metric scroll_current 2 node=os219a
+metric open_contexts 2 node=os219a
+metric get_total 71 node=os219a
+metric get_missing 20 node=os219a
+metric get_time_ms 427 node=os219a
+metric merges_current 0 node=os219a
+metric merges_total 8 node=os219a
+metric merges_time_ms 3781 node=os219a
+metric merges_throttled_ms 0 node=os219a
+metric refresh_total 199 node=os219a
+metric refresh_time_ms 24293 node=os219a
+metric flush_total 12 node=os219a
+metric flush_time_ms 564 node=os219a
+metric query_cache_bytes 0 node=os219a
+metric query_cache_hits 0 node=os219a
+metric query_cache_misses 0 node=os219a
+metric query_cache_evictions 0 node=os219a
+metric request_cache_bytes 0 node=os219a
+metric request_cache_hits 16 node=os219a
+metric request_cache_misses 5 node=os219a
+metric request_cache_evictions 0 node=os219a
+metric fielddata_bytes 0 node=os219a
+metric fielddata_evictions 0 node=os219a
+metric segments 50 node=os219a
+metric translog_ops 33682 node=os219a
+metric translog_bytes 3528212 node=os219a
+... (82 lines)
+  PASS  os219: opensearch_operations runs (powershell)
+
+> powershell packs\opensearch\windows\ingest.ps1
+metric up 1
+metric count 6
+metric failed 3
+metric time_ms 35
+metric current 0
+metric failed_pct 50
+metric pipelines 1
+metric pipeline_count 6 pipeline=parse
+metric pipeline_failed 3 pipeline=parse
+metric pipeline_failed_pct 50 pipeline=parse
+metric pipeline_time_ms 30 pipeline=parse
+metric pipeline_avg_ms 5 pipeline=parse
+metric pipelines_not_shown 0
+  PASS  os219: opensearch_ingest runs (powershell)
+
+> powershell packs\opensearch\windows\tasks.ps1
+metric up 1
+metric tasks 1
+metric longest_seconds 121
+metric over_60s 1
+metric cancellable 1
+metric cancelled 0
+metric searches 0
+metric action_tasks 1 action=indices:data/write/reindex
+metric running_seconds 121 action=indices:data/write/reindex node=os219a what=reindex_from__logs-ok__to__logs-slow_
+metric tasks_not_shown 0
+metric pending 0
+metric pending_oldest_ms 0
+  PASS  os219: opensearch_tasks runs (powershell)
+
+> powershell packs\opensearch\windows\snapshots.ps1
+metric up 1
+metric running 0
+metric repositories 2
+metric repositories_not_shown 0
+metric readable 1 repository=backups
+metric snapshots 2 repository=backups
+metric failed 0 repository=backups
+metric partial 0 repository=backups
+metric last_status 0 repository=backups status=SUCCESS
+metric last_age_seconds 261 repository=backups
+metric last_duration_seconds 0 repository=backups
+metric last_failed_shards 0 repository=backups
+metric last_success_age_seconds 261 repository=backups
+metric readable 1 repository=ro-repo
+metric snapshots 2 repository=ro-repo
+metric failed 0 repository=ro-repo
+metric partial 0 repository=ro-repo
+metric last_status 0 repository=ro-repo status=SUCCESS
+metric last_age_seconds 261 repository=ro-repo
+metric last_duration_seconds 0 repository=ro-repo
+metric last_failed_shards 0 repository=ro-repo
+metric last_success_age_seconds 261 repository=ro-repo
+  PASS  os219: opensearch_snapshots runs (powershell)
+
+> powershell packs\opensearch\windows\cluster.ps1
+metric up 1
+metric indices 16
+metric shards 31
+metric primary_shards 17
+metric replication 0.82
+metric docs 34045
+metric deleted_docs 92
+metric store_bytes 6173106
+metric segments 101
+metric fields 778
+metric fielddata_bytes 0
+metric query_cache_bytes 0
+metric nodes 2
+metric role_nodes 2 role=cluster_manager
+metric role_nodes 0 role=coordinating_only
+metric role_nodes 2 role=data
+metric role_nodes 2 role=ingest
+metric role_nodes 2 role=master
+metric role_nodes 2 role=remote_cluster_client
+metric role_nodes 0 role=search
+metric versions 1
+metric version_info 1 version=2.19.7
+metric processors 8
+metric fs_total_bytes 235768119296
+metric fs_free_bytes 81542217728
+metric fs_used_pct 65.41
+metric pipelines 1
+metric plugins 24
+  PASS  os219: opensearch_cluster runs (powershell)
+
+> powershell packs\opensearch\windows\backpressure.ps1
+metric up 1
+metric search_mode 1 node=os219a mode=monitor_only
+metric search_cancellations 0 node=os219a
+metric search_limit_reached 0 node=os219a
+metric search_cancelled_for 0 node=os219a reason=cpu_usage
+metric search_cancelled_for 0 node=os219a reason=elapsed_time
+metric search_cancelled_for 0 node=os219a reason=heap_usage
+metric shard_indexing_enabled 0 node=os219a
+metric shard_indexing_enforced 0 node=os219a
+metric shard_indexing_rejections 0 node=os219a limit=no_successful_request_limits
+metric shard_indexing_rejections 0 node=os219a limit=node_limits
+metric shard_indexing_rejections 0 node=os219a limit=throughput_degradation_limits
+metric search_mode 1 node=os219b mode=monitor_only
+metric search_cancellations 0 node=os219b
+metric search_limit_reached 0 node=os219b
+metric search_cancelled_for 0 node=os219b reason=cpu_usage
+metric search_cancelled_for 0 node=os219b reason=elapsed_time
+metric search_cancelled_for 0 node=os219b reason=heap_usage
+metric shard_indexing_enabled 0 node=os219b
+metric shard_indexing_enforced 0 node=os219b
+metric shard_indexing_rejections 0 node=os219b limit=no_successful_request_limits
+metric shard_indexing_rejections 0 node=os219b limit=node_limits
+metric shard_indexing_rejections 0 node=os219b limit=throughput_degradation_limits
+metric nodes_not_shown 0
+  PASS  os219: opensearch_backpressure runs (powershell)
+
+> powershell packs\opensearch\windows\lifecycle.ps1
+metric up 1
+metric ism_managed 1
+metric ism_failed 1
+metric ism_disabled 1
+metric ism_in_state 1 state=hot
+metric ism_failure 1 index=ism-broken policy=rollover-broken action=rollover reason=Missing_rollover_alias_index_setting__index_ism-broken_
+metric ism_retries 1 index=ism-broken
+metric ism_not_shown 0
+metric sm_policies 2
+metric sm_enabled 0
+metric sm_last_status 0 policy=nightly-ok status=SUCCESS
+metric sm_failing 0 policy=nightly-ok reason=none
+metric sm_last_age_seconds 213 policy=nightly-ok
+metric sm_next_seconds 0 policy=nightly-ok
+metric sm_last_status 3 policy=nightly-ro status=FAILED
+metric sm_failing 1 policy=nightly-ro reason=not_given
+metric sm_last_age_seconds 213 policy=nightly-ro
+metric sm_next_seconds 0 policy=nightly-ro
+  PASS  os219: opensearch_lifecycle runs (powershell)
+  PASS  os219: OpenSearch 2.19.7 (powershell)
+  PASS  os219: red, 2 nodes (powershell)
+  PASS  os219: the elected node (powershell)
+  PASS  os219: the unassigned primary, and why (powershell)
+  PASS  os219: writes refused (powershell)
+  PASS  os219: the breaker tripped (powershell)
+  PASS  os219: an index blocked for writes (powershell)
+  PASS  os219: every node past the high watermark (powershell)
+  PASS  os219: allocation left at primaries (powershell)
+  PASS  os219: the pipeline failing half (powershell)
+  PASS  os219: search backpressure (powershell)
+  PASS  os219: ISM failing (powershell)
+  PASS  os219: snapshot management failing (powershell)
+  PASS  os219: a wrong password fails the run (powershell)
+  PASS  os219: and says so (powershell)
+== pwsh: not here
+
+== powershell tests\integration\Service-Packs.ps1
+PowerShell 5.1.26100.7462
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD
+opensearch: https://127.0.0.1:19210 as vigil
+  PASS  opensearch: off until enabled
+  PASS  opensearch: enabled
+        on: opensearch_status
+        on: opensearch_nodes
+        on: opensearch_thread_pools
+        on: opensearch_breakers
+        on: opensearch_indices
+        on: opensearch_shards
+        on: opensearch_allocation
+        on: opensearch_operations
+        on: opensearch_ingest
+        on: opensearch_tasks
+        on: opensearch_snapshots
+        on: opensearch_cluster
+        on: opensearch_backpressure
+        on: opensearch_lifecycle
+        needs a user with a role that may only monitor (the security plugin): cluster permissions cluster_monitor and the reads of snapshots, ISM and snapshot management; index permissions indices_monitor, indices:admin/get and indices:monitor/settings/get on * (packs/opensearch/README.md has it), and its password as a secret: secret = OPENSEARCH_PASSWORD=secret:OPENSEARCH_PASSWORD, then vigil secret set OPENSEARCH_PASSWORD
+        needs for OpenSearch's JVM (heap, garbage collection, threads): the jvm pack, not this one: vigil pack install jvm
+        settings in vigil.config: OPENSEARCH_URL= OPENSEARCH_USER= OPENSEARCH_CACERT=
+  PASS  opensearch: it says its JVM is the jvm pack's
+  PASS  opensearch: its jobs are on
+  PASS  opensearch: the password is a secret reference, on every job
+  note  opensearch: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_OS_PASSWORD
+  PASS  opensearch: precheck is happy
+  PASS  opensearch: every job runs
+  PASS  opensearch: answers
+  PASS  opensearch: the cluster read as red
+  PASS  opensearch: the unassigned primary explained
+  PASS  opensearch: write rejections seen
+  PASS  opensearch: the write-blocked index seen
+        metric up 1
+        metric version 1 version=3.10.0 cluster=vigil310
+        metric status 2 status=red
+        metric timed_out 0
+        metric nodes 3
+        metric data_nodes 3
+        metric active_primary_shards 16
+        metric active_shards 34
+        metric active_shards_pct 94.44
+        metric relocating_shards 0
+        metric initializing_shards 0
+        metric unassigned_shards 2
+        metric delayed_unassigned_shards 0
+        metric pending_tasks 0
+        metric task_max_wait_ms 0
+        metric in_flight_fetch 0
+        metric cluster_manager 1 node=os310b
+  PASS  opensearch: a wrong password fails the run
+  PASS  opensearch: and says why
+  PASS  opensearch: a cluster that does not answer still runs
+  PASS  opensearch: and reads as up 0
+  PASS  opensearch: the password is written nowhere
+  PASS  opensearch: metrics reach the backend
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+20 passed, 0 failed
+
+directly: 58 passed, 0 failed

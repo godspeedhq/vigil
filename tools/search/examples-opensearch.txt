@@ -1,0 +1,119 @@
+# Each job's example output, for its script's header (tools/search/gen.py):
+# from scripts/run-opensearch.sh against OpenSearch 3.10.0, three nodes in
+# trouble on purpose, on the Fedora test machine (2026-11-23). At most 10
+# lines a job.
+
+== status
+metric up 1
+metric version 1 version=3.10.0 cluster=vigil310
+metric status 2 status=red
+metric nodes 3
+metric data_nodes 3
+metric active_shards_pct 94.44
+metric cluster_manager 1 node=os310b
+
+== nodes
+metric up 1
+metric nodes 3
+metric versions 1
+metric info 1 node=os310a version=3.10.0 roles=dimr
+metric cluster_manager 0 node=os310a
+
+== thread_pools
+metric up 1
+metric rejected_total 247
+metric queued_total 0
+metric rejected 177 node=os310b pool=write
+metric completed 204 node=os310b pool=write
+metric threads 1 node=os310b pool=write
+metric rejected 70 node=os310c pool=write
+
+== breakers
+metric up 1
+metric tripped_total 12
+metric max_used_pct 78.3
+metric estimated_bytes 0 node=os310a breaker=fielddata
+metric limit_bytes 161061273 node=os310a breaker=fielddata
+metric used_pct 0 node=os310a breaker=fielddata
+metric tripped 0 node=os310a breaker=fielddata
+
+== backpressure
+metric up 1
+metric search_mode 1 node=os310a mode=monitor_only
+metric search_cancellations 0 node=os310a
+metric search_cancelled_for 0 node=os310a reason=cpu_usage
+metric search_cancelled_for 0 node=os310a reason=heap_usage
+metric shard_indexing_enabled 0 node=os310a
+metric shard_indexing_enforced 0 node=os310a
+
+== indices
+metric up 1
+metric indices 16
+metric yellow 1
+metric red 1
+metric write_blocked 1
+metric health 2 index=archive-red
+metric block 1 index=blocked block=write
+
+== shards
+metric up 1
+metric unassigned 2
+metric unassigned_primaries 1
+metric unassigned_seconds 68 index=archive-red shard=0 prirep=p reason=INDEX_CREATED
+metric unassigned_seconds 69 index=orders shard=0 prirep=r reason=INDEX_CREATED
+metric explained 1 index=archive-red shard=0 prirep=p can_allocate=no decider=filter why=node_does_not_match_index_setting__index.routing.allocation.require__filters___name:_nowhere__
+
+== allocation
+metric up 1
+metric disk_used_pct 65 node=os310a
+metric watermark 2 node=os310a
+metric nodes_over_high 3
+metric allocation_enabled 0 setting=primaries
+metric exclusion 1 attribute=_name value=decommissioned-1
+metric shards_capacity_pct 100
+
+== operations
+metric up 1
+metric docs 11349 node=os310a
+metric index_total 11012 node=os310a
+metric index_time_ms 10412 node=os310a
+metric index_failed 18 node=os310a
+metric index_throttle_ms 0 node=os310a
+
+== ingest
+metric up 1
+metric count 6
+metric failed 3
+metric failed_pct 50
+metric pipeline_count 6 pipeline=parse
+metric pipeline_failed 3 pipeline=parse
+
+== tasks
+metric up 1
+metric tasks 1
+metric longest_seconds 46
+metric action_tasks 1 action=indices:data/write/reindex
+metric running_seconds 46 action=indices:data/write/reindex node=os310a what=reindex_from__logs-ok__to__logs-slow_
+
+== lifecycle
+metric up 1
+metric ism_managed 1
+metric ism_failed 1
+metric ism_failure 1 index=ism-broken policy=rollover-broken action=rollover reason=Missing_rollover_alias_index_setting__index_ism-broken_
+metric sm_last_status 0 policy=nightly-ok status=SUCCESS
+metric sm_last_status 3 policy=nightly-ro status=FAILED
+metric sm_failing 1 policy=nightly-ro reason=not_given
+
+== snapshots
+metric up 1
+metric repositories 2
+metric snapshots 2 repository=backups
+metric last_status 0 repository=backups status=SUCCESS
+
+== cluster
+metric up 1
+metric indices 15
+metric shards 34
+metric replication 1.13
+metric docs 48761
+metric plugins 26

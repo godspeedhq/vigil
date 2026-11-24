@@ -1,0 +1,143 @@
+#Requires -Version 5.1
+
+<#
+.SYNOPSIS
+    shards.ps1 - the shards of a cluster, and why one is unassigned, on Windows
+.NOTES
+    Copyright (c) Bankole Ogundero and the Vigil contributors
+    SPDX-License-Identifier: Apache-2.0
+
+    Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+    implied. Run it at your own risk: review it first, and test it before you
+    rely on it. In no event shall the authors or copyright holders be liable
+    for any claim, damages or other liability arising from its use. See the
+    LICENSE file for the full terms.
+.DESCRIPTION
+    Reports every shard by state (started, relocating, initializing, unassigned,
+    primaries and replicas apart), the largest shards (by size and by documents,
+    against the limits Elasticsearch advises), each node's share, and each
+    unassigned shard, primaries first, with why and since when. For the first of
+    them, it asks Elasticsearch to explain (_cluster/allocation/explain) and
+    reports the reason it gives. Then the shard recoveries in progress, and how
+    far each has come. It only reads: it changes nothing in the cluster.
+
+    Reads Elasticsearch at ELASTICSEARCH_URL (default https://localhost:9200),
+    as ELASTICSEARCH_USER with the password in ELASTICSEARCH_PASSWORD (a
+    secret), or with an API key in ELASTICSEARCH_API_KEY (a secret: the encoded
+    form Elasticsearch gives). The login goes in a header made here, never on a
+    command line.
+    It speaks HTTP itself, with .NET: nothing to install. Over https, the
+    certificate is checked against Windows' trusted CAs, or
+    ELASTICSEARCH_CACERT, a CA file, and against the server's name. What the
+    scripts share is in _elasticsearch.ps1, beside this one.
+
+    Metrics:
+      up                     1 when Elasticsearch answers, else 0
+      shards                 shards, primaries and replicas
+      primaries              of those, primaries
+      replicas               replicas
+      started                shards started
+      relocating             shards moving to another node
+      initializing           shards being created or recovered
+      unassigned             shards on no node
+      unassigned_primaries   of those, primaries: their data is unreachable
+      unassigned_replicas    replicas
+      largest_shard_bytes    the largest shard
+      largest_shard_docs     the most documents in a shard
+      shards_over_50gb       shards larger than 50 GB, the most Elasticsearch
+                             advises
+      shards_over_200m_docs  shards of more than 200 million documents, the most
+                             Elasticsearch advises
+      node_shards            shards on a node, tagged node=<its name>
+      unassigned_seconds     how long a shard has been unassigned, tagged
+                             index=<it>, shard=<its number>, prirep=<p or r> and
+                             reason=<why Elasticsearch unassigned it>
+      unassigned_not_shown   unassigned shards past the first 100, left out
+      explained              always 1, for the first unassigned shard:
+                             Elasticsearch's explanation, tagged index, shard,
+                             prirep, can_allocate=<no, yes, throttled,
+                             awaiting_info...>, decider=<what refused it> and
+                             why=<its words>
+      recoveries             shard recoveries in progress
+      recovery_pct           how far one has come, in bytes, tagged index,
+                             shard, type=<why it recovers> and stage=<where it
+                             is>
+      recovery_ms            how long it has run, tagged the same
+      recoveries_not_shown   recoveries past the first 50, left out
+
+    Example output (the rest are in the same form):
+      metric up 1
+      metric unassigned 4
+      metric unassigned_primaries 2
+      metric unassigned_seconds 121 index=archive-red shard=0 prirep=p reason=INDEX_CREATED
+      metric unassigned_seconds 122 index=orders shard=0 prirep=r reason=INDEX_CREATED
+      metric explained 1 index=archive-red shard=0 prirep=p can_allocate=no decider=filter why=node_does_not_match_index_setting__index.routing.allocation.require__filters___name:_nowhere__
+
+    Reading the results (starting points: tune them to the cluster):
+      Healthy  unassigned 0; relocating and initializing 0 most of the time;
+               shards_over_50gb 0.
+      Watch    unassigned_replicas above 0 for minutes: a node gone, or replicas
+               the cluster cannot place (explained says why); recoveries running
+               for long; shards_over_50gb above 0: split the index, or roll it
+               over sooner.
+      Act      unassigned_primaries above 0: data unreachable; explained says
+               why (a node gone, a disk full, a filter no node matches, a
+               corrupt shard).
+
+    Requires: Windows PowerShell 5.1 or PowerShell 7
+    Exit code: 0 on success, Elasticsearch up or down; 1 if a setting is wrong,
+      the login is refused, this user may not read what the job needs, or the
+      address is not Elasticsearch
+#>
+
+$Job = 'shards'
+. (Join-Path $PSScriptRoot '_elasticsearch.ps1')
+
+Read-First
+$all = @(Need-Page '/_cat/shards?format=json&bytes=b&h=index,shard,prirep,state,unassigned.reason,unassigned.at,node,store,docs')
+M 'shards' $all.Count
+M 'primaries' (@($all | Where-Object { $_.prirep -eq 'p' }).Count)
+M 'replicas' (@($all | Where-Object { $_.prirep -eq 'r' }).Count)
+M 'started' (@($all | Where-Object { $_.state -eq 'STARTED' }).Count)
+M 'relocating' (@($all | Where-Object { $_.state -eq 'RELOCATING' }).Count)
+M 'initializing' (@($all | Where-Object { $_.state -eq 'INITIALIZING' }).Count)
+$un = @($all | Where-Object { $_.state -eq 'UNASSIGNED' })
+M 'unassigned' $un.Count
+M 'unassigned_primaries' (@($un | Where-Object { $_.prirep -eq 'p' }).Count)
+M 'unassigned_replicas' (@($un | Where-Object { $_.prirep -eq 'r' }).Count)
+$big = 0; $most = 0
+foreach ($x in $all) { if ((N $x.store) -gt $big) { $big = N $x.store }; if ((N $x.docs) -gt $most) { $most = N $x.docs } }
+M 'largest_shard_bytes' $big
+M 'largest_shard_docs' $most
+M 'shards_over_50gb' (@($all | Where-Object { (N $_.store) -gt 53687091200 }).Count)
+M 'shards_over_200m_docs' (@($all | Where-Object { (N $_.docs) -gt 200000000 }).Count)
+foreach ($g in @($all | Where-Object { $_.node } | Group-Object { [string]$_.node } | Sort-Object Name)) { M 'node_shards' $g.Count "node=$(Safe $g.Name)" }
+$uns = @($un | ForEach-Object { $_ | Add-Member -NotePropertyName at -NotePropertyValue (Epoch $_.'unassigned.at') -Force; $_ } |
+    Sort-Object @{ Expression = { $_.prirep -ne 'p' } }, @{ Expression = { $_.at } }, @{ Expression = { [string]$_.index } }, @{ Expression = { N $_.shard } })
+foreach ($x in @($uns | Select-Object -First 100)) {
+    $s = if ($x.at) { [Math]::Max([Math]::Floor($script:Now - $x.at), 0) } else { 0 }
+    M 'unassigned_seconds' $s "index=$(Safe $x.index) shard=$(Safe $x.shard) prirep=$(Safe $x.prirep) reason=$(Safe $x.'unassigned.reason')"
+}
+M 'unassigned_not_shown' ([Math]::Max($uns.Count - 100, 0))
+# The first unassigned shard, primaries first: Elasticsearch's own explanation.
+$first = @($un | Sort-Object @{ Expression = { $_.prirep -ne 'p' } }, @{ Expression = { [string]$_.index } }, @{ Expression = { N $_.shard } }) | Select-Object -First 1
+if ($first) {
+    $req = '{"index":"' + ([string]$first.index -replace '["\\]', '') + '","shard":' + [int](N $first.shard) + ',"primary":' + $(if ($first.prirep -eq 'p') { 'true' } else { 'false' }) + '}'
+    $p = Get-Page '/_cluster/allocation/explain?filter_path=index,shard,primary,can_allocate,allocate_explanation,node_allocation_decisions.node_decision,node_allocation_decisions.deciders' $req
+    if ($p.State -eq 'ok') {
+        $e = $p.Data
+        $d = @(foreach ($nd in @($e.node_allocation_decisions)) { foreach ($dc in @($nd.deciders)) { if ($dc.decision -in 'NO', 'THROTTLE') { $dc } } }) | Select-Object -First 1
+        $dec = if ($d) { $d.decider } else { 'none' }
+        $why = if ($d) { $d.explanation } elseif ($e.allocate_explanation) { $e.allocate_explanation } else { '' }
+        Write-Output "metric explained 1 index=$(Safe $e.index) shard=$(Safe $e.shard) prirep=$(if ($e.primary) { 'p' } else { 'r' }) can_allocate=$(Safe $e.can_allocate) decider=$(Safe $dec) why=$(Safe $why)"
+    } elseif ($p.State -ne 'unsupported') { Stop-Why $p.State '/_cluster/allocation/explain' }
+}
+$rec = @(Need-Page '/_cat/recovery?format=json&active_only=true&bytes=b&time=ms&h=index,shard,type,stage,source_node,target_node,bytes_percent,time')
+M 'recoveries' $rec.Count
+foreach ($x in @($rec | Sort-Object @{ Expression = { N $_.time }; Descending = $true } | Select-Object -First 50)) {
+    $t = "index=$(Safe $x.index) shard=$(Safe $x.shard) type=$(Safe $x.type) stage=$(Safe $x.stage)"
+    M 'recovery_pct' $x.bytes_percent $t
+    M 'recovery_ms' $x.time $t
+}
+M 'recoveries_not_shown' ([Math]::Max($rec.Count - 50, 0))
+exit 0

@@ -81,6 +81,11 @@
 #                                        (scripts/run-rabbitmq.sh)
 #   VIGIL_IT_JENKINS_URL, _USER, _TOKEN  a Jenkins, a read-only user and its
 #                                        API token (scripts/run-jenkins.sh)
+#   VIGIL_IT_ES_URL, _USER, _PASSWORD,   an Elasticsearch cluster, a user that
+#     _CACERT                            may only monitor, its password and
+#                                        the CA (scripts/run-elasticsearch.sh)
+#   VIGIL_IT_OS_URL, _USER, _PASSWORD,   the same for OpenSearch
+#     _CACERT                            (scripts/run-opensearch.sh)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
@@ -157,7 +162,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins nginx; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch nginx; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1382,6 +1387,76 @@ else
     check 'jenkins: the token is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_JENKINS_TOKEN" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
 
+# --- elasticsearch, opensearch --------------------------------------------------
+# A cluster, through Vigil, as scripts/run-elasticsearch.sh and
+# run-opensearch.sh set it up, in trouble on purpose (red, write rejections):
+# VIGIL_IT_ES_URL (or _OS_), a user that may only monitor in _USER, its
+# password in _PASSWORD, and the cluster's CA in _CACERT.
+search_pack() {
+    local p=$1 E=$2 url=$3 user=$4 pw=$5 ca=$6 sjobs sn failed j
+    unset "${E}_URL" "${E}_USER" "${E}_PASSWORD" "${E}_CACERT" "${E}_API_KEY"
+    printf '%s: %s as %s\n' "$p" "$url" "$user"
+    sjobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/$p/pack.config")
+    sn=$(printf '%s\n' $sjobs | wc -l | tr -d ' ')
+    sjobs_on() { vigil pack list | awk -v p="$p" 'index($1, p "_") == 1 { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    sval() { grep -h " out metric $2 " "$root/logs/jobs/${p}_$1"/*.log 2> /dev/null | grep -- "${3-}" | tail -n 1 | awk '{ print $6 }'; }
+    ssaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/${p}_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    srun() { vigil run "${p}_$1" > "$work/out" 2>&1; echo $?; }
+    check "$p: off until enabled" "off=$sn" "$(sjobs_on)"
+    out=$(vigil pack enable "$p" 2>&1)
+    check "$p: enabled" 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check "$p: it says its JVM is the jvm pack's" yes "$(printf '%s\n' "$out" | tr '\n' ' ' | tr -s ' ' | grep -q 'the jvm pack, not this one' && echo yes || echo no)"
+    check "$p: its jobs are on" "on=$sn" "$(sjobs_on)"
+    check "$p: no secret line until the password is asked for" 0 "$(grep -c "^secret *= ${E}_PASSWORD=" "$root/config/vigil.config")"
+    awk -v s="secret      = ${E}_PASSWORD=secret:${E}_PASSWORD" -v e="^env *= ${E}_CACERT=" '{ print } $0 ~ e { print s }' \
+        "$root/config/vigil.config" > "$work/cfg" && cat "$work/cfg" > "$root/config/vigil.config"
+    check "$p: the password is a secret reference, on every job" "$sn" "$(grep -c "^secret *= ${E}_PASSWORD=secret:${E}_PASSWORD" "$root/config/vigil.config")"
+    printf '%s' "$pw" | vigil secret set "${E}_PASSWORD" --stdin > /dev/null
+    set_env "${E}_URL" "$url"
+    set_env "${E}_USER" "$user"
+    set_env "${E}_CACERT" "$ca"
+    check "$p: precheck is happy" 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    failed=''
+    for j in $sjobs; do [ "$(srun "$j")" = 0 ] || failed="$failed $j"; done
+    check "$p: every job runs" '' "$failed"
+    for j in $failed; do sed 's/^/        /' "$root/logs/jobs/${p}_$j"/*.log | tail -n 4; done
+    for j in $sjobs; do
+        printf '        %s: %s lines\n' "$j" "$(grep -h ' out metric ' "$root/logs/jobs/${p}_$j"/*.log | wc -l | tr -d ' ')"
+    done
+    check "$p: answers" 1 "$(sval status up)"
+    check "$p: the cluster read as red" 2 "$(sval status status)"
+    check "$p: the unassigned primary explained" yes "$(grep -qh ' out metric explained 1 index=archive-red .*decider=filter' "$root/logs/jobs/${p}_shards"/*.log && echo yes || echo no)"
+    check "$p: write rejections seen" yes "$([ "$(sval thread_pools rejected_total)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check "$p: the write-blocked index seen" yes "$([ "$(sval indices write_blocked)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    printf 'not-the-password' | vigil secret set "${E}_PASSWORD" --stdin > /dev/null
+    check "$p: a wrong password fails the run" 2 "$(srun status)"
+    check "$p: and says why" yes "$(ssaid status 'refused the login (HTTP 401)')"
+    printf '%s' "$pw" | vigil secret set "${E}_PASSWORD" --stdin > /dev/null
+    set_env "${E}_URL" 'http://127.0.0.1:1'
+    check "$p: a cluster that does not answer still runs" 0 "$(srun status)"
+    check "$p: and reads as up 0" 0 "$(sval status up)"
+    set_env "${E}_URL" "$url"
+    [ "$(srun status)" = 0 ] || true
+    check "$p: the password is written nowhere" '' "$(grep -rlF -- "$pw" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+}
+for s in elasticsearch:ES:ELASTICSEARCH opensearch:OS:OPENSEARCH; do
+    p=${s%%:*} rest=${s#*:} k=${rest%%:*} E=${rest#*:}
+    eval "u=\${VIGIL_IT_${k}_URL-} us=\${VIGIL_IT_${k}_USER-} pw=\${VIGIL_IT_${k}_PASSWORD-} ca=\${VIGIL_IT_${k}_CACERT-}"
+    if [ -z "$u" ] || [ -z "$pw" ]; then
+        printf '  SKIP  %s: set VIGIL_IT_%s_URL and VIGIL_IT_%s_PASSWORD (scripts/run-%s.sh sets them up)\n' "$p" "$k" "$k" "$p"
+    elif ! command -v jq > /dev/null 2>&1; then
+        printf '  SKIP  %s: jq is not installed here\n' "$p"
+    else
+        search_pack "$p" "$E" "$u" "$us" "$pw" "$ca"
+    fi
+done
+
 # --- rabbitmq ---------------------------------------------------------------
 # RabbitMQ nodes, through Vigil, as scripts/run-rabbitmq.sh sets them up:
 # VIGIL_IT_RABBITMQ_TARGETS their Prometheus pages (name=address;...).
@@ -1593,6 +1668,14 @@ if [ -n "${VIGIL_IT_JENKINS_URL-}" ] && [ -n "${VIGIL_IT_JENKINS_TOKEN-}" ] && c
     for _ in $(seq 1 20); do grep -q '^jenkins_jobs_failing{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
     check 'jenkins: metrics reach the backend' yes "$(grep -q '^jenkins_up{' "$root/metrics/vigil.prom" && grep -q '^jenkins_jobs_failing{' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
+for s in elasticsearch:ES opensearch:OS; do
+    p=${s%%:*} k=${s#*:}
+    eval "u=\${VIGIL_IT_${k}_URL-} pw=\${VIGIL_IT_${k}_PASSWORD-}"
+    if [ -n "$u" ] && [ -n "$pw" ] && command -v jq > /dev/null 2>&1; then
+        for _ in $(seq 1 20); do grep -q "^${p}_shards_unassigned{" "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+        check "$p: metrics reach the backend" yes "$(grep -q "^${p}_up{" "$root/metrics/vigil.prom" && grep -q "^${p}_shards_unassigned{" "$root/metrics/vigil.prom" && echo yes || echo no)"
+    fi
+done
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
     check 'nginx: metrics reach the backend' yes "$(grep -q '^nginx_requests_count{' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
