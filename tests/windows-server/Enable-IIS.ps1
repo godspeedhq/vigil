@@ -78,10 +78,15 @@ try {
         return
     }
 
-    # 1. IIS
-    $r = Install-WindowsFeature -Name $features -IncludeManagementTools
-    "IIS installed: $($r.Success); restart needed: $($r.RestartNeeded)"
-    if ("$($r.RestartNeeded)" -eq 'Yes') { 'Restart the server, then run this script again to finish.'; return }
+    # 1. IIS: only the features not there yet. A restart Windows wants for
+    # something else (an update) does not stop the rest.
+    $missing = @(Get-WindowsFeature -Name $features | Where-Object { -not $_.Installed } | ForEach-Object Name)
+    if ($Reset -or -not $missing.Count) { 'IIS is installed' }
+    else {
+        $r = Install-WindowsFeature -Name $missing -IncludeManagementTools
+        "IIS installed ($($missing -join ', ')): $($r.Success); restart needed: $($r.RestartNeeded)"
+        if ("$($r.RestartNeeded)" -eq 'Yes') { 'Restart the server, then run this script again to finish.'; return }
+    }
     Import-Module WebAdministration
 
     # 2. vigil-test may read the counters, the events and the logs, nothing more
