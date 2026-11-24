@@ -211,6 +211,17 @@ Test-Equal 'run refused while a token exists' '4' "$((Invoke-Vigil @('run', 'ok'
 Test-Equal 'abandoned launch is not run' '4' "$((Invoke-Vigil @('worker', 'ok', '--run-id', '20260101T000000Z-2')).Code)"
 Test-Equal 'unknown job is not run' '4' "$((Invoke-Vigil @('run', 'nosuchjob')).Code)"
 
+# Events that cannot be written to the spool do not cost the run its
+# outcome: the final state is written, and the job's log says it (V-06).
+$incoming = Join-Path $root 'spool\incoming'
+$me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+[void](icacls $incoming /deny "${me}:(WD,AD)" 2>&1)
+[void](Invoke-Vigil @('run', 'ok'))
+[void](icacls $incoming /remove:d $me 2>&1)
+Test-Equal "spool not writable: the run's outcome is still recorded" 'succeeded' "$(Get-StateValue "$root\state\jobs\ok.state" 'status')"
+$okLog = (Get-ChildItem -LiteralPath "$root\logs\jobs\ok" -Filter '2*.log' | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join ''
+Test-Equal "spool not writable: the job's log says its events were lost" '1' ([string]([regex]::Matches($okLog, 'events not written to the spool')).Count)
+
 Remove-Item -Recurse -Force -LiteralPath $root
 Write-Host "$($script:pass) passed, $($script:fail) failed"
 if ($script:fail -gt 0) { exit 1 }

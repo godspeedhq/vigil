@@ -246,7 +246,7 @@ _vigil_sup_read_state() {
 # The outcome recorded in a run's spool file, if one exists. Sets _su_spool
 # (yes or no), _su_spool_outcome and _su_spool_file.
 _vigil_sup_spool() {
-    local f name rest
+    local f name rest after_runs
     _su_spool=no _su_spool_outcome='' _su_spool_file=''
     # A worker writes its events before its final state (4.3), so events with an
     # outcome prove the run finished, whatever its state file says. The sender may
@@ -256,12 +256,21 @@ _vigil_sup_spool() {
     for f in "$_su_spooldir"/incoming/*-"$1"-"$2".events "$_su_spooldir"/fanout/*-"$1"-"$2".events \
         "$_su_spooldir"/backends/*/*-"$1"-"$2".events; do
         [ -f "$f" ] || continue
+        # The outcome is the worker's own line, the one straight after the
+        # run's "runs" line (events.sh writes them together). Nothing after it
+        # is read: what follows is what the job printed, and a metric of its
+        # own called steps.succeeded is not how the run ended (V-01).
+        after_runs=0
         while read -r rest name rest; do
-            case $name in
-                *.succeeded) _su_spool_outcome=succeeded ;;
-                *.warnings) _su_spool_outcome=warning ;;
-                *.failures) _su_spool_outcome=failed ;;
-            esac
+            if [ "$after_runs" = 1 ]; then
+                case $name in
+                    *.succeeded) _su_spool_outcome=succeeded ;;
+                    *.warnings) _su_spool_outcome=warning ;;
+                    *.failures) _su_spool_outcome=failed ;;
+                esac
+                break
+            fi
+            case $name in *.runs) after_runs=1 ;; esac
         done < "$f"
         if [ -n "$_su_spool_outcome" ]; then
             _su_spool=yes
@@ -706,7 +715,18 @@ EOF_REPORT
         else
             _su_reload_failed=0
             _vigil_wk_dir vigil state_dir state
-            _su_statedir=$_vw_dir
+            # The state directory is the one the supervisor started with: its
+            # lock is there (12.4), and so are the tokens of the runs in
+            # progress. Moving to another while it runs would lose sight of
+            # them and start their jobs again beside them, so a state_dir
+            # changed in the configuration waits for the next start, and is
+            # said once (V-07).
+            if [ -z "${_su_statedir-}" ]; then
+                _su_statedir=$_vw_dir
+            elif [ "$_vw_dir" != "$_su_statedir" ] && [ "$_vw_dir" != "${_su_statedir_said-}" ]; then
+                _su_statedir_said=$_vw_dir
+                _vigil_sup_log WARN "state_dir is now $_vw_dir in the configuration: it takes effect when Vigil is next started; until then the state stays in $_su_statedir"
+            fi
             if vigil_fetch_mode; then
                 # What the fetcher last saw of this file tells whether it
                 # must look again.
@@ -763,12 +783,10 @@ _vigil_sup_settings() {
     _vigil_wk_get vigil instance vigil
     _su_instance=$_vw_value
     _vigil_wk_get scheduler tick 60s
-    case $_vw_value in
-        *s) _su_tick=${_vw_value%s} ;;
-        *m) _su_tick=$((${_vw_value%m} * 60)) ;;
-        *h) _su_tick=$((${_vw_value%h} * 3600)) ;;
-        *d) _su_tick=$((${_vw_value%d} * 86400)) ;;
-    esac
+    # In base 10 whatever its digits: bash reads 08 as octal, and a number
+    # it cannot read ends the script (V-03).
+    _vigil_sched_dur "$_vw_value"
+    _su_tick=$_vs_dur
 
     # Tags of every supervisor event: host, os, instance, then [tags].
     _su_tags="host=$_vw_host os=$_vw_os instance=$_su_instance"
@@ -917,8 +935,10 @@ _vigil_sup_start() {
         mv -f "$_su_statedir/locks/$job.$rid.launch.tmp.$$" "$_su_statedir/locks/$job.$rid.launch" || return 1
     vigil_fault launch.after_record
     # The worker must not inherit the supervisor lock (fd 8), or it would
-    # keep the lock held after the supervisor exits.
-    ( trap '' HUP; exec 8>&-; exec "$BASH" "$_su_app/vigil" --root "$_su_root" worker "$job" --run-id "$rid" ) \
+    # keep the lock held after the supervisor exits. It is told the state
+    # directory: its launch record is there, whatever the configuration
+    # says by now (V-07).
+    ( trap '' HUP; exec 8>&-; exec "$BASH" "$_su_app/vigil" --root "$_su_root" worker "$job" --run-id "$rid" --state-dir "$_su_statedir" ) \
         < /dev/null > /dev/null 2>&1 &
     vigil_fault launch.after_spawn
     _su_running=$((_su_running + 1))
@@ -950,7 +970,7 @@ _vigil_sup_remove() {
 }
 
 _vigil_sup_tick() {
-    local s name job cursor cfile active next i ok sl accounted=''
+    local s name job cursor cfile active next i ok sl due why accounted=''
     # Read once: every job in a tick is decided against the same moment.
     set -- $(date '+%s %Y-%m-%dT%H:%M:%S%z %Y-%m-%d')
     _su_epoch=$1
@@ -1033,6 +1053,13 @@ _vigil_sup_tick() {
             disabled)
                 rm -f "$cfile"
                 _su_status_disabled="$_su_status_disabled $job"
+                # A run queue_one held for it is not started once the job is
+                # disabled: the change applies from the next run (16.1, V-08).
+                if _vigil_sup_contains "$_su_queued $_su_pending" "$job"; then
+                    _vigil_sup_remove _su_queued "$job"
+                    _vigil_sup_remove _su_pending "$job"
+                    _vigil_sup_log INFO "job $job: the run held for it is dropped: the job is disabled"
+                fi
                 continue
                 ;;
             error) continue ;;
@@ -1054,25 +1081,51 @@ _vigil_sup_tick() {
         [ "$VIGIL_SCHED_NEXT" != - ] && _su_status_waiting="$_su_status_waiting$job: next $VIGIL_SCHED_NEXT"$'\n'
     done
 
-    # Runs of jobs removed from the configuration, or now invalid in it, are
-    # still Vigil's: accounted for until they end (11.3), never started again.
+    # A held run is its job's next run: one whose job has left the
+    # configuration, or is invalid in it, is dropped, not started when the
+    # active run ends, nor kept for the day the job comes back (16.1, V-08).
     if [ "$_su_waiting" = 0 ]; then
-        for job in $(_vigil_sup_leftover "$accounted"); do
-            _vigil_sup_account "$job"
-            [ "$_su_active" = running ] && _vigil_sup_show_running "$job" ' (no longer in the configuration, or invalid in it)'
+        for job in $_su_queued $_su_pending; do
+            _vigil_sup_contains "$accounted" "$job" && continue
+            _vigil_sup_remove _su_queued "$job"
+            _vigil_sup_remove _su_pending "$job"
+            _vigil_sup_log INFO "job $job: the run held for it is dropped: the job is no longer in the configuration, or invalid in it"
         done
     fi
+
+    # Runs of jobs removed from the configuration, or now invalid in it, are
+    # still Vigil's: accounted for until they end (11.3), never started again.
+    # While the configuration waits for its first fetch no job is scheduled,
+    # but a run that was already in progress is Vigil's too: it is accounted
+    # for in the same way, each tick, and held to its max_runtime (V-04).
+    if [ "$_su_waiting" = 0 ]; then
+        why=' (no longer in the configuration, or invalid in it)'
+    else
+        why=' (started before the configuration came to wait for its first fetch)'
+    fi
+    for job in $(_vigil_sup_leftover "$accounted"); do
+        _vigil_sup_account "$job"
+        [ "$_su_active" = running ] && _vigil_sup_show_running "$job" "$why"
+    done
 
     _vigil_sup_queue_save
 
     # Admission (8): every due run starts now, oldest first. Vigil sets no
     # limit on how many run at once: the machine is its operator's.
-    for job in $_su_pending; do
+    # The list is emptied before anything starts, as on Windows (V-02): a
+    # job already started is never found in it again. A launch whose record
+    # cannot be written is that job's alone, and is said: the run is lost,
+    # not retried, its slot being dealt with (8).
+    due=$_su_pending
+    _su_pending=''
+    for job in $due; do
         _vigil_sup_script "$job" || continue
-        _vigil_sup_start "$job" "$_su_script"
+        if ! _vigil_sup_start "$job" "$_su_script"; then
+            _vigil_sup_log ERROR "job $job: could not be launched: its launch record could not be written"
+            continue
+        fi
         _su_status_running="$_su_status_running$job: starting"$'\n'
     done
-    _su_pending=''
 
     _vigil_sup_event '' up 1 gauge
     _vigil_sup_event '' workers "$_su_running" gauge

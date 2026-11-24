@@ -201,7 +201,8 @@ _vigil_logs_keep() {
         _vigil_wk_get defaults log_retain_days "$_vw_value"
         _vigil_wk_get "job.$1" log_retain_days "$_vw_value"
     fi
-    _vl_keep=$_vw_value
+    # 10#: a leading zero is not octal (V-03).
+    _vl_keep=$((10#$_vw_value))
 }
 
 # Deletes dated log files older than their retention (13.1), whole, and
@@ -695,11 +696,12 @@ vigil_logs() {
     _vigil_wk_get log_forward destination ''
     dest=$_vw_value
     _vigil_wk_get log_forward batch_lines 500
-    _vl_lines=$_vw_value
+    # 10#: a leading zero is not octal (V-03).
+    _vl_lines=$((10#$_vw_value))
     _vigil_wk_get log_forward batch_kb 512
-    _vl_bytes=$((_vw_value * 1024))
+    _vl_bytes=$((10#$_vw_value * 1024))
     _vigil_wk_get log_forward max_pending_mb 64
-    _vl_max=$((_vw_value * 1048576))
+    _vl_max=$((10#$_vw_value * 1048576))
     _vigil_wk_get "log_destination.$dest" endpoint ''
     endpoint=$_vw_value
     _vigil_wk_get "log_destination.$dest" timeout 10s

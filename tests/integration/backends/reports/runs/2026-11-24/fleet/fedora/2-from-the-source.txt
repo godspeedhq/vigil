@@ -1,0 +1,45 @@
+
+$ cat state/config.active      # the fetched configuration, now active
+[active]
+schema_version = 1
+revision       = 31b53926a4a3
+config         = f7e04d2d78145ddabd8a354fff4602382be62f286c08669310024b9175662ccb
+origin         = source.central hosts/fedora.config
+activated_epoch = 1795529945
+
+$ vigil precheck
+Configuration /home/vigil-test/fleet-e2e/fedora/config/vigil.config
+  no problems
+
+Checks
+  ok    data format: 1
+  note  no metrics backend: metrics go nowhere until you add one
+  ok    source.central: git
+  ok    configuration revision 31b53926a4a3 is active (source.central hosts/fedora.config)
+  ok    job.postgres_status
+  ok    job.postgres_size
+  ok    job.postgres_activity
+  ok    job.postgres_replication
+  ok    job.postgres_wraparound
+  ok    job.postgres_vacuum
+  ok    job.postgres_io
+  ok    secret_store.bao: token secret:BAO_TOKEN
+  ok    state directory: /home/vigil-test/fleet-e2e/fedora/state
+  ok    log directory: /home/vigil-test/fleet-e2e/fedora/logs
+  ok    spool directory: /home/vigil-test/fleet-e2e/fedora/spool
+  note  busiest minute in the next 24 hours: 14:20, 4 jobs start together
+
+precheck passed
+(exit 0)
+
+$ vigil status
+LAST RUN
+  postgres_status: succeeded at 2026-11-24T14:19:09Z, took 0s
+  postgres_size: succeeded at 2026-11-24T14:19:11Z, took 0s
+  postgres_activity: succeeded at 2026-11-24T14:19:12Z, took 0s
+  postgres_replication: succeeded at 2026-11-24T14:19:13Z, took 1s
+  postgres_wraparound: succeeded at 2026-11-24T14:19:13Z, took 0s
+  postgres_vacuum: succeeded at 2026-11-24T14:19:14Z, took 0s
+  postgres_io: succeeded at 2026-11-24T14:19:15Z, took 1s
+
+$ the job logs: a run that failed, and why

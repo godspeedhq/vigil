@@ -67,16 +67,18 @@
 #   vigil [--root <dir>] pack enable <what> | disable <what> | update [--check] [<name>...]
 #   vigil [--root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>
 #   vigil [--root <dir>] pack verify [<name>...] [--from <folder>]
+#   vigil [--root <dir>] pack config <name>[@<version>] [--os linux|macos|windows]
 #       The packs of scripts and jobs (18.10), from the pack repository:
 #       search it, install a pack, then enable its jobs. What is a pack or a
 #       pack_job. download writes packs for a machine offline, which installs
 #       them --from the folder. verify checks the packs installed here, file by
 #       file, against their release; install of the version here puts back
-#       what differs.
+#       what differs. config prints a pack's jobs, for a configuration that
+#       comes from a source, which Vigil never edits.
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
-#   vigil [--root <dir>] worker <job> --run-id <run id>
+#   vigil [--root <dir>] worker <job> --run-id <run id> [--state-dir <dir>]
 #       Internal: the worker the supervisor starts for a launched run.
 #
 # The install root is --root, else $VIGIL_ROOT, else the root a package names
@@ -115,7 +117,7 @@ elif vigil_packaged "$app" && [ -n "$_vp_root" ]; then
 fi
 
 usage() {
-    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status [--watch]\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]\n       vigil [--root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...\n       vigil [--root <dir>] pack enable <what> | disable <what>\n       vigil [--root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>\n' >&2
+    printf 'usage: vigil [--root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]\n       vigil [--root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>\n       vigil [--root <dir>] service install [--user | --system] [--account <name>] [--no-start] | service remove\n       vigil [--root <dir>] start | stop | restart | status [--watch]\n       vigil [--root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]\n       vigil [--root <dir>] version | about | self update [--check] [--version <version>]\n       vigil [--root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]\n       vigil [--root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...\n       vigil [--root <dir>] pack enable <what> | disable <what>\n       vigil [--root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>\n       vigil [--root <dir>] pack config <name>[@<version>] [--os linux|macos|windows]\n' >&2
     exit 64
 }
 
@@ -455,6 +457,20 @@ case ${1-} in
                     vigil_pack_download "$root" "$app" "$os" "$to" "$@"
                 fi
                 ;;
+            config:*)
+                # config <name>[@<version>] [--os <os>]: the
+                # pack's jobs printed, for a configuration from a source.
+                os='' names=()
+                while [ "$#" -gt 0 ]; do
+                    case $1 in
+                        --os) [ "$#" -ge 2 ] || usage; os=$2; shift 2 ;;
+                        -*) usage ;;
+                        *) names+=("$1"); shift ;;
+                    esac
+                done
+                [ "${#names[@]}" -eq 1 ] || usage
+                vigil_pack_config "$root" "$app" "${names[0]}" "$os"
+                ;;
             *) usage ;;
         esac
         exit $?
@@ -507,8 +523,15 @@ case ${1-} in
         exit $?
         ;;
     worker)
-        [ "$#" -eq 4 ] && [ "$3" = --run-id ] || usage
-        vigil_worker "$root" "$2" "$4"
+        # --state-dir: the supervisor's own state directory, where the run's
+        # launch record is (V-07). Without it, the configuration's.
+        if [ "$#" -eq 6 ] && [ "$3" = --run-id ] && [ "$5" = --state-dir ]; then
+            vigil_worker "$root" "$2" "$4" "$6"
+        elif [ "$#" -eq 4 ] && [ "$3" = --run-id ]; then
+            vigil_worker "$root" "$2" "$4"
+        else
+            usage
+        fi
         exit $?
         ;;
     *)

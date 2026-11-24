@@ -41,7 +41,7 @@ NOTICE = [
 
 PACKS = {
     'nginx': dict(
-        P='nginx', E='NGINX', version='1.2.0',
+        P='nginx', E='NGINX', version='1.2.1',
         description='nginx: connections and requests (stub_status), processes and configuration reloads, '
                     'the access log minute by minute (status, errors, response times, upstream times), '
                     'certificate expiry',

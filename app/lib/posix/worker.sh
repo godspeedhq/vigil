@@ -40,18 +40,26 @@ _vigil_wk_clean() {
 
 # Atomically writes the [state] file $1 from "key value" pairs in
 # _vw_state[i] (12.3): a temporary file in the same directory, then rename.
+# Returns 1, and leaves what was there, when it cannot be written whole: a
+# write that failed (a full disk) is never published over good state (V-05).
+# Each printf is tested: the group's own status is only its last command's.
 _vigil_wk_write_state() {
-    local path=$1 tmp="$1.tmp.$$" i pair
+    local path=$1 tmp="$1.tmp.$$" i pair ok=1
     {
-        printf '[state]\n'
+        printf '[state]\n' || ok=0
         i=0
         while [ "$i" -lt "${#_vw_state[@]}" ]; do
             pair=${_vw_state[$i]}
             _vigil_wk_clean "${pair#* }"
-            printf '%-16s = %s\n' "${pair%% *}" "$_vw_value"
+            printf '%-16s = %s\n' "${pair%% *}" "$_vw_value" || ok=0
             i=$((i + 1))
         done
-    } > "$tmp" || return 1
+    } > "$tmp" || ok=0
+    if [ "$ok" = 0 ]; then
+        rm -f "$tmp"
+        printf 'vigil: cannot write %s: what was there is kept\n' "$path" >&2
+        return 1
+    fi
     vigil_fault state.after_temp
     mv -f "$tmp" "$path"
 }
@@ -214,7 +222,8 @@ _vigil_wk_dir() {
 _vigil_wk_logfile() {
     local n=0 max
     _vigil_wk_get log max_file_mb 50
-    max=$((_vw_value * 1048576))
+    # 10#: a leading zero is not octal (V-03).
+    max=$((10#$_vw_value * 1048576))
     _vw_logfile="$1/$2.log"
     while [ -f "$1/$2.$((n + 1)).log" ]; do
         n=$((n + 1))
@@ -247,9 +256,13 @@ _vigil_wk_config() {
     _vw_config=''
     _vw_script=''
     vigil_config_parse "$_vw_root/config/vigil.config" || parsed=0
-    # The state directory is always this file's (6.8).
+    # The state directory is always this file's (6.8), unless the supervisor
+    # that launched this worker named its own: a state_dir edited since it
+    # started, or a file that can no longer be read, must not send the
+    # worker looking for its launch record somewhere else (V-07).
     _vigil_wk_dir vigil state_dir state
     _vw_statedir=$_vw_dir
+    [ -z "${_vw_statedir_given-}" ] || _vw_statedir=$_vw_statedir_given
     if [ "$_vw_job" != vigil_fetch ]; then
         vigil_fetch_mode && fetch=1
         if [ -n "${_vw_run-}" ] && [ -f "$_vw_statedir/locks/$_vw_job.$_vw_run.launch" ]; then
@@ -417,6 +430,7 @@ vigil_worker() {
     _vw_state=()
 
     _vw_run=$rid
+    _vw_statedir_given=${4-}
     _vigil_wk_config || { printf 'vigil: %s\n' "$_vw_error" >&2; return 4; }
     launch="$_vw_statedir/locks/$_vw_job.$rid.launch"
     token="$_vw_statedir/locks/$_vw_job.$rid.token"
@@ -529,7 +543,10 @@ vigil_worker() {
     _vigil_wk_set worker_pid $$
     _vigil_wk_set worker_name bash
     _vigil_wk_set worker_start "$_vw_start"
-    _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
+    # The run goes on when its state cannot be written (a full disk): its
+    # token still says it is alive, and its events and log say how it ended.
+    _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state" ||
+        _vigil_wk_log "$rid state not written (a full disk?): the run goes on, held by its token"
     _vigil_wk_log "$rid run start"
 
     out="$_vw_logdir/jobs/$_vw_job/$rid.out"
@@ -561,10 +578,13 @@ vigil_worker() {
         esac
         # The job's own file must exist too, whatever runs it.
         _vigil_wk_get "job.$_vw_job" file ''
+        local jobfile=$_vw_value
         _vigil_cmd_path "$_vw_value" posix "$_vw_root"
         [ -n "$_vw_script" ] && _vc_path=$_vw_script
         if [ -z "$reason" ] && [ ! -f "$_vc_path" ]; then
             reason="file not found: $_vc_path"
+            # A pack's job: whether the pack is here, and has it (backlog 67).
+            if [ -z "$_vw_script" ] && vigil_pack_missing "$_vw_root" "$jobfile"; then reason="$reason ($_vc_pack_why)"; fi
         fi
     fi
 
@@ -656,7 +676,13 @@ vigil_worker() {
     # when its state file cannot say how it ended.
     stem="$_vw_epoch-$_vw_job-$rid.events"
     spool="$_vw_spooldir/incoming/$stem"
-    vigil_run_events_dump > "$spool.tmp.$$" && mv -f "$spool.tmp.$$" "$spool"
+    # Events that cannot be written whole are not published, and it is said:
+    # the final state is written all the same, so the run's outcome is not
+    # lost with its metrics (V-06).
+    if ! { vigil_run_events_dump > "$spool.tmp.$$" && mv -f "$spool.tmp.$$" "$spool"; }; then
+        rm -f "$spool.tmp.$$"
+        _vigil_wk_log "$rid events not written to the spool (a full disk?): this run's metrics are lost"
+    fi
     vigil_fault worker.after_spool
 
     _vigil_wk_set status "$outcome"
@@ -671,7 +697,11 @@ vigil_worker() {
     _vigil_wk_set invalid_lines "$VIGIL_MET_INVALID"
     _vigil_wk_set dropped_lines "$VIGIL_MET_DROPPED"
     _vigil_wk_set spool_file "$stem"
-    _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state"
+    # Said in the job's log when it cannot be written: the state then still
+    # says running, and the supervisor takes the outcome from the spool
+    # file, under this run's id (11.3).
+    _vigil_wk_write_state "$_vw_statedir/jobs/$_vw_job.state" ||
+        _vigil_wk_log "$rid final state not written (a full disk?): the outcome is in the spool file"
     vigil_fault worker.after_state
     if [ -n "$reason" ]; then
         _vigil_wk_log "$rid run end $outcome ($reason) in ${duration}s, cpu ${_vw_cpu}s"

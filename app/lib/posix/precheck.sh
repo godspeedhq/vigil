@@ -153,12 +153,18 @@ _vigil_pc_job() {
     [ -d "$VIGIL_CMD_CWD" ] || _vigil_pc_fail "job.$id: working directory not found: $VIGIL_CMD_CWD"
     _vigil_pc_program "$VIGIL_CMD_PROGRAM" || _vigil_pc_fail "job.$id: $_pc_why"
     _vigil_wk_get "job.$id" file ''
+    local jobfile=$_vw_value
     _vigil_cmd_path "$_vw_value" posix "$_vw_root"
     [ -n "${VIGIL_CMD_FILE-}" ] && _vc_path=$VIGIL_CMD_FILE
     if denied=$(vigil_denied "$_vc_path"); then
         _vigil_pc_fail "job.$id: cannot read $denied from this account"
-    else
-        [ -f "$_vc_path" ] || _vigil_pc_fail "job.$id: file not found: $_vc_path"
+    elif [ ! -f "$_vc_path" ]; then
+        # A pack's job: whether the pack is here, and has it (backlog 67).
+        if [ -z "${VIGIL_CMD_FILE-}" ] && vigil_pack_missing "$_vw_root" "$jobfile"; then
+            _vigil_pc_fail "job.$id: file not found: $_vc_path ($_vc_pack_why)"
+        else
+            _vigil_pc_fail "job.$id: file not found: $_vc_path"
+        fi
     fi
     vigil_config_effective "$id"
     i=0

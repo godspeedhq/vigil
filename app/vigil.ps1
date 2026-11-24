@@ -53,12 +53,14 @@
     vigil [-Root <dir>] pack enable <what> | disable <what> | update [--check] [<name>...]
     vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>
     vigil [-Root <dir>] pack verify [<name>...] [--from <folder>]
+    vigil [-Root <dir>] pack config <name>[@<version>] [--os linux|macos|windows]
         The packs of scripts and jobs (18.10), from the pack repository:
         search it, install a pack, then enable its jobs. What is a pack or a
         pack_job. download writes packs for a machine offline, which installs
         them --from the folder. verify checks the packs installed here, file by
         file, against their release; install of the version here puts back
-        what differs.
+        what differs. config prints a pack's jobs, for a configuration that
+        comes from a source, which Vigil never edits.
     vigil [-Root <dir>] init [empty] [--instance <name>] [--backend file,datadog,otel] [--no-pack]
         Writes a starting configuration (19): runners for the PowerShell
         hosts found here, the backends, and the base pack's jobs; empty for
@@ -80,7 +82,7 @@
     vigil [-Root <dir>] supervise [--once]
         The supervisor (4.1): ticks until stopped, or once with --once.
         Running workers are never stopped with it.
-    vigil [-Root <dir>] worker <job> --run-id <run id>
+    vigil [-Root <dir>] worker <job> --run-id <run id> [--state-dir <dir>]
         Internal: the worker the supervisor starts for a launched run.
 
     The install root is -Root, else $env:VIGIL_ROOT, else the root a package
@@ -164,7 +166,7 @@ else {
 }
 
 function Exit-Usage {
-    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]`n       vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...`n       vigil [-Root <dir>] pack enable <what> | disable <what> | verify [<name>...] [--from <folder>]`n       vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
+    [Console]::Error.WriteLine("usage: vigil [-Root <dir>] run <job> | resolve <job> | precheck [<job>] | doctor | config | supervise [--once]`n       vigil [-Root <dir>] secret set <NAME> [--stdin] | secret list | secret delete <NAME>`n       vigil [-Root <dir>] service install [--user | --system] [--host powershell | pwsh] [--no-start] | service remove`n       vigil [-Root <dir>] start | stop | restart | status [--watch]`n       vigil [-Root <dir>] init [empty] [--instance <name>] [--backend <list>] [--no-pack] | uninstall [--yes] [--keep-config]`n       vigil [-Root <dir>] pack list [--available] | search [<word>...] | info <name> | update [--check] [<name>...]`n       vigil [-Root <dir>] pack install <name>[@<version>]... [--from <folder>] | remove [--disable] <name>...`n       vigil [-Root <dir>] pack enable <what> | disable <what> | verify [<name>...] [--from <folder>]`n       vigil [-Root <dir>] pack download <name>[@<version>]... [--os linux|macos|windows] --to <folder>`n       vigil [-Root <dir>] pack config <name>[@<version>] [--os linux|macos|windows]`n       vigil [-Root <dir>] version | about | self update [--check] [--version <version>]")
     exit 64
 }
 
@@ -458,6 +460,24 @@ switch ($Command) {
             # remove [--disable] <name>...: --disable turns the pack's jobs off first.
             Remove-VigilPack -Root $Root -Names @($argv | Where-Object { $_ -cne '--disable' }) -Disable:($argv -ccontains '--disable') | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
         }
+        elseif ($Job -ceq 'config') {
+            # config <name>[@<version>] [--os <os>]: the
+            # pack's jobs printed, for a configuration from a source.
+            $os = 'windows'
+            $names = New-Object 'System.Collections.Generic.List[string]'
+            for ($i = 0; $i -lt $argv.Count; $i++) {
+                $a = $argv[$i]
+                if ($a -ceq '--os') {
+                    if ($i + 1 -ge $argv.Count) { Exit-Usage }
+                    $i++
+                    $os = $argv[$i]
+                }
+                elseif ($a.StartsWith('-')) { Exit-Usage }
+                else { $names.Add($a) }
+            }
+            if ($names.Count -ne 1) { Exit-Usage }
+            Get-VigilPackConfig -Root $Root -App $app -Spec $names[0] -Os $os | ForEach-Object { if ($_ -is [int]) { $code = $_ } else { $_ } }
+        }
         elseif ($Job -ceq 'install' -or $Job -ceq 'download') {
             $from = ''; $os = 'windows'; $to = ''
             $names = New-Object 'System.Collections.Generic.List[string]'
@@ -556,8 +576,12 @@ switch ($Command) {
         exit $code
     }
     'worker' {
-        if (-not $Job -or $Rest.Count -ne 2 -or $Rest[0] -cne '--run-id') { Exit-Usage }
-        $r = Invoke-VigilWorker -Root $Root -Job $Job -RunId $Rest[1]
+        # --state-dir: the supervisor's own state directory, where the run's
+        # launch record is (V-07). Without it, the configuration's.
+        if (-not $Job -or $Rest[0] -cne '--run-id') { Exit-Usage }
+        if ($Rest.Count -eq 4 -and $Rest[2] -ceq '--state-dir') { $r = Invoke-VigilWorker -Root $Root -Job $Job -RunId $Rest[1] -StateDir $Rest[3] }
+        elseif ($Rest.Count -eq 2) { $r = Invoke-VigilWorker -Root $Root -Job $Job -RunId $Rest[1] }
+        else { Exit-Usage }
         exit $r.Code
     }
     default { Exit-Usage }

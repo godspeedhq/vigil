@@ -1,0 +1,69 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# CockroachDB for the cockroachdb pack (scripts/run-cockroachdb.sh):
+# - 26.4.1, three nodes, secure: certificates made by the certs service into
+#   a volume the nodes share; the DB Console of each on 127.0.0.1:18081-3,
+#   SQL on 127.0.0.1:26281-3.
+# - 25.4.21, one node, insecure: console 127.0.0.1:18090, SQL 26290.
+# Small caches, capped memory: the Fedora test machine has 8 GB for all.
+#
+# 26.x's images are built for x86-64-v3 (AVX2), which the test machine's CPU
+# (Sandy Bridge) lacks: their glibc stops at once. CockroachDB's own binary
+# runs there, so 26.4.1 is that binary, checked against its published
+# SHA-256 by the run script, on Debian: CRDB26 is the folder it is in.
+
+x-crdb: &crdb
+  image: debian:13-slim
+  mem_limit: 640m
+  volumes: [certs:/certs, "${CRDB26:?the folder of cockroach 26.4.1}:/opt/cockroach:ro"]
+  entrypoint: ["/opt/cockroach/cockroach"]
+  depends_on:
+    certs: { condition: service_completed_successfully }
+
+services:
+  certs:
+    image: debian:13-slim
+    volumes: [certs:/certs, "${CRDB26:?the folder of cockroach 26.4.1}:/opt/cockroach:ro"]
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        [ -f /certs/node.crt ] && exit 0
+        mkdir -p /safe
+        /opt/cockroach/cockroach cert create-ca --certs-dir=/certs --ca-key=/safe/ca.key
+        /opt/cockroach/cockroach cert create-node crdb1 crdb2 crdb3 localhost 127.0.0.1 --certs-dir=/certs --ca-key=/safe/ca.key --lifetime=240h
+        /opt/cockroach/cockroach cert create-client root --certs-dir=/certs --ca-key=/safe/ca.key
+        chmod 0644 /certs/ca.crt
+
+  crdb1:
+    <<: *crdb
+    hostname: crdb1
+    command: start --certs-dir=/certs --join=crdb1,crdb2,crdb3 --advertise-addr=crdb1 --cache=64MiB --max-sql-memory=96MiB --store=/data --locality=zone=a
+    ports: ["127.0.0.1:18081:8080", "127.0.0.1:26281:26257"]
+  crdb2:
+    <<: *crdb
+    hostname: crdb2
+    command: start --certs-dir=/certs --join=crdb1,crdb2,crdb3 --advertise-addr=crdb2 --cache=64MiB --max-sql-memory=96MiB --store=/data --locality=zone=b
+    ports: ["127.0.0.1:18082:8080", "127.0.0.1:26282:26257"]
+  crdb3:
+    <<: *crdb
+    hostname: crdb3
+    command: start --certs-dir=/certs --join=crdb1,crdb2,crdb3 --advertise-addr=crdb3 --cache=64MiB --max-sql-memory=96MiB --store=/data --locality=zone=c
+    ports: ["127.0.0.1:18083:8080", "127.0.0.1:26283:26257"]
+
+  crdb25:
+    image: cockroachdb/cockroach:v25.4.21
+    mem_limit: 640m
+    hostname: crdb25
+    command: start-single-node --insecure --cache=64MiB --max-sql-memory=96MiB
+    ports: ["127.0.0.1:18090:8080", "127.0.0.1:26290:26257"]
+
+volumes:
+  certs:

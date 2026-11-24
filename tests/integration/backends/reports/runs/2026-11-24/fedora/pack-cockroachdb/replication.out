@@ -1,0 +1,17 @@
+metric up 1
+metric ranges 0
+metric replicas 89
+metric leaseholders 0
+metric raft_leaders 0
+metric leaders_not_leaseholders 0
+metric ranges_unavailable 0
+metric ranges_underreplicated 0
+metric ranges_overreplicated 0
+metric ranges_decommissioning 0
+metric slow_raft 0
+metric slow_lease 0
+metric slow_latch 2
+metric slow_distsender 0
+metric replicate_queue_pending 0
+metric splits_count 2
+metric merges_count 0

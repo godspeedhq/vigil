@@ -1,0 +1,41 @@
+PostgreSQL: role vigil_monitor created
+OpenBao: secret/POSTGRES_MONITOR_PASSWORD written
+BAO_TOKEN set; runs started from now on use it
+
+$ vigil pack install postgres        # before the pointer file: a local configuration
+installed pack postgres 1.2.1
+off until enabled: postgres_status postgres_size postgres_activity postgres_replication postgres_wraparound postgres_vacuum postgres_io
+
+$ cat config/vigil.config
+[vigil]
+config_source = central
+config_file   = hosts/fedora.config
+
+[source.central]
+type        = git
+url         = vigil-test@127.0.0.1:fleet-e2e/fleet.git
+ref         = main
+check_every = 30s
+
+$ vigil pack enable postgres         # now its configuration comes from a source
+vigil: this host's configuration comes from [source.central] (hosts/fedora.config): Vigil does not edit it.
+To turn pack postgres on, add its jobs there: vigil pack config postgres prints them, ready to paste.
+(exit 1)
+
+$ vigil pack config postgres     # printed, then pasted into hosts/fedora.config
+# pack postgres 1.2.1 for Linux, as installed here.
+# Its jobs, for a configuration that comes from a source: paste them
+# into it. Each env line holds the pack's default: set it for your
+# hosts. It runs on Vigil 0.3.0 or later.
+# needs a read-only role, as a database administrator: CREATE ROLE vigil_monitor LOGIN PASSWORD '...' IN ROLE pg_monitor
+
+# pack postgres: vigil pack disable takes these out
+
+[job.postgres_status]
+file = packs/postgres/status.sh
+metric_name = postgres
+run_every = 1m
+...
+
+$ git log --oneline     # the source
+0fcc1c1 fedora: the postgres pack

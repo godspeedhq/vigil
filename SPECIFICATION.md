@@ -140,7 +140,7 @@ One worker process per job run.
 
 1. Generates a unique run id.
 2. Writes a launch record, `state/locks/<job id>.<run id>.launch` (`[launch]` section: job, run id, boot id, launch time (`launch_epoch`), and the configuration the run uses, below), atomically.
-3. Only then starts the worker, passing the run id on its command line (`--run-id`) and in the environment (`VIGIL_RUN_ID`).
+3. Only then starts the worker, passing the run id on its command line (`--run-id`) and in the environment (`VIGIL_RUN_ID`), and its own state directory (`--state-dir`, §16.1).
 
 **Claim.** The worker takes ownership of the run by claiming the launch record, an operation that can succeed for exactly one party (§11.2):
 
@@ -296,7 +296,7 @@ Rules:
 - No quoting, no escaping, no variable expansion. Values are literal. The only substitution is the `{file}` token in runner arguments (§6.4).
 - Repeating a key appends to a list (used for `arg`, `env`, `tag` and `require_env`).
 - Lists inside one value are comma-separated.
-- Durations: `30s`, `5m`, `2h`, `7d`. There are no months; `m` is always minutes.
+- Durations: `30s`, `5m`, `2h`, `7d`. There are no months; `m` is always minutes. Numbers are decimal whatever their digits: `08m` is eight minutes on every platform, never an octal number.
 - Times: `HH:MM`, 24-hour, local wall-clock.
 - Days: `mon` … `sun`, case-insensitive.
 - Relative paths resolve against the install root — the folder that contains `config/` (§12.1). So `file = scripts/disk.sh` points at `<root>/scripts/disk.sh`.
@@ -668,6 +668,7 @@ check_every = 5m
 - The fetched file cannot set `config_source`, `config_file` or `state_dir` (`E_NOT_FROM_SOURCE`): where the configuration comes from, and where Vigil keeps its state, are decided on the host. Configuration is never chained.
 - A new version of the fetched file is picked up every `check_every`. It is validated as a whole and becomes active only when it, and every script it names, is present and verified (§16.5). A broken or unreachable configuration never replaces a working one.
 - The fetched file can name the Vigil release to run, `[vigil] version`, so a fleet is updated by changing one line (§18.11).
+- Vigil never edits it, nor the pointer file: `vigil pack enable` and `disable` refuse on such a host, and a pack's jobs are added at the source, from `vigil pack config` (§18.10).
 
 Jobs are the same in both modes: each job names a script, local or from a source (§6.9). The three common layouts are:
 
@@ -871,7 +872,7 @@ Each field is `*`, a value, a range `a-b`, a step `*/n` or `a-b/n`, or `a/n` (fr
 
 ## 8. Concurrency
 
-Vigil runs every job the configuration names, at its time, however many are due at once. It never delays or skips a run to limit how many run together: how much a server can take is its operator's decision, and the configuration is the limit. A job has at most one run active at a time (§9), so N jobs never need more than N workers.
+Vigil runs every job the configuration names, at its time, however many are due at once. It never delays or skips a run to limit how many run together: how much a server can take is its operator's decision, and the configuration is the limit. A job has at most one run active at a time (§9), so N jobs never need more than N workers. A run whose launch fails (its launch record cannot be written, or its worker cannot be started) is lost, not retried: the failure is logged against that job, the other runs due in the same tick start, and no job already started is ever started again for it.
 
 Each run has a worker of its own: a bash process on Linux and macOS, a PowerShell process on Windows. Many jobs due in the same minute start that many processes together. `vigil precheck` reports the minute of the next 24 hours at which the most jobs start, and how many (§16.4), so it can be seen before it happens. It is information, never a failure.
 
@@ -1034,7 +1035,11 @@ An abandoned launch is not a crash and not a failure: the job never ran. `<m>.ab
 
 A worker that cannot start at all never claims its launch, and nothing carries its run id. The commonest cause is a worker started at the moment an update swaps `app/` (§18.7): for an instant there is no `app/` to run. The job is held for the launch grace, then the launch is abandoned and the job runs at its next slot. The grace only has to cover starting a process, because a started worker carries its run id however slow it is to claim.
 
-When the state file is unreadable or missing, the run id is recovered from the launch, token and spool file names for that job. The process scan for a run id is only done in these cases and for launch records past their grace, not every tick.
+When the state file is unreadable or missing, the run id is recovered from the name of the launch record or the token for that job. Spool file names are not used for it: files of earlier runs may still be queued for a slow backend, and the newest of them does not say which run the lost state was for.
+
+**The outcome in a spool file** is the worker's own line, the one written straight after the run's `runs` line (§4.3). What the job printed follows it and is never read as an outcome: a metric of the job's own named `steps.succeeded` or `rows.failures` cannot change how its run is recorded.
+
+The process scan for a run id is only done in these cases and for launch records past their grace, not every tick.
 
 **Quarantine.** An unreadable state file is moved to `state/quarantine/<job id>.<epoch>.state` only once the run is concluded Finished or Crashed, never while it might be alive. Quarantined files are kept until removed by hand. Corruption is always recorded: `<m>.state_corrupt` and a `jobs.log` entry.
 
@@ -1219,7 +1224,7 @@ Field rules:
 
 ### 12.3 Rules
 
-- **Atomic publication.** Every state and recovery-record write goes to a temporary file in the same directory, `<name>.tmp.<pid>`, which is then renamed over the target: `mv -f` on POSIX; on Windows `File.Replace`, or `File.Move` when the target does not exist yet (`File.Replace` requires it). Same directory, so the rename never crosses filesystems. Readers only ever open the exact target name, so a temporary file is never mistaken for state.
+- **Atomic publication.** Every state and recovery-record write goes to a temporary file in the same directory, `<name>.tmp.<pid>`, which is then renamed over the target: `mv -f` on POSIX; on Windows `File.Replace`, or `File.Move` when the target does not exist yet (`File.Replace` requires it). Same directory, so the rename never crosses filesystems. Readers only ever open the exact target name, so a temporary file is never mistaken for state. A write that fails before the rename (a full disk) is not published: the file that was there stays, the worker says so in the job's log, and the supervisor takes the run's outcome from its spool file (§11.3). Events that cannot be written to the spool are said in the job's log too, and the final state is written all the same.
 - **Durability.** On Windows the temporary file is flushed to disk (`FileStream.Flush($true)`) before the rename. bash has no portable per-file flush, so on Linux/macOS a power loss can leave an empty or truncated state file; that is handled as unreadable state (§11.3), never trusted. Atomic replacement prevents partially published state; it does not prevent every corruption, which is why state is evidence, not authority (§11).
 - **Leftover temporary files** of a worker or the sender (from a writer that died mid-write) are left where they are: nothing reads or sends them. The supervisor's own temporary files (cursors, launch records, `config.valid`, `jobs.log`, its events) are deleted when it starts, once it holds the supervisor lock.
 - **One writer at a time (VIGIL-005).** While a run may be alive, its worker is the only writer of the job's state file. The supervisor writes it only to record a concluded run (`crashed`, `timed_out`, or an outcome reconciled from the spool, §11.3) — and only after it has established that the worker can no longer write: the run token is no longer held **and** no process carries the run id on its command line. A passed deadline, a missing PID or an unreadable state file is never, by itself, that proof. While ownership is uncertain, the supervisor writes only its own recovery record (§11.4).
@@ -1649,7 +1654,9 @@ A backend can never consume unbounded memory or disk (VIGIL-009, VIGIL-014).
 
 `config/vigil.config` is checked every tick and parsed again when it was modified. In remote mode, the configuration's source is checked every `check_every` (§6.8). Changes to jobs, schedules, runners, backends, tags and sources take effect without a restart, once anything they need has been fetched (§16.5). Only changes to Vigil's own scripts require a service restart.
 
-Removing a job, disabling it or changing it never stops a run already in progress: the run finishes under the settings and script it started with, and the change applies from the next run.
+Removing a job, disabling it or changing it never stops a run already in progress: the run finishes under the settings and script it started with, and the change applies from the next run. A run held by `queue_one` (§9) is its job's next run: it is dropped, and the supervisor log says so, when the job is disabled, removed or made invalid before it starts.
+
+`[vigil] state_dir` is the one setting a reload does not apply. The supervisor holds its lock there (§12.4) and the runs in progress hold their tokens there, so moving to another directory while running would lose sight of them. A changed `state_dir` takes effect when Vigil is next started; until then the supervisor keeps the directory it started with, says so once in its log, and names that directory to each worker it starts (`--state-dir`), so a run finds its launch record whatever the file says by then.
 
 Secrets are resolved when each run starts (§6.5): a value changed in Vigil's secret store (`secret:`) or an external store (`store:`) is used by the next run on every platform, and so is a changed environment variable on Windows, which is read from the registry. On Linux/macOS, a changed environment variable (`env:`) takes effect only when Vigil is next started, because those systems keep no live environment a running process could read again.
 
@@ -1762,7 +1769,7 @@ Vigil watches the configuration and the sources it names. A source pinned to a c
 
 **Fetcher.** Fetching is done by a worker, `vigil_fetch`, started and supervised like `vigil_sender` (§4.5): detached, with its own state, run token, log and identity checks. A slow or unreachable source therefore never delays a tick, and at most one fetcher runs at a time. The supervisor starts it when a source is due for its check, or when the local file changed: each fetcher run leaves `state/fetch.next`, with the time of the earliest next check and the digest of the local file it read.
 
-Until the first activation record exists, nothing runs: `jobs.log` shows `waiting for the first fetch`, and `vigil run` refuses with the same reason.
+Until the first activation record exists, nothing runs: `jobs.log` shows `waiting for the first fetch`, and `vigil run` refuses with the same reason. That includes a local configuration to which a source is added that cannot yet be fetched: its jobs wait too. Runs already in progress then are still Vigil's: each tick accounts for them, holds them to their `max_runtime` (§10.3) and lists them in `jobs.log`.
 
 **Reconciliation.** One fetcher run:
 
@@ -2137,6 +2144,8 @@ vigil pack download <name>[@<version>]...     packs and the signed index into a 
           [--os linux|macos|windows] --to <folder>
 vigil pack verify [<name>...]                 the packs here, or those named, file by file against their release
           [--from <folder>]                   from a folder vigil pack download wrote
+vigil pack config <name>[@<version>]          the jobs enable would write, printed, for a configuration from a source
+          [--os linux|macos|windows]
 ```
 
 `<what>` is a pack (`base`) or one of its jobs (`base_cpu`). `search`, `info` and `list --available` read the newest index, as `install` does, so a pack released since the last command is found. Every index fetched is saved as `packs/.index`, when `packs/` is writable. When the newest release is the one the saved index is of, and its signature checks, that one is read and not downloaded again: a published release's index does not change. When the repository cannot be reached, they read that one instead, saying so on stderr (`vigil: cannot find the latest packs release on GitHub: …; showing the index saved here, of packs-2026.11.20`), and fail only when there is none.
@@ -2231,9 +2240,20 @@ From GitHub, the newest packs release is the first `packs-` tag in the API's lis
 - **`vigil pack verify`** checks the packs installed here (or those named, each of which must be) against the release each version came from: it fetches the archive of the version installed, for this platform, checks it against the signed index as `install` does, and compares every file, byte for byte. It reads only. Per pack, `pack web 1.0.0: its 2 files match packs-2026.01.02`, or `pack web 1.0.0: differs from packs-2026.01.02` with a line for each file `changed`, `missing` (in the release, not here) or `added` (here, not in the release), and `To put it back as released: vigil pack install web@1.0.0`. A script the pack dropped that a job still runs (kept, above) is a `kept` line, not a difference. A pack the repository does not have, at that version (one of your own), is `not in the repository, not checked`. A name may not carry a version: it checks the version here. With `--from`, the archives and the signed index come from a folder `vigil pack download` wrote, with no network. Exit code 0 when every pack checked matches, 1 otherwise.
 - **Offline.** `vigil pack download` writes the archives, `packs.index` and `packs.index.sig` to a folder, flat, for the platform named with `--os` (this one's by default): without `@`, the version `install` would take here; with it, that version, whatever Vigil it needs. On a machine that cannot reach the repository, `vigil pack install <name> --from <folder>` verifies the index's signature and the archive's SHA-256 exactly as online, choosing among the versions whose archive is in the folder. A site always offline can instead keep a full copy (§18.7), and then plain `install` and `update` work.
 - A new script stays off until `vigil pack enable` puts its job in the configuration. `vigil pack install` and `vigil pack update` name it.
-- A pack with no scripts for this platform (every `pack.config` ships everywhere; nginx has no Windows script) has nothing to turn on: `vigil pack enable` refuses (`pack nginx has no scripts for Windows`, exit 1), and `vigil pack list` shows it as `not available here`.
+- A pack with no scripts for this platform (every `pack.config` ships everywhere; iis has only Windows scripts) has nothing to turn on: `vigil pack enable` refuses (`pack iis has no scripts for Linux`, exit 1), and `vigil pack list` shows it as `not available here`.
 - A script the pack dropped stays, while a job in the configuration runs it, and is reported, so an update can never break a working configuration.
 - Only `vigil init`, `vigil pack enable` and `vigil pack disable` change the configuration, and only when asked. The new configuration is validated first, judged by the pack's own jobs, and refused when it fails; then it replaces the old file whole (a file beside it, renamed over it, keeping its owner, mode or ACL), so a crash or a full disk leaves the old configuration or the new one, never part of one. A configuration from a source (§6.8) is not edited.
+- **A fleet whose configuration comes from a source** turns packs on there, never on the host. Installing stays on each host, as before, and is off until its jobs are in the configuration: on such a host, `vigil pack install` says so in place of its `vigil pack enable` hint, and `vigil pack enable` and `vigil pack disable` refuse (exit 1), saying where it comes from:
+
+  ```text
+  $ vigil pack install nginx
+  installed pack nginx 1.2.1
+  this host's configuration comes from [source.central] (hosts/web01.config): Vigil does not edit it.
+  Its jobs run once it names them: vigil pack config nginx prints them, ready to paste.
+  ```
+
+  `vigil pack config <name>[@<version>] [--os linux|macos|windows]` prints the block `vigil pack enable` would write, between the same markers, with the pack's needs as comments above it, and changes nothing. It reads this host's copy when the pack is here, `--os` is this platform and no version is asked; otherwise the newest version (or the one asked) from the repository, its archive for that platform checked against the signed index, so it runs anywhere, on a machine with no pack installed and no configuration. A job with no script for that platform is named in a comment and left out. Its `secret` lines name the secrets the pack expects, as `secret:` references; a fleet whose secrets are in a store changes them to `store:` references (§6.5.3) when it pastes them. The fleet's steps: install the pack on each host (as a deployment tool does today), paste the block into the configuration served, set what differs per host in the per-host files, and commit; each host picks it up at its next `check_every`. A host whose configuration names a pack's script that is not there fails that job, and only it, with the reason: `vigil precheck` and the job's run say `file not found: …/packs/nginx/log.sh (pack nginx is not installed here: vigil pack install nginx)`, or `(pack nginx 1.1.1 has no job log; vigil pack update nginx may bring it)`.
+- **Vigil enforces nothing about where a fleet keeps its secrets.** A secret named in a job, as `secret:`, `env:` or `store:`, must exist and be right on the host when the job runs; how it got there (a deployment tool running `vigil secret set --stdin` as the service account, an environment, a secret store) is the fleet's choice. A missing one is named by `vigil precheck` and by `vigil pack enable`'s needs; a wrong one fails the job, saying why. Secrets are never in a configuration, so pasting a pack's jobs never pastes one.
 - **A pack is never turned on blind.** `vigil pack enable` says, after its `on:` lines and again when the pack is already on, what the pack's jobs in the configuration need, and `vigil pack list` says it under each pack:
 
   ```
@@ -2531,7 +2551,7 @@ Every result records Vigil version, OS and version, shell version, test id, resu
 
 **VIGIL-005 — Single-Writer State.** A job's state file has at most one writer at any moment. While a run may be alive, that is its worker. The supervisor writes it only after proving the worker can no longer write (run token released and no process carrying the run id); otherwise it writes only its own recovery record (§12.3).
 
-**VIGIL-006 — Safe Recovery.** A run without a worker-written final state is never treated as successful.
+**VIGIL-006 — Safe Recovery.** A run with no outcome written by its worker, in its final state or in its spool file, is never treated as successful. The outcome in a spool file is the worker's own line, never one the job printed (§11.3).
 
 **VIGIL-007 — Process Identity.** A PID alone is never sufficient to treat a process as a live job or to kill it; name and, where available, start time must match.
 
