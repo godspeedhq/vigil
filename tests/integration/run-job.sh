@@ -219,6 +219,32 @@ check "abandoned launch is not run" 4 "$?"
 "$BASH" "$vigil_cmd" --root "$root" run nosuchjob > /dev/null 2>&1
 check "unknown job is not run" 4 "$?"
 
+# Events that cannot be written to the spool do not cost the run its
+# outcome: the final state is written, and the job's log says it (V-06).
+if [ "$(id -u)" = 0 ]; then
+    printf '  SKIP  a spool that cannot be written: root writes anywhere\n'
+else
+    chmod a-w "$root/spool/incoming"
+    "$BASH" "$vigil_cmd" --root "$root" run ok > /dev/null 2>&1
+    chmod u+w "$root/spool/incoming"
+    check "spool not writable: the run's outcome is still recorded" succeeded "$(state_value "$root/state/jobs/ok.state" status)"
+    check "spool not writable: the job's log says its events were lost" 1 "$(cat "$root"/logs/jobs/ok/2*.log | grep -c 'events not written to the spool')"
+fi
+
+# A state write that fails is not published over what was there (V-05):
+# the worker's own writer, with every printf made to fail as on a full disk.
+printf 'kept\n' > "$root/wtest.state"
+rc=$(
+    . "$repo/app/lib/posix/config.sh"
+    . "$repo/app/lib/posix/worker.sh"
+    _vw_state=("status succeeded")
+    printf() { builtin printf "$@"; return 1; }
+    _vigil_wk_write_state "$root/wtest.state" 2> /dev/null
+    echo $?
+)
+check "a state write that fails says so" 1 "$rc"
+check "and leaves what was there, with no temporary file" "kept 0" "$(cat "$root/wtest.state") $(ls "$root" | grep -c 'wtest.state.tmp')"
+
 rm -rf "$root"
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

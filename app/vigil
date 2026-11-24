@@ -78,7 +78,7 @@
 #   vigil [--root <dir>] supervise [--once]
 #       The supervisor (4.1): ticks until stopped (TERM or INT), or once
 #       with --once. Running workers are never stopped with it.
-#   vigil [--root <dir>] worker <job> --run-id <run id>
+#   vigil [--root <dir>] worker <job> --run-id <run id> [--state-dir <dir>]
 #       Internal: the worker the supervisor starts for a launched run.
 #
 # The install root is --root, else $VIGIL_ROOT, else the root a package names
@@ -523,8 +523,15 @@ case ${1-} in
         exit $?
         ;;
     worker)
-        [ "$#" -eq 4 ] && [ "$3" = --run-id ] || usage
-        vigil_worker "$root" "$2" "$4"
+        # --state-dir: the supervisor's own state directory, where the run's
+        # launch record is (V-07). Without it, the configuration's.
+        if [ "$#" -eq 6 ] && [ "$3" = --run-id ] && [ "$5" = --state-dir ]; then
+            vigil_worker "$root" "$2" "$4" "$6"
+        elif [ "$#" -eq 4 ] && [ "$3" = --run-id ]; then
+            vigil_worker "$root" "$2" "$4"
+        else
+            usage
+        fi
         exit $?
         ;;
     *)

@@ -82,7 +82,7 @@
     vigil [-Root <dir>] supervise [--once]
         The supervisor (4.1): ticks until stopped, or once with --once.
         Running workers are never stopped with it.
-    vigil [-Root <dir>] worker <job> --run-id <run id>
+    vigil [-Root <dir>] worker <job> --run-id <run id> [--state-dir <dir>]
         Internal: the worker the supervisor starts for a launched run.
 
     The install root is -Root, else $env:VIGIL_ROOT, else the root a package
@@ -576,8 +576,12 @@ switch ($Command) {
         exit $code
     }
     'worker' {
-        if (-not $Job -or $Rest.Count -ne 2 -or $Rest[0] -cne '--run-id') { Exit-Usage }
-        $r = Invoke-VigilWorker -Root $Root -Job $Job -RunId $Rest[1]
+        # --state-dir: the supervisor's own state directory, where the run's
+        # launch record is (V-07). Without it, the configuration's.
+        if (-not $Job -or $Rest[0] -cne '--run-id') { Exit-Usage }
+        if ($Rest.Count -eq 4 -and $Rest[2] -ceq '--state-dir') { $r = Invoke-VigilWorker -Root $Root -Job $Job -RunId $Rest[1] -StateDir $Rest[3] }
+        elseif ($Rest.Count -eq 2) { $r = Invoke-VigilWorker -Root $Root -Job $Job -RunId $Rest[1] }
+        else { Exit-Usage }
         exit $r.Code
     }
     default { Exit-Usage }

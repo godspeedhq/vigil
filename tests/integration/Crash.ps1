@@ -465,6 +465,19 @@ Test-Equal '16: worker.after_spool: ran once' '1' "$(Get-WRan $wrid)"
 Test-Equal '16: worker.after_spool: reconciled from its spool file' "succeeded|reconciled from the spool file|$wrid" "$(Get-WState 'status')|$(Get-WState 'reason')|$(Get-WState 'run_id')"
 Test-Equal '16: worker.after_spool: no token left' '' (Get-Locks 'w')
 
+# 16b. The same, for a job that failed and printed a metric of its own
+# called steps.succeeded, and for one that succeeded and printed
+# rows.failures: the outcome is the worker's own line of the spool file,
+# never one the job printed (V-01).
+$wKeep = [System.IO.File]::ReadAllText("$root\scripts\w.cmd")
+Set-Content -LiteralPath "$root\scripts\w.cmd" -Value @('@echo off', 'echo %VIGIL_RUN_ID%>>"%IT_ROOT%\wmarks"', 'echo metric steps.succeeded 1', 'exit /b 2')
+Invoke-WCrash 'worker.after_spool'
+Test-Equal '16b: a failed run that printed steps.succeeded is reconciled as failed' "failed|reconciled from the spool file|$wrid" "$(Get-WState 'status')|$(Get-WState 'reason')|$(Get-WState 'run_id')"
+Set-Content -LiteralPath "$root\scripts\w.cmd" -Value @('@echo off', 'echo %VIGIL_RUN_ID%>>"%IT_ROOT%\wmarks"', 'echo metric rows.failures 0')
+Invoke-WCrash 'worker.after_spool'
+Test-Equal '16b: a run that succeeded and printed rows.failures is reconciled as succeeded' "succeeded|reconciled from the spool file|$wrid" "$(Get-WState 'status')|$(Get-WState 'reason')|$(Get-WState 'run_id')"
+[System.IO.File]::WriteAllText("$root\scripts\w.cmd", $wKeep)
+
 # worker.after_state: the final state written, the token never released.
 Invoke-WCrash 'worker.after_state'
 Test-Equal 'worker.after_state: ran once' '1' "$(Get-WRan $wrid)"

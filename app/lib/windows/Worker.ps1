@@ -497,7 +497,7 @@ function Write-VigilJobLines {
 # local file, or with sources the active one, validated here. The fetcher
 # always works from the local file.
 function Get-VigilWorkerContext {
-    param([string]$Root, [string]$Job, [string]$RunId)
+    param([string]$Root, [string]$Job, [string]$RunId, [string]$StateDir = '')
     $local = ConvertFrom-VigilConfig -Path (Join-Path $Root 'config\vigil.config')
     $dir = {
         param($Section, $Key, $Default)
@@ -505,9 +505,13 @@ function Get-VigilWorkerContext {
         if ([System.IO.Path]::IsPathRooted($v)) { return $v }
         return Join-Path $Root $v
     }
-    # The state directory is always the local file's (6.8).
+    # The state directory is always the local file's (6.8), unless the
+    # supervisor that launched this worker named its own: a state_dir edited
+    # since it started, or a file that can no longer be read, must not send
+    # the worker looking for its launch record somewhere else (V-07).
     $parsed = $local
     $state = & $dir 'vigil' 'state_dir' 'state'
+    if ($StateDir) { $state = $StateDir }
     $config = ''
     $configSha = ''
     $script = ''
@@ -593,9 +597,9 @@ function New-VigilLaunch {
 }
 
 function Invoke-VigilWorker {
-    param([string]$Root, [string]$Job, [string]$RunId)
+    param([string]$Root, [string]$Job, [string]$RunId, [string]$StateDir = '')
 
-    $ctx = Get-VigilWorkerContext -Root $Root -Job $Job -RunId $RunId
+    $ctx = Get-VigilWorkerContext -Root $Root -Job $Job -RunId $RunId -StateDir $StateDir
     if ($ctx.Error) { [Console]::Error.WriteLine("vigil: $($ctx.Error)"); return @{ Code = 4 } }
     $launch = Join-Path $ctx.State "locks\$Job.$RunId.launch"
     $token = Join-Path $ctx.State "locks\$Job.$RunId.token"
@@ -858,7 +862,13 @@ function Invoke-VigilWorker {
 
     # Events before the final state (4.3, step 7).
     $stem = "$($now.Epoch)-$Job-$RunId.events"
-    Write-VigilFileAtomic -Path (Join-Path $incoming $stem) -Text (($events | ForEach-Object { "$_`n" }) -join '')
+    # Events that cannot be written are said, in the job's log, and the final
+    # state is written all the same: a spool that is full or closed must not
+    # cost the run its outcome, as an exception here would (V-06).
+    try { Write-VigilFileAtomic -Path (Join-Path $incoming $stem) -Text (($events | ForEach-Object { "$_`n" }) -join '') }
+    catch {
+        try { [System.IO.File]::AppendAllText($log, "$($now.Iso) $RunId events not written to the spool: this run's metrics are lost ($(($_.Exception.Message -replace '\s+', ' ')))`r`n") } catch { }
+    }
     Invoke-VigilFault 'worker.after_spool'
 
     $state.status = $outcome
