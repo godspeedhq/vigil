@@ -1,0 +1,838 @@
+pack     iis 1.0.0, Vigil commit dc93018 (a copy; the pack the same as at 4e6eb2b), from the repository
+account  vigil-test, not an administrator (in Performance Monitor Users and Event Log Readers), by SSH key
+servers  IIS 10 on this machine, set up by tests/windows-server/Enable-IIS.ps1, after Enable-IIS.ps1 -Reset; run by tests/windows-server/Run-Iis.ps1
+note     the run with the crash test. Its own https requests (sent: 8443 0) failed in the test runner, not the pack: a PowerShell certificate check .NET called where a script block cannot run, fixed at 4e6eb2b (pack-iis)
+
+host     WIN-R50M4Q63SR9, Microsoft Windows NT 10.0.26100.0, Windows PowerShell 5.1.26100.7462
+account  vigil-test, administrator: False
+commit   dc930182f788a271fa751d54a39ab3d750bf74ae
+
+# One minute of traffic, of every kind.
+  sent: 8081 200 404; 8082 500; 8083 503; 8443 0
+
+# IIS on Windows Server: every job, as the pack ships it, as an account that is not an administrator.
+
+> powershell packs\iis\windows\workers.ps1
+metric workers 2
+metric active_requests 4 pool=vigil-ok pid=11456
+metric requests_count 62 pool=vigil-ok pid=11456
+metric requests_rate 0 pool=vigil-ok pid=11456
+metric threads_active 0 pool=vigil-ok pid=11456
+metric threads 4 pool=vigil-ok pid=11456
+metric threads_max 256 pool=vigil-ok pid=11456
+metric sent_500_pct 0 pool=vigil-ok pid=11456
+metric sent_404_pct 0 pool=vigil-ok pid=11456
+metric sent_403_pct 0 pool=vigil-ok pid=11456
+metric sent_401_pct 0 pool=vigil-ok pid=11456
+metric websockets 0 pool=vigil-ok pid=11456
+metric file_cache_bytes 58 pool=vigil-ok pid=11456
+metric output_cache_bytes 0 pool=vigil-ok pid=11456
+metric uri_cache_hits_count 159 pool=vigil-ok pid=11456
+metric uri_cache_misses_count 8 pool=vigil-ok pid=11456
+metric active_requests 0 pool=vigil-fail pid=3484
+metric requests_count 8 pool=vigil-fail pid=3484
+metric requests_rate 0 pool=vigil-fail pid=3484
+metric threads_active 0 pool=vigil-fail pid=3484
+metric threads 4 pool=vigil-fail pid=3484
+metric threads_max 256 pool=vigil-fail pid=3484
+metric sent_500_pct 0 pool=vigil-fail pid=3484
+metric sent_404_pct 0 pool=vigil-fail pid=3484
+metric sent_403_pct 0 pool=vigil-fail pid=3484
+metric sent_401_pct 0 pool=vigil-fail pid=3484
+metric websockets 0 pool=vigil-fail pid=3484
+metric file_cache_bytes 0 pool=vigil-fail pid=3484
+metric output_cache_bytes 0 pool=vigil-fail pid=3484
+metric uri_cache_hits_count 6 pool=vigil-fail pid=3484
+metric uri_cache_misses_count 2 pool=vigil-fail pid=3484
+metric workers_not_shown 0
+  PASS  iis: workers runs
+
+> powershell packs\iis\windows\sites.ps1
+metric up 1
+metric uptime_seconds 15403
+metric sites 5
+metric connections 4
+metric site_uptime_seconds 15403 site=Default_Web_Site
+metric site_connections 0 site=Default_Web_Site
+metric site_connections_max 0 site=Default_Web_Site
+metric site_requests_count 0 site=Default_Web_Site
+metric site_method_count 0 site=Default_Web_Site method=get
+metric site_method_count 0 site=Default_Web_Site method=post
+metric site_method_count 0 site=Default_Web_Site method=head
+metric site_method_count 0 site=Default_Web_Site method=put
+metric site_method_count 0 site=Default_Web_Site method=delete
+metric site_method_count 0 site=Default_Web_Site method=options
+metric site_method_count 0 site=Default_Web_Site method=other
+metric site_not_found_count 0 site=Default_Web_Site
+metric site_locked_count 0 site=Default_Web_Site
+metric site_bytes_sent_count 0 site=Default_Web_Site
+metric site_bytes_received_count 0 site=Default_Web_Site
+metric site_users 0 site=Default_Web_Site kind=anonymous
+metric site_users 0 site=Default_Web_Site kind=authenticated
+metric site_cgi_running 0 site=Default_Web_Site
+metric site_uptime_seconds 15012 site=vigil-crash
+metric site_connections 0 site=vigil-crash
+metric site_connections_max 1 site=vigil-crash
+metric site_requests_count 6 site=vigil-crash
+metric site_method_count 6 site=vigil-crash method=get
+metric site_method_count 0 site=vigil-crash method=post
+metric site_method_count 0 site=vigil-crash method=head
+metric site_method_count 0 site=vigil-crash method=put
+metric site_method_count 0 site=vigil-crash method=delete
+metric site_method_count 0 site=vigil-crash method=options
+metric site_method_count 0 site=vigil-crash method=other
+metric site_not_found_count 0 site=vigil-crash
+metric site_locked_count 0 site=vigil-crash
+metric site_bytes_sent_count 1539 site=vigil-crash
+metric site_bytes_received_count 420 site=vigil-crash
+metric site_users 0 site=vigil-crash kind=anonymous
+metric site_users 0 site=vigil-crash kind=authenticated
+metric site_cgi_running 0 site=vigil-crash
+metric site_uptime_seconds 15013 site=vigil-fail
+metric site_connections 0 site=vigil-fail
+metric site_connections_max 6 site=vigil-fail
+metric site_requests_count 22 site=vigil-fail
+metric site_method_count 22 site=vigil-fail method=get
+metric site_method_count 0 site=vigil-fail method=post
+metric site_method_count 0 site=vigil-fail method=head
+metric site_method_count 0 site=vigil-fail method=put
+metric site_method_count 0 site=vigil-fail method=delete
+metric site_method_count 0 site=vigil-fail method=options
+metric site_method_count 0 site=vigil-fail method=other
+metric site_not_found_count 0 site=vigil-fail
+metric site_locked_count 0 site=vigil-fail
+metric site_bytes_sent_count 128260 site=vigil-fail
+metric site_bytes_received_count 2222 site=vigil-fail
+metric site_users 0 site=vigil-fail kind=anonymous
+metric site_users 0 site=vigil-fail kind=authenticated
+metric site_cgi_running 0 site=vigil-fail
+metric site_uptime_seconds 15014 site=vigil-ok
+metric site_connections 4 site=vigil-ok
+metric site_connections_max 40 site=vigil-ok
+metric site_requests_count 136 site=vigil-ok
+metric site_method_count 126 site=vigil-ok method=get
+metric site_method_count 10 site=vigil-ok method=post
+metric site_method_count 0 site=vigil-ok method=head
+metric site_method_count 0 site=vigil-ok method=put
+metric site_method_count 0 site=vigil-ok method=delete
+metric site_method_count 0 site=vigil-ok method=options
+metric site_method_count 0 site=vigil-ok method=other
+metric site_not_found_count 28 site=vigil-ok
+metric site_locked_count 0 site=vigil-ok
+metric site_bytes_sent_count 224972 site=vigil-ok
+metric site_bytes_received_count 9602 site=vigil-ok
+metric site_users 4 site=vigil-ok kind=anonymous
+metric site_users 0 site=vigil-ok kind=authenticated
+metric site_cgi_running 0 site=vigil-ok
+metric site_uptime_seconds 15013 site=vigil-stopped
+metric site_connections 0 site=vigil-stopped
+metric site_connections_max 6 site=vigil-stopped
+metric site_requests_count 22 site=vigil-stopped
+metric site_method_count 22 site=vigil-stopped method=get
+metric site_method_count 0 site=vigil-stopped method=post
+metric site_method_count 0 site=vigil-stopped method=head
+metric site_method_count 0 site=vigil-stopped method=put
+metric site_method_count 0 site=vigil-stopped method=delete
+metric site_method_count 0 site=vigil-stopped method=options
+metric site_method_count 0 site=vigil-stopped method=other
+metric site_not_found_count 0 site=vigil-stopped
+metric site_locked_count 0 site=vigil-stopped
+metric site_bytes_sent_count 11286 site=vigil-stopped
+metric site_bytes_received_count 1928 site=vigil-stopped
+metric site_users 0 site=vigil-stopped kind=anonymous
+metric site_users 0 site=vigil-stopped kind=authenticated
+metric site_cgi_running 0 site=vigil-stopped
+metric sites_not_shown 0
+  PASS  iis: sites runs
+
+> powershell packs\iis\windows\pools.ps1
+metric up 1
+metric pools 7
+metric pools_not_running 1
+metric state 5 pool=vigil-stopped status=stopped
+metric worker_processes 0 pool=vigil-stopped
+metric worker_processes_max 0 pool=vigil-stopped
+metric uptime_seconds 0 pool=vigil-stopped
+metric recycles_count 0 pool=vigil-stopped
+metric worker_failures_count 0 pool=vigil-stopped
+metric recent_failures 0 pool=vigil-stopped
+metric ping_failures_count 0 pool=vigil-stopped
+metric startup_failures_count 0 pool=vigil-stopped
+metric shutdown_failures_count 0 pool=vigil-stopped
+metric since_failure_seconds 0 pool=vigil-stopped
+metric queue 0 pool=vigil-stopped
+metric queue_oldest_ms 0 pool=vigil-stopped
+metric rejected_count 22 pool=vigil-stopped
+metric arrival_rate 0 pool=vigil-stopped
+metric rejection_rate 0 pool=vigil-stopped
+metric cache_hit_rate 0 pool=vigil-stopped
+metric state 3 pool=.NET_v4.5 status=running
+metric worker_processes 0 pool=.NET_v4.5
+metric worker_processes_max 0 pool=.NET_v4.5
+metric uptime_seconds 15377.42 pool=.NET_v4.5
+metric recycles_count 0 pool=.NET_v4.5
+metric worker_failures_count 0 pool=.NET_v4.5
+metric recent_failures 0 pool=.NET_v4.5
+metric ping_failures_count 0 pool=.NET_v4.5
+metric startup_failures_count 0 pool=.NET_v4.5
+metric shutdown_failures_count 0 pool=.NET_v4.5
+metric since_failure_seconds 15377.42 pool=.NET_v4.5
+metric state 3 pool=.NET_v4.5_Classic status=running
+metric worker_processes 0 pool=.NET_v4.5_Classic
+metric worker_processes_max 0 pool=.NET_v4.5_Classic
+metric uptime_seconds 15377.42 pool=.NET_v4.5_Classic
+metric recycles_count 0 pool=.NET_v4.5_Classic
+metric worker_failures_count 0 pool=.NET_v4.5_Classic
+metric recent_failures 0 pool=.NET_v4.5_Classic
+metric ping_failures_count 0 pool=.NET_v4.5_Classic
+metric startup_failures_count 0 pool=.NET_v4.5_Classic
+metric shutdown_failures_count 0 pool=.NET_v4.5_Classic
+metric since_failure_seconds 15377.42 pool=.NET_v4.5_Classic
+metric state 3 pool=DefaultAppPool status=running
+metric worker_processes 0 pool=DefaultAppPool
+metric worker_processes_max 0 pool=DefaultAppPool
+metric uptime_seconds 15407.16 pool=DefaultAppPool
+metric recycles_count 0 pool=DefaultAppPool
+metric worker_failures_count 0 pool=DefaultAppPool
+metric recent_failures 0 pool=DefaultAppPool
+metric ping_failures_count 0 pool=DefaultAppPool
+metric startup_failures_count 0 pool=DefaultAppPool
+metric shutdown_failures_count 0 pool=DefaultAppPool
+metric since_failure_seconds 15407.16 pool=DefaultAppPool
+metric queue 0 pool=DefaultAppPool
+metric queue_oldest_ms 0 pool=DefaultAppPool
+metric rejected_count 0 pool=DefaultAppPool
+metric arrival_rate 0 pool=DefaultAppPool
+metric rejection_rate 0 pool=DefaultAppPool
+metric cache_hit_rate 0 pool=DefaultAppPool
+metric state 3 pool=vigil-crash status=running
+metric worker_processes 0 pool=vigil-crash
+metric worker_processes_max 1 pool=vigil-crash
+metric uptime_seconds 183.76 pool=vigil-crash
+metric recycles_count 0 pool=vigil-crash
+metric worker_failures_count 3 pool=vigil-crash
+metric recent_failures 0 pool=vigil-crash
+metric ping_failures_count 0 pool=vigil-crash
+metric startup_failures_count 0 pool=vigil-crash
+metric shutdown_failures_count 0 pool=vigil-crash
+metric since_failure_seconds 183.76 pool=vigil-crash
+metric queue 0 pool=vigil-crash
+metric queue_oldest_ms 0 pool=vigil-crash
+metric rejected_count 2 pool=vigil-crash
+metric arrival_rate 0 pool=vigil-crash
+metric rejection_rate 0 pool=vigil-crash
+metric cache_hit_rate 0 pool=vigil-crash
+metric state 3 pool=vigil-fail status=running
+metric worker_processes 1 pool=vigil-fail
+metric worker_processes_max 1 pool=vigil-fail
+metric uptime_seconds 15017.83 pool=vigil-fail
+metric recycles_count 0 pool=vigil-fail
+metric worker_failures_count 0 pool=vigil-fail
+metric recent_failures 0 pool=vigil-fail
+metric ping_failures_count 0 pool=vigil-fail
+metric startup_failures_count 0 pool=vigil-fail
+metric shutdown_failures_count 0 pool=vigil-fail
+metric since_failure_seconds 15017.83 pool=vigil-fail
+metric queue 0 pool=vigil-fail
+metric queue_oldest_ms 0 pool=vigil-fail
+metric rejected_count 0 pool=vigil-fail
+metric arrival_rate 0 pool=vigil-fail
+metric rejection_rate 0 pool=vigil-fail
+metric cache_hit_rate 0 pool=vigil-fail
+metric state 3 pool=vigil-ok status=running
+metric worker_processes 1 pool=vigil-ok
+metric worker_processes_max 1 pool=vigil-ok
+metric uptime_seconds 15018.4 pool=vigil-ok
+metric recycles_count 0 pool=vigil-ok
+metric worker_failures_count 0 pool=vigil-ok
+metric recent_failures 0 pool=vigil-ok
+metric ping_failures_count 0 pool=vigil-ok
+metric startup_failures_count 0 pool=vigil-ok
+metric shutdown_failures_count 0 pool=vigil-ok
+metric since_failure_seconds 15018.4 pool=vigil-ok
+metric queue 0 pool=vigil-ok
+metric queue_oldest_ms 0 pool=vigil-ok
+metric rejected_count 0 pool=vigil-ok
+metric arrival_rate 0 pool=vigil-ok
+metric rejection_rate 0 pool=vigil-ok
+metric cache_hit_rate 0 pool=vigil-ok
+metric pools_not_shown 0
+  PASS  iis: pools runs
+
+> powershell packs\iis\windows\log.ps1
+metric log_readable 1
+metric sites_logging 2
+metric window_complete 1
+metric requests 57 site=W3SVC2
+metric status_1xx 0 site=W3SVC2
+metric status_2xx 41 site=W3SVC2
+metric status_3xx 0 site=W3SVC2
+metric status_4xx 16 site=W3SVC2
+metric status_5xx 0 site=W3SVC2
+metric errors_5xx_pct 0 site=W3SVC2
+metric status 41 site=W3SVC2 code=200.0
+metric status 11 site=W3SVC2 code=404.0
+metric status 5 site=W3SVC2 code=405.0
+metric method 52 site=W3SVC2 method=GET
+metric method 5 site=W3SVC2 method=POST
+metric win32_errors 16 site=W3SVC2
+metric time_avg_ms 38 site=W3SVC2
+metric time_p50_ms 25 site=W3SVC2
+metric time_p90_ms 122 site=W3SVC2
+metric time_p99_ms 129 site=W3SVC2
+metric time_max_ms 129 site=W3SVC2
+metric requests 7 site=W3SVC3
+metric status_1xx 0 site=W3SVC3
+metric status_2xx 0 site=W3SVC3
+metric status_3xx 0 site=W3SVC3
+metric status_4xx 0 site=W3SVC3
+metric status_5xx 7 site=W3SVC3
+metric errors_5xx_pct 100 site=W3SVC3
+metric status 7 site=W3SVC3 code=500.0
+metric method 7 site=W3SVC3 method=GET
+metric win32_errors 0 site=W3SVC3
+metric time_avg_ms 9.7 site=W3SVC3
+metric time_p50_ms 8 site=W3SVC3
+metric time_p90_ms 17 site=W3SVC3
+metric time_p99_ms 17 site=W3SVC3
+metric time_max_ms 17 site=W3SVC3
+metric sites_not_shown 0
+metric httperr_readable 1
+metric rejected_total 7
+metric rejected 7 reason=Disabled status=503 queue=vigil-stopped
+  PASS  iis: log runs
+
+> powershell packs\iis\windows\tls.ps1   (IIS_CACERT=...)
+metric bindings_found 1
+metric tls_up 1 endpoint=127.0.0.1:8443/localhost
+metric cert_expires_days 9 endpoint=127.0.0.1:8443/localhost
+metric cert_valid 1 endpoint=127.0.0.1:8443/localhost
+metric cert_verified 1 endpoint=127.0.0.1:8443/localhost reason=ok
+metric cert_info 1 endpoint=127.0.0.1:8443/localhost issuer=localhost protocol=Tls12
+  PASS  iis: tls runs
+
+> powershell packs\iis\windows\events.ps1
+metric readable 1
+metric events 6
+metric errors 1
+metric warnings 3
+metric rapid_fail_count 1
+metric crashes_count 3
+metric unresponsive_count 0
+metric start_failures_count 0
+metric recycles_count 0
+metric idle_shutdowns_count 2
+metric event 3 id=5011 pool=vigil-crash level=warning
+metric event 1 id=5002 pool=vigil-crash level=error
+metric event 1 id=5186 pool=vigil-fail level=information
+metric event 1 id=5186 pool=vigil-ok level=information
+metric events_not_shown 0
+  PASS  iis: events runs
+  PASS  iis: up
+  PASS  iis: five sites, IIS's own and four for the test
+  PASS  iis: the requests of vigil-ok counted
+  PASS  iis: and its 404s
+  PASS  iis: and its POSTs
+  PASS  iis: the stopped pool, stopped
+  PASS  iis: first in the list
+  PASS  iis: its requests turned away by HTTP.sys
+  PASS  iis: the others running
+  PASS  iis: slow requests running in a worker
+  PASS  iis: the whole minute read
+  PASS  iis: the requests vigil-ok logged (W3SVC2)
+  PASS  iis: its 404s, with their sub-status
+  PASS  iis: the 500s of vigil-fail (W3SVC3)
+  PASS  iis: and their share
+  PASS  iis: times taken
+  PASS  iis: what HTTP.sys turned away, and why
+  PASS  iis: the binding found in HTTP.sys
+  PASS  iis: its certificate, days left
+  PASS  iis: and it checks, against its own public half
+  PASS  iis: the event logs readable
+
+# A log this account may not read.
+
+> powershell packs\iis\windows\log.ps1   (IIS_LOG_DIR=...)
+metric log_readable 0
+log: this account may not read the logs in C:\Users\vigil-test\AppData\Local\Temp\vigil-iis-it-9cd6d44b\logs (packs/iis/README.md says how to allow it)
+metric sites_logging 0
+metric window_complete 1
+metric sites_not_shown 0
+metric httperr_readable 1
+metric rejected_total 7
+metric rejected 7 reason=Disabled status=503 queue=vigil-stopped
+  PASS  iis: log-denied runs
+  PASS  iis: a log it may not read
+
+# A page that crashes its worker, three times: rapid-fail protection stops the pool.
+  crash.aspx: HTTP 0
+  crash.aspx: HTTP 503
+  crash.aspx: HTTP 503
+  crash.aspx: HTTP 503
+
+> powershell packs\iis\windows\pools.ps1
+metric up 1
+metric pools 7
+metric pools_not_running 2
+metric state 5 pool=vigil-crash status=stopped
+metric worker_processes 0 pool=vigil-crash
+metric worker_processes_max 1 pool=vigil-crash
+metric uptime_seconds 183.77 pool=vigil-crash
+metric recycles_count 0 pool=vigil-crash
+metric worker_failures_count 6 pool=vigil-crash
+metric recent_failures 3 pool=vigil-crash
+metric ping_failures_count 0 pool=vigil-crash
+metric startup_failures_count 0 pool=vigil-crash
+metric shutdown_failures_count 0 pool=vigil-crash
+metric since_failure_seconds 0 pool=vigil-crash
+metric queue 0 pool=vigil-crash
+metric queue_oldest_ms 0 pool=vigil-crash
+metric rejected_count 4 pool=vigil-crash
+metric arrival_rate 0 pool=vigil-crash
+metric rejection_rate 0 pool=vigil-crash
+metric cache_hit_rate 0 pool=vigil-crash
+metric state 5 pool=vigil-stopped status=stopped
+metric worker_processes 0 pool=vigil-stopped
+metric worker_processes_max 0 pool=vigil-stopped
+metric uptime_seconds 0 pool=vigil-stopped
+metric recycles_count 0 pool=vigil-stopped
+metric worker_failures_count 0 pool=vigil-stopped
+metric recent_failures 0 pool=vigil-stopped
+metric ping_failures_count 0 pool=vigil-stopped
+metric startup_failures_count 0 pool=vigil-stopped
+metric shutdown_failures_count 0 pool=vigil-stopped
+metric since_failure_seconds 0 pool=vigil-stopped
+metric queue 0 pool=vigil-stopped
+metric queue_oldest_ms 0 pool=vigil-stopped
+metric rejected_count 22 pool=vigil-stopped
+metric arrival_rate 0 pool=vigil-stopped
+metric rejection_rate 0 pool=vigil-stopped
+metric cache_hit_rate 0 pool=vigil-stopped
+metric state 3 pool=.NET_v4.5 status=running
+metric worker_processes 0 pool=.NET_v4.5
+metric worker_processes_max 0 pool=.NET_v4.5
+metric uptime_seconds 15417.29 pool=.NET_v4.5
+metric recycles_count 0 pool=.NET_v4.5
+metric worker_failures_count 0 pool=.NET_v4.5
+metric recent_failures 0 pool=.NET_v4.5
+metric ping_failures_count 0 pool=.NET_v4.5
+metric startup_failures_count 0 pool=.NET_v4.5
+metric shutdown_failures_count 0 pool=.NET_v4.5
+metric since_failure_seconds 15417.29 pool=.NET_v4.5
+metric state 3 pool=.NET_v4.5_Classic status=running
+metric worker_processes 0 pool=.NET_v4.5_Classic
+metric worker_processes_max 0 pool=.NET_v4.5_Classic
+metric uptime_seconds 15417.29 pool=.NET_v4.5_Classic
+metric recycles_count 0 pool=.NET_v4.5_Classic
+metric worker_failures_count 0 pool=.NET_v4.5_Classic
+metric recent_failures 0 pool=.NET_v4.5_Classic
+metric ping_failures_count 0 pool=.NET_v4.5_Classic
+metric startup_failures_count 0 pool=.NET_v4.5_Classic
+metric shutdown_failures_count 0 pool=.NET_v4.5_Classic
+metric since_failure_seconds 15417.29 pool=.NET_v4.5_Classic
+metric state 3 pool=DefaultAppPool status=running
+metric worker_processes 0 pool=DefaultAppPool
+metric worker_processes_max 0 pool=DefaultAppPool
+metric uptime_seconds 15447.03 pool=DefaultAppPool
+metric recycles_count 0 pool=DefaultAppPool
+metric worker_failures_count 0 pool=DefaultAppPool
+metric recent_failures 0 pool=DefaultAppPool
+metric ping_failures_count 0 pool=DefaultAppPool
+metric startup_failures_count 0 pool=DefaultAppPool
+metric shutdown_failures_count 0 pool=DefaultAppPool
+metric since_failure_seconds 15447.03 pool=DefaultAppPool
+metric queue 0 pool=DefaultAppPool
+metric queue_oldest_ms 0 pool=DefaultAppPool
+metric rejected_count 0 pool=DefaultAppPool
+metric arrival_rate 0 pool=DefaultAppPool
+metric rejection_rate 0 pool=DefaultAppPool
+metric cache_hit_rate 0 pool=DefaultAppPool
+metric state 3 pool=vigil-fail status=running
+metric worker_processes 1 pool=vigil-fail
+metric worker_processes_max 1 pool=vigil-fail
+metric uptime_seconds 15057.7 pool=vigil-fail
+metric recycles_count 0 pool=vigil-fail
+metric worker_failures_count 0 pool=vigil-fail
+metric recent_failures 0 pool=vigil-fail
+metric ping_failures_count 0 pool=vigil-fail
+metric startup_failures_count 0 pool=vigil-fail
+metric shutdown_failures_count 0 pool=vigil-fail
+metric since_failure_seconds 15057.7 pool=vigil-fail
+metric queue 0 pool=vigil-fail
+metric queue_oldest_ms 0 pool=vigil-fail
+metric rejected_count 0 pool=vigil-fail
+metric arrival_rate 0 pool=vigil-fail
+metric rejection_rate 0 pool=vigil-fail
+metric cache_hit_rate 0 pool=vigil-fail
+metric state 3 pool=vigil-ok status=running
+metric worker_processes 1 pool=vigil-ok
+metric worker_processes_max 1 pool=vigil-ok
+metric uptime_seconds 15058.27 pool=vigil-ok
+metric recycles_count 0 pool=vigil-ok
+metric worker_failures_count 0 pool=vigil-ok
+metric recent_failures 0 pool=vigil-ok
+metric ping_failures_count 0 pool=vigil-ok
+metric startup_failures_count 0 pool=vigil-ok
+metric shutdown_failures_count 0 pool=vigil-ok
+metric since_failure_seconds 15058.27 pool=vigil-ok
+metric queue 0 pool=vigil-ok
+metric queue_oldest_ms 0 pool=vigil-ok
+metric rejected_count 0 pool=vigil-ok
+metric arrival_rate 0 pool=vigil-ok
+metric rejection_rate 0 pool=vigil-ok
+metric cache_hit_rate 0 pool=vigil-ok
+metric pools_not_shown 0
+  PASS  iis: pools-crashed runs
+
+> powershell packs\iis\windows\events.ps1
+metric readable 1
+metric events 10
+metric errors 2
+metric warnings 6
+metric rapid_fail_count 2
+metric crashes_count 6
+metric unresponsive_count 0
+metric start_failures_count 0
+metric recycles_count 0
+metric idle_shutdowns_count 2
+metric event 6 id=5011 pool=vigil-crash level=warning
+metric event 2 id=5002 pool=vigil-crash level=error
+metric event 1 id=5186 pool=vigil-fail level=information
+metric event 1 id=5186 pool=vigil-ok level=information
+metric events_not_shown 0
+  PASS  iis: events-crashed runs
+  PASS  iis: the pool stopped by rapid-fail protection
+  PASS  iis: its worker failures counted
+  PASS  iis: the crashes, from the events
+  PASS  iis: and the pool rapid-fail protection stopped
+  PASS  iis: named
+
+directly: 36 passed, 0 failed
+
+== powershell tests\integration\Service-Packs.ps1
+PowerShell 5.1.26100.7462
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+iis: IIS_LOG_MAX_MB=32
+  PASS  iis: enabled
+        on: iis_sites
+        on: iis_pools
+        on: iis_workers
+        on: iis_log
+        on: iis_events
+        on: iis_tls
+        needs the account Vigil runs as in Performance Monitor Users (for the counters) and Event Log Readers (for the events); LocalSystem, the Vigil service's account, already may
+        needs for the log job, read access to C:\inetpub\logs\LogFiles and C:\Windows\System32\LogFiles\HTTPERR (packs/iis/README.md has the icacls commands)
+        needs for IIS's CPU and memory (w3wp.exe): the base pack's processes job
+        settings in vigil.config: IIS_LOG_DIR=C:\inetpub\logs\LogFiles IIS_HTTPERR_DIR=C:\Windows\System32\LogFiles\HTTPERR IIS_LOG_MAX_MB=32 IIS_EVENT_HOURS=1 IIS_TLS= IIS_CACERT=
+  PASS  iis: it says CPU and memory are the base pack's
+  PASS  iis: precheck is happy
+  PASS  iis: every Windows job runs (sites, pools, workers, log, events, tls)
+        metric up 1
+        metric uptime_seconds 15486
+        metric sites 5
+        metric connections 0
+        metric site_uptime_seconds 15486 site=Default_Web_Site
+        metric site_connections 0 site=Default_Web_Site
+        metric site_connections_max 0 site=Default_Web_Site
+        metric site_requests_count 0 site=Default_Web_Site
+        metric site_method_count 0 site=Default_Web_Site method=get
+        metric site_method_count 0 site=Default_Web_Site method=post
+        metric site_method_count 0 site=Default_Web_Site method=head
+        metric site_method_count 0 site=Default_Web_Site method=put
+        metric site_method_count 0 site=Default_Web_Site method=delete
+        metric site_method_count 0 site=Default_Web_Site method=options
+        metric site_method_count 0 site=Default_Web_Site method=other
+        metric site_not_found_count 0 site=Default_Web_Site
+        metric site_locked_count 0 site=Default_Web_Site
+        metric site_bytes_sent_count 0 site=Default_Web_Site
+        metric site_bytes_received_count 0 site=Default_Web_Site
+        metric site_users 0 site=Default_Web_Site kind=anonymous
+        metric site_users 0 site=Default_Web_Site kind=authenticated
+        metric site_cgi_running 0 site=Default_Web_Site
+        metric site_uptime_seconds 15095 site=vigil-crash
+        metric site_connections 0 site=vigil-crash
+        metric site_connections_max 1 site=vigil-crash
+        metric site_requests_count 12 site=vigil-crash
+        metric site_method_count 12 site=vigil-crash method=get
+        metric site_method_count 0 site=vigil-crash method=post
+        metric site_method_count 0 site=vigil-crash method=head
+        metric site_method_count 0 site=vigil-crash method=put
+        metric site_method_count 0 site=vigil-crash method=delete
+        metric site_method_count 0 site=vigil-crash method=options
+        metric site_method_count 0 site=vigil-crash method=other
+        metric site_not_found_count 0 site=vigil-crash
+        metric site_locked_count 0 site=vigil-crash
+        metric site_bytes_sent_count 3078 site=vigil-crash
+        metric site_bytes_received_count 816 site=vigil-crash
+        metric site_users 0 site=vigil-crash kind=anonymous
+        metric site_users 0 site=vigil-crash kind=authenticated
+        metric site_cgi_running 0 site=vigil-crash
+        metric site_uptime_seconds 15096 site=vigil-fail
+        metric site_connections 0 site=vigil-fail
+        metric site_connections_max 6 site=vigil-fail
+        metric site_requests_count 22 site=vigil-fail
+        metric site_method_count 22 site=vigil-fail method=get
+        metric site_method_count 0 site=vigil-fail method=post
+        metric site_method_count 0 site=vigil-fail method=head
+        metric site_method_count 0 site=vigil-fail method=put
+        metric site_method_count 0 site=vigil-fail method=delete
+        metric site_method_count 0 site=vigil-fail method=options
+        metric site_method_count 0 site=vigil-fail method=other
+        metric site_not_found_count 0 site=vigil-fail
+        metric site_locked_count 0 site=vigil-fail
+        metric site_bytes_sent_count 128260 site=vigil-fail
+        metric site_bytes_received_count 2222 site=vigil-fail
+        metric site_users 0 site=vigil-fail kind=anonymous
+        metric site_users 0 site=vigil-fail kind=authenticated
+        metric site_cgi_running 0 site=vigil-fail
+        metric site_uptime_seconds 15097 site=vigil-ok
+        metric site_connections 0 site=vigil-ok
+        metric site_connections_max 40 site=vigil-ok
+        metric site_requests_count 136 site=vigil-ok
+        metric site_method_count 126 site=vigil-ok method=get
+        metric site_method_count 10 site=vigil-ok method=post
+        metric site_method_count 0 site=vigil-ok method=head
+        metric site_method_count 0 site=vigil-ok method=put
+        metric site_method_count 0 site=vigil-ok method=delete
+        metric site_method_count 0 site=vigil-ok method=options
+        metric site_method_count 0 site=vigil-ok method=other
+        metric site_not_found_count 28 site=vigil-ok
+        metric site_locked_count 0 site=vigil-ok
+        metric site_bytes_sent_count 225920 site=vigil-ok
+        metric site_bytes_received_count 9602 site=vigil-ok
+        metric site_users 0 site=vigil-ok kind=anonymous
+        metric site_users 0 site=vigil-ok kind=authenticated
+        metric site_cgi_running 0 site=vigil-ok
+        metric site_uptime_seconds 15096 site=vigil-stopped
+        metric site_connections 0 site=vigil-stopped
+        metric site_connections_max 6 site=vigil-stopped
+        metric site_requests_count 22 site=vigil-stopped
+        metric site_method_count 22 site=vigil-stopped method=get
+        metric site_method_count 0 site=vigil-stopped method=post
+        metric site_method_count 0 site=vigil-stopped method=head
+        metric site_method_count 0 site=vigil-stopped method=put
+        metric site_method_count 0 site=vigil-stopped method=delete
+        metric site_method_count 0 site=vigil-stopped method=options
+        metric site_method_count 0 site=vigil-stopped method=other
+        metric site_not_found_count 0 site=vigil-stopped
+        metric site_locked_count 0 site=vigil-stopped
+        metric site_bytes_sent_count 11286 site=vigil-stopped
+        metric site_bytes_received_count 1928 site=vigil-stopped
+        metric site_users 0 site=vigil-stopped kind=anonymous
+        metric site_users 0 site=vigil-stopped kind=authenticated
+        metric site_cgi_running 0 site=vigil-stopped
+        metric sites_not_shown 0
+        metric up 1
+        metric pools 7
+        metric pools_not_running 2
+        metric state 5 pool=vigil-crash status=stopped
+        metric worker_processes 0 pool=vigil-crash
+        metric worker_processes_max 1 pool=vigil-crash
+        metric uptime_seconds 183.77 pool=vigil-crash
+        metric recycles_count 0 pool=vigil-crash
+        metric worker_failures_count 6 pool=vigil-crash
+        metric recent_failures 3 pool=vigil-crash
+        metric ping_failures_count 0 pool=vigil-crash
+        metric startup_failures_count 0 pool=vigil-crash
+        metric shutdown_failures_count 0 pool=vigil-crash
+        metric since_failure_seconds 0 pool=vigil-crash
+        metric queue 0 pool=vigil-crash
+        metric queue_oldest_ms 0 pool=vigil-crash
+        metric rejected_count 4 pool=vigil-crash
+        metric arrival_rate 0 pool=vigil-crash
+        metric rejection_rate 0 pool=vigil-crash
+        metric cache_hit_rate 0 pool=vigil-crash
+        metric state 5 pool=vigil-stopped status=stopped
+        metric worker_processes 0 pool=vigil-stopped
+        metric worker_processes_max 0 pool=vigil-stopped
+        metric uptime_seconds 0 pool=vigil-stopped
+        metric recycles_count 0 pool=vigil-stopped
+        metric worker_failures_count 0 pool=vigil-stopped
+        metric recent_failures 0 pool=vigil-stopped
+        metric ping_failures_count 0 pool=vigil-stopped
+        metric startup_failures_count 0 pool=vigil-stopped
+        metric shutdown_failures_count 0 pool=vigil-stopped
+        metric since_failure_seconds 0 pool=vigil-stopped
+        metric queue 0 pool=vigil-stopped
+        metric queue_oldest_ms 0 pool=vigil-stopped
+        metric rejected_count 22 pool=vigil-stopped
+        metric arrival_rate 0 pool=vigil-stopped
+        metric rejection_rate 0 pool=vigil-stopped
+        metric cache_hit_rate 0 pool=vigil-stopped
+        metric state 3 pool=.NET_v4.5 status=running
+        metric worker_processes 0 pool=.NET_v4.5
+        metric worker_processes_max 0 pool=.NET_v4.5
+        metric uptime_seconds 15467.16 pool=.NET_v4.5
+        metric recycles_count 0 pool=.NET_v4.5
+        metric worker_failures_count 0 pool=.NET_v4.5
+        metric recent_failures 0 pool=.NET_v4.5
+        metric ping_failures_count 0 pool=.NET_v4.5
+        metric startup_failures_count 0 pool=.NET_v4.5
+        metric shutdown_failures_count 0 pool=.NET_v4.5
+        metric since_failure_seconds 15467.16 pool=.NET_v4.5
+        metric state 3 pool=.NET_v4.5_Classic status=running
+        metric worker_processes 0 pool=.NET_v4.5_Classic
+        metric worker_processes_max 0 pool=.NET_v4.5_Classic
+        metric uptime_seconds 15467.16 pool=.NET_v4.5_Classic
+        metric recycles_count 0 pool=.NET_v4.5_Classic
+        metric worker_failures_count 0 pool=.NET_v4.5_Classic
+        metric recent_failures 0 pool=.NET_v4.5_Classic
+        metric ping_failures_count 0 pool=.NET_v4.5_Classic
+        metric startup_failures_count 0 pool=.NET_v4.5_Classic
+        metric shutdown_failures_count 0 pool=.NET_v4.5_Classic
+        metric since_failure_seconds 15467.16 pool=.NET_v4.5_Classic
+        metric state 3 pool=DefaultAppPool status=running
+        metric worker_processes 0 pool=DefaultAppPool
+        metric worker_processes_max 0 pool=DefaultAppPool
+        metric uptime_seconds 15496.89 pool=DefaultAppPool
+        metric recycles_count 0 pool=DefaultAppPool
+        metric worker_failures_count 0 pool=DefaultAppPool
+        metric recent_failures 0 pool=DefaultAppPool
+        metric ping_failures_count 0 pool=DefaultAppPool
+        metric startup_failures_count 0 pool=DefaultAppPool
+        metric shutdown_failures_count 0 pool=DefaultAppPool
+        metric since_failure_seconds 15496.89 pool=DefaultAppPool
+        metric queue 0 pool=DefaultAppPool
+        metric queue_oldest_ms 0 pool=DefaultAppPool
+        metric rejected_count 0 pool=DefaultAppPool
+        metric arrival_rate 0 pool=DefaultAppPool
+        metric rejection_rate 0 pool=DefaultAppPool
+        metric cache_hit_rate 0 pool=DefaultAppPool
+        metric state 3 pool=vigil-fail status=running
+        metric worker_processes 1 pool=vigil-fail
+        metric worker_processes_max 1 pool=vigil-fail
+        metric uptime_seconds 15107.57 pool=vigil-fail
+        metric recycles_count 0 pool=vigil-fail
+        metric worker_failures_count 0 pool=vigil-fail
+        metric recent_failures 0 pool=vigil-fail
+        metric ping_failures_count 0 pool=vigil-fail
+        metric startup_failures_count 0 pool=vigil-fail
+        metric shutdown_failures_count 0 pool=vigil-fail
+        metric since_failure_seconds 15107.56 pool=vigil-fail
+        metric queue 0 pool=vigil-fail
+        metric queue_oldest_ms 0 pool=vigil-fail
+        metric rejected_count 0 pool=vigil-fail
+        metric arrival_rate 0 pool=vigil-fail
+        metric rejection_rate 0 pool=vigil-fail
+        metric cache_hit_rate 0 pool=vigil-fail
+        metric state 3 pool=vigil-ok status=running
+        metric worker_processes 1 pool=vigil-ok
+        metric worker_processes_max 1 pool=vigil-ok
+        metric uptime_seconds 15108.14 pool=vigil-ok
+        metric recycles_count 0 pool=vigil-ok
+        metric worker_failures_count 0 pool=vigil-ok
+        metric recent_failures 0 pool=vigil-ok
+        metric ping_failures_count 0 pool=vigil-ok
+        metric startup_failures_count 0 pool=vigil-ok
+        metric shutdown_failures_count 0 pool=vigil-ok
+        metric since_failure_seconds 15108.14 pool=vigil-ok
+        metric queue 0 pool=vigil-ok
+        metric queue_oldest_ms 0 pool=vigil-ok
+        metric rejected_count 0 pool=vigil-ok
+        metric arrival_rate 0 pool=vigil-ok
+        metric rejection_rate 0 pool=vigil-ok
+        metric cache_hit_rate 0 pool=vigil-ok
+        metric pools_not_shown 0
+        metric workers 2
+        metric active_requests 0 pool=vigil-ok pid=11456
+        metric requests_count 62 pool=vigil-ok pid=11456
+        metric requests_rate 0 pool=vigil-ok pid=11456
+        metric threads_active 0 pool=vigil-ok pid=11456
+        metric threads 5 pool=vigil-ok pid=11456
+        metric threads_max 256 pool=vigil-ok pid=11456
+        metric sent_500_pct 0 pool=vigil-ok pid=11456
+        metric sent_404_pct 0 pool=vigil-ok pid=11456
+        metric sent_403_pct 0 pool=vigil-ok pid=11456
+        metric sent_401_pct 0 pool=vigil-ok pid=11456
+        metric websockets 0 pool=vigil-ok pid=11456
+        metric file_cache_bytes 58 pool=vigil-ok pid=11456
+        metric output_cache_bytes 0 pool=vigil-ok pid=11456
+        metric uri_cache_hits_count 159 pool=vigil-ok pid=11456
+        metric uri_cache_misses_count 8 pool=vigil-ok pid=11456
+        metric active_requests 0 pool=vigil-fail pid=3484
+        metric requests_count 8 pool=vigil-fail pid=3484
+        metric requests_rate 0 pool=vigil-fail pid=3484
+        metric threads_active 0 pool=vigil-fail pid=3484
+        metric threads 4 pool=vigil-fail pid=3484
+        metric threads_max 256 pool=vigil-fail pid=3484
+        metric sent_500_pct 0 pool=vigil-fail pid=3484
+        metric sent_404_pct 0 pool=vigil-fail pid=3484
+        metric sent_403_pct 0 pool=vigil-fail pid=3484
+        metric sent_401_pct 0 pool=vigil-fail pid=3484
+        metric websockets 0 pool=vigil-fail pid=3484
+        metric file_cache_bytes 0 pool=vigil-fail pid=3484
+        metric output_cache_bytes 0 pool=vigil-fail pid=3484
+        metric uri_cache_hits_count 6 pool=vigil-fail pid=3484
+        metric uri_cache_misses_count 2 pool=vigil-fail pid=3484
+        metric workers_not_shown 0
+        metric log_readable 1
+        metric sites_logging 2
+        metric window_complete 1
+        metric requests 4 site=W3SVC2
+        metric status_1xx 0 site=W3SVC2
+        metric status_2xx 4 site=W3SVC2
+        metric status_3xx 0 site=W3SVC2
+        metric status_4xx 0 site=W3SVC2
+        metric status_5xx 0 site=W3SVC2
+        metric errors_5xx_pct 0 site=W3SVC2
+        metric status 4 site=W3SVC2 code=200.0
+        metric method 4 site=W3SVC2 method=GET
+        metric win32_errors 0 site=W3SVC2
+        metric time_avg_ms 13001 site=W3SVC2
+        metric time_p50_ms 13001 site=W3SVC2
+        metric time_p90_ms 13001 site=W3SVC2
+        metric time_p99_ms 13001 site=W3SVC2
+        metric time_max_ms 13001 site=W3SVC2
+        metric requests 0 site=W3SVC3
+        metric status_1xx 0 site=W3SVC3
+        metric status_2xx 0 site=W3SVC3
+        metric status_3xx 0 site=W3SVC3
+        metric status_4xx 0 site=W3SVC3
+        metric status_5xx 0 site=W3SVC3
+        metric errors_5xx_pct 0 site=W3SVC3
+        metric win32_errors 0 site=W3SVC3
+        metric sites_not_shown 0
+        metric httperr_readable 1
+        metric rejected_total 27
+        metric rejected 21 reason=Timer_ConnectionIdle status=- queue=-
+        metric rejected 3 reason=AppOffline status=503 queue=vigil-crash
+        metric rejected 3 reason=Connection_Abandoned_By_ReqQueue status=- queue=vigil-crash
+        metric readable 1
+        metric events 10
+        metric errors 2
+        metric warnings 6
+        metric rapid_fail_count 2
+        metric crashes_count 6
+        metric unresponsive_count 0
+        metric start_failures_count 0
+        metric recycles_count 0
+        metric idle_shutdowns_count 2
+        metric event 6 id=5011 pool=vigil-crash level=warning
+        metric event 2 id=5002 pool=vigil-crash level=error
+        metric event 1 id=5186 pool=vigil-fail level=information
+        metric event 1 id=5186 pool=vigil-ok level=information
+        metric events_not_shown 0
+        metric bindings_found 1
+        metric tls_up 1 endpoint=127.0.0.1:8443/localhost
+        metric cert_expires_days 9 endpoint=127.0.0.1:8443/localhost
+        metric cert_valid 1 endpoint=127.0.0.1:8443/localhost
+        metric cert_verified 0 endpoint=127.0.0.1:8443/localhost reason=RemoteCertificateChainErrors
+        metric cert_info 1 endpoint=127.0.0.1:8443/localhost issuer=localhost protocol=Tls12
+  PASS  iis: answers
+  PASS  iis: metrics reach the backend
+8 passed, 0 failed

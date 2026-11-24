@@ -51,10 +51,10 @@
 
     Example output (the rest are in the same form):
       metric up 1
-      metric uptime_seconds 12285
+      metric uptime_seconds 16124
       metric sites 5
       metric connections 4
-      metric site_uptime_seconds 12285 site=Default_Web_Site
+      metric site_uptime_seconds 16124 site=Default_Web_Site
       metric site_connections 0 site=Default_Web_Site
       metric site_connections_max 0 site=Default_Web_Site
       metric site_requests_count 0 site=Default_Web_Site

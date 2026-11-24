@@ -66,20 +66,20 @@
     Example output (the rest are in the same form):
       metric up 1
       metric pools 7
-      metric pools_not_running 1
-      metric state 5 pool=vigil-stopped status=stopped
-      metric worker_processes 0 pool=vigil-stopped
-      metric worker_processes_max 0 pool=vigil-stopped
-      metric uptime_seconds 0 pool=vigil-stopped
-      metric recycles_count 0 pool=vigil-stopped
-      metric worker_failures_count 0 pool=vigil-stopped
-      metric recent_failures 0 pool=vigil-stopped
-      metric ping_failures_count 0 pool=vigil-stopped
-      metric startup_failures_count 0 pool=vigil-stopped
-      metric shutdown_failures_count 0 pool=vigil-stopped
-      metric since_failure_seconds 0 pool=vigil-stopped
-      metric queue 0 pool=vigil-stopped
-      metric queue_oldest_ms 0 pool=vigil-stopped
+      metric pools_not_running 2
+      metric state 5 pool=vigil-crash status=stopped
+      metric worker_processes 0 pool=vigil-crash
+      metric worker_processes_max 1 pool=vigil-crash
+      metric uptime_seconds 183.77 pool=vigil-crash
+      metric recycles_count 0 pool=vigil-crash
+      metric worker_failures_count 6 pool=vigil-crash
+      metric recent_failures 0 pool=vigil-crash
+      metric ping_failures_count 0 pool=vigil-crash
+      metric startup_failures_count 0 pool=vigil-crash
+      metric shutdown_failures_count 0 pool=vigil-crash
+      metric since_failure_seconds 0 pool=vigil-crash
+      metric queue 0 pool=vigil-crash
+      metric queue_oldest_ms 0 pool=vigil-crash
 
     Reading the results (starting points: tune them to the server):
       Healthy  every state 3 (running); queue 0; recent_failures 0;

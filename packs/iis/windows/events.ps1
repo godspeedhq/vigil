@@ -49,7 +49,7 @@
 
     Example output (the rest are in the same form):
       metric readable 1
-      metric events 4
+      metric events 6
       metric errors 1
       metric warnings 3
       metric rapid_fail_count 1
@@ -57,7 +57,7 @@
       metric unresponsive_count 0
       metric start_failures_count 0
       metric recycles_count 0
-      metric idle_shutdowns_count 0
+      metric idle_shutdowns_count 2
       metric event 3 id=5011 pool=vigil-crash level=warning
       metric event 1 id=5002 pool=vigil-crash level=error
       metric events_not_shown 0
