@@ -36,7 +36,11 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`jenkins`](jenkins/README.md) | Jenkins: up, version, executors, labels, the queue and what is stuck, nodes online and why not, builds running and stuck, jobs failing, unstable and their health, load averages, plugins | [packs/jenkins/README.md](jenkins/README.md) |
 | [`elasticsearch`](elasticsearch/README.md) | Elasticsearch: cluster health and its own health report, nodes, thread pools and rejections, circuit breakers, indices, shards and why one is unassigned, disks and watermarks, node work, ingest, tasks, ILM, SLM, snapshots, transforms, license | [packs/elasticsearch/README.md](elasticsearch/README.md) |
 | [`opensearch`](opensearch/README.md) | OpenSearch: cluster health, nodes, thread pools and rejections, circuit breakers, backpressure and admission control, indices, shards and why one is unassigned, disks and watermarks, node work, ingest, tasks, ISM, snapshot management, snapshots | [packs/opensearch/README.md](opensearch/README.md) |
-| [`nginx`](nginx/README.md) | nginx: up, connections and requests, from stub_status | [packs/nginx/README.md](nginx/README.md) |
+| [`nginx`](nginx/README.md) | nginx: connections and requests, processes and reloads, an edit not reloaded, how full the workers are, the access log minute by minute (status, errors, response and upstream times), certificate expiry | [packs/nginx/README.md](nginx/README.md) |
+| [`httpd`](httpd/README.md) | Apache httpd: workers and the scoreboard, requests, connections, the TLS session cache, an edit not loaded, the access log minute by minute (status, errors, response times), certificate expiry | [packs/httpd/README.md](httpd/README.md) |
+| [`caddy`](caddy/README.md) | Caddy: its configuration and reloads, traffic per server, reverse proxy upstreams and their health, the certificate of every site, from its admin API | [packs/caddy/README.md](caddy/README.md) |
+| [`haproxy`](haproxy/README.md) | HAProxy: connections, rates, TLS and load; frontends, backends and every server with its health check, queues, times and errors, from its runtime API | [packs/haproxy/README.md](haproxy/README.md) |
+| [`phpfpm`](phpfpm/README.md) | PHP-FPM: each pool's workers, listen queue, max_children reached, slow requests, the busiest worker, and a status page that waits because every worker is busy | [packs/phpfpm/README.md](phpfpm/README.md) |
 
 ## Service packs
 
@@ -134,9 +138,33 @@ An OpenSearch cluster, from its REST API, as a user that may only monitor, with 
 
 ### nginx
 
-An nginx server on this machine, from its `stub_status` page, which you turn on once, reachable from this machine only.
+An nginx server on this machine: its `stub_status` page, its processes (old workers still finishing after a reload, how full the workers are, a configuration edited and not reloaded), its access log minute by minute (requests by status, the 5xx share, response and upstream times with percentiles), and the certificates it serves. With `curl` and `openssl` (on Windows, PowerShell alone). Linux, macOS and Windows.
 
 **Its page: [packs/nginx/README.md](nginx/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### httpd
+
+An Apache httpd server on this machine: its `server-status` page (workers busy and idle, every scoreboard state, requests, connections, the TLS session cache), a configuration edited and not loaded, its access log minute by minute, and the certificates it serves. With `curl` and `openssl` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/httpd/README.md](httpd/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### caddy
+
+A Caddy server, from its admin API, GET only: what its configuration serves and whether the last change loaded, the traffic each server handles, its reverse proxies' upstreams and their health, and the certificate of every site it serves (Caddy's own CA's too). With `curl`, `jq` and `openssl` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/caddy/README.md](caddy/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### haproxy
+
+An HAProxy process, from its runtime API at `level user` (`show info` and `show stat` only): connections, rates, TLS and load, every frontend, every backend, and every server with its health check, the worst first. With bash alone over TCP, or `socat` or `nc` for a socket file. Linux and macOS.
+
+**Its page: [packs/haproxy/README.md](haproxy/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### phpfpm
+
+PHP-FPM's pools, from their status pages, passed on by the web server: workers, the listen queue, `pm.max_children` reached, slow requests, the busiest worker, and a status page that does not answer in time because every worker is busy. With `curl`. Linux and macOS.
+
+**Its page: [packs/phpfpm/README.md](phpfpm/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ## Writing a pack
 

@@ -1,0 +1,51 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-web.sh), against the
+# servers in trouble on purpose.
+
+== log
+metric log_found 1
+metric log_readable 1
+metric log_bytes 21563
+metric window_complete 1
+metric requests 177
+metric status_1xx 0
+metric status_2xx 162
+metric status_3xx 0
+metric status_4xx 10
+metric status_5xx 5
+metric errors_4xx_pct 5.65
+metric errors_5xx_pct 2.82
+metric bytes_sent 33392
+metric clients 3
+metric status 162 code=200
+metric status 10 code=404
+
+== status
+metric up 1
+metric info 1 version=2.4.71 mpm=event
+metric extended_status 1
+metric uptime_seconds 98
+metric restarts 0
+metric accesses_count 232
+metric bytes_count 52224
+metric duration_ms_count 70
+metric cpu_load_pct 0.19
+metric busy_workers 4
+metric idle_workers 16
+metric finishing_workers 0
+metric scoreboard_slots 20
+metric busy_pct 20.00
+metric processes 2
+metric stopping_processes 0
+
+== tls
+metric tls_up 1 endpoint=localhost:18243
+metric cert_expires_days 299 endpoint=localhost:18243
+metric cert_valid 1 endpoint=localhost:18243
+metric cert_verified 0 endpoint=localhost:18243 reason=self-signed_certificate
+metric cert_info 1 endpoint=localhost:18243 issuer=localhost protocol=TLSv1.3
+metric tls_up 1 endpoint=localhost:18143
+metric cert_expires_days 4 endpoint=localhost:18143
+metric cert_valid 1 endpoint=localhost:18143
+metric cert_verified 1 endpoint=localhost:18143 reason=ok
+metric cert_info 1 endpoint=localhost:18143 issuer=vigil_web_test_CA protocol=TLSv1.3

@@ -87,6 +87,11 @@
 #   VIGIL_IT_OS_URL, _USER, _PASSWORD,   the same for OpenSearch
 #     _CACERT                            (scripts/run-opensearch.sh)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
+#   VIGIL_IT_WEB_NGINX, _HTTPD, _CADDY, _HAPROXY, _PHPFPM
+#                                        a web pack's settings, NAME=value
+#                                        separated by |, and _<PACK>_DOWN, one
+#                                        where nothing answers (scripts/run-web.sh
+#                                        sets them up)
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
 #
@@ -162,7 +167,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch nginx; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch nginx httpd caddy haproxy phpfpm; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1625,6 +1630,48 @@ else
     check 'nginx: and reads as up 0' 0 "$(printed nginx_status up)"
 fi
 
+# --- the web packs: nginx, httpd, caddy, haproxy, phpfpm -------------------
+# web_pack <pack> <its first job> <settings> <a setting where nothing answers>:
+# the settings are NAME=value, separated by |.
+web_pack() {
+    local p=$1 first=$2 settings=$3 down=$4 wjobs wn kv j failed=''
+    printf '%s: %s\n' "$p" "$settings"
+    wjobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/$p/pack.config")
+    wn=$(printf '%s\n' $wjobs | wc -l | tr -d ' ')
+    won() { vigil pack list | awk -v p="$p" 'index($1, p "_") == 1 { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    check "$p: off until enabled" "off=$wn" "$(won)"
+    out=$(vigil pack enable "$p" 2>&1)
+    check "$p: enabled" 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check "$p: it says CPU and memory are the base pack's" yes "$(printf '%s\n' "$out" | grep -q "the base pack's processes job" && echo yes || echo no)"
+    check "$p: its jobs are on" "on=$wn" "$(won)"
+    printf '%s\n' "$settings" | tr '|' '\n' > "$work/settings"
+    while IFS= read -r kv; do [ -n "$kv" ] && set_env "${kv%%=*}" "${kv#*=}"; done < "$work/settings"
+    check "$p: precheck is happy" 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    for j in $wjobs; do
+        vigil run "${p}_$j" > "$work/out" 2>&1 || failed="$failed $j"
+        printf '        %s: %s lines\n' "$j" "$(grep -h ' out metric ' "$(ls "$root/logs/jobs/${p}_$j"/*.log | tail -n 1)" | wc -l | tr -d ' ')"
+    done
+    check "$p: every job runs" '' "$failed"
+    check "$p: answers" yes "$(grep -h ' out metric up 1' "$root/logs/jobs/${p}_$first"/*.log > /dev/null 2>&1 && echo yes || echo no)"
+    set_env "${down%%=*}" "${down#*=}"
+    vigil run "${p}_$first" > "$work/out" 2>&1
+    check "$p: a server that does not answer still runs" 0 "$?"
+    check "$p: and reads as up 0" 0 "$(printed "${p}_$first" up)"
+}
+for wp in nginx:status httpd:status caddy:status haproxy:info phpfpm:pools; do
+    w=${wp%%:*}
+    W=$(printf '%s' "$w" | tr '[:lower:]' '[:upper:]')
+    eval "ws=\${VIGIL_IT_WEB_$W-}; wd=\${VIGIL_IT_WEB_${W}_DOWN-}"
+    if [ -z "$ws" ]; then
+        printf '  SKIP  %s: set VIGIL_IT_WEB_%s (scripts/run-web.sh sets it up)\n' "$w" "$W"
+    elif [ "$w" = nginx ] && [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
+        printf '  SKIP  nginx: tested above, with VIGIL_IT_NGINX_URL\n'
+    else
+        web_pack "$w" "${wp#*:}" "$ws" "$wd"
+    fi
+done
+
 # What ran reaches the backend.
 vigil supervise --once > /dev/null 2>&1
 sleep 3
@@ -1679,6 +1726,16 @@ done
 if [ -n "${VIGIL_IT_NGINX_URL-}" ]; then
     check 'nginx: metrics reach the backend' yes "$(grep -q '^nginx_requests_count{' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
+# The web packs: each job's metrics, under its own name.
+for wp in nginx:nginx_up:nginx_server_workers httpd:httpd_up:httpd_log_requests caddy:caddy_up:caddy_upstreams_upstreams \
+          haproxy:haproxy_up:haproxy_servers_state phpfpm:phpfpm_up:phpfpm_listen_queue; do
+    w=${wp%%:*} r=${wp#*:}
+    W=$(printf '%s' "$w" | tr '[:lower:]' '[:upper:]')
+    eval "ws=\${VIGIL_IT_WEB_$W-}"
+    [ -n "$ws" ] || continue
+    [ "$w" = nginx ] && [ -n "${VIGIL_IT_NGINX_URL-}" ] && continue
+    check "$w: metrics reach the backend" yes "$(grep -q "^${r%%:*}{" "$root/metrics/vigil.prom" && grep -q "^${r#*:}{" "$root/metrics/vigil.prom" && echo yes || echo no)"
+done
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

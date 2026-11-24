@@ -1,0 +1,21 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-web.sh), against the
+# servers in trouble on purpose.
+
+== pools
+metric up 1 url=http://127.0.0.1:18280/fpm-status
+metric timed_out 0 url=http://127.0.0.1:18280/fpm-status
+metric info 1 pool=www pm=dynamic
+metric uptime_seconds 99 pool=www
+metric accepted_count 9 pool=www
+metric listen_queue 0 pool=www
+metric listen_queue_max 2 pool=www
+metric listen_queue_len 4096 pool=www
+metric listen_queue_pct 0.00 pool=www
+metric idle_processes 0 pool=www
+metric active_processes 4 pool=www
+metric total_processes 4 pool=www
+metric active_max 4 pool=www
+metric max_children_reached_count 0 pool=www
+metric slow_requests_count 3 pool=www
+metric processes_in_state 4 pool=www state=Running
