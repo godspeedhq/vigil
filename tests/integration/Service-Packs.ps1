@@ -261,7 +261,7 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $jk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
-    foreach ($sp in 'elasticsearch', 'opensearch', 'nginx', 'httpd', 'caddy', 'iis') {
+    foreach ($sp in 'elasticsearch', 'opensearch', 'cockroachdb', 'nginx', 'httpd', 'caddy', 'iis') {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
         Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
@@ -1318,6 +1318,88 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "${p}: metrics reach the backend" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^${p}_shards_unassigned\{")))
+    }
+
+    # --- cockroachdb --------------------------------------------------------
+    # A CockroachDB node of a cluster in trouble on purpose (a failed backup,
+    # a paused changefeed), through Vigil, as scripts/run-cockroachdb.sh sets
+    # it up: VIGIL_IT_CRDB_URL its HTTP port, _USER and _PASSWORD a user with
+    # the three read-only privileges, _CACERT the cluster's CA.
+    if (-not $env:VIGIL_IT_CRDB_URL -or -not $env:VIGIL_IT_CRDB_PASSWORD) { Write-Host '  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD' }
+    else {
+        $p = 'cockroachdb'
+        $url = $env:VIGIL_IT_CRDB_URL
+        $user = if ($env:VIGIL_IT_CRDB_USER) { $env:VIGIL_IT_CRDB_USER } else { 'vigil' }
+        $pw = $env:VIGIL_IT_CRDB_PASSWORD
+        $ca = [string]$env:VIGIL_IT_CRDB_CACERT
+        foreach ($v in 'URL', 'USER', 'PASSWORD', 'CACERT') { Remove-Item "Env:\COCKROACH_$v" -ErrorAction SilentlyContinue }
+        Write-Host "${p}: $url as $user"
+        $ck = Join-Path $root "packs\$p"
+        $cjobs = @(([System.IO.File]::ReadAllLines((Join-Path $ck 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] }))
+        $cn = $cjobs.Count
+        $on = {
+            $list = (Invoke-Vigil pack list).Text
+            $st = @($list.Split("`n") | Where-Object { $_ -match "^\s*${p}_\w+\s" } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            (@($st | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        Test-Equal "${p}: off until enabled" "off=$cn" (& $on)
+        $r = Invoke-Vigil pack enable $p
+        Test-Equal "${p}: enabled" '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "${p}: its jobs are on" "on=$cn" (& $on)
+        $cfg = Join-Path $root 'config\vigil.config'
+        Test-Equal "${p}: the password is a secret reference, on the two jobs that log in" '2' ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*COCKROACH_PASSWORD=secret:COCKROACH_PASSWORD')).Count)
+        # A logon with no password (SSH with a key) cannot use the secret
+        # store: then the jobs take it by an env: reference.
+        $cenv = $false
+        Set-VigilSecret 'COCKROACH_PASSWORD' $pw
+        if ((Invoke-Vigil secret list).Text -notmatch 'COCKROACH_PASSWORD') {
+            $cenv = $true
+            Write-Host "  note  ${p}: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_CRDB_PASSWORD"
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*COCKROACH_PASSWORD=)secret:COCKROACH_PASSWORD', '${1}env:VIGIL_IT_CRDB_PASSWORD'))
+        }
+        Set-Env 'COCKROACH_URL' $url
+        Set-Env 'COCKROACH_USER' $user
+        Set-Env 'COCKROACH_CACERT' $ca
+        $r = Invoke-Vigil precheck
+        Test-Equal "${p}: precheck is happy" '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $cjobs) { if ([string](Invoke-Vigil run "${p}_$j").Code -ne '0') { $failed += $j } }
+        Test-Equal "${p}: every job runs" '' ($failed -join ' ')
+        foreach ($j in $failed) { Show-LastRun "${p}_$j" }
+        Test-Equal "${p}: up and ready" '1 1' "$(Get-Printed "${p}_status" up) $(Get-Printed "${p}_status" ready)"
+        Test-Equal "${p}: the cluster, three live" '3' (Get-Printed "${p}_cluster" live)
+        Test-Equal "${p}: the failed backup seen" 'yes' (Test-Between "${p}_jobs" failed '' 1 1e9)
+        Test-Equal "${p}: the paused changefeed seen" 'yes' (Test-Between "${p}_jobs" paused '' 1 1e9)
+        Show-LastRun "${p}_cluster"
+        if ($cenv) { $keep = $pw; $env:VIGIL_IT_CRDB_PASSWORD = 'not-the-password' }
+        else { Set-VigilSecret 'COCKROACH_PASSWORD' 'not-the-password' }
+        Test-Equal "${p}: a wrong password fails the run" '2' ([string](Invoke-Vigil run "${p}_cluster").Code)
+        Test-Equal "${p}: and says why" 'True' (Test-Said "${p}_cluster" 'refused the login (HTTP 401)')
+        if ($cenv) { $env:VIGIL_IT_CRDB_PASSWORD = $keep } else { Set-VigilSecret 'COCKROACH_PASSWORD' $pw }
+        Set-Env 'COCKROACH_URL' 'http://127.0.0.1:1'
+        Test-Equal "${p}: a node that does not answer still runs" '0' ([string](Invoke-Vigil run "${p}_status").Code)
+        Test-Equal "${p}: and reads as up 0" '0' (Get-Printed "${p}_status" up)
+        Set-Env 'COCKROACH_URL' $url
+        [void](Invoke-Vigil run "${p}_status")
+        [void](Invoke-Vigil run "${p}_cluster")
+        $leaks = @()
+        foreach ($d in 'logs', 'state', 'spool', 'metrics') {
+            foreach ($f in Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue) {
+                if ([System.IO.File]::ReadAllText($f.FullName).Contains($pw)) { $leaks += $f.Name }
+            }
+        }
+        if ([System.IO.File]::ReadAllText($cfg).Contains($pw)) { $leaks += 'vigil.config' }
+        Test-Equal "${p}: the password is written nowhere" '' ($leaks -join ' ')
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match "(?m)^${p}_cluster_live\{") { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal "${p}: metrics reach the backend" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^${p}_cluster_live\{")))
     }
 
     # --- rabbitmq ----------------------------------------------------------

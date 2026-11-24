@@ -86,6 +86,11 @@
 #                                        the CA (scripts/run-elasticsearch.sh)
 #   VIGIL_IT_OS_URL, _USER, _PASSWORD,   the same for OpenSearch
 #     _CACERT                            (scripts/run-opensearch.sh)
+#   VIGIL_IT_CRDB_URL, _USER, _PASSWORD, a CockroachDB node's HTTP port, a user
+#     _CACERT                            with VIEWCLUSTERMETADATA,
+#                                        VIEWCLUSTERSETTING and VIEWJOB, its
+#                                        password, and the cluster's CA
+#                                        (scripts/run-cockroachdb.sh)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
 #   VIGIL_IT_WEB_NGINX, _HTTPD, _CADDY, _HAPROXY, _PHPFPM
 #                                        a web pack's settings, NAME=value
@@ -167,7 +172,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch nginx httpd caddy haproxy phpfpm; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb nginx httpd caddy haproxy phpfpm; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1461,6 +1466,65 @@ for s in elasticsearch:ES:ELASTICSEARCH opensearch:OS:OPENSEARCH; do
         search_pack "$p" "$E" "$u" "$us" "$pw" "$ca"
     fi
 done
+
+# --- cockroachdb ------------------------------------------------------------
+# A CockroachDB node of a cluster in trouble on purpose (a failed backup, a
+# paused changefeed), through Vigil, as scripts/run-cockroachdb.sh sets it
+# up: VIGIL_IT_CRDB_URL its HTTP port, _USER and _PASSWORD a user with the
+# three read-only privileges, _CACERT the cluster's CA.
+if [ -z "${VIGIL_IT_CRDB_URL-}" ] || [ -z "${VIGIL_IT_CRDB_PASSWORD-}" ]; then
+    printf '  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)\n'
+elif ! command -v jq > /dev/null 2>&1; then
+    printf '  SKIP  cockroachdb: jq is not installed here\n'
+else
+    unset COCKROACH_URL COCKROACH_USER COCKROACH_PASSWORD COCKROACH_CACERT
+    printf 'cockroachdb: %s as %s\n' "$VIGIL_IT_CRDB_URL" "${VIGIL_IT_CRDB_USER:-vigil}"
+    cjobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/cockroachdb/pack.config")
+    cn=$(printf '%s\n' $cjobs | wc -l | tr -d ' ')
+    cjobs_on() { vigil pack list | awk '$1 ~ /^cockroachdb_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    cval() { grep -h " out metric $2 " "$root/logs/jobs/cockroachdb_$1"/*.log 2> /dev/null | grep -- "${3-}" | tail -n 1 | awk '{ print $6 }'; }
+    crun() { vigil run "cockroachdb_$1" > "$work/out" 2>&1; echo $?; }
+    csaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/cockroachdb_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    check 'cockroachdb: off until enabled' "off=$cn" "$(cjobs_on)"
+    out=$(vigil pack enable cockroachdb 2>&1)
+    check 'cockroachdb: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'cockroachdb: its jobs are on' "on=$cn" "$(cjobs_on)"
+    check 'cockroachdb: it names the secret it needs, not set' yes "$(printf '%s\n' "$out" | grep -q 'needs secret:COCKROACH_PASSWORD: not set' && echo yes || echo no)"
+    check 'cockroachdb: the password is a secret reference, on the two jobs that log in' 2 "$(grep -c '^secret *= COCKROACH_PASSWORD=secret:COCKROACH_PASSWORD' "$root/config/vigil.config")"
+    printf '%s' "$VIGIL_IT_CRDB_PASSWORD" | vigil secret set COCKROACH_PASSWORD --stdin > /dev/null
+    set_env COCKROACH_URL "$VIGIL_IT_CRDB_URL"
+    set_env COCKROACH_CACERT "${VIGIL_IT_CRDB_CACERT-}"
+    set_env COCKROACH_USER "${VIGIL_IT_CRDB_USER:-vigil}"
+    check 'cockroachdb: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    [ "$(grep -c FAIL "$work/precheck")" -eq 0 ] || sed 's/^/        /' "$work/precheck"
+    failed=''
+    for j in $cjobs; do [ "$(crun "$j")" = 0 ] || failed="$failed $j"; done
+    check 'cockroachdb: every job runs' '' "$failed"
+    for j in $failed; do sed 's/^/        /' "$root/logs/jobs/cockroachdb_$j"/*.log | tail -n 4; done
+    for j in $cjobs; do
+        printf '        %s: %s lines\n' "$j" "$(grep -h ' out metric ' "$root/logs/jobs/cockroachdb_$j"/*.log | wc -l | tr -d ' ')"
+    done
+    check 'cockroachdb: up and ready' '1 1' "$(cval status up) $(cval status ready)"
+    check 'cockroachdb: the cluster, three live' 3 "$(cval cluster live)"
+    check 'cockroachdb: the failed backup seen' yes "$([ "$(cval jobs failed)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'cockroachdb: the paused changefeed seen' yes "$([ "$(cval jobs paused)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    printf 'not-the-password' | vigil secret set COCKROACH_PASSWORD --stdin > /dev/null
+    check 'cockroachdb: a wrong password fails the run' 2 "$(crun cluster)"
+    check 'cockroachdb: and says why' yes "$(csaid cluster 'refused the login (HTTP 401)')"
+    printf '%s' "$VIGIL_IT_CRDB_PASSWORD" | vigil secret set COCKROACH_PASSWORD --stdin > /dev/null
+    set_env COCKROACH_URL 'http://127.0.0.1:1'
+    check 'cockroachdb: a node that does not answer still runs' 0 "$(crun status)"
+    check 'cockroachdb: and reads as up 0' 0 "$(cval status up)"
+    set_env COCKROACH_URL "$VIGIL_IT_CRDB_URL"
+    [ "$(crun cluster)" = 0 ] || true
+    check 'cockroachdb: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_CRDB_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+fi
 
 # --- rabbitmq ---------------------------------------------------------------
 # RabbitMQ nodes, through Vigil, as scripts/run-rabbitmq.sh sets them up:

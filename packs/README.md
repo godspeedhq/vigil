@@ -46,6 +46,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`jenkins`](jenkins/README.md) | Jenkins: up, version, executors, labels, the queue and what is stuck, nodes online and why not, builds running and stuck, jobs failing, unstable and their health, load averages, plugins | [packs/jenkins/README.md](jenkins/README.md) |
 | [`elasticsearch`](elasticsearch/README.md) | Elasticsearch: cluster health and its own health report, nodes, thread pools and rejections, circuit breakers, indices, shards and why one is unassigned, disks and watermarks, node work, ingest, tasks, ILM, SLM, snapshots, transforms, license | [packs/elasticsearch/README.md](elasticsearch/README.md) |
 | [`opensearch`](opensearch/README.md) | OpenSearch: cluster health, nodes, thread pools and rejections, circuit breakers, backpressure and admission control, indices, shards and why one is unassigned, disks and watermarks, node work, ingest, tasks, ISM, snapshot management, snapshots | [packs/opensearch/README.md](opensearch/README.md) |
+| [`cockroachdb`](cockroachdb/README.md) | CockroachDB, a node or a cluster: health and readiness, clock offset, certificates, ranges unavailable and under-replicated, slow requests, storage and write stalls, admission control, SQL, nodes live and dead, decommissioning, upgrades, jobs, backups and changefeeds | [packs/cockroachdb/README.md](cockroachdb/README.md) |
 | [`nginx`](nginx/README.md) | nginx: connections and requests, processes and reloads, an edit not reloaded, how full the workers are, the access log minute by minute (status, errors, response and upstream times), certificate expiry | [packs/nginx/README.md](nginx/README.md) |
 | [`httpd`](httpd/README.md) | Apache httpd: workers and the scoreboard, requests, connections, the TLS session cache, an edit not loaded, the access log minute by minute (status, errors, response times), certificate expiry | [packs/httpd/README.md](httpd/README.md) |
 | [`caddy`](caddy/README.md) | Caddy: its configuration and reloads, traffic per server, reverse proxy upstreams and their health, the certificate of every site, from its admin API | [packs/caddy/README.md](caddy/README.md) |
@@ -146,6 +147,12 @@ An Elasticsearch cluster, from its REST API, as a user (or an API key) that may 
 An OpenSearch cluster, from its REST API, as a user that may only monitor, with `curl` and `jq` (on Windows, PowerShell alone). The cluster's health and its cluster manager, every node, the thread pools and the work they refuse, the circuit breakers, search backpressure, shard indexing pressure and admission control, every index and its blocks, every shard and OpenSearch's own explanation of why one is unassigned, the disks against the watermarks and the settings left behind after maintenance, the work each node does, ingest pipelines, tasks, Index State Management, snapshot management and snapshots. Its JVM is the jvm pack's. Linux, macOS and Windows.
 
 **Its page: [packs/opensearch/README.md](opensearch/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### cockroachdb
+
+CockroachDB, one node or a whole cluster, from its HTTP API, with `curl` and `jq` (on Windows, PowerShell alone), and no SQL client. On every node, from its own metrics with no login: up and ready, version, the nodes it sees live, clock offset, the days left on its certificates, CPU, memory and admission control; its ranges unavailable, under-replicated or decommissioning, and requests stuck; its stores, the LSM's level 0, write stalls and a slow disk; and the SQL it serves. For the cluster, as a user with three read-only system privileges: every node's status, the versions they run and an upgrade left unfinished, and the jobs: backups and changefeeds failed, paused or behind. Linux, macOS and Windows.
+
+**Its page: [packs/cockroachdb/README.md](cockroachdb/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ### nginx
 
