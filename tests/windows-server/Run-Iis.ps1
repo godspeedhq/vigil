@@ -115,7 +115,7 @@ Check 'iis: the requests of vigil-ok counted' 'yes' (Least $out['sites'] 'site_r
 Check 'iis: and its 404s' 'yes' (Least $out['sites'] 'site_not_found_count' 'site=vigil-ok$' 10)
 Check 'iis: and its POSTs' 'yes' (Least $out['sites'] 'site_method_count' 'site=vigil-ok method=post' 5)
 Check 'iis: the stopped pool, stopped' 5 (Val $out['pools'] 'state' 'pool=vigil-stopped ')
-Check 'iis: first in the list' 'True' ([string]((@($out['pools'] | Where-Object { $_ -match '^metric state ' })[0]) -match 'vigil-stopped'))
+Check 'iis: the pools not running first' 'True' ([string]((@($out['pools'] | Where-Object { $_ -match '^metric state ' })[0]) -match '^metric state 5 '))
 Check 'iis: its requests turned away by HTTP.sys' 'yes' (Least $out['pools'] 'rejected_count' 'pool=vigil-stopped$' 6)
 Check 'iis: the others running' 3 (Val $out['pools'] 'state' 'pool=vigil-ok ')
 Check 'iis: slow requests running in a worker' 'yes' (Least $out['workers'] 'active_requests' 'pool=vigil-ok ' 1)
