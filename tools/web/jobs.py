@@ -20,6 +20,8 @@ JOBS = []
 
 def job(**j):
     j.setdefault('ps', None)
+    j.setdefault('sh', None)
+    j.setdefault('exit_sh', '')
     j.setdefault('env', [])
     j.setdefault('needs_sh', ['curl'])
     JOBS.append(j)

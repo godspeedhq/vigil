@@ -147,6 +147,12 @@ run_pack() {
             return
             ;;
     esac
+    # A pack for Windows alone (iis): nothing to run here, as Check-Pack.ps1
+    # skips a pack with no Windows scripts.
+    if [ ! -d "packs/$name/$os" ]; then
+        printf '  skip  %s: no %s scripts\n' "$name" "$os"
+        return
+    fi
     work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-pack.XXXXXX") || return
     root=$work/root
     mkdir -p "$root/packs/$name"
@@ -176,6 +182,13 @@ run_pack() {
         # ("<program> not found: ...") and is skipped.
         if [ "$rc" -ne 0 ] && miss=$(cat "$root/logs/jobs/${name}_$j"/*.log 2> /dev/null | sed -n 's/^[^ ]* [^ ]* err //p' | grep -m 1 -E '^[A-Za-z0-9_]+: [^ ]+ not found: '); then
             printf '  skip  %s_%s: %s\n' "$name" "$j" "${miss#*: }"
+            continue
+        fi
+        # And a status page: another server on this machine's port answers
+        # 404 where the job expects the page its owner turns on. The job is
+        # right to fail there.
+        if [ "$rc" -ne 0 ] && nopage=$(cat "$root/logs/jobs/${name}_$j"/*.log 2> /dev/null | sed -n 's/^[^ ]* [^ ]* err //p' | grep -m 1 -E '^[A-Za-z0-9_]+: http://(127\.0\.0\.1|localhost)[:/][^ ]* answered HTTP 404$'); then
+            printf '  skip  %s_%s: %s, a server here without the page its owner turns on\n' "$name" "$j" "${nopage#*: }"
             continue
         fi
         if [ "$rc" -ne 0 ]; then

@@ -1,3 +1,6 @@
 .temp/
 .site/
 dist/
+
+# Python's compiled cache (tools/*/gen.py)
+__pycache__/

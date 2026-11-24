@@ -20,7 +20,9 @@
     with a .ps1 runs, and every metric it prints must be a number and listed
     in pack.config. A job whose secret a throwaway Vigil does not have is
     skipped, and says which, as is a job whose program this machine lacks
-    (it says "<program> not found: ..."). The rest of a pack's checks are
+    (it says "<program> not found: ..."), and a job whose status page
+    another server on this machine answers 404 for (IIS on port 80, on a CI
+    runner). The rest of a pack's checks are
     check-pack.sh's, which runs in Git Bash too.
 
     Exit code: 0 all passed, 1 any failed.
@@ -94,6 +96,14 @@ foreach ($name in $names) {
             $miss = @($lines | ForEach-Object { if ($_ -match '^\S+ \S+ err (\w+: \S+ not found: .*)$') { $Matches[1] } }) | Select-Object -First 1
             if ($rc -ne 0 -and $miss) {
                 Write-Host "  skip  ${name}_${j}: $($miss -replace '^\w+: ', '')"
+                continue
+            }
+            # And a status page: another server on this machine's port (IIS
+            # on a CI runner, port 80) answers 404 where the job expects the
+            # page its owner turns on. The job is right to fail there.
+            $nopage = @($lines | ForEach-Object { if ($_ -match '^\S+ \S+ err \w+: (http://(127\.0\.0\.1|localhost)[:/]\S* answered HTTP 404)$') { $Matches[1] } }) | Select-Object -First 1
+            if ($rc -ne 0 -and $nopage) {
+                Write-Host "  skip  ${name}_${j}: $nopage, a server here without the page its owner turns on"
                 continue
             }
             if ($rc -ne 0) {
