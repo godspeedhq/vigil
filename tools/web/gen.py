@@ -26,6 +26,7 @@ import httpd  # noqa: E402,F401
 import caddy  # noqa: E402
 import haproxy  # noqa: E402
 import phpfpm  # noqa: E402,F401
+import iis  # noqa: E402
 
 NOTICE = [
     'Copyright (c) Bankole Ogundero and the Vigil contributors',
@@ -100,9 +101,25 @@ PACKS = {
         needs=["each pool's status page, through a web server, from this machine only: pm.status_path = "
                '/fpm-status in the pool, and a location passing /fpm-status to it (packs/phpfpm/README.md)',
                "for PHP-FPM's CPU and memory: the base pack's processes job"]),
+    'iis': dict(
+        P='IIS', E='IIS', version='1.0.0',
+        description="IIS: sites, application pools and their request queues, worker processes, each site's log "
+                    'minute by minute and what HTTP.sys turned away, pools stopped and workers crashed (events), '
+                    'certificate expiry; no administrator needed',
+        works='IIS 10 (Windows Server 2016 and later; tested: Windows Server 2025)',
+        head=['iis - IIS on this Windows machine, as an account that is not an',
+              'administrator: its sites, application pools and request queues, its',
+              "worker processes, each site's log minute by minute and what HTTP.sys",
+              'turned away, its events (pools stopped, workers crashed), and the',
+              'certificates it serves.'],
+        needs=['the account Vigil runs as in Performance Monitor Users (for the counters) and Event Log Readers '
+               "(for the events); LocalSystem, the Vigil service's account, already may",
+               r'for the log job, read access to C:\inetpub\logs\LogFiles and C:\Windows\System32\LogFiles\HTTPERR '
+               '(packs/iis/README.md has the icacls commands)',
+               "for IIS's CPU and memory (w3wp.exe): the base pack's processes job"]),
 }
 LIB_SH = {'haproxy': haproxy.LIB_SH}
-LIB_PS = {'caddy': caddy.LIB_PS}
+LIB_PS = {'caddy': caddy.LIB_PS, 'iis': iis.LIB_PS}
 
 
 def subst(text, p):
@@ -202,9 +219,12 @@ def lib(name, p):
 def pack_config(p, js):
     d = PACKS[p]
     windows = any(j['ps'] for j in js)
+    unix = any(j['sh'] for j in js)
     plats = 'Linux, macOS and Windows' if windows else 'Linux and macOS: there is no Windows script'
     if windows and not all(j['ps'] for j in js):
         plats = 'Linux, macOS and Windows (on Windows: ' + ', '.join(j['job'] for j in js if j['ps']) + ')'
+    if not unix:
+        plats = 'Windows: there is no Linux or macOS script'
     c = ['# ' + l for l in d['head']]
     c += ['# ' + l for l in textwrap.wrap(plats + '. See SPECIFICATION.md section 18.10 for this format, and '
                                           'tools/web/DESIGN.md.', 74)]
@@ -212,7 +232,7 @@ def pack_config(p, js):
           '#', '# Off until enabled: vigil pack enable %s (or one job: vigil pack enable %s_<job>).' % (p, p),
           '# Each job\'s settings are its env lines.', '#']
     c += [('# ' + n).rstrip() for n in NOTICE]
-    progs = sorted({x for j in js for x in needs_of(j)}, key=lambda x: (x != 'bash', x))
+    progs = sorted({x for j in js if j['sh'] for x in needs_of(j)}, key=lambda x: (x != 'bash', x))
     c += ['',
           '[pack]',
           'version     = ' + d['version'],
@@ -222,9 +242,10 @@ def pack_config(p, js):
           'description = ' + d['description'],
           '# What vigil pack info shows besides: the servers it is meant for, the',
           '# programs its scripts need on each platform, and where it is explained.',
-          'works_with  = ' + d['works'],
-          'programs_linux = ' + ', '.join(progs),
-          'programs_macos = ' + ', '.join(progs)]
+          'works_with  = ' + d['works']]
+    if unix:
+        c += ['programs_linux = ' + ', '.join(progs),
+              'programs_macos = ' + ', '.join(progs)]
     if windows:
         c += ['programs_windows = PowerShell 5.1 or later']
     c += ['docs        = https://github.com/godspeedhq/vigil/blob/main/packs/%s/README.md' % p]
@@ -247,23 +268,27 @@ for p in only:
     out = os.path.join(repo, 'packs', p)
     ex = examples(p)
     windows = any(j['ps'] for j in js)
+    unix = any(j['sh'] for j in js)
+    want = (('linux', 'macos') if unix else ()) + (('windows',) if windows else ())
     for os_ in ('linux', 'macos', 'windows'):
         if os.path.isdir(os.path.join(out, os_)):
             for f in os.listdir(os.path.join(out, os_)):
                 os.remove(os.path.join(out, os_, f))
-            if os_ == 'windows' and not windows:
+            if os_ not in want:
                 os.rmdir(os.path.join(out, os_))
-    for os_ in ('linux', 'macos') + (('windows',) if windows else ()):
+    for os_ in want:
         os.makedirs(os.path.join(out, os_), exist_ok=True)
-    sh_lib = lib('lib.sh', p)
-    for os_ in ('linux', 'macos'):
-        open(os.path.join(out, os_, '_%s.sh' % p), 'w', encoding='utf-8', newline='\n').write(sh_lib)
+    if unix:
+        sh_lib = lib('lib.sh', p)
+        for os_ in ('linux', 'macos'):
+            open(os.path.join(out, os_, '_%s.sh' % p), 'w', encoding='utf-8', newline='\n').write(sh_lib)
     if windows:
         open(os.path.join(out, 'windows', '_%s.ps1' % p), 'w', encoding='utf-8', newline='\n').write(lib('lib.ps1', p))
     for j in js:
-        s = sh_script(j, p, ex)
-        for os_ in ('linux', 'macos'):
-            open(os.path.join(out, os_, j['job'] + '.sh'), 'w', encoding='utf-8', newline='\n').write(s)
+        if j['sh']:
+            s = sh_script(j, p, ex)
+            for os_ in ('linux', 'macos'):
+                open(os.path.join(out, os_, j['job'] + '.sh'), 'w', encoding='utf-8', newline='\n').write(s)
         if j['ps']:
             open(os.path.join(out, 'windows', j['job'] + '.ps1'), 'w', encoding='utf-8', newline='\n').write(ps_script(j, p, ex))
     open(os.path.join(out, 'pack.config'), 'w', encoding='utf-8', newline='\n').write(pack_config(p, js))
