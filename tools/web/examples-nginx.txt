@@ -1,0 +1,57 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-web.sh), against the
+# servers in trouble on purpose.
+
+== log
+metric log_found 1
+metric log_readable 1
+metric log_bytes 32876
+metric window_complete 1
+metric requests 225
+metric status_1xx 0
+metric status_2xx 172
+metric status_3xx 0
+metric status_4xx 41
+metric status_5xx 12
+metric errors_4xx_pct 18.22
+metric errors_5xx_pct 5.33
+metric bytes_sent 8098
+metric clients 4
+metric status 172 code=200
+metric status 41 code=404
+
+== server
+metric running 1
+metric master_uptime_seconds 116
+metric workers 2
+metric workers_shutting_down 0
+metric cache_processes 0
+metric last_reload_seconds 116
+metric config_changed 0
+metric worker_processes_setting 2
+metric worker_connections 64
+metric connections_capacity_pct 4.69
+metric worker_open_files_limit 1024
+
+== status
+metric up 1
+metric active_connections 6
+metric reading 0
+metric writing 5
+metric waiting 1
+metric accepts_count 262
+metric handled_count 262
+metric requests_count 339
+metric dropped_count 0
+
+== tls
+metric tls_up 1 endpoint=localhost:18143
+metric cert_expires_days 4 endpoint=localhost:18143
+metric cert_valid 1 endpoint=localhost:18143
+metric cert_verified 1 endpoint=localhost:18143 reason=ok
+metric cert_info 1 endpoint=localhost:18143 issuer=vigil_web_test_CA protocol=TLSv1.3
+metric tls_up 1 endpoint=localhost:18144
+metric cert_expires_days -661 endpoint=localhost:18144
+metric cert_valid 0 endpoint=localhost:18144
+metric cert_verified 0 endpoint=localhost:18144 reason=certificate_has_expired
+metric cert_info 1 endpoint=localhost:18144 issuer=vigil_web_test_CA protocol=TLSv1.3

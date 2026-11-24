@@ -1,0 +1,75 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-web.sh), against the
+# servers in trouble on purpose.
+
+== backends
+metric up 1
+metric backends 4
+metric backends_down 2
+metric backend_up 0 backend=be_dead
+metric servers 2 backend=be_dead
+metric servers_up 0 backend=be_dead
+metric servers_active 0 backend=be_dead
+metric servers_backup 0 backend=be_dead
+metric sessions 0 backend=be_dead
+metric queue 0 backend=be_dead
+metric queue_max 0 backend=be_dead
+metric queue_ms 0 backend=be_dead
+metric connect_ms 0 backend=be_dead
+metric response_ms 0 backend=be_dead
+metric total_ms 0 backend=be_dead
+metric connection_errors_count 4 backend=be_dead
+
+== frontends
+metric up 1
+metric open 1 frontend=fe_web
+metric sessions 4 frontend=fe_web
+metric sessions_limit 50 frontend=fe_web
+metric sessions_pct 8.00 frontend=fe_web
+metric session_rate 0 frontend=fe_web
+metric session_rate_max 26 frontend=fe_web
+metric request_rate 0 frontend=fe_web
+metric requests_count 35 frontend=fe_web
+metric status_1xx_count 0 frontend=fe_web
+metric status_2xx_count 23 frontend=fe_web
+metric status_3xx_count 0 frontend=fe_web
+metric status_4xx_count 4 frontend=fe_web
+metric status_5xx_count 4 frontend=fe_web
+metric denied_requests_count 4 frontend=fe_web
+metric denied_responses_count 0 frontend=fe_web
+
+== info
+metric up 1
+metric info 1 version=3.4.8-1b15b69
+metric uptime_seconds 129
+metric threads 4
+metric connections 4
+metric maxconn 200
+metric connections_pct 2.00
+metric maxconn_reached_count 0
+metric conn_rate 0
+metric conn_rate_max 46
+metric sess_rate 0
+metric requests_count 56
+metric ssl_rate 0
+metric ssl_connections 0
+metric ssl_key_rate 0
+metric ssl_reuse_pct 0
+
+== servers
+metric up 1
+metric servers 9
+metric servers_up 4
+metric servers_down 3
+metric servers_maint 1
+metric servers_drain 0
+metric state 3 backend=be_dead server=gone status=DOWN
+metric check 1 backend=be_dead server=gone check=L4TOUT code=none
+metric check_ms 2001 backend=be_dead server=gone
+metric since_change_seconds 127 backend=be_dead server=gone
+metric down_seconds 127 backend=be_dead server=gone
+metric check_failures_count 0 backend=be_dead server=gone
+metric went_down_count 1 backend=be_dead server=gone
+metric sessions 0 backend=be_dead server=gone
+metric queue 0 backend=be_dead server=gone
+metric response_ms 0 backend=be_dead server=gone

@@ -261,7 +261,7 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $jk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
-    foreach ($sp in 'elasticsearch', 'opensearch') {
+    foreach ($sp in 'elasticsearch', 'opensearch', 'nginx', 'httpd', 'caddy') {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
         Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
@@ -1480,6 +1480,46 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal 'beam: metrics reach the backend' 'True' ([string](($prom -match '(?m)^beam_vm_up\{') -and ($prom -match '(?m)^beam_processes_mailbox_messages\{')))
+    }
+
+    # --- the web packs on Windows: nginx, httpd, caddy -------------------------
+    # VIGIL_IT_WEB_NGINX (and _HTTPD, _CADDY): a pack's settings, NAME=value
+    # separated by |, and _<PACK>_DOWN, one where nothing answers. HAProxy
+    # and PHP-FPM do not run on Windows: their packs have no Windows scripts.
+    foreach ($w in @(@('nginx', 'status', 'nginx_log_requests'), @('httpd', 'status', 'httpd_log_requests'), @('caddy', 'status', 'caddy_upstreams_upstreams'))) {
+        $p = $w[0]; $first = $w[1]; $PU = $p.ToUpperInvariant()
+        $ws = [Environment]::GetEnvironmentVariable("VIGIL_IT_WEB_$PU")
+        $wd = [Environment]::GetEnvironmentVariable("VIGIL_IT_WEB_${PU}_DOWN")
+        if (-not $ws) { Write-Host "  SKIP  ${p}: set VIGIL_IT_WEB_$PU (scripts/run-web.sh sets it up)"; continue }
+        Write-Host "${p}: $ws"
+        $wk = Join-Path $root "packs\$p"
+        # Only the jobs with a Windows script: the others are left out here.
+        $wjobs = @(([System.IO.File]::ReadAllLines((Join-Path $wk 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] }) | Where-Object { Test-Path -LiteralPath (Join-Path $wk "$_.ps1") })
+        $r = Invoke-Vigil pack enable $p
+        Test-Equal "${p}: enabled" '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "${p}: it says CPU and memory are the base pack's" 'True' ([string](($r.Text -replace '\s+', ' ').Contains("the base pack's processes job")))
+        foreach ($kv in $ws -split '\|') { $n, $v = $kv -split '=', 2; Set-Env $n $v }
+        $r = Invoke-Vigil precheck
+        Test-Equal "${p}: precheck is happy" '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $wjobs) { if ([string](Invoke-Vigil run "${p}_$j").Code -ne '0') { $failed += $j } }
+        Test-Equal "${p}: every Windows job runs ($($wjobs -join ', '))" '' ($failed -join ' ')
+        foreach ($j in $wjobs) { Show-LastRun "${p}_$j" }
+        Test-Equal "${p}: answers" '1' (Get-Printed "${p}_$first" up)
+        $n, $v = $wd -split '=', 2
+        Set-Env $n $v
+        Test-Equal "${p}: a server that does not answer still runs" '0' ([string](Invoke-Vigil run "${p}_$first").Code)
+        Test-Equal "${p}: and reads as up 0" '0' (Get-Printed "${p}_$first" up)
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match "(?m)^$($w[2])\{") { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal "${p}: metrics reach the backend" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^$($w[2])\{")))
     }
 }
 finally {

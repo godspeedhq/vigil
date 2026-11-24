@@ -1,0 +1,101 @@
+# The web servers the web packs (packs/nginx, httpd, caddy, haproxy, phpfpm)
+# are tested against, each in trouble on purpose: scripts/run-web.sh starts
+# them, with VIGIL_WEB_DIR set to its own copy of configs/services/web (the
+# tests edit and reload it), with the certificates it makes and the folders
+# the logs are written to. Every port is on 127.0.0.1 only.
+#
+#   nginx          nginx 1.30.8 (stable)   http 18180, https 18143 (expires in 5 days)
+#   nginx-mainline nginx 1.31.10           http 18181, https 18144 (expired)
+#   httpd          httpd 2.4.71, event     http 18280, https 18243 (no CA signed it)
+#   httpd-prefork  httpd 2.4.71, prefork   http 18281
+#   caddy          Caddy 2.11.9            admin 18219, http 18380, https 18343 (its own CA)
+#   haproxy        HAProxy 3.4.8           http 18480, https 18443, runtime API 18499 and a socket file
+#   haproxy32      HAProxy 3.2.27 (LTS)    http 18481, runtime API 18498
+#   php86, php83   PHP-FPM 8.6.0 and 8.3.37, reached through nginx and httpd
+#
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+
+name: vigil-web
+
+services:
+  php86:
+    image: php:8.6.0-fpm-alpine
+    # The slow log reads a slow worker's stack with ptrace.
+    cap_add: [SYS_PTRACE]
+    volumes:
+      - "${VIGIL_WEB_DIR}/php/www86.conf:/usr/local/etc/php-fpm.d/zz-vigil.conf:ro,z"
+      - "${VIGIL_WEB_DIR}/php/www:/var/www/html/php:ro,z"
+
+  php83:
+    image: php:8.3.37-fpm-alpine
+    cap_add: [SYS_PTRACE]
+    volumes:
+      - "${VIGIL_WEB_DIR}/php/www83.conf:/usr/local/etc/php-fpm.d/zz-vigil.conf:ro,z"
+      - "${VIGIL_WEB_DIR}/php/api.conf:/usr/local/etc/php-fpm.d/zz-vigil-api.conf:ro,z"
+      - "${VIGIL_WEB_DIR}/php/www:/var/www/html/php:ro,z"
+
+  nginx:
+    image: nginx:1.30.8-alpine
+    depends_on: [php86]
+    ports: ["127.0.0.1:18180:80", "127.0.0.1:18143:443"]
+    volumes:
+      - "${VIGIL_WEB_DIR}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,z"
+      - "${VIGIL_WEB_DIR}/nginx/conf.d:/etc/nginx/conf.d:ro,z"
+      - "${VIGIL_WEB_DIR}/certs:/certs:ro,z"
+      - "${VIGIL_WEB_DIR}/logs/nginx:/var/log/nginx:z"
+
+  nginx-mainline:
+    image: nginx:1.31.10-alpine
+    ports: ["127.0.0.1:18181:80", "127.0.0.1:18144:443"]
+    volumes:
+      - "${VIGIL_WEB_DIR}/nginx-mainline:/etc/nginx/conf.d:ro,z"
+      - "${VIGIL_WEB_DIR}/certs:/certs:ro,z"
+
+  httpd:
+    image: httpd:2.4.71-alpine
+    depends_on: [php83]
+    ports: ["127.0.0.1:18280:80", "127.0.0.1:18243:443"]
+    command: ["sh", "-c", "grep -q vigil.conf conf/httpd.conf || echo 'Include conf/vigil/vigil.conf' >> conf/httpd.conf; exec httpd-foreground"]
+    volumes:
+      - "${VIGIL_WEB_DIR}/httpd:/usr/local/apache2/conf/vigil:ro,z"
+      - "${VIGIL_WEB_DIR}/certs:/certs:ro,z"
+      - "${VIGIL_WEB_DIR}/logs/httpd:/usr/local/apache2/logs:z"
+
+  httpd-prefork:
+    image: httpd:2.4.71-alpine
+    depends_on: [php83]
+    ports: ["127.0.0.1:18281:80"]
+    command: ["sh", "-c", "sed -i 's/^LoadModule mpm_event/#&/; s/^#\\(LoadModule mpm_prefork\\)/\\1/' conf/httpd.conf; grep -q vigil.conf conf/httpd.conf || echo 'Include conf/vigil/vigil.conf' >> conf/httpd.conf; exec httpd-foreground"]
+    volumes:
+      - "${VIGIL_WEB_DIR}/httpd:/usr/local/apache2/conf/vigil:ro,z"
+      - "${VIGIL_WEB_DIR}/certs:/certs:ro,z"
+
+  caddy:
+    image: caddy:2.11.9-alpine
+    depends_on: [nginx, httpd]
+    ports: ["127.0.0.1:18219:2019", "127.0.0.1:18380:80", "127.0.0.1:18343:443"]
+    volumes:
+      - "${VIGIL_WEB_DIR}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro,z"
+
+  haproxy:
+    image: haproxy:3.4.8-alpine
+    depends_on: [nginx, httpd, caddy]
+    ports: ["127.0.0.1:18480:80", "127.0.0.1:18443:443", "127.0.0.1:18499:9999"]
+    volumes:
+      - "${VIGIL_WEB_DIR}/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro,z"
+      - "${VIGIL_WEB_DIR}/certs:/certs:ro,z"
+      - "${VIGIL_WEB_DIR}/haproxy/run:/var/run/haproxy:z"
+
+  haproxy32:
+    image: haproxy:3.2.27-alpine
+    depends_on: [nginx]
+    ports: ["127.0.0.1:18481:80", "127.0.0.1:18498:9999"]
+    volumes:
+      - "${VIGIL_WEB_DIR}/haproxy/haproxy32.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro,z"
