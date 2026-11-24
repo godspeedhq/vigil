@@ -1,0 +1,21 @@
+metric up 1
+metric ready 0
+metric node_id 1
+metric info 1 version=v26.4.1
+metric uptime_seconds 1542
+metric live_nodes 0
+metric heartbeat_failures_count 6
+metric clock_offset_ms 0.03
+metric clock_offset_stddev_ms 0.09
+metric cpu_pct 2.53
+metric rss_bytes 586190848
+metric goroutines 502
+metric runnable_per_cpu 0.01
+metric cpu_queue 0
+metric cpu_slots_exhausted_seconds 57.51
+metric fds_open 55
+metric fds_pct 0.01
+metric cert_days 9 cert=node
+metric cert_days 3659 cert=ca
+metric cert_days 1829 cert=client
+metric cert_days_min 9

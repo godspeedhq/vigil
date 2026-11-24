@@ -1,0 +1,2 @@
+metric up 0
+cluster: this user may not read the nodes: GRANT SYSTEM VIEWCLUSTERMETADATA TO it (packs/cockroachdb/README.md)

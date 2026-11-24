@@ -1,0 +1,1 @@
+jobs: COCKROACH_USER is set, and COCKROACH_PASSWORD is not: secret = COCKROACH_PASSWORD=secret:COCKROACH_PASSWORD, then vigil secret set COCKROACH_PASSWORD
