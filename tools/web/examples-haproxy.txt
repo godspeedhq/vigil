@@ -41,7 +41,7 @@ metric denied_responses_count 0 frontend=fe_web
 == info
 metric up 1
 metric info 1 version=3.4.8-1b15b69
-metric uptime_seconds 112
+metric uptime_seconds 114
 metric threads 4
 metric connections 4
 metric maxconn 200
@@ -65,9 +65,9 @@ metric servers_maint 1
 metric servers_drain 0
 metric state 3 backend=be_dead server=gone status=DOWN
 metric check 1 backend=be_dead server=gone check=L4TOUT code=none
-metric check_ms 2001 backend=be_dead server=gone
-metric since_change_seconds 109 backend=be_dead server=gone
-metric down_seconds 109 backend=be_dead server=gone
+metric check_ms 2002 backend=be_dead server=gone
+metric since_change_seconds 111 backend=be_dead server=gone
+metric down_seconds 111 backend=be_dead server=gone
 metric check_failures_count 0 backend=be_dead server=gone
 metric went_down_count 1 backend=be_dead server=gone
 metric sessions 0 backend=be_dead server=gone

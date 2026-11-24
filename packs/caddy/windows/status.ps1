@@ -56,9 +56,9 @@
       metric tls_policies 1
       metric metrics_enabled 1
       metric reload_ok 1
-      metric last_reload_seconds -4522
-      metric goroutines 29
-      metric open_fds 13
+      metric last_reload_seconds 110
+      metric goroutines 35
+      metric open_fds 15
       metric max_fds 524287
       metric fds_pct 0.00
 

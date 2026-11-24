@@ -87,12 +87,12 @@
 #   metric up 1
 #   metric info 1 version=2.4.71 mpm=event
 #   metric extended_status 1
-#   metric uptime_seconds 98
+#   metric uptime_seconds 100
 #   metric restarts 0
-#   metric accesses_count 232
-#   metric bytes_count 52224
-#   metric duration_ms_count 70
-#   metric cpu_load_pct 0.19
+#   metric accesses_count 235
+#   metric bytes_count 53248
+#   metric duration_ms_count 73
+#   metric cpu_load_pct 0.18
 #   metric busy_workers 4
 #   metric idle_workers 16
 #   metric finishing_workers 0

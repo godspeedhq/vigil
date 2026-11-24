@@ -2,7 +2,14 @@
 .SYNOPSIS
     _@p@.ps1 - what the @p@ pack's scripts share on Windows: one request, the tags and numbers, the access log and the certificates. Each job's script dot-sources it; it is never run as a job.
 .NOTES
-@NOTICE@
+    Copyright (c) Bankole Ogundero and the Vigil contributors
+    SPDX-License-Identifier: Apache-2.0
+
+    Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+    implied. Run it at your own risk: review it first, and test it before you
+    rely on it. In no event shall the authors or copyright holders be liable
+    for any claim, damages or other liability arising from its use. See the
+    LICENSE file for the full terms.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -184,6 +191,8 @@ $script:Keep = [System.Net.Security.RemoteCertificateValidationCallback] {
     return $true
 }
 function Read-Certs($list) {
+    # Caddy's: whether its admin API answered, asked for the site names.
+    if ($null -ne $script:CaddyUp) { M 'up' $script:CaddyUp; if (-not $script:CaddyUp) { return } }
     if ($null -ne $script:SitesFound) { M 'sites_found' $script:SitesFound }
     $list = @($list | Where-Object { $_ })
     $i = 0

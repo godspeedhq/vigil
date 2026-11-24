@@ -6,7 +6,7 @@
 metric up 1 url=http://127.0.0.1:18280/fpm-status
 metric timed_out 0 url=http://127.0.0.1:18280/fpm-status
 metric info 1 pool=www pm=dynamic
-metric uptime_seconds 99 pool=www
+metric uptime_seconds 101 pool=www
 metric accepted_count 9 pool=www
 metric listen_queue 0 pool=www
 metric listen_queue_max 2 pool=www

@@ -308,11 +308,12 @@ if [ -n "${CADDY_TLS-}" ]; then
     read -r -a list <<< "$CADDY_TLS"
 else
     fetch "$admin/config/"
-    case $? in 0) ;; 2) echo "$job: Caddy does not answer at $admin" >&2; exit 1 ;; *) exit 1 ;; esac
+    case $? in 0) ;; 2) echo "metric up 0"; exit 0 ;; *) exit 1 ;; esac
     list=()
     while read -r h; do [ -n "$h" ] && list+=("${CADDY_TLS_ADDRESS:-127.0.0.1:443}/$h"); done < <(jq -r '
         [(.apps.http.servers // {})[].routes[]?.match[]?.host[]?, .apps.tls.automation.policies[]?.subjects[]?] |
         unique[] | select(startswith("*") | not)' "$work/body")
+    echo "metric up 1"
     echo "metric sites_found ${#list[@]}"
 fi''',
         endpoints_ps=r'''Get-CaddyEndpoints''',
@@ -322,7 +323,8 @@ fi''',
         reads_extra=READS + " ",
         extra_env=[ADMIN, ('CADDY_TLS_ADDRESS', '127.0.0.1:443')],
         needs=('curl', 'jq', 'openssl'), env_default='',
-        extra_metrics=[('sites_found', "site names found in Caddy's configuration (when CADDY_TLS is not set)")])
+        extra_metrics=[('up', "1 when Caddy's admin API answers, else 0 (only when CADDY_TLS is not set: the job then asks it for the site names)"),
+                       ('sites_found', "site names found in Caddy's configuration (when CADDY_TLS is not set)")])
 
 # What the Windows scripts add to _caddy.ps1.
 LIB_PS = r'''
@@ -354,6 +356,7 @@ function Sum-Prom($lines, [string]$m) {
 # Caddy's configuration at CADDY_TLS_ADDRESS. Certificates from Caddy's own
 # local CA check against it.
 $script:SitesFound = $null
+$script:CaddyUp = $null
 function Get-CaddyEndpoints {
     $admin = if ($env:CADDY_ADMIN) { $env:CADDY_ADMIN.TrimEnd('/') } else { 'http://localhost:2019' }
     if (-not $script:Ca) {
@@ -367,7 +370,7 @@ function Get-CaddyEndpoints {
     }
     if ($env:CADDY_TLS) { return @($env:CADDY_TLS -split '\s+' | Where-Object { $_ }) }
     $r = Get-Http "$admin/config/"
-    if ($r.State -eq 'down') { Stop-Run "Caddy does not answer at $admin" }
+    if ($r.State -eq 'down') { $script:CaddyUp = 0; return @() }
     if ($r.State -ne 'ok') { Stop-Run $r.Why }
     $c = $r.Body | ConvertFrom-Json
     $names = @()
@@ -378,6 +381,7 @@ function Get-CaddyEndpoints {
     }
     if ($c -and $c.apps.tls.automation.policies) { foreach ($p in @($c.apps.tls.automation.policies)) { $names += @($p.subjects) } }
     $names = @($names | Where-Object { $_ -and -not ([string]$_).StartsWith('*') } | Sort-Object -Unique)
+    $script:CaddyUp = 1
     $script:SitesFound = $names.Count
     $addr = if ($env:CADDY_TLS_ADDRESS) { $env:CADDY_TLS_ADDRESS } else { '127.0.0.1:443' }
     return @($names | ForEach-Object { "$addr/$_" })

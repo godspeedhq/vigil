@@ -30,6 +30,9 @@
 # What the scripts share is in _caddy.sh, beside this one.
 #
 # Metrics:
+#   up                 1 when Caddy's admin API answers, else 0 (only when
+#                      CADDY_TLS is not set: the job then asks it for the site
+#                      names)
 #   sites_found        site names found in Caddy's configuration (when
 #                      CADDY_TLS is not set)
 #   tls_up             1 when the endpoint finished a TLS handshake, else 0;
@@ -82,11 +85,12 @@ if [ -n "${CADDY_TLS-}" ]; then
     read -r -a list <<< "$CADDY_TLS"
 else
     fetch "$admin/config/"
-    case $? in 0) ;; 2) echo "$job: Caddy does not answer at $admin" >&2; exit 1 ;; *) exit 1 ;; esac
+    case $? in 0) ;; 2) echo "metric up 0"; exit 0 ;; *) exit 1 ;; esac
     list=()
     while read -r h; do [ -n "$h" ] && list+=("${CADDY_TLS_ADDRESS:-127.0.0.1:443}/$h"); done < <(jq -r '
         [(.apps.http.servers // {})[].routes[]?.match[]?.host[]?, .apps.tls.automation.policies[]?.subjects[]?] |
         unique[] | select(startswith("*") | not)' "$work/body")
+    echo "metric up 1"
     echo "metric sites_found ${#list[@]}"
 fi
 certs ${list[@]+"${list[@]}"}

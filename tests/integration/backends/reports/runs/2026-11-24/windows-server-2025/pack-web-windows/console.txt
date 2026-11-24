@@ -1,0 +1,461 @@
+pack     nginx 1.2.0, httpd and caddy 1.0.0 (the web packs with Windows scripts), Vigil commit 8cb2aa8 (a copy), from the repository
+account  vigil-test, not an administrator, by SSH key
+servers  run-web.sh's servers on the Fedora test machine (nginx 1.30.8, httpd 2.4.71, Caddy 2.11.9, each in trouble on purpose), through SSH tunnels; the access logs the jobs read written here
+
+host     WIN-R50M4Q63SR9, Microsoft Windows NT 10.0.26100.0
+commit   8cb2aa875a21b12964a0c5799b2887d33cbd0eea
+
+# nginx, through the tunnel, powershell.
+
+> powershell packs\nginx\windows\log.ps1
+metric log_found 1
+metric log_readable 1
+metric log_bytes 8134
+metric window_complete 1
+metric requests 80
+metric status_1xx 0
+metric status_2xx 60
+metric status_3xx 0
+metric status_4xx 10
+metric status_5xx 10
+metric errors_4xx_pct 12.5
+metric errors_5xx_pct 12.5
+metric bytes_sent 32968
+metric clients 7
+metric status 60 code=200
+metric status 10 code=404
+metric status 6 code=500
+metric status 4 code=502
+metric method 74 method=GET
+metric method 6 method=POST
+metric response_avg_ms 71.8
+metric response_p50_ms 4
+metric response_p90_ms 250
+metric response_p99_ms 1000
+metric response_max_ms 1000
+metric upstream_avg_ms 80.2
+metric upstream_p50_ms 2
+metric upstream_p90_ms 249
+metric upstream_p99_ms 1000
+metric upstream_max_ms 1000
+  PASS  nginx: log runs (powershell)
+
+> powershell packs\nginx\windows\status.ps1
+metric up 1
+metric active_connections 2
+metric reading 0
+metric writing 1
+metric waiting 1
+metric accepts_count 592
+metric handled_count 592
+metric requests_count 746
+metric dropped_count 0
+  PASS  nginx: status runs (powershell)
+
+> powershell packs\nginx\windows\tls.ps1
+metric tls_up 1 endpoint=localhost:18143
+metric cert_expires_days 4 endpoint=localhost:18143
+metric cert_valid 1 endpoint=localhost:18143
+metric cert_verified 1 endpoint=localhost:18143 reason=ok
+metric cert_info 1 endpoint=localhost:18143 issuer=vigil_web_test_CA protocol=Tls12
+metric tls_up 1 endpoint=localhost:18144
+metric cert_expires_days -662 endpoint=localhost:18144
+metric cert_valid 0 endpoint=localhost:18144
+metric cert_verified 0 endpoint=localhost:18144 reason=RemoteCertificateChainErrors
+metric cert_info 1 endpoint=localhost:18144 issuer=vigil_web_test_CA protocol=Tls12
+  PASS  nginx: tls runs (powershell)
+
+# httpd, through the tunnel, powershell.
+
+> powershell packs\httpd\windows\log.ps1
+metric log_found 1
+metric log_readable 1
+metric log_bytes 7664
+metric window_complete 1
+metric requests 80
+metric status_1xx 0
+metric status_2xx 60
+metric status_3xx 0
+metric status_4xx 10
+metric status_5xx 10
+metric errors_4xx_pct 12.5
+metric errors_5xx_pct 12.5
+metric bytes_sent 32968
+metric clients 7
+metric status 60 code=200
+metric status 10 code=404
+metric status 6 code=500
+metric status 4 code=502
+metric method 74 method=GET
+metric method 6 method=POST
+metric response_avg_ms 71.8
+metric response_p50_ms 4
+metric response_p90_ms 250
+metric response_p99_ms 1000
+metric response_max_ms 1000
+  PASS  httpd: log runs (powershell)
+
+> powershell packs\httpd\windows\status.ps1
+metric up 1
+metric info 1 version=2.4.71 mpm=event
+metric extended_status 1
+metric uptime_seconds 312
+metric restarts 1
+metric accesses_count 582
+metric bytes_count 134144
+metric duration_ms_count 122446
+metric cpu_load_pct 0.12
+metric busy_workers 1
+metric idle_workers 19
+metric finishing_workers 0
+metric scoreboard_slots 20
+metric busy_pct 5
+metric processes 2
+metric stopping_processes 0
+metric connections 1
+metric conns_writing 0
+metric conns_keepalive 1
+metric conns_closing 0
+metric workers_in_state 19 state=waiting
+metric workers_in_state 0 state=starting
+metric workers_in_state 0 state=reading
+metric workers_in_state 1 state=sending
+metric workers_in_state 0 state=keepalive
+metric workers_in_state 0 state=dns
+metric workers_in_state 0 state=closing
+metric workers_in_state 0 state=logging
+metric workers_in_state 0 state=finishing
+metric workers_in_state 0 state=cleanup
+metric workers_in_state 0 state=open
+metric ssl_cache_entries 4
+metric ssl_cache_usage_pct 0
+metric ssl_cache_hits_count 0
+metric ssl_cache_misses_count 0
+metric ssl_cache_discards_count 0
+  PASS  httpd: status runs (powershell)
+
+> powershell packs\httpd\windows\tls.ps1
+metric tls_up 1 endpoint=localhost:18243
+metric cert_expires_days 299 endpoint=localhost:18243
+metric cert_valid 1 endpoint=localhost:18243
+metric cert_verified 0 endpoint=localhost:18243 reason=RemoteCertificateChainErrors
+metric cert_info 1 endpoint=localhost:18243 issuer=localhost protocol=Tls12
+  PASS  httpd: tls runs (powershell)
+
+# caddy, through the tunnel, powershell.
+
+> powershell packs\caddy\windows\status.ps1
+metric up 1
+metric servers 2
+metric listeners 2
+metric routes 3
+metric sites 1
+metric reverse_proxies 3
+metric file_servers 0
+metric tls_policies 1
+metric metrics_enabled 1
+metric reload_ok 1
+metric last_reload_seconds 173
+metric goroutines 28
+metric open_fds 13
+metric max_fds 524287
+metric fds_pct 0
+  PASS  caddy: status runs (powershell)
+
+> powershell packs\caddy\windows\tls.ps1
+metric sites_found 1
+metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
+metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test
+metric cert_valid 1 endpoint=127.0.0.1:18343/shop.test
+metric cert_verified 1 endpoint=127.0.0.1:18343/shop.test reason=ok
+metric cert_info 1 endpoint=127.0.0.1:18343/shop.test issuer=Caddy_Local_Authority_-_ECC_Intermediate protocol=Tls12
+  PASS  caddy: tls runs (powershell)
+
+> powershell packs\caddy\windows\traffic.ps1
+metric up 1
+metric metrics_enabled 1
+metric requests_count 100 server=srv1
+metric in_flight 0 server=srv1
+metric handler_errors_count 2 server=srv1
+metric status_2xx_count 98 server=srv1
+metric status_3xx_count 0 server=srv1
+metric status_4xx_count 0 server=srv1
+metric status_5xx_count 2 server=srv1
+metric duration_avg_ms 70.91 server=srv1
+metric servers_reporting 1
+metric servers_not_shown 0
+  PASS  caddy: traffic runs (powershell)
+
+> powershell packs\caddy\windows\upstreams.ps1
+metric up 1
+metric upstreams 4
+metric upstreams_failing 0
+metric upstreams_unhealthy 1
+metric active_requests 0 upstream=10.255.255.1:81
+metric fails 0 upstream=10.255.255.1:81
+metric healthy 1 upstream=10.255.255.1:81
+metric active_requests 0 upstream=gone:80
+metric fails 0 upstream=gone:80
+metric healthy 0 upstream=gone:80
+metric active_requests 0 upstream=httpd:80
+metric fails 0 upstream=httpd:80
+metric healthy 1 upstream=httpd:80
+metric active_requests 0 upstream=nginx:80
+metric fails 0 upstream=nginx:80
+metric healthy 1 upstream=nginx:80
+metric upstreams_not_shown 0
+  PASS  caddy: upstreams runs (powershell)
+  PASS  nginx: up (powershell)
+  PASS  nginx: requests, from its stub_status (powershell)
+  PASS  nginx: the last minute's requests, not the one before (powershell)
+  PASS  nginx: 500s (powershell)
+  PASS  nginx: the 5xx share (powershell)
+  PASS  nginx: response times (powershell)
+  PASS  nginx: upstream times (powershell)
+  PASS  nginx: five days left (powershell)
+  PASS  nginx: trusted, with the CA (powershell)
+  PASS  nginx: the expired one (powershell)
+  PASS  httpd: up (powershell)
+  PASS  httpd: the event MPM (powershell)
+  PASS  httpd: workers by state (powershell)
+  PASS  httpd: the last minute's requests (powershell)
+  PASS  httpd: response times, from rtus= (powershell)
+  PASS  httpd: a certificate no CA signed (powershell)
+  PASS  caddy: up (powershell)
+  PASS  caddy: two servers (powershell)
+  PASS  caddy: its metrics (powershell)
+  PASS  caddy: an upstream unhealthy (powershell)
+  PASS  caddy: one site found (powershell)
+  PASS  caddy: its certificate, from its own CA (powershell)
+
+# Servers that do not answer, powershell.
+> powershell packs\nginx\windows\status.ps1   (NGINX_STATUS_URL=http://127.0.0.1:1/nginx_status)
+metric up 0
+  PASS  nginx: down still runs (powershell)
+  PASS  nginx: and reads as up 0 (powershell)
+> powershell packs\httpd\windows\status.ps1   (HTTPD_STATUS_URL=http://127.0.0.1:1/server-status)
+metric up 0
+  PASS  httpd: down still runs (powershell)
+  PASS  httpd: and reads as up 0 (powershell)
+> powershell packs\caddy\windows\status.ps1   (CADDY_ADMIN=http://127.0.0.1:1)
+metric up 0
+  PASS  caddy: down still runs (powershell)
+  PASS  caddy: and reads as up 0 (powershell)
+== pwsh: not here
+
+== powershell tests\integration\Service-Packs.ps1
+PowerShell 5.1.26100.7462
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+nginx: NGINX_STATUS_URL=http://127.0.0.1:18180/nginx_status|NGINX_ACCESS_LOG=C:\Users\vigil-test\r421\work\nginx-access.log|NGINX_TLS=localhost:18143|NGINX_CACERT=C:\Users\vigil-test\r421\hold\ca.crt
+  PASS  nginx: enabled
+        on: nginx_status
+        on: nginx_log
+        on: nginx_tls
+        needs its stub_status page, reachable from this machine only: location = /nginx_status { stub_status; allow 127.0.0.1; deny all; }
+        needs for the log job, read access to the access log: on Debian and Ubuntu, usermod -aG adm vigil; elsewhere, the log folder's group (packs/nginx/README.md); with rt=$request_time urt=$upstream_response_time at the end of the log_format for response times
+        needs for nginx's CPU and memory: the base pack's processes job
+        settings in vigil.config: NGINX_STATUS_URL=http://127.0.0.1/nginx_status NGINX_ACCESS_LOG=/var/log/nginx/access.log NGINX_LOG_MAX_MB=32 NGINX_TLS=localhost:443 NGINX_CACERT=
+  PASS  nginx: it says CPU and memory are the base pack's
+  PASS  nginx: precheck is happy
+  PASS  nginx: every Windows job runs (status, log, tls)
+        metric up 1
+        metric active_connections 2
+        metric reading 0
+        metric writing 1
+        metric waiting 1
+        metric accepts_count 686
+        metric handled_count 686
+        metric requests_count 857
+        metric dropped_count 0
+        metric log_found 1
+        metric log_readable 1
+        metric log_bytes 8134
+        metric window_complete 1
+        metric requests 80
+        metric status_1xx 0
+        metric status_2xx 60
+        metric status_3xx 0
+        metric status_4xx 10
+        metric status_5xx 10
+        metric errors_4xx_pct 12.5
+        metric errors_5xx_pct 12.5
+        metric bytes_sent 32968
+        metric clients 7
+        metric status 60 code=200
+        metric status 10 code=404
+        metric status 6 code=500
+        metric status 4 code=502
+        metric method 74 method=GET
+        metric method 6 method=POST
+        metric response_avg_ms 71.8
+        metric response_p50_ms 4
+        metric response_p90_ms 250
+        metric response_p99_ms 1000
+        metric response_max_ms 1000
+        metric upstream_avg_ms 80.2
+        metric upstream_p50_ms 2
+        metric upstream_p90_ms 249
+        metric upstream_p99_ms 1000
+        metric upstream_max_ms 1000
+        metric tls_up 1 endpoint=localhost:18143
+        metric cert_expires_days 4 endpoint=localhost:18143
+        metric cert_valid 1 endpoint=localhost:18143
+        metric cert_verified 1 endpoint=localhost:18143 reason=ok
+        metric cert_info 1 endpoint=localhost:18143 issuer=vigil_web_test_CA protocol=Tls12
+  PASS  nginx: answers
+  PASS  nginx: a server that does not answer still runs
+  PASS  nginx: and reads as up 0
+  PASS  nginx: metrics reach the backend
+httpd: HTTPD_STATUS_URL=http://127.0.0.1:18280/server-status|HTTPD_ACCESS_LOG=C:\Users\vigil-test\r421\work\httpd-access.log|HTTPD_TLS=localhost:18243
+  PASS  httpd: enabled
+        on: httpd_status
+        on: httpd_log
+        on: httpd_tls
+        needs its server-status page, from this machine only: <Location "/server-status"> SetHandler server-status; Require local </Location>, and ExtendedStatus On
+        needs for the log job, read access to the access log (packs/httpd/README.md); with rtus=%D at the end of the LogFormat for response times
+        needs for httpd's CPU and memory: the base pack's processes job
+        settings in vigil.config: HTTPD_STATUS_URL=http://127.0.0.1/server-status HTTPD_CONF= HTTPD_PID_FILE= HTTPD_ACCESS_LOG= HTTPD_LOG_MAX_MB=32 HTTPD_TLS=localhost:443 HTTPD_CACERT=
+  PASS  httpd: it says CPU and memory are the base pack's
+  PASS  httpd: precheck is happy
+  PASS  httpd: every Windows job runs (status, log, tls)
+        metric up 1
+        metric info 1 version=2.4.71 mpm=event
+        metric extended_status 1
+        metric uptime_seconds 423
+        metric restarts 1
+        metric accesses_count 756
+        metric bytes_count 172032
+        metric duration_ms_count 122501
+        metric cpu_load_pct 0.11
+        metric busy_workers 1
+        metric idle_workers 19
+        metric finishing_workers 0
+        metric scoreboard_slots 20
+        metric busy_pct 5
+        metric processes 2
+        metric stopping_processes 0
+        metric connections 1
+        metric conns_writing 0
+        metric conns_keepalive 1
+        metric conns_closing 0
+        metric workers_in_state 19 state=waiting
+        metric workers_in_state 0 state=starting
+        metric workers_in_state 0 state=reading
+        metric workers_in_state 1 state=sending
+        metric workers_in_state 0 state=keepalive
+        metric workers_in_state 0 state=dns
+        metric workers_in_state 0 state=closing
+        metric workers_in_state 0 state=logging
+        metric workers_in_state 0 state=finishing
+        metric workers_in_state 0 state=cleanup
+        metric workers_in_state 0 state=open
+        metric ssl_cache_entries 6
+        metric ssl_cache_usage_pct 0
+        metric ssl_cache_hits_count 0
+        metric ssl_cache_misses_count 0
+        metric ssl_cache_discards_count 0
+        metric log_found 1
+        metric log_readable 1
+        metric log_bytes 7664
+        metric window_complete 1
+        metric requests 0
+        metric status_1xx 0
+        metric status_2xx 0
+        metric status_3xx 0
+        metric status_4xx 0
+        metric status_5xx 0
+        metric errors_4xx_pct 0
+        metric errors_5xx_pct 0
+        metric bytes_sent 0
+        metric clients 0
+        metric tls_up 1 endpoint=localhost:18243
+        metric cert_expires_days 299 endpoint=localhost:18243
+        metric cert_valid 1 endpoint=localhost:18243
+        metric cert_verified 0 endpoint=localhost:18243 reason=RemoteCertificateChainErrors
+        metric cert_info 1 endpoint=localhost:18243 issuer=localhost protocol=Tls12
+  PASS  httpd: answers
+  PASS  httpd: a server that does not answer still runs
+  PASS  httpd: and reads as up 0
+  PASS  httpd: metrics reach the backend
+caddy: CADDY_ADMIN=http://127.0.0.1:18219|CADDY_TLS_ADDRESS=127.0.0.1:18343
+  PASS  caddy: enabled
+        on: caddy_status
+        on: caddy_traffic
+        on: caddy_upstreams
+        on: caddy_tls
+        needs its admin API, reachable from this machine (Caddy's default, localhost:2019)
+        needs for the traffic job, its HTTP metrics: the global option { metrics } in the Caddyfile
+        needs for Caddy's CPU and memory: the base pack's processes job
+        settings in vigil.config: CADDY_ADMIN=http://localhost:2019 CADDY_TLS_ADDRESS=127.0.0.1:443 CADDY_TLS= CADDY_CACERT=
+  PASS  caddy: it says CPU and memory are the base pack's
+  PASS  caddy: precheck is happy
+  PASS  caddy: every Windows job runs (status, traffic, upstreams, tls)
+        metric up 1
+        metric servers 2
+        metric listeners 2
+        metric routes 3
+        metric sites 1
+        metric reverse_proxies 3
+        metric file_servers 0
+        metric tls_policies 1
+        metric metrics_enabled 1
+        metric reload_ok 1
+        metric last_reload_seconds 341
+        metric goroutines 36
+        metric open_fds 15
+        metric max_fds 524287
+        metric fds_pct 0
+        metric up 1
+        metric metrics_enabled 1
+        metric requests_count 187 server=srv1
+        metric in_flight 0 server=srv1
+        metric handler_errors_count 2 server=srv1
+        metric status_2xx_count 185 server=srv1
+        metric status_3xx_count 0 server=srv1
+        metric status_4xx_count 0 server=srv1
+        metric status_5xx_count 2 server=srv1
+        metric duration_avg_ms 38.26 server=srv1
+        metric servers_reporting 1
+        metric servers_not_shown 0
+        metric up 1
+        metric upstreams 4
+        metric upstreams_failing 0
+        metric upstreams_unhealthy 1
+        metric active_requests 0 upstream=10.255.255.1:81
+        metric fails 0 upstream=10.255.255.1:81
+        metric healthy 1 upstream=10.255.255.1:81
+        metric active_requests 0 upstream=gone:80
+        metric fails 0 upstream=gone:80
+        metric healthy 0 upstream=gone:80
+        metric active_requests 0 upstream=httpd:80
+        metric fails 0 upstream=httpd:80
+        metric healthy 1 upstream=httpd:80
+        metric active_requests 0 upstream=nginx:80
+        metric fails 0 upstream=nginx:80
+        metric healthy 1 upstream=nginx:80
+        metric upstreams_not_shown 0
+        metric sites_found 1
+        metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
+        metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test
+        metric cert_valid 1 endpoint=127.0.0.1:18343/shop.test
+        metric cert_verified 1 endpoint=127.0.0.1:18343/shop.test reason=ok
+        metric cert_info 1 endpoint=127.0.0.1:18343/shop.test issuer=Caddy_Local_Authority_-_ECC_Intermediate protocol=Tls12
+  PASS  caddy: answers
+  PASS  caddy: a server that does not answer still runs
+  PASS  caddy: and reads as up 0
+  PASS  caddy: metrics reach the backend
+26 passed, 0 failed
+
+directly: 38 passed, 0 failed

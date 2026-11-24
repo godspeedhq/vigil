@@ -191,6 +191,8 @@ $script:Keep = [System.Net.Security.RemoteCertificateValidationCallback] {
     return $true
 }
 function Read-Certs($list) {
+    # Caddy's: whether its admin API answered, asked for the site names.
+    if ($null -ne $script:CaddyUp) { M 'up' $script:CaddyUp; if (-not $script:CaddyUp) { return } }
     if ($null -ne $script:SitesFound) { M 'sites_found' $script:SitesFound }
     $list = @($list | Where-Object { $_ })
     $i = 0

@@ -191,6 +191,8 @@ $script:Keep = [System.Net.Security.RemoteCertificateValidationCallback] {
     return $true
 }
 function Read-Certs($list) {
+    # Caddy's: whether its admin API answered, asked for the site names.
+    if ($null -ne $script:CaddyUp) { M 'up' $script:CaddyUp; if (-not $script:CaddyUp) { return } }
     if ($null -ne $script:SitesFound) { M 'sites_found' $script:SitesFound }
     $list = @($list | Where-Object { $_ })
     $i = 0
@@ -258,6 +260,7 @@ function Sum-Prom($lines, [string]$m) {
 # Caddy's configuration at CADDY_TLS_ADDRESS. Certificates from Caddy's own
 # local CA check against it.
 $script:SitesFound = $null
+$script:CaddyUp = $null
 function Get-CaddyEndpoints {
     $admin = if ($env:CADDY_ADMIN) { $env:CADDY_ADMIN.TrimEnd('/') } else { 'http://localhost:2019' }
     if (-not $script:Ca) {
@@ -271,7 +274,7 @@ function Get-CaddyEndpoints {
     }
     if ($env:CADDY_TLS) { return @($env:CADDY_TLS -split '\s+' | Where-Object { $_ }) }
     $r = Get-Http "$admin/config/"
-    if ($r.State -eq 'down') { Stop-Run "Caddy does not answer at $admin" }
+    if ($r.State -eq 'down') { $script:CaddyUp = 0; return @() }
     if ($r.State -ne 'ok') { Stop-Run $r.Why }
     $c = $r.Body | ConvertFrom-Json
     $names = @()
@@ -282,6 +285,7 @@ function Get-CaddyEndpoints {
     }
     if ($c -and $c.apps.tls.automation.policies) { foreach ($p in @($c.apps.tls.automation.policies)) { $names += @($p.subjects) } }
     $names = @($names | Where-Object { $_ -and -not ([string]$_).StartsWith('*') } | Sort-Object -Unique)
+    $script:CaddyUp = 1
     $script:SitesFound = $names.Count
     $addr = if ($env:CADDY_TLS_ADDRESS) { $env:CADDY_TLS_ADDRESS } else { '127.0.0.1:443' }
     return @($names | ForEach-Object { "$addr/$_" })
