@@ -86,7 +86,9 @@ vigil_run_events() {
         i=$((i + 1))
     done
 
-    # The per-job metrics of the run (14.2).
+    # The per-job metrics of the run (14.2). The outcome's line comes
+    # straight after "runs": the supervisor reads a run's outcome from that
+    # place in its spool file (11.3), never from a line the job printed.
     _vigil_evt_add duration_seconds "$duration" gauge "$base"
     _vigil_evt_add runs 1 count "$base"
     case $outcome in
@@ -133,7 +135,9 @@ vigil_run_events() {
 vigil_run_events_dump() {
     local i=0
     while [ "$i" -lt "${#VIGIL_EVT[@]}" ]; do
-        printf '%s\n' "${VIGIL_EVT[$i]}"
+        # Tested: a loop's status is its last command's, and a line that could
+        # not be written (a full disk) must not pass for a whole file.
+        printf '%s\n' "${VIGIL_EVT[$i]}" || return 1
         i=$((i + 1))
     done
 }

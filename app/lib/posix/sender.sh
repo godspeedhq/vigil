@@ -327,7 +327,8 @@ vigil_send() {
     # The spool size cap: drop the oldest (or newest) queued files until the
     # queues fit in max_mb (4.5).
     _vigil_wk_get spool max_mb 100
-    max=$((_vw_value * 1048576))
+    # 10#: a leading zero is not octal (V-03).
+    max=$((10#$_vw_value * 1048576))
     _vigil_wk_get spool when_full drop_oldest
     when=$_vw_value
     files=() fsizes=()

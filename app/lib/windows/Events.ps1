@@ -67,7 +67,9 @@ function Get-VigilRunEvents {
     $events = New-Object 'System.Collections.Generic.List[string]'
     $add = { param($Name, $Value, $Type, $Tags) $events.Add("$Epoch $m.$Name $Value $Type $Tags") }
 
-    # The per-job metrics of the run (14.2).
+    # The per-job metrics of the run (14.2). The outcome's line comes
+    # straight after "runs": the supervisor reads a run's outcome from that
+    # place in its spool file (11.3), never from a line the job printed.
     & $add 'duration_seconds' $Duration 'gauge' $base
     & $add 'runs' '1' 'count' $base
     if ($Outcome -ceq 'succeeded') { & $add 'succeeded' '1' 'count' $base }

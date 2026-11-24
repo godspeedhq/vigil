@@ -154,13 +154,23 @@ function Find-VigilSpoolOutcome {
         foreach ($f in [System.IO.Directory]::GetFiles($d, "*-$Job-$RunId.events")) {
             # The sender may move the file on between listing and reading.
             try { $lines = [System.IO.File]::ReadAllLines($f) } catch { continue }
+            # The outcome is the worker's own line, the one straight after the
+            # run's "runs" line (Events.ps1 writes them together). Nothing
+            # after it is read: what follows is what the job printed, and a
+            # metric of its own called steps.succeeded is not how the run
+            # ended (V-01).
+            $afterRuns = $false
             foreach ($l in $lines) {
                 # A line without a name says nothing, and must not end the
                 # tick: it would end every tick while the file is there.
                 $name = "$(($l.Split(' '))[1])"
-                if ($name.EndsWith('.succeeded')) { $r.Outcome = 'succeeded' }
-                elseif ($name.EndsWith('.warnings')) { $r.Outcome = 'warning' }
-                elseif ($name.EndsWith('.failures')) { $r.Outcome = 'failed' }
+                if ($afterRuns) {
+                    if ($name.EndsWith('.succeeded', [System.StringComparison]::Ordinal)) { $r.Outcome = 'succeeded' }
+                    elseif ($name.EndsWith('.warnings', [System.StringComparison]::Ordinal)) { $r.Outcome = 'warning' }
+                    elseif ($name.EndsWith('.failures', [System.StringComparison]::Ordinal)) { $r.Outcome = 'failed' }
+                    break
+                }
+                if ($name.EndsWith('.runs', [System.StringComparison]::Ordinal)) { $afterRuns = $true }
             }
             if ($r.Outcome) { $r.Found = $true; $r.File = [System.IO.Path]::GetFileName($f); return $r }
         }
@@ -281,9 +291,22 @@ function Invoke-VigilSupervisor {
                 return $true
             }
             $sv.ReloadFailed = 0
-            $sv.State = Get-VigilConfigValue $parsed 'vigil' 'state_dir' 'state'
-            if (-not [System.IO.Path]::IsPathRooted($sv.State)) { $sv.State = Join-Path $sv.Root $sv.State }
-            [void](New-Item -ItemType Directory -Force -Path $sv.State)
+            # The state directory is the one the supervisor started with: its
+            # lock is there (12.4), and so are the tokens of the runs in
+            # progress. Moving to another while it runs would lose sight of
+            # them and start their jobs again beside them, so a state_dir
+            # changed in the configuration waits for the next start, and is
+            # said once (V-07).
+            $stateDir = Get-VigilConfigValue $parsed 'vigil' 'state_dir' 'state'
+            if (-not [System.IO.Path]::IsPathRooted($stateDir)) { $stateDir = Join-Path $sv.Root $stateDir }
+            if (-not $sv.State) {
+                $sv.State = $stateDir
+                [void](New-Item -ItemType Directory -Force -Path $sv.State)
+            }
+            elseif ($stateDir -cne $sv.State -and $stateDir -cne $sv.StateSaid) {
+                $sv.StateSaid = $stateDir
+                & $log 'WARN' "state_dir is now $stateDir in the configuration: it takes effect when Vigil is next started; until then the state stays in $($sv.State)"
+            }
             if (Test-VigilFetchMode -Parsed $parsed) {
                 # What the fetcher last saw of this file tells whether it
                 # must look again.
@@ -695,7 +718,7 @@ function Invoke-VigilSupervisor {
         Write-VigilFileAtomic -Path (Join-Path $locks "$Job.$rid.launch") -Text $text
         Invoke-VigilFault 'launch.after_record'
         $argv = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $App 'vigil.ps1'),
-            '-Root', $sv.Root, 'worker', $Job, '--run-id', $rid)
+            '-Root', $sv.Root, 'worker', $Job, '--run-id', $rid, '--state-dir', $sv.State)
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $shell
         $psi.Arguments = ($argv | ForEach-Object { ConvertTo-VigilQuotedArg -Arg $_ -Always $false }) -join ' '
@@ -949,6 +972,12 @@ function Invoke-VigilSupervisor {
                 'disabled' {
                     if ([System.IO.File]::Exists($cfile)) { [System.IO.File]::Delete($cfile) }
                     $status.Disabled += $job
+                    # A run queue_one held for it is not started once the job
+                    # is disabled: the change applies from the next run
+                    # (16.1, V-08).
+                    $wasHeld = $sv.Queued.Remove($job)
+                    while ($sv.Pending.Remove($job)) { $wasHeld = $true }
+                    if ($wasHeld) { & $log 'INFO' "job ${job}: the run held for it is dropped: the job is disabled" }
                     continue
                 }
                 'error' { continue }
@@ -971,14 +1000,31 @@ function Invoke-VigilSupervisor {
             if ($d.Next -cne '-') { $status.Waiting += "${job}: next $($d.Next)" }
         }
 
+        # A held run is its job's next run: one whose job has left the
+        # configuration, or is invalid in it, is dropped, not started when
+        # the active run ends, nor kept for the day the job comes back
+        # (16.1, V-08).
+        if (-not $sv.Waiting) {
+            foreach ($job in @(@($sv.Queued) + @($sv.Pending) | Select-Object -Unique)) {
+                if ($accounted.Contains($job)) { continue }
+                [void]$sv.Queued.Remove($job)
+                while ($sv.Pending.Remove($job)) { }
+                & $log 'INFO' "job ${job}: the run held for it is dropped: the job is no longer in the configuration, or invalid in it"
+            }
+        }
+
         # Runs of jobs removed from the configuration, or now invalid in it,
         # are still Vigil's: accounted for until they end (11.3), never
         # started again.
-        if (-not $sv.Waiting) {
-            foreach ($job in (& $leftover $accounted)) {
-                $acc = & $account $job
-                if ($acc.Active -ceq 'running') { & $showRunning $job $acc $status ' (no longer in the configuration, or invalid in it)' }
-            }
+        # While the configuration waits for its first fetch no job is
+        # scheduled, but a run that was already in progress is Vigil's too:
+        # it is accounted for in the same way, each tick, and held to its
+        # max_runtime (V-04).
+        $why = if ($sv.Waiting) { ' (started before the configuration came to wait for its first fetch)' }
+        else { ' (no longer in the configuration, or invalid in it)' }
+        foreach ($job in (& $leftover $accounted)) {
+            $acc = & $account $job
+            if ($acc.Active -ceq 'running') { & $showRunning $job $acc $status $why }
         }
 
         # Saved before this tick's runs start, so it never names one of them:
@@ -993,13 +1039,24 @@ function Invoke-VigilSupervisor {
 
         # Admission (8): every due run starts now, oldest first. Vigil sets no
         # limit on how many run at once: the machine is its operator's.
-        foreach ($job in $sv.Pending) {
+        # The list is emptied before anything starts, and a launch that throws
+        # (a disk filling as its record is flushed, a process that cannot be
+        # started) is that job's alone: a job already started must never be
+        # found in the list by the next tick and started again beside its
+        # own run, every tick (V-02). The run that could not be launched is
+        # lost, not retried: its slot is dealt with (8).
+        $due = $sv.Pending
+        $sv.Pending = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($job in $due) {
             $sc = & $scriptOf $job
             if (-not $sc.Ok) { continue }
-            & $start $job $sc.Path
+            try { & $start $job $sc.Path }
+            catch {
+                & $log 'ERROR' "job ${job}: could not be launched: $($_.Exception.Message -replace '\s+', ' ')"
+                continue
+            }
             $status.Running += "${job}: starting"
         }
-        $sv.Pending = New-Object 'System.Collections.Generic.List[string]'
 
         & $event '' 'up' '1' 'gauge'
         & $event '' 'workers' "$($sv.Running)" 'gauge'

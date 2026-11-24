@@ -179,7 +179,8 @@ rid=20260101T000000Z-1-4
 printf '[state]\nschema_version = 1\njob = fast\nrun_id = %s\nstatus = running\nboot_id = %s\nstarted_epoch = 1\n' "$rid" "$boot" > "$root/state/jobs/fast.state"
 : > "$root/state/locks/fast.$rid.token"
 mkdir -p "$root/spool/fanout"
-printf '1 fast.succeeded 1 count host=it\n' > "$root/spool/fanout/1-fast-$rid.events"
+# As a worker writes them: the duration, the run, then its outcome (4.3).
+printf '1 fast.duration_seconds 0 gauge host=it\n1 fast.runs 1 count host=it\n1 fast.succeeded 1 count host=it\n' > "$root/spool/fanout/1-fast-$rid.events"
 tick
 check "run reconciled from its events in the fan-out" "succeeded|reconciled from the spool file" \
     "$(state_value "$root/state/jobs/fast.state" status)|$(state_value "$root/state/jobs/fast.state" reason)"
@@ -558,8 +559,84 @@ if [ "$fail" -gt 0 ]; then
     printf '\nsender log:\n'
     cat "$root/logs/jobs/vigil_sender/"*.log 2>/dev/null | tail -20
 fi
+# --- What the core verification found (V-03, V-04, V-07, V-08) -------------
+# Each in a root of its own, $root.v, with nothing of the tests above in it.
+vroot=$root.v
+vcfg=$vroot/config/vigil.config
+vlog() { cat "$vroot"/logs/supervisor/2*.log 2> /dev/null; }
+vv() { "$BASH" "$vigil_cmd" --root "$vroot" "$@"; }
+vtick() { vv supervise --once > /dev/null 2>&1; }
+# A new root whose [scheduler] tick is $1.
+vnew() {
+    rm -rf "$vroot"
+    mkdir -p "$vroot/config" "$vroot/scripts"
+    printf '[vigil]\ninstance = v\n\n[scheduler]\ntick = %s\n\n[runner.sh]\ncommand = /bin/sh\n\n[runners]\n.sh = sh\n' "$1" > "$vcfg"
+}
+vstatus() { state_value "$vroot/state/jobs/$1.state" status; }
+vwait_running() { local i=0; while [ "$(vstatus "$1")" != running ] && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done; }
+
+printf 'Numbers with a leading zero (V-03)\n'
+vnew 08s
+printf 'exit 0\n' > "$vroot/scripts/ok.sh"
+printf '\n[log]\nmax_file_mb = 08\nretain_days = 08\n\n[spool]\nmax_mb = 08\n\n[job.ok]\nfile = scripts/ok.sh\nrun_every = 08m\nmax_runtime = 08s\n' >> "$vcfg"
+vv supervise --once > "$vroot/once.out" 2>&1
+check 'a supervisor reads 08 as eight, and runs' 0 "$?"
+vv run ok > "$vroot/run.out" 2>&1
+check 'so does a worker' 0 "$?"
+check 'neither takes it for an octal number' 0 "$(cat "$vroot/once.out" "$vroot/run.out" | grep -c 'too great for base')"
+
+printf 'A run held by queue_one, and its job then disabled (V-08)\n'
+vnew 1s
+printf 'sleep 5\n' > "$vroot/scripts/q.sh"
+printf '\n[job.q]\nfile = scripts/q.sh\nrun_every = 2s\noverlap = queue_one\n' >> "$vcfg"
+# New at the first tick; its first slot starts a run; the next finds it active.
+vtick; sleep 2; vtick
+vwait_running q
+sleep 2; vtick
+check 'queue_one holds the next run' q "$(sed -n 's/^queued=//p' "$vroot/state/pending" 2> /dev/null | tr -d ' ')"
+printf 'enabled = false\n' >> "$vcfg"
+vtick
+check 'disabled: the held run is dropped, and it is said' 1 "$(vlog | grep -c 'job q: the run held for it is dropped: the job is disabled')"
+# The active run ends; nothing must start in its place.
+sleep 5; vtick; sleep 1; vtick
+check 'and it is never started' 1 "$(vlog | grep -c 'job q: run .* started')"
+
+printf 'Waiting for a first fetch, with a run in progress (V-04)\n'
+vnew 1s
+printf 'sleep 30\n' > "$vroot/scripts/long.sh"
+printf '\n[job.long]\nfile = scripts/long.sh\nrun_every = 2s\nmax_runtime = 2s\n' >> "$vcfg"
+vtick; sleep 2; vtick
+vwait_running long
+# A source that cannot be fetched, and a job that needs it.
+printf '\n[source.extra]\ntype = local\npath = %s/nowhere\n\n[job.fromsource]\nsource = extra\nfile = check.sh\nrun_every = 1h\n' "$vroot" >> "$vcfg"
+sleep 3; vtick; sleep 2; vtick; sleep 1; vtick
+check 'the configuration waits for its first fetch' yes "$(grep -q 'waiting for the first fetch' "$vroot/logs/supervisor/jobs.log" && echo yes || echo no)"
+check 'a run in progress is still held to its max_runtime' timed_out "$(vstatus long)"
+
+printf 'state_dir changed while a run is in progress (V-07)\n'
+vnew 1s
+printf 'sleep 8\n' > "$vroot/scripts/long.sh"
+printf '\n[job.long]\nfile = scripts/long.sh\nrun_every = 2s\n' >> "$vcfg"
+"$BASH" "$vigil_cmd" --root "$vroot" supervise > /dev/null 2>&1 &
+vsup=$!
+vtokens() { ls "$vroot/state/locks" 2> /dev/null | grep -c '^long\..*\.token$'; }
+i=0; while [ "$(vtokens)" -lt 1 ] && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+check 'a run is in progress' 1 "$(vtokens)"
+{ printf '[vigil]\ninstance = v\nstate_dir = state2\n'; sed '1,2d' "$vcfg"; } > "$vcfg.new" && mv -f "$vcfg.new" "$vcfg"
+sleep 4
+check 'the supervisor says the change waits for the next start' 1 "$(vlog | grep -c 'state_dir is now .* takes effect when Vigil is next started')"
+check 'it keeps the state directory it started with' no "$([ -e "$vroot/state2/locks" ] && echo yes || echo no)"
+check 'and starts no second run beside the first' 1 "$(vlog | grep -c 'job long: run .* started')"
+# The first run ends; the next one's worker must find its launch record in
+# the supervisor's directory, whatever the file says now.
+i=0; while [ "$(vlog | grep -c 'job long: run .* started')" -lt 2 ] && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+i=0; while [ "$(vtokens)" -lt 1 ] && [ "$i" -lt 20 ]; do sleep 0.5; i=$((i + 1)); done
+check 'a run started after the edit claims its launch there' '1 0' "$(vtokens) $(ls "$vroot/state/locks" | grep -c '\.launch$')"
+kill "$vsup" 2> /dev/null
+wait "$vsup" 2> /dev/null
+
 # Let a sender started by the last tick finish before cleaning up.
 sleep 3
-rm -rf "$root"
+rm -rf "$root" "$vroot"
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
