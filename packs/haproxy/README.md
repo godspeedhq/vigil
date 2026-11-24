@@ -211,7 +211,7 @@ Starting points, from the same figures each script's header explains; "In our te
 | `haproxy.connections_pct`, `maxconn_reached_count` | Below 70; flat | Above 70; rising | Near 100: new connections wait | 2; 0 |
 | `haproxy.busy_pct` | Below 70 | Above 70 | Near 100: out of CPU | 0 |
 | `haproxy.backends.backends_down` | 0 |  | Above 0: its requests get 503 | 2: `be_dead` (no server answers) and `be_badcheck` (its check gets a 404) |
-| `haproxy.backends.queue` | 0 | Above 0: every server at its `maxconn` |  | 2 in `be_queue` (one at a time) with four slow requests |
+| `haproxy.backends.queue` | 0 | Above 0: every server at its `maxconn` |  | 3 in `be_queue` (one at a time) with four slow requests |
 | `haproxy.servers.state`, `check` | 0; `L4OK`, `L7OK` | 1 or 2 after a deploy (draining, maintenance) | 3: down; `check` says how | 3 with `L4TOUT`, `L4CON` and `L7STS code=404`; 2 for one in maintenance; 4 for one not checked |
 | `haproxy.frontends.status_5xx_count`, `denied_requests_count` | Flat | Denials rising: a rule blocks more | 5xx rising | 4 503s from the dead backend; 4 requests denied |
 

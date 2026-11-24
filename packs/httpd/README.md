@@ -172,8 +172,8 @@ Starting points, from the same figures each script's header explains; "In our te
 | `httpd.config_changed` | 0 | Above 0 for long: an edit not loaded (or one that would fail) |  | 1 after an edit; 0 after `httpd -k graceful` (and `restarts` 1) |
 | `httpd.stopping_processes`, `finishing_workers` | 0 |  | Stuck above 0: a graceful restart that does not finish | 0 |
 | `httpd.ssl_cache_discards_count` | Flat | Rising: the TLS session cache is too small |  | 0 |
-| `httpd.log.errors_5xx_pct` | Below 1 |  | Above a few percent | 2.79: PHP's 500s |
-| `httpd.log.response_p99_ms` | Steady | Rising |  | 1.3 |
+| `httpd.log.errors_5xx_pct` | Below 1 |  | Above a few percent | 2.84: PHP's 500s |
+| `httpd.log.response_p99_ms` | Steady | Rising |  | 3 |
 | `httpd.tls.cert_verified` | 1 |  | 0: clients refuse it | 0 `reason=self-signed_certificate` for a certificate no CA signed |
 
 ## How it was tested

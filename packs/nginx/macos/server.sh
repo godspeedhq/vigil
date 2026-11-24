@@ -49,11 +49,11 @@
 #
 # Example output (the rest are in the same form):
 #   metric running 1
-#   metric master_uptime_seconds 101
+#   metric master_uptime_seconds 116
 #   metric workers 2
 #   metric workers_shutting_down 0
 #   metric cache_processes 0
-#   metric last_reload_seconds 100
+#   metric last_reload_seconds 116
 #   metric config_changed 0
 #   metric worker_processes_setting 2
 #   metric worker_connections 64

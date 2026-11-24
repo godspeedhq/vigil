@@ -1,10 +1,10 @@
-pack     nginx 1.2.0, httpd, caddy, haproxy and phpfpm 1.0.0, Vigil commit 8cb2aa8 (a copy), from the repository
+pack     nginx 1.2.0, httpd, caddy, haproxy and phpfpm 1.0.0, Vigil commit 9525aeb (a copy), from the repository
 account  vigil-test, by SSH key
 servers  run-web.sh's servers on the Fedora test machine (nginx 1.30.8, httpd 2.4.71, Caddy 2.11.9, HAProxy 3.4.8, PHP-FPM 8.3.37, each in trouble on purpose), through SSH tunnels; the logs, configuration folders and process trees the jobs read on this machine made here
 
 host     Bankoles-MacBook-Air, macOS 12.7.6 (x86_64), bash 3.2.57(1)-release
 tools    curl 8.7.1; jq-1.8.2; LibreSSL 2.8.3
-commit   8cb2aa875a21b12964a0c5799b2887d33cbd0eea
+commit   9525aebaf1068d009d92124704f3f4c3bf7a72a9
 
 # nginx: every job, as the macOS scripts print it.
 
@@ -14,9 +14,9 @@ metric active_connections 2
 metric reading 0
 metric writing 1
 metric waiting 1
-metric accepts_count 574
-metric handled_count 574
-metric requests_count 728
+metric accepts_count 599
+metric handled_count 599
+metric requests_count 766
 metric dropped_count 0
   PASS  nginx: status runs
 
@@ -112,12 +112,12 @@ $ HTTPD_STATUS_URL=... HTTPD_CONF=... HTTPD_PID_FILE=... HTTPD_ACCESS_LOG=... HT
 metric up 1
 metric info 1 version=2.4.71 mpm=event
 metric extended_status 1
-metric uptime_seconds 302
+metric uptime_seconds 318
 metric restarts 1
-metric accesses_count 562
-metric bytes_count 125952
-metric duration_ms_count 122439
-metric cpu_load_pct 0.12
+metric accesses_count 581
+metric bytes_count 129024
+metric duration_ms_count 122668
+metric cpu_load_pct 0.13
 metric busy_workers 1
 metric idle_workers 19
 metric finishing_workers 0
@@ -127,7 +127,7 @@ metric processes 2
 metric stopping_processes 0
 metric connections 1
 metric conns_writing 0
-metric conns_keepalive 0
+metric conns_keepalive 1
 metric conns_closing 0
 metric workers_in_state 19 state=waiting
 metric workers_in_state 0 state=starting
@@ -194,12 +194,12 @@ $ HTTPD_STATUS_URL=... HTTPD_CONF=... HTTPD_PID_FILE=... HTTPD_ACCESS_LOG=... HT
 metric up 1
 metric info 1 version=2.4.71 mpm=event
 metric extended_status 1
-metric uptime_seconds 303
+metric uptime_seconds 319
 metric restarts 1
-metric accesses_count 564
-metric bytes_count 126976
-metric duration_ms_count 122439
-metric cpu_load_pct 0.12
+metric accesses_count 582
+metric bytes_count 130048
+metric duration_ms_count 122668
+metric cpu_load_pct 0.13
 metric busy_workers 1
 metric idle_workers 19
 metric finishing_workers 0
@@ -209,7 +209,7 @@ metric processes 2
 metric stopping_processes 0
 metric connections 1
 metric conns_writing 0
-metric conns_keepalive 0
+metric conns_keepalive 1
 metric conns_closing 0
 metric workers_in_state 19 state=waiting
 metric workers_in_state 0 state=starting
@@ -243,8 +243,8 @@ metric file_servers 0
 metric tls_policies 1
 metric metrics_enabled 1
 metric reload_ok 1
-metric last_reload_seconds 163
-metric goroutines 33
+metric last_reload_seconds 162
+metric goroutines 32
 metric open_fds 15
 metric max_fds 524287
 metric fds_pct 0.00
@@ -260,7 +260,7 @@ metric status_2xx_count 92 server=srv1
 metric status_3xx_count 0 server=srv1
 metric status_4xx_count 0 server=srv1
 metric status_5xx_count 2 server=srv1
-metric duration_avg_ms 75.38 server=srv1
+metric duration_avg_ms 77.49 server=srv1
 metric servers_reporting 1
 metric servers_not_shown 0
   PASS  caddy: traffic runs
@@ -286,6 +286,7 @@ metric upstreams_not_shown 0
   PASS  caddy: upstreams runs
 
 $ CADDY_ADMIN=... CADDY_TLS_ADDRESS=... bash packs/caddy/macos/tls.sh
+metric up 1
 metric sites_found 1
 metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
 metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test
@@ -304,7 +305,7 @@ metric cert_info 1 endpoint=127.0.0.1:18343/shop.test issuer=Caddy_Local_Authori
 $ HAPROXY_SOCKET=... bash packs/haproxy/macos/info.sh
 metric up 1
 metric info 1 version=3.4.8-1b15b69
-metric uptime_seconds 304
+metric uptime_seconds 321
 metric threads 4
 metric connections 0
 metric maxconn 200
@@ -325,11 +326,11 @@ metric tasks 91
 metric streams 1
 metric stopping 0
 metric fd_limit 445
-metric pool_used_bytes 731792
+metric pool_used_bytes 732696
 metric pool_failed_count 0
 metric dropped_logs_count 0
 metric failed_resolutions_count 0
-metric warnings 5
+metric warnings 3
 metric bytes_out_rate 96
 metric peers_active 0
 metric peers_connected 0
@@ -354,7 +355,7 @@ metric denied_requests_count 4 frontend=fe_web
 metric denied_responses_count 0 frontend=fe_web
 metric request_errors_count 0 frontend=fe_web
 metric bytes_in_count 2974 frontend=fe_web
-metric bytes_out_count 6828 frontend=fe_web
+metric bytes_out_count 7109 frontend=fe_web
 metric ssl_failed_handshakes_count 0 frontend=fe_web
 metric open 1 frontend=fe_tls
 metric sessions 0 frontend=fe_tls
@@ -373,7 +374,7 @@ metric denied_requests_count 0 frontend=fe_tls
 metric denied_responses_count 0 frontend=fe_tls
 metric request_errors_count 0 frontend=fe_tls
 metric bytes_in_count 2100 frontend=fe_tls
-metric bytes_out_count 6429 frontend=fe_tls
+metric bytes_out_count 3756 frontend=fe_tls
 metric ssl_failed_handshakes_count 0 frontend=fe_tls
 metric frontends 2
 metric frontends_closed 0
@@ -404,8 +405,8 @@ metric status_4xx_count 0 backend=be_dead
 metric status_5xx_count 4 backend=be_dead
 metric client_aborts_count 0 backend=be_dead
 metric server_aborts_count 0 backend=be_dead
-metric down_seconds 301 backend=be_dead
-metric since_change_seconds 301 backend=be_dead
+metric down_seconds 320 backend=be_dead
+metric since_change_seconds 320 backend=be_dead
 metric backend_up 0 backend=be_badcheck
 metric servers 1 backend=be_badcheck
 metric servers_up 0 backend=be_badcheck
@@ -426,8 +427,8 @@ metric status_4xx_count 0 backend=be_badcheck
 metric status_5xx_count 0 backend=be_badcheck
 metric client_aborts_count 0 backend=be_badcheck
 metric server_aborts_count 0 backend=be_badcheck
-metric down_seconds 303 backend=be_badcheck
-metric since_change_seconds 303 backend=be_badcheck
+metric down_seconds 321 backend=be_badcheck
+metric since_change_seconds 321 backend=be_badcheck
 metric backend_up 1 backend=be_web
 metric servers 5 backend=be_web
 metric servers_up 4 backend=be_web
@@ -439,7 +440,7 @@ metric queue_max 0 backend=be_web
 metric queue_ms 0 backend=be_web
 metric connect_ms 1 backend=be_web
 metric response_ms 1 backend=be_web
-metric total_ms 4 backend=be_web
+metric total_ms 5 backend=be_web
 metric connection_errors_count 0 backend=be_web
 metric response_errors_count 0 backend=be_web
 metric retries_count 0 backend=be_web
@@ -449,7 +450,7 @@ metric status_5xx_count 0 backend=be_web
 metric client_aborts_count 0 backend=be_web
 metric server_aborts_count 0 backend=be_web
 metric down_seconds 0 backend=be_web
-metric since_change_seconds 304 backend=be_web
+metric since_change_seconds 323 backend=be_web
 metric backend_up 1 backend=be_queue
 metric servers 1 backend=be_queue
 metric servers_up 1 backend=be_queue
@@ -457,7 +458,7 @@ metric servers_active 1 backend=be_queue
 metric servers_backup 0 backend=be_queue
 metric sessions 0 backend=be_queue
 metric queue 0 backend=be_queue
-metric queue_max 2 backend=be_queue
+metric queue_max 3 backend=be_queue
 metric queue_ms 0 backend=be_queue
 metric connect_ms 0 backend=be_queue
 metric response_ms 0 backend=be_queue
@@ -471,7 +472,7 @@ metric status_5xx_count 4 backend=be_queue
 metric client_aborts_count 0 backend=be_queue
 metric server_aborts_count 0 backend=be_queue
 metric down_seconds 0 backend=be_queue
-metric since_change_seconds 304 backend=be_queue
+metric since_change_seconds 323 backend=be_queue
 metric backends_not_shown 0
   PASS  haproxy: backends runs
 
@@ -485,8 +486,8 @@ metric servers_drain 0
 metric state 3 backend=be_dead server=gone status=DOWN
 metric check 1 backend=be_dead server=gone check=L4TOUT code=none
 metric check_ms 2002 backend=be_dead server=gone
-metric since_change_seconds 301 backend=be_dead server=gone
-metric down_seconds 301 backend=be_dead server=gone
+metric since_change_seconds 320 backend=be_dead server=gone
+metric down_seconds 320 backend=be_dead server=gone
 metric check_failures_count 0 backend=be_dead server=gone
 metric went_down_count 1 backend=be_dead server=gone
 metric sessions 0 backend=be_dead server=gone
@@ -499,8 +500,8 @@ metric weight 1 backend=be_dead server=gone
 metric state 3 backend=be_dead server=refused status=DOWN
 metric check 1 backend=be_dead server=refused check=L4CON code=none
 metric check_ms 0 backend=be_dead server=refused
-metric since_change_seconds 303 backend=be_dead server=refused
-metric down_seconds 303 backend=be_dead server=refused
+metric since_change_seconds 322 backend=be_dead server=refused
+metric down_seconds 322 backend=be_dead server=refused
 metric check_failures_count 0 backend=be_dead server=refused
 metric went_down_count 1 backend=be_dead server=refused
 metric sessions 0 backend=be_dead server=refused
@@ -513,8 +514,8 @@ metric weight 1 backend=be_dead server=refused
 metric state 3 backend=be_badcheck server=nginx status=DOWN
 metric check 1 backend=be_badcheck server=nginx check=L7STS code=404
 metric check_ms 0 backend=be_badcheck server=nginx
-metric since_change_seconds 303 backend=be_badcheck server=nginx
-metric down_seconds 303 backend=be_badcheck server=nginx
+metric since_change_seconds 321 backend=be_badcheck server=nginx
+metric down_seconds 321 backend=be_badcheck server=nginx
 metric check_failures_count 0 backend=be_badcheck server=nginx
 metric went_down_count 1 backend=be_badcheck server=nginx
 metric sessions 0 backend=be_badcheck server=nginx
@@ -526,8 +527,8 @@ metric connection_errors_count 0 backend=be_badcheck server=nginx
 metric weight 1 backend=be_badcheck server=nginx
 metric state 2 backend=be_web server=spare status=MAINT
 metric check 1 backend=be_web server=spare check=none code=none
-metric since_change_seconds 304 backend=be_web server=spare
-metric down_seconds 305 backend=be_web server=spare
+metric since_change_seconds 323 backend=be_web server=spare
+metric down_seconds 323 backend=be_web server=spare
 metric check_failures_count 0 backend=be_web server=spare
 metric went_down_count 0 backend=be_web server=spare
 metric sessions 0 backend=be_web server=spare
@@ -539,7 +540,7 @@ metric connection_errors_count 0 backend=be_web server=spare
 metric weight 1 backend=be_web server=spare
 metric state 4 backend=be_queue server=nginx status=no_check
 metric check 1 backend=be_queue server=nginx check=none code=none
-metric since_change_seconds 304 backend=be_queue server=nginx
+metric since_change_seconds 323 backend=be_queue server=nginx
 metric down_seconds 0 backend=be_queue server=nginx
 metric check_failures_count 0 backend=be_queue server=nginx
 metric went_down_count 0 backend=be_queue server=nginx
@@ -554,7 +555,7 @@ metric weight 1 backend=be_queue server=nginx
 metric state 0 backend=be_web server=nginx status=UP
 metric check 1 backend=be_web server=nginx check=L7OK code=200
 metric check_ms 0 backend=be_web server=nginx
-metric since_change_seconds 304 backend=be_web server=nginx
+metric since_change_seconds 323 backend=be_web server=nginx
 metric down_seconds 0 backend=be_web server=nginx
 metric check_failures_count 0 backend=be_web server=nginx
 metric went_down_count 0 backend=be_web server=nginx
@@ -568,7 +569,7 @@ metric weight 1 backend=be_web server=nginx
 metric state 0 backend=be_web server=httpd status=UP
 metric check 1 backend=be_web server=httpd check=L7OK code=200
 metric check_ms 0 backend=be_web server=httpd
-metric since_change_seconds 304 backend=be_web server=httpd
+metric since_change_seconds 323 backend=be_web server=httpd
 metric down_seconds 0 backend=be_web server=httpd
 metric check_failures_count 0 backend=be_web server=httpd
 metric went_down_count 0 backend=be_web server=httpd
@@ -582,10 +583,10 @@ metric weight 1 backend=be_web server=httpd
 metric state 0 backend=be_web server=caddy status=UP
 metric check 1 backend=be_web server=caddy check=L7OK code=200
 metric check_ms 1 backend=be_web server=caddy
-metric since_change_seconds 298 backend=be_web server=caddy
-metric down_seconds 4 backend=be_web server=caddy
+metric since_change_seconds 323 backend=be_web server=caddy
+metric down_seconds 0 backend=be_web server=caddy
 metric check_failures_count 1 backend=be_web server=caddy
-metric went_down_count 1 backend=be_web server=caddy
+metric went_down_count 0 backend=be_web server=caddy
 metric sessions 0 backend=be_web server=caddy
 metric queue 0 backend=be_web server=caddy
 metric response_ms 1 backend=be_web server=caddy
@@ -596,7 +597,7 @@ metric weight 1 backend=be_web server=caddy
 metric state 0 backend=be_web server=old status=UP
 metric check 1 backend=be_web server=old check=L7OK code=200
 metric check_ms 0 backend=be_web server=old
-metric since_change_seconds 304 backend=be_web server=old
+metric since_change_seconds 323 backend=be_web server=old
 metric down_seconds 0 backend=be_web server=old
 metric check_failures_count 0 backend=be_web server=old
 metric went_down_count 0 backend=be_web server=old
@@ -620,7 +621,7 @@ $ PHPFPM_STATUS_URLS=... bash packs/phpfpm/macos/pools.sh
 metric up 1 url=http://127.0.0.1:18280/fpm-status
 metric timed_out 0 url=http://127.0.0.1:18280/fpm-status
 metric info 1 pool=www pm=dynamic
-metric uptime_seconds 307 pool=www
+metric uptime_seconds 326 pool=www
 metric accepted_count 12 pool=www
 metric listen_queue 0 pool=www
 metric listen_queue_max 2 pool=www
@@ -637,11 +638,11 @@ metric longest_request_ms 0.2 pool=www
 metric last_request_memory_max_bytes 0 pool=www
 metric last_request_cpu_max_pct 0.00 pool=www
 metric process_requests_max 4 pool=www
-metric process_age_max_seconds 219 pool=www
+metric process_age_max_seconds 223 pool=www
 metric up 1 url=http://127.0.0.1:18280/fpm-status-api
 metric timed_out 0 url=http://127.0.0.1:18280/fpm-status-api
 metric info 1 pool=api pm=static
-metric uptime_seconds 307 pool=api
+metric uptime_seconds 326 pool=api
 metric accepted_count 4 pool=api
 metric listen_queue 0 pool=api
 metric listen_queue_max 0 pool=api
@@ -658,7 +659,7 @@ metric longest_request_ms 0.2 pool=api
 metric last_request_memory_max_bytes 0 pool=api
 metric last_request_cpu_max_pct 0.00 pool=api
 metric process_requests_max 4 pool=api
-metric process_age_max_seconds 307 pool=api
+metric process_age_max_seconds 326 pool=api
   PASS  phpfpm: pools runs
   PASS  phpfpm: two pools
   PASS  phpfpm: the static one
@@ -694,7 +695,7 @@ bash 3.2.57(1)-release on Darwin
   SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
   SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
   SKIP  nginx: set VIGIL_IT_NGINX_URL
-nginx: NGINX_STATUS_URL=http://127.0.0.1:18180/nginx_status|NGINX_PID_FILE=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.HZEPku/nginx.pid|NGINX_CONF=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.HZEPku/nginx/nginx.conf|NGINX_ACCESS_LOG=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.HZEPku/nginx-access.log|NGINX_TLS=localhost:18143|NGINX_CACERT=/Users/vigil-test/r421/hold/ca.crt
+nginx: NGINX_STATUS_URL=http://127.0.0.1:18180/nginx_status|NGINX_PID_FILE=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.KcBLHG/nginx.pid|NGINX_CONF=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.KcBLHG/nginx/nginx.conf|NGINX_ACCESS_LOG=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.KcBLHG/nginx-access.log|NGINX_TLS=localhost:18143|NGINX_CACERT=/Users/vigil-test/r421/hold/ca.crt
   PASS  nginx: off until enabled
   PASS  nginx: enabled
         on: nginx_status
@@ -716,7 +717,7 @@ nginx: NGINX_STATUS_URL=http://127.0.0.1:18180/nginx_status|NGINX_PID_FILE=/var/
   PASS  nginx: answers
   PASS  nginx: a server that does not answer still runs
   PASS  nginx: and reads as up 0
-httpd: HTTPD_STATUS_URL=http://127.0.0.1:18280/server-status|HTTPD_CONF=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.HZEPku/httpd/httpd.conf|HTTPD_PID_FILE=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.HZEPku/httpd.pid|HTTPD_ACCESS_LOG=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.HZEPku/httpd-access.log|HTTPD_TLS=localhost:18243
+httpd: HTTPD_STATUS_URL=http://127.0.0.1:18280/server-status|HTTPD_CONF=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.KcBLHG/httpd/httpd.conf|HTTPD_PID_FILE=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.KcBLHG/httpd.pid|HTTPD_ACCESS_LOG=/var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-web-mac.KcBLHG/httpd-access.log|HTTPD_TLS=localhost:18243
   PASS  httpd: off until enabled
   PASS  httpd: enabled
         on: httpd_status
@@ -753,7 +754,7 @@ caddy: CADDY_ADMIN=http://127.0.0.1:18219|CADDY_TLS_ADDRESS=127.0.0.1:18343
         status: 15 lines
         traffic: 12 lines
         upstreams: 17 lines
-        tls: 6 lines
+        tls: 7 lines
   PASS  caddy: every job runs
   PASS  caddy: answers
   PASS  caddy: a server that does not answer still runs
@@ -801,5 +802,5 @@ phpfpm: PHPFPM_STATUS_URLS=http://127.0.0.1:18280/fpm-status http://127.0.0.1:18
   PASS  phpfpm: metrics reach the backend
 52 passed, 0 failed
 directly: 52 passed, 0 failed
-../run.sh: line 148: 37407 Terminated: 15          bash -c "exec -a '$1' bash -c '(exec -a \"$2\" sleep 600) & (exec -a \"$2\" sleep 600) & wait'"
-../run.sh: line 148: 37408 Terminated: 15          bash -c "exec -a '$1' bash -c '(exec -a \"$2\" sleep 600) & (exec -a \"$2\" sleep 600) & wait'"
+../run.sh: line 148: 84877 Terminated: 15          bash -c "exec -a '$1' bash -c '(exec -a \"$2\" sleep 600) & (exec -a \"$2\" sleep 600) & wait'"
+../run.sh: line 148: 84879 Terminated: 15          bash -c "exec -a '$1' bash -c '(exec -a \"$2\" sleep 600) & (exec -a \"$2\" sleep 600) & wait'"

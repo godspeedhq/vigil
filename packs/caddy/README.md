@@ -119,6 +119,8 @@ Every job, every metric it prints and what it measures, and what good, watch and
 +--------------------------------------------------------------------------------------------------+
 | caddy_tls   caddy.tls.<metric>   every 15m                                                       |
 +-------------------+------------------------------------------------------------------------------+
+| up                | 1 when Caddy's admin API answers, else 0 (only when CADDY_TLS is not set:    |
+|                   | the job then asks it for the site names)                                     |
 | sites_found       | site names found in Caddy's configuration (when CADDY_TLS is not set)        |
 | tls_up            | 1 when the endpoint finished a TLS handshake, else 0; tagged                 |
 |                   | endpoint=<host:port, or host:port/name>                                      |

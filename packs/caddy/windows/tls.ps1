@@ -51,6 +51,7 @@
       certs_not_shown    endpoints past the first 50, left out
 
     Example output (the rest are in the same form):
+      metric up 1
       metric sites_found 1
       metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
       metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test

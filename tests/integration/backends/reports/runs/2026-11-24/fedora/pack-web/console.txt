@@ -1,8 +1,8 @@
 == pack-web
-date     2026-11-24T08:37:19Z
+date     2026-11-24T09:15:05Z
 host     fedora
 os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
-vigil    8cb2aa875a21b12964a0c5799b2887d33cbd0eea (deployed copy)
+vigil    9525aebaf1068d009d92124704f3f4c3bf7a72a9 (deployed copy)
 command  scripts/run-web.sh
 bash     5.3.9(1)-release
 git      git version 2.56.0
@@ -32,18 +32,18 @@ metric active_connections 6
 metric reading 0
 metric writing 5
 metric waiting 1
-metric accepts_count 240
-metric handled_count 240
-metric requests_count 311
+metric accepts_count 262
+metric handled_count 262
+metric requests_count 339
 metric dropped_count 0
 
 $ NGINX_STATUS_URL=... NGINX_PID_FILE=... NGINX_CONF=... NGINX_ACCESS_LOG=... NGINX_TLS=... NGINX_CACERT=... bash packs/nginx/linux/server.sh
 metric running 1
-metric master_uptime_seconds 101
+metric master_uptime_seconds 116
 metric workers 2
 metric workers_shutting_down 0
 metric cache_processes 0
-metric last_reload_seconds 100
+metric last_reload_seconds 116
 metric config_changed 0
 metric worker_processes_setting 2
 metric worker_connections 64
@@ -53,32 +53,32 @@ metric worker_open_files_limit 1024
 $ NGINX_STATUS_URL=... NGINX_PID_FILE=... NGINX_CONF=... NGINX_ACCESS_LOG=... NGINX_TLS=... NGINX_CACERT=... bash packs/nginx/linux/log.sh
 metric log_found 1
 metric log_readable 1
-metric log_bytes 30151
+metric log_bytes 32876
 metric window_complete 1
-metric requests 221
+metric requests 225
 metric status_1xx 0
-metric status_2xx 168
+metric status_2xx 172
 metric status_3xx 0
 metric status_4xx 41
 metric status_5xx 12
-metric errors_4xx_pct 18.55
-metric errors_5xx_pct 5.43
-metric bytes_sent 8086
+metric errors_4xx_pct 18.22
+metric errors_5xx_pct 5.33
+metric bytes_sent 8098
 metric clients 4
-metric status 168 code=200
+metric status 172 code=200
 metric status 41 code=404
 metric status 5 code=500
 metric status 4 code=502
 metric status 3 code=504
-metric method 211 method=GET
+metric method 215 method=GET
 metric method 5 method=HEAD
 metric method 5 method=POST
-metric response_avg_ms 13.6
+metric response_avg_ms 13.4
 metric response_p50_ms 0.0
 metric response_p90_ms 0.0
 metric response_p99_ms 1000.0
 metric response_max_ms 1001.0
-metric upstream_avg_ms 177.1
+metric upstream_avg_ms 177.5
 metric upstream_p50_ms 1.0
 metric upstream_p90_ms 1001.0
 metric upstream_p99_ms 1001.0
@@ -143,12 +143,12 @@ $ HTTPD_STATUS_URL=... HTTPD_CONF=... HTTPD_PID_FILE=... HTTPD_ACCESS_LOG=... HT
 metric up 1
 metric info 1 version=2.4.71 mpm=event
 metric extended_status 1
-metric uptime_seconds 100
+metric uptime_seconds 115
 metric restarts 0
-metric accesses_count 235
-metric bytes_count 53248
-metric duration_ms_count 73
-metric cpu_load_pct 0.18
+metric accesses_count 259
+metric bytes_count 57344
+metric duration_ms_count 113
+metric cpu_load_pct 0.19
 metric busy_workers 4
 metric idle_workers 16
 metric finishing_workers 0
@@ -156,7 +156,7 @@ metric scoreboard_slots 20
 metric busy_pct 20.00
 metric processes 2
 metric stopping_processes 0
-metric connections 2
+metric connections 4
 metric conns_writing 0
 metric conns_keepalive 1
 metric conns_closing 0
@@ -181,27 +181,27 @@ metric config_changed 0
 $ HTTPD_STATUS_URL=... HTTPD_CONF=... HTTPD_PID_FILE=... HTTPD_ACCESS_LOG=... HTTPD_TLS=... HTTPD_CACERT=... bash packs/httpd/linux/log.sh
 metric log_found 1
 metric log_readable 1
-metric log_bytes 21885
+metric log_bytes 23957
 metric window_complete 1
-metric requests 179
+metric requests 176
 metric status_1xx 0
-metric status_2xx 164
+metric status_2xx 161
 metric status_3xx 0
 metric status_4xx 10
 metric status_5xx 5
-metric errors_4xx_pct 5.59
-metric errors_5xx_pct 2.79
-metric bytes_sent 33774
+metric errors_4xx_pct 5.68
+metric errors_5xx_pct 2.84
+metric bytes_sent 33201
 metric clients 3
-metric status 164 code=200
+metric status 161 code=200
 metric status 10 code=404
 metric status 5 code=500
-metric method 179 method=GET
-metric response_avg_ms 0.3
+metric method 176 method=GET
+metric response_avg_ms 0.5
 metric response_p50_ms 0.3
-metric response_p90_ms 0.4
-metric response_p99_ms 1.3
-metric response_max_ms 1.8
+metric response_p90_ms 0.9
+metric response_p99_ms 3.0
+metric response_max_ms 3.7
 
 $ HTTPD_STATUS_URL=... HTTPD_CONF=... HTTPD_PID_FILE=... HTTPD_ACCESS_LOG=... HTTPD_TLS=... HTTPD_CACERT=... bash packs/httpd/linux/tls.sh
 metric tls_up 1 endpoint=localhost:18243
@@ -237,12 +237,12 @@ $ HTTPD_STATUS_URL=... bash packs/httpd/linux/status.sh
 metric up 1
 metric info 1 version=2.4.71 mpm=prefork
 metric extended_status 1
-metric uptime_seconds 100
+metric uptime_seconds 115
 metric restarts 0
 metric accesses_count 2
 metric bytes_count 7168
-metric duration_ms_count 1
-metric cpu_load_pct 0.10
+metric duration_ms_count 2
+metric cpu_load_pct 0.09
 metric busy_workers 1
 metric idle_workers 4
 metric finishing_workers 0
@@ -274,7 +274,7 @@ $ PHPFPM_STATUS_URLS=... bash packs/phpfpm/linux/pools.sh
 metric up 1 url=http://127.0.0.1:18280/fpm-status
 metric timed_out 0 url=http://127.0.0.1:18280/fpm-status
 metric info 1 pool=www pm=dynamic
-metric uptime_seconds 101 pool=www
+metric uptime_seconds 117 pool=www
 metric accepted_count 9 pool=www
 metric listen_queue 0 pool=www
 metric listen_queue_max 2 pool=www
@@ -287,15 +287,15 @@ metric active_max 4 pool=www
 metric max_children_reached_count 0 pool=www
 metric slow_requests_count 3 pool=www
 metric processes_in_state 4 pool=www state=Running
-metric longest_request_ms 15964.1 pool=www
+metric longest_request_ms 16482.7 pool=www
 metric last_request_memory_max_bytes 0 pool=www
 metric last_request_cpu_max_pct 0.00 pool=www
 metric process_requests_max 6 pool=www
-metric process_age_max_seconds 101 pool=www
+metric process_age_max_seconds 117 pool=www
 metric up 1 url=http://127.0.0.1:18280/fpm-status-api
 metric timed_out 0 url=http://127.0.0.1:18280/fpm-status-api
 metric info 1 pool=api pm=static
-metric uptime_seconds 101 pool=api
+metric uptime_seconds 117 pool=api
 metric accepted_count 1 pool=api
 metric listen_queue 0 pool=api
 metric listen_queue_max 0 pool=api
@@ -308,11 +308,11 @@ metric active_max 1 pool=api
 metric max_children_reached_count 0 pool=api
 metric slow_requests_count 0 pool=api
 metric processes_in_state 1 pool=api state=Running
-metric longest_request_ms 0.6 pool=api
+metric longest_request_ms 0.5 pool=api
 metric last_request_memory_max_bytes 0 pool=api
 metric last_request_cpu_max_pct 0.00 pool=api
 metric process_requests_max 1 pool=api
-metric process_age_max_seconds 101 pool=api
+metric process_age_max_seconds 117 pool=api
 metric up 0 url=http://127.0.0.1:18199/fpm-status
 metric timed_out 0 url=http://127.0.0.1:18199/fpm-status
   PASS  phpfpm: pools runs
@@ -344,7 +344,7 @@ metric file_servers 0
 metric tls_policies 1
 metric metrics_enabled 1
 metric reload_ok 1
-metric last_reload_seconds 110
+metric last_reload_seconds 126
 metric goroutines 35
 metric open_fds 15
 metric max_fds 524287
@@ -361,14 +361,14 @@ metric status_3xx_count 0 server=srv0
 metric status_4xx_count 0 server=srv0
 metric status_5xx_count 2 server=srv0
 metric duration_avg_ms 0.02 server=srv0
-metric requests_count 104 server=srv1
+metric requests_count 108 server=srv1
 metric in_flight 0 server=srv1
 metric handler_errors_count 4 server=srv1
-metric status_2xx_count 99 server=srv1
+metric status_2xx_count 104 server=srv1
 metric status_3xx_count 0 server=srv1
-metric status_4xx_count 1 server=srv1
+metric status_4xx_count 0 server=srv1
 metric status_5xx_count 4 server=srv1
-metric duration_avg_ms 77.54 server=srv1
+metric duration_avg_ms 86.34 server=srv1
 metric servers_reporting 2
 metric servers_not_shown 0
 
@@ -392,6 +392,7 @@ metric healthy 1 upstream=nginx:80
 metric upstreams_not_shown 0
 
 $ CADDY_ADMIN=... CADDY_TLS_ADDRESS=... bash packs/caddy/linux/tls.sh
+metric up 1
 metric sites_found 1
 metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
 metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test
@@ -419,7 +420,7 @@ metric cert_info 1 endpoint=127.0.0.1:18343/shop.test issuer=Caddy_Local_Authori
 $ HAPROXY_SOCKET=... bash packs/haproxy/linux/info.sh
 metric up 1
 metric info 1 version=3.4.8-1b15b69
-metric uptime_seconds 114
+metric uptime_seconds 129
 metric threads 4
 metric connections 4
 metric maxconn 200
@@ -440,12 +441,12 @@ metric tasks 100
 metric streams 5
 metric stopping 0
 metric fd_limit 445
-metric pool_used_bytes 610064
+metric pool_used_bytes 609816
 metric pool_failed_count 0
 metric dropped_logs_count 0
 metric failed_resolutions_count 0
-metric warnings 5
-metric bytes_out_rate 96
+metric warnings 3
+metric bytes_out_rate 64
 metric peers_active 0
 metric peers_connected 0
 
@@ -468,7 +469,7 @@ metric denied_requests_count 4 frontend=fe_web
 metric denied_responses_count 0 frontend=fe_web
 metric request_errors_count 0 frontend=fe_web
 metric bytes_in_count 2578 frontend=fe_web
-metric bytes_out_count 6828 frontend=fe_web
+metric bytes_out_count 7109 frontend=fe_web
 metric ssl_failed_handshakes_count 0 frontend=fe_web
 metric open 1 frontend=fe_tls
 metric sessions 0 frontend=fe_tls
@@ -487,7 +488,7 @@ metric denied_requests_count 0 frontend=fe_tls
 metric denied_responses_count 0 frontend=fe_tls
 metric request_errors_count 0 frontend=fe_tls
 metric bytes_in_count 2100 frontend=fe_tls
-metric bytes_out_count 6429 frontend=fe_tls
+metric bytes_out_count 3756 frontend=fe_tls
 metric ssl_failed_handshakes_count 0 frontend=fe_tls
 metric frontends 2
 metric frontends_closed 0
@@ -517,8 +518,8 @@ metric status_4xx_count 0 backend=be_dead
 metric status_5xx_count 4 backend=be_dead
 metric client_aborts_count 0 backend=be_dead
 metric server_aborts_count 0 backend=be_dead
-metric down_seconds 111 backend=be_dead
-metric since_change_seconds 111 backend=be_dead
+metric down_seconds 127 backend=be_dead
+metric since_change_seconds 127 backend=be_dead
 metric backend_up 0 backend=be_badcheck
 metric servers 1 backend=be_badcheck
 metric servers_up 0 backend=be_badcheck
@@ -539,8 +540,8 @@ metric status_4xx_count 0 backend=be_badcheck
 metric status_5xx_count 0 backend=be_badcheck
 metric client_aborts_count 0 backend=be_badcheck
 metric server_aborts_count 0 backend=be_badcheck
-metric down_seconds 113 backend=be_badcheck
-metric since_change_seconds 113 backend=be_badcheck
+metric down_seconds 128 backend=be_badcheck
+metric since_change_seconds 128 backend=be_badcheck
 metric backend_up 1 backend=be_web
 metric servers 5 backend=be_web
 metric servers_up 4 backend=be_web
@@ -552,7 +553,7 @@ metric queue_max 0 backend=be_web
 metric queue_ms 0 backend=be_web
 metric connect_ms 1 backend=be_web
 metric response_ms 1 backend=be_web
-metric total_ms 4 backend=be_web
+metric total_ms 5 backend=be_web
 metric connection_errors_count 0 backend=be_web
 metric response_errors_count 0 backend=be_web
 metric retries_count 0 backend=be_web
@@ -562,15 +563,15 @@ metric status_5xx_count 0 backend=be_web
 metric client_aborts_count 0 backend=be_web
 metric server_aborts_count 0 backend=be_web
 metric down_seconds 0 backend=be_web
-metric since_change_seconds 114 backend=be_web
+metric since_change_seconds 130 backend=be_web
 metric backend_up 1 backend=be_queue
 metric servers 1 backend=be_queue
 metric servers_up 1 backend=be_queue
 metric servers_active 1 backend=be_queue
 metric servers_backup 0 backend=be_queue
 metric sessions 4 backend=be_queue
-metric queue 2 backend=be_queue
-metric queue_max 2 backend=be_queue
+metric queue 3 backend=be_queue
+metric queue_max 3 backend=be_queue
 metric queue_ms 0 backend=be_queue
 metric connect_ms 0 backend=be_queue
 metric response_ms 0 backend=be_queue
@@ -584,7 +585,7 @@ metric status_5xx_count 0 backend=be_queue
 metric client_aborts_count 0 backend=be_queue
 metric server_aborts_count 0 backend=be_queue
 metric down_seconds 0 backend=be_queue
-metric since_change_seconds 114 backend=be_queue
+metric since_change_seconds 130 backend=be_queue
 metric backends_not_shown 0
 
 $ HAPROXY_SOCKET=... bash packs/haproxy/linux/servers.sh
@@ -596,9 +597,9 @@ metric servers_maint 1
 metric servers_drain 0
 metric state 3 backend=be_dead server=gone status=DOWN
 metric check 1 backend=be_dead server=gone check=L4TOUT code=none
-metric check_ms 2002 backend=be_dead server=gone
-metric since_change_seconds 111 backend=be_dead server=gone
-metric down_seconds 111 backend=be_dead server=gone
+metric check_ms 2001 backend=be_dead server=gone
+metric since_change_seconds 127 backend=be_dead server=gone
+metric down_seconds 127 backend=be_dead server=gone
 metric check_failures_count 0 backend=be_dead server=gone
 metric went_down_count 1 backend=be_dead server=gone
 metric sessions 0 backend=be_dead server=gone
@@ -611,8 +612,8 @@ metric weight 1 backend=be_dead server=gone
 metric state 3 backend=be_dead server=refused status=DOWN
 metric check 1 backend=be_dead server=refused check=L4CON code=none
 metric check_ms 0 backend=be_dead server=refused
-metric since_change_seconds 113 backend=be_dead server=refused
-metric down_seconds 113 backend=be_dead server=refused
+metric since_change_seconds 129 backend=be_dead server=refused
+metric down_seconds 129 backend=be_dead server=refused
 metric check_failures_count 0 backend=be_dead server=refused
 metric went_down_count 1 backend=be_dead server=refused
 metric sessions 0 backend=be_dead server=refused
@@ -625,8 +626,8 @@ metric weight 1 backend=be_dead server=refused
 metric state 3 backend=be_badcheck server=nginx status=DOWN
 metric check 1 backend=be_badcheck server=nginx check=L7STS code=404
 metric check_ms 0 backend=be_badcheck server=nginx
-metric since_change_seconds 113 backend=be_badcheck server=nginx
-metric down_seconds 113 backend=be_badcheck server=nginx
+metric since_change_seconds 128 backend=be_badcheck server=nginx
+metric down_seconds 128 backend=be_badcheck server=nginx
 metric check_failures_count 0 backend=be_badcheck server=nginx
 metric went_down_count 1 backend=be_badcheck server=nginx
 metric sessions 0 backend=be_badcheck server=nginx
@@ -638,8 +639,8 @@ metric connection_errors_count 0 backend=be_badcheck server=nginx
 metric weight 1 backend=be_badcheck server=nginx
 metric state 2 backend=be_web server=spare status=MAINT
 metric check 1 backend=be_web server=spare check=none code=none
-metric since_change_seconds 114 backend=be_web server=spare
-metric down_seconds 115 backend=be_web server=spare
+metric since_change_seconds 130 backend=be_web server=spare
+metric down_seconds 130 backend=be_web server=spare
 metric check_failures_count 0 backend=be_web server=spare
 metric went_down_count 0 backend=be_web server=spare
 metric sessions 0 backend=be_web server=spare
@@ -651,13 +652,13 @@ metric connection_errors_count 0 backend=be_web server=spare
 metric weight 1 backend=be_web server=spare
 metric state 4 backend=be_queue server=nginx status=no_check
 metric check 1 backend=be_queue server=nginx check=none code=none
-metric since_change_seconds 114 backend=be_queue server=nginx
+metric since_change_seconds 130 backend=be_queue server=nginx
 metric down_seconds 0 backend=be_queue server=nginx
 metric check_failures_count 0 backend=be_queue server=nginx
 metric went_down_count 0 backend=be_queue server=nginx
 metric sessions 1 backend=be_queue server=nginx
 metric sessions_limit 1 backend=be_queue server=nginx
-metric queue 1 backend=be_queue server=nginx
+metric queue 0 backend=be_queue server=nginx
 metric response_ms 0 backend=be_queue server=nginx
 metric status_5xx_count 0 backend=be_queue server=nginx
 metric response_errors_count 0 backend=be_queue server=nginx
@@ -666,7 +667,7 @@ metric weight 1 backend=be_queue server=nginx
 metric state 0 backend=be_web server=nginx status=UP
 metric check 1 backend=be_web server=nginx check=L7OK code=200
 metric check_ms 0 backend=be_web server=nginx
-metric since_change_seconds 114 backend=be_web server=nginx
+metric since_change_seconds 130 backend=be_web server=nginx
 metric down_seconds 0 backend=be_web server=nginx
 metric check_failures_count 0 backend=be_web server=nginx
 metric went_down_count 0 backend=be_web server=nginx
@@ -680,7 +681,7 @@ metric weight 1 backend=be_web server=nginx
 metric state 0 backend=be_web server=httpd status=UP
 metric check 1 backend=be_web server=httpd check=L7OK code=200
 metric check_ms 0 backend=be_web server=httpd
-metric since_change_seconds 114 backend=be_web server=httpd
+metric since_change_seconds 130 backend=be_web server=httpd
 metric down_seconds 0 backend=be_web server=httpd
 metric check_failures_count 0 backend=be_web server=httpd
 metric went_down_count 0 backend=be_web server=httpd
@@ -694,10 +695,10 @@ metric weight 1 backend=be_web server=httpd
 metric state 0 backend=be_web server=caddy status=UP
 metric check 1 backend=be_web server=caddy check=L7OK code=200
 metric check_ms 1 backend=be_web server=caddy
-metric since_change_seconds 108 backend=be_web server=caddy
-metric down_seconds 4 backend=be_web server=caddy
+metric since_change_seconds 130 backend=be_web server=caddy
+metric down_seconds 0 backend=be_web server=caddy
 metric check_failures_count 0 backend=be_web server=caddy
-metric went_down_count 1 backend=be_web server=caddy
+metric went_down_count 0 backend=be_web server=caddy
 metric sessions 0 backend=be_web server=caddy
 metric queue 0 backend=be_web server=caddy
 metric response_ms 1 backend=be_web server=caddy
@@ -708,7 +709,7 @@ metric weight 1 backend=be_web server=caddy
 metric state 0 backend=be_web server=old status=UP
 metric check 1 backend=be_web server=old check=L7OK code=200
 metric check_ms 0 backend=be_web server=old
-metric since_change_seconds 114 backend=be_web server=old
+metric since_change_seconds 130 backend=be_web server=old
 metric down_seconds 0 backend=be_web server=old
 metric check_failures_count 0 backend=be_web server=old
 metric went_down_count 0 backend=be_web server=old
@@ -744,7 +745,7 @@ metric servers_not_shown 0
 $ HAPROXY_SOCKET=... bash packs/haproxy/linux/info.sh
 metric up 1
 metric info 1 version=3.2.27-24d5d8c
-metric uptime_seconds 116
+metric uptime_seconds 132
 metric threads 4
 metric connections 0
 metric maxconn 262125
@@ -765,7 +766,7 @@ metric tasks 21
 metric streams 1
 metric stopping 0
 metric fd_limit 524287
-metric pool_used_bytes 466096
+metric pool_used_bytes 465832
 metric pool_failed_count 0
 metric dropped_logs_count 0
 metric failed_resolutions_count 0
@@ -783,9 +784,9 @@ metric servers_maint 0
 metric servers_drain 0
 metric state 3 backend=be_web server=gone status=DOWN
 metric check 1 backend=be_web server=gone check=L4TOUT code=none
-metric check_ms 2002 backend=be_web server=gone
-metric since_change_seconds 113 backend=be_web server=gone
-metric down_seconds 113 backend=be_web server=gone
+metric check_ms 2003 backend=be_web server=gone
+metric since_change_seconds 129 backend=be_web server=gone
+metric down_seconds 129 backend=be_web server=gone
 metric check_failures_count 1 backend=be_web server=gone
 metric went_down_count 1 backend=be_web server=gone
 metric sessions 0 backend=be_web server=gone
@@ -798,7 +799,7 @@ metric weight 1 backend=be_web server=gone
 metric state 0 backend=be_web server=nginx status=UP
 metric check 1 backend=be_web server=nginx check=L7OK code=200
 metric check_ms 0 backend=be_web server=nginx
-metric since_change_seconds 116 backend=be_web server=nginx
+metric since_change_seconds 132 backend=be_web server=nginx
 metric down_seconds 0 backend=be_web server=nginx
 metric check_failures_count 0 backend=be_web server=nginx
 metric went_down_count 0 backend=be_web server=nginx
@@ -818,7 +819,7 @@ metric servers_not_shown 0
 $ HAPROXY_SOCKET=... bash packs/haproxy/linux/info.sh
 metric up 1
 metric info 1 version=3.4.8-1b15b69
-metric uptime_seconds 115
+metric uptime_seconds 130
 metric threads 4
 metric connections 4
 metric maxconn 200
@@ -839,12 +840,12 @@ metric tasks 100
 metric streams 5
 metric stopping 0
 metric fd_limit 445
-metric pool_used_bytes 730792
+metric pool_used_bytes 730592
 metric pool_failed_count 0
 metric dropped_logs_count 0
 metric failed_resolutions_count 0
-metric warnings 5
-metric bytes_out_rate 27360
+metric warnings 3
+metric bytes_out_rate 27296
 metric peers_active 0
 metric peers_connected 0
   PASS  haproxy: the socket file, through socat
@@ -852,7 +853,7 @@ metric peers_connected 0
 $ PATH=... HAPROXY_SOCKET=... bash packs/haproxy/linux/info.sh
 metric up 1
 metric info 1 version=3.4.8-1b15b69
-metric uptime_seconds 115
+metric uptime_seconds 130
 metric threads 4
 metric connections 4
 metric maxconn 200
@@ -873,12 +874,12 @@ metric tasks 100
 metric streams 5
 metric stopping 0
 metric fd_limit 445
-metric pool_used_bytes 730792
+metric pool_used_bytes 730592
 metric pool_failed_count 0
 metric dropped_logs_count 0
 metric failed_resolutions_count 0
-metric warnings 5
-metric bytes_out_rate 28704
+metric warnings 3
+metric bytes_out_rate 28064
 metric peers_active 0
 metric peers_connected 0
   PASS  haproxy: the socket file, through nc
@@ -887,11 +888,11 @@ metric peers_connected 0
 
 $ NGINX_STATUS_URL=... NGINX_PID_FILE=... NGINX_CONF=... NGINX_ACCESS_LOG=... NGINX_TLS=... NGINX_CACERT=... bash packs/nginx/linux/server.sh
 metric running 1
-metric master_uptime_seconds 118
+metric master_uptime_seconds 133
 metric workers 2
 metric workers_shutting_down 0
 metric cache_processes 0
-metric last_reload_seconds 117
+metric last_reload_seconds 133
 metric config_changed 1
 metric worker_processes_setting 2
 metric worker_connections 64
@@ -901,7 +902,7 @@ metric worker_open_files_limit 1024
 
 $ NGINX_STATUS_URL=... NGINX_PID_FILE=... NGINX_CONF=... NGINX_ACCESS_LOG=... NGINX_TLS=... NGINX_CACERT=... bash packs/nginx/linux/server.sh
 metric running 1
-metric master_uptime_seconds 123
+metric master_uptime_seconds 138
 metric workers 2
 metric workers_shutting_down 2
 metric cache_processes 0
@@ -921,12 +922,12 @@ $ HTTPD_STATUS_URL=... HTTPD_CONF=... HTTPD_PID_FILE=... HTTPD_ACCESS_LOG=... HT
 metric up 1
 metric info 1 version=2.4.71 mpm=event
 metric extended_status 1
-metric uptime_seconds 123
+metric uptime_seconds 139
 metric restarts 0
-metric accesses_count 273
-metric bytes_count 63488
-metric duration_ms_count 90
-metric cpu_load_pct 0.15
+metric accesses_count 297
+metric bytes_count 68608
+metric duration_ms_count 128
+metric cpu_load_pct 0.19
 metric busy_workers 4
 metric idle_workers 16
 metric finishing_workers 0
@@ -962,12 +963,12 @@ $ HTTPD_STATUS_URL=... HTTPD_CONF=... HTTPD_PID_FILE=... HTTPD_ACCESS_LOG=... HT
 metric up 1
 metric info 1 version=2.4.71 mpm=event
 metric extended_status 1
-metric uptime_seconds 129
+metric uptime_seconds 144
 metric restarts 1
-metric accesses_count 284
-metric bytes_count 66560
-metric duration_ms_count 122337
-metric cpu_load_pct 0.17
+metric accesses_count 308
+metric bytes_count 70656
+metric duration_ms_count 122569
+metric cpu_load_pct 0.19
 metric busy_workers 1
 metric idle_workers 19
 metric finishing_workers 0
@@ -1004,13 +1005,13 @@ metric config_changed 0
 $ NGINX_ACCESS_LOG=... bash packs/nginx/linux/log.sh
 metric log_found 1
 metric log_readable 0
-  stderr: log: this account may not read /tmp/vigil-web-it.B5Eab4/locked.log: add it to the log's group (packs/nginx/README.md says how), or turn this job off
+  stderr: log: this account may not read /tmp/vigil-web-it.fJ9t5d/locked.log: add it to the log's group (packs/nginx/README.md says how), or turn this job off
   PASS  nginx: a log it may not read still runs
   PASS  nginx: and says so
 
 $ NGINX_ACCESS_LOG=... bash packs/nginx/linux/log.sh
 metric log_found 0
-  stderr: log: no access log at /tmp/vigil-web-it.B5Eab4/none.log: set the job's NGINX_ACCESS_LOG
+  stderr: log: no access log at /tmp/vigil-web-it.fJ9t5d/none.log: set the job's NGINX_ACCESS_LOG
   PASS  nginx: no log at all
 
 $ NGINX_ACCESS_LOG=... NGINX_LOG_MAX_MB=... bash packs/nginx/linux/log.sh
@@ -1057,9 +1058,9 @@ metric file_servers 0
 metric tls_policies 1
 metric metrics_enabled 1
 metric reload_ok 0
-metric last_reload_seconds 127
-metric goroutines 34
-metric open_fds 16
+metric last_reload_seconds 143
+metric goroutines 31
+metric open_fds 14
 metric max_fds 524287
 metric fds_pct 0.00
   PASS  caddy: the refused change seen
@@ -1083,7 +1084,7 @@ metric status_2xx_count 18 server=srv1
 metric status_3xx_count 0 server=srv1
 metric status_4xx_count 0 server=srv1
 metric status_5xx_count 2 server=srv1
-metric duration_avg_ms 351.54 server=srv1
+metric duration_avg_ms 361.40 server=srv1
 metric servers_reporting 1
 metric servers_not_shown 0
 
@@ -1113,23 +1114,23 @@ awk      mawk 1.3.4 20250131
 
 $ bash packs/nginx/linux/status.sh (mawk)
 metric up 1
-metric active_connections 4
+metric active_connections 3
 metric reading 0
 metric writing 2
 metric waiting 1
-metric accepts_count 372
-metric handled_count 371
-metric requests_count 479
-metric dropped_count 1
+metric accepts_count 404
+metric handled_count 404
+metric requests_count 523
+metric dropped_count 0
 rc 0
 
 $ bash packs/nginx/linux/server.sh (mawk)
 metric running 1
-metric master_uptime_seconds 179
+metric master_uptime_seconds 200
 metric workers 2
 metric workers_shutting_down 0
 metric cache_processes 0
-metric last_reload_seconds 59
+metric last_reload_seconds 64
 metric config_changed 0
 metric worker_processes_setting 2
 metric worker_connections 64
@@ -1140,33 +1141,33 @@ rc 0
 $ bash packs/nginx/linux/log.sh (mawk)
 metric log_found 1
 metric log_readable 1
-metric log_bytes 46877
+metric log_bytes 51032
 metric window_complete 1
-metric requests 134
+metric requests 135
 metric status_1xx 0
-metric status_2xx 101
+metric status_2xx 102
 metric status_3xx 0
 metric status_4xx 32
 metric status_5xx 1
-metric errors_4xx_pct 23.88
-metric errors_5xx_pct 0.75
-metric bytes_sent 5886
+metric errors_4xx_pct 23.7
+metric errors_5xx_pct 0.74
+metric bytes_sent 5889
 metric clients 4
-metric status 101 code=200
+metric status 102 code=200
 metric status 30 code=404
 metric status 2 code=499
 metric status 1 code=504
-metric method 134 method=GET
-metric response_avg_ms 1647.9
+metric method 135 method=GET
+metric response_avg_ms 1630.1
 metric response_p50_ms 0.0
 metric response_p90_ms 0.0
-metric response_p99_ms 59994.0
-metric response_max_ms 59999.0
-metric upstream_avg_ms 36803.8
+metric response_p99_ms 59995.0
+metric response_max_ms 60001.0
+metric upstream_avg_ms 36677.0
 metric upstream_p50_ms 30003.0
-metric upstream_p90_ms 60000.0
-metric upstream_p99_ms 60000.0
-metric upstream_max_ms 60000.0
+metric upstream_p90_ms 60001.0
+metric upstream_p99_ms 60001.0
+metric upstream_max_ms 60001.0
 rc 0
 
 $ bash packs/nginx/linux/tls.sh (mawk)
@@ -1187,12 +1188,12 @@ $ bash packs/httpd/linux/status.sh (mawk)
 metric up 1
 metric info 1 version=2.4.71 mpm=event
 metric extended_status 1
-metric uptime_seconds 178
+metric uptime_seconds 198
 metric restarts 1
-metric accesses_count 367
-metric bytes_count 82944
-metric duration_ms_count 122365
-metric cpu_load_pct 0.14
+metric accesses_count 397
+metric bytes_count 89088
+metric duration_ms_count 122599
+metric cpu_load_pct 0.16
 metric busy_workers 1
 metric idle_workers 19
 metric finishing_workers 0
@@ -1226,7 +1227,7 @@ rc 0
 $ bash packs/httpd/linux/log.sh (mawk)
 metric log_found 1
 metric log_readable 1
-metric log_bytes 33952
+metric log_bytes 36533
 metric window_complete 1
 metric requests 101
 metric status_1xx 0
@@ -1236,15 +1237,15 @@ metric status_4xx 0
 metric status_5xx 0
 metric errors_4xx_pct 0
 metric errors_5xx_pct 0
-metric bytes_sent 24684
+metric bytes_sent 24694
 metric clients 3
 metric status 101 code=200
 metric method 101 method=GET
 metric response_avg_ms 0.4
 metric response_p50_ms 0.3
-metric response_p90_ms 0.5
-metric response_p99_ms 2.3
-metric response_max_ms 2.7
+metric response_p90_ms 0.6
+metric response_p99_ms 1.8
+metric response_max_ms 1.9
 rc 0
 
 $ bash packs/httpd/linux/tls.sh (mawk)
@@ -1271,8 +1272,8 @@ metric file_servers 0
 metric tls_policies 1
 metric metrics_enabled 1
 metric reload_ok 1
-metric last_reload_seconds 37
-metric goroutines 35
+metric last_reload_seconds 42
+metric goroutines 32
 metric open_fds 15
 metric max_fds 524287
 metric fds_pct 0.00
@@ -1281,14 +1282,14 @@ rc 0
 $ bash packs/caddy/linux/traffic.sh (mawk)
 metric up 1
 metric metrics_enabled 1
-metric requests_count 31 server=srv1
+metric requests_count 33 server=srv1
 metric in_flight 0 server=srv1
 metric handler_errors_count 2 server=srv1
-metric status_2xx_count 29 server=srv1
+metric status_2xx_count 31 server=srv1
 metric status_3xx_count 0 server=srv1
 metric status_4xx_count 0 server=srv1
 metric status_5xx_count 2 server=srv1
-metric duration_avg_ms 227.05 server=srv1
+metric duration_avg_ms 219.33 server=srv1
 metric servers_reporting 1
 metric servers_not_shown 0
 rc 0
@@ -1297,10 +1298,10 @@ $ bash packs/caddy/linux/upstreams.sh (mawk)
 metric up 1
 metric upstreams 4
 metric upstreams_failing 0
-metric upstreams_unhealthy 2
+metric upstreams_unhealthy 1
 metric active_requests 0 upstream=10.255.255.1:81
 metric fails 0 upstream=10.255.255.1:81
-metric healthy 0 upstream=10.255.255.1:81
+metric healthy 1 upstream=10.255.255.1:81
 metric active_requests 0 upstream=gone:80
 metric fails 0 upstream=gone:80
 metric healthy 0 upstream=gone:80
@@ -1314,6 +1315,7 @@ metric upstreams_not_shown 0
 rc 0
 
 $ bash packs/caddy/linux/tls.sh (mawk)
+metric up 1
 metric sites_found 1
 metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
 metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test
@@ -1325,7 +1327,7 @@ rc 0
 $ bash packs/haproxy/linux/info.sh (mawk)
 metric up 1
 metric info 1 version=3.4.8-1b15b69
-metric uptime_seconds 177
+metric uptime_seconds 197
 metric threads 4
 metric connections 2
 metric maxconn 200
@@ -1346,12 +1348,12 @@ metric tasks 96
 metric streams 3
 metric stopping 0
 metric fd_limit 445
-metric pool_used_bytes 731608
+metric pool_used_bytes 731664
 metric pool_failed_count 0
 metric dropped_logs_count 0
 metric failed_resolutions_count 0
-metric warnings 5
-metric bytes_out_rate 128
+metric warnings 3
+metric bytes_out_rate 96
 metric peers_active 0
 metric peers_connected 0
 rc 0
@@ -1375,7 +1377,7 @@ metric denied_requests_count 4 frontend=fe_web
 metric denied_responses_count 0 frontend=fe_web
 metric request_errors_count 0 frontend=fe_web
 metric bytes_in_count 2776 frontend=fe_web
-metric bytes_out_count 6828 frontend=fe_web
+metric bytes_out_count 7109 frontend=fe_web
 metric ssl_failed_handshakes_count 0 frontend=fe_web
 metric open 1 frontend=fe_tls
 metric sessions 0 frontend=fe_tls
@@ -1394,7 +1396,7 @@ metric denied_requests_count 0 frontend=fe_tls
 metric denied_responses_count 0 frontend=fe_tls
 metric request_errors_count 0 frontend=fe_tls
 metric bytes_in_count 2100 frontend=fe_tls
-metric bytes_out_count 6429 frontend=fe_tls
+metric bytes_out_count 3756 frontend=fe_tls
 metric ssl_failed_handshakes_count 0 frontend=fe_tls
 metric frontends 2
 metric frontends_closed 0
@@ -1425,8 +1427,8 @@ metric status_4xx_count 0 backend=be_dead
 metric status_5xx_count 4 backend=be_dead
 metric client_aborts_count 0 backend=be_dead
 metric server_aborts_count 0 backend=be_dead
-metric down_seconds 174 backend=be_dead
-metric since_change_seconds 174 backend=be_dead
+metric down_seconds 195 backend=be_dead
+metric since_change_seconds 195 backend=be_dead
 metric backend_up 0 backend=be_badcheck
 metric servers 1 backend=be_badcheck
 metric servers_up 0 backend=be_badcheck
@@ -1447,8 +1449,8 @@ metric status_4xx_count 0 backend=be_badcheck
 metric status_5xx_count 0 backend=be_badcheck
 metric client_aborts_count 0 backend=be_badcheck
 metric server_aborts_count 0 backend=be_badcheck
-metric down_seconds 176 backend=be_badcheck
-metric since_change_seconds 176 backend=be_badcheck
+metric down_seconds 196 backend=be_badcheck
+metric since_change_seconds 196 backend=be_badcheck
 metric backend_up 1 backend=be_web
 metric servers 5 backend=be_web
 metric servers_up 4 backend=be_web
@@ -1460,7 +1462,7 @@ metric queue_max 0 backend=be_web
 metric queue_ms 0 backend=be_web
 metric connect_ms 1 backend=be_web
 metric response_ms 1 backend=be_web
-metric total_ms 4 backend=be_web
+metric total_ms 5 backend=be_web
 metric connection_errors_count 0 backend=be_web
 metric response_errors_count 0 backend=be_web
 metric retries_count 0 backend=be_web
@@ -1470,7 +1472,7 @@ metric status_5xx_count 0 backend=be_web
 metric client_aborts_count 0 backend=be_web
 metric server_aborts_count 0 backend=be_web
 metric down_seconds 0 backend=be_web
-metric since_change_seconds 177 backend=be_web
+metric since_change_seconds 198 backend=be_web
 metric backend_up 1 backend=be_queue
 metric servers 1 backend=be_queue
 metric servers_up 1 backend=be_queue
@@ -1478,7 +1480,7 @@ metric servers_active 1 backend=be_queue
 metric servers_backup 0 backend=be_queue
 metric sessions 2 backend=be_queue
 metric queue 1 backend=be_queue
-metric queue_max 2 backend=be_queue
+metric queue_max 3 backend=be_queue
 metric queue_ms 0 backend=be_queue
 metric connect_ms 0 backend=be_queue
 metric response_ms 0 backend=be_queue
@@ -1492,7 +1494,7 @@ metric status_5xx_count 2 backend=be_queue
 metric client_aborts_count 0 backend=be_queue
 metric server_aborts_count 0 backend=be_queue
 metric down_seconds 0 backend=be_queue
-metric since_change_seconds 177 backend=be_queue
+metric since_change_seconds 198 backend=be_queue
 metric backends_not_shown 0
 rc 0
 
@@ -1505,9 +1507,9 @@ metric servers_maint 1
 metric servers_drain 0
 metric state 3 backend=be_dead server=gone status=DOWN
 metric check 1 backend=be_dead server=gone check=L4TOUT code=none
-metric check_ms 2001 backend=be_dead server=gone
-metric since_change_seconds 174 backend=be_dead server=gone
-metric down_seconds 174 backend=be_dead server=gone
+metric check_ms 2002 backend=be_dead server=gone
+metric since_change_seconds 195 backend=be_dead server=gone
+metric down_seconds 195 backend=be_dead server=gone
 metric check_failures_count 0 backend=be_dead server=gone
 metric went_down_count 1 backend=be_dead server=gone
 metric sessions 0 backend=be_dead server=gone
@@ -1520,8 +1522,8 @@ metric weight 1 backend=be_dead server=gone
 metric state 3 backend=be_dead server=refused status=DOWN
 metric check 1 backend=be_dead server=refused check=L4CON code=none
 metric check_ms 0 backend=be_dead server=refused
-metric since_change_seconds 176 backend=be_dead server=refused
-metric down_seconds 176 backend=be_dead server=refused
+metric since_change_seconds 197 backend=be_dead server=refused
+metric down_seconds 197 backend=be_dead server=refused
 metric check_failures_count 0 backend=be_dead server=refused
 metric went_down_count 1 backend=be_dead server=refused
 metric sessions 0 backend=be_dead server=refused
@@ -1534,8 +1536,8 @@ metric weight 1 backend=be_dead server=refused
 metric state 3 backend=be_badcheck server=nginx status=DOWN
 metric check 1 backend=be_badcheck server=nginx check=L7STS code=404
 metric check_ms 0 backend=be_badcheck server=nginx
-metric since_change_seconds 176 backend=be_badcheck server=nginx
-metric down_seconds 176 backend=be_badcheck server=nginx
+metric since_change_seconds 196 backend=be_badcheck server=nginx
+metric down_seconds 196 backend=be_badcheck server=nginx
 metric check_failures_count 0 backend=be_badcheck server=nginx
 metric went_down_count 1 backend=be_badcheck server=nginx
 metric sessions 0 backend=be_badcheck server=nginx
@@ -1547,8 +1549,8 @@ metric connection_errors_count 0 backend=be_badcheck server=nginx
 metric weight 1 backend=be_badcheck server=nginx
 metric state 2 backend=be_web server=spare status=MAINT
 metric check 1 backend=be_web server=spare check=none code=none
-metric since_change_seconds 177 backend=be_web server=spare
-metric down_seconds 178 backend=be_web server=spare
+metric since_change_seconds 198 backend=be_web server=spare
+metric down_seconds 198 backend=be_web server=spare
 metric check_failures_count 0 backend=be_web server=spare
 metric went_down_count 0 backend=be_web server=spare
 metric sessions 0 backend=be_web server=spare
@@ -1560,7 +1562,7 @@ metric connection_errors_count 0 backend=be_web server=spare
 metric weight 1 backend=be_web server=spare
 metric state 4 backend=be_queue server=nginx status=no_check
 metric check 1 backend=be_queue server=nginx check=none code=none
-metric since_change_seconds 177 backend=be_queue server=nginx
+metric since_change_seconds 198 backend=be_queue server=nginx
 metric down_seconds 0 backend=be_queue server=nginx
 metric check_failures_count 0 backend=be_queue server=nginx
 metric went_down_count 0 backend=be_queue server=nginx
@@ -1575,7 +1577,7 @@ metric weight 1 backend=be_queue server=nginx
 metric state 0 backend=be_web server=nginx status=UP
 metric check 1 backend=be_web server=nginx check=L7OK code=200
 metric check_ms 0 backend=be_web server=nginx
-metric since_change_seconds 177 backend=be_web server=nginx
+metric since_change_seconds 198 backend=be_web server=nginx
 metric down_seconds 0 backend=be_web server=nginx
 metric check_failures_count 0 backend=be_web server=nginx
 metric went_down_count 0 backend=be_web server=nginx
@@ -1589,7 +1591,7 @@ metric weight 1 backend=be_web server=nginx
 metric state 0 backend=be_web server=httpd status=UP
 metric check 1 backend=be_web server=httpd check=L7OK code=200
 metric check_ms 0 backend=be_web server=httpd
-metric since_change_seconds 177 backend=be_web server=httpd
+metric since_change_seconds 198 backend=be_web server=httpd
 metric down_seconds 0 backend=be_web server=httpd
 metric check_failures_count 0 backend=be_web server=httpd
 metric went_down_count 0 backend=be_web server=httpd
@@ -1602,11 +1604,11 @@ metric connection_errors_count 0 backend=be_web server=httpd
 metric weight 1 backend=be_web server=httpd
 metric state 0 backend=be_web server=caddy status=UP
 metric check 1 backend=be_web server=caddy check=L7OK code=200
-metric check_ms 0 backend=be_web server=caddy
-metric since_change_seconds 171 backend=be_web server=caddy
-metric down_seconds 4 backend=be_web server=caddy
+metric check_ms 1 backend=be_web server=caddy
+metric since_change_seconds 198 backend=be_web server=caddy
+metric down_seconds 0 backend=be_web server=caddy
 metric check_failures_count 1 backend=be_web server=caddy
-metric went_down_count 1 backend=be_web server=caddy
+metric went_down_count 0 backend=be_web server=caddy
 metric sessions 0 backend=be_web server=caddy
 metric queue 0 backend=be_web server=caddy
 metric response_ms 1 backend=be_web server=caddy
@@ -1617,7 +1619,7 @@ metric weight 1 backend=be_web server=caddy
 metric state 0 backend=be_web server=old status=UP
 metric check 1 backend=be_web server=old check=L7OK code=200
 metric check_ms 0 backend=be_web server=old
-metric since_change_seconds 177 backend=be_web server=old
+metric since_change_seconds 198 backend=be_web server=old
 metric down_seconds 0 backend=be_web server=old
 metric check_failures_count 0 backend=be_web server=old
 metric went_down_count 0 backend=be_web server=old
@@ -1635,7 +1637,7 @@ $ bash packs/phpfpm/linux/pools.sh (mawk)
 metric up 1 url=http://127.0.0.1:18280/fpm-status
 metric timed_out 0 url=http://127.0.0.1:18280/fpm-status
 metric info 1 pool=www pm=dynamic
-metric uptime_seconds 179 pool=www
+metric uptime_seconds 200 pool=www
 metric accepted_count 10 pool=www
 metric listen_queue 0 pool=www
 metric listen_queue_max 2 pool=www
@@ -1652,11 +1654,11 @@ metric longest_request_ms 0.2 pool=www
 metric last_request_memory_max_bytes 0 pool=www
 metric last_request_cpu_max_pct 0.00 pool=www
 metric process_requests_max 2 pool=www
-metric process_age_max_seconds 91 pool=www
+metric process_age_max_seconds 97 pool=www
 metric up 1 url=http://127.0.0.1:18280/fpm-status-api
 metric timed_out 0 url=http://127.0.0.1:18280/fpm-status-api
 metric info 1 pool=api pm=static
-metric uptime_seconds 179 pool=api
+metric uptime_seconds 200 pool=api
 metric accepted_count 2 pool=api
 metric listen_queue 0 pool=api
 metric listen_queue_max 0 pool=api
@@ -1669,11 +1671,11 @@ metric active_max 1 pool=api
 metric max_children_reached_count 0 pool=api
 metric slow_requests_count 0 pool=api
 metric processes_in_state 1 pool=api state=Running
-metric longest_request_ms 0.2 pool=api
+metric longest_request_ms 0.1 pool=api
 metric last_request_memory_max_bytes 0 pool=api
 metric last_request_cpu_max_pct 0.00 pool=api
 metric process_requests_max 2 pool=api
-metric process_age_max_seconds 179 pool=api
+metric process_age_max_seconds 200 pool=api
 metric up 0 url=http://127.0.0.1:18199/fpm-status
 metric timed_out 0 url=http://127.0.0.1:18199/fpm-status
 rc 0
@@ -1701,7 +1703,7 @@ metric up 0
 
 $ NGINX_PID_FILE=... bash packs/nginx/linux/server.sh
 metric running 0
-  stderr: /home/vigil-test/r421/vigil/packs/nginx/linux/server.sh: line 87: /tmp/vigil-web-it.B5Eab4/no.pid: No such file or directory
+  stderr: /home/vigil-test/r421/vigil/packs/nginx/linux/server.sh: line 87: /tmp/vigil-web-it.fJ9t5d/no.pid: No such file or directory
   PASS  down: ng still runs
   PASS  down: ng reads as up 0
   PASS  down: ht still runs
@@ -1728,12 +1730,12 @@ $ PHPFPM_STATUS_URLS=... bash packs/phpfpm/linux/pools.sh
 metric up 1 url=http://127.0.0.1:18180/fpm-status
 metric timed_out 0 url=http://127.0.0.1:18180/fpm-status
 metric info 1 pool=www pm=dynamic
-metric uptime_seconds 246 pool=www
+metric uptime_seconds 263 pool=www
 metric accepted_count 31 pool=www
-metric listen_queue 4 pool=www
+metric listen_queue 0 pool=www
 metric listen_queue_max 7 pool=www
 metric listen_queue_len 4096 pool=www
-metric listen_queue_pct 0.10 pool=www
+metric listen_queue_pct 0.00 pool=www
 metric idle_processes 0 pool=www
 metric active_processes 2 pool=www
 metric total_processes 2 pool=www
@@ -1742,11 +1744,11 @@ metric max_children_reached_count 1 pool=www
 metric slow_requests_count 12 pool=www
 metric memory_peak_bytes 2097152 pool=www
 metric processes_in_state 2 pool=www state=Running
-metric longest_request_ms 14198.6 pool=www
+metric longest_request_ms 16726.6 pool=www
 metric last_request_memory_max_bytes 0 pool=www
 metric last_request_cpu_max_pct 0.00 pool=www
-metric process_requests_max 21 pool=www
-metric process_age_max_seconds 246 pool=www
+metric process_requests_max 22 pool=www
+metric process_age_max_seconds 263 pool=www
   PASS  phpfpm: answers again
   PASS  phpfpm: requests waited in its queue
   PASS  phpfpm: max_children reached
@@ -1772,7 +1774,7 @@ bash 5.3.9(1)-release on Linux
   SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
   SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
   SKIP  nginx: set VIGIL_IT_NGINX_URL
-nginx: NGINX_STATUS_URL=http://127.0.0.1:18180/nginx_status|NGINX_PID_FILE=/tmp/vigil-web-it.B5Eab4/nginx.pid|NGINX_CONF=/tmp/vigil-web-it.B5Eab4/web/nginx/nginx.conf|NGINX_ACCESS_LOG=/tmp/vigil-web-it.B5Eab4/web/logs/nginx/access.log|NGINX_TLS=localhost:18143 localhost:18144|NGINX_CACERT=/tmp/vigil-web-it.B5Eab4/web/certs/ca.crt
+nginx: NGINX_STATUS_URL=http://127.0.0.1:18180/nginx_status|NGINX_PID_FILE=/tmp/vigil-web-it.fJ9t5d/nginx.pid|NGINX_CONF=/tmp/vigil-web-it.fJ9t5d/web/nginx/nginx.conf|NGINX_ACCESS_LOG=/tmp/vigil-web-it.fJ9t5d/web/logs/nginx/access.log|NGINX_TLS=localhost:18143 localhost:18144|NGINX_CACERT=/tmp/vigil-web-it.fJ9t5d/web/certs/ca.crt
   PASS  nginx: off until enabled
   PASS  nginx: enabled
         on: nginx_status
@@ -1794,7 +1796,7 @@ nginx: NGINX_STATUS_URL=http://127.0.0.1:18180/nginx_status|NGINX_PID_FILE=/tmp/
   PASS  nginx: answers
   PASS  nginx: a server that does not answer still runs
   PASS  nginx: and reads as up 0
-httpd: HTTPD_STATUS_URL=http://127.0.0.1:18280/server-status|HTTPD_CONF=/tmp/vigil-web-it.B5Eab4/web/httpd/vigil.conf|HTTPD_ACCESS_LOG=/tmp/vigil-web-it.B5Eab4/web/logs/httpd/vigil_access.log|HTTPD_TLS=localhost:18243|HTTPD_CACERT=/tmp/vigil-web-it.B5Eab4/web/certs/ca.crt
+httpd: HTTPD_STATUS_URL=http://127.0.0.1:18280/server-status|HTTPD_CONF=/tmp/vigil-web-it.fJ9t5d/web/httpd/vigil.conf|HTTPD_ACCESS_LOG=/tmp/vigil-web-it.fJ9t5d/web/logs/httpd/vigil_access.log|HTTPD_TLS=localhost:18243|HTTPD_CACERT=/tmp/vigil-web-it.fJ9t5d/web/certs/ca.crt
   PASS  httpd: off until enabled
   PASS  httpd: enabled
         on: httpd_status
@@ -1831,7 +1833,7 @@ caddy: CADDY_ADMIN=http://127.0.0.1:18219|CADDY_TLS_ADDRESS=127.0.0.1:18343
         status: 15 lines
         traffic: 12 lines
         upstreams: 17 lines
-        tls: 6 lines
+        tls: 7 lines
   PASS  caddy: every job runs
   PASS  caddy: answers
   PASS  caddy: a server that does not answer still runs

@@ -114,7 +114,7 @@ Starting points, from the same figures each script's header explains; "In our te
 | `phpfpm.listen_queue`, `listen_queue_max` | 0 |  | Above 0: requests wait for a worker | A peak of 7 in the full pool |
 | `phpfpm.max_children_reached_count` | Flat |  | Rising: raise `pm.max_children`, or find what holds the workers | 1 |
 | `phpfpm.slow_requests_count` | Flat | Rising: the slow log says which scripts |  | 12 |
-| `phpfpm.longest_request_ms` | Well below your timeouts | In seconds |  | 15,964 ms while 40-second requests ran |
+| `phpfpm.longest_request_ms` | Well below your timeouts | In seconds |  | 16,483 ms while 40-second requests ran |
 | `phpfpm.idle_processes` | Above 0 | 0 |  | 0 in the www pool of PHP 8.3 while slow requests ran |
 
 ## How it was tested

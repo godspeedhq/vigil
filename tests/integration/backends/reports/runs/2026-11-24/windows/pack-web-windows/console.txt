@@ -1,9 +1,9 @@
-pack     nginx 1.2.0, httpd and caddy 1.0.0 (the web packs with Windows scripts), Vigil commit 8cb2aa8 (a copy), from the repository
+pack     nginx 1.2.0, httpd and caddy 1.0.0 (the web packs with Windows scripts), Vigil commit 9525aeb (a copy), from the repository
 account  vigil-test, not an administrator, by SSH key
 servers  run-web.sh's servers on the Fedora test machine (nginx 1.30.8, httpd 2.4.71, Caddy 2.11.9, each in trouble on purpose), through SSH tunnels; the access logs the jobs read written here
 
 host     APHC-LPT-1, Microsoft Windows NT 10.0.26300.0
-commit   8cb2aa875a21b12964a0c5799b2887d33cbd0eea
+commit   9525aebaf1068d009d92124704f3f4c3bf7a72a9
 
 # nginx, through the tunnel, powershell.
 
@@ -46,9 +46,9 @@ metric active_connections 2
 metric reading 0
 metric writing 1
 metric waiting 1
-metric accepts_count 587
-metric handled_count 587
-metric requests_count 742
+metric accepts_count 606
+metric handled_count 606
+metric requests_count 772
 metric dropped_count 0
   PASS  nginx: status runs (powershell)
 
@@ -99,12 +99,12 @@ metric response_max_ms 1000
 metric up 1
 metric info 1 version=2.4.71 mpm=event
 metric extended_status 1
-metric uptime_seconds 308
+metric uptime_seconds 320
 metric restarts 1
-metric accesses_count 577
+metric accesses_count 586
 metric bytes_count 132096
-metric duration_ms_count 122444
-metric cpu_load_pct 0.12
+metric duration_ms_count 122669
+metric cpu_load_pct 0.13
 metric busy_workers 1
 metric idle_workers 19
 metric finishing_workers 0
@@ -155,14 +155,15 @@ metric file_servers 0
 metric tls_policies 1
 metric metrics_enabled 1
 metric reload_ok 1
-metric last_reload_seconds 168
-metric goroutines 28
-metric open_fds 13
+metric last_reload_seconds 166
+metric goroutines 33
+metric open_fds 15
 metric max_fds 524287
 metric fds_pct 0
   PASS  caddy: status runs (powershell)
 
 > powershell packs\caddy\windows\tls.ps1
+metric up 1
 metric sites_found 1
 metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
 metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test
@@ -181,7 +182,7 @@ metric status_2xx_count 95 server=srv1
 metric status_3xx_count 0 server=srv1
 metric status_4xx_count 0 server=srv1
 metric status_5xx_count 2 server=srv1
-metric duration_avg_ms 73.07 server=srv1
+metric duration_avg_ms 75.12 server=srv1
 metric servers_reporting 1
 metric servers_not_shown 0
   PASS  caddy: traffic runs (powershell)
@@ -283,9 +284,9 @@ metric active_connections 2
 metric reading 0
 metric writing 1
 metric waiting 1
-metric accepts_count 636
-metric handled_count 636
-metric requests_count 797
+metric accepts_count 664
+metric handled_count 664
+metric requests_count 848
 metric dropped_count 0
   PASS  nginx: status runs (pwsh)
 
@@ -336,11 +337,11 @@ metric response_max_ms 1000
 metric up 1
 metric info 1 version=2.4.71 mpm=event
 metric extended_status 1
-metric uptime_seconds 337
+metric uptime_seconds 360
 metric restarts 1
-metric accesses_count 624
-metric bytes_count 144384
-metric duration_ms_count 122461
+metric accesses_count 643
+metric bytes_count 147456
+metric duration_ms_count 122687
 metric cpu_load_pct 0.12
 metric busy_workers 1
 metric idle_workers 19
@@ -351,7 +352,7 @@ metric processes 2
 metric stopping_processes 0
 metric connections 1
 metric conns_writing 0
-metric conns_keepalive 1
+metric conns_keepalive 0
 metric conns_closing 0
 metric workers_in_state 19 state=waiting
 metric workers_in_state 0 state=starting
@@ -392,14 +393,15 @@ metric file_servers 0
 metric tls_policies 1
 metric metrics_enabled 1
 metric reload_ok 1
-metric last_reload_seconds 197
-metric goroutines 32
+metric last_reload_seconds 206
+metric goroutines 36
 metric open_fds 15
 metric max_fds 524287
 metric fds_pct 0
   PASS  caddy: status runs (pwsh)
 
 > pwsh packs\caddy\windows\tls.ps1
+metric up 1
 metric sites_found 1
 metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
 metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test
@@ -411,14 +413,14 @@ metric cert_info 1 endpoint=127.0.0.1:18343/shop.test issuer=Caddy_Local_Authori
 > pwsh packs\caddy\windows\traffic.ps1
 metric up 1
 metric metrics_enabled 1
-metric requests_count 111 server=srv1
+metric requests_count 117 server=srv1
 metric in_flight 0 server=srv1
 metric handler_errors_count 2 server=srv1
-metric status_2xx_count 109 server=srv1
+metric status_2xx_count 115 server=srv1
 metric status_3xx_count 0 server=srv1
 metric status_4xx_count 0 server=srv1
 metric status_5xx_count 2 server=srv1
-metric duration_avg_ms 63.99 server=srv1
+metric duration_avg_ms 62.38 server=srv1
 metric servers_reporting 1
 metric servers_not_shown 0
   PASS  caddy: traffic runs (pwsh)
@@ -511,9 +513,9 @@ nginx: NGINX_STATUS_URL=http://127.0.0.1:18180/nginx_status|NGINX_ACCESS_LOG=C:\
         metric reading 0
         metric writing 1
         metric waiting 1
-        metric accepts_count 690
-        metric handled_count 690
-        metric requests_count 861
+        metric accepts_count 718
+        metric handled_count 718
+        metric requests_count 918
         metric dropped_count 0
         metric log_found 1
         metric log_readable 1
@@ -569,12 +571,12 @@ httpd: HTTPD_STATUS_URL=http://127.0.0.1:18280/server-status|HTTPD_ACCESS_LOG=C:
         metric up 1
         metric info 1 version=2.4.71 mpm=event
         metric extended_status 1
-        metric uptime_seconds 400
+        metric uptime_seconds 426
         metric restarts 1
-        metric accesses_count 725
-        metric bytes_count 165888
-        metric duration_ms_count 122491
-        metric cpu_load_pct 0.11
+        metric accesses_count 742
+        metric bytes_count 168960
+        metric duration_ms_count 122719
+        metric cpu_load_pct 0.12
         metric busy_workers 1
         metric idle_workers 19
         metric finishing_workers 0
@@ -648,21 +650,21 @@ caddy: CADDY_ADMIN=http://127.0.0.1:18219|CADDY_TLS_ADDRESS=127.0.0.1:18343
         metric tls_policies 1
         metric metrics_enabled 1
         metric reload_ok 1
-        metric last_reload_seconds 298
+        metric last_reload_seconds 311
         metric goroutines 35
         metric open_fds 15
         metric max_fds 524287
         metric fds_pct 0
         metric up 1
         metric metrics_enabled 1
-        metric requests_count 165 server=srv1
+        metric requests_count 172 server=srv1
         metric in_flight 0 server=srv1
         metric handler_errors_count 2 server=srv1
-        metric status_2xx_count 163 server=srv1
+        metric status_2xx_count 170 server=srv1
         metric status_3xx_count 0 server=srv1
         metric status_4xx_count 0 server=srv1
         metric status_5xx_count 2 server=srv1
-        metric duration_avg_ms 43.27 server=srv1
+        metric duration_avg_ms 42.65 server=srv1
         metric servers_reporting 1
         metric servers_not_shown 0
         metric up 1
@@ -682,6 +684,7 @@ caddy: CADDY_ADMIN=http://127.0.0.1:18219|CADDY_TLS_ADDRESS=127.0.0.1:18343
         metric fails 0 upstream=nginx:80
         metric healthy 1 upstream=nginx:80
         metric upstreams_not_shown 0
+        metric up 1
         metric sites_found 1
         metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
         metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test
@@ -726,9 +729,9 @@ nginx: NGINX_STATUS_URL=http://127.0.0.1:18180/nginx_status|NGINX_ACCESS_LOG=C:\
         metric reading 0
         metric writing 1
         metric waiting 1
-        metric accepts_count 886
-        metric handled_count 886
-        metric requests_count 1112
+        metric accepts_count 925
+        metric handled_count 925
+        metric requests_count 1181
         metric dropped_count 0
         metric log_found 1
         metric log_readable 1
@@ -768,11 +771,11 @@ httpd: HTTPD_STATUS_URL=http://127.0.0.1:18280/server-status|HTTPD_ACCESS_LOG=C:
         metric up 1
         metric info 1 version=2.4.71 mpm=event
         metric extended_status 1
-        metric uptime_seconds 521
+        metric uptime_seconds 550
         metric restarts 1
-        metric accesses_count 900
-        metric bytes_count 200704
-        metric duration_ms_count 122551
+        metric accesses_count 922
+        metric bytes_count 204800
+        metric duration_ms_count 122782
         metric cpu_load_pct 0.1
         metric busy_workers 1
         metric idle_workers 19
@@ -847,21 +850,21 @@ caddy: CADDY_ADMIN=http://127.0.0.1:18219|CADDY_TLS_ADDRESS=127.0.0.1:18343
         metric tls_policies 1
         metric metrics_enabled 1
         metric reload_ok 1
-        metric last_reload_seconds 411
-        metric goroutines 35
-        metric open_fds 15
+        metric last_reload_seconds 423
+        metric goroutines 28
+        metric open_fds 13
         metric max_fds 524287
         metric fds_pct 0
         metric up 1
         metric metrics_enabled 1
-        metric requests_count 219 server=srv1
+        metric requests_count 225 server=srv1
         metric in_flight 0 server=srv1
         metric handler_errors_count 2 server=srv1
-        metric status_2xx_count 217 server=srv1
+        metric status_2xx_count 223 server=srv1
         metric status_3xx_count 0 server=srv1
         metric status_4xx_count 0 server=srv1
         metric status_5xx_count 2 server=srv1
-        metric duration_avg_ms 32.76 server=srv1
+        metric duration_avg_ms 32.75 server=srv1
         metric servers_reporting 1
         metric servers_not_shown 0
         metric up 1
@@ -881,6 +884,7 @@ caddy: CADDY_ADMIN=http://127.0.0.1:18219|CADDY_TLS_ADDRESS=127.0.0.1:18343
         metric fails 0 upstream=nginx:80
         metric healthy 1 upstream=nginx:80
         metric upstreams_not_shown 0
+        metric up 1
         metric sites_found 1
         metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
         metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test

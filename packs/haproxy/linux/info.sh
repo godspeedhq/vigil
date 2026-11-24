@@ -66,7 +66,7 @@
 # Example output (the rest are in the same form):
 #   metric up 1
 #   metric info 1 version=3.4.8-1b15b69
-#   metric uptime_seconds 114
+#   metric uptime_seconds 129
 #   metric threads 4
 #   metric connections 4
 #   metric maxconn 200

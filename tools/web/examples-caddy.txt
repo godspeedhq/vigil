@@ -13,13 +13,14 @@ metric file_servers 0
 metric tls_policies 1
 metric metrics_enabled 1
 metric reload_ok 1
-metric last_reload_seconds 110
+metric last_reload_seconds 126
 metric goroutines 35
 metric open_fds 15
 metric max_fds 524287
 metric fds_pct 0.00
 
 == tls
+metric up 1
 metric sites_found 1
 metric tls_up 1 endpoint=127.0.0.1:18343/shop.test
 metric cert_expires_days 0 endpoint=127.0.0.1:18343/shop.test
@@ -38,12 +39,12 @@ metric status_3xx_count 0 server=srv0
 metric status_4xx_count 0 server=srv0
 metric status_5xx_count 2 server=srv0
 metric duration_avg_ms 0.02 server=srv0
-metric requests_count 104 server=srv1
+metric requests_count 108 server=srv1
 metric in_flight 0 server=srv1
 metric handler_errors_count 4 server=srv1
-metric status_2xx_count 99 server=srv1
+metric status_2xx_count 104 server=srv1
 metric status_3xx_count 0 server=srv1
-metric status_4xx_count 1 server=srv1
+metric status_4xx_count 0 server=srv1
 
 == upstreams
 metric up 1

@@ -58,12 +58,12 @@
       metric status_4xx_count 0 server=srv0
       metric status_5xx_count 2 server=srv0
       metric duration_avg_ms 0.02 server=srv0
-      metric requests_count 104 server=srv1
+      metric requests_count 108 server=srv1
       metric in_flight 0 server=srv1
       metric handler_errors_count 4 server=srv1
-      metric status_2xx_count 99 server=srv1
+      metric status_2xx_count 104 server=srv1
       metric status_3xx_count 0 server=srv1
-      metric status_4xx_count 1 server=srv1
+      metric status_4xx_count 0 server=srv1
 
     Reading the results (starting points: tune them to the server):
       Healthy  status_5xx_count and handler_errors_count flat (graph the _count

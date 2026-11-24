@@ -39,9 +39,9 @@
       metric reading 0
       metric writing 5
       metric waiting 1
-      metric accepts_count 240
-      metric handled_count 240
-      metric requests_count 311
+      metric accepts_count 262
+      metric handled_count 262
+      metric requests_count 339
       metric dropped_count 0
 
     Reading the results (starting points: tune them to the server):

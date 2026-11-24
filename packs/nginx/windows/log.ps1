@@ -67,19 +67,19 @@
     Example output (the rest are in the same form):
       metric log_found 1
       metric log_readable 1
-      metric log_bytes 30151
+      metric log_bytes 32876
       metric window_complete 1
-      metric requests 221
+      metric requests 225
       metric status_1xx 0
-      metric status_2xx 168
+      metric status_2xx 172
       metric status_3xx 0
       metric status_4xx 41
       metric status_5xx 12
-      metric errors_4xx_pct 18.55
-      metric errors_5xx_pct 5.43
-      metric bytes_sent 8086
+      metric errors_4xx_pct 18.22
+      metric errors_5xx_pct 5.33
+      metric bytes_sent 8098
       metric clients 4
-      metric status 168 code=200
+      metric status 172 code=200
       metric status 41 code=404
 
     Reading the results (starting points: tune them to the server):

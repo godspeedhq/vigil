@@ -173,7 +173,7 @@ Starting points, from the same figures each script's header explains; "In our te
 | `nginx.server.connections_capacity_pct` | Below 70 | Above 70 | Near 100: new connections wait or fail | 4.69 with two workers of 64 connections and the slow requests in flight |
 | `nginx.server.config_changed` | 0 | Above 0 for long: an edit not reloaded (or one that would fail) |  | 1 after an edit; 0 after `nginx -s reload` |
 | `nginx.server.workers_shutting_down` | 0, soon after a reload | Above 0 for long: long connections keep old workers alive |  | 2 just after a reload, with a 20-second request running |
-| `nginx.log.errors_5xx_pct` | Below 1 |  | Above a few percent: the server or its upstream fails | 5.43: PHP's 500s, 502 where nothing listened, 504 where nothing answered |
+| `nginx.log.errors_5xx_pct` | Below 1 |  | Above a few percent: the server or its upstream fails | 5.33: PHP's 500s, 502 where nothing listened, 504 where nothing answered |
 | `nginx.log.status` `code=502`, `code=504` | 0 |  | Rising: the upstream refuses (502) or does not answer in time (504) | 4 and 3 |
 | `nginx.log.response_p99_ms`, `upstream_p99_ms` | Steady | Rising while `requests` does not |  | 1000 and 1001: the one-second timeouts |
 | `nginx.log.window_complete` | 1 | 0: raise `NGINX_LOG_MAX_MB` |  | 0 for a 4 MB log read 1 MB at a time |

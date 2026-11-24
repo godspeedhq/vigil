@@ -71,9 +71,9 @@
 #   metric servers_drain 0
 #   metric state 3 backend=be_dead server=gone status=DOWN
 #   metric check 1 backend=be_dead server=gone check=L4TOUT code=none
-#   metric check_ms 2002 backend=be_dead server=gone
-#   metric since_change_seconds 111 backend=be_dead server=gone
-#   metric down_seconds 111 backend=be_dead server=gone
+#   metric check_ms 2001 backend=be_dead server=gone
+#   metric since_change_seconds 127 backend=be_dead server=gone
+#   metric down_seconds 127 backend=be_dead server=gone
 #   metric check_failures_count 0 backend=be_dead server=gone
 #   metric went_down_count 1 backend=be_dead server=gone
 #   metric sessions 0 backend=be_dead server=gone
