@@ -227,7 +227,7 @@ function Invoke-VigilSupervisor {
     $sv = @{
         Root = $Root; Prev = '-'; Pending = New-Object 'System.Collections.Generic.List[string]'
         Queued = New-Object 'System.Collections.Generic.HashSet[string]'; Seq = 0; Sum = ''
-        ReloadFailed = 0; Valid = ''; ValidSha = ''; ActiveSha = ''; Parsed = $null; Records = $null; Index = $null; Report = @()
+        ReloadFailed = 0; Valid = ''; ValidSha = ''; ActiveSha = ''; First = $false; Parsed = $null; Records = $null; Index = $null; Report = @()
         HostName = $env:COMPUTERNAME.ToLowerInvariant(); Boot = Get-VigilBootId
         Raised = New-Object 'System.Collections.Generic.HashSet[string]'; RaisedLast = $null
     }
@@ -318,6 +318,10 @@ function Invoke-VigilSupervisor {
             else {
                 $sv.Mode = 'local'
                 $sv.Waiting = $false
+                $sv.First = $false
+                # This copy is the newest valid configuration again: nothing
+                # fetched has been in force since it was made (see below).
+                try { [System.IO.File]::Delete((Join-Path $sv.State 'config.fetched')) } catch { }
                 # A purely local configuration has a revision too (16.5).
                 $sv.Revision = (Get-VigilTextSha "config $sum`n").Substring(0, 12)
                 & $apply $parsed $records
@@ -356,6 +360,11 @@ function Invoke-VigilSupervisor {
         if ($ok) {
             $sv.Active = $active
             $sv.Waiting = $false
+            $sv.First = $false
+            # A fetched configuration has been in force: the last valid local
+            # one is from before it, and is never gone back to (below).
+            $fetched = Join-Path $sv.State 'config.fetched'
+            if (-not [System.IO.File]::Exists($fetched)) { try { [System.IO.File]::WriteAllText($fetched, '') } catch { } }
             try { $sv.ActiveSha = Get-VigilFileSha $active.Config } catch { }
             & $apply $p $r
             if ($active.Revision -cne $sv.Revision) {
@@ -364,12 +373,44 @@ function Invoke-VigilSupervisor {
             }
         }
         else {
-            # Nothing fetched yet: no job runs until everything it needs is
-            # present and verified (16.5).
             $sv.Active = $null
-            $sv.Waiting = $true
-            & $apply $sv.LocalParsed $sv.LocalRecords
-            & $log 'INFO' 'waiting for the first fetch from the configuration''s sources'
+            # Nothing fetched yet. Where a local configuration was valid and
+            # in force before a source was added, it stays in force until the
+            # first fetch has brought everything the new one needs: a source
+            # that cannot be reached must not stop what was running (16.5,
+            # VIGIL-010). Not once a fetched configuration has been in force:
+            # the local copy is then from before it, however old, and nothing
+            # runs until the sources answer.
+            $valid = Join-Path $sv.State 'config.valid'
+            $kept = $null
+            $keptRecords = @()
+            $keptSha = ''
+            if (-not [System.IO.File]::Exists((Join-Path $sv.State 'config.fetched')) -and [System.IO.File]::Exists($valid)) {
+                try {
+                    $vp = ConvertFrom-VigilConfig -Path $valid
+                    $keptRecords = Test-VigilConfig -Parsed $vp
+                    $keptSha = Get-VigilFileSha $valid
+                    if ($vp.Errors.Count -eq 0 -and @($keptRecords | Where-Object { $_.Kind -ceq 'ERROR' }).Count -eq 0 -and
+                        -not (Test-VigilFetchMode -Parsed $vp)) { $kept = $vp }
+                }
+                catch { $kept = $null }
+            }
+            if ($kept) {
+                $sv.Waiting = $false
+                $sv.First = $true
+                $sv.ValidSha = $keptSha
+                $sv.Revision = (Get-VigilTextSha "config $keptSha`n").Substring(0, 12)
+                & $apply $kept $keptRecords
+                & $log 'INFO' 'waiting for the first fetch from the configuration''s sources: the last valid configuration stays active until then'
+            }
+            else {
+                # No such configuration: no job runs until everything it needs
+                # is present and verified.
+                $sv.Waiting = $true
+                $sv.First = $false
+                & $apply $sv.LocalParsed $sv.LocalRecords
+                & $log 'INFO' 'waiting for the first fetch from the configuration''s sources'
+            }
         }
         return $true
     }
@@ -716,7 +757,12 @@ function Invoke-VigilSupervisor {
         # The configuration and script the run uses (16.3, 16.5), whatever is
         # saved or activated while it runs, and the digest it was validated
         # with, so the worker need not validate it again (4.3).
-        if ($sv.Mode -ceq 'fetch' -and $Job -cne 'vigil_fetch') {
+        if ($sv.Mode -ceq 'fetch' -and $sv.First -and $Job -cne 'vigil_fetch') {
+            # The last valid local configuration, until the first fetch.
+            $text += "config        = $(Join-Path $sv.State 'config.valid')`n"
+            if ($sv.ValidSha) { $text += "config_sha256 = $($sv.ValidSha)`n" }
+        }
+        elseif ($sv.Mode -ceq 'fetch' -and $Job -cne 'vigil_fetch') {
             $text += "config        = $($sv.Active.Config)`n"
             if ($sv.ActiveSha) { $text += "config_sha256 = $($sv.ActiveSha)`n" }
             if ($Script) { $text += "script        = $Script`n" }
@@ -1148,6 +1194,7 @@ function Invoke-VigilSupervisor {
         if ($sv.Mode -ceq 'fetch') {
             [void]$sb.Append("`r`nSOURCES`r`n")
             if ($sv.Waiting) { [void]$sb.Append("  waiting for the first fetch`r`n") }
+            elseif ($sv.First) { [void]$sb.Append("  waiting for the first fetch: the last valid configuration stays active`r`n") }
             else { [void]$sb.Append("  revision $($sv.Revision) ($($sv.Active.Origin))`r`n") }
             $fst = Join-Path $sv.State 'jobs\vigil_fetch.state'
             if ([System.IO.File]::Exists($fst)) {

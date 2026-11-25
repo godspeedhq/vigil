@@ -115,6 +115,12 @@ EOF
 # 1. Set secrets; the store is owner-only; list shows names, never values.
 printf 'first pg value\n' | vigil secret set PGPASSWORD --stdin > /dev/null
 check "secret set" 0 "$?"
+# An empty value is a pipe that failed, not a secret: refused, and the one
+# stored is kept (the runs below still get it).
+printf '' | vigil secret set PGPASSWORD --stdin > /dev/null 2>&1
+check "an empty value is refused" 1 "$?"
+printf '\n' | vigil secret set PGPASSWORD --stdin > "$root/empty.out" 2>&1
+check "so is a bare newline, and it is said" "1|1" "$?|$(grep -c 'the value for PGPASSWORD is empty: nothing was stored' "$root/empty.out")"
 printf 'first pg value' > "$root/expect/pg"
 printf 'api-1 %s' "$$" > "$root/helper-value"
 printf 'api-1 %s' "$$" > "$root/expect/api"

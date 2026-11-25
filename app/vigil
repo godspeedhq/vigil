@@ -187,6 +187,13 @@ case ${1-} in
                 fi
                 _vsec_v=$value
                 _vigil_secret_chomp
+                # An empty value is a pipe that failed or a key pressed too
+                # soon, never a secret: storing it would replace a good one
+                # with nothing, and every job using it would fail from then on.
+                if [ -z "$_vsec_v" ]; then
+                    printf 'vigil: the value for %s is empty: nothing was stored\n' "$name" >&2
+                    exit 1
+                fi
                 vigil_secret_set "$root" "$name" "$_vsec_v" || exit 1
                 _vsec_v='' value=''
                 printf '%s set; runs started from now on use it\n' "$name"

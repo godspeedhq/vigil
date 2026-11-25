@@ -751,6 +751,10 @@ EOF_REPORT
             else
                 _su_mode=local
                 _su_waiting=0
+                _su_first=0
+                # This copy is the newest valid configuration again: nothing
+                # fetched has been in force since it was made (see below).
+                rm -f "$_su_statedir/config.fetched"
                 # A purely local configuration has a revision too (16.5).
                 _su_revision=$(printf 'config %s\n' "$(_vigil_fetch_digest < "$_su_root/config/vigil.config")" | _vigil_fetch_digest)
                 _su_revision=${_su_revision:0:12}
@@ -771,16 +775,39 @@ EOF_REPORT
     _su_actsum=$sum
     if vigil_active_read "$_su_statedir" && vigil_config_parse "$VIGIL_ACT_CONFIG" && vigil_config_validate; then
         _su_waiting=0
+        _su_first=0
+        # A fetched configuration has been in force: the last valid local one
+        # is from before it, and is never gone back to (below).
+        [ -e "$_su_statedir/config.fetched" ] || : > "$_su_statedir/config.fetched"
         _vigil_sup_settings
         if [ "$VIGIL_ACT_REVISION" != "${_su_revision-}" ]; then
             _su_revision=$VIGIL_ACT_REVISION
             _vigil_sup_log INFO "configuration revision $_su_revision loaded ($VIGIL_ACT_ORIGIN)"
         fi
     else
-        # Nothing fetched yet: no job runs until everything it needs is
-        # present and verified (16.5).
-        _su_waiting=1
         VIGIL_ACT_SRC=() VIGIL_ACT_FILE=() VIGIL_ACT_ENTRY=() VIGIL_ACT_SHA=()
+        # Nothing fetched yet. Where a local configuration was valid and in
+        # force before a source was added, it stays in force until the first
+        # fetch has brought everything the new one needs: a source that
+        # cannot be reached must not stop what was running (16.5, VIGIL-010).
+        # Not once a fetched configuration has been in force: the local copy
+        # is then from before it, however old, and nothing runs until the
+        # sources answer.
+        if [ ! -e "$_su_statedir/config.fetched" ] && [ -f "$_su_statedir/config.valid" ] &&
+            vigil_config_parse "$_su_statedir/config.valid" && vigil_config_validate && ! vigil_fetch_mode; then
+            _su_waiting=0
+            _su_first=1
+            _su_valid="$_su_statedir/config.valid"
+            _su_revision=$(printf 'config %s\n' "$(_vigil_fetch_digest < "$_su_valid")" | _vigil_fetch_digest)
+            _su_revision=${_su_revision:0:12}
+            _vigil_sup_settings
+            _vigil_sup_log INFO "waiting for the first fetch from the configuration's sources: the last valid configuration stays active until then"
+            return 0
+        fi
+        # No such configuration: no job runs until everything it needs is
+        # present and verified.
+        _su_waiting=1
+        _su_first=0
         vigil_config_parse "$_su_root/config/vigil.config"
         vigil_config_validate
         _vigil_sup_settings
@@ -940,7 +967,10 @@ _vigil_sup_start() {
         printf 'launch_epoch  = %s\n' "$_su_epoch"
         # The configuration and script the run uses (16.3, 16.5), whatever
         # is saved or activated while it runs.
-        if [ "$_su_mode" = fetch ] && [ "$job" != vigil_fetch ]; then
+        if [ "$_su_mode" = fetch ] && [ "${_su_first-0}" = 1 ] && [ "$job" != vigil_fetch ]; then
+            # The last valid local configuration, until the first fetch.
+            printf 'config        = %s\n' "$_su_valid"
+        elif [ "$_su_mode" = fetch ] && [ "$job" != vigil_fetch ]; then
             printf 'config        = %s\n' "$VIGIL_ACT_CONFIG"
             if [ -n "${2-}" ]; then printf 'script        = %s\n' "$2"; fi
         elif [ "$_su_mode" = local ] && [ -f "$_su_valid" ]; then
@@ -1291,6 +1321,8 @@ _vigil_sup_status() {
             printf '\nSOURCES\n'
             if [ "$_su_waiting" = 1 ]; then
                 printf '  waiting for the first fetch\n'
+            elif [ "${_su_first-0}" = 1 ]; then
+                printf '  waiting for the first fetch: the last valid configuration stays active\n'
             else
                 printf '  revision %s (%s)\n' "$_su_revision" "$VIGIL_ACT_ORIGIN"
             fi
