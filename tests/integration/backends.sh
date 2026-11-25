@@ -277,6 +277,9 @@ queued_bytes=$(cat "$root"/spool/backends/*/*.events 2>/dev/null | wc -c | tr -d
 check "spool full: the queues fit in max_mb" yes "$([ "$queued_bytes" -le 1048576 ] && echo yes || echo no)"
 check "spool full: the oldest dropped" 0 "$(ls "$root"/spool/backends/*/ | grep -c 'fill-r1\.events$')"
 check "spool full: the newest kept" yes "$(ls "$root"/spool/backends/*/ | grep -q 'fill-r3\.events$' && echo yes || echo no)"
+# Oldest first over every backend's queue, not one backend after another:
+# only the newest run's files fit, so no backend keeps the middle one.
+check "spool full: oldest first across the backends, none of the middle run kept" 0 "$(ls "$root"/spool/backends/*/ | grep -c 'fill-r2\.events$')"
 tick
 check "spool full: the drop counted, by backend" yes "$(grep -q '^vigil_spool_dropped_total{backend="datadog".*reason="spool_full"} [1-9]' "$root/metrics/vigil.prom" && echo yes || echo no)"
 rm -f "$root/mock/status"
