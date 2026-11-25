@@ -45,7 +45,15 @@ function Test-Equal {
 function Get-StateValue {
     param([string]$Path, [string]$Key)
     if (-not (Test-Path -LiteralPath $Path)) { return '' }
-    foreach ($l in [System.IO.File]::ReadAllLines($Path)) {
+    # A worker replaces its state file as it goes: for an instant Windows
+    # refuses a reader ("being used by another process"). Read again.
+    $lines = $null
+    for ($try = 1; $null -eq $lines; $try++) {
+        try { $lines = [System.IO.File]::ReadAllLines($Path) }
+        catch [System.IO.FileNotFoundException] { return '' }
+        catch { if ($try -ge 20) { throw }; Start-Sleep -Milliseconds 100 }
+    }
+    foreach ($l in $lines) {
         if ($l -cmatch "^$Key *=( (.*))?$") { return $Matches[2] }
     }
     return ''
