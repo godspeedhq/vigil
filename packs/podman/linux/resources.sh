@@ -52,6 +52,51 @@
 #
 # Example output:
 #   metric up 1
+#   metric containers_measured 6
+#   metric memory_total_bytes 2564096
+#   metric memory_fullest_pct 0.873
+#   metric cpu_seconds_count 4.139 name=vigilit_busy
+#   metric memory_bytes 356352 name=vigilit_busy
+#   metric memory_limit_bytes 0 name=vigilit_busy
+#   metric pids 1 name=vigilit_busy
+#   metric network_rx_bytes_count 258 name=vigilit_busy
+#   metric network_tx_bytes_count 612 name=vigilit_busy
+#   metric block_read_bytes_count 0 name=vigilit_busy
+#   metric block_write_bytes_count 0 name=vigilit_busy
+#   metric cpu_seconds_count 0.009 name=vigilit_loop
+#   metric memory_bytes 548864 name=vigilit_loop
+#   metric memory_limit_bytes 0 name=vigilit_loop
+#   metric pids 2 name=vigilit_loop
+#   metric network_rx_bytes_count 258 name=vigilit_loop
+#   metric network_tx_bytes_count 112 name=vigilit_loop
+#   metric block_read_bytes_count 0 name=vigilit_loop
+#   metric block_write_bytes_count 0 name=vigilit_loop
+#   metric cpu_seconds_count 0.085 name=vigilit_ok
+#   metric memory_bytes 585728 name=vigilit_ok
+#   metric memory_limit_bytes 67108864 name=vigilit_ok
+#   metric memory_pct 0.873 name=vigilit_ok
+#   metric pids 2 name=vigilit_ok
+#   metric network_rx_bytes_count 258 name=vigilit_ok
+#   metric network_tx_bytes_count 612 name=vigilit_ok
+#   metric block_read_bytes_count 0 name=vigilit_ok
+#   metric block_write_bytes_count 1146880 name=vigilit_ok
+#   metric cpu_seconds_count 0.046 name=vigilit_unhealthy
+#   metric memory_bytes 339968 name=vigilit_unhealthy
+#   metric memory_limit_bytes 0 name=vigilit_unhealthy
+#   metric pids 1 name=vigilit_unhealthy
+#   metric network_rx_bytes_count 258 name=vigilit_unhealthy
+#   metric network_tx_bytes_count 612 name=vigilit_unhealthy
+#   metric block_read_bytes_count 0 name=vigilit_unhealthy
+#   metric block_write_bytes_count 0 name=vigilit_unhealthy
+#   metric cpu_seconds_count 0.038 name=vigilit_writes
+#   metric memory_bytes 393216 name=vigilit_writes
+#   metric memory_limit_bytes 0 name=vigilit_writes
+#   metric pids 1 name=vigilit_writes
+#   metric network_rx_bytes_count 258 name=vigilit_writes
+#   metric network_tx_bytes_count 612 name=vigilit_writes
+#   metric block_read_bytes_count 0 name=vigilit_writes
+#   metric block_write_bytes_count 0 name=vigilit_writes
+#   metric containers_not_shown 0
 #
 # Reading the results (starting points: tune them to the machine):
 #   Healthy  memory_pct well under 100; memory_bytes steady for a container

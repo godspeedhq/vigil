@@ -45,6 +45,21 @@
 #
 # Example output:
 #   metric up 1
+#   metric version 1 version=29.9.3 api=1.56 os=linux
+#   metric containers 16
+#   metric running 11
+#   metric paused 1
+#   metric restarting 0
+#   metric exited 3
+#   metric created 1
+#   metric dead 0
+#   metric unhealthy 1
+#   metric health_starting 0
+#   metric exited_nonzero 2
+#   metric images 18
+#   metric cpus 4
+#   metric memory_bytes 8188477440
+#   metric warnings 0
 #
 # Reading the results (starting points: tune them to the machine):
 #   Healthy  up 1; unhealthy 0; restarting 0; exited_nonzero steady (a job

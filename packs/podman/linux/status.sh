@@ -46,6 +46,21 @@
 #
 # Example output:
 #   metric up 1
+#   metric version 1 version=5.8.9 os=linux rootless=true
+#   metric rootless 1
+#   metric containers 11
+#   metric running 6
+#   metric paused 1
+#   metric exited 3
+#   metric created 1
+#   metric unhealthy 1
+#   metric health_starting 0
+#   metric exited_nonzero 2
+#   metric restarts_total_count 11
+#   metric pods 0
+#   metric images 2
+#   metric cpus 4
+#   metric memory_bytes 8188477440
 #
 # Reading the results (starting points: tune them to the machine):
 #   Healthy  up 1; unhealthy 0; restarts_total_count flat; exited_nonzero

@@ -62,6 +62,8 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`otelcol`](otelcol/README.md) | The OpenTelemetry Collector: what its receivers accept and refuse, what its exporters send and fail to send for each exporter, what is dropped at a full queue, and how full the fullest queue is | [packs/otelcol/README.md](otelcol/README.md) |
 | [`victoriametrics`](victoriametrics/README.md) | VictoriaMetrics: up and writable, disk left, rows ingested for each protocol and rows refused with the reason, queries against the concurrency limit, slow and failed ones, the targets it scrapes | [packs/victoriametrics/README.md](victoriametrics/README.md) |
 | [`victorialogs`](victorialogs/README.md) | VictoriaLogs: up and writable, disk left, entries ingested for each protocol and entries dropped with the reason, queries against the concurrency limit | [packs/victorialogs/README.md](victorialogs/README.md) |
+| [`docker`](docker/README.md) | Docker: whether the engine answers, its containers by state, each container (running, restarts, health, exit code, killed for memory), each one's CPU, memory against its limit, network and disk, and the disk the engine uses (images, containers, volumes, build cache) | [packs/docker/README.md](docker/README.md) |
+| [`podman`](podman/README.md) | Podman: whether it answers, its containers by state, each container (running, restarts, health, exit code, killed for memory), each one's CPU, memory against its limit, network and disk, and the disk it uses (images, containers, volumes) | [packs/podman/README.md](podman/README.md) |
 
 ## Service packs
 
@@ -252,6 +254,18 @@ A VictoriaMetrics server, from what it says about itself. The pack reads whether
 A VictoriaLogs server, from what it says about itself. The pack reads whether it answers and whether its storage has gone read-only for lack of disk; the disk space left; the log entries and bytes it ingests for each protocol; the entries it dropped and why; and its queries against the limit on running at once. Every request is a GET. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
 
 **Its page: [packs/victorialogs/README.md](victorialogs/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### docker
+
+A Docker engine, from its own API: whether it answers; every container's state; each container by name (running or not, restarts, healthy or not, the exit code it ended with, killed for memory); what each running container uses (CPU, memory against its limit, processes, network and disk); and the disk the engine takes (images, containers, volumes, the build cache). Every request is a GET: nothing is started, stopped, removed or pruned. With `curl` and `jq` (on Windows, PowerShell alone). Linux, macOS and Windows, Linux and Windows containers.
+
+**Its page: [packs/docker/README.md](docker/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### podman
+
+Podman, asked with its own command, as the account Vigil runs as (root's containers as root, an account's own when rootless): whether it answers; every container's state; each container by name (running or not, restarts, healthy or not, the exit code it ended with, killed for memory); what each running container uses; and the disk it takes (images, containers, volumes). It only reads: nothing is started, stopped, removed or pruned. With `podman` and `jq`. Linux and macOS.
+
+**Its page: [packs/podman/README.md](podman/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ## Writing a pack
 

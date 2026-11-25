@@ -49,6 +49,25 @@
 #
 # Example output:
 #   metric up 1
+#   metric images 2
+#   metric images_unused 1
+#   metric images_dangling 0
+#   metric images_bytes 5457366
+#   metric images_reclaimable_bytes 786952
+#   metric containers 11
+#   metric containers_bytes 21091166
+#   metric containers_reclaimable_bytes 47701
+#   metric container_bytes 20983495 name=vigilit_writes
+#   metric container_bytes 12258 name=vigilit_ok
+#   metric container_bytes 11979 name=vigilit_oom
+#   metric container_bytes 11964 name=vigilit_busy
+#   metric container_bytes 11922 name=vigilit_loop
+#   metric container_bytes 11913 name=vigilit_unhealthy
+#   metric container_bytes_not_shown 0
+#   metric volumes 2
+#   metric volumes_unused 1
+#   metric volumes_bytes 102400
+#   metric volumes_reclaimable_bytes 0
 #
 # Reading the results (starting points: tune them to the machine):
 #   Healthy  images_bytes and volumes_bytes steady; images_reclaimable_bytes a

@@ -45,17 +45,30 @@ for p in "$e" jq awk; do command -v "$p" > /dev/null 2>&1 || die "$p not found";
 case $(uname -s) in Darwin) os=macos ;; *) os=linux ;; esac
 img=${VIGIL_IT_CONTAINERS_IMAGE:-docker.io/library/busybox:1.37}
 work=$(mktemp -d "${TMPDIR:-/tmp}/vigil-containers-it.XXXXXX") || exit 1
+root=$work/none
 E=$(printf '%s' "$e" | tr '[:lower:]' '[:upper:]')
 
-# Only what this script made: by its label.
+# Only what this script made: by its label. Podman waits ten seconds for
+# each container to end unless told not to.
+now_flag=''
+[ "$e" = podman ] && now_flag='-t 0'
 clean() {
     local ids
     ids=$($e ps -aq --filter label=vigil.it=containers 2> /dev/null)
     # shellcheck disable=SC2086
-    [ -z "$ids" ] || $e rm -f $ids > /dev/null 2>&1
+    [ -z "$ids" ] || $e rm -f $now_flag $ids > /dev/null 2>&1
     $e volume rm vigilit_data vigilit_unused > /dev/null 2>&1
 }
-trap 'clean; evidence_save; rm -rf "$work"' EXIT
+# What is kept of each job's output: this run's containers, not the
+# engine's others.
+keep() {
+    local f
+    for f in "$work"/*.out; do
+        [ -f "$f" ] || continue
+        awk '!/ name=/ || / name=vigilit_/' "$f" > "$f.kept" && mv "$f.kept" "$f"
+    done
+}
+trap 'clean; keep; evidence_save; rm -rf "$work"' EXIT
 evidence_start "pack-$e${VIGIL_IT_CONTAINERS_AS:+-$VIGIL_IT_CONTAINERS_AS}" "$0" "$0" "$@"
 
 $e info > /dev/null 2>&1 || die "$e does not answer on this machine, as $(id -un)"
