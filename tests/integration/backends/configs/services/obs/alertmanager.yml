@@ -1,0 +1,35 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Alertmanager, for the alertmanager pack's test: one receiver that answers
+# and one nothing listens to, so that its notifications fail.
+route:
+  receiver: ok
+  group_wait: 2s
+  group_interval: 5s
+  repeat_interval: 30s
+  routes:
+    - matchers: ['severity="page"']
+      receiver: dead
+      continue: true
+    - matchers: ['severity="page"']
+      receiver: ok
+receivers:
+  - name: ok
+    webhook_configs:
+      - url: http://victorialogs:9428/insert/jsonline
+        send_resolved: false
+  - name: dead
+    webhook_configs:
+      - url: http://alertmanager:9/hook
+        send_resolved: false
+inhibit_rules:
+  - source_matchers: ['severity="page"']
+    target_matchers: ['severity="warn"']
+    equal: ['instance']

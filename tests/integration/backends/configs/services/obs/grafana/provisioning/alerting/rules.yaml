@@ -1,0 +1,71 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Grafana's alert rules, for the grafana pack's test: one that fires, one
+# that is normal, and one whose data source nothing answers (it errors at
+# every evaluation). Its contact point is a webhook nothing listens to.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: obs
+    folder: obs
+    interval: 10s
+    rules:
+      - uid: obsfiring
+        title: Always firing
+        condition: C
+        for: 0s
+        data:
+          - refId: A
+            relativeTimeRange: { from: 60, to: 0 }
+            datasourceUid: prom
+            model: { refId: A, expr: 'vector(1)', instant: true }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: gt, params: [0] } } ] }
+        labels: { severity: page }
+      - uid: obsnormal
+        title: Never firing
+        condition: C
+        for: 0s
+        data:
+          - refId: A
+            relativeTimeRange: { from: 60, to: 0 }
+            datasourceUid: prom
+            model: { refId: A, expr: 'vector(0)', instant: true }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: gt, params: [0] } } ] }
+      - uid: obserror
+        title: Data source is not there
+        condition: C
+        for: 0s
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 60, to: 0 }
+            datasourceUid: dead
+            model: { refId: A, expr: 'vector(1)', instant: true }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: A, conditions: [ { evaluator: { type: gt, params: [0] } } ] }
+contactPoints:
+  - orgId: 1
+    name: dead-hook
+    receivers:
+      - uid: deadhook
+        type: webhook
+        settings:
+          url: http://alertmanager:9/hook
+policies:
+  - orgId: 1
+    receiver: dead-hook
+    group_wait: 2s
+    group_interval: 10s
+    repeat_interval: 1m

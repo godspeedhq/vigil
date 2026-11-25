@@ -1,0 +1,58 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Prometheus, for the prometheus pack (compose.obs.yaml), in trouble on
+# purpose: a target that is down, an Alertmanager that is not there, a rule
+# that cannot be evaluated, and a remote write nothing answers.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+  external_labels:
+    stack: obs
+
+rule_files:
+  - /etc/prometheus/rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093', 'alertmanager2:9093']
+    # Nothing listens there: notifications to it fail.
+    - static_configs:
+        - targets: ['alertmanager:9']
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+  - job_name: stack
+    static_configs:
+      - targets: ['alertmanager:9093', 'victoriametrics:8428', 'victorialogs:9428', 'loki:3100', 'mimir:9009', 'tempo:3200', 'otelcol:8888', 'grafana:3000']
+  # Nothing listens there: these two are down.
+  - job_name: dead
+    static_configs:
+      - targets: ['alertmanager:9', 'loki:9']
+  # Answers, but not with metrics.
+  - job_name: notmetrics
+    metrics_path: /-/healthy
+    static_configs:
+      - targets: ['alertmanager:9093']
+
+remote_write:
+  - name: mimir
+    url: http://mimir:9009/api/v1/push
+  - name: victoriametrics
+    url: http://victoriametrics:8428/api/v1/write
+  # Nothing listens there: its samples wait, are retried, and fall behind.
+  - name: dead
+    url: http://alertmanager:9/api/v1/write
+    queue_config:
+      capacity: 500
+      max_shards: 2
+      max_samples_per_send: 100
