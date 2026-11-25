@@ -204,6 +204,7 @@ function Invoke-VigilPrecheck {
     $jobsRecords = $records
     $active = $null
     $checkJobs = $true
+    $localParsed = $parsed
     if (Test-VigilFetchMode -Parsed $parsed) {
         # With sources (16.5): a pointer file's jobs are those of the active
         # configuration, once fetched; a local file's are its own, each
@@ -269,7 +270,11 @@ function Invoke-VigilPrecheck {
     if (-not $f.Ok) { & $fail "data format: $($f.Error)" }
     elseif ($f.Stored -lt $f.Current) { & $ok "data format: $($f.Stored), moves to $($f.Current) when the supervisor starts" }
     else { & $ok "data format: $($f.Stored)" }
-    if (-not ($parsed.Sections | Where-Object { $_.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) })) {
+    # Said of the configuration in force. A pointer file (6.8) names no
+    # backend and need not: the configuration it points to does, and that is
+    # what $parsed holds once it has been fetched. Until then, nothing is said.
+    $pointer = [bool](Get-VigilConfigValue $localParsed 'vigil' 'config_source' '')
+    if ((-not $pointer -or $active) -and -not ($parsed.Sections | Where-Object { $_.Name.StartsWith('backend.', [System.StringComparison]::Ordinal) })) {
         $out.Add('  note  no metrics backend: metrics go nowhere until you add one')
     }
     # Information, never a failure: a Windows PowerShell without .NET's

@@ -383,6 +383,8 @@ run_every = 3650d
     Test-Equal 'remote: activated' 'source.central hosts/h1.config' (Get-Field "$root\state\config.active" 'origin')
     Test-Equal 'remote: job runs' 'remote_hello: succeeded|metric hello 2' (Invoke-Run 'remote_hello')
     Test-Equal 'remote: precheck' '0' ([string](Invoke-Vigil @('precheck')).Code)
+    # The backend is in the configuration fetched, not in the pointer file.
+    Test-Equal 'remote: precheck does not miss a backend the pointer file need not name' '0' ([string]@((Invoke-Vigil @('precheck')).Output | Where-Object { $_ -match 'no metrics backend' }).Count)
     Test-Equal 'remote: branch reported as unpinned' 'yes' (Test-InFiles "$root\logs\jobs\vigil_fetch" 'W_SCRIPT_UNPINNED')
 
     # A change on the branch is picked up at the next check.
