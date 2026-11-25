@@ -1633,7 +1633,8 @@ try {
         # store: then the job takes the token by an env: reference.
         if ($p -ceq 'grafana' -and (Invoke-Vigil secret list).Text -notmatch 'GRAFANA_TOKEN') {
             Write-Host '  note  grafana: this logon cannot use the secret store (it has no password): the job takes the token by env:VIGIL_IT_OBS_GRAFANA_TOKEN'
-            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*GRAFANA_TOKEN=)secret:GRAFANA_TOKEN', '${1}env:VIGIL_IT_OBS_GRAFANA_TOKEN'))
+            $gcfg = Join-Path $root 'config\vigil.config'
+            [System.IO.File]::WriteAllText($gcfg, ([System.IO.File]::ReadAllText($gcfg) -replace '(?m)^(secret\s*=\s*GRAFANA_TOKEN=)secret:GRAFANA_TOKEN', '${1}env:VIGIL_IT_OBS_GRAFANA_TOKEN'))
         }
         foreach ($kv in @($ws -split '\|' | Where-Object { $_ })) { $n, $v = $kv -split '=', 2; Set-Env $n $v }
         $r = Invoke-Vigil precheck
