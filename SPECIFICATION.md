@@ -799,7 +799,7 @@ A worker that crashed is not respawned immediately; the job runs again at its ne
 ### 7.8 Clock Behaviour
 
 - Calendar scheduling uses local wall-clock time.
-- Elapsed durations use a monotonic clock where the platform offers one to scripts; otherwise wall-clock, and the limitation is documented.
+- Elapsed durations are measured from wall-clock timestamps (epoch seconds), in both engines; a clock change moves them (§24).
 - A backwards clock change never re-runs a run that already completed for the same scheduled time.
 - A forwards jump is treated as missed runs, subject to §7.7.
 - Daylight-saving: a `run_at` time that does not exist on the transition day fires at the first tick after it; a time that occurs twice fires once.
@@ -990,7 +990,7 @@ The resulting guarantees are deliberately not conflated:
 | Platform | Worker claims | Supervisor abandons | Why only one wins |
 | --- | --- | --- | --- |
 | Linux/macOS | rename `.launch` → `.token` (after opening it) | rename `.launch` → `.abandoned` | `rename` of a name that no longer exists fails |
-| Windows | exclusive open of `.launch` | delete `.launch` | Deleting a file held exclusively fails; opening a deleted file fails |
+| Windows | open `.launch` so that nobody else can read it, create the token, delete `.launch` while still holding it, then let go | open `.launch` so that nobody else can open it, deleted when closed | Opening a file another holds fails; opening one that is gone, or being deleted, fails. The record is never there and nobody's between the two |
 
 A worker that loses exits without running the job. A supervisor that loses treats the run as Alive.
 
@@ -1091,12 +1091,14 @@ Each held job appears under `UNCERTAIN` in `jobs.log` with its reason (for examp
 
 Vigil terminates a process only for `max_runtime` or `vigil uninstall`, and only when it has proven the process belongs to the run:
 
-- **Worker:** its command line carries the run id, and its start time matches where available.
+- **Worker:** its command line carries the run id, which is made for one launch and never given to another.
 - **Job process:** on Linux/macOS it holds the run token; on Windows (where it holds the token too) its PID, name and start time match the state file and, while the worker lives, its parent is the worker.
+
+What was proven is proven again at the moment a process is ended, because a PID can change hands in between. On Windows the process is opened first, which keeps its PID from being given to another while it is open; the start time that was proven is then checked on the open process, and one that is not the same is left alone and reported. A child is believed only once it is open too, and still its parent's. `vigil uninstall` proves its list again after its question is answered, and on Linux and macOS once more before KILL.
 
 If ownership cannot be proven, Vigil does not terminate. The run is treated as uncertain (§11.4), with the reason `past max_runtime, but its job process cannot be proven to be the run's`, under the job's `on_uncertain` policy: held and reported every tick, never killed. A run whose token is no longer held by then is not uncertain: it ended while the tick was looking, and the next tick concludes it from its final state.
 
-Deadlines: `deadline_epoch` is recorded at start. While the supervisor runs, elapsed time is measured with a monotonic clock where the platform offers one to scripts. After a supervisor restart, only the recorded timestamps are available; they are used for enforcement but are not equivalent to uninterrupted monotonic timing (§24).
+Deadlines: `deadline_epoch` is recorded at start and compared with the wall clock at each tick, in both engines, whether or not the supervisor has restarted since. A clock change therefore moves a deadline (§24).
 
 ### 11.6 Process-Tree Termination
 
@@ -2124,7 +2126,7 @@ Before deleting, it lists what will be removed — including how many scripts ar
 - `--keep-config` keeps `config/`, `scripts/` and `packs/`, so a reinstall picks up where it left off.
 - Without `--yes`, and with no terminal to ask at, it refuses and removes nothing.
 
-It refuses a folder that holds no `app/vigil` (`app\vigil.ps1`), so a mistyped `--root` deletes nothing, and a packaged program, which its package manager removes (§18.6). A worker is proven by its command line naming the run and the root (`worker <job> --run-id <run id>`) and by being the `worker_pid` of that run's state; a job process by holding the run token (Linux, macOS) or by its PID, name, start time and parent matching the state file (Windows, as for `max_runtime`, §11.5). Proven processes get TERM, then KILL after 10 seconds (on Windows the tree ends at once); a process the state names but that cannot be proven is listed as left running, and nothing else is ever touched.
+It refuses a folder that holds no `app/vigil` (`app\vigil.ps1`), so a mistyped `--root` deletes nothing, and a packaged program, which its package manager removes (§18.6). A worker is proven by its command line naming the run and the root (`worker <job> --run-id <run id>`) and by being the `worker_pid` of that run's state; a job process by holding the run token (Linux, macOS) or by its PID, name, start time and parent matching the state file (Windows, as for `max_runtime`, §11.5; one with no start time recorded is not proven). The list shown with the question is proven again once it is answered, since the answer may take minutes, and only what is proven then is touched. Proven processes get TERM, then KILL after 10 seconds for those proven still (on Windows the tree ends at once, each process checked again as it is opened); a process the state names but that cannot be proven is listed as left running, and nothing else is ever touched.
 
 Environment variables set outside Vigil (machine environment, `vigil.env` aside) are left untouched. On Windows, when the root cannot be deleted because the uninstall itself is running from inside it, deletion is completed by a short-lived detached process after Vigil exits.
 
@@ -2555,7 +2557,7 @@ Every result records Vigil version, OS and version, shell version, test id, resu
 
 **VIGIL-006 — Safe Recovery.** A run with no outcome written by its worker, in its final state or in its spool file, is never treated as successful. The outcome in a spool file is the worker's own line, never one the job printed (§11.3).
 
-**VIGIL-007 — Process Identity.** A PID alone is never sufficient to treat a process as a live job or to kill it; name and, where available, start time must match.
+**VIGIL-007 — Process Identity.** A PID alone is never sufficient to treat a process as a live job or to kill it. On Linux and macOS the process must hold the run's token; on Windows its name and start time must match the run's record, and are checked again on the process itself as it is ended (§11.5).
 
 **VIGIL-008 — No Backlog.** Missed runs are skipped, never replayed in bulk.
 
@@ -2590,11 +2592,11 @@ Each invariant has a documented enforcement mechanism and regression tests.
 - Processes that deliberately escape their process group or tree may survive termination.
 - Cygwin emulates fork/exec; Windows parent/child links may differ from Cygwin's, so tree termination of Cygwin jobs needs its own verification.
 - On Windows, a program that splits its command line by rules other than the Microsoft C runtime's may receive different arguments from those configured. Batch files reject arguments containing `cmd.exe` metacharacters (§6.4).
-- bash on Linux/macOS has no portable monotonic clock; elapsed time may be affected by clock changes.
+- Neither engine measures elapsed time with a monotonic clock. bash has no portable one, and the PowerShell engine keeps to recorded epoch seconds as bash does, so that both behave alike and a restarted supervisor reads the same times. Elapsed time, deadlines and the launch grace among it, may be affected by clock changes.
+- On Linux, whether a file is held is read from `/proc`. A process this account may not look at (another account's, or one hidden by `hidepid`) is not seen holding a token, and no error is reported for it. Vigil's workers and jobs run as its own account, so this concerns only a job that changes account and outlives its worker: its run is then concluded, and its job may be started again beside it.
 - Process start time is unavailable or coarse on some platforms; identity then relies on the run id, the run token and PID plus name.
 - Ownership guarantees differ by platform (§11.2). Linux and macOS: the run token identifies the worker and every job process that inherited it. Windows: the run token proves the worker is alive but not which process it is, and job processes are tracked by recorded identity only. A job process that closes inherited files escapes token tracking on every platform.
 - A job whose run stays uncertain is held until the evidence resolves or an operator runs `vigil resolve`; it is reported every tick but does not run in the meantime (unless `on_uncertain = replace`). Under `manual` it stays held until `vigil resolve` even after the evidence resolves.
-- After a supervisor restart, deadlines are enforced from recorded timestamps, which are affected by clock changes; uninterrupted monotonic timing is only available while the supervisor runs.
 - bash cannot force a single file to disk, so after a power loss a just-written state file may be empty or truncated; it is then handled as unreadable state (§11.3). Windows flushes before renaming, but filesystem and storage caches can still lose a write.
 - Process-tree termination on Windows walks the tree from the kernel, which can miss children whose parent has already exited. Windows Job Objects would close this gap but need compiled code (§26).
 - User-mode installs run only while the user is logged in unless lingering (Linux) or system mode is used.

@@ -624,10 +624,16 @@ function Invoke-VigilSupervisor {
                 }
             }
             'abandon' {
-                # Abandon by deleting the launch record: Windows refuses while
-                # a worker holds it, so only one of the two can win (11.2).
+                # Abandon by taking the launch record as a worker takes it: an
+                # open that shares it with nobody, and here deletes it on close.
+                # Windows refuses it while a worker holds the record, and there is
+                # nothing to open once a worker has claimed it and removed it, so
+                # only one of the two can win (11.2). A plain delete would succeed
+                # on a record a worker had just claimed, and call a run that is
+                # starting abandoned (R-2).
                 try {
-                    [System.IO.File]::Delete($launch)
+                    $taken = New-Object System.IO.FileStream -ArgumentList $launch, ([System.IO.FileMode]::Open), ([System.IO.FileAccess]::Read), ([System.IO.FileShare]::None), 1, ([System.IO.FileOptions]::DeleteOnClose)
+                    $taken.Dispose()
                     & $event $Job 'abandoned_launches' '1' 'count'
                     & $log 'WARN' "job ${Job}: launch $rid abandoned: its worker never claimed it"
                 }
@@ -688,8 +694,11 @@ function Invoke-VigilSupervisor {
             & $log 'WARN' "job ${Job}: run $RunId passed max_runtime; ending its process tree"
         }
         # Repeated on every tick past the deadline, each time only after the proof
-        # above, until the run ends.
-        Stop-VigilProcessTree ([int]$St.JobPid)
+        # above, until the run ends. The proof was of a pid some milliseconds ago:
+        # the start time proven goes with it, and is checked again on the
+        # process once it is held open, so a pid that has changed hands since is
+        # left alone (R-1).
+        Stop-VigilProcessTree ([int]$St.JobPid) -Started ([long]$St.JobStart)
         # Every way is tried until the tree is gone; when the first did not
         # end it, why, so a run that outlives its limit says so (backlog 19).
         if ($Script:VigilKillReport) { & $log 'WARN' "job ${Job}: run ${RunId}: $Script:VigilKillReport" }
