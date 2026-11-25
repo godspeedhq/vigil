@@ -85,6 +85,7 @@ export GRAFANA_TOKEN
 GRAFANA_TOKEN=$(cat "$work/grafana.token")
 
 say() { printf '\n# %s\n' "$*"; }
+os=linux
 pass=0
 fail=0
 check() {
@@ -98,11 +99,11 @@ has() { grep -qE "^metric $2( |$).*${3-}" "$work/$1.out" && echo yes || echo no;
 # run <pack> <job> [<label>]: the job's script, its output shown and kept;
 # quiet does the same without showing it.
 quiet() {
-    bash "$bk_repo/packs/$1/linux/$2.sh" > "$work/$1.$2.out" 2> "$work/$1.$2.err"
+    bash "$bk_repo/packs/$1/$os/$2.sh" > "$work/$1.$2.out" 2> "$work/$1.$2.err"
     printf 'exit %s\n' "$?" >> "$work/$1.$2.err"
 }
 run() {
-    printf '\n$ bash packs/%s/linux/%s.sh%s\n' "$1" "$2" "${3:+   ($3)}"
+    printf '\n$ bash packs/%s/%s/%s.sh%s\n' "$1" "$os" "$2" "${3:+   ($3)}"
     quiet "$1" "$2"
     cat "$work/$1.$2.out"
     grep -v '^exit 0$' "$work/$1.$2.err"
@@ -127,6 +128,8 @@ until_least prometheus targets targets_down '' 3
 until_least prometheus remote_write samples_failed 'remote=mimir' 1
 until_least alertmanager notifications notifications_failed_count '' 1
 until_least grafana alerting notifications_failed_count '' 1
+# Grafana counts what it holds a little after it starts.
+until_least grafana status datasources '' 4 80
 until_least loki ingestion discarded 'reason=line_too_long' 1
 until_least loki compaction compactions_count '' 1 80
 until_least mimir ingestion discarded 'reason=per_user_series_limit' 1
@@ -155,7 +158,11 @@ check 'prometheus: one alert firing, three pending' '1 3 1' "$(val prometheus.ru
 check 'prometheus: three remotes; Mimir refuses samples; one remote never took any, and holds some' '3 yes 1 yes' "$(val prometheus.remote_write remotes) $(least prometheus.remote_write samples_failed 'remote=mimir' 1) $(val prometheus.remote_write remotes_never_sent) $(least prometheus.remote_write pending 'remote=dead' 1)"
 check 'prometheus: the TSDB is ingesting, with nothing failed' 'yes 0 0' "$(least prometheus.tsdb head_series '' 100) $(val prometheus.tsdb compactions_failed_count) $(val prometheus.tsdb wal_corruptions_count)"
 check 'alertmanager: ready, an alert active, two receivers' '1 yes 2' "$(val alertmanager.status ready) $(least alertmanager.status alerts_active '' 1) $(val alertmanager.status receivers)"
-check 'alertmanager: notifications fail, through the webhook, and some get through' 'yes yes yes' "$(least alertmanager.notifications failed 'integration=webhook' 1) $(least alertmanager.notifications notifications_failed_count '' 1) $(awk -v a="$(val alertmanager.notifications notifications_count)" -v b="$(val alertmanager.notifications notifications_failed_count)" 'BEGIN { print (a > b) ? "yes" : "no" }')"
+check 'alertmanager: notifications fail, through the webhook' 'yes yes' "$(least alertmanager.notifications failed 'integration=webhook' 1) $(least alertmanager.notifications notifications_failed_count '' 1)"
+# In a cluster one member sends each notification and tells the others: the
+# ones that get through are on one member or the other, not on both.
+ALERTMANAGER_URL=http://127.0.0.1:19094 bash "$bk_repo/packs/alertmanager/$os/notifications.sh" > "$work/alertmanager2.notifications.out" 2> /dev/null
+check 'alertmanager: and some get through, counted over both members of the cluster' yes "$(awk -v a="$(val alertmanager.notifications notifications_count)" -v b="$(val alertmanager.notifications notifications_failed_count)" -v c="$(val alertmanager2.notifications notifications_count)" -v d="$(val alertmanager2.notifications notifications_failed_count)" 'BEGIN { print (a + c > b + d) ? "yes" : "no [" a " " b " " c " " d "]" }')"
 check 'alertmanager: a cluster of two, whole' '1 2 0' "$(val alertmanager.cluster cluster_enabled) $(val alertmanager.cluster members) $(val alertmanager.cluster failed_peers)"
 check 'grafana: healthy; four data sources, two of one kind' '1 4 2' "$(val grafana.status healthy) $(val grafana.status datasources) $(val grafana.status datasources_by_type 'type=prometheus')"
 check 'grafana: the data source that does not answer is named, the others answer' '1 4 1 0 1' "$(val grafana.datasources login_ok) $(val grafana.datasources datasources) $(val grafana.datasources datasources_failing) $(val grafana.datasources datasource_ok 'name=Dead') $(val grafana.datasources datasource_ok 'name=Prometheus')"
