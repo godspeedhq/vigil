@@ -1629,6 +1629,12 @@ try {
         Test-Equal "${p}: enabled" '0' ([string]$r.Code)
         Write-Host ($r.Text -replace '(?m)^', '        ')
         Test-Equal "${p}: it says CPU and memory are the base pack's" 'True' ([string](($r.Text -replace '\s+', ' ').Contains("the base pack's processes job")))
+        # A logon with no password (SSH with a key) cannot use the secret
+        # store: then the job takes the token by an env: reference.
+        if ($p -ceq 'grafana' -and (Invoke-Vigil secret list).Text -notmatch 'GRAFANA_TOKEN') {
+            Write-Host '  note  grafana: this logon cannot use the secret store (it has no password): the job takes the token by env:VIGIL_IT_OBS_GRAFANA_TOKEN'
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*GRAFANA_TOKEN=)secret:GRAFANA_TOKEN', '${1}env:VIGIL_IT_OBS_GRAFANA_TOKEN'))
+        }
         foreach ($kv in @($ws -split '\|' | Where-Object { $_ })) { $n, $v = $kv -split '=', 2; Set-Env $n $v }
         $r = Invoke-Vigil precheck
         Test-Equal "${p}: precheck is happy" '0' ([string]$r.Code)
