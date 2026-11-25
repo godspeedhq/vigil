@@ -1,0 +1,32 @@
+metric up 1
+metric containers 16
+metric containers_restarting 1
+metric containers_unhealthy 1
+metric containers_oom_killed 1
+metric containers_exited_nonzero 2
+metric restarts_total_count 7
+metric running 1 name=vigilit_busy state=running
+metric restarts_count 0 name=vigilit_busy
+metric oom_killed 0 name=vigilit_busy
+metric uptime_seconds 13 name=vigilit_busy
+metric running 0 name=vigilit_loop state=restarting
+metric restarts_count 7 name=vigilit_loop
+metric oom_killed 0 name=vigilit_loop
+metric running 1 name=vigilit_ok state=running
+metric restarts_count 0 name=vigilit_ok
+metric oom_killed 0 name=vigilit_ok
+metric uptime_seconds 18 name=vigilit_ok
+metric running 0 name=vigilit_oom state=exited
+metric restarts_count 0 name=vigilit_oom
+metric oom_killed 1 name=vigilit_oom
+metric exit_code 137 name=vigilit_oom
+metric running 1 name=vigilit_unhealthy state=running
+metric restarts_count 0 name=vigilit_unhealthy
+metric oom_killed 0 name=vigilit_unhealthy
+metric uptime_seconds 17 name=vigilit_unhealthy
+metric healthy 0 name=vigilit_unhealthy
+metric running 1 name=vigilit_writes state=running
+metric restarts_count 0 name=vigilit_writes
+metric oom_killed 0 name=vigilit_writes
+metric uptime_seconds 12 name=vigilit_writes
+metric containers_not_shown 0

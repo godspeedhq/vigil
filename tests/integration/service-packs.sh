@@ -104,6 +104,12 @@
 #                                        VIGIL_IT_OBS_GRAFANA_TOKEN, a Viewer's
 #                                        token for Grafana's data sources
 #                                        (scripts/run-obs.sh sets them up)
+#   VIGIL_IT_DOCKER, VIGIL_IT_PODMAN     the same for the docker and podman
+#                                        packs: "DOCKER_HOST=unix://..." and
+#                                        "CONTAINER_HOST=" (empty: this
+#                                        account's own Podman), with _DOWN
+#                                        (scripts/run-containers.sh sets
+#                                        them up, with containers to read)
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
 #
@@ -180,7 +186,7 @@ cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
 obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs'
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb nginx httpd caddy haproxy phpfpm $obs_packs; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb nginx httpd caddy haproxy phpfpm $obs_packs docker podman; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1772,6 +1778,25 @@ for o in $obs_packs; do
     fi
 done
 
+# --- the container engines --------------------------------------------------
+# docker and podman, against the engine of this machine holding the
+# containers scripts/run-containers.sh makes: the same checks as the web
+# packs, then that the containers are named.
+for o in docker podman; do
+    O=$(printf '%s' "$o" | tr '[:lower:]' '[:upper:]')
+    eval "os_=\${VIGIL_IT_$O-}; od=\${VIGIL_IT_${O}_DOWN-}"
+    if [ -z "$os_" ]; then
+        printf '  SKIP  %s: set VIGIL_IT_%s (scripts/run-containers.sh %s sets it up)\n' "$o" "$O" "$o"
+    elif ! command -v jq > /dev/null 2>&1; then
+        printf '  SKIP  %s: jq is not installed here\n' "$o"
+    else
+        web_pack "$o" status "$os_" "$od"
+        set_env "${os_%%=*}" "${os_#*=}"
+        vigil run "${o}_containers" > "$work/out" 2>&1
+        check "$o: its containers are read, and named" 'yes yes' "$([ "$(printed "${o}_containers" containers)" -ge 1 ] 2> /dev/null && echo yes || echo no) $(grep -h ' out metric running [01] name=' "$root/logs/jobs/${o}_containers"/*.log > /dev/null 2>&1 && echo yes || echo no)"
+    fi
+done
+
 # What ran reaches the backend.
 vigil supervise --once > /dev/null 2>&1
 sleep 3
@@ -1844,6 +1869,15 @@ for o in $obs_packs; do
     [ "$o" = grafana ] && [ -z "${VIGIL_IT_OBS_GRAFANA_TOKEN-}" ] && continue
     for _ in $(seq 1 20); do grep -q "^${o}_up{" "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
     check "$o: metrics reach the backend" yes "$(grep -q "^${o}_up{" "$root/metrics/vigil.prom" && echo yes || echo no)"
+done
+# The container engines: each pack's first reading, and a container's.
+for o in docker podman; do
+    O=$(printf '%s' "$o" | tr '[:lower:]' '[:upper:]')
+    eval "os_=\${VIGIL_IT_$O-}"
+    [ -n "$os_" ] || continue
+    command -v jq > /dev/null 2>&1 || continue
+    for _ in $(seq 1 20); do grep -q "^${o}_containers_running{" "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check "$o: metrics reach the backend, each container's too" 'yes yes' "$(grep -q "^${o}_up{" "$root/metrics/vigil.prom" && echo yes || echo no) $(grep -q "^${o}_containers_running{.*name=" "$root/metrics/vigil.prom" && echo yes || echo no)"
 done
 
 printf '%d passed, %d failed\n' "$pass" "$fail"

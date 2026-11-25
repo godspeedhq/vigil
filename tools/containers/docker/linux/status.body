@@ -1,0 +1,30 @@
+set -u
+
+job=status
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_docker.sh"
+needs curl jq
+
+engine
+get /info info || exit 1
+get '/containers/json?all=1' list || exit 1
+jq -r -s "$defs"'
+    .[0] as $v | .[1] as $i | .[2] as $c |
+    def count(f): [$c[] | select(f)] | length;
+    "metric version 1 version=\($v.Version | safe) api=\($v.ApiVersion | safe) os=\(($i.OSType // $v.Os // "none") | safe)",
+    "metric containers \($c | length)",
+    "metric running \(count(.State == "running"))",
+    "metric paused \(count(.State == "paused"))",
+    "metric restarting \(count(.State == "restarting"))",
+    "metric exited \(count(.State == "exited"))",
+    "metric created \(count(.State == "created"))",
+    "metric dead \(count(.State == "dead"))",
+    "metric unhealthy \(count((.Status // "") | test("\\(unhealthy\\)")))",
+    "metric health_starting \(count((.Status // "") | test("\\(health: starting\\)")))",
+    "metric exited_nonzero \(count(.State == "exited" and ((.Status // "") | test("^Exited \\([1-9-]"))))",
+    "metric images \($i.Images // 0)",
+    "metric cpus \($i.NCPU // 0)",
+    "metric memory_bytes \($i.MemTotal // 0)",
+    "metric warnings \(($i.Warnings // []) | length)"
+' "$work/version" "$work/info" "$work/list" || exit 1
+exit 0

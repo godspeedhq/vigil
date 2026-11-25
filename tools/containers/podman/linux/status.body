@@ -1,0 +1,29 @@
+set -u
+
+job=status
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_podman.sh"
+needs podman jq
+
+engine
+ask list ps -a --format json || exit 1
+jq -r -s "$defs"'
+    .[0] as $i | (.[1] // []) as $c |
+    def count(f): [$c[] | select(f)] | length;
+    "metric version 1 version=\(($i.version.Version // "none") | safe) os=\(($i.host.os // "none") | safe) rootless=\(($i.host.security.rootless // false) | tostring)",
+    "metric rootless \(if $i.host.security.rootless == true then 1 else 0 end)",
+    "metric containers \($c | length)",
+    "metric running \(count(.State == "running"))",
+    "metric paused \(count(.State == "paused"))",
+    "metric exited \(count(.State == "exited" or .State == "stopped"))",
+    "metric created \(count(.State == "created" or .State == "configured"))",
+    "metric unhealthy \(count((.Status // "") | test("\\(unhealthy\\)")))",
+    "metric health_starting \(count((.Status // "") | test("\\(starting\\)")))",
+    "metric exited_nonzero \(count((.State == "exited" or .State == "stopped") and (.ExitCode // 0) != 0))",
+    "metric restarts_total_count \([$c[] | .Restarts // 0] | add // 0)",
+    "metric pods \([$c[] | select((.Pod // "") != "") | .Pod] | unique | length)",
+    "metric images \($i.store.imageStore.number // 0)",
+    "metric cpus \($i.host.cpus // 0)",
+    "metric memory_bytes \($i.host.memTotal // 0)"
+' "$work/info" "$work/list" || exit 1
+exit 0

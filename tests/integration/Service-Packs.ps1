@@ -262,7 +262,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
     $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs')
-    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'nginx', 'httpd', 'caddy', 'iis') + $obsPacks) {
+    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'nginx', 'httpd', 'caddy', 'iis', 'docker') + $obsPacks) {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
         Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
@@ -1665,6 +1665,46 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "${p}: metrics reach the backend" 'True' ([string]($prom -match "(?m)^${p}_up\{"))
+    }
+    # VIGIL_IT_DOCKER: the docker pack's settings ("DOCKER_HOST=npipe:..."),
+    # against the engine of this machine holding the containers
+    # scripts/run-containers.ps1 makes, and VIGIL_IT_DOCKER_DOWN, a pipe
+    # nothing listens on.
+    if (-not $env:VIGIL_IT_DOCKER) { Write-Host '  SKIP  docker: set VIGIL_IT_DOCKER (backends\scripts\Run-Containers.ps1 sets it up)' }
+    else {
+        $p = 'docker'
+        Write-Host "docker: $($env:VIGIL_IT_DOCKER)"
+        $wk = Join-Path $root 'packs\docker'
+        $wjobs = @([System.IO.File]::ReadAllLines((Join-Path $wk 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] })
+        $r = Invoke-Vigil pack enable docker
+        Test-Equal 'docker: enabled' '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "docker: it says CPU and memory are the base pack's" 'True' ([string](($r.Text -replace '\s+', ' ').Contains("the base pack's processes job")))
+        $n, $v = $env:VIGIL_IT_DOCKER -split '=', 2
+        Set-Env $n $v
+        $r = Invoke-Vigil precheck
+        Test-Equal 'docker: precheck is happy' '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $wjobs) { if ([string](Invoke-Vigil run "docker_$j").Code -ne '0') { $failed += $j } }
+        Test-Equal "docker: every job runs ($($wjobs -join ', '))" '' ($failed -join ' ')
+        foreach ($j in $wjobs) { Show-LastRun "docker_$j" }
+        Test-Equal 'docker: answers' '1' (Get-Printed docker_status up)
+        Test-Equal 'docker: its containers are read' 'True' ([string]([int](Get-Printed docker_containers containers) -ge 1))
+        if ($env:VIGIL_IT_DOCKER_DOWN) {
+            $n, $v = $env:VIGIL_IT_DOCKER_DOWN -split '=', 2
+            Set-Env $n $v
+            Test-Equal 'docker: an engine that does not answer still runs' '0' ([string](Invoke-Vigil run docker_status).Code)
+            Test-Equal 'docker: and reads as up 0' '0' (Get-Printed docker_status up)
+        }
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match '(?m)^docker_containers_running\{') { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal "docker: metrics reach the backend, each container's too" 'True True' "$([string]($prom -match '(?m)^docker_up\{')) $([string]($prom -match '(?m)^docker_containers_running\{.*name='))"
     }
 }
 finally {

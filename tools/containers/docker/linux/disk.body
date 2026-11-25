@@ -1,0 +1,34 @@
+set -u
+
+job=disk
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_docker.sh"
+needs curl jq
+
+engine
+get /system/df df || exit 1
+jq -r "$defs"'
+    (.Images // .ImageUsage.Items // []) as $im | (.Containers // .ContainerUsage.Items // []) as $c |
+    (.Volumes // .VolumeUsage.Items // []) as $v | (.BuildCache // .BuildCacheUsage.Items // []) as $b |
+    def vsize: (.UsageData.Size // 0) | if . < 0 then 0 else . end;
+    ($c | map(select((.SizeRw // 0) > 0)) | sort_by(-.SizeRw)) as $big |
+    "metric images \($im | length)",
+    "metric images_unused \([$im[] | select((.Containers // 0) == 0)] | length)",
+    "metric images_dangling \([$im[] | select(((.RepoTags // []) | length) == 0 or (.RepoTags == ["<none>:<none>"]))] | length)",
+    "metric images_bytes \(.LayersSize // .ImageUsage.TotalSize // 0)",
+    "metric images_reclaimable_bytes \(.ImageUsage.Reclaimable // ([$im[] | select((.Containers // 0) == 0) | .Size // 0] | add // 0))",
+    "metric containers \($c | length)",
+    "metric containers_bytes \([$c[] | .SizeRw // 0] | add // 0)",
+    "metric containers_stopped_bytes \([$c[] | select(.State != "running" and .State != "paused") | .SizeRw // 0] | add // 0)",
+    ($big[0:20][] | "metric container_bytes \(.SizeRw) name=\(cname | safe)"),
+    "metric container_bytes_not_shown \([($big | length) - 20, 0] | max)",
+    "metric volumes \($v | length)",
+    "metric volumes_unused \([$v[] | select((.UsageData.RefCount // 0) == 0)] | length)",
+    "metric volumes_bytes \([$v[] | vsize] | add // 0)",
+    "metric volumes_unused_bytes \([$v[] | select((.UsageData.RefCount // 0) == 0) | vsize] | add // 0)",
+    ($v | sort_by(-vsize) | .[0:20][] | "metric volume_bytes \(vsize) name=\(.Name | safe)"),
+    "metric volume_bytes_not_shown \([($v | length) - 20, 0] | max)",
+    "metric build_cache_bytes \([$b[] | .Size // 0] | add // 0)",
+    "metric build_cache_reclaimable_bytes \([$b[] | select(.InUse != true) | .Size // 0] | add // 0)"
+' "$work/df" || exit 1
+exit 0

@@ -1,0 +1,41 @@
+set -u
+
+job=containers
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_podman.sh"
+needs podman jq
+
+engine
+ask list ps -a --format json || exit 1
+jq -r --argjson most "$most" '(. // []) | sort_by(if (.Names | type) == "array" then .Names[0] else .Names end) | .[0:$most][] | .Id' "$work/list" > "$work/ids" || exit 1
+if [ -s "$work/ids" ]; then
+    # A container removed since the list was read fails the whole inspect:
+    # then they are asked one by one, and that one is left out.
+    # shellcheck disable=SC2046
+    if ! podman inspect $(cat "$work/ids") > "$work/inspect" 2> "$work/err"; then
+        while IFS= read -r id; do podman inspect "$id" 2> /dev/null; done < "$work/ids" | jq -s 'add // []' > "$work/inspect" || exit 1
+    fi
+else
+    echo '[]' > "$work/inspect"
+fi
+jq -r -s --argjson now "$now" --argjson most "$most" "$defs"'
+    (.[0] // []) as $list | (.[1] | sort_by(.Name)) as $c |
+    ($list | map({key: .Id, value: .}) | from_entries) as $ps |
+    def health: ((.State.Health // .State.Healthcheck // {}).Status // "") | if . == "" then "none" else . end;
+    def up: .State.Running == true and .State.Paused != true;
+    def restarts: .RestartCount // ($ps[.Id].Restarts) // 0;
+    "metric containers \($list | length)",
+    "metric containers_unhealthy \([$c[] | select(health == "unhealthy")] | length)",
+    "metric containers_oom_killed \([$c[] | select(.State.OOMKilled == true)] | length)",
+    "metric containers_exited_nonzero \([$c[] | select((.State.Status == "exited" or .State.Status == "stopped") and (.State.ExitCode // 0) != 0)] | length)",
+    "metric restarts_total_count \([$c[] | restarts] | add // 0)",
+    ($c[] | (cname | safe) as $n |
+        "metric running \(if up then 1 else 0 end) name=\($n) state=\((.State.Status // "none") | safe)",
+        "metric restarts_count \(restarts) name=\($n)",
+        "metric oom_killed \(if .State.OOMKilled == true then 1 else 0 end) name=\($n)",
+        (select(up) | "metric uptime_seconds \([$now - ($ps[.Id].StartedAt // $now), 0] | max) name=\($n)"),
+        (select(health == "healthy" or health == "unhealthy") | "metric healthy \(if health == "healthy" then 1 else 0 end) name=\($n)"),
+        (select(.State.Status == "exited" or .State.Status == "stopped") | "metric exit_code \(.State.ExitCode // 0) name=\($n)")),
+    "metric containers_not_shown \([($list | length) - $most, 0] | max)"
+' "$work/list" "$work/inspect" || exit 1
+exit 0

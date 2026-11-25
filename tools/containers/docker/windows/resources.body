@@ -1,0 +1,74 @@
+$Job = 'resources'
+. (Join-Path $PSScriptRoot '_docker.ps1')
+
+Test-Engine
+$i = Get-Json '/info'
+# A container between two starts has nothing to measure.
+$all = Get-Json '/containers/json'
+$list = By-Name @(@($all) | Where-Object { $_.State -cne 'restarting' })
+$win = ("$($i.OSType)" -ceq 'windows')
+$s = New-Object System.Collections.Generic.List[object]
+foreach ($one in @($list | Select-Object -First $script:Most)) {
+    $d = Get-Json "/containers/$($one.Id)/stats?stream=false&one-shot=true" -Missing
+    # The name the list gives it: the statistics of some engines leave it out.
+    if ($null -ne $d -and $d.cpu_stats) { $d['name'] = (Name-Of $one); $s.Add($d) }
+}
+# Memory in use, as docker stats counts it: without the file cache that can
+# be given back (cgroup v2: inactive_file; v1: total_inactive_file). A
+# Windows container: its private working set.
+function Mem($d) {
+    $m = $d.memory_stats
+    if (-not $m) { return [double]0 }
+    if ($win) { return (N $m.privateworkingset) }
+    $cache = [double]0
+    if ($m.stats) { if ($null -ne $m.stats.inactive_file) { $cache = N $m.stats.inactive_file } elseif ($null -ne $m.stats.total_inactive_file) { $cache = N $m.stats.total_inactive_file } }
+    return [Math]::Max((N $m.usage) - $cache, 0)
+}
+# A limit of its own: where there is none, the engine reports the memory of the machine.
+function Limit($d) {
+    $l = [double]0
+    if ($d.memory_stats) { $l = N $d.memory_stats.limit }
+    if ($win -or $l -eq 0 -or $l -ge (N $i.MemTotal)) { return [double]0 }
+    return $l
+}
+function Sum($Items, [string]$Key) { $t = [double]0; foreach ($x in @($Items)) { if ($null -ne $x) { $t += (N $x[$Key]) } }; return $t }
+function Blk($d, [string]$Op) {
+    if ($win) { if ($Op -ceq 'read') { return (N $d.storage_stats.read_size_bytes) }; return (N $d.storage_stats.write_size_bytes) }
+    $t = [double]0
+    if ($d.blkio_stats) { foreach ($x in @($d.blkio_stats.io_service_bytes_recursive)) { if ($null -ne $x -and "$($x.op)".ToLowerInvariant() -ceq $Op) { $t += (N $x.value) } } }
+    return $t
+}
+$total = [double]0; $fullest = [double]0; $throttled = 0
+foreach ($d in $s) {
+    $total += (Mem $d)
+    $l = Limit $d
+    if ($l -gt 0) { $fullest = [Math]::Max($fullest, (Mem $d) * 100 / $l) }
+    if ($d.cpu_stats.throttling_data -and (N $d.cpu_stats.throttling_data.throttled_periods) -gt 0) { $throttled++ }
+}
+"metric containers_measured $($s.Count)"
+"metric memory_total_bytes $(Num $total)"
+"metric memory_fullest_pct $(Num $fullest)"
+"metric cpu_throttled_containers $throttled"
+foreach ($d in $s) {
+    $n = Safe (Name-Of $d)
+    $cpu = [double]0
+    if ($d.cpu_stats.cpu_usage) { $cpu = (N $d.cpu_stats.cpu_usage.total_usage) / $(if ($win) { 10000000 } else { 1000000000 }) }
+    $thr = [double]0
+    if ($d.cpu_stats.throttling_data) { $thr = (N $d.cpu_stats.throttling_data.throttled_time) / 1000000000 }
+    $l = Limit $d
+    $nets = @(); if ($d.networks) { $nets = @($d.networks.Values) }
+    $pids = [double]0
+    if ($d.pids_stats -and $null -ne $d.pids_stats.current) { $pids = N $d.pids_stats.current } elseif ($null -ne $d.num_procs) { $pids = N $d.num_procs }
+    "metric cpu_seconds_count $(Num $cpu) name=$n"
+    "metric cpu_throttled_seconds_count $(Num $thr) name=$n"
+    "metric memory_bytes $(Num (Mem $d)) name=$n"
+    "metric memory_limit_bytes $(Num $l) name=$n"
+    if ($l -gt 0) { "metric memory_pct $(Num ((Mem $d) * 100 / $l)) name=$n" }
+    "metric pids $(Num $pids) name=$n"
+    "metric network_rx_bytes_count $(Num (Sum $nets 'rx_bytes')) name=$n"
+    "metric network_tx_bytes_count $(Num (Sum $nets 'tx_bytes')) name=$n"
+    "metric block_read_bytes_count $(Num (Blk $d 'read')) name=$n"
+    "metric block_write_bytes_count $(Num (Blk $d 'write')) name=$n"
+}
+"metric containers_not_shown $([Math]::Max($list.Length - $script:Most, 0))"
+exit 0

@@ -1,0 +1,8 @@
+metric up 1
+metric containers 29
+metric containers_restarting 0
+metric containers_unhealthy 0
+metric containers_oom_killed 0
+metric containers_exited_nonzero 0
+metric restarts_total_count 0
+metric containers_not_shown 26

@@ -1,0 +1,36 @@
+$Job = 'containers'
+. (Join-Path $PSScriptRoot '_docker.ps1')
+
+Test-Engine
+$all = Get-Json '/containers/json?all=1'
+$list = By-Name @($all)
+$c = New-Object System.Collections.Generic.List[object]
+foreach ($one in @($list | Select-Object -First $script:Most)) {
+    # A container removed since the list was read is left out.
+    $d = Get-Json "/containers/$($one.Id)/json" -Missing
+    if ($null -ne $d) { $c.Add($d) }
+}
+function Health($d) { $h = $d.State.Health; if ($h -and $h.Status) { return "$($h.Status)" }; return 'none' }
+function Up($d) { return ($d.State.Running -eq $true -and $d.State.Restarting -ne $true -and $d.State.Paused -ne $true) }
+$restarts = [double]0
+foreach ($d in $c) { $restarts += (N $d.RestartCount) }
+"metric containers $($list.Length)"
+"metric containers_restarting $(@($c | Where-Object { $_.State.Restarting -eq $true }).Count)"
+"metric containers_unhealthy $(@($c | Where-Object { (Health $_) -ceq 'unhealthy' }).Count)"
+"metric containers_oom_killed $(@($c | Where-Object { $_.State.OOMKilled -eq $true }).Count)"
+"metric containers_exited_nonzero $(@($c | Where-Object { $_.State.Status -ceq 'exited' -and (N $_.State.ExitCode) -ne 0 }).Count)"
+"metric restarts_total_count $(Num $restarts)"
+foreach ($d in $c) {
+    $n = Safe (Name-Of $d)
+    $state = "$($d.State.Status)"; if (-not $state) { $state = 'none' }
+    $up = Up $d
+    "metric running $(if ($up) { 1 } else { 0 }) name=$n state=$(Safe $state)"
+    "metric restarts_count $(Num $d.RestartCount) name=$n"
+    "metric oom_killed $(if ($d.State.OOMKilled -eq $true) { 1 } else { 0 }) name=$n"
+    if ($up) { "metric uptime_seconds $([Math]::Max($script:Now - (Epoch $d.State.StartedAt), 0)) name=$n" }
+    $h = Health $d
+    if ($h -ceq 'healthy' -or $h -ceq 'unhealthy') { "metric healthy $(if ($h -ceq 'healthy') { 1 } else { 0 }) name=$n" }
+    if ($state -ceq 'exited' -or $state -ceq 'dead') { "metric exit_code $(Num $d.State.ExitCode) name=$n" }
+}
+"metric containers_not_shown $([Math]::Max($list.Length - $script:Most, 0))"
+exit 0

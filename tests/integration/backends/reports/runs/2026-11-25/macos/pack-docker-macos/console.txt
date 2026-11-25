@@ -1,0 +1,323 @@
+== pack-docker-macos
+date     2026-11-25T17:20:46Z
+host     macbook-air
+os       macOS 12.7.6 (Darwin 21.6.0 x86_64)
+vigil    41f4280 (deployed copy)
+command  tests/integration/backends/scripts/run-containers.sh docker
+bash     3.2.57(1)-release
+git      git version 2.37.1 (Apple Git-137.1)
+curl     curl 8.13.0 (x86_64-apple-darwin21.6.0) libcurl/8.13.0 OpenSSL/3.5.1 zlib/1.3.1 brotli/1.1.0 zstd/1.5.7 libidn2/2.3.8 libpsl/0.21.5 nghttp2/1.66.0
+openssl  OpenSSL 3.5.1 1 Jul 2025 (Library: OpenSSL 3.5.1 1 Jul 2025)
+ssh      OpenSSH_8.6p1, LibreSSL 3.3.6
+images   (as run-containers.sh pins them)
+
+engine   Docker 28.0.4, Docker Desktop, storage overlayfs, cgroup v2, as the account that runs Docker Desktop
+here     macos, bash 3.2.57(1)-release, jq jq-1.8.2
+
+# Eleven containers and two volumes, each in a state the pack reads.
+  vigilit_busy: Up 4 seconds
+  vigilit_created: Created
+  vigilit_exit0: Exited (0) 15 seconds ago
+  vigilit_exit7: Exited (7) 17 seconds ago
+  vigilit_healthy: Up 22 seconds (healthy)
+  vigilit_loop: Restarting (3) 2 seconds ago
+  vigilit_ok: Up 23 seconds
+  vigilit_oom: Exited (137) 12 seconds ago
+  vigilit_paused: Up 11 seconds (Paused)
+  vigilit_unhealthy: Up 20 seconds (unhealthy)
+  vigilit_writes: Up 1 second
+
+# Every job, as the macos scripts print it.
+
+$ bash packs/docker/macos/status.sh
+metric up 1
+metric version 1 version=28.0.4 api=1.48 os=linux
+metric containers 29
+metric running 23
+metric paused 1
+metric restarting 1
+metric exited 3
+metric created 1
+metric dead 0
+metric unhealthy 1
+metric health_starting 0
+metric exited_nonzero 2
+metric images 24
+metric cpus 4
+metric memory_bytes 4104392704
+metric warnings 2
+  PASS  docker status: runs, and docker answers
+
+$ bash packs/docker/macos/containers.sh
+metric up 1
+metric containers 29
+metric containers_restarting 1
+metric containers_unhealthy 1
+metric containers_oom_killed 1
+metric containers_exited_nonzero 2
+metric restarts_total_count 8
+metric running 1 name=vigilit_busy state=running
+metric restarts_count 0 name=vigilit_busy
+metric oom_killed 0 name=vigilit_busy
+metric uptime_seconds 18 name=vigilit_busy
+metric running 0 name=vigilit_created state=created
+metric restarts_count 0 name=vigilit_created
+metric oom_killed 0 name=vigilit_created
+metric running 0 name=vigilit_exit0 state=exited
+metric restarts_count 0 name=vigilit_exit0
+metric oom_killed 0 name=vigilit_exit0
+metric exit_code 0 name=vigilit_exit0
+metric running 0 name=vigilit_exit7 state=exited
+metric restarts_count 0 name=vigilit_exit7
+metric oom_killed 0 name=vigilit_exit7
+metric exit_code 7 name=vigilit_exit7
+metric running 1 name=vigilit_healthy state=running
+metric restarts_count 0 name=vigilit_healthy
+metric oom_killed 0 name=vigilit_healthy
+metric uptime_seconds 35 name=vigilit_healthy
+metric healthy 1 name=vigilit_healthy
+metric running 0 name=vigilit_loop state=restarting
+metric restarts_count 8 name=vigilit_loop
+metric oom_killed 0 name=vigilit_loop
+metric running 1 name=vigilit_ok state=running
+metric restarts_count 0 name=vigilit_ok
+metric oom_killed 0 name=vigilit_ok
+metric uptime_seconds 37 name=vigilit_ok
+metric running 0 name=vigilit_oom state=exited
+metric restarts_count 0 name=vigilit_oom
+metric oom_killed 1 name=vigilit_oom
+metric exit_code 137 name=vigilit_oom
+metric running 0 name=vigilit_paused state=paused
+metric restarts_count 0 name=vigilit_paused
+metric oom_killed 0 name=vigilit_paused
+metric running 1 name=vigilit_unhealthy state=running
+metric restarts_count 0 name=vigilit_unhealthy
+metric oom_killed 0 name=vigilit_unhealthy
+metric uptime_seconds 34 name=vigilit_unhealthy
+metric healthy 0 name=vigilit_unhealthy
+metric running 1 name=vigilit_writes state=running
+metric restarts_count 0 name=vigilit_writes
+metric oom_killed 0 name=vigilit_writes
+metric uptime_seconds 15 name=vigilit_writes
+metric containers_not_shown 0
+  (and 72 lines for the engine's other containers and volumes, not shown)
+  PASS  docker containers: runs, and docker answers
+
+$ bash packs/docker/macos/resources.sh
+metric up 1
+metric containers_measured 24
+metric memory_total_bytes 799870976
+metric memory_fullest_pct 25.365
+metric cpu_throttled_containers 2
+metric cpu_seconds_count 5.848 name=vigilit_busy
+metric cpu_throttled_seconds_count 10.123 name=vigilit_busy
+metric memory_bytes 647168 name=vigilit_busy
+metric memory_limit_bytes 0 name=vigilit_busy
+metric pids 1 name=vigilit_busy
+metric network_rx_bytes_count 1208 name=vigilit_busy
+metric network_tx_bytes_count 126 name=vigilit_busy
+metric block_read_bytes_count 0 name=vigilit_busy
+metric block_write_bytes_count 0 name=vigilit_busy
+metric cpu_seconds_count 0.214 name=vigilit_healthy
+metric cpu_throttled_seconds_count 0 name=vigilit_healthy
+metric memory_bytes 622592 name=vigilit_healthy
+metric memory_limit_bytes 0 name=vigilit_healthy
+metric pids 1 name=vigilit_healthy
+metric network_rx_bytes_count 2216 name=vigilit_healthy
+metric network_tx_bytes_count 126 name=vigilit_healthy
+metric block_read_bytes_count 0 name=vigilit_healthy
+metric block_write_bytes_count 0 name=vigilit_healthy
+metric cpu_seconds_count 0.487 name=vigilit_ok
+metric cpu_throttled_seconds_count 0.019 name=vigilit_ok
+metric memory_bytes 868352 name=vigilit_ok
+metric memory_limit_bytes 67108864 name=vigilit_ok
+metric memory_pct 1.294 name=vigilit_ok
+metric pids 2 name=vigilit_ok
+metric network_rx_bytes_count 2600 name=vigilit_ok
+metric network_tx_bytes_count 126 name=vigilit_ok
+metric block_read_bytes_count 0 name=vigilit_ok
+metric block_write_bytes_count 3788800 name=vigilit_ok
+metric cpu_seconds_count 0.025 name=vigilit_paused
+metric cpu_throttled_seconds_count 0 name=vigilit_paused
+metric memory_bytes 630784 name=vigilit_paused
+metric memory_limit_bytes 0 name=vigilit_paused
+metric pids 1 name=vigilit_paused
+metric network_rx_bytes_count 1530 name=vigilit_paused
+metric network_tx_bytes_count 126 name=vigilit_paused
+metric block_read_bytes_count 0 name=vigilit_paused
+metric block_write_bytes_count 0 name=vigilit_paused
+metric cpu_seconds_count 0.268 name=vigilit_unhealthy
+metric cpu_throttled_seconds_count 0 name=vigilit_unhealthy
+metric memory_bytes 622592 name=vigilit_unhealthy
+metric memory_limit_bytes 0 name=vigilit_unhealthy
+metric pids 1 name=vigilit_unhealthy
+metric network_rx_bytes_count 2090 name=vigilit_unhealthy
+metric network_tx_bytes_count 126 name=vigilit_unhealthy
+metric block_read_bytes_count 0 name=vigilit_unhealthy
+metric block_write_bytes_count 0 name=vigilit_unhealthy
+metric cpu_seconds_count 0.137 name=vigilit_writes
+metric cpu_throttled_seconds_count 0 name=vigilit_writes
+metric memory_bytes 1253376 name=vigilit_writes
+metric memory_limit_bytes 0 name=vigilit_writes
+metric pids 1 name=vigilit_writes
+metric network_rx_bytes_count 1040 name=vigilit_writes
+metric network_tx_bytes_count 126 name=vigilit_writes
+metric block_read_bytes_count 0 name=vigilit_writes
+metric block_write_bytes_count 20971520 name=vigilit_writes
+metric containers_not_shown 0
+  (and 164 lines for the engine's other containers and volumes, not shown)
+  PASS  docker resources: runs, and docker answers
+
+$ bash packs/docker/macos/disk.sh
+metric up 1
+metric images 24
+metric images_unused 14
+metric images_dangling 0
+metric images_bytes 2923139072
+metric images_reclaimable_bytes 3140619590
+metric containers 29
+metric containers_bytes 21438464
+metric containers_stopped_bytes 20480
+metric container_bytes 20975616 name=vigilit_writes
+metric container_bytes 8192 name=vigilit_ok
+metric container_bytes 4096 name=vigilit_busy
+metric container_bytes 4096 name=vigilit_created
+metric container_bytes 4096 name=vigilit_paused
+metric container_bytes 4096 name=vigilit_oom
+metric container_bytes 4096 name=vigilit_exit0
+metric container_bytes 4096 name=vigilit_exit7
+metric container_bytes 4096 name=vigilit_loop
+metric container_bytes 4096 name=vigilit_unhealthy
+metric container_bytes 4096 name=vigilit_healthy
+metric container_bytes_not_shown 9
+metric volumes 2
+metric volumes_unused 1
+metric volumes_bytes 102400
+metric volumes_unused_bytes 0
+metric volume_bytes 102400 name=vigilit_data
+metric volume_bytes 0 name=vigilit_unused
+metric volume_bytes_not_shown 0
+metric build_cache_bytes 0
+metric build_cache_reclaimable_bytes 0
+  (and 9 lines for the engine's other containers and volumes, not shown)
+  PASS  docker disk: runs, and docker answers
+
+# What each job must have read.
+  PASS  status: the unhealthy one, the paused one, the one never started, and two that ended with an error are counted
+  PASS  status: every container is counted, whatever its state
+  PASS  containers: the one that runs, runs; the paused one and the one never started do not, and their state is said
+  PASS  containers: healthy and unhealthy are told apart; one with no health check has no such reading
+  PASS  containers: exit codes, as they ended: 7, 0, and 137 for the one killed
+  PASS  containers: the one killed for memory is named, and only that one
+  PASS  containers: the loop has restarted, the others have not
+  PASS  containers: uptime for one that runs, none for one that stopped
+  PASS  containers: the totals count them
+  PASS  resources: the limit of the one that has one (64 MB), and its memory as a share of it
+  PASS  resources: one with no limit: 0, and no share
+  PASS  resources: the busy one has used CPU, far more than the idle one
+  PASS  resources: memory and processes for each
+  PASS  resources: only running containers are measured
+  PASS  resources: the busy one is held back at its CPU limit, and that is counted
+  PASS  disk: the 20 MB one container wrote in its own layer
+  PASS  disk: both volumes counted, and the one no container uses
+  PASS  disk: images and what they take
+  PASS  disk: the volume in use is sized
+
+# A restart loop, watched: the count rises from one run to the next.
+  before: restarts_count 8
+$ bash packs/docker/macos/containers.sh   (a little later)
+metric running 0 name=vigilit_loop state=restarting
+metric restarts_count 9 name=vigilit_loop
+metric oom_killed 0 name=vigilit_loop
+  PASS  the loop: restarts_count has risen
+  PASS  the loop: Docker counts it as restarting or running, never as stopped
+
+# A container stops, and is started again.
+$ bash packs/docker/macos/containers.sh   (vigilit_ok stopped)
+metric running 0 name=vigilit_ok state=exited
+metric restarts_count 0 name=vigilit_ok
+metric oom_killed 0 name=vigilit_ok
+metric exit_code 137 name=vigilit_ok
+  PASS  stopped: running 0, its state and its exit code said
+  PASS  stopped: no longer measured
+$ bash packs/docker/macos/containers.sh   (vigilit_ok started again)
+metric running 1 name=vigilit_ok state=running
+metric restarts_count 0 name=vigilit_ok
+metric oom_killed 0 name=vigilit_ok
+metric uptime_seconds 2 name=vigilit_ok
+  PASS  started again: running 1, and a new uptime
+
+# More containers than a job names: the first few by name, the rest counted.
+  PASS  DOCKER_MOST=3: three are named, and the rest are counted
+
+# Nothing answering.
+  PASS  status: nothing answers: the job still runs, and reads up 0
+  PASS  containers: nothing answers: the job still runs, and reads up 0
+  PASS  resources: nothing answers: the job still runs, and reads up 0
+  PASS  disk: nothing answers: the job still runs, and reads up 0
+  PASS  an address that is not a socket on this machine: refused, and said
+
+34 passed, 0 failed
+
+# The pack through Vigil.
+bash 5.2.37(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+docker: DOCKER_HOST=unix:///var/run/docker.sock
+  PASS  docker: off until enabled
+  PASS  docker: enabled
+        on: docker_status
+        on: docker_containers
+        on: docker_resources
+        on: docker_disk
+        needs an account that may use the engine: root, or a member of the docker group (Linux); an administrator, or a member of the group daemon.json names (Windows). That is as good as root on the machine, as it is for anyone who can run docker
+        needs its address, where it is not the default (unix:///var/run/docker.sock; on Windows npipe:////./pipe/docker_engine): env = DOCKER_HOST=... on each job
+        needs for the engine's own CPU and memory (dockerd): the base pack's processes job; for how full the disk is, its disk job
+        settings in vigil.config: DOCKER_HOST=
+  PASS  docker: it says CPU and memory are the base pack's
+  PASS  docker: its jobs are on
+  PASS  docker: precheck is happy
+        status: 16 lines
+        containers: 123 lines
+        resources: 225 lines
+        disk: 39 lines
+  PASS  docker: every job runs
+  PASS  docker: answers
+  PASS  docker: a server that does not answer still runs
+  PASS  docker: and reads as up 0
+  PASS  docker: its containers are read, and named
+  SKIP  podman: set VIGIL_IT_PODMAN (scripts/run-containers.sh podman sets it up)
+  PASS  docker: metrics reach the backend, each container's too
+13 passed, 0 failed
+
+# Only what this run made is removed.
+  PASS  this run's eleven containers are gone, and no other was touched
+evidence: reports/runs/2026-11-25/macos/pack-docker-macos
