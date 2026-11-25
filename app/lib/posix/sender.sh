@@ -304,8 +304,20 @@ vigil_send() {
         fi
         _vigil_send_place "$f"
     done
+    # A run that still has its token is not done with its events. A worker
+    # writes them, then its final state, then removes the token (4.3). If it
+    # died between the first two, they are the only record of how the run
+    # ended, and the supervisor reads them at its next tick (11.3): a sender
+    # already running must not deliver and delete them first, or a run that
+    # succeeded is recorded crashed. So <epoch>-<job>-<run id>.events waits
+    # here while locks/<job>.<run id>.token exists: until the worker has
+    # finished, or the supervisor has concluded the run.
     for f in "$_sd_in"/*.events; do
         [ -f "$f" ] || continue
+        name=${f##*/}
+        name=${name%.events}
+        name=${name#*-}
+        [ -e "$_vw_statedir/locks/${name%%-*}.${name#*-}.token" ] && continue
         mv "$f" "$_sd_fan/${f##*/}" || continue
         f="$_sd_fan/${f##*/}"
         vigil_fault fanout.after_claim

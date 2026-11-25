@@ -197,7 +197,7 @@ Workers never talk to backends. A worker writes its run's metric events to one s
 
 **Fan-out.** The sender copies each incoming file into `spool/backends/<name>/` for every enabled backend that should receive it (respecting each job's `backends` key). An interrupted fan-out must never silently lose a destination, so it follows a write-ahead protocol:
 
-1. **Claim:** rename `incoming/<f>` to `fanout/<f>` (atomic).
+1. **Claim:** rename `incoming/<f>` to `fanout/<f>` (atomic). A run's file is left in `incoming/` while that run still has its token (`state/locks/<job id>.<run id>.token`): its worker has not finished, or it died and the supervisor has not yet concluded the run (§11.3).
 2. **Fix the targets:** write `fanout/<f>.targets`, the list of destination backends, atomically. A resumed fan-out uses this list, never the current configuration, so a reload in between cannot change where events go.
 3. **Place, per target:** copy to a temporary name in `backends/<name>/`, rename it into place, then create the empty marker `fanout/<f>.<name>.done`.
 4. **Retire:** once every target has its marker, delete `fanout/<f>`, then the targets file and markers.
@@ -1038,6 +1038,8 @@ A worker that cannot start at all never claims its launch, and nothing carries i
 When the state file is unreadable or missing, the run id is recovered from the name of the launch record or the token for that job. Spool file names are not used for it: files of earlier runs may still be queued for a slow backend, and the newest of them does not say which run the lost state was for.
 
 **The outcome in a spool file** is the worker's own line, the one written straight after the run's `runs` line (§4.3). What the job printed follows it and is never read as an outcome: a metric of the job's own named `steps.succeeded` or `rows.failures` cannot change how its run is recorded.
+
+**The spool file stays until the run is concluded.** A worker that dies after writing its spool file and before its final state leaves that file as the only record of how the run ended. The sender does not take a run's file while the run's token exists (§4.5), so a sender already running cannot deliver and delete it before the supervisor's next tick has read it. The token goes when the worker finishes or the supervisor concludes the run, and the file is delivered then: at most a tick later, or, for a run held as uncertain (§11.4), once it is resolved.
 
 The process scan for a run id is only done in these cases and for launch records past their grace, not every tick.
 

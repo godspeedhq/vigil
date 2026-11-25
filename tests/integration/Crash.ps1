@@ -480,6 +480,32 @@ Invoke-WCrash 'worker.after_spool'
 Test-Equal '16b: a run that succeeded and printed rows.failures is reconciled as succeeded' "succeeded|reconciled from the spool file|$wrid" "$(Get-WState 'status')|$(Get-WState 'reason')|$(Get-WState 'run_id')"
 [System.IO.File]::WriteAllText("$root\scripts\w.cmd", $wKeep)
 
+# 16c. A sender does not take a run's events while the run has its token.
+# A worker that died after its spool file leaves it as the only record of
+# how the run ended: a sender already running must not deliver and delete
+# it before the supervisor has read it. This process holds the token here,
+# as a worker would, so nothing depends on which of the two is quicker.
+Set-ConfigW '3650d'
+Wait-Ticking 30 { -not (Get-Locks 'w') }
+$hrid = '20260101T000000Z-9-held'
+$htoken = "$root\state\locks\w.$hrid.token"
+[System.IO.File]::WriteAllText($htoken, '')
+$hold = [System.IO.File]::Open($htoken, 'Open', 'Read', 'ReadWrite')
+$now = [DateTimeOffset]::Now.ToUnixTimeSeconds()
+$hf = "$root\spool\incoming\$now-w-$hrid.events"
+[System.IO.File]::WriteAllText("$hf.tmp", "$now crash.w.duration_seconds 1 gauge host=it job=w`n$now crash.w.runs 1 count host=it job=w`n$now crash.w.failures 1 count host=it job=w exit_code=2`n$now held_run 1 gauge host=it`n")
+[System.IO.File]::Move("$hf.tmp", $hf)
+Add-Event 'beside_held'
+Wait-Ticking 20 { Test-InBoth 'beside_held' }
+Test-Equal '16c: a sender ran, and delivered what lay beside it' 'True' "$(Test-InBoth 'beside_held')"
+$hsent = @('a', 'b' | Where-Object { (Test-Path -LiteralPath "$root\metrics\$_.prom") -and ((Read-Backend "$root\metrics\$_.prom") -cmatch '(?m)^held_run') }).Count
+Test-Equal '16c: the events of a run that has its token are left where they are' 'True|0' "$(Test-Path -LiteralPath $hf)|$hsent"
+$hold.Dispose()
+[void](Invoke-Once)
+Test-Equal '16c: its worker gone, the run is concluded from them' "failed|reconciled from the spool file|$hrid" "$(Get-WState 'status')|$(Get-WState 'reason')|$(Get-WState 'run_id')"
+Wait-Ticking 20 { Test-InBoth 'held_run' }
+Test-Equal '16c: and they are delivered then' 'True|' "$(Test-InBoth 'held_run')|$(Get-Locks 'w')"
+
 # worker.after_state: the final state written, the token never released.
 Invoke-WCrash 'worker.after_state'
 Test-Equal 'worker.after_state: ran once' '1' "$(Get-WRan $wrid)"
