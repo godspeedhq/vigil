@@ -34,6 +34,9 @@ compactor:
 storage:
   trace:
     backend: local
+    # The list of blocks is read again every 30 seconds (5 minutes by
+    # default), so that the test need not wait for it.
+    blocklist_poll: 30s
     wal:
       path: /var/tempo/wal
     local:

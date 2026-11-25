@@ -10,8 +10,11 @@
 monitoring stack. For each: pack.config; for Linux and macOS, _<pack>.sh
 (lib.sh, what the scripts share) and each job's bash script; for Windows,
 _<pack>.ps1 (lib.ps1) and each job's script. The jobs are in <pack>.py; each
-job's example output in examples-<pack>.txt. Run from the repository:
-py tools/obs/gen.py . (OBS_GEN_DRAFT=1 allows a job with no example yet)."""
+job's example output in examples-<pack>.txt; each pack's page, README.md, is
+written from pages.py, with the grid of its metrics left for
+tools/pack-grid.py to fill. Run from the repository: py tools/obs/gen.py .
+then py tools/pack-grid.py . (OBS_GEN_DRAFT=1 allows a job with no example
+yet)."""
 import importlib
 import os
 import sys
@@ -21,6 +24,7 @@ repo = sys.argv[1]
 src = os.path.join(repo, 'tools', 'obs')
 sys.path.insert(0, src)
 import jobs  # noqa: E402
+import pages  # noqa: E402
 
 NOTICE = [
     'Copyright (c) Bankole Ogundero and the Vigil contributors',
@@ -210,6 +214,65 @@ def pack_config(p, js):
     return '\n'.join(c).rstrip('\n') + '\n'
 
 
+EVERY = {'1m': 'minute', '5m': '5 minutes', '15m': '15 minutes'}
+DISCLAIMER = '''---
+
+[All packs](../README.md) · [Writing a pack](../../CONTRIBUTING.md#your-first-pack) · [The packs releases](https://github.com/godspeedhq/vigil/releases)
+
+## Disclaimer
+
+These scripts are provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or implied, including any warranty of title, non-infringement, merchantability or fitness for a particular purpose.
+
+**Run them at your own risk.** Review them and test them on a non-production machine before you rely on them. You are responsible for deciding whether they are right for your systems.
+
+In no event shall the authors, contributors or copyright holders be liable for any claim, damages or other liability, whether direct, indirect, incidental or consequential, including loss of data, downtime or business interruption, arising from the use of these scripts or the inability to use them.
+
+The [Apache License 2.0](../../LICENSE) gives the full terms, and it takes precedence over this summary.
+'''
+
+
+def readme(p, js, old):
+    d, g = PACKS[p], pages.PAGES[p]
+    P = d['P'][0].upper() + d['P'][1:]
+    jq = any('jq' in j['needs_sh'] for j in js)
+    c = ['# The %s pack' % p, '', g['intro'], '', g['why'], '',
+         '**Read-only: every request is a GET.** The pack reads %s\'s own pages and changes nothing, whatever its login '
+         'would allow. It needs `curl` and `awk`%s on Linux and macOS, and nothing but PowerShell on Windows.'
+         % (d['P'], ' (and `jq` for the data sources)' if jq else ''), '']
+    for i, step in enumerate(g['setup'], 1):
+        c += ['%d. %s' % (i, step)]
+    c += ['', '**%s that does not answer is a reading**, `up 0`, and the run succeeds: alert on it in your backend. A run '
+          'fails only when the answer is wrong (a login refused on a page every job needs, or something that is not '
+          'HTTP), and says why.' % P, '',
+          '## What it needs', '',
+          '| | Linux | macOS | Windows |', '| --- | --- | --- | --- |',
+          '| On the Vigil machine | `curl`, `awk`%s | `curl`, `awk` (built in)%s | Nothing: PowerShell 5.1 or later, and .NET |'
+          % ((', `jq`', ', `jq` (Homebrew; macOS 15 has it)') if jq else ('', '')),
+          '| %s | %s | | |' % (P, d['works']),
+          '| Its address | reachable from the Vigil machine: `%s_URL` (default `%s`) | | |' % (d['E'], d['url']),
+          '', '## Its jobs', '', '| Job | Reports | Every |', '| --- | --- | --- |']
+    for j in js:
+        every = j['when'].split('=')[1].strip()
+        c += ['| `%s_%s` | %s | %s |' % (p, j['job'], g['reports'][j['job']], EVERY.get(every, every))]
+    c += ['', "Each job's script says, in its header, what every metric means and what healthy, watch and bad look like.", '']
+    # The grid, kept as it is (tools/pack-grid.py writes it).
+    if old and '<!-- grid:start -->' in old and '<!-- grid:end -->' in old:
+        c += [old[old.index('<!-- grid:start -->'):old.index('<!-- grid:end -->') + len('<!-- grid:end -->')]]
+    else:
+        c += ['<!-- grid:start -->', '<!-- grid:end -->']
+    c += ['', '## What to alert on', '',
+          'Starting points, from the same figures each script\'s header explains; "In our tests" is what the stack in '
+          'trouble on purpose (below) showed. *Watch* is a warning: someone looks today. *Act* is critical: someone acts '
+          'now. Graph the `_count` totals as rates: "rising" means its rate is above zero, "flat" that it is zero.', '',
+          '| Metric | Healthy | Watch | Act | In our tests |', '| --- | --- | --- | --- | --- |']
+    for row in g['alerts']:
+        c += ['| ' + ' | '.join(row) + ' |']
+    c += ['', '## How it was tested', '', pages.TESTED.strip(), '']
+    if g.get('found'):
+        c += ['**What the tests found.** ' + g['found'], '']
+    return '\n'.join(c) + '\n' + DISCLAIMER
+
+
 only = sys.argv[2:] or list(PACKS)
 for p in only:
     js = [j for j in jobs.JOBS if j['pack'] == p]
@@ -230,4 +293,8 @@ for p in only:
             open(os.path.join(out, os_, j['job'] + '.sh'), 'w', encoding='utf-8', newline='\n').write(s)
         open(os.path.join(out, 'windows', j['job'] + '.ps1'), 'w', encoding='utf-8', newline='\n').write(ps_script(j, p, ex))
     open(os.path.join(out, 'pack.config'), 'w', encoding='utf-8', newline='\n').write(pack_config(p, js))
+    if p in pages.PAGES:
+        page = os.path.join(out, 'README.md')
+        old = open(page, encoding='utf-8').read() if os.path.exists(page) else ''
+        open(page, 'w', encoding='utf-8', newline='\n').write(readme(p, js, old))
     print('%s: %d jobs, %d metrics' % (p, len(js), sum(len(jobs.metrics_of(j)) for j in js)))
