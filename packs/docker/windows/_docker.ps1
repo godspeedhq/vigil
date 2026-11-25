@@ -190,6 +190,7 @@ function Epoch($Time) {
 function By-Name($List) {
     $items = [object[]]@($List | Where-Object { $null -ne $_ })
     $keys = [string[]]@($items | ForEach-Object { Name-Of $_ })
-    if ($items.Length -gt 1) { [Array]::Sort($keys, $items, [StringComparer]::Ordinal) }
+    # As [Array] and IComparer: the generic overload would sort copies.
+    if ($items.Length -gt 1) { [Array]::Sort([Array]$keys, [Array]$items, [Collections.IComparer][StringComparer]::Ordinal) }
     return , $items
 }
