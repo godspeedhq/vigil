@@ -1,0 +1,45 @@
+metric up 1
+metric containers_measured 5
+metric memory_total_bytes 1982464
+metric memory_fullest_pct 0
+metric cpu_seconds_count 6.596 name=vigilit_busy
+metric memory_bytes 344064 name=vigilit_busy
+metric memory_limit_bytes 0 name=vigilit_busy
+metric pids 1 name=vigilit_busy
+metric network_rx_bytes_count 258 name=vigilit_busy
+metric network_tx_bytes_count 682 name=vigilit_busy
+metric block_read_bytes_count 0 name=vigilit_busy
+metric block_write_bytes_count 0 name=vigilit_busy
+metric cpu_seconds_count 0.073 name=vigilit_healthy
+metric memory_bytes 344064 name=vigilit_healthy
+metric memory_limit_bytes 0 name=vigilit_healthy
+metric pids 1 name=vigilit_healthy
+metric network_rx_bytes_count 258 name=vigilit_healthy
+metric network_tx_bytes_count 612 name=vigilit_healthy
+metric block_read_bytes_count 0 name=vigilit_healthy
+metric block_write_bytes_count 0 name=vigilit_healthy
+metric cpu_seconds_count 0.008 name=vigilit_loop
+metric memory_bytes 557056 name=vigilit_loop
+metric memory_limit_bytes 0 name=vigilit_loop
+metric pids 2 name=vigilit_loop
+metric network_rx_bytes_count 258 name=vigilit_loop
+metric network_tx_bytes_count 362 name=vigilit_loop
+metric block_read_bytes_count 0 name=vigilit_loop
+metric block_write_bytes_count 0 name=vigilit_loop
+metric cpu_seconds_count 0.063 name=vigilit_unhealthy
+metric memory_bytes 344064 name=vigilit_unhealthy
+metric memory_limit_bytes 0 name=vigilit_unhealthy
+metric pids 1 name=vigilit_unhealthy
+metric network_rx_bytes_count 258 name=vigilit_unhealthy
+metric network_tx_bytes_count 612 name=vigilit_unhealthy
+metric block_read_bytes_count 0 name=vigilit_unhealthy
+metric block_write_bytes_count 0 name=vigilit_unhealthy
+metric cpu_seconds_count 0.034 name=vigilit_writes
+metric memory_bytes 393216 name=vigilit_writes
+metric memory_limit_bytes 0 name=vigilit_writes
+metric pids 1 name=vigilit_writes
+metric network_rx_bytes_count 258 name=vigilit_writes
+metric network_tx_bytes_count 682 name=vigilit_writes
+metric block_read_bytes_count 0 name=vigilit_writes
+metric block_write_bytes_count 655360 name=vigilit_writes
+metric containers_not_shown 0

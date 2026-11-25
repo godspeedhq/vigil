@@ -198,6 +198,12 @@ Starting points, from the same figures each script's header explains; "In our te
 ## How it was tested
 
 <!-- tested:start -->
+**Tested** on 2026-11-25 by `tests/integration/backends/scripts/run-containers.sh podman`, against a real Podman holding eleven small containers and two volumes made for the run, each in a state the pack reads: one running with a 64 MB memory limit and a volume, one healthy, one unhealthy, one in a restart loop, one that ended with code 7, one that ended well, one killed for memory at 16 MB, one paused, one never started, one busy at a CPU limit of 0.3, and one that wrote 20 MB into its own layer. At the end only those are removed.
+
+- **On Fedora, rootless** (Fedora 44, Podman 5.8.9, cgroup v2, crun, bash 5.3), as an ordinary account with containers of its own: every job and what each must have read; the restart loop watched rising; a container stopped (`running 0`, its exit code, no longer measured) and started again; the number of containers named cut to three, the rest counted; nothing answering (`up 0`, the run succeeding): **32 passed, 0 failed**. Then `service-packs.sh` through Vigil (enable, and that the machine's CPU and memory are the base pack's; precheck; every job; a Podman that cannot be reached read as `up 0`; each container's readings reaching the backend): **13 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-25/fedora/pack-podman/console.txt)).
+- **Not tested yet:** Podman as root, and macOS with a `podman machine`. This page will say so when they have been run.
+
+**What the tests found.** Under `--restart=always`, Podman starts a failing container again at once, with no growing wait, and shows it as *running* the whole time: in a probe before these runs, ours restarted 387 times in eight minutes while `podman ps` showed it as up. `restarts_count` is the only reading that tells.
 <!-- tested:end -->
 
 ---
