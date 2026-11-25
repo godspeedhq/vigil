@@ -24,7 +24,7 @@ groups:
           summary: fires on purpose
       - alert: TargetDown
         expr: up == 0
-        for: 1h
+        for: 6h
         labels:
           severity: warn
   - name: broken
