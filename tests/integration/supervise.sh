@@ -628,8 +628,10 @@ printf '\n[source.extra]\ntype = local\npath = %s/later\ncheck_every = 1s\n\n[jo
 sleep 3; vtick; sleep 2; vtick; sleep 2; vtick
 check 'jobs.log says which configuration is in force' yes "$(grep -qx '  waiting for the first fetch: the last valid configuration stays active' "$vjobs" && echo yes || echo no)"
 check 'the job that was running still runs' yes "$([ "$(vstarted ok)" -gt "$before" ] && echo yes || echo no)"
-# Its latest run may be in progress: its state says running until it ends.
-i=0; while [ "$(vstatus ok)" != succeeded ] && [ "$i" -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
+# The last tick may have just launched a run: until its worker has written
+# its state, the file still shows the run before. So the run is waited for
+# by its launch record and token, which are there from the launch to the end.
+i=0; while ls "$vroot/state/locks" 2> /dev/null | grep -q '^ok[.]' && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
 check 'and succeeds' succeeded "$(vstatus ok)"
 check 'the job that needs the source does not run yet' 0 "$(vstarted fromsource)"
 # The source can be fetched now: the configuration that names it takes over.

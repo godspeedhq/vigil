@@ -762,7 +762,10 @@ $vsaid = { (Test-Path -LiteralPath $vjobs) -and ([System.IO.File]::ReadAllText($
 Invoke-TickUntil { (& $vsaid) -and (Get-VCount 'job ok: run .* started') -gt $vbefore } 30
 Test-Equal 'jobs.log says which configuration is in force' 'True' ([string](& $vsaid))
 Test-Equal 'the job that was running still runs' 'True' ([string]((Get-VCount 'job ok: run .* started') -gt $vbefore))
-Wait-Until { (Get-VStatus 'ok') -ceq 'succeeded' } 120
+# The last tick may have just launched a run: until its worker has written
+# its state, the file still shows the run before. So the run is waited for
+# by its launch record and token, which are there from the launch to the end.
+Wait-Until { (Get-VLocks 'ok.*') -eq 0 } 240
 Test-Equal 'and succeeds' 'succeeded' (Get-VStatus 'ok')
 Test-Equal 'the job that needs the source does not run yet' '0' ([string](Get-VCount 'job fromsource: run .* started'))
 # The source can be fetched now: the configuration that names it takes over.
