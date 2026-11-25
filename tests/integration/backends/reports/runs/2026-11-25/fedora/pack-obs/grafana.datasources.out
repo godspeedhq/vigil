@@ -1,0 +1,9 @@
+metric up 1
+metric login_ok 1
+metric datasource_ok 0 name=Dead type=prometheus
+metric datasource_ok 1 name=Loki type=loki
+metric datasource_ok 1 name=Prometheus type=prometheus
+metric datasource_ok 0 name=Tempo type=tempo
+metric datasources 4
+metric datasources_failing 2
+metric datasources_not_shown 0

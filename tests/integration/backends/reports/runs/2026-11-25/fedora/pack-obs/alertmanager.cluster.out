@@ -1,0 +1,12 @@
+metric up 1
+metric cluster_enabled 1
+metric members 2
+metric failed_peers 0
+metric health_score 0
+metric peer_position 0
+metric messages_queued 0
+metric messages_pruned_count 0
+metric reconnections_count 0
+metric reconnections_failed_count 0
+metric peers_joined_count 3
+metric peers_left_count 1

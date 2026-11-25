@@ -1,0 +1,17 @@
+metric up 1
+metric spans_received_count 584
+metric bytes_received_count 113934
+metric receiver_accepted_count 584
+metric receiver_refused_count 0
+metric discarded_count 93
+metric discarded 93 reason=trace_too_large
+metric discarded 0 reason=live_traces_exceeded
+metric discarded 0 reason=unknown_error
+metric discarded_not_shown 0
+metric live_traces 20
+metric traces_created_count 221
+metric blocks_flushed_count 1
+metric flush_failures_count 0
+metric flush_queue 0
+metric append_failures_count 0
+metric warnings_count 6

@@ -1,0 +1,15 @@
+metric up 1
+metric groups 2
+metric rules 4
+metric evaluations_count 96
+metric evaluation_failures_count 23
+metric evaluation_failures 23 group=/etc/prometheus/rules.yml_broken
+metric evaluation_failures 0 group=/etc/prometheus/rules.yml_good
+metric evaluation_failures_not_shown 0
+metric iterations_missed_count 0
+metric slowest_group_seconds 0.001151
+metric stalest_group_seconds 3
+metric alerts_firing 1
+metric alerts_pending 3
+metric firing 1 alert=AlwaysFiring
+metric firing_not_shown 0

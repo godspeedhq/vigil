@@ -1,0 +1,10 @@
+metric up 1
+metric targets_up 1
+metric targets_down 1
+metric scrapes_count 25
+metric scrapes_failed_count 25
+metric config_reload_ok 1
+metric config_reload_errors_count 0
+metric down 1 job=dead
+metric down 0 job=victoriametrics
+metric down_not_shown 0

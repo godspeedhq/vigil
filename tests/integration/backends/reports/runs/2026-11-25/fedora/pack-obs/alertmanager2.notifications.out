@@ -1,0 +1,59 @@
+metric up 1
+metric notifications_count 16
+metric notifications_failed_count 11
+metric failed_pct 68.75
+metric sent 16 integration=webhook
+metric sent 0 integration=discord
+metric sent 0 integration=email
+metric sent 0 integration=incidentio
+metric sent 0 integration=jira
+metric sent 0 integration=mattermost
+metric sent 0 integration=msteams
+metric sent 0 integration=msteamsv2
+metric sent 0 integration=opsgenie
+metric sent 0 integration=pagerduty
+metric sent 0 integration=pushover
+metric sent 0 integration=rocketchat
+metric sent 0 integration=slack
+metric sent 0 integration=sns
+metric sent 0 integration=telegram
+metric sent 0 integration=victorops
+metric sent 0 integration=webex
+metric sent 0 integration=wechat
+metric sent_not_shown 0
+metric failed 11 integration=webhook
+metric failed 0 integration=discord
+metric failed 0 integration=email
+metric failed 0 integration=incidentio
+metric failed 0 integration=jira
+metric failed 0 integration=mattermost
+metric failed 0 integration=msteams
+metric failed 0 integration=msteamsv2
+metric failed 0 integration=opsgenie
+metric failed 0 integration=pagerduty
+metric failed 0 integration=pushover
+metric failed 0 integration=rocketchat
+metric failed 0 integration=slack
+metric failed 0 integration=sns
+metric failed 0 integration=telegram
+metric failed 0 integration=victorops
+metric failed 0 integration=webex
+metric failed 0 integration=wechat
+metric failed_not_shown 0
+metric failed_reason 11 reason=other
+metric failed_reason 0 reason=authError
+metric failed_reason 0 reason=clientError
+metric failed_reason 0 reason=configError
+metric failed_reason 0 reason=contextCanceled
+metric failed_reason 0 reason=contextDeadlineExceeded
+metric failed_reason 0 reason=encodingError
+metric failed_reason 0 reason=fileReadError
+metric failed_reason 0 reason=missingContext
+metric failed_reason 0 reason=rateLimited
+metric failed_reason 0 reason=requestError
+metric failed_reason 0 reason=serverError
+metric failed_reason 0 reason=templateError
+metric failed_reason_not_shown 0
+metric requests_count 73
+metric requests_failed_count 69
+metric latency_avg_seconds 0.001452

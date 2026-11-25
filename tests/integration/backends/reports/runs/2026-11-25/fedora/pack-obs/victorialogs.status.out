@@ -1,0 +1,25 @@
+metric up 1
+metric healthy 1
+metric version 1 version=v1.54.0
+metric uptime_seconds 121
+metric read_only 0
+metric free_disk_bytes 79811555328
+metric data_bytes 8457
+metric http_requests_count 92
+metric http_errors_count 0
+metric http_errors 0 path=/insert/journald/upload
+metric http_errors 0 path=/insert/jsonline
+metric http_errors 0 path=/insert/multitenant/native
+metric http_errors 0 path=/insert/native
+metric http_errors 0 path=/insert/opentelemetry/v1/logs
+metric http_errors 0 path=/insert/splunk
+metric http_errors 0 path=/internal/insert
+metric http_errors_not_shown 0
+metric selects 0
+metric selects_capacity 8
+metric selects_pct 0
+metric selects_limit_reached_count 0
+metric selects_limit_timeout_count 0
+metric live_tails 0
+metric errors_logged_count 0
+metric panics_logged_count 0

@@ -1,0 +1,11 @@
+metric up 1
+metric compactor_active 1
+metric compactions_count 1
+metric compactions_failed_count 0
+metric last_compaction_seconds 54
+metric retention_runs_count 1
+metric retention_failed_count 0
+metric last_retention_seconds 54
+metric delete_requests_pending 0
+metric oldest_delete_request_seconds 0
+metric tables_skipped 0

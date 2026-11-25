@@ -1,0 +1,20 @@
+metric up 1
+metric rows_ingested_count 460
+metric rows_ingested 400 type=opentelemetry_protobuf
+metric rows_ingested 60 type=jsonline
+metric rows_ingested_not_shown 0
+metric bytes_ingested_count 90553
+metric rows_dropped_count 28
+metric rows_dropped 28 reason=too_small_timestamp
+metric rows_dropped 0 reason=debug
+metric rows_dropped 0 reason=too_many_fields
+metric rows_dropped 0 reason=too_big_timestamp
+metric rows_dropped_not_shown 0
+metric too_long_lines_count 0
+metric ingest_errors_count 0
+metric streams_created_count 3
+metric rows 432
+metric pending_rows 0
+metric partitions 1
+metric active_merges 0
+metric compression_ratio 11.182002

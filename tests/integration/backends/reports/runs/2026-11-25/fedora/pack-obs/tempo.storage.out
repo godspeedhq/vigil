@@ -1,0 +1,10 @@
+metric up 1
+metric blocks 1
+metric compactions_count 0
+metric compaction_errors_count 0
+metric retention_deleted_count 0
+metric retention_errors_count 0
+metric blocklist_poll_errors_count 0
+metric backend_requests_count 0
+metric backend_errors_count 0
+metric work_queue 0

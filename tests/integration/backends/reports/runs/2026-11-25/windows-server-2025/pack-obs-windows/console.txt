@@ -1,0 +1,1487 @@
+host     Windows (Windows Server 2025 Datacenter Evaluation, build 26100), PowerShell 5.1.26100.7462, as an account that is not an administrator
+servers  run-obs.sh's stack on the Fedora test machine, through SSH tunnels
+
+# prometheus: every job, as the Windows scripts print it.
+
+PS> powershell -File packs\prometheus\windows\status.ps1
+metric up 1
+metric ready 1
+metric version 1 version=3.15.1
+metric uptime_seconds 1762
+metric config_reload_ok 1
+metric config_age_seconds 1760
+metric queries 0
+metric queries_max 20
+metric queries_pct 0
+metric http_requests_count 1636
+metric http_4xx_count 421
+metric http_5xx_count 0
+metric alertmanagers 3
+metric notifications_sent_count 55
+metric notifications_errors_count 29
+metric notifications_errors 28 alertmanager=http://alertmanager:9/api/v2/alerts
+metric notifications_errors 1 alertmanager=http://alertmanager:9093/api/v2/alerts
+metric notifications_errors 0 alertmanager=http://alertmanager2:9093/api/v2/alerts
+metric notifications_errors_not_shown 0
+metric notifications_dropped_count 29
+metric notification_queue 0
+metric notification_queue_capacity 10000
+metric fds_pct 0.01
+  PASS  prometheus status: runs, and the service answers
+  PASS  prometheus status: the same readings as the Linux script printed (23 of them)
+
+PS> powershell -File packs\prometheus\windows\targets.ps1
+metric up 1
+metric scrape_pools 4
+metric targets 12
+metric discovered_targets 12
+metric sd_failed_configs 0
+metric pool_reloads_failed_count 0
+metric exceeded_sample_limit_count 0
+metric exceeded_body_size_count 0
+metric exceeded_target_limit_count 0
+metric out_of_order_count 0
+metric duplicate_timestamp_count 0
+metric out_of_bounds_count 0
+metric targets_up 9
+metric targets_down 3
+metric down 2 job=dead
+metric down 1 job=notmetrics
+metric down 0 job=stack
+metric down 0 job=prometheus
+metric down_not_shown 0
+metric scrape_slowest_seconds 0.027105
+metric samples_scraped 16721
+  PASS  prometheus targets: runs, and the service answers
+  PASS  prometheus targets: the same readings as the Linux script printed (21 of them)
+
+PS> powershell -File packs\prometheus\windows\tsdb.ps1
+metric up 1
+metric head_series 16792
+metric head_chunks 50066
+metric series_created_count 16792
+metric samples_appended_count 5791064
+metric out_of_order_samples_count 0
+metric blocks 0
+metric blocks_bytes 0
+metric wal_bytes 28590226
+metric head_chunks_bytes 4194267
+metric retention_seconds 7200
+metric oldest_sample_seconds 1759
+metric newest_sample_seconds 1
+metric compactions_count 0
+metric compactions_failed_count 0
+metric wal_corruptions_count 0
+metric wal_writes_failed_count 0
+metric wal_truncations_failed_count 0
+metric checkpoints_failed_count 0
+metric head_truncations_failed_count 0
+metric reloads_failed_count 0
+metric mmap_corruptions_count 0
+metric clean_start 1
+  PASS  prometheus tsdb: runs, and the service answers
+  PASS  prometheus tsdb: the same readings as the Linux script printed (23 of them)
+
+PS> powershell -File packs\prometheus\windows\rules.ps1
+metric up 1
+metric groups 2
+metric rules 4
+metric evaluations_count 1416
+metric evaluation_failures_count 353
+metric evaluation_failures 353 group=/etc/prometheus/rules.yml_broken
+metric evaluation_failures 0 group=/etc/prometheus/rules.yml_good
+metric evaluation_failures_not_shown 0
+metric iterations_missed_count 0
+metric slowest_group_seconds 0.000972
+metric stalest_group_seconds 0
+metric alerts_firing 1
+metric alerts_pending 3
+metric firing 1 alert=AlwaysFiring
+metric firing_not_shown 0
+  PASS  prometheus rules: runs, and the service answers
+  PASS  prometheus rules: the same readings as the Linux script printed (15 of them)
+
+PS> powershell -File packs\prometheus\windows\remote_write.ps1
+metric up 1
+metric remotes 3
+metric samples_sent_count 11648000
+metric samples_failed_count 5806000
+metric samples_failed 5806000 remote=mimir
+metric samples_failed 0 remote=dead
+metric samples_failed 0 remote=victoriametrics
+metric samples_failed_not_shown 0
+metric samples_retried_count 35900
+metric samples_dropped_count 0
+metric samples_pending 4407
+metric pending 1854 remote=mimir
+metric pending 1854 remote=victoriametrics
+metric pending 699 remote=dead
+metric pending_not_shown 0
+metric shards 3
+metric shards_max 102
+metric shards_desired 1.041574
+metric behind_seconds 1
+metric remotes_never_sent 1
+  PASS  prometheus remote_write: runs, and the service answers
+  PASS  prometheus remote_write: the same readings as the Linux script printed (20 of them)
+
+# alertmanager: every job, as the Windows scripts print it.
+
+PS> powershell -File packs\alertmanager\windows\status.ps1
+metric up 1
+metric ready 1
+metric version 1 version=0.35.1
+metric uptime_seconds 1771
+metric config_reload_ok 1
+metric config_age_seconds 1767
+metric alerts_active 1
+metric alerts_suppressed 0
+metric alerts_unprocessed 0
+metric alerts_received_count 27
+metric alerts_invalid_count 0
+metric silences_active 0
+metric silences_pending 0
+metric silences_expired 0
+metric receivers 2
+metric integrations 2
+metric inhibition_rules 1
+metric aggregation_groups 2
+metric aggregation_limit_reached_count 0
+metric fds_pct 0
+  PASS  alertmanager status: runs, and the service answers
+  PASS  alertmanager status: the same readings as the Linux script printed (20 of them)
+
+PS> powershell -File packs\alertmanager\windows\notifications.ps1
+metric up 1
+metric notifications_count 68
+metric notifications_failed_count 68
+metric failed_pct 100
+metric sent 68 integration=webhook
+metric sent 0 integration=discord
+metric sent 0 integration=email
+metric sent 0 integration=incidentio
+metric sent 0 integration=jira
+metric sent 0 integration=mattermost
+metric sent 0 integration=msteams
+metric sent 0 integration=msteamsv2
+metric sent 0 integration=opsgenie
+metric sent 0 integration=pagerduty
+metric sent 0 integration=pushover
+metric sent 0 integration=rocketchat
+metric sent 0 integration=slack
+metric sent 0 integration=sns
+metric sent 0 integration=telegram
+metric sent 0 integration=victorops
+metric sent 0 integration=webex
+metric sent 0 integration=wechat
+metric sent_not_shown 0
+metric failed 68 integration=webhook
+metric failed 0 integration=discord
+metric failed 0 integration=email
+metric failed 0 integration=incidentio
+metric failed 0 integration=jira
+metric failed 0 integration=mattermost
+metric failed 0 integration=msteams
+metric failed 0 integration=msteamsv2
+metric failed 0 integration=opsgenie
+metric failed 0 integration=pagerduty
+metric failed 0 integration=pushover
+metric failed 0 integration=rocketchat
+metric failed 0 integration=slack
+metric failed 0 integration=sns
+metric failed 0 integration=telegram
+metric failed 0 integration=victorops
+metric failed 0 integration=webex
+metric failed 0 integration=wechat
+metric failed_not_shown 0
+metric failed_reason 68 reason=other
+metric failed_reason 0 reason=authError
+metric failed_reason 0 reason=clientError
+metric failed_reason 0 reason=configError
+metric failed_reason 0 reason=contextCanceled
+metric failed_reason 0 reason=contextDeadlineExceeded
+metric failed_reason 0 reason=encodingError
+metric failed_reason 0 reason=fileReadError
+metric failed_reason 0 reason=missingContext
+metric failed_reason 0 reason=rateLimited
+metric failed_reason 0 reason=requestError
+metric failed_reason 0 reason=serverError
+metric failed_reason 0 reason=templateError
+metric failed_reason_not_shown 0
+metric requests_count 437
+metric requests_failed_count 437
+metric latency_avg_seconds 0.001137
+  PASS  alertmanager notifications: runs, and the service answers
+  PASS  alertmanager notifications: the same readings as the Linux script printed (59 of them)
+
+PS> powershell -File packs\alertmanager\windows\cluster.ps1
+metric up 1
+metric cluster_enabled 1
+metric members 2
+metric failed_peers 0
+metric health_score 0
+metric peer_position 1
+metric messages_queued 0
+metric messages_pruned_count 0
+metric reconnections_count 0
+metric reconnections_failed_count 0
+metric peers_joined_count 2
+metric peers_left_count 0
+  PASS  alertmanager cluster: runs, and the service answers
+  PASS  alertmanager cluster: the same readings as the Linux script printed (12 of them)
+
+# grafana: every job, as the Windows scripts print it.
+
+PS> powershell -File packs\grafana\windows\status.ps1
+metric up 1
+metric healthy 1
+metric version 1 version=13.2.5 edition=oss
+metric uptime_seconds 1775
+metric dashboards 0
+metric users 1
+metric active_users 1
+metric alert_rules 3
+metric datasources 4
+metric datasources_by_type 2 type=prometheus
+metric datasources_by_type 1 type=loki
+metric datasources_by_type 1 type=tempo
+metric datasources_by_type_not_shown 0
+metric http_requests_count 875
+metric http_4xx_count 14
+metric http_5xx_count 0
+metric requests_in_flight 1
+metric db_connections 2
+metric db_connections_in_use 0
+metric db_connections_max 0
+metric db_waits_count 0
+metric plugin_requests_count 910
+metric plugin_errors_count 521
+metric plugin_errors 521 plugin=prometheus
+metric plugin_errors_not_shown 0
+metric live_clients 0
+  PASS  grafana status: runs, and the service answers
+  PASS  grafana status: the same readings as the Linux script printed (26 of them)
+
+PS> powershell -File packs\grafana\windows\alerting.ps1
+metric up 1
+metric rules 3
+metric rule_groups 1
+metric evaluations_count 522
+metric evaluation_failures_count 176
+metric evaluation_failures_pct 33.72
+metric alerts 1 state=alerting
+metric alerts 1 state=error
+metric alerts 1 state=normal
+metric alerts 0 state=nodata
+metric alerts 0 state=pending
+metric alerts 0 state=recovering
+metric alerts_not_shown 0
+metric alerts_alerting 1
+metric alerts_error 1
+metric alerts_nodata 0
+metric scheduler_behind_seconds 0.000918
+metric last_tick_seconds 6
+metric notifications_count 169
+metric notifications_failed_count 169
+metric notifications_failed 169 integration=webhook
+metric notifications_failed_not_shown 0
+metric silences_active 0
+metric alerts_received_count 152
+metric alerts_invalid_count 0
+  PASS  grafana alerting: runs, and the service answers
+  PASS  grafana alerting: the same readings as the Linux script printed (25 of them)
+
+PS> powershell -File packs\grafana\windows\datasources.ps1
+metric up 1
+metric login_ok 1
+metric datasource_ok 0 name=Dead type=prometheus
+metric datasource_ok 1 name=Loki type=loki
+metric datasource_ok 1 name=Prometheus type=prometheus
+metric datasource_ok 1 name=Tempo type=tempo
+metric datasources 4
+metric datasources_failing 1
+metric datasources_not_shown 0
+  PASS  grafana datasources: runs, and the service answers
+  PASS  grafana datasources: the same readings as the Linux script printed (9 of them)
+
+# loki: every job, as the Windows scripts print it.
+
+PS> powershell -File packs\loki\windows\status.ps1
+metric up 1
+metric ready 1
+metric version 1 version=3.7.9
+metric uptime_seconds 1781
+metric ingesters_active 1
+metric ingesters_unhealthy 0
+metric ring_unhealthy 0
+metric ring_not_active 0
+metric requests_count 8132
+metric requests_4xx_count 1279
+metric requests_5xx_count 24
+metric queries_in_progress 0
+metric queue_length 0
+metric tails_active 0
+metric panics_count 0
+metric errors_logged_count 1003
+  PASS  loki status: runs, and the service answers
+  PASS  loki status: the same readings as the Linux script printed (16 of them)
+
+PS> powershell -File packs\loki\windows\ingestion.ps1
+metric up 1
+metric lines_received_count 8378
+metric bytes_received_count 732504
+metric discarded_count 852
+metric discarded 426 reason=greater_than_max_sample_age
+metric discarded 426 reason=line_too_long
+metric discarded_not_shown 0
+metric discarded_bytes_count 174978
+metric streams 2
+metric chunks 4
+metric streams_created_count 2
+metric chunks_flushed_count 44
+metric flush_failures_count 0
+metric flush_queue 0
+metric wal_disk_full_count 0
+metric wal_corruptions_count 0
+metric checkpoints_failed_count 0
+metric append_failures_count 0
+  PASS  loki ingestion: runs, and the service answers
+  PASS  loki ingestion: the same readings as the Linux script printed (18 of them)
+
+PS> powershell -File packs\loki\windows\compaction.ps1
+metric up 1
+metric compactor_active 1
+metric compactions_count 29
+metric compactions_failed_count 0
+metric last_compaction_seconds 39
+metric retention_runs_count 20
+metric retention_failed_count 0
+metric last_retention_seconds 9
+metric delete_requests_pending 0
+metric oldest_delete_request_seconds 0
+metric tables_skipped 0
+  PASS  loki compaction: runs, and the service answers
+  PASS  loki compaction: the same readings as the Linux script printed (11 of them)
+
+# mimir: every job, as the Windows scripts print it.
+
+PS> powershell -File packs\mimir\windows\status.ps1
+metric up 1
+metric ready 1
+metric version 1 version=3.2.6
+metric uptime_seconds 1789
+metric ingesters_active 1
+metric ingesters_unhealthy 0
+metric store_gateways_active 1
+metric compactors_active 1
+metric ring_unhealthy 0
+metric ring_not_active 0
+metric requests_count 9018
+metric requests_4xx_count 3399
+metric requests_5xx_count 8
+metric inflight_requests 14
+metric distributor_rejected_count 0
+metric ingester_rejected_count 0
+metric querier_rejected_count 0
+  PASS  mimir status: runs, and the service answers
+  PASS  mimir status: the same readings as the Linux script printed (17 of them)
+
+PS> powershell -File packs\mimir\windows\ingestion.ps1
+metric up 1
+metric samples_in_count 5877500
+metric samples_received_count 5761346
+metric discarded_count 5806100
+metric discarded 5689946 reason=per_user_series_limit
+metric discarded 91515 reason=metric_name_invalid
+metric discarded 24638 reason=label_invalid
+metric discarded 1 reason=sample_duplicate_timestamp
+metric discarded_not_shown 0
+metric series 200
+metric tenants 1
+metric active_series 200
+metric ingested_samples_count 71400
+metric ingested_failures_count 5689946
+metric append_failures_count 0
+metric pushes_in_flight 0
+metric out_of_order_appended_count 0
+  PASS  mimir ingestion: runs, and the service answers
+  PASS  mimir ingestion: the same readings as the Linux script printed (17 of them)
+
+PS> powershell -File packs\mimir\windows\storage.ps1
+metric up 1
+metric shipper_uploads_count 0
+metric shipper_failures_count 0
+metric head_compactions_failed_count 0
+metric head_truncations_failed_count 0
+metric wal_corruptions_count 0
+metric wal_writes_failed_count 0
+metric compactor_runs_count 30
+metric compactor_runs_failed_count 0
+metric last_compaction_seconds 51
+metric cleanup_failures_count 0
+metric blocks_loaded 0
+metric block_load_failures_count 0
+metric consistency_failures_count 0
+metric bucket_operations_count 44
+metric bucket_failures_count 0
+metric bucket_failures 0 operation=attributes
+metric bucket_failures 0 operation=delete
+metric bucket_failures 0 operation=exists
+metric bucket_failures 0 operation=get
+metric bucket_failures 0 operation=get_range
+metric bucket_failures 0 operation=iter
+metric bucket_failures 0 operation=upload
+metric bucket_failures_not_shown 0
+  PASS  mimir storage: runs, and the service answers
+  PASS  mimir storage: the same readings as the Linux script printed (24 of them)
+
+# tempo: every job, as the Windows scripts print it.
+
+PS> powershell -File packs\tempo\windows\status.ps1
+metric up 1
+metric ready 1
+metric version 1 version=v2.10.10
+metric uptime_seconds 1797
+metric ingesters_active 1
+metric ingesters_unhealthy 0
+metric ring_unhealthy 0
+metric ring_not_active 0
+metric requests_count 5034
+metric requests_4xx_count 429
+metric requests_5xx_count 8
+metric inflight_requests 21
+  PASS  tempo status: runs, and the service answers
+  PASS  tempo status: the same readings as the Linux script printed (12 of them)
+
+PS> powershell -File packs\tempo\windows\ingestion.ps1
+metric up 1
+metric spans_received_count 8959
+metric bytes_received_count 1748604
+metric receiver_accepted_count 8959
+metric receiver_refused_count 0
+metric discarded_count 1459
+metric discarded 1459 reason=trace_too_large
+metric discarded 0 reason=live_traces_exceeded
+metric discarded 0 reason=unknown_error
+metric discarded_not_shown 0
+metric live_traces 20
+metric traces_created_count 3616
+metric blocks_flushed_count 27
+metric flush_failures_count 0
+metric flush_queue 0
+metric append_failures_count 0
+metric warnings_count 88
+  PASS  tempo ingestion: runs, and the service answers
+  PASS  tempo ingestion: the same readings as the Linux script printed (17 of them)
+
+PS> powershell -File packs\tempo\windows\storage.ps1
+metric up 1
+metric blocks 4
+metric compactions_count 46
+metric compaction_errors_count 0
+metric retention_deleted_count 0
+metric retention_errors_count 0
+metric blocklist_poll_errors_count 0
+metric backend_requests_count 0
+metric backend_errors_count 0
+metric work_queue 0
+  PASS  tempo storage: runs, and the service answers
+  PASS  tempo storage: the same readings as the Linux script printed (10 of them)
+
+# otelcol: every job, as the Windows scripts print it.
+
+PS> powershell -File packs\otelcol\windows\status.ps1
+metric up 1
+metric version 1 version=0.166.0 name=otelcol-contrib
+metric uptime_seconds 1805.853959
+metric memory_rss_bytes 251817984
+metric heap_bytes 54530872
+  PASS  otelcol status: runs, and the service answers
+  PASS  otelcol status: the same readings as the Linux script printed (5 of them)
+
+PS> powershell -File packs\otelcol\windows\receivers.ps1
+metric up 1
+metric accepted_spans_count 9034
+metric refused_spans_count 7643
+metric failed_spans_count 0
+metric accepted_metric_points_count 3600
+metric refused_metric_points_count 0
+metric failed_metric_points_count 0
+metric accepted_log_records_count 7200
+metric refused_log_records_count 0
+metric failed_log_records_count 0
+metric refused_spans 7643 receiver=otlp/refused
+metric refused_spans 0 receiver=otlp
+metric refused_spans_not_shown 0
+metric refused_metric_points 0 receiver=otlp
+metric refused_metric_points_not_shown 0
+metric refused_log_records 0 receiver=otlp
+metric refused_log_records_not_shown 0
+  PASS  otelcol receivers: runs, and the service answers
+  PASS  otelcol receivers: the same readings as the Linux script printed (17 of them)
+
+PS> powershell -File packs\otelcol\windows\exporters.ps1
+metric up 1
+metric sent_spans_count 9039
+metric send_failed_spans_count 8056
+metric enqueue_failed_spans_count 8622
+metric sent_metric_points_count 3600
+metric send_failed_metric_points_count 3600
+metric enqueue_failed_metric_points_count 0
+metric sent_log_records_count 14400
+metric send_failed_log_records_count 0
+metric enqueue_failed_log_records_count 0
+metric send_failed_spans 7738 exporter=otlphttp/refusing
+metric send_failed_spans 318 exporter=otlphttp/dead
+metric send_failed_spans_not_shown 0
+metric send_failed_metric_points 3600 exporter=prometheusremotewrite/mimir
+metric send_failed_metric_points_not_shown 0
+metric queue_size 10
+metric queue_capacity 14010
+metric queue_fullest_pct 100
+metric queue 10 exporter=otlphttp/dead
+metric queue 0 exporter=otlphttp/loki
+metric queue 0 exporter=otlphttp/victorialogs
+metric queue 0 exporter=otlphttp/victoriametrics
+metric queue 0 exporter=prometheusremotewrite/mimir
+metric queue 0 exporter=otlp/tempo
+metric queue_not_shown 0
+metric in_flight 1
+  PASS  otelcol exporters: runs, and the service answers
+  PASS  otelcol exporters: the same readings as the Linux script printed (26 of them)
+
+# victoriametrics: every job, as the Windows scripts print it.
+
+PS> powershell -File packs\victoriametrics\windows\status.ps1
+metric up 1
+metric healthy 1
+metric version 1 version=v1.157.0
+metric uptime_seconds 1818
+metric read_only 0
+metric free_disk_bytes 79757111296
+metric data_bytes 6710021
+metric http_requests_count 4668
+metric http_errors_count 434
+metric http_errors 434 path=/api/v1/query
+metric http_errors 0 path=_
+metric http_errors 0 path=/api/v1/admin/status/metric_names_stats/reset
+metric http_errors 0 path=/api/v1/admin/tsdb/delete_series
+metric http_errors 0 path=/api/v1/export
+metric http_errors 0 path=/api/v1/export/csv
+metric http_errors 0 path=/api/v1/export/native
+metric http_errors 0 path=/api/v1/import
+metric http_errors 0 path=/api/v1/import/csv
+metric http_errors 0 path=/api/v1/import/native
+metric http_errors 0 path=/api/v1/import/prometheus
+metric http_errors 0 path=/api/v1/label/__/values
+metric http_errors 0 path=/api/v1/labels
+metric http_errors 0 path=/api/v1/metadata
+metric http_errors 0 path=/api/v1/query_range
+metric http_errors 0 path=/api/v1/series
+metric http_errors 0 path=/api/v1/series/count
+metric http_errors 0 path=/api/v1/status/metric_names_stats
+metric http_errors 0 path=/api/v1/status/top_queries
+metric http_errors 0 path=/api/v1/status/tsdb
+metric http_errors_not_shown 26
+metric slow_queries_count 0
+metric selects 0
+metric selects_capacity 8
+metric selects_pct 0
+metric selects_limit_reached_count 0
+metric selects_limit_timeout_count 0
+metric errors_logged_count 0
+metric panics_logged_count 0
+  PASS  victoriametrics status: runs, and the service answers
+  PASS  victoriametrics status: the same readings as the Linux script printed (38 of them)
+
+PS> powershell -File packs\victoriametrics\windows\ingestion.ps1
+metric up 1
+metric rows_inserted_count 6491842
+metric rows_inserted 5974000 type=promremotewrite
+metric rows_inserted 514242 type=promscrape
+metric rows_inserted 3600 type=opentelemetry
+metric rows_inserted 0 type=csvimport
+metric rows_inserted 0 type=datadogsketches
+metric rows_inserted 0 type=datadogv1
+metric rows_inserted 0 type=datadogv2
+metric rows_inserted 0 type=graphite
+metric rows_inserted 0 type=influx
+metric rows_inserted 0 type=native
+metric rows_inserted 0 type=newrelic
+metric rows_inserted 0 type=opentsdb
+metric rows_inserted 0 type=opentsdbhttp
+metric rows_inserted 0 type=prometheus
+metric rows_inserted 0 type=vmimport
+metric rows_inserted 0 type=zabbixconnector
+metric rows_inserted_not_shown 0
+metric rows_invalid_count 0
+metric rows_ignored_count 0
+metric rows_ignored 0 reason=too_long_label_name
+metric rows_ignored 0 reason=too_long_label_value
+metric rows_ignored 0 reason=too_long_metric_metadata_value
+metric rows_ignored 0 reason=too_many_labels
+metric rows_ignored 0 reason=big_timestamp
+metric rows_ignored 0 reason=small_timestamp
+metric rows_ignored 0 reason=invalid_raw_metric_name
+metric rows_ignored_not_shown 0
+metric new_series_count 18131
+metric slow_row_inserts_count 18131
+metric slow_inserts_pct 0.28
+metric inserts 0
+metric inserts_capacity 8
+metric inserts_limit_reached_count 0
+metric inserts_limit_timeout_count 0
+metric series_limit_dropped_count 0
+metric daily_limit_dropped_count 0
+metric rows 6432751
+metric pending_rows 15882
+metric active_merges 0
+  PASS  victoriametrics ingestion: runs, and the service answers
+  PASS  victoriametrics ingestion: the same readings as the Linux script printed (41 of them)
+
+PS> powershell -File packs\victoriametrics\windows\targets.ps1
+metric up 1
+metric targets_up 1
+metric targets_down 1
+metric scrapes_count 365
+metric scrapes_failed_count 365
+metric config_reload_ok 1
+metric config_reload_errors_count 0
+metric down 1 job=dead
+metric down 0 job=victoriametrics
+metric down_not_shown 0
+  PASS  victoriametrics targets: runs, and the service answers
+  PASS  victoriametrics targets: the same readings as the Linux script printed (10 of them)
+
+# victorialogs: every job, as the Windows scripts print it.
+
+PS> powershell -File packs\victorialogs\windows\status.ps1
+metric up 1
+metric healthy 1
+metric version 1 version=v1.54.0
+metric uptime_seconds 1821
+metric read_only 0
+metric free_disk_bytes 79757111296
+metric data_bytes 36516
+metric http_requests_count 1437
+metric http_errors_count 0
+metric http_errors 0 path=/insert/journald/upload
+metric http_errors 0 path=/insert/jsonline
+metric http_errors 0 path=/insert/multitenant/native
+metric http_errors 0 path=/insert/native
+metric http_errors 0 path=/insert/opentelemetry/v1/logs
+metric http_errors 0 path=/insert/splunk
+metric http_errors 0 path=/internal/insert
+metric http_errors_not_shown 0
+metric selects 0
+metric selects_capacity 8
+metric selects_pct 0
+metric selects_limit_reached_count 0
+metric selects_limit_timeout_count 0
+metric live_tails 0
+metric errors_logged_count 0
+metric panics_logged_count 0
+  PASS  victorialogs status: runs, and the service answers
+  PASS  victorialogs status: the same readings as the Linux script printed (25 of them)
+
+PS> powershell -File packs\victorialogs\windows\ingestion.ps1
+metric up 1
+metric rows_ingested_count 8132
+metric rows_ingested 7200 type=opentelemetry_protobuf
+metric rows_ingested 932 type=jsonline
+metric rows_ingested_not_shown 0
+metric bytes_ingested_count 1611451
+metric rows_dropped_count 436
+metric rows_dropped 436 reason=too_small_timestamp
+metric rows_dropped 0 reason=debug
+metric rows_dropped 0 reason=too_many_fields
+metric rows_dropped 0 reason=too_big_timestamp
+metric rows_dropped_not_shown 0
+metric too_long_lines_count 0
+metric ingest_errors_count 0
+metric streams_created_count 3
+metric rows 7696
+metric pending_rows 0
+metric partitions 1
+metric active_merges 0
+metric compression_ratio 43.790949
+  PASS  victorialogs ingestion: runs, and the service answers
+  PASS  victorialogs ingestion: the same readings as the Linux script printed (20 of them)
+
+# The faults planted in the stack, read from Windows.
+  PASS  prometheus: three targets down, two in one job and one in another
+  PASS  prometheus: the rule group that cannot be evaluated is named
+  PASS  prometheus: one alert firing, three pending
+  PASS  prometheus: three remotes; Mimir refuses samples; one never took any
+  PASS  alertmanager: notifications fail, through the webhook; a cluster of two
+  PASS  grafana: the data source that does not answer is named, the others answer
+  PASS  grafana: one alert firing, one whose rule cannot be evaluated
+  PASS  loki: entries discarded, too old and too long
+  PASS  mimir: at its limit of 200 series, and discarding for it
+  PASS  tempo: traces too large discarded
+  PASS  otelcol: the receiver that must refuse is named; the fullest queue is full
+  PASS  victoriametrics: one target down, its job named; queries that failed, by path
+  PASS  victorialogs: entries older than its retention dropped
+
+# A token Grafana refuses, and nothing answering.
+  PASS  grafana: a token it refuses: the run succeeds, and reads login_ok 0
+  PASS  prometheus: nothing answers: status still runs, up 0
+  PASS  alertmanager: nothing answers: status still runs, up 0
+  PASS  grafana: nothing answers: status still runs, up 0
+  PASS  loki: nothing answers: status still runs, up 0
+  PASS  mimir: nothing answers: status still runs, up 0
+  PASS  tempo: nothing answers: status still runs, up 0
+  PASS  otelcol: nothing answers: status still runs, up 0
+  PASS  victoriametrics: nothing answers: status still runs, up 0
+  PASS  victorialogs: nothing answers: status still runs, up 0
+79 passed, 0 failed
+
+# The packs through Vigil.
+PowerShell 5.1.26100.7462
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  iis: set VIGIL_IT_WEB_IIS (scripts/run-web.sh sets it up)
+prometheus: PROMETHEUS_URL=http://127.0.0.1:19090
+  PASS  prometheus: enabled
+        on: prometheus_status
+        on: prometheus_targets
+        on: prometheus_tsdb
+        on: prometheus_rules
+        on: prometheus_remote_write
+        needs its address, where it is not http://localhost:9090: env = PROMETHEUS_URL=... on each job
+        needs where it asks for a login: PROMETHEUS_USER and secret = PROMETHEUS_PASSWORD=secret:PROMETHEUS_PASSWORD, or secret = PROMETHEUS_TOKEN=secret:PROMETHEUS_TOKEN for a bearer token
+        needs for Prometheus' CPU and memory: the base pack's processes job
+        settings in vigil.config: PROMETHEUS_URL= PROMETHEUS_USER= PROMETHEUS_CACERT=
+  PASS  prometheus: it says CPU and memory are the base pack's
+  PASS  prometheus: precheck is happy
+  PASS  prometheus: every job runs (status, targets, tsdb, rules, remote_write)
+        metric up 1
+        metric ready 1
+        metric version 1 version=3.15.1
+        metric uptime_seconds 1885
+        metric config_reload_ok 1
+        metric config_age_seconds 1883
+        metric queries 0
+        metric queries_max 20
+        metric queries_pct 0
+        metric http_requests_count 1753
+        metric http_4xx_count 450
+        metric http_5xx_count 0
+        metric alertmanagers 3
+        metric notifications_sent_count 57
+        metric notifications_errors_count 30
+        metric notifications_errors 29 alertmanager=http://alertmanager:9/api/v2/alerts
+        metric notifications_errors 1 alertmanager=http://alertmanager:9093/api/v2/alerts
+        metric notifications_errors 0 alertmanager=http://alertmanager2:9093/api/v2/alerts
+        metric notifications_errors_not_shown 0
+        metric notifications_dropped_count 30
+        metric notification_queue 0
+        metric notification_queue_capacity 10000
+        metric fds_pct 0.01
+        metric up 1
+        metric scrape_pools 4
+        metric targets 12
+        metric discovered_targets 12
+        metric sd_failed_configs 0
+        metric pool_reloads_failed_count 0
+        metric exceeded_sample_limit_count 0
+        metric exceeded_body_size_count 0
+        metric exceeded_target_limit_count 0
+        metric out_of_order_count 0
+        metric duplicate_timestamp_count 0
+        metric out_of_bounds_count 0
+        metric targets_up 9
+        metric targets_down 3
+        metric down 2 job=dead
+        metric down 1 job=notmetrics
+        metric down 0 job=stack
+        metric down 0 job=prometheus
+        metric down_not_shown 0
+        metric scrape_slowest_seconds 0.03453
+        metric samples_scraped 16722
+        metric up 1
+        metric head_series 16793
+        metric head_chunks 66492
+        metric series_created_count 16793
+        metric samples_appended_count 6256703
+        metric out_of_order_samples_count 0
+        metric blocks 0
+        metric blocks_bytes 0
+        metric wal_bytes 30878719
+        metric head_chunks_bytes 4194267
+        metric retention_seconds 7200
+        metric oldest_sample_seconds 1897
+        metric newest_sample_seconds 0
+        metric compactions_count 0
+        metric compactions_failed_count 0
+        metric wal_corruptions_count 0
+        metric wal_writes_failed_count 0
+        metric wal_truncations_failed_count 0
+        metric checkpoints_failed_count 0
+        metric head_truncations_failed_count 0
+        metric reloads_failed_count 0
+        metric mmap_corruptions_count 0
+        metric clean_start 1
+        metric up 1
+        metric groups 2
+        metric rules 4
+        metric evaluations_count 1528
+        metric evaluation_failures_count 381
+        metric evaluation_failures 381 group=/etc/prometheus/rules.yml_broken
+        metric evaluation_failures 0 group=/etc/prometheus/rules.yml_good
+        metric evaluation_failures_not_shown 0
+        metric iterations_missed_count 0
+        metric slowest_group_seconds 0.0012
+        metric stalest_group_seconds 3
+        metric alerts_firing 1
+        metric alerts_pending 3
+        metric firing 1 alert=AlwaysFiring
+        metric firing_not_shown 0
+        metric up 1
+        metric remotes 3
+        metric samples_sent_count 12679000
+        metric samples_failed_count 6320000
+        metric samples_failed 6320000 remote=mimir
+        metric samples_failed 0 remote=dead
+        metric samples_failed 0 remote=victoriametrics
+        metric samples_failed_not_shown 0
+        metric samples_retried_count 38900
+        metric samples_dropped_count 0
+        metric samples_pending 1103
+        metric pending 699 remote=dead
+        metric pending 202 remote=mimir
+        metric pending 202 remote=victoriametrics
+        metric pending_not_shown 0
+        metric shards 3
+        metric shards_max 102
+        metric shards_desired 1.044413
+        metric behind_seconds 0
+        metric remotes_never_sent 1
+  PASS  prometheus: answers
+  PASS  prometheus: a service that does not answer still runs
+  PASS  prometheus: and reads as up 0
+  PASS  prometheus: metrics reach the backend
+alertmanager: ALERTMANAGER_URL=http://127.0.0.1:19093
+  PASS  alertmanager: enabled
+        on: alertmanager_status
+        on: alertmanager_notifications
+        on: alertmanager_cluster
+        needs its address, where it is not http://localhost:9093: env = ALERTMANAGER_URL=... on each job (one Alertmanager: for a cluster, the pack on each member's machine)
+        needs where it asks for a login: ALERTMANAGER_USER and secret = ALERTMANAGER_PASSWORD=secret:ALERTMANAGER_PASSWORD, or secret = ALERTMANAGER_TOKEN=secret:ALERTMANAGER_TOKEN for a bearer token
+        needs for Alertmanager's CPU and memory: the base pack's processes job
+        settings in vigil.config: ALERTMANAGER_URL= ALERTMANAGER_USER= ALERTMANAGER_CACERT=
+  PASS  alertmanager: it says CPU and memory are the base pack's
+  PASS  alertmanager: precheck is happy
+  PASS  alertmanager: every job runs (status, notifications, cluster)
+        metric up 1
+        metric ready 1
+        metric version 1 version=0.35.1
+        metric uptime_seconds 1969
+        metric config_reload_ok 1
+        metric config_age_seconds 1965
+        metric alerts_active 1
+        metric alerts_suppressed 0
+        metric alerts_unprocessed 0
+        metric alerts_received_count 30
+        metric alerts_invalid_count 0
+        metric silences_active 0
+        metric silences_pending 0
+        metric silences_expired 0
+        metric receivers 2
+        metric integrations 2
+        metric inhibition_rules 1
+        metric aggregation_groups 2
+        metric aggregation_limit_reached_count 0
+        metric fds_pct 0
+        metric up 1
+        metric notifications_count 76
+        metric notifications_failed_count 76
+        metric failed_pct 100
+        metric sent 76 integration=webhook
+        metric sent 0 integration=discord
+        metric sent 0 integration=email
+        metric sent 0 integration=incidentio
+        metric sent 0 integration=jira
+        metric sent 0 integration=mattermost
+        metric sent 0 integration=msteams
+        metric sent 0 integration=msteamsv2
+        metric sent 0 integration=opsgenie
+        metric sent 0 integration=pagerduty
+        metric sent 0 integration=pushover
+        metric sent 0 integration=rocketchat
+        metric sent 0 integration=slack
+        metric sent 0 integration=sns
+        metric sent 0 integration=telegram
+        metric sent 0 integration=victorops
+        metric sent 0 integration=webex
+        metric sent 0 integration=wechat
+        metric sent_not_shown 0
+        metric failed 76 integration=webhook
+        metric failed 0 integration=discord
+        metric failed 0 integration=email
+        metric failed 0 integration=incidentio
+        metric failed 0 integration=jira
+        metric failed 0 integration=mattermost
+        metric failed 0 integration=msteams
+        metric failed 0 integration=msteamsv2
+        metric failed 0 integration=opsgenie
+        metric failed 0 integration=pagerduty
+        metric failed 0 integration=pushover
+        metric failed 0 integration=rocketchat
+        metric failed 0 integration=slack
+        metric failed 0 integration=sns
+        metric failed 0 integration=telegram
+        metric failed 0 integration=victorops
+        metric failed 0 integration=webex
+        metric failed 0 integration=wechat
+        metric failed_not_shown 0
+        metric failed_reason 76 reason=other
+        metric failed_reason 0 reason=authError
+        metric failed_reason 0 reason=clientError
+        metric failed_reason 0 reason=configError
+        metric failed_reason 0 reason=contextCanceled
+        metric failed_reason 0 reason=contextDeadlineExceeded
+        metric failed_reason 0 reason=encodingError
+        metric failed_reason 0 reason=fileReadError
+        metric failed_reason 0 reason=missingContext
+        metric failed_reason 0 reason=rateLimited
+        metric failed_reason 0 reason=requestError
+        metric failed_reason 0 reason=serverError
+        metric failed_reason 0 reason=templateError
+        metric failed_reason_not_shown 0
+        metric requests_count 489
+        metric requests_failed_count 489
+        metric latency_avg_seconds 0.001143
+        metric up 1
+        metric cluster_enabled 1
+        metric members 2
+        metric failed_peers 0
+        metric health_score 0
+        metric peer_position 1
+        metric messages_queued 0
+        metric messages_pruned_count 0
+        metric reconnections_count 0
+        metric reconnections_failed_count 0
+        metric peers_joined_count 2
+        metric peers_left_count 0
+  PASS  alertmanager: answers
+  PASS  alertmanager: a service that does not answer still runs
+  PASS  alertmanager: and reads as up 0
+  PASS  alertmanager: metrics reach the backend
+grafana: GRAFANA_URL=http://127.0.0.1:19300
+  PASS  grafana: enabled
+        on: grafana_status
+        on: grafana_alerting
+        on: grafana_datasources
+        needs secret:GRAFANA_TOKEN: not set: vigil secret set GRAFANA_TOKEN, as the account Vigil runs as (an elevated prompt for a system install)
+        needs its address, where it is not http://localhost:3000: env = GRAFANA_URL=... on each job
+        needs its metrics page, which is on by default ([metrics] enabled); where it asks for a login ([metrics] basic_auth_username): GRAFANA_USER and secret = GRAFANA_PASSWORD=secret:GRAFANA_PASSWORD
+        needs for the datasources job, a service account with the Viewer role and a token for it (Administration, Users and access, Service accounts), kept in Vigil's secret store: vigil secret set GRAFANA_TOKEN. A Viewer may list the data sources and ask each for its health, and change nothing. With no token to give, turn that job off: vigil pack disable grafana_datasources
+        needs for Grafana's CPU and memory: the base pack's processes job
+        settings in vigil.config: GRAFANA_URL= GRAFANA_USER= GRAFANA_CACERT=
+  PASS  grafana: it says CPU and memory are the base pack's
+  note  grafana: this logon cannot use the secret store (it has no password): the job takes the token by env:VIGIL_IT_OBS_GRAFANA_TOKEN
+  PASS  grafana: precheck is happy
+  PASS  grafana: every job runs (status, alerting, datasources)
+        metric up 1
+        metric healthy 1
+        metric version 1 version=13.2.5 edition=oss
+        metric uptime_seconds 2055
+        metric dashboards 0
+        metric users 1
+        metric active_users 1
+        metric alert_rules 3
+        metric datasources 4
+        metric datasources_by_type 2 type=prometheus
+        metric datasources_by_type 1 type=loki
+        metric datasources_by_type 1 type=tempo
+        metric datasources_by_type_not_shown 0
+        metric http_requests_count 1007
+        metric http_4xx_count 16
+        metric http_5xx_count 0
+        metric requests_in_flight 1
+        metric db_connections 2
+        metric db_connections_in_use 0
+        metric db_connections_max 0
+        metric db_waits_count 0
+        metric plugin_requests_count 1054
+        metric plugin_errors_count 605
+        metric plugin_errors 605 plugin=prometheus
+        metric plugin_errors_not_shown 0
+        metric live_clients 0
+        metric up 1
+        metric rules 3
+        metric rule_groups 1
+        metric evaluations_count 608
+        metric evaluation_failures_count 205
+        metric evaluation_failures_pct 33.72
+        metric alerts 1 state=alerting
+        metric alerts 1 state=error
+        metric alerts 1 state=normal
+        metric alerts 0 state=nodata
+        metric alerts 0 state=pending
+        metric alerts 0 state=recovering
+        metric alerts_not_shown 0
+        metric alerts_alerting 1
+        metric alerts_error 1
+        metric alerts_nodata 0
+        metric scheduler_behind_seconds 0.000938
+        metric last_tick_seconds 4
+        metric notifications_count 198
+        metric notifications_failed_count 198
+        metric notifications_failed 198 integration=webhook
+        metric notifications_failed_not_shown 0
+        metric silences_active 0
+        metric alerts_received_count 171
+        metric alerts_invalid_count 0
+        metric up 1
+        metric login_ok 1
+        metric datasource_ok 0 name=Dead type=prometheus
+        metric datasource_ok 1 name=Loki type=loki
+        metric datasource_ok 1 name=Prometheus type=prometheus
+        metric datasource_ok 1 name=Tempo type=tempo
+        metric datasources 4
+        metric datasources_failing 1
+        metric datasources_not_shown 0
+  PASS  grafana: answers
+  PASS  grafana: its data sources are read with the token
+  PASS  grafana: the token is written nowhere
+  PASS  grafana: a service that does not answer still runs
+  PASS  grafana: and reads as up 0
+  PASS  grafana: metrics reach the backend
+loki: LOKI_URL=http://127.0.0.1:19310
+  PASS  loki: enabled
+        on: loki_status
+        on: loki_ingestion
+        on: loki_compaction
+        needs its address, where it is not http://localhost:3100: env = LOKI_URL=... on each job (in microservices mode, a component: the ingestion job at a distributor or an ingester, the compaction job at the compactor)
+        needs where it asks for a login (a proxy in front of it): LOKI_USER and secret = LOKI_PASSWORD=secret:LOKI_PASSWORD, or secret = LOKI_TOKEN=secret:LOKI_TOKEN for a bearer token
+        needs for Loki's CPU and memory: the base pack's processes job
+        settings in vigil.config: LOKI_URL= LOKI_USER= LOKI_CACERT=
+  PASS  loki: it says CPU and memory are the base pack's
+  PASS  loki: precheck is happy
+  PASS  loki: every job runs (status, ingestion, compaction)
+        metric up 1
+        metric ready 1
+        metric version 1 version=3.7.9
+        metric uptime_seconds 2142
+        metric ingesters_active 1
+        metric ingesters_unhealthy 0
+        metric ring_unhealthy 0
+        metric ring_not_active 0
+        metric requests_count 9761
+        metric requests_4xx_count 1537
+        metric requests_5xx_count 28
+        metric queries_in_progress 0
+        metric queue_length 0
+        metric tails_active 0
+        metric panics_count 0
+        metric errors_logged_count 1200
+        metric up 1
+        metric lines_received_count 10045
+        metric bytes_received_count 879084
+        metric discarded_count 1030
+        metric discarded 515 reason=greater_than_max_sample_age
+        metric discarded 515 reason=line_too_long
+        metric discarded_not_shown 0
+        metric discarded_bytes_count 211557
+        metric streams 2
+        metric chunks 3
+        metric streams_created_count 2
+        metric chunks_flushed_count 52
+        metric flush_failures_count 0
+        metric flush_queue 0
+        metric wal_disk_full_count 0
+        metric wal_corruptions_count 0
+        metric checkpoints_failed_count 0
+        metric append_failures_count 0
+        metric up 1
+        metric compactor_active 1
+        metric compactions_count 36
+        metric compactions_failed_count 0
+        metric last_compaction_seconds 0
+        metric retention_runs_count 24
+        metric retention_failed_count 0
+        metric last_retention_seconds 27
+        metric delete_requests_pending 0
+        metric oldest_delete_request_seconds 0
+        metric tables_skipped 0
+  PASS  loki: answers
+  PASS  loki: a service that does not answer still runs
+  PASS  loki: and reads as up 0
+  PASS  loki: metrics reach the backend
+mimir: MIMIR_URL=http://127.0.0.1:19009
+  PASS  mimir: enabled
+        on: mimir_status
+        on: mimir_ingestion
+        on: mimir_storage
+        needs its address, where it is not http://localhost:9009: env = MIMIR_URL=... on each job (in microservices mode, a component: the ingestion job at a distributor or an ingester, the storage job at an ingester, a compactor or a store-gateway)
+        needs where it asks for a login (a proxy in front of it): MIMIR_USER and secret = MIMIR_PASSWORD=secret:MIMIR_PASSWORD, or secret = MIMIR_TOKEN=secret:MIMIR_TOKEN for a bearer token
+        needs for Mimir's CPU and memory: the base pack's processes job
+        settings in vigil.config: MIMIR_URL= MIMIR_USER= MIMIR_CACERT=
+  PASS  mimir: it says CPU and memory are the base pack's
+  PASS  mimir: precheck is happy
+  PASS  mimir: every job runs (status, ingestion, storage)
+        metric up 1
+        metric ready 1
+        metric version 1 version=3.2.6
+        metric uptime_seconds 2245
+        metric ingesters_active 1
+        metric ingesters_unhealthy 0
+        metric store_gateways_active 1
+        metric compactors_active 1
+        metric ring_unhealthy 0
+        metric ring_not_active 0
+        metric requests_count 11346
+        metric requests_4xx_count 4282
+        metric requests_5xx_count 8
+        metric inflight_requests 14
+        metric distributor_rejected_count 0
+        metric ingester_rejected_count 0
+        metric querier_rejected_count 0
+        metric up 1
+        metric samples_in_count 7440500
+        metric samples_received_count 7293656
+        metric discarded_count 7350500
+        metric discarded 7203656 reason=per_user_series_limit
+        metric discarded 115695 reason=metric_name_invalid
+        metric discarded 31148 reason=label_invalid
+        metric discarded 1 reason=sample_duplicate_timestamp
+        metric discarded_not_shown 0
+        metric series 200
+        metric tenants 1
+        metric active_series 200
+        metric ingested_samples_count 90000
+        metric ingested_failures_count 7203656
+        metric append_failures_count 0
+        metric pushes_in_flight 0
+        metric out_of_order_appended_count 0
+        metric up 1
+        metric shipper_uploads_count 0
+        metric shipper_failures_count 0
+        metric head_compactions_failed_count 0
+        metric head_truncations_failed_count 0
+        metric wal_corruptions_count 0
+        metric wal_writes_failed_count 0
+        metric compactor_runs_count 38
+        metric compactor_runs_failed_count 0
+        metric last_compaction_seconds 33
+        metric cleanup_failures_count 0
+        metric blocks_loaded 0
+        metric block_load_failures_count 0
+        metric consistency_failures_count 0
+        metric bucket_operations_count 54
+        metric bucket_failures_count 0
+        metric bucket_failures 0 operation=attributes
+        metric bucket_failures 0 operation=delete
+        metric bucket_failures 0 operation=exists
+        metric bucket_failures 0 operation=get
+        metric bucket_failures 0 operation=get_range
+        metric bucket_failures 0 operation=iter
+        metric bucket_failures 0 operation=upload
+        metric bucket_failures_not_shown 0
+  PASS  mimir: answers
+  PASS  mimir: a service that does not answer still runs
+  PASS  mimir: and reads as up 0
+  PASS  mimir: metrics reach the backend
+tempo: TEMPO_URL=http://127.0.0.1:19320
+  PASS  tempo: enabled
+        on: tempo_status
+        on: tempo_ingestion
+        on: tempo_storage
+        needs its address, where it is not http://localhost:3200: env = TEMPO_URL=... on each job (in microservices mode, a component: the ingestion job at a distributor or an ingester, the storage job at the compactor)
+        needs where it asks for a login (a proxy in front of it): TEMPO_USER and secret = TEMPO_PASSWORD=secret:TEMPO_PASSWORD, or secret = TEMPO_TOKEN=secret:TEMPO_TOKEN for a bearer token
+        needs for Tempo's CPU and memory: the base pack's processes job
+        settings in vigil.config: TEMPO_URL= TEMPO_USER= TEMPO_CACERT=
+  PASS  tempo: it says CPU and memory are the base pack's
+  PASS  tempo: precheck is happy
+  PASS  tempo: every job runs (status, ingestion, storage)
+        metric up 1
+        metric ready 1
+        metric version 1 version=v2.10.10
+        metric uptime_seconds 2353
+        metric ingesters_active 1
+        metric ingesters_unhealthy 0
+        metric ring_unhealthy 0
+        metric ring_not_active 0
+        metric requests_count 6577
+        metric requests_4xx_count 562
+        metric requests_5xx_count 8
+        metric inflight_requests 21
+        metric up 1
+        metric spans_received_count 11781
+        metric bytes_received_count 2299377
+        metric receiver_accepted_count 11781
+        metric receiver_refused_count 0
+        metric discarded_count 1918
+        metric discarded 1918 reason=trace_too_large
+        metric discarded 0 reason=live_traces_exceeded
+        metric discarded 0 reason=unknown_error
+        metric discarded_not_shown 0
+        metric live_traces 20
+        metric traces_created_count 4759
+        metric blocks_flushed_count 36
+        metric flush_failures_count 0
+        metric flush_queue 0
+        metric append_failures_count 0
+        metric warnings_count 116
+        metric up 1
+        metric blocks 3
+        metric compactions_count 68
+        metric compaction_errors_count 0
+        metric retention_deleted_count 0
+        metric retention_errors_count 0
+        metric blocklist_poll_errors_count 0
+        metric backend_requests_count 0
+        metric backend_errors_count 0
+        metric work_queue 0
+  PASS  tempo: answers
+  PASS  tempo: a service that does not answer still runs
+  PASS  tempo: and reads as up 0
+  PASS  tempo: metrics reach the backend
+otelcol: OTELCOL_URL=http://127.0.0.1:18888
+  PASS  otelcol: enabled
+        on: otelcol_status
+        on: otelcol_receivers
+        on: otelcol_exporters
+        needs its own metrics page, which it serves on localhost:8888 by default (service::telemetry::metrics); where it is elsewhere: env = OTELCOL_URL=... on each job
+        needs for every reading: service::telemetry::metrics::level: detailed (the default, normal, leaves out the queue readings on some versions)
+        needs where it asks for a login (a proxy in front of it): OTELCOL_USER and secret = OTELCOL_PASSWORD=secret:OTELCOL_PASSWORD, or secret = OTELCOL_TOKEN=secret:OTELCOL_TOKEN
+        needs for the Collector's CPU: the base pack's processes job
+        settings in vigil.config: OTELCOL_URL= OTELCOL_USER= OTELCOL_CACERT=
+  PASS  otelcol: it says CPU and memory are the base pack's
+  PASS  otelcol: precheck is happy
+  PASS  otelcol: every job runs (status, receivers, exporters)
+        metric up 1
+        metric version 1 version=0.166.0 name=otelcol-contrib
+        metric uptime_seconds 2461.151867
+        metric memory_rss_bytes 253251584
+        metric heap_bytes 65505648
+        metric up 1
+        metric accepted_spans_count 12381
+        metric refused_spans_count 10874
+        metric failed_spans_count 0
+        metric accepted_metric_points_count 4900
+        metric refused_metric_points_count 0
+        metric failed_metric_points_count 0
+        metric accepted_log_records_count 9900
+        metric refused_log_records_count 0
+        metric failed_log_records_count 0
+        metric refused_spans 10874 receiver=otlp/refused
+        metric refused_spans 0 receiver=otlp
+        metric refused_spans_not_shown 0
+        metric refused_metric_points 0 receiver=otlp
+        metric refused_metric_points_not_shown 0
+        metric refused_log_records 0 receiver=otlp
+        metric refused_log_records_not_shown 0
+        metric up 1
+        metric sent_spans_count 12431
+        metric send_failed_spans_count 11323
+        metric enqueue_failed_spans_count 11895
+        metric sent_metric_points_count 4900
+        metric send_failed_metric_points_count 4900
+        metric enqueue_failed_metric_points_count 0
+        metric sent_log_records_count 19800
+        metric send_failed_log_records_count 0
+        metric enqueue_failed_log_records_count 0
+        metric send_failed_spans 10886 exporter=otlphttp/refusing
+        metric send_failed_spans 437 exporter=otlphttp/dead
+        metric send_failed_spans_not_shown 0
+        metric send_failed_metric_points 4900 exporter=prometheusremotewrite/mimir
+        metric send_failed_metric_points_not_shown 0
+        metric queue_size 10
+        metric queue_capacity 14010
+        metric queue_fullest_pct 100
+        metric queue 10 exporter=otlphttp/dead
+        metric queue 0 exporter=otlphttp/loki
+        metric queue 0 exporter=otlphttp/victorialogs
+        metric queue 0 exporter=otlphttp/victoriametrics
+        metric queue 0 exporter=prometheusremotewrite/mimir
+        metric queue 0 exporter=otlp/tempo
+        metric queue_not_shown 0
+        metric in_flight 1
+  PASS  otelcol: answers
+  PASS  otelcol: a service that does not answer still runs
+  PASS  otelcol: and reads as up 0
+  PASS  otelcol: metrics reach the backend
+victoriametrics: VICTORIAMETRICS_URL=http://127.0.0.1:18428
+  PASS  victoriametrics: enabled
+        on: victoriametrics_status
+        on: victoriametrics_ingestion
+        on: victoriametrics_targets
+        needs its address, where it is not http://localhost:8428: env = VICTORIAMETRICS_URL=... on each job
+        needs where it asks for a login (-httpAuth.username, or -metricsAuthKey behind a proxy): VICTORIAMETRICS_USER and secret = VICTORIAMETRICS_PASSWORD=secret:VICTORIAMETRICS_PASSWORD, or secret = VICTORIAMETRICS_TOKEN=secret:VICTORIAMETRICS_TOKEN for a bearer token
+        needs for VictoriaMetrics' CPU and memory: the base pack's processes job
+        settings in vigil.config: VICTORIAMETRICS_URL= VICTORIAMETRICS_USER= VICTORIAMETRICS_CACERT=
+  PASS  victoriametrics: it says CPU and memory are the base pack's
+  PASS  victoriametrics: precheck is happy
+  PASS  victoriametrics: every job runs (status, ingestion, targets)
+        metric up 1
+        metric healthy 1
+        metric version 1 version=v1.157.0
+        metric uptime_seconds 2592
+        metric read_only 0
+        metric free_disk_bytes 79735394304
+        metric data_bytes 6953811
+        metric http_requests_count 6681
+        metric http_errors_count 619
+        metric http_errors 619 path=/api/v1/query
+        metric http_errors 0 path=_
+        metric http_errors 0 path=/api/v1/admin/status/metric_names_stats/reset
+        metric http_errors 0 path=/api/v1/admin/tsdb/delete_series
+        metric http_errors 0 path=/api/v1/export
+        metric http_errors 0 path=/api/v1/export/csv
+        metric http_errors 0 path=/api/v1/export/native
+        metric http_errors 0 path=/api/v1/import
+        metric http_errors 0 path=/api/v1/import/csv
+        metric http_errors 0 path=/api/v1/import/native
+        metric http_errors 0 path=/api/v1/import/prometheus
+        metric http_errors 0 path=/api/v1/label/__/values
+        metric http_errors 0 path=/api/v1/labels
+        metric http_errors 0 path=/api/v1/metadata
+        metric http_errors 0 path=/api/v1/query_range
+        metric http_errors 0 path=/api/v1/series
+        metric http_errors 0 path=/api/v1/series/count
+        metric http_errors 0 path=/api/v1/status/metric_names_stats
+        metric http_errors 0 path=/api/v1/status/top_queries
+        metric http_errors 0 path=/api/v1/status/tsdb
+        metric http_errors_not_shown 26
+        metric slow_queries_count 0
+        metric selects 0
+        metric selects_capacity 8
+        metric selects_pct 0
+        metric selects_limit_reached_count 0
+        metric selects_limit_timeout_count 0
+        metric errors_logged_count 0
+        metric panics_logged_count 0
+        metric up 1
+        metric rows_inserted_count 9350181
+        metric rows_inserted 8604000 type=promremotewrite
+        metric rows_inserted 741081 type=promscrape
+        metric rows_inserted 5100 type=opentelemetry
+        metric rows_inserted 0 type=csvimport
+        metric rows_inserted 0 type=datadogsketches
+        metric rows_inserted 0 type=datadogv1
+        metric rows_inserted 0 type=datadogv2
+        metric rows_inserted 0 type=graphite
+        metric rows_inserted 0 type=influx
+        metric rows_inserted 0 type=native
+        metric rows_inserted 0 type=newrelic
+        metric rows_inserted 0 type=opentsdb
+        metric rows_inserted 0 type=opentsdbhttp
+        metric rows_inserted 0 type=prometheus
+        metric rows_inserted 0 type=vmimport
+        metric rows_inserted 0 type=zabbixconnector
+        metric rows_inserted_not_shown 0
+        metric rows_invalid_count 0
+        metric rows_ignored_count 0
+        metric rows_ignored 0 reason=too_long_label_name
+        metric rows_ignored 0 reason=too_long_label_value
+        metric rows_ignored 0 reason=too_long_metric_metadata_value
+        metric rows_ignored 0 reason=too_many_labels
+        metric rows_ignored 0 reason=big_timestamp
+        metric rows_ignored 0 reason=small_timestamp
+        metric rows_ignored 0 reason=invalid_raw_metric_name
+        metric rows_ignored_not_shown 0
+        metric new_series_count 18158
+        metric slow_row_inserts_count 18158
+        metric slow_inserts_pct 0.19
+        metric inserts 0
+        metric inserts_capacity 8
+        metric inserts_limit_reached_count 0
+        metric inserts_limit_timeout_count 0
+        metric series_limit_dropped_count 0
+        metric daily_limit_dropped_count 0
+        metric rows 9279472
+        metric pending_rows 7952
+        metric active_merges 0
+        metric up 1
+        metric targets_up 1
+        metric targets_down 1
+        metric scrapes_count 523
+        metric scrapes_failed_count 523
+        metric config_reload_ok 1
+        metric config_reload_errors_count 0
+        metric down 1 job=dead
+        metric down 0 job=victoriametrics
+        metric down_not_shown 0
+  PASS  victoriametrics: answers
+  PASS  victoriametrics: a service that does not answer still runs
+  PASS  victoriametrics: and reads as up 0
+  PASS  victoriametrics: metrics reach the backend
+victorialogs: VICTORIALOGS_URL=http://127.0.0.1:19428
+  PASS  victorialogs: enabled
+        on: victorialogs_status
+        on: victorialogs_ingestion
+        needs its address, where it is not http://localhost:9428: env = VICTORIALOGS_URL=... on each job
+        needs where it asks for a login (-httpAuth.username): VICTORIALOGS_USER and secret = VICTORIALOGS_PASSWORD=secret:VICTORIALOGS_PASSWORD, or secret = VICTORIALOGS_TOKEN=secret:VICTORIALOGS_TOKEN for a bearer token
+        needs for VictoriaLogs' CPU and memory: the base pack's processes job
+        settings in vigil.config: VICTORIALOGS_URL= VICTORIALOGS_USER= VICTORIALOGS_CACERT=
+  PASS  victorialogs: it says CPU and memory are the base pack's
+  PASS  victorialogs: precheck is happy
+  PASS  victorialogs: every job runs (status, ingestion)
+        metric up 1
+        metric healthy 1
+        metric version 1 version=v1.54.0
+        metric uptime_seconds 2716
+        metric read_only 0
+        metric free_disk_bytes 79732097024
+        metric data_bytes 53805
+        metric http_requests_count 2148
+        metric http_errors_count 0
+        metric http_errors 0 path=/insert/journald/upload
+        metric http_errors 0 path=/insert/jsonline
+        metric http_errors 0 path=/insert/multitenant/native
+        metric http_errors 0 path=/insert/native
+        metric http_errors 0 path=/insert/opentelemetry/v1/logs
+        metric http_errors 0 path=/insert/splunk
+        metric http_errors 0 path=/internal/insert
+        metric http_errors_not_shown 0
+        metric selects 0
+        metric selects_capacity 8
+        metric selects_pct 0
+        metric selects_limit_reached_count 0
+        metric selects_limit_timeout_count 0
+        metric live_tails 0
+        metric errors_logged_count 0
+        metric panics_logged_count 0
+        metric up 1
+        metric rows_ingested_count 12194
+        metric rows_ingested 10800 type=opentelemetry_protobuf
+        metric rows_ingested 1394 type=jsonline
+        metric rows_ingested_not_shown 0
+        metric bytes_ingested_count 2416963
+        metric rows_dropped_count 652
+        metric rows_dropped 652 reason=too_small_timestamp
+        metric rows_dropped 0 reason=debug
+        metric rows_dropped 0 reason=too_many_fields
+        metric rows_dropped 0 reason=too_big_timestamp
+        metric rows_dropped_not_shown 0
+        metric too_long_lines_count 0
+        metric ingest_errors_count 0
+        metric streams_created_count 3
+        metric rows 11542
+        metric pending_rows 0
+        metric partitions 1
+        metric active_merges 0
+        metric compression_ratio 45.371322
+  PASS  victorialogs: answers
+  PASS  victorialogs: a service that does not answer still runs
+  PASS  victorialogs: and reads as up 0
+  PASS  victorialogs: metrics reach the backend
+76 passed, 0 failed

@@ -1,0 +1,5 @@
+metric up 1
+metric version 1 version=0.166.0 name=otelcol-contrib
+metric uptime_seconds 118.898289
+metric memory_rss_bytes 232329216
+metric heap_bytes 56239464

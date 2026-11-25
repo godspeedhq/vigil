@@ -1,0 +1,17 @@
+metric up 1
+metric ready 1
+metric version 1 version=3.2.6
+metric uptime_seconds 122
+metric ingesters_active 1
+metric ingesters_unhealthy 0
+metric store_gateways_active 1
+metric compactors_active 1
+metric ring_unhealthy 0
+metric ring_not_active 0
+metric requests_count 539
+metric requests_4xx_count 192
+metric requests_5xx_count 8
+metric inflight_requests 14
+metric distributor_rejected_count 0
+metric ingester_rejected_count 0
+metric querier_rejected_count 0
