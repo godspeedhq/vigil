@@ -146,7 +146,10 @@ try {
         if ((Val 'containers' 'healthy' 'name=vigilit_healthy') -ceq '1' -and (Val 'containers' 'healthy' 'name=vigilit_unhealthy') -ceq '0' -and (Least 'containers' 'restarts_count' 'name=vigilit_loop' 2) -ceq 'yes') { break }
         Start-Sleep -Seconds 3
     }
-    foreach ($i in 1..30) { Quiet 'resources'; if ((Least 'resources' 'cpu_seconds_count' 'name=vigilit_busy' 3) -ceq 'yes') { break }; Start-Sleep -Seconds 3 }
+    # A Windows container uses several seconds of CPU just to start: the busy
+    # one is told apart once it has used twice what an idle one has.
+    function Busier { return ([double](Val 'resources' 'cpu_seconds_count' 'name=vigilit_busy') -gt 2 * [double](Val 'resources' 'cpu_seconds_count' 'name=vigilit_healthy')) }
+    foreach ($i in 1..60) { Quiet 'resources'; if ((Least 'resources' 'cpu_seconds_count' 'name=vigilit_busy' 3) -ceq 'yes' -and (Busier)) { break }; Start-Sleep -Seconds 3 }
 
     Say 'Every job, as the Windows scripts print it.'
     foreach ($j in $jobs) {
@@ -178,7 +181,7 @@ try {
     Check 'containers: exit codes, as they ended: 7 and 0' '7 0' "$(Val 'containers' 'exit_code' 'name=vigilit_exit7') $(Val 'containers' 'exit_code' 'name=vigilit_exit0')"
     Check 'containers: the loop has restarted, the others have not' 'yes 0' "$(Least 'containers' 'restarts_count' 'name=vigilit_loop' 2) $(Val 'containers' 'restarts_count' 'name=vigilit_ok')"
     Check 'containers: uptime for one that runs, none for one that stopped' 'yes no' "$(Least 'containers' 'uptime_seconds' 'name=vigilit_ok' 5) $(Has 'containers' 'uptime_seconds' 'name=vigilit_exit7')"
-    Check 'resources: the busy one has used CPU, far more than an idle one' 'yes True' "$(Least 'resources' 'cpu_seconds_count' 'name=vigilit_busy' 3) $([double](Val 'resources' 'cpu_seconds_count' 'name=vigilit_busy') -gt 5 * [double](Val 'resources' 'cpu_seconds_count' 'name=vigilit_healthy'))"
+    Check 'resources: the busy one has used CPU, more than twice what an idle one has' 'yes True' "$(Least 'resources' 'cpu_seconds_count' 'name=vigilit_busy' 3) $(Busier)"
     Check 'resources: memory and processes for each; only running containers are measured' 'yes yes no no' "$(Least 'resources' 'memory_bytes' 'name=vigilit_ok' 1) $(Least 'resources' 'pids' 'name=vigilit_ok' 1) $(Has 'resources' 'memory_bytes' 'name=vigilit_exit7') $(Has 'resources' 'memory_bytes' 'name=vigilit_created')"
     Check 'disk: both volumes counted, and the one no container uses; images and what they take' 'yes yes yes yes' "$(Least 'disk' 'volumes' '' 2) $(Least 'disk' 'volumes_unused' '' 1) $(Least 'disk' 'images' '' 1) $(Least 'disk' 'images_bytes' '' 1000000)"
     if (-not $win) {
