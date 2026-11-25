@@ -1,0 +1,38 @@
+shell: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe (5.1.22621.6133)
+
+# (a) tick = 08m in the PowerShell engine
+precheck: precheck passed
+supervise --once exit 0
+
+# (b) V-04: a run with max_runtime = 20s, then a source that cannot be fetched is added
+run started; state: running; deadline_epoch - started_epoch = 20
+added: [source.extra] (local, a path that is not there) and [job.fromsource], 0 s into the run
+90 s after the run started (max_runtime 20s, tick 5s):
+  state: status = running
+  the job's process still running: True
+  timeout marker: 0
+  jobs.log:
+    Vigil t at 2026-11-24T20:05:36Z
+
+    SOURCES
+      waiting for the first fetch
+      last fetch failed: source.extra: not a directory: C:\nonexistent-vv-source
+  the supervisor's log:
+    2026-11-24T20:03:05Z INFO supervisor configuration loaded
+    2026-11-24T20:03:05Z INFO supervisor supervisor started, pid 4312
+    2026-11-24T20:04:01Z INFO supervisor job long: run 20261124T200401Z-4312-7 started
+    2026-11-24T20:04:11Z INFO supervisor waiting for the first fetch from the configuration's sources
+    2026-11-24T20:04:11Z INFO supervisor job vigil_fetch: run 20261124T200411Z-4312-9 started
+
+# (c) Lead 7: the spool's incoming folder cannot be written; a job that succeeds
+control, spool writable: vigil run exit 0; state: succeeded
+spool not writable: vigil run exit 1
+    Exception calling "Open" with "4" argument(s): "Access to the path '%TEMP%\vv\r-e65764bb\spool\incoming\1795550763-ok-20261124T200601Z-5260.events.tmp.5260' is
+    denied."
+    At %TEMP%\vv\r-e65764bb\app\lib\windows\Worker.ps1:64 char:5
+  state after the run: status = running, run_id = 20261124T200601Z-5260
+  the job log's last lines:
+    2026-11-24T20:05:53Z 20261124T200552Z-19192 run start
+    2026-11-24T20:05:54Z 20261124T200552Z-19192 run end succeeded in 1s, cpu 5.97s
+    2026-11-24T20:06:02Z 20261124T200601Z-5260 run start
+  after one supervisor tick (spool writable again): status = crashed, reason = worker vanished

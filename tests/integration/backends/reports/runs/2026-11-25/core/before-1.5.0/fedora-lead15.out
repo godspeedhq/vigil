@@ -1,0 +1,21 @@
+# mode: queued
+first slot passed; waiting for the second, which finds the run active and is held
+state/pending: pending= queued= q
+edited: [job.q] enabled = false, 20:09:08
+
+after the first run has ended:
+  processes running the job's script: 1
+  jobs.log:
+    Vigil t at 2026-11-24T20:09:34Z
+
+    RUNNING
+      q: pid 329755, running for 10s
+
+    DISABLED
+      q
+  the supervisor's log:
+    2026-11-24T20:07:04Z INFO supervisor configuration loaded
+    2026-11-24T20:07:04Z INFO supervisor supervisor started, pid 289631
+    2026-11-24T20:08:04Z INFO supervisor job q: run 20261124T200804Z-289631-13 started
+    2026-11-24T20:09:09Z INFO supervisor configuration loaded
+    2026-11-24T20:09:24Z INFO supervisor job q: run 20261124T200924Z-289631-30 started

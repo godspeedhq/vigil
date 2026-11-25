@@ -1,0 +1,23 @@
+# mode: control
+precheck: precheck passed
+run started; state: running, deadline_epoch - started_epoch = 20
+
+51 s after the run started (max_runtime 20s, tick 5s, grace 30s):
+  state: status = timed_out
+  the job's sleep still running: no
+  timeout marker: 0
+  jobs.log:
+    Vigil t at 2026-11-24T19:51:51Z
+
+    WAITING
+      long: next 2026-11-24T19:52:00Z
+
+    LAST RUN
+      long: timed_out at 2026-11-24T19:51:21Z, took 20s
+  the supervisor's log:
+    2026-11-24T19:49:46Z INFO supervisor configuration loaded
+    2026-11-24T19:49:46Z INFO supervisor supervisor started, pid 18665
+    2026-11-24T19:50:01Z INFO supervisor job long: run 20261124T195001Z-18665-4 started
+    2026-11-24T19:50:21Z WARN supervisor job long: run 20261124T195001Z-18665-4 passed max_runtime; sent TERM to its job
+    2026-11-24T19:51:01Z INFO supervisor job long: run 20261124T195101Z-18665-17 started
+    2026-11-24T19:51:21Z WARN supervisor job long: run 20261124T195101Z-18665-17 passed max_runtime; sent TERM to its job

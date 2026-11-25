@@ -1,0 +1,37 @@
+# Control: a job that fails (exit 2), no metric line
+the job: exit 2
+vigil run (worker stopped at worker.after_spool): exit 99
+state before the supervisor looks: running
+the spool file's lines:
+    1795549005 app.duration_seconds 0 gauge host=fedora os=linux instance=t job=j
+    1795549005 app.runs 1 count host=fedora os=linux instance=t job=j
+    1795549005 app.failures 1 count host=fedora os=linux instance=t job=j exit_code=2
+after one supervisor tick: status = failed, reason = reconciled from the spool file
+expected: failed
+    2026-11-24T19:36:45Z INFO supervisor job j: run 20261124T193645Z-4016871 finished (failed), reconciled from its spool file
+
+# A job that fails (exit 2) and printed: metric steps.succeeded 1
+the job: echo "metric steps.succeeded 1"; exit 2
+vigil run (worker stopped at worker.after_spool): exit 99
+state before the supervisor looks: running
+the spool file's lines:
+    1795549006 app.duration_seconds 0 gauge host=fedora os=linux instance=t job=j
+    1795549006 app.runs 1 count host=fedora os=linux instance=t job=j
+    1795549006 app.failures 1 count host=fedora os=linux instance=t job=j exit_code=2
+    1795549006 app.steps.succeeded 1 gauge host=fedora os=linux instance=t job=j
+after one supervisor tick: status = succeeded, reason = reconciled from the spool file
+expected: failed
+    2026-11-24T19:36:46Z INFO supervisor job j: run 20261124T193646Z-4017024 finished (succeeded), reconciled from its spool file
+
+# A job that succeeds (exit 0) and printed: metric rows.failures 0
+the job: echo "metric rows.failures 0"; exit 0
+vigil run (worker stopped at worker.after_spool): exit 99
+state before the supervisor looks: running
+the spool file's lines:
+    1795549006 app.duration_seconds 0 gauge host=fedora os=linux instance=t job=j
+    1795549006 app.runs 1 count host=fedora os=linux instance=t job=j
+    1795549006 app.succeeded 1 count host=fedora os=linux instance=t job=j
+    1795549006 app.rows.failures 0 gauge host=fedora os=linux instance=t job=j
+after one supervisor tick: status = failed, reason = reconciled from the spool file
+expected: succeeded
+    2026-11-24T19:36:46Z INFO supervisor job j: run 20261124T193646Z-4017263 finished (failed), reconciled from its spool file
