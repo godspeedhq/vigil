@@ -1,0 +1,396 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261125182533
+Username: WIN-R50M4Q63SR9\vigil-test
+RunAs User: WIN-R50M4Q63SR9\vigil-test
+Configuration Name: 
+Machine: WIN-R50M4Q63SR9 (Microsoft Windows NT 10.0.26100.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\vigil-test\vigil-ctr\tests\integration\backends\scripts\run-containers.ps1
+Process ID: 8468
+PSVersion: 5.1.26100.7462
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7462
+BuildVersion: 10.0.26100.7462
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+== pack-docker-windows
+date     2026-11-25T18:25:33Z
+host     WIN-R50M4Q63SR9
+os       Windows Server 2025 Datacenter Evaluation 24H2 (build 26100.32230)
+vigil    d89eaf0 (deployed copy)
+command  C:\Users\vigil-test\vigil-ctr\tests\integration\backends\scripts\run-containers.ps1 -Shell C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+shell    PowerShell 5.1.26100.7462 (Desktop)
+git      none
+curl     curl 8.16.0 (Windows) libcurl/8.16.0 Schannel zlib/1.3.1 WinIDN
+ssh      OpenSSH_for_Windows_9.5p2, LibreSSL 3.8.2
+
+engine   Docker 29.10.1, windows containers, Microsoft Windows Server Version 24H2 (OS Build 26100.32230), as an account that is not an administrator
+jobs     run under PowerShell 5.1.26100.7462
+
+# Eight Windows containers and two volumes, each in a state the pack reads.
+  vigilit_busy: Up Less than a second
+  vigilit_created: Created
+  vigilit_exit0: Exited (0) 6 seconds ago
+  vigilit_exit7: Exited (7) 9 seconds ago
+  vigilit_healthy: Up 19 seconds (healthy)
+  vigilit_loop: Restarting (3) 2 seconds ago
+  vigilit_ok: Up 22 seconds
+  vigilit_unhealthy: Up 16 seconds (unhealthy)
+
+# Every job, as the Windows scripts print it.
+
+PS> powershell -File packs\docker\windows\status.ps1
+metric up 1
+metric version 1 version=29.10.1 api=1.57 os=windows
+metric containers 8
+metric running 4
+metric paused 0
+metric restarting 1
+metric exited 2
+metric created 1
+metric dead 0
+metric unhealthy 1
+metric health_starting 0
+metric exited_nonzero 1
+metric images 1
+metric cpus 4
+metric memory_bytes 8375672832
+metric warnings 0
+  PASS  docker status: runs, and the engine answers
+
+PS> powershell -File packs\docker\windows\containers.ps1
+metric up 1
+metric containers 8
+metric containers_restarting 1
+metric containers_unhealthy 1
+metric containers_oom_killed 0
+metric containers_exited_nonzero 1
+metric restarts_total_count 9
+metric running 1 name=vigilit_busy state=running
+metric restarts_count 0 name=vigilit_busy
+metric oom_killed 0 name=vigilit_busy
+metric uptime_seconds 50 name=vigilit_busy
+metric running 0 name=vigilit_created state=created
+metric restarts_count 0 name=vigilit_created
+metric oom_killed 0 name=vigilit_created
+metric running 0 name=vigilit_exit0 state=exited
+metric restarts_count 0 name=vigilit_exit0
+metric oom_killed 0 name=vigilit_exit0
+metric exit_code 0 name=vigilit_exit0
+metric running 0 name=vigilit_exit7 state=exited
+metric restarts_count 0 name=vigilit_exit7
+metric oom_killed 0 name=vigilit_exit7
+metric exit_code 7 name=vigilit_exit7
+metric running 1 name=vigilit_healthy state=running
+metric restarts_count 0 name=vigilit_healthy
+metric oom_killed 0 name=vigilit_healthy
+metric uptime_seconds 69 name=vigilit_healthy
+metric healthy 1 name=vigilit_healthy
+metric running 0 name=vigilit_loop state=restarting
+metric restarts_count 9 name=vigilit_loop
+metric oom_killed 0 name=vigilit_loop
+metric running 1 name=vigilit_ok state=running
+metric restarts_count 0 name=vigilit_ok
+metric oom_killed 0 name=vigilit_ok
+metric uptime_seconds 72 name=vigilit_ok
+metric running 1 name=vigilit_unhealthy state=running
+metric restarts_count 0 name=vigilit_unhealthy
+metric oom_killed 0 name=vigilit_unhealthy
+metric uptime_seconds 66 name=vigilit_unhealthy
+metric healthy 0 name=vigilit_unhealthy
+metric containers_not_shown 0
+  PASS  docker containers: runs, and the engine answers
+
+PS> powershell -File packs\docker\windows\resources.ps1
+metric up 1
+metric containers_measured 4
+metric memory_total_bytes 164491264
+metric memory_fullest_pct 0
+metric cpu_throttled_containers 0
+metric cpu_seconds_count 16.063 name=vigilit_busy
+metric cpu_throttled_seconds_count 0 name=vigilit_busy
+metric memory_bytes 39997440 name=vigilit_busy
+metric memory_limit_bytes 0 name=vigilit_busy
+metric pids 4 name=vigilit_busy
+metric network_rx_bytes_count 611048 name=vigilit_busy
+metric network_tx_bytes_count 19261 name=vigilit_busy
+metric block_read_bytes_count 3074560 name=vigilit_busy
+metric block_write_bytes_count 10670080 name=vigilit_busy
+metric cpu_seconds_count 7.25 name=vigilit_healthy
+metric cpu_throttled_seconds_count 0 name=vigilit_healthy
+metric memory_bytes 41553920 name=vigilit_healthy
+metric memory_limit_bytes 0 name=vigilit_healthy
+metric pids 4 name=vigilit_healthy
+metric network_rx_bytes_count 631936 name=vigilit_healthy
+metric network_tx_bytes_count 20071 name=vigilit_healthy
+metric block_read_bytes_count 3106304 name=vigilit_healthy
+metric block_write_bytes_count 9048064 name=vigilit_healthy
+metric cpu_seconds_count 5.953 name=vigilit_ok
+metric cpu_throttled_seconds_count 0 name=vigilit_ok
+metric memory_bytes 41361408 name=vigilit_ok
+metric memory_limit_bytes 0 name=vigilit_ok
+metric pids 4 name=vigilit_ok
+metric network_rx_bytes_count 633519 name=vigilit_ok
+metric network_tx_bytes_count 20031 name=vigilit_ok
+metric block_read_bytes_count 3106304 name=vigilit_ok
+metric block_write_bytes_count 11243520 name=vigilit_ok
+metric cpu_seconds_count 6.938 name=vigilit_unhealthy
+metric cpu_throttled_seconds_count 0 name=vigilit_unhealthy
+metric memory_bytes 41578496 name=vigilit_unhealthy
+metric memory_limit_bytes 0 name=vigilit_unhealthy
+metric pids 4 name=vigilit_unhealthy
+metric network_rx_bytes_count 630269 name=vigilit_unhealthy
+metric network_tx_bytes_count 20247 name=vigilit_unhealthy
+metric block_read_bytes_count 3106304 name=vigilit_unhealthy
+metric block_write_bytes_count 11218944 name=vigilit_unhealthy
+metric containers_not_shown 0
+  PASS  docker resources: runs, and the engine answers
+
+PS> powershell -File packs\docker\windows\disk.ps1
+metric up 1
+metric images 1
+metric images_unused 0
+metric images_dangling 0
+metric images_bytes 488239381
+metric images_reclaimable_bytes 0
+metric containers 8
+metric containers_bytes 0
+metric containers_stopped_bytes 0
+metric container_bytes_not_shown 0
+metric volumes 2
+metric volumes_unused 1
+metric volumes_bytes 0
+metric volumes_unused_bytes 0
+metric volume_bytes 0 name=vigilit_data
+metric volume_bytes 0 name=vigilit_unused
+metric volume_bytes_not_shown 0
+metric build_cache_bytes 0
+metric build_cache_reclaimable_bytes 0
+  PASS  docker disk: runs, and the engine answers
+
+# What each job must have read.
+  PASS  status: the unhealthy one, the one never started, and one that ended with an error are counted
+  PASS  status: every container is counted, whatever its state, and the kind of containers is said
+  PASS  containers: the one that runs, runs; the one never started does not, and its state is said
+  PASS  containers: healthy and unhealthy are told apart; one with no health check has no such reading
+  PASS  containers: exit codes, as they ended: 7 and 0
+  PASS  containers: the loop has restarted, the others have not
+  PASS  containers: uptime for one that runs, none for one that stopped
+  PASS  resources: the busy one has used CPU, more than twice what an idle one has
+  PASS  resources: memory and processes for each; only running containers are measured
+  PASS  disk: both volumes counted, and the one no container uses; images and what they take
+
+# A restart loop, watched: the count rises from one run to the next.
+  before: restarts_count 9
+
+PS> powershell -File packs\docker\windows\containers.ps1   (a little later)
+metric running 0 name=vigilit_loop state=restarting
+metric restarts_count 10 name=vigilit_loop
+metric oom_killed 0 name=vigilit_loop
+  PASS  the loop: restarts_count has risen
+
+# A container stops, and is started again.
+
+PS> powershell -File packs\docker\windows\containers.ps1   (vigilit_ok stopped)
+metric running 0 name=vigilit_ok state=exited
+metric restarts_count 0 name=vigilit_ok
+metric oom_killed 0 name=vigilit_ok
+metric exit_code 3221225786 name=vigilit_ok
+  PASS  stopped: running 0, its state and its exit code said
+  PASS  stopped: no longer measured
+
+PS> powershell -File packs\docker\windows\containers.ps1   (vigilit_ok started again)
+metric running 1 name=vigilit_ok state=running
+metric restarts_count 0 name=vigilit_ok
+metric oom_killed 0 name=vigilit_ok
+metric uptime_seconds 4 name=vigilit_ok
+  PASS  started again: running 1, and a new uptime
+
+# More containers than a job names: the first few by name, the rest counted.
+  PASS  DOCKER_MOST=3: three are named, and the rest are counted
+
+# Nothing answering.
+  PASS  status: nothing answers: the job still runs, and reads up 0
+  PASS  containers: nothing answers: the job still runs, and reads up 0
+  PASS  resources: nothing answers: the job still runs, and reads up 0
+  PASS  disk: nothing answers: the job still runs, and reads up 0
+  PASS  an address that is not a pipe on this machine: refused, and said
+
+24 passed, 0 failed
+
+# The pack through Vigil.
+PowerShell 5.1.26100.7462
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  iis: set VIGIL_IT_WEB_IIS (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+docker: DOCKER_HOST=npipe:////./pipe/docker_engine
+  PASS  docker: enabled
+        on: docker_status
+        on: docker_containers
+        on: docker_resources
+        on: docker_disk
+        needs an account that may use the engine: root, or a member of the docker group (Linux); an administrator, or a member of the group daemon.json names (Windows). That is as good as root on the machine, as it is for anyone who can run docker
+        needs its address, where it is not the default (unix:///var/run/docker.sock; on Windows npipe:////./pipe/docker_engine): env = DOCKER_HOST=... on each job
+        needs for the engine's own CPU and memory (dockerd): the base pack's processes job; for how full the disk is, its disk job
+        settings in vigil.config: DOCKER_HOST=
+  PASS  docker: it says CPU and memory are the base pack's
+  PASS  docker: precheck is happy
+  PASS  docker: every job runs (status, containers, resources, disk)
+        metric up 1
+        metric version 1 version=29.10.1 api=1.57 os=windows
+        metric containers 8
+        metric running 4
+        metric paused 0
+        metric restarting 1
+        metric exited 2
+        metric created 1
+        metric dead 0
+        metric unhealthy 1
+        metric health_starting 0
+        metric exited_nonzero 1
+        metric images 1
+        metric cpus 4
+        metric memory_bytes 8375672832
+        metric warnings 0
+        metric up 1
+        metric containers 8
+        metric containers_restarting 1
+        metric containers_unhealthy 1
+        metric containers_oom_killed 0
+        metric containers_exited_nonzero 1
+        metric restarts_total_count 11
+        metric running 1 name=vigilit_busy state=running
+        metric restarts_count 0 name=vigilit_busy
+        metric oom_killed 0 name=vigilit_busy
+        metric uptime_seconds 166 name=vigilit_busy
+        metric running 0 name=vigilit_created state=created
+        metric restarts_count 0 name=vigilit_created
+        metric oom_killed 0 name=vigilit_created
+        metric running 0 name=vigilit_exit0 state=exited
+        metric restarts_count 0 name=vigilit_exit0
+        metric oom_killed 0 name=vigilit_exit0
+        metric exit_code 0 name=vigilit_exit0
+        metric running 0 name=vigilit_exit7 state=exited
+        metric restarts_count 0 name=vigilit_exit7
+        metric oom_killed 0 name=vigilit_exit7
+        metric exit_code 7 name=vigilit_exit7
+        metric running 1 name=vigilit_healthy state=running
+        metric restarts_count 0 name=vigilit_healthy
+        metric oom_killed 0 name=vigilit_healthy
+        metric uptime_seconds 185 name=vigilit_healthy
+        metric healthy 1 name=vigilit_healthy
+        metric running 0 name=vigilit_loop state=restarting
+        metric restarts_count 11 name=vigilit_loop
+        metric oom_killed 0 name=vigilit_loop
+        metric running 1 name=vigilit_ok state=running
+        metric restarts_count 0 name=vigilit_ok
+        metric oom_killed 0 name=vigilit_ok
+        metric uptime_seconds 74 name=vigilit_ok
+        metric running 1 name=vigilit_unhealthy state=running
+        metric restarts_count 0 name=vigilit_unhealthy
+        metric oom_killed 0 name=vigilit_unhealthy
+        metric uptime_seconds 182 name=vigilit_unhealthy
+        metric healthy 0 name=vigilit_unhealthy
+        metric containers_not_shown 0
+        metric up 1
+        metric containers_measured 4
+        metric memory_total_bytes 159813632
+        metric memory_fullest_pct 0
+        metric cpu_throttled_containers 0
+        metric cpu_seconds_count 48.219 name=vigilit_busy
+        metric cpu_throttled_seconds_count 0 name=vigilit_busy
+        metric memory_bytes 39231488 name=vigilit_busy
+        metric memory_limit_bytes 0 name=vigilit_busy
+        metric pids 4 name=vigilit_busy
+        metric network_rx_bytes_count 626980 name=vigilit_busy
+        metric network_tx_bytes_count 20282 name=vigilit_busy
+        metric block_read_bytes_count 3074560 name=vigilit_busy
+        metric block_write_bytes_count 10878976 name=vigilit_busy
+        metric cpu_seconds_count 9.813 name=vigilit_healthy
+        metric cpu_throttled_seconds_count 0 name=vigilit_healthy
+        metric memory_bytes 41115648 name=vigilit_healthy
+        metric memory_limit_bytes 0 name=vigilit_healthy
+        metric pids 4 name=vigilit_healthy
+        metric network_rx_bytes_count 644495 name=vigilit_healthy
+        metric network_tx_bytes_count 23604 name=vigilit_healthy
+        metric block_read_bytes_count 3237376 name=vigilit_healthy
+        metric block_write_bytes_count 9228288 name=vigilit_healthy
+        metric cpu_seconds_count 3.266 name=vigilit_ok
+        metric cpu_throttled_seconds_count 0 name=vigilit_ok
+        metric memory_bytes 38809600 name=vigilit_ok
+        metric memory_limit_bytes 0 name=vigilit_ok
+        metric pids 4 name=vigilit_ok
+        metric network_rx_bytes_count 8552 name=vigilit_ok
+        metric network_tx_bytes_count 6815 name=vigilit_ok
+        metric block_read_bytes_count 5182976 name=vigilit_ok
+        metric block_write_bytes_count 2908160 name=vigilit_ok
+        metric cpu_seconds_count 9.156 name=vigilit_unhealthy
+        metric cpu_throttled_seconds_count 0 name=vigilit_unhealthy
+        metric memory_bytes 40656896 name=vigilit_unhealthy
+        metric memory_limit_bytes 0 name=vigilit_unhealthy
+        metric pids 4 name=vigilit_unhealthy
+        metric network_rx_bytes_count 637180 name=vigilit_unhealthy
+        metric network_tx_bytes_count 20461 name=vigilit_unhealthy
+        metric block_read_bytes_count 3237376 name=vigilit_unhealthy
+        metric block_write_bytes_count 11472896 name=vigilit_unhealthy
+        metric containers_not_shown 0
+        metric up 1
+        metric images 1
+        metric images_unused 0
+        metric images_dangling 0
+        metric images_bytes 488239381
+        metric images_reclaimable_bytes 0
+        metric containers 8
+        metric containers_bytes 0
+        metric containers_stopped_bytes 0
+        metric container_bytes_not_shown 0
+        metric volumes 2
+        metric volumes_unused 1
+        metric volumes_bytes 0
+        metric volumes_unused_bytes 0
+        metric volume_bytes 0 name=vigilit_data
+        metric volume_bytes 0 name=vigilit_unused
+        metric volume_bytes_not_shown 0
+        metric build_cache_bytes 0
+        metric build_cache_reclaimable_bytes 0
+  PASS  docker: answers
+  PASS  docker: its containers are read
+  PASS  docker: an engine that does not answer still runs
+  PASS  docker: and reads as up 0
+  PASS  docker: metrics reach the backend, each container's too
+11 passed, 0 failed
+
+# Only what this run made is removed.
+  PASS  this run's 8 containers are gone, and no other was touched
+evidence: reports\runs\2026-11-25\windows-server-2025\pack-docker-windows
+**********************
+Windows PowerShell transcript end
+End time: 20261125182939
+**********************

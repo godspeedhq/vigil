@@ -164,7 +164,9 @@ try {
         $linux = @{}; $at = ''
         foreach ($l in $all) { if ($l -match '^==(\w+)$') { $at = $Matches[1]; $linux[$at] = @() } elseif ($at) { $linux[$at] += $l } }
         # A reading's name and tags, for this run's containers and for those with no tag.
-        function Keys($lines) { @($lines | Where-Object { $_ -cmatch '^metric ' -and $_ -notmatch 'name=vigilit_reader' -and ($_ -notmatch ' name=' -or $_ -match ' name=vigilit_') } | ForEach-Object { $f = $_ -split ' '; (@($f[1]) + @($f | Select-Object -Skip 3 | Where-Object { $_ -notmatch '^state=' })) -join ' ' } | Sort-Object -CaseSensitive -Unique) }
+        # Not the loop's: from one moment to the next it is running, or between two
+        # starts, and so has an uptime or not.
+        function Keys($lines) { @($lines | Where-Object { $_ -cmatch '^metric ' -and $_ -notmatch 'name=vigilit_(reader|loop)( |$)' -and ($_ -notmatch ' name=' -or $_ -match ' name=vigilit_') } | ForEach-Object { $f = $_ -split ' '; (@($f[1]) + @($f | Select-Object -Skip 3 | Where-Object { $_ -notmatch '^state=' })) -join ' ' } | Sort-Object -CaseSensitive -Unique) }
         foreach ($j in $jobs) {
             Quiet $j
             $mine = @(Keys $out[$j]); $theirs = @(Keys $linux[$j])
