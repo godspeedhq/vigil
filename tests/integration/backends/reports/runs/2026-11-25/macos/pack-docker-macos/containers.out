@@ -1,0 +1,51 @@
+metric up 1
+metric containers 29
+metric containers_restarting 1
+metric containers_unhealthy 1
+metric containers_oom_killed 1
+metric containers_exited_nonzero 2
+metric restarts_total_count 9
+metric running 1 name=vigilit_busy state=running
+metric restarts_count 0 name=vigilit_busy
+metric oom_killed 0 name=vigilit_busy
+metric uptime_seconds 38 name=vigilit_busy
+metric running 0 name=vigilit_created state=created
+metric restarts_count 0 name=vigilit_created
+metric oom_killed 0 name=vigilit_created
+metric running 0 name=vigilit_exit0 state=exited
+metric restarts_count 0 name=vigilit_exit0
+metric oom_killed 0 name=vigilit_exit0
+metric exit_code 0 name=vigilit_exit0
+metric running 0 name=vigilit_exit7 state=exited
+metric restarts_count 0 name=vigilit_exit7
+metric oom_killed 0 name=vigilit_exit7
+metric exit_code 7 name=vigilit_exit7
+metric running 1 name=vigilit_healthy state=running
+metric restarts_count 0 name=vigilit_healthy
+metric oom_killed 0 name=vigilit_healthy
+metric uptime_seconds 55 name=vigilit_healthy
+metric healthy 1 name=vigilit_healthy
+metric running 0 name=vigilit_loop state=restarting
+metric restarts_count 9 name=vigilit_loop
+metric oom_killed 0 name=vigilit_loop
+metric running 1 name=vigilit_ok state=running
+metric restarts_count 0 name=vigilit_ok
+metric oom_killed 0 name=vigilit_ok
+metric uptime_seconds 2 name=vigilit_ok
+metric running 0 name=vigilit_oom state=exited
+metric restarts_count 0 name=vigilit_oom
+metric oom_killed 1 name=vigilit_oom
+metric exit_code 137 name=vigilit_oom
+metric running 0 name=vigilit_paused state=paused
+metric restarts_count 0 name=vigilit_paused
+metric oom_killed 0 name=vigilit_paused
+metric running 1 name=vigilit_unhealthy state=running
+metric restarts_count 0 name=vigilit_unhealthy
+metric oom_killed 0 name=vigilit_unhealthy
+metric uptime_seconds 54 name=vigilit_unhealthy
+metric healthy 0 name=vigilit_unhealthy
+metric running 1 name=vigilit_writes state=running
+metric restarts_count 0 name=vigilit_writes
+metric oom_killed 0 name=vigilit_writes
+metric uptime_seconds 35 name=vigilit_writes
+metric containers_not_shown 0

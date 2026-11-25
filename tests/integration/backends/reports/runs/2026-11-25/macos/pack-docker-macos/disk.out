@@ -1,0 +1,30 @@
+metric up 1
+metric images 24
+metric images_unused 14
+metric images_dangling 0
+metric images_bytes 2923139072
+metric images_reclaimable_bytes 3140619590
+metric containers 29
+metric containers_bytes 21438464
+metric containers_stopped_bytes 20480
+metric container_bytes 20975616 name=vigilit_writes
+metric container_bytes 8192 name=vigilit_ok
+metric container_bytes 4096 name=vigilit_busy
+metric container_bytes 4096 name=vigilit_created
+metric container_bytes 4096 name=vigilit_paused
+metric container_bytes 4096 name=vigilit_oom
+metric container_bytes 4096 name=vigilit_exit0
+metric container_bytes 4096 name=vigilit_exit7
+metric container_bytes 4096 name=vigilit_loop
+metric container_bytes 4096 name=vigilit_unhealthy
+metric container_bytes 4096 name=vigilit_healthy
+metric container_bytes_not_shown 9
+metric volumes 2
+metric volumes_unused 1
+metric volumes_bytes 102400
+metric volumes_unused_bytes 0
+metric volume_bytes 102400 name=vigilit_data
+metric volume_bytes 0 name=vigilit_unused
+metric volume_bytes_not_shown 0
+metric build_cache_bytes 0
+metric build_cache_reclaimable_bytes 0

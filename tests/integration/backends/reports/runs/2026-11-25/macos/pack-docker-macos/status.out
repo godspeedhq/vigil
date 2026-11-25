@@ -1,0 +1,16 @@
+metric up 1
+metric version 1 version=28.0.4 api=1.48 os=linux
+metric containers 29
+metric running 23
+metric paused 1
+metric restarting 1
+metric exited 3
+metric created 1
+metric dead 0
+metric unhealthy 1
+metric health_starting 0
+metric exited_nonzero 2
+metric images 24
+metric cpus 4
+metric memory_bytes 4104392704
+metric warnings 2
