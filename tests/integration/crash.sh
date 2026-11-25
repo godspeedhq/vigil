@@ -489,6 +489,32 @@ w_crash worker.after_spool
 check "16b: a run that succeeded and printed rows.failures is reconciled as succeeded" "succeeded|reconciled from the spool file|$rid" "$(w_state status)|$(w_state reason)|$(w_state run_id)"
 mv -f "$root/scripts/w.sh.keep" "$root/scripts/w.sh"
 
+# 16c. A sender does not take a run's events while the run has its token.
+# A worker that died after its spool file leaves it as the only record of
+# how the run ended: a sender already running must not deliver and delete
+# it before the supervisor has read it. A stand-in worker holds the token
+# here, so nothing depends on which of the two is quicker.
+config_w 3650d
+tick_until 30 w_idle > /dev/null
+rid=20260101T000000Z-9-held
+: > "$root/state/locks/w.$rid.token"
+( exec 9< "$root/state/locks/w.$rid.token"; exec sleep 300 ) &
+holder=$!
+now=$(date '+%s')
+f="$root/spool/incoming/$now-w-$rid.events"
+printf '%s crash.w.duration_seconds 1 gauge host=it job=w\n%s crash.w.runs 1 count host=it job=w\n%s crash.w.failures 1 count host=it job=w exit_code=2\n%s held_run 1 gauge host=it\n' \
+    "$now" "$now" "$now" "$now" > "$f.tmp" && mv -f "$f.tmp" "$f"
+event beside_held
+tick_until 20 in_both beside_held > /dev/null
+check "16c: a sender ran, and delivered what lay beside it" yes "$(in_both beside_held && echo yes || echo no)"
+check "16c: the events of a run that has its token are left where they are" "yes|0" "$([ -f "$f" ] && echo yes || echo no)|$(cat "$root"/metrics/[ab].prom 2> /dev/null | grep -c '^held_run')"
+kill "$holder" 2> /dev/null
+wait "$holder" 2> /dev/null
+tick
+check "16c: its worker gone, the run is concluded from them" "failed|reconciled from the spool file|$rid" "$(w_state status)|$(w_state reason)|$(w_state run_id)"
+tick_until 20 in_both held_run > /dev/null
+check "16c: and they are delivered then" "yes|" "$(in_both held_run && echo yes || echo no)|$(locks w)"
+
 # worker.after_state: the final state written, the token never released.
 w_crash worker.after_state
 check "worker.after_state: ran once" 1 "$(w_ran "$rid")"

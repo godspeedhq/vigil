@@ -152,7 +152,19 @@ function Invoke-VigilSend {
         }
         & $place $f
     }
+    # A run that still has its token is not done with its events. A worker
+    # writes them, then its final state, then removes the token (4.3). If it
+    # died between the first two, they are the only record of how the run
+    # ended, and the supervisor reads them at its next tick (11.3): a sender
+    # already running must not deliver and delete them first, or a run that
+    # succeeded is recorded crashed. So <epoch>-<job>-<run id>.events waits
+    # here while locks\<job>.<run id>.token exists: until the worker has
+    # finished, or the supervisor has concluded the run.
     foreach ($f in (& $sorted $in '*.events')) {
+        $stem = [System.IO.Path]::GetFileNameWithoutExtension($f)
+        $stem = $stem.Substring($stem.IndexOf('-') + 1)
+        $dash = $stem.IndexOf('-')
+        if ($dash -gt 0 -and [System.IO.File]::Exists((Join-Path $Ctx.State "locks\$($stem.Substring(0, $dash)).$($stem.Substring($dash + 1)).token"))) { continue }
         $dest = Join-Path $fan ([System.IO.Path]::GetFileName($f))
         try { [System.IO.File]::Move($f, $dest) } catch { continue }
         Invoke-VigilFault 'fanout.after_claim'
