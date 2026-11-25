@@ -1,0 +1,32 @@
+shell: C:\Program Files\PowerShell\7\pwsh.exe (7.6.10); control: False
+precheck: precheck passed
+supervisor started, pid 10776
+obstruction: 2400 directories at the temporary names of b's launch records
+waiting 84 s (the next whole minute, then about six 5 s ticks)
+
+# The supervisor's log
+2026-11-24T19:47:03Z INFO supervisor job a: run 20261124T194703Z-10776-2 started
+2026-11-24T19:47:03Z ERROR supervisor tick failed: Exception calling "Open" with "4" argument(s): "Access to the path '%TEMP%\vv\r-f2ccd175\state\locks\b.20261124T194703Z-10776-3.launch.tmp.10...
+2026-11-24T19:47:08Z INFO supervisor job a: run 20261124T194708Z-10776-4 started
+2026-11-24T19:47:08Z ERROR supervisor tick failed: Exception calling "Open" with "4" argument(s): "Access to the path '%TEMP%\vv\r-f2ccd175\state\locks\b.20261124T194708Z-10776-5.launch.tmp.10...
+2026-11-24T19:47:13Z INFO supervisor job a: run 20261124T194713Z-10776-6 started
+2026-11-24T19:47:13Z ERROR supervisor tick failed: Exception calling "Open" with "4" argument(s): "Access to the path '%TEMP%\vv\r-f2ccd175\state\locks\b.20261124T194714Z-10776-7.launch.tmp.10...
+2026-11-24T19:47:18Z INFO supervisor job a: run 20261124T194718Z-10776-8 started
+2026-11-24T19:47:18Z ERROR supervisor tick failed: Exception calling "Open" with "4" argument(s): "Access to the path '%TEMP%\vv\r-f2ccd175\state\locks\b.20261124T194718Z-10776-9.launch.tmp.10...
+2026-11-24T19:47:23Z INFO supervisor job a: run 20261124T194723Z-10776-10 started
+2026-11-24T19:47:23Z ERROR supervisor tick failed: Exception calling "Open" with "4" argument(s): "Access to the path '%TEMP%\vv\r-f2ccd175\state\locks\b.20261124T194723Z-10776-11.launch.tmp.1...
+2026-11-24T19:47:28Z INFO supervisor job a: run 20261124T194728Z-10776-12 started
+2026-11-24T19:47:28Z INFO supervisor job b: run 20261124T194728Z-10776-13 started
+2026-11-24T19:48:04Z INFO supervisor job a: slot 2026-11-24T19:48:00Z skipped: a run is still active
+2026-11-24T19:48:04Z INFO supervisor job b: run 20261124T194804Z-10776-18 started
+
+# Workers of job a alive now (command lines naming this root)
+pid 25064: worker a --run-id 20261124T194703Z-10776-2
+pid 18904: worker a --run-id 20261124T194708Z-10776-4
+pid 16096: worker a --run-id 20261124T194713Z-10776-6
+pid 20456: worker a --run-id 20261124T194718Z-10776-8
+pid 15464: worker a --run-id 20261124T194723Z-10776-10
+pid 18044: worker a --run-id 20261124T194728Z-10776-12
+workers of a alive: 6
+tokens held for a: 6
+state file of a: run_id = 20261124T194728Z-10776-12

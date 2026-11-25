@@ -1,0 +1,17 @@
+# mode: statedir
+a run of long is alive: 1 process(es); token: long.20261125T060603Z-1032394-5.token
+edited: [vigil] state_dir = state2 (1 line)
+
+after the next slot:
+  processes running the job's script: 1
+  tokens in state/locks:  long.20261125T060603Z-1032394-5.token
+  tokens in state2/locks:
+  supervisor.lock in state: yes; in state2: no
+  supervisor alive: yes
+  the supervisor's log:
+    2026-11-25T06:05:43Z INFO supervisor configuration loaded
+    2026-11-25T06:05:43Z INFO supervisor supervisor started, pid 1032394
+    2026-11-25T06:06:03Z INFO supervisor job long: run 20261125T060603Z-1032394-5 started
+    2026-11-25T06:06:08Z WARN supervisor state_dir is now <root>/state2 in the configuration: it takes effect when Vigil is next started; until then the state stays in <root>/state
+    2026-11-25T06:06:08Z INFO supervisor configuration loaded
+    2026-11-25T06:07:04Z INFO supervisor job long: slot 2026-11-25T06:07:00Z skipped: a run is still active

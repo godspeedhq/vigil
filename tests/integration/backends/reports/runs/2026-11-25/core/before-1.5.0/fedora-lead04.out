@@ -1,0 +1,23 @@
+# mode: source
+precheck: precheck passed
+run started; state: running, deadline_epoch - started_epoch = 20
+added to the configuration, 0 s into the run: [source.extra] (local, a path that is not there) and [job.fromsource], whose script comes from it
+
+95 s after the run started (max_runtime 20s, tick 5s, grace 30s):
+  state: status = running
+  the job's sleep still running: yes
+  timeout marker: 0
+  jobs.log:
+    Vigil t at 2026-11-24T19:59:36Z
+
+    SOURCES
+      waiting for the first fetch
+      last fetch failed: source.extra: not a directory: /nonexistent-vv-source
+  the supervisor's log:
+    2026-11-24T19:56:50Z INFO supervisor configuration loaded
+    2026-11-24T19:56:50Z INFO supervisor supervisor started, pid 132009
+    2026-11-24T19:57:01Z INFO supervisor job long: run 20261124T195701Z-132009-3 started
+    2026-11-24T19:57:21Z WARN supervisor job long: run 20261124T195701Z-132009-3 passed max_runtime; sent TERM to its job
+    2026-11-24T19:58:01Z INFO supervisor job long: run 20261124T195801Z-132009-16 started
+    2026-11-24T19:58:06Z INFO supervisor waiting for the first fetch from the configuration's sources
+    2026-11-24T19:58:06Z INFO supervisor job vigil_fetch: run 20261124T195806Z-132009-18 started

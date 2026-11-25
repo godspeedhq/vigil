@@ -1,0 +1,43 @@
+bash 5.2.37(1)-release; precheck: precheck passed
+
+# A first run, with room: the state it leaves
+vigil run exit 0
+  725 bytes  /st/jobs/j.state
+  run_id           = 20261125T060544Z-45
+  status           = succeeded
+  deadline_epoch   = 1795586864
+
+# /st is filled
+  0 KB free of 256
+
+# The job runs again; its state file, 3 s into the run
+  725 bytes  /st/jobs/j.state
+  status line: [status           = succeeded]
+  deadline line: [deadline_epoch   = 1795586864]
+  token held by the worker: j.20261125T060551Z-94.token
+vigil run exit 0
+  what the worker printed:
+    /work/r/app/lib/posix/worker.sh: line 350: printf: write error: No space left on device
+    /work/r/app/lib/posix/worker.sh: line 351: printf: write error: No space left on device
+    /work/r/app/lib/posix/worker.sh: line 352: printf: write error: No space left on device
+    /work/r/app/lib/posix/worker.sh: line 353: printf: write error: No space left on device
+    /work/r/app/lib/posix/worker.sh: line 354: printf: write error: No space left on device
+    /work/r/app/lib/posix/worker.sh: line 355: printf: write error: No space left on device
+  its job log:
+    2026-11-25T06:05:51Z 20261125T060551Z-94 run start
+    2026-11-25T06:05:57Z 20261125T060551Z-94 final state not written (a full disk?): the outcome is in the spool file
+    2026-11-25T06:05:57Z 20261125T060551Z-94 run end succeeded in 6s, cpu 0.00s
+
+# After the run
+  725 bytes  /st/jobs/j.state
+  j.state
+
+# Space is freed, and the supervisor looks (one tick)
+  the run's spool file is there: 2
+  supervise --once exit 0
+  the job's state now:
+    run_id           = 20261125T060544Z-45
+    status           = succeeded
+    reason           =
+  quarantine:
+  the supervisor's log:

@@ -1,0 +1,20 @@
+# Control: tick = 8m
+16:tick = 8m
+precheck exit 0: precheck passed
+supervise --once exit 0
+
+# tick = 08m: does validation accept it?
+16:tick = 08m
+precheck exit 0: precheck passed
+
+# tick = 08m: the supervisor at start
+supervise --once exit 1
+/home/vigil-test/vv/r.JSm8BB/app/lib/posix/supervisor.sh: line 768: 08: value too great for base (error token is "08")
+
+# tick = 08m on reload: a supervisor running with tick = 5s, then the edit
+before the edit: supervisor 4007903 alive: yes
+15 s after the edit: supervisor 4007903 alive: no
+its exit code: 1
+/home/vigil-test/vv/r.2Bzx7s/app/lib/posix/supervisor.sh: line 768: 08: value too great for base (error token is "08")
+2026-11-24T19:36:10Z INFO supervisor configuration loaded
+2026-11-24T19:36:10Z INFO supervisor supervisor started, pid 4007903
