@@ -97,6 +97,13 @@
 #                                        separated by |, and _<PACK>_DOWN, one
 #                                        where nothing answers (scripts/run-web.sh
 #                                        sets them up)
+#   VIGIL_IT_OBS_PROMETHEUS, _ALERTMANAGER, _GRAFANA, _LOKI, _MIMIR, _TEMPO,
+#   _OTELCOL, _VICTORIAMETRICS, _VICTORIALOGS
+#                                        the same for a pack that watches a
+#                                        monitoring stack, with _<PACK>_DOWN;
+#                                        VIGIL_IT_OBS_GRAFANA_TOKEN, a Viewer's
+#                                        token for Grafana's data sources
+#                                        (scripts/run-obs.sh sets them up)
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
 #
@@ -172,7 +179,8 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb nginx httpd caddy haproxy phpfpm; do
+obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs'
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb nginx httpd caddy haproxy phpfpm $obs_packs; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1736,6 +1744,34 @@ for wp in nginx:status httpd:status caddy:status haproxy:info phpfpm:pools; do
     fi
 done
 
+# --- the packs that watch a monitoring stack --------------------------------
+# Each reads a service's own metrics page: the same checks as the web packs.
+# Grafana's datasources job needs a token, kept as a secret, before precheck
+# is happy.
+for o in $obs_packs; do
+    O=$(printf '%s' "$o" | tr '[:lower:]' '[:upper:]')
+    eval "os_=\${VIGIL_IT_OBS_$O-}; od=\${VIGIL_IT_OBS_${O}_DOWN-}"
+    if [ -z "$os_" ]; then
+        printf '  SKIP  %s: set VIGIL_IT_OBS_%s (scripts/run-obs.sh sets it up)\n' "$o" "$O"
+    elif [ "$o" = grafana ] && [ -z "${VIGIL_IT_OBS_GRAFANA_TOKEN-}" ]; then
+        printf '  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA_TOKEN, a token for its data sources\n'
+    elif [ "$o" = grafana ] && ! command -v jq > /dev/null 2>&1; then
+        printf '  SKIP  grafana: jq is not installed here\n'
+    else
+        if [ "$o" = grafana ]; then
+            printf '%s' "$VIGIL_IT_OBS_GRAFANA_TOKEN" | vigil secret set GRAFANA_TOKEN --stdin > /dev/null
+        fi
+        web_pack "$o" status "$os_" "$od"
+        if [ "$o" = grafana ]; then
+            set_env GRAFANA_URL "${os_#*=}"
+            vigil run grafana_datasources > "$work/out" 2>&1
+            check 'grafana: its data sources are read with the token' '1 yes' "$(printed grafana_datasources login_ok) $([ "$(printed grafana_datasources datasources)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+            check 'grafana: the token is a secret reference, on the job that needs it' 1 "$(grep -c '^secret *= GRAFANA_TOKEN=secret:GRAFANA_TOKEN' "$root/config/vigil.config")"
+            check 'grafana: the token is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_OBS_GRAFANA_TOKEN" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+        fi
+    fi
+done
+
 # What ran reaches the backend.
 vigil supervise --once > /dev/null 2>&1
 sleep 3
@@ -1799,6 +1835,15 @@ for wp in nginx:nginx_up:nginx_server_workers httpd:httpd_up:httpd_log_requests 
     [ -n "$ws" ] || continue
     [ "$w" = nginx ] && [ -n "${VIGIL_IT_NGINX_URL-}" ] && continue
     check "$w: metrics reach the backend" yes "$(grep -q "^${r%%:*}{" "$root/metrics/vigil.prom" && grep -q "^${r#*:}{" "$root/metrics/vigil.prom" && echo yes || echo no)"
+done
+# The packs that watch a monitoring stack: each pack's first reading.
+for o in $obs_packs; do
+    O=$(printf '%s' "$o" | tr '[:lower:]' '[:upper:]')
+    eval "os_=\${VIGIL_IT_OBS_$O-}"
+    [ -n "$os_" ] || continue
+    [ "$o" = grafana ] && [ -z "${VIGIL_IT_OBS_GRAFANA_TOKEN-}" ] && continue
+    for _ in $(seq 1 20); do grep -q "^${o}_up{" "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check "$o: metrics reach the backend" yes "$(grep -q "^${o}_up{" "$root/metrics/vigil.prom" && echo yes || echo no)"
 done
 
 printf '%d passed, %d failed\n' "$pass" "$fail"

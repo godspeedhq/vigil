@@ -204,6 +204,8 @@ def pack_config(p, js):
               'env         = %s_USER=' % d['E'],
               'env         = %s_CACERT=' % d['E']]
         c += ['env         = %s=%s' % (subst(k, p), v) for k, v in j['env']]
+        # What the job cannot run without, from Vigil's secret store.
+        c += ['secret      = %s=secret:%s' % (subst(k, p), subst(k, p)) for k in j['secrets']]
         c += ['']
     return '\n'.join(c).rstrip('\n') + '\n'
 

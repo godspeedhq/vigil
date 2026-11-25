@@ -26,6 +26,9 @@
 #   VictoriaMetrics  a scrape target that is down, and queries that fail
 #   VictoriaLogs     entries older than its retention
 #
+# OBS_DIR is the folder of their configuration: the run script gives it a
+# copy of configs/services/obs, so that it can break a file and mend it.
+#
 # Everything listens on 127.0.0.1 only, on ports of its own (190xx, 184xx,
 # 188xx), so it runs beside the delivery tests' own Prometheus, Loki and
 # Grafana. Memory is capped: the test machine has 8 GB for all.
@@ -47,8 +50,8 @@ services:
       - --web.enable-lifecycle
     ports: ["127.0.0.1:19090:9090"]
     volumes:
-      - ./configs/services/obs/prometheus.yml:/etc/prometheus/prometheus.yml:ro,z
-      - ./configs/services/obs/rules.yml:/etc/prometheus/rules.yml:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/prometheus.yml:/etc/prometheus/prometheus.yml:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/rules.yml:/etc/prometheus/rules.yml:ro,z
 
   alertmanager:
     image: prom/alertmanager:v0.35.1
@@ -60,7 +63,7 @@ services:
       - --cluster.peer=alertmanager2:9094
     ports: ["127.0.0.1:19093:9093"]
     volumes:
-      - ./configs/services/obs/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro,z
 
   alertmanager2:
     image: prom/alertmanager:v0.35.1
@@ -72,7 +75,7 @@ services:
       - --cluster.peer=alertmanager:9094
     ports: ["127.0.0.1:19094:9093"]
     volumes:
-      - ./configs/services/obs/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro,z
 
   victoriametrics:
     image: victoriametrics/victoria-metrics:v1.157.0
@@ -83,7 +86,7 @@ services:
       - -search.maxQueryDuration=5s
     ports: ["127.0.0.1:18428:8428"]
     volumes:
-      - ./configs/services/obs/vmscrape.yml:/etc/vmscrape.yml:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/vmscrape.yml:/etc/vmscrape.yml:ro,z
 
   victorialogs:
     image: victoriametrics/victoria-logs:v1.54.0
@@ -98,7 +101,7 @@ services:
     command: ["-config.file=/etc/loki/loki.yaml"]
     ports: ["127.0.0.1:19310:3100"]
     volumes:
-      - ./configs/services/obs/loki.yaml:/etc/loki/loki.yaml:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/loki.yaml:/etc/loki/loki.yaml:ro,z
 
   mimir:
     image: grafana/mimir:3.2.6
@@ -106,7 +109,7 @@ services:
     command: ["-config.file=/etc/mimir/mimir.yaml"]
     ports: ["127.0.0.1:19009:9009"]
     volumes:
-      - ./configs/services/obs/mimir.yaml:/etc/mimir/mimir.yaml:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/mimir.yaml:/etc/mimir/mimir.yaml:ro,z
       - mimir-data:/data
 
   tempo:
@@ -115,7 +118,7 @@ services:
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     ports: ["127.0.0.1:19320:3200"]
     volumes:
-      - ./configs/services/obs/tempo.yaml:/etc/tempo/tempo.yaml:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/tempo.yaml:/etc/tempo/tempo.yaml:ro,z
       - tempo-data:/var/tempo
 
   otelcol:
@@ -124,7 +127,7 @@ services:
     command: ["--config=/etc/otelcol/config.yaml"]
     ports: ["127.0.0.1:18888:8888"]
     volumes:
-      - ./configs/services/obs/otelcol.yaml:/etc/otelcol/config.yaml:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/otelcol.yaml:/etc/otelcol/config.yaml:ro,z
 
   grafana:
     image: grafana/grafana:13.2.5
@@ -138,8 +141,8 @@ services:
       GF_LOG_LEVEL: warn
     ports: ["127.0.0.1:19300:3000"]
     volumes:
-      - ./configs/services/obs/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro,z
-      - ./configs/services/obs/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro,z
 
   # What flows through: traces, logs and metrics to the Collector; traces
   # too large for Tempo; and traces to the pipeline that must refuse them.
@@ -167,7 +170,7 @@ services:
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/load.sh"]
     volumes:
-      - ./configs/services/obs/load.sh:/load.sh:ro,z
+      - ${OBS_DIR:-./configs/services/obs}/load.sh:/load.sh:ro,z
 
 volumes:
   mimir-data:

@@ -50,6 +50,7 @@ def code(sh, ps, metrics):
 
 def job(**j):
     j.setdefault('env', [])
+    j.setdefault('secrets', [])
     j.setdefault('needs_sh', ['curl', 'awk'])
     j.setdefault('exit_sh', "0, whatever it reads, and when @P@ does not answer (up 0 is the reading); 1 when it "
                             "answers wrong (a login refused, not HTTP), said on stderr, or curl or awk is missing")

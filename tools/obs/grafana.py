@@ -23,9 +23,9 @@ PACK = dict(
            'its metrics page, which is on by default ([metrics] enabled); where it asks for a login ([metrics] '
            'basic_auth_username): GRAFANA_USER and secret = GRAFANA_PASSWORD=secret:GRAFANA_PASSWORD',
            'for the datasources job, a service account with the Viewer role and a token for it (Administration, '
-           'Users and access, Service accounts): secret = GRAFANA_TOKEN=secret:GRAFANA_TOKEN on that job, then '
-           'vigil secret set GRAFANA_TOKEN. A Viewer may list the data sources and ask each for its health, and '
-           'change nothing',
+           "Users and access, Service accounts), kept in Vigil's secret store: vigil secret set GRAFANA_TOKEN. A "
+           'Viewer may list the data sources and ask each for its health, and change nothing. With no token to '
+           'give, turn that job off: vigil pack disable grafana_datasources',
            "for Grafana's CPU and memory: the base pack's processes job"])
 
 READS = "Reads @E@_URL (default @URL@): /metrics, Grafana's page about itself"
@@ -175,7 +175,7 @@ Write-Output "metric datasources_not_shown $($list.Count - $shown)"
 '''
 
 job(pack='grafana', job='datasources', metric='datasources', when='run_every   = 5m', runtime='2m',
-    needs_sh=['curl', 'jq'],
+    needs_sh=['curl', 'jq'], secrets=['@E@_TOKEN'],
     title='does every Grafana data source answer',
     what="Lists Grafana's data sources and asks Grafana to check each one, as the Test button on its settings "
          "page does: Grafana makes one small query to it and says whether it answered. A data source that "
