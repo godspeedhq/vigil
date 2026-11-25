@@ -106,7 +106,11 @@ each() {
         fetch "$work/each.cfg" || return $?
     fi
     # A container removed since the list was read answers {"message": ...}.
-    xargs cat < "$work/$3.files" 2> /dev/null | jq -s '[.[] | select(type == "object" and (has("message") | not))]' > "$work/$3.all" || return 1
+    # Each answer keeps the id it was asked for, in asked: some engines leave
+    # a container's name out of its statistics.
+    [ -s "$work/$3.files" ] || { echo '[]' > "$work/$3.all"; return 0; }
+    # shellcheck disable=SC2046
+    jq -n '[inputs as $x | select(($x | type) == "object" and ($x | has("message") | not)) | $x + {asked: (input_filename | sub("^.*[.]"; ""))}]' $(cat "$work/$3.files") > "$work/$3.all" 2> /dev/null || return 1
 }
 
 # jq helpers: a tag's value (no spaces, never empty, at most 120

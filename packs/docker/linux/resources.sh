@@ -131,7 +131,10 @@ get '/containers/json' list || exit 1
 jq -r --argjson most "$most" 'map(select(.State != "restarting")) | sort_by((.Names // [])[0] // .Id) | .[0:$most][] | .Id' "$work/list" > "$work/ids" || exit 1
 each "$work/ids" '/containers/%s/stats?stream=false&one-shot=true' stats || exit 1
 jq -r -s --argjson most "$most" "$defs"'
-    .[0] as $i | .[1] as $list | (.[2] | map(select(has("cpu_stats"))) | sort_by(.name)) as $s |
+    .[0] as $i | .[1] as $list |
+    # The name the list gives each container: the statistics of some engines leave it out.
+    ($list | map({key: .Id, value: cname}) | from_entries) as $names |
+    (.[2] | map(select(has("cpu_stats")) | . + {name: ($names[.asked] // .name // .id // "none")}) | sort_by(.name)) as $s |
     (($i.OSType // "linux") == "windows") as $win |
     # Memory in use, as docker stats counts it: without the file cache that
     # can be given back (cgroup v2: inactive_file; v1: total_inactive_file).

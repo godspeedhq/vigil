@@ -133,7 +133,8 @@ $win = ("$($i.OSType)" -ceq 'windows')
 $s = New-Object System.Collections.Generic.List[object]
 foreach ($one in @($list | Select-Object -First $script:Most)) {
     $d = Get-Json "/containers/$($one.Id)/stats?stream=false&one-shot=true" -Missing
-    if ($null -ne $d -and $d.cpu_stats) { $s.Add($d) }
+    # The name the list gives it: the statistics of some engines leave it out.
+    if ($null -ne $d -and $d.cpu_stats) { $d['name'] = (Name-Of $one); $s.Add($d) }
 }
 # Memory in use, as docker stats counts it: without the file cache that can
 # be given back (cgroup v2: inactive_file; v1: total_inactive_file). A
