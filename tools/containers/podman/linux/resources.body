@@ -1,0 +1,34 @@
+set -u
+
+job=resources
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_podman.sh"
+needs podman jq
+
+engine
+# One JSON object a line, with the numbers as Podman holds them (the json
+# format of podman stats prints them for people: "585.7kB / 67.11MB").
+ask stats stats --no-stream --format '{{json .}}' || exit 1
+jq -r -s --argjson most "$most" "$defs"'
+    .[0] as $i | (.[1:] | map(select(type == "object")) | sort_by(.Name)) as $all | $all[0:$most] as $s |
+    # A limit of its own: where there is none, Podman reports the memory of the machine.
+    def limit: (.MemLimit // 0) as $l | if $l == 0 or $l >= ($i.host.memTotal // 0) then 0 else $l end;
+    def pct: limit as $l | if $l > 0 then ((.MemUsage // 0) * 100 / $l) else null end;
+    def rx: [(.Network // {})[] | .RxBytes // 0] | add // 0;
+    def tx: [(.Network // {})[] | .TxBytes // 0] | add // 0;
+    "metric containers_measured \($s | length)",
+    "metric memory_total_bytes \([$all[] | .MemUsage // 0] | add // 0)",
+    "metric memory_fullest_pct \([$all[] | pct | select(. != null)] | max // 0 | num)",
+    ($s[] | ((.Name // .ContainerID // "none") | safe) as $n |
+        "metric cpu_seconds_count \(((.CPUNano // 0) / 1000000000) | num) name=\($n)",
+        "metric memory_bytes \(.MemUsage // 0) name=\($n)",
+        "metric memory_limit_bytes \(limit) name=\($n)",
+        (pct | select(. != null) | "metric memory_pct \(num) name=\($n)"),
+        "metric pids \(.PIDs // 0) name=\($n)",
+        "metric network_rx_bytes_count \(rx) name=\($n)",
+        "metric network_tx_bytes_count \(tx) name=\($n)",
+        "metric block_read_bytes_count \(.BlockInput // 0) name=\($n)",
+        "metric block_write_bytes_count \(.BlockOutput // 0) name=\($n)"),
+    "metric containers_not_shown \([($all | length) - $most, 0] | max)"
+' "$work/info" "$work/stats" || exit 1
+exit 0

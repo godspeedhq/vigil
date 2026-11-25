@@ -1,0 +1,32 @@
+set -u
+
+job=disk
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_podman.sh"
+needs podman jq
+
+engine
+ask df system df --format json || exit 1
+ask images images --format json || exit 1
+ask sizes ps -a --size --format json || exit 1
+jq -r -s "$defs"'
+    (.[0] // []) as $df | (.[1] // []) as $im | (.[2] // []) as $c |
+    def row($t): ([$df[] | select(.Type == $t)][0] // {});
+    row("Images") as $i | row("Containers") as $k | row("Local Volumes") as $v |
+    ($c | map(select((.Size.rwSize // 0) > 0)) | sort_by(-.Size.rwSize)) as $big |
+    "metric images \($i.Total // ($im | length))",
+    "metric images_unused \([($i.Total // 0) - ($i.Active // 0), 0] | max)",
+    "metric images_dangling \([$im[] | select(.Dangling == true or (((.Names // .names // []) | length) == 0))] | length)",
+    "metric images_bytes \($i.RawSize // 0)",
+    "metric images_reclaimable_bytes \($i.RawReclaimable // 0)",
+    "metric containers \($k.Total // ($c | length))",
+    "metric containers_bytes \($k.RawSize // 0)",
+    "metric containers_reclaimable_bytes \($k.RawReclaimable // 0)",
+    ($big[0:20][] | "metric container_bytes \(.Size.rwSize) name=\(cname | safe)"),
+    "metric container_bytes_not_shown \([($big | length) - 20, 0] | max)",
+    "metric volumes \($v.Total // 0)",
+    "metric volumes_unused \([($v.Total // 0) - ($v.Active // 0), 0] | max)",
+    "metric volumes_bytes \($v.RawSize // 0)",
+    "metric volumes_reclaimable_bytes \($v.RawReclaimable // 0)"
+' "$work/df" "$work/images" "$work/sizes" || exit 1
+exit 0

@@ -1,0 +1,48 @@
+$Job = 'disk'
+. (Join-Path $PSScriptRoot '_docker.ps1')
+
+Test-Engine
+$df = Get-Json '/system/df'
+function Items([string]$Old, [string]$New) {
+    if ($null -ne $df[$Old]) { return , @($df[$Old] | Where-Object { $null -ne $_ }) }
+    if ($df[$New] -and $null -ne $df[$New].Items) { return , @($df[$New].Items | Where-Object { $null -ne $_ }) }
+    return , @()
+}
+$im = Items 'Images' 'ImageUsage'
+$c = Items 'Containers' 'ContainerUsage'
+$v = Items 'Volumes' 'VolumeUsage'
+$b = Items 'BuildCache' 'BuildCacheUsage'
+function VSize($x) { if ($x.UsageData) { return [Math]::Max((N $x.UsageData.Size), 0) }; return [double]0 }
+function VRefs($x) { if ($x.UsageData) { return (N $x.UsageData.RefCount) }; return [double]0 }
+function Total($Items, [scriptblock]$Of) { $t = [double]0; foreach ($x in @($Items)) { $t += (& $Of $x) }; return $t }
+# Largest first; the order kept among equals, as the Linux scripts do.
+function Largest($Items, [scriptblock]$Of) {
+    $rows = @(); $at = 0
+    foreach ($x in @($Items)) { $rows += , @((& $Of $x), $at, $x); $at++ }
+    return , @($rows | Sort-Object @{ Expression = { $_[0] }; Descending = $true }, @{ Expression = { $_[1] } } | ForEach-Object { , $_[2] })
+}
+$unused = @($im | Where-Object { (N $_.Containers) -eq 0 })
+$bytes = $df.LayersSize; if ($null -eq $bytes -and $df.ImageUsage) { $bytes = $df.ImageUsage.TotalSize }
+$reclaim = $null; if ($df.ImageUsage) { $reclaim = $df.ImageUsage.Reclaimable }
+if ($null -eq $reclaim) { $reclaim = Total $unused { param($x) N $x.Size } }
+"metric images $($im.Count)"
+"metric images_unused $($unused.Count)"
+"metric images_dangling $(@($im | Where-Object { $t = @($_.RepoTags | Where-Object { $null -ne $_ }); $t.Count -eq 0 -or ($t.Count -eq 1 -and $t[0] -ceq '<none>:<none>') }).Count)"
+"metric images_bytes $(Num $bytes)"
+"metric images_reclaimable_bytes $(Num $reclaim)"
+"metric containers $($c.Count)"
+"metric containers_bytes $(Num (Total $c { param($x) N $x.SizeRw }))"
+"metric containers_stopped_bytes $(Num (Total @($c | Where-Object { $_.State -cne 'running' -and $_.State -cne 'paused' }) { param($x) N $x.SizeRw }))"
+$big = Largest @($c | Where-Object { (N $_.SizeRw) -gt 0 }) { param($x) N $x.SizeRw }
+foreach ($x in @($big | Select-Object -First 20)) { "metric container_bytes $(Num $x.SizeRw) name=$(Safe (Name-Of $x))" }
+"metric container_bytes_not_shown $([Math]::Max($big.Count - 20, 0))"
+$vu = @($v | Where-Object { (VRefs $_) -eq 0 })
+"metric volumes $($v.Count)"
+"metric volumes_unused $($vu.Count)"
+"metric volumes_bytes $(Num (Total $v { param($x) VSize $x }))"
+"metric volumes_unused_bytes $(Num (Total $vu { param($x) VSize $x }))"
+foreach ($x in @((Largest $v { param($x) VSize $x }) | Select-Object -First 20)) { "metric volume_bytes $(Num (VSize $x)) name=$(Safe $x.Name)" }
+"metric volume_bytes_not_shown $([Math]::Max($v.Count - 20, 0))"
+"metric build_cache_bytes $(Num (Total $b { param($x) N $x.Size }))"
+"metric build_cache_reclaimable_bytes $(Num (Total @($b | Where-Object { $_.InUse -ne $true }) { param($x) N $x.Size }))"
+exit 0

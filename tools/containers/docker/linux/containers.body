@@ -1,0 +1,31 @@
+set -u
+
+job=containers
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_docker.sh"
+needs curl jq
+
+engine
+get '/containers/json?all=1' list || exit 1
+jq -r --argjson most "$most" 'sort_by((.Names // [])[0] // .Id) | .[0:$most][] | .Id' "$work/list" > "$work/ids" || exit 1
+each "$work/ids" '/containers/%s/json' inspect || exit 1
+jq -r -s --argjson now "$now" --argjson most "$most" "$defs"'
+    .[0] as $list | (.[1] | sort_by(.Name)) as $c |
+    def health: (.State.Health.Status // "none");
+    def up: .State.Running == true and .State.Restarting != true and .State.Paused != true;
+    "metric containers \($list | length)",
+    "metric containers_restarting \([$c[] | select(.State.Restarting == true)] | length)",
+    "metric containers_unhealthy \([$c[] | select(health == "unhealthy")] | length)",
+    "metric containers_oom_killed \([$c[] | select(.State.OOMKilled == true)] | length)",
+    "metric containers_exited_nonzero \([$c[] | select(.State.Status == "exited" and (.State.ExitCode // 0) != 0)] | length)",
+    "metric restarts_total_count \([$c[] | .RestartCount // 0] | add // 0)",
+    ($c[] | (cname | safe) as $n |
+        "metric running \(if up then 1 else 0 end) name=\($n) state=\((.State.Status // "none") | safe)",
+        "metric restarts_count \(.RestartCount // 0) name=\($n)",
+        "metric oom_killed \(if .State.OOMKilled == true then 1 else 0 end) name=\($n)",
+        (select(up) | "metric uptime_seconds \([$now - (.State.StartedAt | epoch), 0] | max) name=\($n)"),
+        (select(health == "healthy" or health == "unhealthy") | "metric healthy \(if health == "healthy" then 1 else 0 end) name=\($n)"),
+        (select(.State.Status == "exited" or .State.Status == "dead") | "metric exit_code \(.State.ExitCode // 0) name=\($n)")),
+    "metric containers_not_shown \([($list | length) - $most, 0] | max)"
+' "$work/list" "$work/inspect.all" || exit 1
+exit 0

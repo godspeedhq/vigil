@@ -1,0 +1,29 @@
+$Job = 'status'
+. (Join-Path $PSScriptRoot '_docker.ps1')
+
+Test-Engine
+$v = $script:Version
+$i = Get-Json '/info'
+$all = Get-Json '/containers/json?all=1'
+$c = @($all)
+function Count([scriptblock]$Where) { return @($c | Where-Object $Where).Count }
+$os = $i.OSType; if (-not $os) { $os = $v.Os }
+"metric version 1 version=$(Safe $v.Version) api=$(Safe $v.ApiVersion) os=$(Safe $os)"
+"metric containers $($c.Count)"
+"metric running $(Count { $_.State -ceq 'running' })"
+"metric paused $(Count { $_.State -ceq 'paused' })"
+"metric restarting $(Count { $_.State -ceq 'restarting' })"
+"metric exited $(Count { $_.State -ceq 'exited' })"
+"metric created $(Count { $_.State -ceq 'created' })"
+"metric dead $(Count { $_.State -ceq 'dead' })"
+$unhealthy = Count { "$($_.Status)" -cmatch '\(unhealthy\)' }
+"metric unhealthy $unhealthy"
+$starting = Count { "$($_.Status)" -cmatch '\(health: starting\)' }
+"metric health_starting $starting"
+$nonzero = Count { $_.State -ceq 'exited' -and "$($_.Status)" -cmatch '^Exited \([1-9-]' }
+"metric exited_nonzero $nonzero"
+"metric images $(Num $i.Images)"
+"metric cpus $(Num $i.NCPU)"
+"metric memory_bytes $(Num $i.MemTotal)"
+"metric warnings $(@($i.Warnings | Where-Object { $null -ne $_ }).Count)"
+exit 0
