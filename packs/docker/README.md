@@ -199,7 +199,7 @@ Starting points, from the same figures each script's header explains; "In our te
 | --- | --- | --- | --- | --- |
 | `docker.up` | 1 |  | 0: the engine is down, and with it every container that has no live restore | `up 0` where nothing listened |
 | `docker.containers.running` (by `name`) | 1 for every container meant to run |  | 0 for one meant to run: `state` says what it is instead | 0 with `state=exited` the moment one was stopped, 1 again when it was started |
-| `docker.containers.restarts_count` (by `name`) | Flat | Rising now and then: a container that falls over from time to time | Rising on every run: a restart loop | Rising by about one every two seconds for the container in a loop |
+| `docker.containers.restarts_count` (by `name`) | Flat | Rising now and then: a container that falls over from time to time | Rising on every run: a restart loop | Rising: every second or two at first, then more slowly, since Docker waits twice as long before each new start, up to a minute. So a loop that has gone on for a while rises about once a minute |
 | `docker.restarting` | 0 | Above 0 once | Above 0 on two runs in a row | 1 or 0 from one moment to the next: a loop is only *between* starts part of the time, which is why `restarts_count` is the one to alert on |
 | `docker.containers.healthy` (by `name`) | 1 |  | 0: its own health check fails | 0 for the container whose check always fails |
 | `docker.containers.oom_killed` (by `name`) | 0 |  | 1: the kernel killed it at its memory limit | 1 for the container that grew past its 16 MB, with `exit_code 137` |

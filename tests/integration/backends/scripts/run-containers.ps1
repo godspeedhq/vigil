@@ -192,8 +192,10 @@ try {
     Say 'A restart loop, watched: the count rises from one run to the next.'
     Quiet 'containers'
     $before = [double](Val 'containers' 'restarts_count' 'name=vigilit_loop')
-    Start-Sleep -Seconds 12
-    Run-Job 'containers' 'twelve seconds later' 'name=vigilit_loop'
+    Write-Output "  before: restarts_count $before"
+    # Docker waits longer before each new start, up to a minute.
+    foreach ($i in 1..24) { Start-Sleep -Seconds 5; Quiet 'containers'; if ([double](Val 'containers' 'restarts_count' 'name=vigilit_loop') -gt $before) { break } }
+    Run-Job 'containers' 'a little later' 'name=vigilit_loop'
     Check 'the loop: restarts_count has risen' 'True' ([string]([double](Val 'containers' 'restarts_count' 'name=vigilit_loop') -gt $before))
 
     Say 'A container stops, and is started again.'

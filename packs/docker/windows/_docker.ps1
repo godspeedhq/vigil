@@ -31,10 +31,6 @@ $script:DockerHost = "$env:DOCKER_HOST"
 if (-not $script:DockerHost) { $script:DockerHost = 'npipe:////./pipe/docker_engine' }
 $script:Pipe = $null
 if ($script:DockerHost -match '^npipe:/+\./pipe/(.+)$') { $script:Pipe = $Matches[1] }
-else {
-    [Console]::Error.WriteLine("${Job}: DOCKER_HOST is $($script:DockerHost): the docker pack reads the engine on this machine, at npipe:////./pipe/<name>")
-    exit 1
-}
 
 # Get-Answer <path>: @{ State; Body }. State is ok, down (no engine
 # answers: a reading), denied (this account may not use the pipe), missing
@@ -128,6 +124,10 @@ function Get-Json([string]$Path, [switch]$Missing) {
 # Test-Engine: the engine's version in $script:Version, and "metric up". Nothing answering is
 # a reading: up 0, and the run succeeds.
 function Test-Engine {
+    if (-not $script:Pipe) {
+        [Console]::Error.WriteLine("${Job}: DOCKER_HOST is $($script:DockerHost): the docker pack reads the engine on this machine, at npipe:////./pipe/<name>")
+        exit 1
+    }
     $a = Get-Answer '/version'
     if ($a.State -eq 'down') { 'metric up 0'; exit 0 }
     if ($a.State -eq 'denied') {

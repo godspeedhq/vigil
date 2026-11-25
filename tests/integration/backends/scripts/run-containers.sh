@@ -183,9 +183,17 @@ check 'disk: images and what they take' 'yes yes' "$(least disk images '' 1) $(l
 
 say "A restart loop, watched: the count rises from one run to the next."
 quiet containers
+printf '  before: restarts_count %s
+' "$(val containers restarts_count 'name=vigilit_loop')"
 before=$(val containers restarts_count 'name=vigilit_loop')
-sleep 8
-run containers 'eight seconds later' | grep -E '^\$|vigilit_loop'
+# Docker waits longer before each new start, up to a minute; Podman starts
+# it again at once.
+for _ in $(seq 1 24); do
+    sleep 5
+    quiet containers
+    [ "$(val containers restarts_count 'name=vigilit_loop')" != "$before" ] && break
+done
+run containers 'a little later' | grep -E '^\$|vigilit_loop'
 check 'the loop: restarts_count has risen' yes "$(awk -v a="$before" -v b="$(val containers restarts_count 'name=vigilit_loop')" 'BEGIN { print (b > a) ? "yes" : "no [" a " " b "]" }')"
 if [ "$e" = docker ]; then
     quiet status
