@@ -417,6 +417,8 @@ rev3=$(revision)
 check "remote: activated" "source.central hosts/h1.config" "$(sed -n 's/^origin *= *//p' "$root/state/config.active")"
 check "remote: job runs" 'remote_hello: succeeded|metric hello 2' "$(run remote_hello)"
 check "remote: precheck" 0 "$(vigil precheck > /dev/null 2>&1; echo $?)"
+# The backend is in the configuration fetched, not in the pointer file.
+check "remote: precheck does not miss a backend the pointer file need not name" 0 "$(vigil precheck 2>&1 | grep -c 'no metrics backend')"
 check "remote: branch reported as unpinned" yes "$(yes_no grep -rq 'W_SCRIPT_UNPINNED' "$root/logs/jobs/vigil_fetch")"
 
 # A change on the branch is picked up at the next check.

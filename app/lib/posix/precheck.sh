@@ -241,6 +241,8 @@ _vigil_pc_fetch() {
             vigil_config_parse "$VIGIL_ACT_CONFIG"
             vigil_config_validate
             _vigil_pc_sources
+            # The configuration in force is now the one parsed.
+            _pc_fetched=1
         fi
     elif [ -n "$remote" ]; then
         _vigil_pc_ok "configuration: not fetched yet; the supervisor fetches it from source.$remote"
@@ -339,12 +341,25 @@ vigil_precheck() {
     else
         _vigil_pc_ok "data format: $_vf_stored"
     fi
-    case $'\n'"${VIGIL_CFG_SEC_NAME[*]-}"$'\n' in
-        *backend.*) ;;
-        *) printf '  note  no metrics backend: metrics go nowhere until you add one\n' ;;
-    esac
+    # Said of the configuration in force. A pointer file (6.8) names no
+    # backend and need not: the configuration it points to does, and is
+    # looked at below, once it has been fetched.
+    _vigil_wk_get vigil config_source ''
+    if [ -z "$_vw_value" ]; then
+        case $'\n'"${VIGIL_CFG_SEC_NAME[*]-}"$'\n' in
+            *backend.*) ;;
+            *) printf '  note  no metrics backend: metrics go nowhere until you add one\n' ;;
+        esac
+    fi
     if vigil_fetch_mode; then
+        _pc_fetched=0
         _vigil_pc_fetch "$only" "$statedir"
+        if [ "$_pc_fetched" = 1 ]; then
+            case $'\n'"${VIGIL_CFG_SEC_NAME[*]-}"$'\n' in
+                *backend.*) ;;
+                *) printf '  note  no metrics backend: metrics go nowhere until you add one\n' ;;
+            esac
+        fi
     else
         _vigil_pc_jobs
         for id in ${_pc_jobs[@]+"${_pc_jobs[@]}"}; do

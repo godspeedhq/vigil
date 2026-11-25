@@ -480,10 +480,12 @@ function Read-VigilServiceStateValue {
 # The runs in progress, proven to be this root's (11.5): for each token in
 # locks\, the worker whose command line names the run and this root, and
 # the job process whose PID, name and start time match the state file and
-# whose parent is that worker. Proven and Unproven list process ids.
+# whose parent is that worker. Proven and Unproven list process ids;
+# Started gives, for each proven one, the start time it was proven with,
+# which goes with the pid to whatever ends it (Stop-VigilProcessTree).
 function Get-VigilServiceRuns {
     param([string]$Root, [string]$State)
-    $r = @{ Proven = New-Object System.Collections.Generic.List[int]; Unproven = New-Object System.Collections.Generic.List[int] }
+    $r = @{ Proven = New-Object System.Collections.Generic.List[int]; Unproven = New-Object System.Collections.Generic.List[int]; Started = @{} }
     $locks = Join-Path $State 'locks'
     if (-not [System.IO.Directory]::Exists($locks)) { return $r }
     $rootArg = ConvertTo-VigilQuotedArg -Arg $Root -Always $false
@@ -503,16 +505,21 @@ function Get-VigilServiceRuns {
         # A process that cannot be read is left out, as one that has gone.
         $w = if ($wpid) { try { Get-VigilProcessInfo ([int]$wpid) } catch { $null } }
         $wOk = $w -and ([string]$w.CommandLine).Contains("$rootArg worker $job --run-id $rid")
-        if ($w) { if ($wOk) { $r.Proven.Add([int]$wpid) } else { $r.Unproven.Add([int]$wpid) } }
+        # A start time that cannot be read leaves nothing to check the pid
+        # against when it is ended: not proven.
+        $wStart = if ($wOk) { try { ConvertTo-VigilEpoch $w.Created } catch { 0 } } else { 0 }
+        if ($w) { if ($wOk -and $wStart -gt 0) { $r.Proven.Add([int]$wpid); $r.Started[[int]$wpid] = [long]$wStart } else { $r.Unproven.Add([int]$wpid) } }
         if ($jpid) {
             $p = try { Get-VigilProcessInfo ([int]$jpid) } catch { $null }
             if ($p) {
                 $name = Read-VigilServiceStateValue $st 'job_name'
                 $start = Read-VigilServiceStateValue $st 'job_start'
                 if (-not (Test-VigilNumber $start)) { $start = '' }
+                # No start time recorded proves nothing (backlog 58): a pid and
+                # a name alone could be another program by now.
                 $ok = $wOk -and $name -and $p.Name -ieq $name -and $p.Parent -eq [int]$wpid -and
-                    ((-not $start) -or [Math]::Abs((ConvertTo-VigilEpoch $p.Created) - [long]$start) -le 1)
-                if ($ok) { $r.Proven.Add([int]$jpid) } else { $r.Unproven.Add([int]$jpid) }
+                    $start -and [Math]::Abs((ConvertTo-VigilEpoch $p.Created) - [long]$start) -le 1
+                if ($ok) { $r.Proven.Add([int]$jpid); $r.Started[[int]$jpid] = [long]$start } else { $r.Unproven.Add([int]$jpid) }
             }
         }
     }
@@ -558,7 +565,14 @@ function Invoke-VigilUninstall {
     # The task of install -UpdateBy, if it is this install's.
     try { Remove-VigilUpdateTask -Root $Root } catch { Write-Output "  left the $Script:VigilUpdateTask task: removing it needs an elevated prompt" }
     # Windows has no TERM for console programs: each proven tree ends at once.
-    foreach ($p in $runs.Proven) { Stop-VigilProcessTree $p }
+    # Proven again, now: the list above was made before the question, and the
+    # answer may have taken minutes. A pid on it may be another program's by
+    # this time, and is not ended on the strength of what it was then (R-1).
+    $runs = Get-VigilServiceRuns -Root $Root -State $state
+    foreach ($p in $runs.Proven) {
+        Stop-VigilProcessTree $p -Started $runs.Started[$p]
+        if ($Script:VigilKillReport) { Write-Output "  process ${p}: $Script:VigilKillReport" }
+    }
     foreach ($s in $paths) {
         if ($s -ceq 'Machine' -and -not (Test-VigilAdmin)) { Write-Output "  left $appDir in the machine PATH: removing it needs an elevated prompt"; continue }
         $v = [Environment]::GetEnvironmentVariable('Path', $s)

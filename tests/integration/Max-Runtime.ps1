@@ -154,6 +154,32 @@ if ($script:fail -gt 0) {
     Write-Host "`nsupervisor log:"
     Write-Host ($supLog.Split("`n") | Select-Object -Last 30 | Out-String)
 }
+
+# A pid proven a moment ago may be another process's by the time it is
+# ended (R-1). The start time that was proven goes with the pid, and is
+# checked again on the process itself, once it is held open: one that is
+# not the same is left alone, and that is said.
+. (Join-Path $repo 'app\lib\windows\Worker.ps1')
+$victim = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'ping -n 120 127.0.0.1 >nul' -PassThru -WindowStyle Hidden
+Start-Sleep -Seconds 2
+$vstart = ConvertTo-VigilEpoch $victim.StartTime
+# What it started: its ping, held open here so that the pid stays its own.
+# (Its console host is its child too, and goes in its own time.)
+$vping = @()
+try {
+    Initialize-VigilNative
+    $vping = @([VigilNative]::Processes() | Where-Object { $_[1] -eq $victim.Id } | ForEach-Object { Get-Process -Id $_[0] -ErrorAction SilentlyContinue } | Where-Object { $_.ProcessName -ieq 'PING' })
+}
+catch { }
+Stop-VigilProcessTree $victim.Id -Started ($vstart + 60)
+$victim.Refresh()
+Test-Equal 'a pid that is no longer the process proven is not ended, and that is said' 'False|True|1' "$($victim.HasExited)|$($Script:VigilKillReport -like '*no longer the process that was proven*')|$($vping.Count)"
+Stop-VigilProcessTree $victim.Id -Started $vstart
+$vreport = $Script:VigilKillReport
+Test-Equal 'the process proven is ended, and what it started' 'True|True|' "$($victim.WaitForExit(5000))|$(-not @($vping | Where-Object { -not $_.WaitForExit(10000) }).Count)|$vreport"
+Stop-VigilProcessTree $victim.Id -Started $vstart
+Test-Equal 'a process already gone: nothing is ended, nothing is said' '' "$Script:VigilKillReport"
+
 Remove-Item -Recurse -Force -LiteralPath $root -ErrorAction SilentlyContinue
 Write-Host "$($script:pass) passed, $($script:fail) failed"
 if ($script:fail -gt 0) { exit 1 }

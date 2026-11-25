@@ -312,59 +312,100 @@ function Get-VigilProcessInfo {
 }
 
 # Ends a process and everything under it, from the root down, with the
-# tree read from the kernel first (backlog 19). A process counts as a child
-# only if it started after its parent, so a reused pid can never draw an
-# unrelated process in. taskkill /T ends the children first, so a cmd.exe
-# parent could run its script's next line in between; it is also refused
-# where WMI is (an SSH session, a task without a stored password).
-# Every way is tried until the root is gone: if it is still running two
-# seconds after its kill, taskkill /T /F follows on the same tree. The root
-# is held open meanwhile, so its pid cannot be given to another process in
-# between. taskkill alone is used when the kernel cannot be asked (dynamic
-# code not allowed) or the root is already gone. When the first way did not
-# end it, $Script:VigilKillReport says why, for the caller to log; it is
-# empty otherwise.
+# tree read from the kernel first (backlog 19).
+# The root is opened first and kept open to the end: while a handle to a
+# process is open, Windows gives its pid to no other, so everything after
+# is about that process, whoever would have had the pid next. A caller
+# that proved the pid a moment ago passes the start time it proved
+# (-Started): it is checked again on the open handle, and a process that is
+# not that one is left alone. Nothing is ever ended by its pid alone
+# (VIGIL-007, 10.3).
+# A child is opened too before it is believed: it counts only if, once
+# open, it is still that parent's and started after it, so a reused pid
+# can never draw an unrelated process in.
+# taskkill /T ends the children first, so a cmd.exe parent could run its
+# script's next line in between; it is also refused where WMI is (an SSH
+# session, a task without a stored password). So it only follows, on the
+# same tree and with the root still held open, when the root is still
+# running two seconds after its kill, or when the kernel cannot be asked
+# (dynamic code not allowed). When the first way did not end it, or
+# nothing was ended, $Script:VigilKillReport says why, for the caller to
+# log; it is empty otherwise.
 $Script:VigilKillReport = ''
 function Stop-VigilProcessTree {
-    param([int]$Id)
+    param([int]$Id, [long]$Started = 0)
     $Script:VigilKillReport = ''
     $root = $null
     $why = ''
     try {
-        Initialize-VigilNative
-        $all = [VigilNative]::Processes()
         $root = Get-Process -Id $Id -ErrorAction Stop
-        $tree = New-Object 'System.Collections.Generic.List[object]'
-        $tree.Add($root)
-        for ($i = 0; $i -lt $tree.Count; $i++) {
-            $parent = $tree[$i]
-            foreach ($p in $all) {
-                if ($p[1] -ne $parent.Id -or $p[0] -eq $parent.Id) { continue }
-                # Another account's process cannot be read, nor ended here.
-                try { $c = Get-Process -Id $p[0] -ErrorAction Stop; if ($c.StartTime -ge $parent.StartTime) { $tree.Add($c) } } catch { }
-            }
-        }
-        # From the root down: a parent ended after its children could carry on
-        # in between, as cmd.exe runs its script's next line once ping ends.
-        # The tree is already known, so the children are still found.
-        for ($i = 0; $i -lt $tree.Count; $i++) {
-            try { $tree[$i].Kill() }
-            catch { if (-not $why) { $why = "pid $($tree[$i].Id): $($_.Exception.Message)" } }
-        }
-        if ($root.WaitForExit(2000)) { return }
-        if (-not $why) { $why = 'still running 2 seconds after its kill' }
+        # The handle that pins the pid; StartTime, Kill and WaitForExit
+        # below all use this one.
+        [void]$root.Handle
     }
     catch {
-        # The root gone already, or the kernel not to be asked.
-        if (-not $root) { & taskkill.exe /T /F /PID $Id 2>&1 | Out-Null; return }
-        if (-not $why) { $why = $_.Exception.Message }
+        # Gone already: there is nothing to end, and whatever has its pid
+        # next is not ours.
+        if (-not $root) { return }
+        # Running, and not to be opened. What cannot be opened cannot be
+        # proven to be the same process.
+        if ($Started -gt 0) {
+            $Script:VigilKillReport = "pid $Id could not be opened, so it was not ended: $($_.Exception.Message -replace '\s+', ' ')"
+            return
+        }
+        # A process this caller started itself, by its pid.
+        & taskkill.exe /T /F /PID $Id 2>&1 | Out-Null
+        return
     }
+    $tree = New-Object 'System.Collections.Generic.List[object]'
+    $tree.Add($root)
     try {
-        $tk = (& taskkill.exe /T /F /PID $Id 2>&1 | Out-String).Trim() -replace '\s+', ' '
-        $ended = $root.WaitForExit(2000)
+        if ($Started -gt 0) {
+            $now = ConvertTo-VigilEpoch $root.StartTime
+            # A second either way allows for rounding, as in the proof.
+            if ([Math]::Abs($now - $Started) -gt 1) {
+                $Script:VigilKillReport = "pid $Id is no longer the process that was proven (it started at $now, not $Started), so it was not ended"
+                return
+            }
+        }
+        try {
+            Initialize-VigilNative
+            $all = [VigilNative]::Processes()
+            for ($i = 0; $i -lt $tree.Count; $i++) {
+                $parent = $tree[$i]
+                foreach ($p in $all) {
+                    if ($p[1] -ne $parent.Id -or $p[0] -eq $parent.Id) { continue }
+                    # Another account's process cannot be opened, nor ended here.
+                    $c = $null
+                    try {
+                        $c = Get-Process -Id $p[0] -ErrorAction Stop
+                        [void]$c.Handle
+                        if ($c.StartTime -ge $parent.StartTime -and [VigilNative]::Parent($c.Id) -eq $parent.Id) { $tree.Add($c); $c = $null }
+                    }
+                    catch { }
+                    if ($c) { $c.Dispose() }
+                }
+            }
+            # From the root down: a parent ended after its children could carry on
+            # in between, as cmd.exe runs its script's next line once ping ends.
+            # The tree is already known, so the children are still found.
+            for ($i = 0; $i -lt $tree.Count; $i++) {
+                try { $tree[$i].Kill() }
+                catch { if (-not $why) { $why = "pid $($tree[$i].Id): $($_.Exception.Message)" } }
+            }
+            if ($root.WaitForExit(2000)) { return }
+            if (-not $why) { $why = 'still running 2 seconds after its kill' }
+        }
+        catch { if (-not $why) { $why = $_.Exception.Message } }
+        # The root is still open here, so the pid taskkill is given is still its.
+        try {
+            $tk = (& taskkill.exe /T /F /PID $Id 2>&1 | Out-String).Trim() -replace '\s+', ' '
+            $ended = $root.WaitForExit(2000)
+        }
+        catch { $tk = $_.Exception.Message; $ended = $false }
+        $Script:VigilKillReport = "the first kill did not end it ($why); taskkill: $tk; $(if ($ended) { 'ended' } else { 'still running' })"
     }
-    catch { $tk = $_.Exception.Message; $ended = $false }
-    $Script:VigilKillReport = "the first kill did not end it ($why); taskkill: $tk; $(if ($ended) { 'ended' } else { 'still running' })"
+    finally { foreach ($t in $tree) { $t.Dispose() } }
 }
 
 # Windows has no kernel boot id; it is derived from the boot time (11.1).
@@ -605,10 +646,12 @@ function Invoke-VigilWorker {
     $token = Join-Path $ctx.State "locks\$Job.$RunId.token"
     $timeoutMarker = Join-Path $ctx.State "locks\$Job.$RunId.timeout"
 
-    # Claim (11.2), hand over hand: hold the launch record exclusively,
-    # create and hold the token exclusively, then close and delete the
-    # launch record. If the supervisor deleted the launch first, the job
-    # does not run.
+    # Claim (11.2), hand over hand: hold the launch record, create and hold
+    # the token exclusively, then delete the launch record while it is still
+    # held, and let it go. If the supervisor took the launch first, the job
+    # does not run. Deleted while held, not after: closed first, there was a
+    # moment when the record was there and nobody's, and the supervisor
+    # could abandon a launch this worker had just claimed (R-2).
     $tokenStream = $null
     try {
         # Another process may have the launch record open for a moment (an
@@ -617,7 +660,10 @@ function Invoke-VigilWorker {
         Invoke-VigilFault 'worker.before_claim'
         $launchStream = $null
         for ($try = 1; -not $launchStream; $try++) {
-            try { $launchStream = [System.IO.File]::Open($launch, 'Open', 'Read', 'None') }
+            # Shared for deleting only, so that this worker can delete it below
+            # while holding it. No other open gets in: a second worker's, and the
+            # supervisor's, both ask to read it.
+            try { $launchStream = [System.IO.File]::Open($launch, 'Open', 'Read', 'Delete') }
             catch [System.IO.FileNotFoundException] { throw }
             catch [System.IO.IOException] { if ($try -ge 20) { throw }; Start-Sleep -Milliseconds 100 }
         }
@@ -626,9 +672,12 @@ function Invoke-VigilWorker {
         # Inheritable: the job process gets the handle too, as on Linux and
         # macOS it gets fd 9, so a job whose worker is gone still holds its
         # run, and is never started a second time beside it (11.3, orphaned).
-        try { $tokenStream = New-Object System.IO.FileStream -ArgumentList $token, ([System.IO.FileMode]::CreateNew), ([System.IO.FileAccess]::ReadWrite), ([System.IO.FileShare]'None, Inheritable') }
+        try {
+            $tokenStream = New-Object System.IO.FileStream -ArgumentList $token, ([System.IO.FileMode]::CreateNew), ([System.IO.FileAccess]::ReadWrite), ([System.IO.FileShare]'None, Inheritable')
+            # It goes when the handle below is closed; until then nothing can open it.
+            [System.IO.File]::Delete($launch)
+        }
         finally { $launchStream.Dispose() }
-        [System.IO.File]::Delete($launch)
     }
     catch {
         if ($tokenStream) { $tokenStream.Dispose(); [System.IO.File]::Delete($token) }

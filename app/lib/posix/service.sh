@@ -658,6 +658,11 @@ vigil_uninstall() {
     fi
 
     vigil_service_remove "$root" > /dev/null || return 1
+    # Proven again, now: the list above was made before the question, and the
+    # answer may have taken minutes. A pid on it may be another program's by
+    # this time, and is not signalled on the strength of what it was then
+    # (R-1, VIGIL-007).
+    _vigil_svc_runs "$statedir"
     if [ -n "$_vs_pids" ]; then
         # TERM, then KILL whatever is still alive after 10 seconds.
         for p in $_vs_pids; do kill -TERM -- "-$p" 2> /dev/null || kill -TERM "$p" 2> /dev/null; done
@@ -669,7 +674,15 @@ vigil_uninstall() {
             sleep 0.5
             i=$((i + 1))
         done
-        for p in $alive; do kill -KILL -- "-$p" 2> /dev/null || kill -KILL "$p" 2> /dev/null; done
+        if [ -n "$alive" ]; then
+            # And again before KILL: ten seconds on, a pid that answers may
+            # no longer be the process that was sent TERM.
+            _vigil_svc_runs "$statedir"
+            for p in $alive; do
+                _vigil_sup_contains "$_vs_pids" "$p" || continue
+                kill -KILL -- "-$p" 2> /dev/null || kill -KILL "$p" 2> /dev/null
+            done
+        fi
     fi
     for p in $link; do rm -f "$p"; done
     # The sudo rule of install --update-by, if it is this install's.

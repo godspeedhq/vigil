@@ -98,6 +98,18 @@ _vigil_sup_holds() {
     esac
 }
 
+# Writes timeout marker $1, with the time TERM is sent: to a temporary name,
+# then renamed, as every file another process reads is (12.3), so a worker
+# never reads half of one. Returns 1 when it could not be written; what was
+# there, if anything, is kept.
+_vigil_sup_marker() {
+    if printf 'term_epoch = %s\n' "$_su_epoch" > "$1.tmp.$$" 2> /dev/null && mv -f "$1.tmp.$$" "$1" 2> /dev/null; then
+        return 0
+    fi
+    rm -f "$1.tmp.$$" 2> /dev/null
+    return 1
+}
+
 # Stops run $2 of job $1, past its deadline (10.3, 11.5, 11.6): only once
 # its job process is proven to belong to the run, by holding run token $3.
 # TERM goes to the job's process group first, KILL after grace. A marker
@@ -117,7 +129,11 @@ _vigil_sup_timeout() {
     # Unproven: the caller holds the run as uncertain.
     [ "$_su_held" = yes ] || return 1
     if [ ! -f "$marker" ]; then
-        printf 'term_epoch = %s\n' "$_su_epoch" > "$marker"
+        # The run is stopped whether or not its marker can be written: without
+        # one its worker records how the job ended, not that it timed out, and
+        # TERM is sent again each tick until there is one to count grace from.
+        _vigil_sup_marker "$marker" ||
+            _vigil_sup_log WARN "job $job: run $rid: its timeout marker could not be written (a full disk?); TERM is sent all the same"
         # A negative pid signals the whole process group, which the worker gave the
         # job with set -m, so whatever the job started goes too. If the group is gone,
         # the job itself is tried.
@@ -131,8 +147,7 @@ _vigil_sup_timeout() {
     # A marker that cannot be read starts the grace again, rather than never
     # sending KILL.
     if ! _vigil_sup_isnum "$term"; then
-        printf 'term_epoch = %s
-' "$_su_epoch" > "$marker"
+        _vigil_sup_marker "$marker"
         return 0
     fi
     vigil_config_effective "$job"
