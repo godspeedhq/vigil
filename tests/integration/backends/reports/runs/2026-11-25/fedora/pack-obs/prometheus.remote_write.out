@@ -1,0 +1,20 @@
+metric up 1
+metric remotes 3
+metric samples_sent_count 635000
+metric samples_failed_count 316000
+metric samples_failed 316000 remote=mimir
+metric samples_failed 0 remote=dead
+metric samples_failed 0 remote=victoriametrics
+metric samples_failed_not_shown 0
+metric samples_retried_count 2900
+metric samples_dropped_count 0
+metric samples_pending 2171
+metric pending 736 remote=mimir
+metric pending 736 remote=victoriametrics
+metric pending 699 remote=dead
+metric pending_not_shown 0
+metric shards 3
+metric shards_max 102
+metric shards_desired 1.037908
+metric behind_seconds 0
+metric remotes_never_sent 1

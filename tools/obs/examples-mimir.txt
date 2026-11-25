@@ -1,0 +1,62 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-obs.sh), against the
+# stack in trouble on purpose.
+
+== status
+metric up 1
+metric ready 1
+metric version 1 version=3.2.6
+metric uptime_seconds 308
+metric ingesters_active 1
+metric ingesters_unhealthy 0
+metric store_gateways_active 1
+metric compactors_active 1
+metric ring_unhealthy 0
+metric ring_not_active 0
+metric requests_count 1440
+metric requests_4xx_count 530
+metric requests_5xx_count 8
+metric inflight_requests 14
+metric distributor_rejected_count 0
+metric ingester_rejected_count 0
+metric querier_rejected_count 0
+
+== ingestion
+metric up 1
+metric samples_in_count 906600
+metric samples_received_count 887436
+metric discarded_count 892600
+metric discarded 873436 reason=per_user_series_limit
+metric discarded 15315 reason=metric_name_invalid
+metric discarded 3848 reason=label_invalid
+metric discarded 1 reason=sample_duplicate_timestamp
+metric discarded_not_shown 0
+metric series 200
+metric tenants 1
+metric active_series 200
+metric ingested_samples_count 12000
+metric ingested_failures_count 873436
+metric append_failures_count 0
+metric pushes_in_flight 1
+metric out_of_order_appended_count 0
+
+== storage
+metric up 1
+metric shipper_uploads_count 0
+metric shipper_failures_count 0
+metric head_compactions_failed_count 0
+metric head_truncations_failed_count 0
+metric wal_corruptions_count 0
+metric wal_writes_failed_count 0
+metric compactor_runs_count 6
+metric compactor_runs_failed_count 0
+metric last_compaction_seconds 5
+metric cleanup_failures_count 0
+metric blocks_loaded 0
+metric block_load_failures_count 0
+metric consistency_failures_count 0
+metric bucket_operations_count 14
+metric bucket_failures_count 0
+metric bucket_failures 0 operation=attributes
+metric bucket_failures 0 operation=delete
+metric bucket_failures_not_shown 0

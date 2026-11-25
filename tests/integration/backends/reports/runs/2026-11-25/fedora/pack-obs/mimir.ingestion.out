@@ -1,0 +1,17 @@
+metric up 1
+metric samples_in_count 324200
+metric samples_received_count 318266
+metric discarded_count 319400
+metric discarded 313466 reason=per_user_series_limit
+metric discarded 4675 reason=metric_name_invalid
+metric discarded 1258 reason=label_invalid
+metric discarded 1 reason=sample_duplicate_timestamp
+metric discarded_not_shown 0
+metric series 200
+metric tenants 1
+metric active_series 200
+metric ingested_samples_count 4800
+metric ingested_failures_count 313466
+metric append_failures_count 0
+metric pushes_in_flight 0
+metric out_of_order_appended_count 0

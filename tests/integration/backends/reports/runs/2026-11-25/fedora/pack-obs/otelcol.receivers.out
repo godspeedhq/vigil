@@ -1,0 +1,17 @@
+metric up 1
+metric accepted_spans_count 589
+metric refused_spans_count 449
+metric failed_spans_count 0
+metric accepted_metric_points_count 200
+metric refused_metric_points_count 0
+metric failed_metric_points_count 0
+metric accepted_log_records_count 400
+metric refused_log_records_count 0
+metric failed_log_records_count 0
+metric refused_spans 449 receiver=otlp/refused
+metric refused_spans 0 receiver=otlp
+metric refused_spans_not_shown 0
+metric refused_metric_points 0 receiver=otlp
+metric refused_metric_points_not_shown 0
+metric refused_log_records 0 receiver=otlp
+metric refused_log_records_not_shown 0

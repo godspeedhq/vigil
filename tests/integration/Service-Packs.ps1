@@ -261,7 +261,8 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $jk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
-    foreach ($sp in 'elasticsearch', 'opensearch', 'cockroachdb', 'nginx', 'httpd', 'caddy', 'iis') {
+    $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs')
+    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'nginx', 'httpd', 'caddy', 'iis') + $obsPacks) {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
         Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
@@ -1605,6 +1606,65 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "${p}: metrics reach the backend" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^$($w[2])\{")))
+    }
+
+    # --- the packs that watch a monitoring stack ---------------------------------
+    # VIGIL_IT_OBS_PROMETHEUS (and _ALERTMANAGER, _GRAFANA, _LOKI, _MIMIR,
+    # _TEMPO, _OTELCOL, _VICTORIAMETRICS, _VICTORIALOGS): a pack's settings,
+    # NAME=value separated by |, and _<PACK>_DOWN, one where nothing answers.
+    # VIGIL_IT_OBS_GRAFANA_TOKEN: a Viewer's token, for Grafana's data
+    # sources, kept as a secret before precheck is asked
+    # (scripts/run-obs.sh sets them up).
+    foreach ($p in $obsPacks) {
+        $PU = $p.ToUpperInvariant()
+        $ws = [Environment]::GetEnvironmentVariable("VIGIL_IT_OBS_$PU")
+        $wd = [Environment]::GetEnvironmentVariable("VIGIL_IT_OBS_${PU}_DOWN")
+        if (-not $ws) { Write-Host "  SKIP  ${p}: set VIGIL_IT_OBS_$PU (scripts/run-obs.sh sets it up)"; continue }
+        if ($p -ceq 'grafana' -and -not $env:VIGIL_IT_OBS_GRAFANA_TOKEN) { Write-Host '  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA_TOKEN, a token for its data sources'; continue }
+        Write-Host "${p}: $ws"
+        $wk = Join-Path $root "packs\$p"
+        $wjobs = @([System.IO.File]::ReadAllLines((Join-Path $wk 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] })
+        if ($p -ceq 'grafana') { Set-VigilSecret GRAFANA_TOKEN $env:VIGIL_IT_OBS_GRAFANA_TOKEN }
+        $r = Invoke-Vigil pack enable $p
+        Test-Equal "${p}: enabled" '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "${p}: it says CPU and memory are the base pack's" 'True' ([string](($r.Text -replace '\s+', ' ').Contains("the base pack's processes job")))
+        # A logon with no password (SSH with a key) cannot use the secret
+        # store: then the job takes the token by an env: reference.
+        if ($p -ceq 'grafana' -and (Invoke-Vigil secret list).Text -notmatch 'GRAFANA_TOKEN') {
+            Write-Host '  note  grafana: this logon cannot use the secret store (it has no password): the job takes the token by env:VIGIL_IT_OBS_GRAFANA_TOKEN'
+            $gcfg = Join-Path $root 'config\vigil.config'
+            [System.IO.File]::WriteAllText($gcfg, ([System.IO.File]::ReadAllText($gcfg) -replace '(?m)^(secret\s*=\s*GRAFANA_TOKEN=)secret:GRAFANA_TOKEN', '${1}env:VIGIL_IT_OBS_GRAFANA_TOKEN'))
+        }
+        foreach ($kv in @($ws -split '\|' | Where-Object { $_ })) { $n, $v = $kv -split '=', 2; Set-Env $n $v }
+        $r = Invoke-Vigil precheck
+        Test-Equal "${p}: precheck is happy" '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $wjobs) { if ([string](Invoke-Vigil run "${p}_$j").Code -ne '0') { $failed += $j } }
+        Test-Equal "${p}: every job runs ($($wjobs -join ', '))" '' ($failed -join ' ')
+        foreach ($j in $wjobs) { Show-LastRun "${p}_$j" }
+        Test-Equal "${p}: answers" '1' (Get-Printed "${p}_status" up)
+        if ($p -ceq 'grafana') {
+            Test-Equal 'grafana: its data sources are read with the token' '1 True' "$(Get-Printed grafana_datasources login_ok) $([int](Get-Printed grafana_datasources datasources) -ge 1)"
+            $leaks = @(Get-ChildItem -Recurse -File -LiteralPath (Join-Path $root 'logs'), (Join-Path $root 'state'), (Join-Path $root 'spool'), (Join-Path $root 'metrics'), (Join-Path $root 'config\vigil.config') -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -notlike '*\secrets\*' -and [System.IO.File]::ReadAllText($_.FullName).Contains($env:VIGIL_IT_OBS_GRAFANA_TOKEN) })
+            Test-Equal 'grafana: the token is written nowhere' '0' ([string]$leaks.Count)
+        }
+        if ($wd) {
+            $n, $v = $wd -split '=', 2
+            Set-Env $n $v
+            Test-Equal "${p}: a service that does not answer still runs" '0' ([string](Invoke-Vigil run "${p}_status").Code)
+            Test-Equal "${p}: and reads as up 0" '0' (Get-Printed "${p}_status" up)
+        }
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match "(?m)^${p}_up\{") { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal "${p}: metrics reach the backend" 'True' ([string]($prom -match "(?m)^${p}_up\{"))
     }
 }
 finally {

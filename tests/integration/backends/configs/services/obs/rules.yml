@@ -1,0 +1,34 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Rules for the prometheus pack's test: one that records, one that always
+# fires, one that is pending, and one that cannot be evaluated (every series
+# it makes has the same labels).
+groups:
+  - name: good
+    interval: 5s
+    rules:
+      - record: stack:up:count
+        expr: count(up)
+      - alert: AlwaysFiring
+        expr: vector(1)
+        labels:
+          severity: page
+        annotations:
+          summary: fires on purpose
+      - alert: TargetDown
+        expr: up == 0
+        for: 6h
+        labels:
+          severity: warn
+  - name: broken
+    interval: 5s
+    rules:
+      - record: stack:broken
+        expr: label_replace(label_replace(up, "job", "x", "", ""), "instance", "y", "", "")

@@ -1,0 +1,23 @@
+metric up 1
+metric ready 1
+metric version 1 version=3.15.1
+metric uptime_seconds 2863
+metric config_reload_ok 1
+metric config_age_seconds 0
+metric queries 0
+metric queries_max 20
+metric queries_pct 0
+metric http_requests_count 2630
+metric http_4xx_count 682
+metric http_5xx_count 1
+metric alertmanagers 3
+metric notifications_sent_count 87
+metric notifications_errors_count 45
+metric notifications_errors 44 alertmanager=http://alertmanager:9/api/v2/alerts
+metric notifications_errors 1 alertmanager=http://alertmanager:9093/api/v2/alerts
+metric notifications_errors 0 alertmanager=http://alertmanager2:9093/api/v2/alerts
+metric notifications_errors_not_shown 0
+metric notifications_dropped_count 45
+metric notification_queue 0
+metric notification_queue_capacity 10000
+metric fds_pct 0.01

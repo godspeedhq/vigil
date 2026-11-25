@@ -1,0 +1,24 @@
+metric up 1
+metric shipper_uploads_count 0
+metric shipper_failures_count 0
+metric head_compactions_failed_count 0
+metric head_truncations_failed_count 0
+metric wal_corruptions_count 0
+metric wal_writes_failed_count 0
+metric compactor_runs_count 3
+metric compactor_runs_failed_count 0
+metric last_compaction_seconds 31
+metric cleanup_failures_count 0
+metric blocks_loaded 0
+metric block_load_failures_count 0
+metric consistency_failures_count 0
+metric bucket_operations_count 8
+metric bucket_failures_count 0
+metric bucket_failures 0 operation=attributes
+metric bucket_failures 0 operation=delete
+metric bucket_failures 0 operation=exists
+metric bucket_failures 0 operation=get
+metric bucket_failures 0 operation=get_range
+metric bucket_failures 0 operation=iter
+metric bucket_failures 0 operation=upload
+metric bucket_failures_not_shown 0

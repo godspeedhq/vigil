@@ -1,0 +1,38 @@
+metric up 1
+metric healthy 1
+metric version 1 version=v1.157.0
+metric uptime_seconds 124
+metric read_only 0
+metric free_disk_bytes 79811555328
+metric data_bytes 4133215
+metric http_requests_count 272
+metric http_errors_count 28
+metric http_errors 28 path=/api/v1/query
+metric http_errors 0 path=_
+metric http_errors 0 path=/api/v1/admin/status/metric_names_stats/reset
+metric http_errors 0 path=/api/v1/admin/tsdb/delete_series
+metric http_errors 0 path=/api/v1/export
+metric http_errors 0 path=/api/v1/export/csv
+metric http_errors 0 path=/api/v1/export/native
+metric http_errors 0 path=/api/v1/import
+metric http_errors 0 path=/api/v1/import/csv
+metric http_errors 0 path=/api/v1/import/native
+metric http_errors 0 path=/api/v1/import/prometheus
+metric http_errors 0 path=/api/v1/label/__/values
+metric http_errors 0 path=/api/v1/labels
+metric http_errors 0 path=/api/v1/metadata
+metric http_errors 0 path=/api/v1/query_range
+metric http_errors 0 path=/api/v1/series
+metric http_errors 0 path=/api/v1/series/count
+metric http_errors 0 path=/api/v1/status/metric_names_stats
+metric http_errors 0 path=/api/v1/status/top_queries
+metric http_errors 0 path=/api/v1/status/tsdb
+metric http_errors_not_shown 26
+metric slow_queries_count 0
+metric selects 0
+metric selects_capacity 8
+metric selects_pct 0
+metric selects_limit_reached_count 0
+metric selects_limit_timeout_count 0
+metric errors_logged_count 0
+metric panics_logged_count 0

@@ -1,0 +1,41 @@
+metric up 1
+metric rows_inserted_count 355979
+metric rows_inserted 324000 type=promremotewrite
+metric rows_inserted 31779 type=promscrape
+metric rows_inserted 200 type=opentelemetry
+metric rows_inserted 0 type=csvimport
+metric rows_inserted 0 type=datadogsketches
+metric rows_inserted 0 type=datadogv1
+metric rows_inserted 0 type=datadogv2
+metric rows_inserted 0 type=graphite
+metric rows_inserted 0 type=influx
+metric rows_inserted 0 type=native
+metric rows_inserted 0 type=newrelic
+metric rows_inserted 0 type=opentsdb
+metric rows_inserted 0 type=opentsdbhttp
+metric rows_inserted 0 type=prometheus
+metric rows_inserted 0 type=vmimport
+metric rows_inserted 0 type=zabbixconnector
+metric rows_inserted_not_shown 0
+metric rows_invalid_count 0
+metric rows_ignored_count 0
+metric rows_ignored 0 reason=too_long_label_name
+metric rows_ignored 0 reason=too_long_label_value
+metric rows_ignored 0 reason=too_long_metric_metadata_value
+metric rows_ignored 0 reason=too_many_labels
+metric rows_ignored 0 reason=big_timestamp
+metric rows_ignored 0 reason=small_timestamp
+metric rows_ignored 0 reason=invalid_raw_metric_name
+metric rows_ignored_not_shown 0
+metric new_series_count 17120
+metric slow_row_inserts_count 17120
+metric slow_inserts_pct 4.81
+metric inserts 0
+metric inserts_capacity 8
+metric inserts_limit_reached_count 0
+metric inserts_limit_timeout_count 0
+metric series_limit_dropped_count 0
+metric daily_limit_dropped_count 0
+metric rows 345714
+metric pending_rows 15900
+metric active_merges 0

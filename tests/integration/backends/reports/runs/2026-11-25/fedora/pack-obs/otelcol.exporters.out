@@ -1,0 +1,26 @@
+metric up 1
+metric sent_spans_count 14063
+metric send_failed_spans_count 12841
+metric enqueue_failed_spans_count 13537
+metric sent_metric_points_count 5600
+metric send_failed_metric_points_count 5600
+metric enqueue_failed_metric_points_count 0
+metric sent_log_records_count 22600
+metric send_failed_log_records_count 0
+metric enqueue_failed_log_records_count 0
+metric send_failed_spans 12335 exporter=otlphttp/refusing
+metric send_failed_spans 506 exporter=otlphttp/dead
+metric send_failed_spans_not_shown 0
+metric send_failed_metric_points 5600 exporter=prometheusremotewrite/mimir
+metric send_failed_metric_points_not_shown 0
+metric queue_size 18
+metric queue_capacity 14010
+metric queue_fullest_pct 100
+metric queue 10 exporter=otlphttp/dead
+metric queue 8 exporter=otlp/tempo
+metric queue 0 exporter=otlphttp/loki
+metric queue 0 exporter=otlphttp/victorialogs
+metric queue 0 exporter=otlphttp/victoriametrics
+metric queue 0 exporter=prometheusremotewrite/mimir
+metric queue_not_shown 0
+metric in_flight 9

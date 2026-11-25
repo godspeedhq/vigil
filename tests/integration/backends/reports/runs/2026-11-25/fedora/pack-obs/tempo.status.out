@@ -1,0 +1,12 @@
+metric up 1
+metric ready 1
+metric version 1 version=v2.10.10
+metric uptime_seconds 19
+metric ingesters_active 1
+metric ingesters_unhealthy 0
+metric ring_unhealthy 0
+metric ring_not_active 0
+metric requests_count 66
+metric requests_4xx_count 4
+metric requests_5xx_count 8
+metric inflight_requests 21

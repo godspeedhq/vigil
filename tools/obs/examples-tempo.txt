@@ -1,0 +1,48 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-obs.sh), against the
+# stack in trouble on purpose.
+
+== status
+metric up 1
+metric ready 1
+metric version 1 version=v2.10.10
+metric uptime_seconds 305
+metric ingesters_active 1
+metric ingesters_unhealthy 0
+metric ring_unhealthy 0
+metric ring_not_active 0
+metric requests_count 911
+metric requests_4xx_count 72
+metric requests_5xx_count 8
+metric inflight_requests 21
+
+== ingestion
+metric up 1
+metric spans_received_count 1503
+metric bytes_received_count 293623
+metric receiver_accepted_count 1503
+metric receiver_refused_count 0
+metric discarded_count 242
+metric discarded 242 reason=trace_too_large
+metric discarded 0 reason=live_traces_exceeded
+metric discarded 0 reason=unknown_error
+metric discarded_not_shown 0
+metric live_traces 21
+metric traces_created_count 587
+metric blocks_flushed_count 4
+metric flush_failures_count 0
+metric flush_queue 0
+metric append_failures_count 0
+metric warnings_count 14
+
+== storage
+metric up 1
+metric blocks 4
+metric compactions_count 0
+metric compaction_errors_count 0
+metric retention_deleted_count 0
+metric retention_errors_count 0
+metric blocklist_poll_errors_count 0
+metric backend_requests_count 0
+metric backend_errors_count 0
+metric work_queue 0
