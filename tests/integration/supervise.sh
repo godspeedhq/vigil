@@ -607,11 +607,39 @@ printf 'sleep 30\n' > "$vroot/scripts/long.sh"
 printf '\n[job.long]\nfile = scripts/long.sh\nrun_every = 2s\nmax_runtime = 2s\n' >> "$vcfg"
 vtick; sleep 2; vtick
 vwait_running long
+# As on a host where a fetched configuration has been in force: there is no
+# local one to stay with, and nothing runs until its sources answer.
+: > "$vroot/state/config.fetched"
 # A source that cannot be fetched, and a job that needs it.
 printf '\n[source.extra]\ntype = local\npath = %s/nowhere\n\n[job.fromsource]\nsource = extra\nfile = check.sh\nrun_every = 1h\n' "$vroot" >> "$vcfg"
 sleep 3; vtick; sleep 2; vtick; sleep 1; vtick
-check 'the configuration waits for its first fetch' yes "$(grep -q 'waiting for the first fetch' "$vroot/logs/supervisor/jobs.log" && echo yes || echo no)"
+check 'the configuration waits for its first fetch' yes "$(grep -qx '  waiting for the first fetch' "$vroot/logs/supervisor/jobs.log" && echo yes || echo no)"
 check 'a run in progress is still held to its max_runtime' timed_out "$(vstatus long)"
+
+printf 'A source added that cannot be fetched yet: what was running goes on\n'
+vnew 1s
+printf 'exit 0\n' > "$vroot/scripts/ok.sh"
+printf '\n[job.ok]\nfile = scripts/ok.sh\nrun_every = 2s\n' >> "$vcfg"
+vtick; sleep 2; vtick
+vstarted() { vlog | grep -c "job $1: run .* started"; }
+vjobs=$vroot/logs/supervisor/jobs.log
+before=$(vstarted ok)
+printf '\n[source.extra]\ntype = local\npath = %s/later\ncheck_every = 1s\n\n[job.fromsource]\nsource = extra\nfile = check.sh\nrun_every = 2s\n' "$vroot" >> "$vcfg"
+sleep 3; vtick; sleep 2; vtick; sleep 2; vtick
+check 'jobs.log says which configuration is in force' yes "$(grep -qx '  waiting for the first fetch: the last valid configuration stays active' "$vjobs" && echo yes || echo no)"
+check 'the job that was running still runs' yes "$([ "$(vstarted ok)" -gt "$before" ] && echo yes || echo no)"
+# The last tick may have just launched a run: until its worker has written
+# its state, the file still shows the run before. So the run is waited for
+# by its launch record and token, which are there from the launch to the end.
+i=0; while ls "$vroot/state/locks" 2> /dev/null | grep -q '^ok[.]' && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i + 1)); done
+check 'and succeeds' succeeded "$(vstatus ok)"
+check 'the job that needs the source does not run yet' 0 "$(vstarted fromsource)"
+# The source can be fetched now: the configuration that names it takes over.
+mkdir -p "$vroot/later" && printf 'exit 0\n' > "$vroot/later/check.sh"
+i=0; while ! grep -q '^  revision ' "$vjobs" && [ "$i" -lt 40 ]; do vtick; sleep 1; i=$((i + 1)); done
+check 'once fetched, the configuration that names the source is in force' yes "$(grep -q '^  revision ' "$vjobs" && echo yes || echo no)"
+i=0; while [ "$(vstarted fromsource)" -lt 1 ] && [ "$i" -lt 20 ]; do vtick; sleep 1; i=$((i + 1)); done
+check 'and the job that needed it runs' yes "$([ "$(vstarted fromsource)" -ge 1 ] && echo yes || echo no)"
 
 printf 'state_dir changed while a run is in progress (V-07)\n'
 vnew 1s

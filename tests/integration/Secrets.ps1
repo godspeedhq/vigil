@@ -144,6 +144,10 @@ try {
     #    names, never values.
     $r = Invoke-Vigil @('secret', 'set', 'PGPASSWORD', '--stdin') "first pg value"
     Test-Equal 'secret set' '0' "$($r.Code)"
+    # An empty value is a pipe that failed, not a secret: refused, and the
+    # one stored is kept (the runs below still get it).
+    $r = Invoke-Vigil @('secret', 'set', 'PGPASSWORD', '--stdin') ''
+    Test-Equal 'an empty value is refused, and it is said' '1|True' "$($r.Code)|$($r.Output.Contains('the value for PGPASSWORD is empty: nothing was stored'))"
     Set-Expect pg 'first pg value'
     [System.IO.File]::WriteAllText((Join-Path $root 'helper-value'), "api-1 $PID")
     Set-Expect api "api-1 $PID"

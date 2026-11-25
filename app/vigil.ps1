@@ -241,6 +241,10 @@ switch ($Command) {
                 if ([Console]::IsInputRedirected) { [Console]::Error.WriteLine('vigil: not a console; use --stdin'); exit 64 }
                 $value = Read-Host -AsSecureString -Prompt "Value for $name (not echoed)"
             }
+            # An empty value is a pipe that failed or a key pressed too soon,
+            # never a secret: storing it would replace a good one with
+            # nothing, and every job using it would fail from then on.
+            if ($value.Length -eq 0) { [Console]::Error.WriteLine("vigil: the value for $name is empty: nothing was stored"); exit 1 }
             try { Set-VigilSecret -Root $Root -Name $name -Value $value }
             catch { [Console]::Error.WriteLine("vigil: $($_.Exception.Message)"); exit 1 }
             Write-Output "$name set; runs started from now on use it"

@@ -443,7 +443,7 @@ A store on the host, managed with the `vigil secret` command and read afresh by 
 
 | Command | Purpose |
 | --- | --- |
-| `vigil secret set <NAME>` | Prompts for the value without echoing it, so it never reaches shell history. With `--stdin`, reads it from standard input instead, for scripts and deployment tools (Ansible, Puppet, Jamf, Intune). |
+| `vigil secret set <NAME>` | Prompts for the value without echoing it, so it never reaches shell history. With `--stdin`, reads it from standard input instead, for scripts and deployment tools (Ansible, Puppet, Jamf, Intune). An empty value is refused (exit 1) and what was stored is kept: it is a pipe that failed, not a secret. |
 | `vigil secret list` | The names and when each was last changed. Never the values. |
 | `vigil secret delete <NAME>` | Removes one. |
 
@@ -1144,7 +1144,8 @@ Everything lives under one install root (§18.6 gives the root per platform). A 
     config.active                 the activation record (§16.5)
     config.previous               the record it replaced, whose cache entries are kept for a rollback
     configs/<sha256>.config       each configuration the records name, by content
-    config.valid                  without sources: a copy of the last valid local configuration, kept active while a newer one is rejected (§16.3)
+    config.valid                  a copy of the last valid local configuration, kept active while a newer one is rejected (§16.3), or until the first fetch after a source is added (§16.5)
+    config.fetched                empty: a fetched configuration has been in force, so config.valid is from before it and is not gone back to (§16.5)
     sources/<name>.state          each source's last check: when, what it found, and its last error
     fetch.next                    when the fetcher is next due, and the local file it last read
     supervisor.lock               held open by the live supervisor
@@ -1773,7 +1774,12 @@ Vigil watches the configuration and the sources it names. A source pinned to a c
 
 **Fetcher.** Fetching is done by a worker, `vigil_fetch`, started and supervised like `vigil_sender` (§4.5): detached, with its own state, run token, log and identity checks. A slow or unreachable source therefore never delays a tick, and at most one fetcher runs at a time. The supervisor starts it when a source is due for its check, or when the local file changed: each fetcher run leaves `state/fetch.next`, with the time of the earliest next check and the digest of the local file it read.
 
-Until the first activation record exists, nothing runs: `jobs.log` shows `waiting for the first fetch`, and `vigil run` refuses with the same reason. That includes a local configuration to which a source is added that cannot yet be fetched: its jobs wait too. Runs already in progress then are still Vigil's: each tick accounts for them, holds them to their `max_runtime` (§10.3) and lists them in `jobs.log`.
+Until the first activation record exists, nothing of the new configuration runs, and `vigil run` refuses, saying so. What the supervisor does meanwhile depends on what was in force before:
+
+- **A local configuration was valid and in force**, and a source was then added to it (or it was replaced by a pointer file, §6.8): that configuration stays in force, exactly as while an edit is rejected (§16.3). Its jobs keep their schedules and its metrics keep flowing, the fetcher keeps trying, and `jobs.log` shows `waiting for the first fetch: the last valid configuration stays active`. A source that cannot be reached, a mistyped path for one, never stops what was running. The jobs that need the source start once it has been fetched.
+- **Nothing was in force** (a host installed with a pointer file), **or a fetched configuration has been** (its activation record is lost or unreadable): nothing runs, and `jobs.log` shows `waiting for the first fetch`. A local configuration from before the fetched one is never gone back to, however long ago it was valid.
+
+Runs already in progress are still Vigil's in either case: each tick accounts for them, holds them to their `max_runtime` (§10.3) and lists them in `jobs.log`.
 
 **Reconciliation.** One fetcher run:
 
@@ -2563,7 +2569,7 @@ Every result records Vigil version, OS and version, shell version, test id, resu
 
 **VIGIL-009 — Telemetry Independence.** Backends never block scheduling, supervision or each other.
 
-**VIGIL-010 — Configuration Safety.** An invalid configuration never replaces the last valid one.
+**VIGIL-010 — Configuration Safety.** An invalid configuration never replaces the last valid one, nor does one whose sources have not yet been fetched.
 
 **VIGIL-011 — No Silent Failure.** Every failure produces a local record where storage allows.
 

@@ -45,7 +45,15 @@ function Test-Equal {
 function Get-StateValue {
     param([string]$Path, [string]$Key)
     if (-not (Test-Path -LiteralPath $Path)) { return '' }
-    foreach ($l in [System.IO.File]::ReadAllLines($Path)) {
+    # A worker replaces its state file as it goes: for an instant Windows
+    # refuses a reader ("being used by another process"). Read again.
+    $lines = $null
+    for ($try = 1; $null -eq $lines; $try++) {
+        try { $lines = [System.IO.File]::ReadAllLines($Path) }
+        catch [System.IO.FileNotFoundException] { return '' }
+        catch { if ($try -ge 20) { throw }; Start-Sleep -Milliseconds 100 }
+    }
+    foreach ($l in $lines) {
         if ($l -cmatch "^$Key *=( (.*))?$") { return $Matches[2] }
     }
     return ''
@@ -738,13 +746,44 @@ Invoke-TickUntil { (Get-VCount 'job long: run .* started') -ge 1 }
 # No tick until its worker has recorded it, then at once: a source that
 # cannot be fetched, and a job that needs it.
 Wait-Until { (Get-VStatus 'long') -ceq 'running' } 240
+# As on a host where a fetched configuration has been in force: there is no
+# local one to stay with, and nothing runs until its sources answer.
+[System.IO.File]::WriteAllText((Join-Path $root 'state\config.fetched'), '')
 Add-VConfig "`n[source.extra]`ntype = local`npath = $root\nowhere`n`n[job.fromsource]`nsource = extra`nfile = check.cmd`nrun_every = 1h`n"
 Invoke-TickUntil { (Get-VStatus 'long') -cne 'running' } 60
 $vjobs = Join-Path $root 'logs\supervisor\jobs.log'
-Test-Equal 'the configuration waits for its first fetch' 'True' ([string]((Test-Path -LiteralPath $vjobs) -and [System.IO.File]::ReadAllText($vjobs).Contains('waiting for the first fetch')))
+Test-Equal 'the configuration waits for its first fetch' 'True' ([string]((Test-Path -LiteralPath $vjobs) -and ([System.IO.File]::ReadAllText($vjobs) -match '(?m)^  waiting for the first fetch\r?$')))
 Test-Equal 'a run in progress is still held to its max_runtime' 'timed_out' (Get-VStatus 'long')
 Test-Equal 'by the supervisor, while it waited' 'True' ([string]((Get-VCount 'job long: run .* passed max_runtime') -ge 1))
 Stop-VLoop 'long'
+Stop-VRoot $null
+
+Write-Host 'A source added that cannot be fetched yet: what was running goes on'
+New-VRoot 'first' '1s'
+Set-VScript 'ok.cmd' @('exit /b 0')
+Add-VConfig "`n[job.ok]`nfile = scripts\ok.cmd`nrun_every = 2s`n"
+Invoke-TickUntil { (Get-VCount 'job ok: run .* started') -ge 1 }
+$vjobs = Join-Path $root 'logs\supervisor\jobs.log'
+$vbefore = Get-VCount 'job ok: run .* started'
+Add-VConfig "`n[source.extra]`ntype = local`npath = $root\later`ncheck_every = 1s`n`n[job.fromsource]`nsource = extra`nfile = check.cmd`nrun_every = 2s`n"
+$vsaid = { (Test-Path -LiteralPath $vjobs) -and ([System.IO.File]::ReadAllText($vjobs) -match '(?m)^  waiting for the first fetch: the last valid configuration stays active\r?$') }
+Invoke-TickUntil { (& $vsaid) -and (Get-VCount 'job ok: run .* started') -gt $vbefore } 30
+Test-Equal 'jobs.log says which configuration is in force' 'True' ([string](& $vsaid))
+Test-Equal 'the job that was running still runs' 'True' ([string]((Get-VCount 'job ok: run .* started') -gt $vbefore))
+# The last tick may have just launched a run: until its worker has written
+# its state, the file still shows the run before. So the run is waited for
+# by its launch record and token, which are there from the launch to the end.
+Wait-Until { (Get-VLocks 'ok.*') -eq 0 } 240
+Test-Equal 'and succeeds' 'succeeded' (Get-VStatus 'ok')
+Test-Equal 'the job that needs the source does not run yet' '0' ([string](Get-VCount 'job fromsource: run .* started'))
+# The source can be fetched now: the configuration that names it takes over.
+[void](New-Item -ItemType Directory -Force -Path (Join-Path $root 'later'))
+Set-Content -LiteralPath (Join-Path $root 'later\check.cmd') -Value @('@echo off', 'exit /b 0')
+$vrev = { (Test-Path -LiteralPath $vjobs) -and ([System.IO.File]::ReadAllText($vjobs) -match '(?m)^  revision ') }
+Invoke-TickUntil $vrev 60
+Test-Equal 'once fetched, the configuration that names the source is in force' 'True' ([string](& $vrev))
+Invoke-TickUntil { (Get-VCount 'job fromsource: run .* started') -ge 1 } 30
+Test-Equal 'and the job that needed it runs' 'True' ([string]((Get-VCount 'job fromsource: run .* started') -ge 1))
 Stop-VRoot $null
 
 Write-Host 'state_dir changed while a run is in progress (V-07)'

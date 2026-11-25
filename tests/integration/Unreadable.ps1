@@ -43,9 +43,9 @@ function Test-Equal {
 # vigil, with stdin redirected as in CI: it never asks. Sets $script:code and
 # returns the output, one string.
 function Invoke-Vigil {
-    param([string[]]$Arguments)
+    param([string[]]$Arguments, [string]$InputText = '')
     $ErrorActionPreference = 'Continue'
-    $o = '' | & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'app\vigil.ps1') -Root $root @Arguments 2>&1
+    $o = $InputText | & $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'app\vigil.ps1') -Root $root @Arguments 2>&1
     $script:code = "$LASTEXITCODE"
     return (@($o | ForEach-Object { "$_" }) -join "`n").Trim()
 }
@@ -112,7 +112,8 @@ try {
     $out = Invoke-Vigil @('secret', 'delete', 'FOO')
     Test-Equal 'secret delete: refused, not "no secret"' '1' $script:code
     Test-Equal 'secret delete: says it cannot read the folder' "vigil: cannot read $secrets $secretHow" $out
-    $out = Invoke-Vigil @('secret', 'set', 'BAR', '--stdin')
+    # With a value: an empty one is refused before the store is looked at.
+    $out = Invoke-Vigil @('secret', 'set', 'BAR', '--stdin') 'w'
     Test-Equal 'secret set: refused, not raw errors' '1' $script:code
     Test-Equal 'secret set: says it cannot read the folder' "vigil: cannot read $secrets $secretHow" $out
     $out = Invoke-Vigil @('precheck')
