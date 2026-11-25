@@ -60,7 +60,31 @@
 #   active_merges                merges of parts running now
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric rows_inserted_count 987055
+#   metric rows_inserted 904000 type=promremotewrite
+#   metric rows_inserted 82455 type=promscrape
+#   metric rows_inserted 600 type=opentelemetry
+#   metric rows_inserted 0 type=csvimport
+#   metric rows_inserted 0 type=datadogsketches
+#   metric rows_inserted_not_shown 0
+#   metric rows_invalid_count 0
+#   metric rows_ignored_count 0
+#   metric rows_ignored 0 reason=too_long_label_name
+#   metric rows_ignored 0 reason=too_long_label_value
+#   metric rows_ignored_not_shown 0
+#   metric new_series_count 17237
+#   metric slow_row_inserts_count 17237
+#   metric slow_inserts_pct 1.75
+#   metric inserts 0
+#   metric inserts_capacity 8
+#   metric inserts_limit_reached_count 0
+#   metric inserts_limit_timeout_count 0
+#   metric series_limit_dropped_count 0
+#   metric daily_limit_dropped_count 0
+#   metric rows 975261
+#   metric pending_rows 6003
+#   metric active_merges 0
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  rows_inserted_count moving; rows_invalid_count,

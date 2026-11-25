@@ -76,7 +76,29 @@
 #                                        now
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric sent_spans_count 1503
+#   metric send_failed_spans_count 1179
+#   metric enqueue_failed_spans_count 1369
+#   metric sent_metric_points_count 600
+#   metric send_failed_metric_points_count 600
+#   metric enqueue_failed_metric_points_count 0
+#   metric sent_log_records_count 2400
+#   metric send_failed_log_records_count 0
+#   metric enqueue_failed_log_records_count 0
+#   metric send_failed_spans 1146 exporter=otlphttp/refusing
+#   metric send_failed_spans 33 exporter=otlphttp/dead
+#   metric send_failed_spans_not_shown 0
+#   metric send_failed_metric_points 600 exporter=prometheusremotewrite/mimir
+#   metric send_failed_metric_points_not_shown 0
+#   metric queue_size 10
+#   metric queue_capacity 14010
+#   metric queue_fullest_pct 100
+#   metric queue 10 exporter=otlphttp/dead
+#   metric queue 0 exporter=otlphttp/loki
+#   metric queue 0 exporter=otlphttp/victorialogs
+#   metric queue_not_shown 0
+#   metric in_flight 1
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  the sent counts moving; the send_failed and enqueue_failed counts

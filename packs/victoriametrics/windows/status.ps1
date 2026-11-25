@@ -53,7 +53,27 @@
       panics_logged_count          panics it logged (a running total)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric healthy 1
+      metric version 1 version=v1.157.0
+      metric uptime_seconds 308
+      metric read_only 0
+      metric free_disk_bytes 80061059072
+      metric data_bytes 3902298
+      metric http_requests_count 731
+      metric http_errors_count 72
+      metric http_errors 72 path=/api/v1/query
+      metric http_errors 0 path=_
+      metric http_errors 0 path=/api/v1/admin/status/metric_names_stats/reset
+      metric http_errors_not_shown 26
+      metric slow_queries_count 0
+      metric selects 0
+      metric selects_capacity 8
+      metric selects_pct 0
+      metric selects_limit_reached_count 0
+      metric selects_limit_timeout_count 0
+      metric errors_logged_count 0
+      metric panics_logged_count 0
 
     Reading the results (starting points: tune them to your own):
       Healthy  up 1; healthy 1; read_only 0; http_errors_count and

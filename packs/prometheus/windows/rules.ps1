@@ -46,7 +46,21 @@
       firing_not_shown               how many more there were than the 20 shown
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric groups 2
+      metric rules 4
+      metric evaluations_count 244
+      metric evaluation_failures_count 60
+      metric evaluation_failures 60 group=/etc/prometheus/rules.yml_broken
+      metric evaluation_failures 0 group=/etc/prometheus/rules.yml_good
+      metric evaluation_failures_not_shown 0
+      metric iterations_missed_count 0
+      metric slowest_group_seconds 0.000958
+      metric stalest_group_seconds 1
+      metric alerts_firing 1
+      metric alerts_pending 3
+      metric firing 1 alert=AlwaysFiring
+      metric firing_not_shown 0
 
     Reading the results (starting points: tune them to your own):
       Healthy  evaluation_failures_count and iterations_missed_count not moving;

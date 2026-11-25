@@ -60,7 +60,25 @@
       bucket_failures_not_shown      how many more there were than the 20 shown
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric shipper_uploads_count 0
+      metric shipper_failures_count 0
+      metric head_compactions_failed_count 0
+      metric head_truncations_failed_count 0
+      metric wal_corruptions_count 0
+      metric wal_writes_failed_count 0
+      metric compactor_runs_count 6
+      metric compactor_runs_failed_count 0
+      metric last_compaction_seconds 5
+      metric cleanup_failures_count 0
+      metric blocks_loaded 0
+      metric block_load_failures_count 0
+      metric consistency_failures_count 0
+      metric bucket_operations_count 14
+      metric bucket_failures_count 0
+      metric bucket_failures 0 operation=attributes
+      metric bucket_failures 0 operation=delete
+      metric bucket_failures_not_shown 0
 
     Reading the results (starting points: tune them to your own):
       Healthy  every failed count at 0; last_compaction_seconds under a few

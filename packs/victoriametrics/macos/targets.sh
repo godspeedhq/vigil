@@ -35,7 +35,16 @@
 #   down_not_shown              how many more there were than the 20 shown
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric targets_up 1
+#   metric targets_down 1
+#   metric scrapes_count 62
+#   metric scrapes_failed_count 62
+#   metric config_reload_ok 1
+#   metric config_reload_errors_count 0
+#   metric down 1 job=dead
+#   metric down 0 job=victoriametrics
+#   metric down_not_shown 0
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  targets_down 0; scrapes_failed_count not moving; config_reload_ok

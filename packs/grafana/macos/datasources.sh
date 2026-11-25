@@ -35,7 +35,15 @@
 #   datasources_not_shown  data sources past the first 20, not checked
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric login_ok 1
+#   metric datasource_ok 0 name=Dead type=prometheus
+#   metric datasource_ok 1 name=Loki type=loki
+#   metric datasource_ok 1 name=Prometheus type=prometheus
+#   metric datasource_ok 1 name=Tempo type=tempo
+#   metric datasources 4
+#   metric datasources_failing 1
+#   metric datasources_not_shown 0
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  login_ok 1; datasources_failing 0.

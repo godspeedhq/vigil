@@ -39,7 +39,16 @@
       work_queue                   jobs waiting in its read queue
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric blocks 4
+      metric compactions_count 0
+      metric compaction_errors_count 0
+      metric retention_deleted_count 0
+      metric retention_errors_count 0
+      metric blocklist_poll_errors_count 0
+      metric backend_requests_count 0
+      metric backend_errors_count 0
+      metric work_queue 0
 
     Reading the results (starting points: tune them to your own):
       Healthy  compaction_errors_count, retention_errors_count and

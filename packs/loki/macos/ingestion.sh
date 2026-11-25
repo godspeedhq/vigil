@@ -50,7 +50,24 @@
 #                             running total)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric lines_received_count 1416
+#   metric bytes_received_count 123678
+#   metric discarded_count 144
+#   metric discarded 72 reason=greater_than_max_sample_age
+#   metric discarded 72 reason=line_too_long
+#   metric discarded_not_shown 0
+#   metric discarded_bytes_count 29511
+#   metric streams 2
+#   metric chunks 3
+#   metric streams_created_count 2
+#   metric chunks_flushed_count 6
+#   metric flush_failures_count 0
+#   metric flush_queue 0
+#   metric wal_disk_full_count 0
+#   metric wal_corruptions_count 0
+#   metric checkpoints_failed_count 0
+#   metric append_failures_count 0
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  lines_received_count moving; discarded_count not moving;

@@ -52,7 +52,26 @@
                                 since Prometheus started
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric remotes 3
+      metric samples_sent_count 1802600
+      metric samples_failed_count 898000
+      metric samples_failed 898000 remote=mimir
+      metric samples_failed 0 remote=dead
+      metric samples_failed 0 remote=victoriametrics
+      metric samples_failed_not_shown 0
+      metric samples_retried_count 6500
+      metric samples_dropped_count 0
+      metric samples_pending 4593
+      metric pending 1947 remote=mimir
+      metric pending 1947 remote=victoriametrics
+      metric pending 699 remote=dead
+      metric pending_not_shown 0
+      metric shards 3
+      metric shards_max 102
+      metric shards_desired 1.044234
+      metric behind_seconds 1
+      metric remotes_never_sent 1
 
     Reading the results (starting points: tune them to your own):
       Healthy  samples_failed_count not moving; behind_seconds under a minute;

@@ -29,7 +29,11 @@
 #   heap_bytes        of that, its heap in use
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric version 1 version=0.166.0 name=otelcol-contrib
+#   metric uptime_seconds 305.739417
+#   metric memory_rss_bytes 244908032
+#   metric heap_bytes 52634928
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  up 1; uptime_seconds growing from one run to the next.

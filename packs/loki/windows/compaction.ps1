@@ -42,7 +42,17 @@
                                      table was locked
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric compactor_active 1
+      metric compactions_count 5
+      metric compactions_failed_count 0
+      metric last_compaction_seconds 0
+      metric retention_runs_count 3
+      metric retention_failed_count 0
+      metric last_retention_seconds 60
+      metric delete_requests_pending 0
+      metric oldest_delete_request_seconds 0
+      metric tables_skipped 0
 
     Reading the results (starting points: tune them to your own):
       Healthy  last_compaction_seconds under a few compaction intervals (10

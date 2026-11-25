@@ -40,7 +40,18 @@
 #   inflight_requests    requests in flight now
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric ready 1
+#   metric version 1 version=v2.10.10
+#   metric uptime_seconds 305
+#   metric ingesters_active 1
+#   metric ingesters_unhealthy 0
+#   metric ring_unhealthy 0
+#   metric ring_not_active 0
+#   metric requests_count 911
+#   metric requests_4xx_count 72
+#   metric requests_5xx_count 8
+#   metric inflight_requests 21
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  up 1; ready 1; ingesters_unhealthy and ring_unhealthy 0;

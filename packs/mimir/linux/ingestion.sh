@@ -47,7 +47,23 @@
 #                                allowed (a running total)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric samples_in_count 906600
+#   metric samples_received_count 887436
+#   metric discarded_count 892600
+#   metric discarded 873436 reason=per_user_series_limit
+#   metric discarded 15315 reason=metric_name_invalid
+#   metric discarded 3848 reason=label_invalid
+#   metric discarded 1 reason=sample_duplicate_timestamp
+#   metric discarded_not_shown 0
+#   metric series 200
+#   metric tenants 1
+#   metric active_series 200
+#   metric ingested_samples_count 12000
+#   metric ingested_failures_count 873436
+#   metric append_failures_count 0
+#   metric pushes_in_flight 1
+#   metric out_of_order_appended_count 0
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  samples_received_count moving; discarded_count not moving;

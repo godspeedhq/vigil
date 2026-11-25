@@ -53,6 +53,15 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`haproxy`](haproxy/README.md) | HAProxy: connections, rates, TLS and load; frontends, backends and every server with its health check, queues, times and errors, from its runtime API | [packs/haproxy/README.md](haproxy/README.md) |
 | [`phpfpm`](phpfpm/README.md) | PHP-FPM: each pool's workers, listen queue, max_children reached, slow requests, the busiest worker, and a status page that waits because every worker is busy | [packs/phpfpm/README.md](phpfpm/README.md) |
 | [`iis`](iis/README.md) | IIS on Windows, with no administrator: sites, application pools and their request queues, worker processes, each site's log and what HTTP.sys turned away, pools stopped by rapid-fail protection and crashed workers, certificate expiry | [packs/iis/README.md](iis/README.md) |
+| [`prometheus`](prometheus/README.md) | Prometheus: ready and its configuration loaded, targets up and down for each job, the TSDB and what failed in it, rules that cannot be evaluated and alerts firing, alerts that do not reach an Alertmanager, remote write queues and how far they are behind | [packs/prometheus/README.md](prometheus/README.md) |
+| [`alertmanager`](alertmanager/README.md) | Alertmanager: ready and its configuration loaded, alerts and silences, notifications sent and failed for each integration and reason, its cluster (members, peers lost) | [packs/alertmanager/README.md](alertmanager/README.md) |
+| [`grafana`](grafana/README.md) | Grafana: healthy (its database too), requests and those that failed, whether each data source answers, its alert rules (evaluated, failed, alerts by state) and their notifications | [packs/grafana/README.md](grafana/README.md) |
+| [`loki`](loki/README.md) | Loki: ready and its rings whole, lines received and entries discarded with the reason, streams and chunks, flushes that failed, its compactor and retention | [packs/loki/README.md](loki/README.md) |
+| [`mimir`](mimir/README.md) | Grafana Mimir: ready and its rings whole, samples received and discarded with the reason, series in memory, requests failed or refused, blocks shipped, the compactor, the store-gateway and the bucket | [packs/mimir/README.md](mimir/README.md) |
+| [`tempo`](tempo/README.md) | Grafana Tempo: ready and its ring whole, spans received, refused and discarded with the reason, live traces, blocks flushed, compaction and retention | [packs/tempo/README.md](tempo/README.md) |
+| [`otelcol`](otelcol/README.md) | The OpenTelemetry Collector: what its receivers accept and refuse, what its exporters send and fail to send for each exporter, what is dropped at a full queue, and how full the fullest queue is | [packs/otelcol/README.md](otelcol/README.md) |
+| [`victoriametrics`](victoriametrics/README.md) | VictoriaMetrics: up and writable, disk left, rows ingested for each protocol and rows refused with the reason, queries against the concurrency limit, slow and failed ones, the targets it scrapes | [packs/victoriametrics/README.md](victoriametrics/README.md) |
+| [`victorialogs`](victorialogs/README.md) | VictoriaLogs: up and writable, disk left, entries ingested for each protocol and entries dropped with the reason, queries against the concurrency limit | [packs/victorialogs/README.md](victorialogs/README.md) |
 
 ## Service packs
 
@@ -189,6 +198,60 @@ PHP-FPM's pools, from their status pages, passed on by the web server: workers, 
 IIS on this Windows machine, read by an account that is not an administrator: its sites, its application pools and their request queues in HTTP.sys, its worker processes, each site's log minute by minute and HTTP.sys's own error log (what it turned away before any site saw it), its events (pools stopped by rapid-fail protection, workers that crashed or hung), and the certificates its https bindings serve. From the performance counters, the event logs and `netsh`, with PowerShell alone. Windows only.
 
 **Its page: [packs/iis/README.md](iis/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### prometheus
+
+A Prometheus server, from what it says about itself. The pack reads whether it is ready and its last configuration reload worked; its targets, up and down, for each job; its TSDB (the series in its head, its WAL, its blocks, and everything that failed); its rules (evaluations that failed, for each group, and the alerts firing); the alerts it sends to its Alertmanagers and those that do not get there; and its remote write queues, with how far the slowest remote is behind. Every request is a GET. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/prometheus/README.md](prometheus/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### alertmanager
+
+An Alertmanager, from what it says about itself. The pack reads whether it is ready and its configuration loaded; the alerts and silences it holds; the notifications it sent and those that failed, for each integration and each reason; and its view of its cluster: the members it sees and the peers it has lost. Every request is a GET. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/alertmanager/README.md](alertmanager/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### grafana
+
+A Grafana, from what it says about itself and, for its data sources, from its API with a read-only token. The pack reads whether it is healthy (its database too); the requests it answered and those that failed; its database connections; whether each data source answers; and its own alerting: rules evaluated and failed, alerts in each state, and the notifications that got through and did not. Every request is a GET. With `curl` and `awk` and, for its data sources, `jq` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/grafana/README.md](grafana/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### loki
+
+A Loki, from what it says about itself. The pack reads whether it is ready and its rings whole; the lines and bytes it received, and the entries it discarded with the reason for each; the streams and chunks its ingester holds, and whether its chunks reach storage; and its compactor: when it last ran, whether retention is applied, and the delete requests waiting. Every request is a GET. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/loki/README.md](loki/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### mimir
+
+A Grafana Mimir, from what it says about itself. The pack reads whether it is ready and its rings whole; the samples it received, and those it discarded with the reason for each; the series its ingester holds; the requests it failed or refused to protect itself; and what happens to its data afterwards: blocks shipped to the bucket, the compactor, the store-gateway, and the bucket itself. Every request is a GET. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/mimir/README.md](mimir/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### tempo
+
+A Grafana Tempo, from what it says about itself. The pack reads whether it is ready and its ingester ring whole; the spans it received, those its receivers refused and those it discarded, with the reason for each; the traces it holds live and the blocks it flushes; and its storage: compaction, retention and the list of blocks. Every request is a GET. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/tempo/README.md](tempo/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### otelcol
+
+An OpenTelemetry Collector, from what it says about itself. The pack reads what its receivers accepted and refused, for spans, metric points and log records and for each receiver; what its exporters delivered and could not, for each exporter; what was dropped because a queue was full; and how full the fullest queue is. Every request is a GET. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/otelcol/README.md](otelcol/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### victoriametrics
+
+A VictoriaMetrics server, from what it says about itself. The pack reads whether it answers and whether its storage has gone read-only for lack of disk; the disk space left; what it ingests for each protocol, and what it refuses or ignores and why; its queries against the limit on running at once, the slow ones and those that failed; and the targets it scrapes itself. Every request is a GET. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/victoriametrics/README.md](victoriametrics/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### victorialogs
+
+A VictoriaLogs server, from what it says about itself. The pack reads whether it answers and whether its storage has gone read-only for lack of disk; the disk space left; the log entries and bytes it ingests for each protocol; the entries it dropped and why; and its queries against the limit on running at once. Every request is a GET. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/victorialogs/README.md](victorialogs/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ## Writing a pack
 

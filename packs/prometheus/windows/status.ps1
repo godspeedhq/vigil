@@ -60,7 +60,29 @@
       fds_pct                         open files, as a percentage of its limit
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric ready 1
+      metric version 1 version=3.15.1
+      metric uptime_seconds 303
+      metric config_reload_ok 1
+      metric config_age_seconds 301
+      metric queries 0
+      metric queries_max 20
+      metric queries_pct 0
+      metric http_requests_count 261
+      metric http_4xx_count 71
+      metric http_5xx_count 0
+      metric alertmanagers 3
+      metric notifications_sent_count 10
+      metric notifications_errors_count 5
+      metric notifications_errors 5 alertmanager=http://alertmanager:9/api/v2/alerts
+      metric notifications_errors 0 alertmanager=http://alertmanager2:9093/api/v2/alerts
+      metric notifications_errors 0 alertmanager=http://alertmanager:9093/api/v2/alerts
+      metric notifications_errors_not_shown 0
+      metric notifications_dropped_count 5
+      metric notification_queue 0
+      metric notification_queue_capacity 10000
+      metric fds_pct 0.01
 
     Reading the results (starting points: tune them to your own):
       Healthy  up 1; ready 1; config_reload_ok 1; http_5xx_count and

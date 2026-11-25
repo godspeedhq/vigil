@@ -1,0 +1,65 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-obs.sh), against the
+# stack in trouble on purpose.
+
+== status
+metric up 1
+metric healthy 1
+metric version 1 version=v1.157.0
+metric uptime_seconds 308
+metric read_only 0
+metric free_disk_bytes 80061059072
+metric data_bytes 3902298
+metric http_requests_count 731
+metric http_errors_count 72
+metric http_errors 72 path=/api/v1/query
+metric http_errors 0 path=_
+metric http_errors 0 path=/api/v1/admin/status/metric_names_stats/reset
+metric http_errors_not_shown 26
+metric slow_queries_count 0
+metric selects 0
+metric selects_capacity 8
+metric selects_pct 0
+metric selects_limit_reached_count 0
+metric selects_limit_timeout_count 0
+metric errors_logged_count 0
+metric panics_logged_count 0
+
+== ingestion
+metric up 1
+metric rows_inserted_count 987055
+metric rows_inserted 904000 type=promremotewrite
+metric rows_inserted 82455 type=promscrape
+metric rows_inserted 600 type=opentelemetry
+metric rows_inserted 0 type=csvimport
+metric rows_inserted 0 type=datadogsketches
+metric rows_inserted_not_shown 0
+metric rows_invalid_count 0
+metric rows_ignored_count 0
+metric rows_ignored 0 reason=too_long_label_name
+metric rows_ignored 0 reason=too_long_label_value
+metric rows_ignored_not_shown 0
+metric new_series_count 17237
+metric slow_row_inserts_count 17237
+metric slow_inserts_pct 1.75
+metric inserts 0
+metric inserts_capacity 8
+metric inserts_limit_reached_count 0
+metric inserts_limit_timeout_count 0
+metric series_limit_dropped_count 0
+metric daily_limit_dropped_count 0
+metric rows 975261
+metric pending_rows 6003
+metric active_merges 0
+
+== targets
+metric up 1
+metric targets_up 1
+metric targets_down 1
+metric scrapes_count 62
+metric scrapes_failed_count 62
+metric config_reload_ok 1
+metric config_reload_errors_count 0
+metric down 1 job=dead
+metric down 0 job=victoriametrics
+metric down_not_shown 0

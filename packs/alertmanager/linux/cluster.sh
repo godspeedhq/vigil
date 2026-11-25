@@ -41,7 +41,18 @@
 #   peers_left_count            peers that left (a running total)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric cluster_enabled 1
+#   metric members 2
+#   metric failed_peers 0
+#   metric health_score 0
+#   metric peer_position 1
+#   metric messages_queued 0
+#   metric messages_pruned_count 0
+#   metric reconnections_count 0
+#   metric reconnections_failed_count 0
+#   metric peers_joined_count 2
+#   metric peers_left_count 0
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  members the number you run, on every member; failed_peers 0;

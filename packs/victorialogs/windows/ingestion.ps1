@@ -53,7 +53,25 @@
                                it takes
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric rows_ingested_count 1352
+      metric rows_ingested 1200 type=opentelemetry_protobuf
+      metric rows_ingested 152 type=jsonline
+      metric rows_ingested_not_shown 0
+      metric bytes_ingested_count 268179
+      metric rows_dropped_count 71
+      metric rows_dropped 71 reason=too_small_timestamp
+      metric rows_dropped 0 reason=debug
+      metric rows_dropped 0 reason=too_many_fields
+      metric rows_dropped_not_shown 0
+      metric too_long_lines_count 0
+      metric ingest_errors_count 0
+      metric streams_created_count 3
+      metric rows 1280
+      metric pending_rows 1
+      metric partitions 1
+      metric active_merges 0
+      metric compression_ratio 18.598955
 
     Reading the results (starting points: tune them to your own):
       Healthy  rows_ingested_count moving; rows_dropped_count and

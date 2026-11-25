@@ -1,0 +1,115 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-obs.sh), against the
+# stack in trouble on purpose.
+
+== status
+metric up 1
+metric ready 1
+metric version 1 version=3.15.1
+metric uptime_seconds 303
+metric config_reload_ok 1
+metric config_age_seconds 301
+metric queries 0
+metric queries_max 20
+metric queries_pct 0
+metric http_requests_count 261
+metric http_4xx_count 71
+metric http_5xx_count 0
+metric alertmanagers 3
+metric notifications_sent_count 10
+metric notifications_errors_count 5
+metric notifications_errors 5 alertmanager=http://alertmanager:9/api/v2/alerts
+metric notifications_errors 0 alertmanager=http://alertmanager2:9093/api/v2/alerts
+metric notifications_errors 0 alertmanager=http://alertmanager:9093/api/v2/alerts
+metric notifications_errors_not_shown 0
+metric notifications_dropped_count 5
+metric notification_queue 0
+metric notification_queue_capacity 10000
+metric fds_pct 0.01
+
+== targets
+metric up 1
+metric scrape_pools 4
+metric targets 12
+metric discovered_targets 12
+metric sd_failed_configs 0
+metric pool_reloads_failed_count 0
+metric exceeded_sample_limit_count 0
+metric exceeded_body_size_count 0
+metric exceeded_target_limit_count 0
+metric out_of_order_count 0
+metric duplicate_timestamp_count 0
+metric out_of_bounds_count 0
+metric targets_up 9
+metric targets_down 3
+metric down 2 job=dead
+metric down 1 job=notmetrics
+metric down 0 job=stack
+metric down 0 job=prometheus
+metric down_not_shown 0
+metric scrape_slowest_seconds 0.05272
+metric samples_scraped 15887
+
+== tsdb
+metric up 1
+metric head_series 15958
+metric head_chunks 31811
+metric series_created_count 15958
+metric samples_appended_count 899942
+metric out_of_order_samples_count 0
+metric blocks 0
+metric blocks_bytes 0
+metric wal_bytes 4641451
+metric head_chunks_bytes 131072
+metric retention_seconds 7200
+metric oldest_sample_seconds 297
+metric newest_sample_seconds 0
+metric compactions_count 0
+metric compactions_failed_count 0
+metric wal_corruptions_count 0
+metric wal_writes_failed_count 0
+metric wal_truncations_failed_count 0
+metric checkpoints_failed_count 0
+metric head_truncations_failed_count 0
+metric reloads_failed_count 0
+metric mmap_corruptions_count 0
+metric clean_start 1
+
+== rules
+metric up 1
+metric groups 2
+metric rules 4
+metric evaluations_count 244
+metric evaluation_failures_count 60
+metric evaluation_failures 60 group=/etc/prometheus/rules.yml_broken
+metric evaluation_failures 0 group=/etc/prometheus/rules.yml_good
+metric evaluation_failures_not_shown 0
+metric iterations_missed_count 0
+metric slowest_group_seconds 0.000958
+metric stalest_group_seconds 1
+metric alerts_firing 1
+metric alerts_pending 3
+metric firing 1 alert=AlwaysFiring
+metric firing_not_shown 0
+
+== remote_write
+metric up 1
+metric remotes 3
+metric samples_sent_count 1802600
+metric samples_failed_count 898000
+metric samples_failed 898000 remote=mimir
+metric samples_failed 0 remote=dead
+metric samples_failed 0 remote=victoriametrics
+metric samples_failed_not_shown 0
+metric samples_retried_count 6500
+metric samples_dropped_count 0
+metric samples_pending 4593
+metric pending 1947 remote=mimir
+metric pending 1947 remote=victoriametrics
+metric pending 699 remote=dead
+metric pending_not_shown 0
+metric shards 3
+metric shards_max 102
+metric shards_desired 1.044234
+metric behind_seconds 1
+metric remotes_never_sent 1

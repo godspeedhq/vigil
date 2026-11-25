@@ -46,7 +46,25 @@
 #                               it started
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric notifications_count 12
+#   metric notifications_failed_count 11
+#   metric failed_pct 91.67
+#   metric sent 12 integration=webhook
+#   metric sent 0 integration=discord
+#   metric sent 0 integration=email
+#   metric sent_not_shown 0
+#   metric failed 11 integration=webhook
+#   metric failed 0 integration=discord
+#   metric failed 0 integration=email
+#   metric failed_not_shown 0
+#   metric failed_reason 11 reason=other
+#   metric failed_reason 0 reason=authError
+#   metric failed_reason 0 reason=clientError
+#   metric failed_reason_not_shown 0
+#   metric requests_count 75
+#   metric requests_failed_count 75
+#   metric latency_avg_seconds 0.00129
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  notifications_failed_count not moving while notifications_count

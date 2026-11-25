@@ -58,7 +58,30 @@
                                       total)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric rules 3
+      metric rule_groups 1
+      metric evaluations_count 81
+      metric evaluation_failures_count 28
+      metric evaluation_failures_pct 34.57
+      metric alerts 1 state=alerting
+      metric alerts 1 state=error
+      metric alerts 1 state=normal
+      metric alerts 0 state=nodata
+      metric alerts 0 state=pending
+      metric alerts_not_shown 0
+      metric alerts_alerting 1
+      metric alerts_error 1
+      metric alerts_nodata 0
+      metric scheduler_behind_seconds 0.000906
+      metric last_tick_seconds 6
+      metric notifications_count 22
+      metric notifications_failed_count 22
+      metric notifications_failed 22 integration=webhook
+      metric notifications_failed_not_shown 0
+      metric silences_active 0
+      metric alerts_received_count 27
+      metric alerts_invalid_count 0
 
     Reading the results (starting points: tune them to your own):
       Healthy  evaluation_failures_count and notifications_failed_count not

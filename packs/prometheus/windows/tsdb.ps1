@@ -62,7 +62,29 @@
                                      tell
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric head_series 15958
+      metric head_chunks 31811
+      metric series_created_count 15958
+      metric samples_appended_count 899942
+      metric out_of_order_samples_count 0
+      metric blocks 0
+      metric blocks_bytes 0
+      metric wal_bytes 4641451
+      metric head_chunks_bytes 131072
+      metric retention_seconds 7200
+      metric oldest_sample_seconds 297
+      metric newest_sample_seconds 0
+      metric compactions_count 0
+      metric compactions_failed_count 0
+      metric wal_corruptions_count 0
+      metric wal_writes_failed_count 0
+      metric wal_truncations_failed_count 0
+      metric checkpoints_failed_count 0
+      metric head_truncations_failed_count 0
+      metric reloads_failed_count 0
+      metric mmap_corruptions_count 0
+      metric clean_start 1
 
     Reading the results (starting points: tune them to your own):
       Healthy  head_series steady or growing slowly; newest_sample_seconds under

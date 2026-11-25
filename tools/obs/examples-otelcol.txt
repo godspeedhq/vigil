@@ -1,0 +1,54 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-obs.sh), against the
+# stack in trouble on purpose.
+
+== status
+metric up 1
+metric version 1 version=0.166.0 name=otelcol-contrib
+metric uptime_seconds 305.739417
+metric memory_rss_bytes 244908032
+metric heap_bytes 52634928
+
+== receivers
+metric up 1
+metric accepted_spans_count 1509
+metric refused_spans_count 1146
+metric failed_spans_count 0
+metric accepted_metric_points_count 600
+metric refused_metric_points_count 0
+metric failed_metric_points_count 0
+metric accepted_log_records_count 1200
+metric refused_log_records_count 0
+metric failed_log_records_count 0
+metric refused_spans 1146 receiver=otlp/refused
+metric refused_spans 0 receiver=otlp
+metric refused_spans_not_shown 0
+metric refused_metric_points 0 receiver=otlp
+metric refused_metric_points_not_shown 0
+metric refused_log_records 0 receiver=otlp
+metric refused_log_records_not_shown 0
+
+== exporters
+metric up 1
+metric sent_spans_count 1503
+metric send_failed_spans_count 1179
+metric enqueue_failed_spans_count 1369
+metric sent_metric_points_count 600
+metric send_failed_metric_points_count 600
+metric enqueue_failed_metric_points_count 0
+metric sent_log_records_count 2400
+metric send_failed_log_records_count 0
+metric enqueue_failed_log_records_count 0
+metric send_failed_spans 1146 exporter=otlphttp/refusing
+metric send_failed_spans 33 exporter=otlphttp/dead
+metric send_failed_spans_not_shown 0
+metric send_failed_metric_points 600 exporter=prometheusremotewrite/mimir
+metric send_failed_metric_points_not_shown 0
+metric queue_size 10
+metric queue_capacity 14010
+metric queue_fullest_pct 100
+metric queue 10 exporter=otlphttp/dead
+metric queue 0 exporter=otlphttp/loki
+metric queue 0 exporter=otlphttp/victorialogs
+metric queue_not_shown 0
+metric in_flight 1

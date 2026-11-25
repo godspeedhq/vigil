@@ -1,0 +1,60 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-obs.sh), against the
+# stack in trouble on purpose.
+
+== status
+metric up 1
+metric ready 1
+metric version 1 version=0.35.1
+metric uptime_seconds 307
+metric config_reload_ok 1
+metric config_age_seconds 302
+metric alerts_active 1
+metric alerts_suppressed 0
+metric alerts_unprocessed 0
+metric alerts_received_count 5
+metric alerts_invalid_count 0
+metric silences_active 0
+metric silences_pending 0
+metric silences_expired 0
+metric receivers 2
+metric integrations 2
+metric inhibition_rules 1
+metric aggregation_groups 2
+metric aggregation_limit_reached_count 0
+metric fds_pct 0
+
+== notifications
+metric up 1
+metric notifications_count 12
+metric notifications_failed_count 11
+metric failed_pct 91.67
+metric sent 12 integration=webhook
+metric sent 0 integration=discord
+metric sent 0 integration=email
+metric sent_not_shown 0
+metric failed 11 integration=webhook
+metric failed 0 integration=discord
+metric failed 0 integration=email
+metric failed_not_shown 0
+metric failed_reason 11 reason=other
+metric failed_reason 0 reason=authError
+metric failed_reason 0 reason=clientError
+metric failed_reason_not_shown 0
+metric requests_count 75
+metric requests_failed_count 75
+metric latency_avg_seconds 0.00129
+
+== cluster
+metric up 1
+metric cluster_enabled 1
+metric members 2
+metric failed_peers 0
+metric health_score 0
+metric peer_position 1
+metric messages_queued 0
+metric messages_pruned_count 0
+metric reconnections_count 0
+metric reconnections_failed_count 0
+metric peers_joined_count 2
+metric peers_left_count 0

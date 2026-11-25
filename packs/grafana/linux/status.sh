@@ -58,7 +58,32 @@
 #   live_clients                   browsers connected to Grafana Live
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric healthy 1
+#   metric version 1 version=13.2.5 edition=oss
+#   metric uptime_seconds 302
+#   metric dashboards 0
+#   metric users 1
+#   metric active_users 1
+#   metric alert_rules 3
+#   metric datasources 4
+#   metric datasources_by_type 2 type=prometheus
+#   metric datasources_by_type 1 type=loki
+#   metric datasources_by_type 1 type=tempo
+#   metric datasources_by_type_not_shown 0
+#   metric http_requests_count 128
+#   metric http_4xx_count 0
+#   metric http_5xx_count 0
+#   metric requests_in_flight 1
+#   metric db_connections 2
+#   metric db_connections_in_use 0
+#   metric db_connections_max 0
+#   metric db_waits_count 0
+#   metric plugin_requests_count 134
+#   metric plugin_errors_count 81
+#   metric plugin_errors 81 plugin=prometheus
+#   metric plugin_errors_not_shown 0
+#   metric live_clients 0
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  up 1; healthy 1; http_5xx_count and plugin_errors_count not

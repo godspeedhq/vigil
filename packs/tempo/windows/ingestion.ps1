@@ -48,7 +48,23 @@
                                total)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric spans_received_count 1503
+      metric bytes_received_count 293623
+      metric receiver_accepted_count 1503
+      metric receiver_refused_count 0
+      metric discarded_count 242
+      metric discarded 242 reason=trace_too_large
+      metric discarded 0 reason=live_traces_exceeded
+      metric discarded 0 reason=unknown_error
+      metric discarded_not_shown 0
+      metric live_traces 21
+      metric traces_created_count 587
+      metric blocks_flushed_count 4
+      metric flush_failures_count 0
+      metric flush_queue 0
+      metric append_failures_count 0
+      metric warnings_count 14
 
     Reading the results (starting points: tune them to your own):
       Healthy  spans_received_count moving; discarded_count and

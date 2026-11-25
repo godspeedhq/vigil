@@ -58,7 +58,27 @@
                                    brought
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric scrape_pools 4
+      metric targets 12
+      metric discovered_targets 12
+      metric sd_failed_configs 0
+      metric pool_reloads_failed_count 0
+      metric exceeded_sample_limit_count 0
+      metric exceeded_body_size_count 0
+      metric exceeded_target_limit_count 0
+      metric out_of_order_count 0
+      metric duplicate_timestamp_count 0
+      metric out_of_bounds_count 0
+      metric targets_up 9
+      metric targets_down 3
+      metric down 2 job=dead
+      metric down 1 job=notmetrics
+      metric down 0 job=stack
+      metric down 0 job=prometheus
+      metric down_not_shown 0
+      metric scrape_slowest_seconds 0.05272
+      metric samples_scraped 15887
 
     Reading the results (starting points: tune them to your own):
       Healthy  targets_down 0; the rejected counts not moving;

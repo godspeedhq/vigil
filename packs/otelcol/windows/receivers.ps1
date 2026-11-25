@@ -64,7 +64,23 @@
                                        shown
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric accepted_spans_count 1509
+      metric refused_spans_count 1146
+      metric failed_spans_count 0
+      metric accepted_metric_points_count 600
+      metric refused_metric_points_count 0
+      metric failed_metric_points_count 0
+      metric accepted_log_records_count 1200
+      metric refused_log_records_count 0
+      metric failed_log_records_count 0
+      metric refused_spans 1146 receiver=otlp/refused
+      metric refused_spans 0 receiver=otlp
+      metric refused_spans_not_shown 0
+      metric refused_metric_points 0 receiver=otlp
+      metric refused_metric_points_not_shown 0
+      metric refused_log_records 0 receiver=otlp
+      metric refused_log_records_not_shown 0
 
     Reading the results (starting points: tune them to your own):
       Healthy  the accepted counts moving; the refused and failed counts not

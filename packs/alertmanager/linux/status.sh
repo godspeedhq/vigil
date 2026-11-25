@@ -56,7 +56,26 @@
 #   fds_pct                          open files, as a percentage of its limit
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric ready 1
+#   metric version 1 version=0.35.1
+#   metric uptime_seconds 307
+#   metric config_reload_ok 1
+#   metric config_age_seconds 302
+#   metric alerts_active 1
+#   metric alerts_suppressed 0
+#   metric alerts_unprocessed 0
+#   metric alerts_received_count 5
+#   metric alerts_invalid_count 0
+#   metric silences_active 0
+#   metric silences_pending 0
+#   metric silences_expired 0
+#   metric receivers 2
+#   metric integrations 2
+#   metric inhibition_rules 1
+#   metric aggregation_groups 2
+#   metric aggregation_limit_reached_count 0
+#   metric fds_pct 0
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  up 1; ready 1; config_reload_ok 1; alerts_invalid_count not
