@@ -198,7 +198,10 @@ function Invoke-VigilSend {
         # Queue file names start with their epoch, so a name sort is oldest first.
         [string[]]$names = @($queued | ForEach-Object { "$($_.Name)`t$($_.Backend)" })
         $objs = [object[]]$queued
-        [Array]::Sort($names, $objs, [System.StringComparer]::Ordinal)
+        # As [Array] and IComparer: given a string[] and an object[], PowerShell
+        # binds the generic Sort<TKey,TValue>, which sorts copies, and the
+        # files were dropped backend by backend, not oldest first.
+        [Array]::Sort([Array]$names, [Array]$objs, [System.Collections.IComparer][System.StringComparer]::Ordinal)
         if ($when -ceq 'drop_newest') { [Array]::Reverse($objs) }
         foreach ($q in $objs) {
             if ($total -le $max) { break }

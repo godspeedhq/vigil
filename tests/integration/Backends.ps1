@@ -283,6 +283,9 @@ run_every   = 3650d
     Test-Equal 'spool full: the queues fit in max_mb' 'True' ([string]($queuedBytes -le 1048576))
     Test-Equal 'spool full: the oldest dropped' '0' ([string]@($queuedFiles | Where-Object { $_.Name -clike '*-fill-r1.events' }).Count)
     Test-Equal 'spool full: the newest kept' 'True' ([string]([bool]@($queuedFiles | Where-Object { $_.Name -clike '*-fill-r3.events' }).Count))
+    # Oldest first over every backend's queue, not one backend after another:
+    # only the newest run's files fit, so no backend keeps the middle one.
+    Test-Equal 'spool full: oldest first across the backends, none of the middle run kept' '0' ([string]@($queuedFiles | Where-Object { $_.Name -clike '*-fill-r2.events' }).Count)
     Invoke-Tick
     Test-Equal 'spool full: the drop counted, by backend' 'yes' (Test-Prom '(?m)^vigil_spool_dropped_total\{backend="datadog".*reason="spool_full"\} [1-9]')
     Remove-Item -LiteralPath "$root\mock\status"
