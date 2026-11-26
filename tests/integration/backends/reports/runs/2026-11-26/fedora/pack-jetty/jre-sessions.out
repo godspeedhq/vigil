@@ -1,0 +1,44 @@
+metric jmx_up 1 jetty=j94 jmx=localhost:19311
+metric current 51 jetty=j94 jmx=localhost:19311 context=shop
+metric most 51 jetty=j94 jmx=localhost:19311 context=shop
+metric cached_count 51 jetty=j94 jmx=localhost:19311 context=shop
+metric created_count 0 jetty=j94 jmx=localhost:19311 context=broken
+metric created_count 51 jetty=j94 jmx=localhost:19311 context=shop
+metric alive_mean_seconds 0 jetty=j94 jmx=localhost:19311 context=broken
+metric alive_mean_seconds 0 jetty=j94 jmx=localhost:19311 context=shop
+metric alive_max_seconds 0 jetty=j94 jmx=localhost:19311 context=broken
+metric alive_max_seconds 0 jetty=j94 jmx=localhost:19311 context=shop
+metric timeout_seconds 1800 jetty=j94 jmx=localhost:19311 context=broken
+metric timeout_seconds 60 jetty=j94 jmx=localhost:19311 context=shop
+metric jmx_up 1 jetty=j11 jmx=localhost:19312
+metric current 51 jetty=j11 jmx=localhost:19312 context=shop
+metric most 51 jetty=j11 jmx=localhost:19312 context=shop
+metric cached_count 51 jetty=j11 jmx=localhost:19312 context=shop
+metric created_count 0 jetty=j11 jmx=localhost:19312 context=broken
+metric created_count 51 jetty=j11 jmx=localhost:19312 context=shop
+metric alive_mean_seconds 0 jetty=j11 jmx=localhost:19312 context=broken
+metric alive_mean_seconds 0 jetty=j11 jmx=localhost:19312 context=shop
+metric alive_max_seconds 0 jetty=j11 jmx=localhost:19312 context=broken
+metric alive_max_seconds 0 jetty=j11 jmx=localhost:19312 context=shop
+metric timeout_seconds 1800 jetty=j11 jmx=localhost:19312 context=broken
+metric timeout_seconds 60 jetty=j11 jmx=localhost:19312 context=shop
+metric jmx_up 1 jetty=j120 jmx=localhost:19313
+metric current 51 jetty=j120 jmx=localhost:19313 context=shop
+metric most 51 jetty=j120 jmx=localhost:19313 context=shop
+metric cached_count 51 jetty=j120 jmx=localhost:19313 context=shop
+metric created_count 0 jetty=j120 jmx=localhost:19313 context=broken
+metric created_count 51 jetty=j120 jmx=localhost:19313 context=shop
+metric alive_mean_seconds 0 jetty=j120 jmx=localhost:19313 context=broken
+metric alive_mean_seconds 0 jetty=j120 jmx=localhost:19313 context=shop
+metric timeout_seconds 1800 jetty=j120 jmx=localhost:19313 context=broken
+metric timeout_seconds 60 jetty=j120 jmx=localhost:19313 context=shop
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric current 51 jetty=j121 jmx=localhost:19314 context=_shop
+metric most 51 jetty=j121 jmx=localhost:19314 context=_shop
+metric cached_count 51 jetty=j121 jmx=localhost:19314 context=_shop
+metric created_count 0 jetty=j121 jmx=localhost:19314 context=_broken
+metric created_count 51 jetty=j121 jmx=localhost:19314 context=_shop
+metric alive_mean_seconds 0 jetty=j121 jmx=localhost:19314 context=_broken
+metric alive_mean_seconds 0 jetty=j121 jmx=localhost:19314 context=_shop
+metric timeout_seconds 1800 jetty=j121 jmx=localhost:19314 context=_broken
+metric timeout_seconds 60 jetty=j121 jmx=localhost:19314 context=_shop

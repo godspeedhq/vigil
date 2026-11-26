@@ -1,0 +1,64 @@
+metric jmx_up 1 jetty=j94 jmx=localhost:19311
+metric threads 24 jetty=j94 jmx=localhost:19311 id=0
+metric busy 24 jetty=j94 jmx=localhost:19311 id=0
+metric idle 0 jetty=j94 jmx=localhost:19311 id=0
+metric ready 0 jetty=j94 jmx=localhost:19311 id=0
+metric utilized 22 jetty=j94 jmx=localhost:19311 id=0
+metric max_threads 24 jetty=j94 jmx=localhost:19311 id=0
+metric min_threads 4 jetty=j94 jmx=localhost:19311 id=0
+metric queue 19 jetty=j94 jmx=localhost:19311 id=0
+metric utilization_pct 100 jetty=j94 jmx=localhost:19311 id=0
+metric low_on_threads 1 jetty=j94 jmx=localhost:19311 id=0
+metric leased 2 jetty=j94 jmx=localhost:19311 id=0
+metric reserved 0 jetty=j94 jmx=localhost:19311 id=0
+metric max_available 22 jetty=j94 jmx=localhost:19311 id=0
+metric reserved_capacity 2 jetty=j94 jmx=localhost:19311
+metric reserved_pending 1 jetty=j94 jmx=localhost:19311
+metric jmx_up 1 jetty=j11 jmx=localhost:19312
+metric threads 24 jetty=j11 jmx=localhost:19312 id=0
+metric busy 24 jetty=j11 jmx=localhost:19312 id=0
+metric idle 0 jetty=j11 jmx=localhost:19312 id=0
+metric ready 0 jetty=j11 jmx=localhost:19312 id=0
+metric utilized 22 jetty=j11 jmx=localhost:19312 id=0
+metric max_threads 24 jetty=j11 jmx=localhost:19312 id=0
+metric min_threads 4 jetty=j11 jmx=localhost:19312 id=0
+metric queue 19 jetty=j11 jmx=localhost:19312 id=0
+metric utilization_pct 100 jetty=j11 jmx=localhost:19312 id=0
+metric low_on_threads 1 jetty=j11 jmx=localhost:19312 id=0
+metric leased 2 jetty=j11 jmx=localhost:19312 id=0
+metric reserved 0 jetty=j11 jmx=localhost:19312 id=0
+metric max_available 22 jetty=j11 jmx=localhost:19312 id=0
+metric reserved_capacity 2 jetty=j11 jmx=localhost:19312
+metric reserved_pending 1 jetty=j11 jmx=localhost:19312
+metric jmx_up 1 jetty=j120 jmx=localhost:19313
+metric threads 23 jetty=j120 jmx=localhost:19313 id=0
+metric busy 18 jetty=j120 jmx=localhost:19313 id=0
+metric idle 2 jetty=j120 jmx=localhost:19313 id=0
+metric ready 5 jetty=j120 jmx=localhost:19313 id=0
+metric utilized 16 jetty=j120 jmx=localhost:19313 id=0
+metric max_threads 24 jetty=j120 jmx=localhost:19313 id=0
+metric min_threads 4 jetty=j120 jmx=localhost:19313 id=0
+metric queue 0 jetty=j120 jmx=localhost:19313 id=0
+metric utilization_pct 72.7273 jetty=j120 jmx=localhost:19313 id=0
+metric low_on_threads 0 jetty=j120 jmx=localhost:19313 id=0
+metric leased 2 jetty=j120 jmx=localhost:19313 id=0
+metric reserved 3 jetty=j120 jmx=localhost:19313 id=0
+metric max_available 22 jetty=j120 jmx=localhost:19313 id=0
+metric reserved_capacity 4 jetty=j120 jmx=localhost:19313
+metric reserved_pending 0 jetty=j120 jmx=localhost:19313
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric threads 24 jetty=j121 jmx=localhost:19314 id=0
+metric busy 18 jetty=j121 jmx=localhost:19314 id=0
+metric idle 2 jetty=j121 jmx=localhost:19314 id=0
+metric ready 6 jetty=j121 jmx=localhost:19314 id=0
+metric utilized 16 jetty=j121 jmx=localhost:19314 id=0
+metric max_threads 24 jetty=j121 jmx=localhost:19314 id=0
+metric min_threads 4 jetty=j121 jmx=localhost:19314 id=0
+metric queue 0 jetty=j121 jmx=localhost:19314 id=0
+metric utilization_pct 72.7273 jetty=j121 jmx=localhost:19314 id=0
+metric low_on_threads 0 jetty=j121 jmx=localhost:19314 id=0
+metric leased 2 jetty=j121 jmx=localhost:19314 id=0
+metric reserved 4 jetty=j121 jmx=localhost:19314 id=0
+metric max_available 22 jetty=j121 jmx=localhost:19314 id=0
+metric reserved_capacity 4 jetty=j121 jmx=localhost:19314
+metric reserved_pending 0 jetty=j121 jmx=localhost:19314

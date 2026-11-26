@@ -1,0 +1,33 @@
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric processing_seconds 2.249 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=jsp
+metric processing_seconds 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=default
+metric requests_count 68 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=jsp
+metric requests_count 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=default
+metric errors_count 14 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=jsp
+metric errors_count 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=default
+metric slowest_seconds 2.182 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=jsp
+metric slowest_seconds 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=default
+metric load_seconds 0.01 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=jsp
+metric load_seconds 0.008 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=default
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric processing_seconds 2.035 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=jsp
+metric processing_seconds 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=default
+metric requests_count 68 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=jsp
+metric requests_count 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=default
+metric errors_count 14 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=jsp
+metric errors_count 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=default
+metric slowest_seconds 1.939 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=jsp
+metric slowest_seconds 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=default
+metric load_seconds 0.011 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=jsp
+metric load_seconds 0.007 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=default
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric processing_seconds 1.717 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric processing_seconds 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=default
+metric requests_count 68 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric requests_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=default
+metric errors_count 14 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric errors_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=default
+metric slowest_seconds 1.541 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric slowest_seconds 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=default
+metric load_seconds 0.025 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric load_seconds 0.019 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=default

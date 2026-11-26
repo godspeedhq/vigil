@@ -1,0 +1,28 @@
+metric jmx_up 1 jetty=j94 jmx=localhost:19311
+metric version 1 jetty=j94 jmx=localhost:19311 version=9.4.58.v20250814
+metric up 1 jetty=j94 jmx=localhost:19311
+metric uptime_seconds 68 jetty=j94 jmx=localhost:19311
+metric app_up 1 jetty=j94 jmx=localhost:19311 context=broken
+metric app_up 1 jetty=j94 jmx=localhost:19311 context=shop
+metric low_on_resources 1 jetty=j94 jmx=localhost:19311
+metric low_since_seconds 54 jetty=j94 jmx=localhost:19311
+metric jmx_up 1 jetty=j11 jmx=localhost:19312
+metric version 1 jetty=j11 jmx=localhost:19312 version=11.0.26
+metric up 1 jetty=j11 jmx=localhost:19312
+metric uptime_seconds 66 jetty=j11 jmx=localhost:19312
+metric app_up 1 jetty=j11 jmx=localhost:19312 context=broken
+metric app_up 1 jetty=j11 jmx=localhost:19312 context=shop
+metric low_on_resources 1 jetty=j11 jmx=localhost:19312
+metric low_since_seconds 53 jetty=j11 jmx=localhost:19312
+metric jmx_up 1 jetty=j120 jmx=localhost:19313
+metric version 1 jetty=j120 jmx=localhost:19313 version=12.0.41
+metric up 1 jetty=j120 jmx=localhost:19313
+metric app_up 1 jetty=j120 jmx=localhost:19313 context=broken
+metric app_up 1 jetty=j120 jmx=localhost:19313 context=shop
+metric low_on_resources 0 jetty=j120 jmx=localhost:19313
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric version 1 jetty=j121 jmx=localhost:19314 version=12.1.15
+metric up 1 jetty=j121 jmx=localhost:19314
+metric app_up 1 jetty=j121 jmx=localhost:19314 context=_broken
+metric app_up 1 jetty=j121 jmx=localhost:19314 context=_shop
+metric low_on_resources 0 jetty=j121 jmx=localhost:19314

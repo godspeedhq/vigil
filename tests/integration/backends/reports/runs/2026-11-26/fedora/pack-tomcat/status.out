@@ -1,0 +1,21 @@
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric version 1 tomcat=tc9 jmx=localhost:19301 version=9.0.124.0
+metric up 1 tomcat=tc9 jmx=localhost:19301
+metric engine_up 1 tomcat=tc9 jmx=localhost:19301
+metric host_up 1 tomcat=tc9 jmx=localhost:19301 host=localhost
+metric connector_up 1 tomcat=tc9 jmx=localhost:19301 port=8080
+metric connector_up 1 tomcat=tc9 jmx=localhost:19301 port=8081
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric version 1 tomcat=tc10 jmx=localhost:19302 version=10.1.62.0
+metric up 1 tomcat=tc10 jmx=localhost:19302
+metric engine_up 1 tomcat=tc10 jmx=localhost:19302
+metric host_up 1 tomcat=tc10 jmx=localhost:19302 host=localhost
+metric connector_up 1 tomcat=tc10 jmx=localhost:19302 port=8080
+metric connector_up 1 tomcat=tc10 jmx=localhost:19302 port=8081
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric version 1 tomcat=tc11 jmx=localhost:19303 version=11.0.29.0
+metric up 1 tomcat=tc11 jmx=localhost:19303
+metric engine_up 1 tomcat=tc11 jmx=localhost:19303
+metric host_up 1 tomcat=tc11 jmx=localhost:19303 host=localhost
+metric connector_up 1 tomcat=tc11 jmx=localhost:19303 port=8080
+metric connector_up 1 tomcat=tc11 jmx=localhost:19303 port=8081

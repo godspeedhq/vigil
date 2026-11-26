@@ -1,0 +1,84 @@
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric active 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric active 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric idle 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric idle 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric min_idle 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric min_idle 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric size 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric waiting 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric borrowed_count 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric returned_count 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric created_count 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric released_count 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric abandoned_count 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric reconnected_count 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric hikari_active 3 tomcat=tc9 jmx=localhost:19301 type=Pool_(hikari)
+metric hikari_idle 0 tomcat=tc9 jmx=localhost:19301 type=Pool_(hikari)
+metric hikari_total 3 tomcat=tc9 jmx=localhost:19301 type=Pool_(hikari)
+metric hikari_waiting 0 tomcat=tc9 jmx=localhost:19301 type=Pool_(hikari)
+metric hikari_max 3 tomcat=tc9 jmx=localhost:19301 type=PoolConfig_(hikari)
+metric hikari_min_idle 0 tomcat=tc9 jmx=localhost:19301 type=PoolConfig_(hikari)
+metric hikari_timeout_seconds 1 tomcat=tc9 jmx=localhost:19301 type=PoolConfig_(hikari)
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric active 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric active 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric idle 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric idle 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric min_idle 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric min_idle 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric size 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric waiting 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric borrowed_count 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric returned_count 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric created_count 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric released_count 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric abandoned_count 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric reconnected_count 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric hikari_active 3 tomcat=tc10 jmx=localhost:19302 type=Pool_(hikari)
+metric hikari_idle 0 tomcat=tc10 jmx=localhost:19302 type=Pool_(hikari)
+metric hikari_total 3 tomcat=tc10 jmx=localhost:19302 type=Pool_(hikari)
+metric hikari_waiting 0 tomcat=tc10 jmx=localhost:19302 type=Pool_(hikari)
+metric hikari_max 3 tomcat=tc10 jmx=localhost:19302 type=PoolConfig_(hikari)
+metric hikari_min_idle 0 tomcat=tc10 jmx=localhost:19302 type=PoolConfig_(hikari)
+metric hikari_timeout_seconds 1 tomcat=tc10 jmx=localhost:19302 type=PoolConfig_(hikari)
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric active 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric active 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric min_idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric min_idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric size 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric waiting 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric borrowed_count 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric returned_count 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric created_count 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric released_count 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric abandoned_count 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric reconnected_count 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric hikari_active 3 tomcat=tc11 jmx=localhost:19303 type=Pool_(hikari)
+metric hikari_idle 0 tomcat=tc11 jmx=localhost:19303 type=Pool_(hikari)
+metric hikari_total 3 tomcat=tc11 jmx=localhost:19303 type=Pool_(hikari)
+metric hikari_waiting 0 tomcat=tc11 jmx=localhost:19303 type=Pool_(hikari)
+metric hikari_max 3 tomcat=tc11 jmx=localhost:19303 type=PoolConfig_(hikari)
+metric hikari_min_idle 0 tomcat=tc11 jmx=localhost:19303 type=PoolConfig_(hikari)
+metric hikari_timeout_seconds 1 tomcat=tc11 jmx=localhost:19303 type=PoolConfig_(hikari)

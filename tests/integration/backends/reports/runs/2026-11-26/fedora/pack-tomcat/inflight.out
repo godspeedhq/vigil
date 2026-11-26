@@ -1,0 +1,51 @@
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric running_seconds 28.04 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest2
+metric running_seconds 28.031 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest1
+metric running_seconds 28.031 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest8
+metric running_seconds 28.029 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest7
+metric running_seconds 28.024 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest6
+metric running_seconds 28.022 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest6
+metric running_seconds 28.018 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest5
+metric running_seconds 28.017 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest5
+metric running_seconds 28.015 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest1
+metric running_seconds 28.013 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest4
+metric running_seconds 28.011 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest4
+metric running_seconds 28.009 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest2
+metric running_seconds 28.007 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest3
+metric running_seconds 28.007 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest3
+metric stuck_threads 14 tomcat=tc9 jmx=localhost:19301 host=localhost
+metric stuck_threshold_seconds 5 tomcat=tc9 jmx=localhost:19301 host=localhost
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric running_seconds 25.471 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest7
+metric running_seconds 25.468 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest1
+metric running_seconds 25.467 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest1
+metric running_seconds 25.466 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest8
+metric running_seconds 25.464 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest2
+metric running_seconds 25.464 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest6
+metric running_seconds 25.461 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest6
+metric running_seconds 25.458 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest4
+metric running_seconds 25.458 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest5
+metric running_seconds 25.457 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest5
+metric running_seconds 25.449 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest3
+metric running_seconds 25.449 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest4
+metric running_seconds 25.444 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest2
+metric running_seconds 25.441 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest3
+metric stuck_threads 14 tomcat=tc10 jmx=localhost:19302 host=localhost
+metric stuck_threshold_seconds 5 tomcat=tc10 jmx=localhost:19302 host=localhost
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric running_seconds 22.237 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest1
+metric running_seconds 22.231 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest2
+metric running_seconds 22.212 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest4
+metric running_seconds 22.209 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest5
+metric running_seconds 22.207 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest3
+metric running_seconds 22.199 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest1
+metric running_seconds 22.196 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest2
+metric running_seconds 22.19 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest8
+metric running_seconds 22.189 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest7
+metric running_seconds 22.186 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest6
+metric running_seconds 22.183 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest3
+metric running_seconds 22.18 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest6
+metric running_seconds 22.177 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest5
+metric running_seconds 22.173 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest4
+metric stuck_threads 14 tomcat=tc11 jmx=localhost:19303 host=localhost
+metric stuck_threshold_seconds 5 tomcat=tc11 jmx=localhost:19303 host=localhost

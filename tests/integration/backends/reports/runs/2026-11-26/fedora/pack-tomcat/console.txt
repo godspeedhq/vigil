@@ -1,0 +1,665 @@
+== pack-tomcat
+date     2026-11-26T14:28:08Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    e085f3c (deployed copy)
+command  scripts/run-tomcat.sh
+bash     5.3.9(1)-release
+git      git version 2.56.1
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.19.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.tomcat.yaml pins them)
+         tomcat:10.1-jre17
+         tomcat:11.0-jre21
+         tomcat:9.0-jre11
+
+jar      _probe.jar 12b1fbd2e9ab34799ae0f22f413ffe17b96551a4b58741b9de82bdabaf564691 (javac 21.0.13.1)
+java     openjdk version "25.0.5" 2026-10-20
+jre      openjdk version "11.0.33.1" 2026-11-17 (/home/vigil-test/clis/jre11)
+libs     h2-2.3.232.jar HikariCP-5.1.0.jar slf4j-api-2.0.16.jar
+tomcats  tc10 tomcat:10.1-jre17; tc11 tomcat:11.0-jre21; tc9 tomcat:9.0-jre11
+
+# Trouble, on each Tomcat.
+sent     on each: 50 visits (a session each, past the limit of 40), 3 failing pages, 8 pool holds and 4 queued on http, 3 pool holds and 3 slow pages on admin
+
+# Every job, as the pack's scripts print it.
+
+$ bash packs/tomcat/status.sh
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric version 1 tomcat=tc9 jmx=localhost:19301 version=9.0.124.0
+metric up 1 tomcat=tc9 jmx=localhost:19301
+metric engine_up 1 tomcat=tc9 jmx=localhost:19301
+metric host_up 1 tomcat=tc9 jmx=localhost:19301 host=localhost
+metric connector_up 1 tomcat=tc9 jmx=localhost:19301 port=8080
+metric connector_up 1 tomcat=tc9 jmx=localhost:19301 port=8081
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric version 1 tomcat=tc10 jmx=localhost:19302 version=10.1.62.0
+metric up 1 tomcat=tc10 jmx=localhost:19302
+metric engine_up 1 tomcat=tc10 jmx=localhost:19302
+metric host_up 1 tomcat=tc10 jmx=localhost:19302 host=localhost
+metric connector_up 1 tomcat=tc10 jmx=localhost:19302 port=8080
+metric connector_up 1 tomcat=tc10 jmx=localhost:19302 port=8081
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric version 1 tomcat=tc11 jmx=localhost:19303 version=11.0.29.0
+metric up 1 tomcat=tc11 jmx=localhost:19303
+metric engine_up 1 tomcat=tc11 jmx=localhost:19303
+metric host_up 1 tomcat=tc11 jmx=localhost:19303 host=localhost
+metric connector_up 1 tomcat=tc11 jmx=localhost:19303 port=8080
+metric connector_up 1 tomcat=tc11 jmx=localhost:19303 port=8081
+
+$ bash packs/tomcat/requests.sh
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric requests_count 54 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric requests_count 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric errors_count 14 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric errors_count 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric sent_bytes 47182 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric sent_bytes 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric received_bytes 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric received_bytes 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric processing_seconds 2.428 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric processing_seconds 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric slowest_seconds 2.281 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric slowest_seconds 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric requests_count 54 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric requests_count 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric errors_count 14 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric errors_count 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric sent_bytes 47376 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric sent_bytes 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric received_bytes 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric received_bytes 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric processing_seconds 2.206 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric processing_seconds 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric slowest_seconds 2.063 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric slowest_seconds 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric requests_count 54 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric requests_count 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric errors_count 14 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric errors_count 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric sent_bytes 46386 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric sent_bytes 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric received_bytes 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric received_bytes 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric processing_seconds 1.987 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric processing_seconds 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric slowest_seconds 1.667 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric slowest_seconds 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+
+$ bash packs/tomcat/threads.sh
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric busy 8 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric busy 6 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric threads 8 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric threads 6 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric max_threads 6 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric connections 13 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric connections 7 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric max_connections 8192 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric max_connections 8192 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric keep_alive 12 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric keep_alive 6 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric backlog_max 10 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric backlog_max 100 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric paused 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric paused 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric executor_busy 8 tomcat=tc9 jmx=localhost:19301 name=tomcatThreadPool
+metric executor_threads 8 tomcat=tc9 jmx=localhost:19301 name=tomcatThreadPool
+metric executor_max_threads 8 tomcat=tc9 jmx=localhost:19301 name=tomcatThreadPool
+metric executor_largest 8 tomcat=tc9 jmx=localhost:19301 name=tomcatThreadPool
+metric executor_queue 4 tomcat=tc9 jmx=localhost:19301 name=tomcatThreadPool
+metric executor_max_queue 10 tomcat=tc9 jmx=localhost:19301 name=tomcatThreadPool
+metric executor_done_count 93 tomcat=tc9 jmx=localhost:19301 name=tomcatThreadPool
+metric utility_busy 0 tomcat=tc9 jmx=localhost:19301
+metric utility_threads 2 tomcat=tc9 jmx=localhost:19301
+metric utility_tasks_count 86 tomcat=tc9 jmx=localhost:19301
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric busy 8 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric busy 6 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric threads 8 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric threads 6 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric max_threads 6 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric connections 13 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric connections 7 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric max_connections 8192 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric max_connections 8192 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric keep_alive 12 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric keep_alive 6 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric backlog_max 10 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric backlog_max 100 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric paused 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric paused 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric executor_busy 8 tomcat=tc10 jmx=localhost:19302 name=tomcatThreadPool
+metric executor_threads 8 tomcat=tc10 jmx=localhost:19302 name=tomcatThreadPool
+metric executor_max_threads 8 tomcat=tc10 jmx=localhost:19302 name=tomcatThreadPool
+metric executor_largest 8 tomcat=tc10 jmx=localhost:19302 name=tomcatThreadPool
+metric executor_queue 4 tomcat=tc10 jmx=localhost:19302 name=tomcatThreadPool
+metric executor_max_queue 10 tomcat=tc10 jmx=localhost:19302 name=tomcatThreadPool
+metric executor_done_count 93 tomcat=tc10 jmx=localhost:19302 name=tomcatThreadPool
+metric utility_busy 0 tomcat=tc10 jmx=localhost:19302
+metric utility_threads 2 tomcat=tc10 jmx=localhost:19302
+metric utility_tasks_count 84 tomcat=tc10 jmx=localhost:19302
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric busy 8 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric busy 6 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric threads 8 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric threads 6 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric max_threads 6 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric connections 13 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric connections 7 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric max_connections 8192 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric max_connections 8192 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric keep_alive 12 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric keep_alive 6 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric backlog_max 10 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric backlog_max 100 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric paused 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric paused 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric executor_busy 8 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+metric executor_threads 8 tomcat=tc11 jmx=localhost:19303 name=tomcatThreadPool
+... (78 lines)
+
+$ bash packs/tomcat/inflight.sh
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric running_seconds 28.04 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest2
+metric running_seconds 28.031 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest1
+metric running_seconds 28.031 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest8
+metric running_seconds 28.029 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest7
+metric running_seconds 28.024 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest6
+metric running_seconds 28.022 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest6
+metric running_seconds 28.018 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest5
+metric running_seconds 28.017 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest5
+metric running_seconds 28.015 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest1
+metric running_seconds 28.013 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest4
+metric running_seconds 28.011 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest4
+metric running_seconds 28.009 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest2
+metric running_seconds 28.007 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8080 name=HttpRequest3
+metric running_seconds 28.007 tomcat=tc9 jmx=localhost:19301 worker=http-nio-0.0.0.0-8081 name=HttpRequest3
+metric stuck_threads 14 tomcat=tc9 jmx=localhost:19301 host=localhost
+metric stuck_threshold_seconds 5 tomcat=tc9 jmx=localhost:19301 host=localhost
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric running_seconds 25.471 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest7
+metric running_seconds 25.468 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest1
+metric running_seconds 25.467 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest1
+metric running_seconds 25.466 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest8
+metric running_seconds 25.464 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest2
+metric running_seconds 25.464 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest6
+metric running_seconds 25.461 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest6
+metric running_seconds 25.458 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest4
+metric running_seconds 25.458 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest5
+metric running_seconds 25.457 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest5
+metric running_seconds 25.449 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8081 name=HttpRequest3
+metric running_seconds 25.449 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest4
+metric running_seconds 25.444 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest2
+metric running_seconds 25.441 tomcat=tc10 jmx=localhost:19302 worker=http-nio-0.0.0.0-8080 name=HttpRequest3
+metric stuck_threads 14 tomcat=tc10 jmx=localhost:19302 host=localhost
+metric stuck_threshold_seconds 5 tomcat=tc10 jmx=localhost:19302 host=localhost
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric running_seconds 22.237 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest1
+metric running_seconds 22.231 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest2
+metric running_seconds 22.212 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest4
+metric running_seconds 22.209 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest5
+metric running_seconds 22.207 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest3
+metric running_seconds 22.199 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest1
+metric running_seconds 22.196 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest2
+metric running_seconds 22.19 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest8
+metric running_seconds 22.189 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest7
+metric running_seconds 22.186 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8080 name=HttpRequest6
+metric running_seconds 22.183 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest3
+metric running_seconds 22.18 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest6
+metric running_seconds 22.177 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest5
+metric running_seconds 22.173 tomcat=tc11 jmx=localhost:19303 worker=http-nio-0.0.0.0-8081 name=HttpRequest4
+metric stuck_threads 14 tomcat=tc11 jmx=localhost:19303 host=localhost
+metric stuck_threshold_seconds 5 tomcat=tc11 jmx=localhost:19303 host=localhost
+
+$ bash packs/tomcat/apps.sh
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric up 1 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric up 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric uptime_seconds 36 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric startup_seconds 0.038 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric startup_seconds 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric errors_count 14 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric errors_count 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric requests_count 68 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric requests_count 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric processing_seconds 2.249 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric processing_seconds 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric slowest_seconds 2.182 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric slowest_seconds 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric up 1 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric up 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric uptime_seconds 35 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric startup_seconds 0.067 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric startup_seconds 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric errors_count 14 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric errors_count 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric requests_count 68 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric requests_count 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric processing_seconds 2.035 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric processing_seconds 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric slowest_seconds 1.939 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric slowest_seconds 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric up 1 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric up 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+metric uptime_seconds 33 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric startup_seconds 0.035 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric startup_seconds 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+metric errors_count 14 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric errors_count 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+metric requests_count 68 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric requests_count 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+metric processing_seconds 1.717 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric processing_seconds 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+metric slowest_seconds 1.541 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric slowest_seconds 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+
+$ bash packs/tomcat/sessions.sh
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric active 40 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric active 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric most 40 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric most 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric limit 40 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric rejected_count 11 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric rejected_count 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric created_count 40 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric created_count 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric expired_count 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric expired_count 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric created_per_minute 68 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric created_per_minute 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric expired_per_minute 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric expired_per_minute 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric average_alive_seconds 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric average_alive_seconds 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric longest_alive_seconds 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric longest_alive_seconds 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric active 40 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric active 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric most 40 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric most 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric limit 40 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric rejected_count 11 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric rejected_count 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric created_count 40 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric created_count 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric expired_count 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric expired_count 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric created_per_minute 73 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric created_per_minute 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric expired_per_minute 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric expired_per_minute 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric average_alive_seconds 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric average_alive_seconds 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric longest_alive_seconds 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric longest_alive_seconds 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric active 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric active 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric most 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric most 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric limit 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric rejected_count 11 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric rejected_count 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric created_count 40 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric created_count 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric expired_count 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric expired_count 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric created_per_minute 77 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric created_per_minute 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric expired_per_minute 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric expired_per_minute 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric average_alive_seconds 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric average_alive_seconds 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric longest_alive_seconds 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric longest_alive_seconds 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+
+$ bash packs/tomcat/servlets.sh
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric processing_seconds 2.249 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=jsp
+metric processing_seconds 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=default
+metric requests_count 68 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=jsp
+metric requests_count 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=default
+metric errors_count 14 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=jsp
+metric errors_count 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=default
+metric slowest_seconds 2.182 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=jsp
+metric slowest_seconds 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=default
+metric load_seconds 0.01 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=jsp
+metric load_seconds 0.008 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop name=default
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric processing_seconds 2.035 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=jsp
+metric processing_seconds 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=default
+metric requests_count 68 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=jsp
+metric requests_count 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=default
+metric errors_count 14 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=jsp
+metric errors_count 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=default
+metric slowest_seconds 1.939 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=jsp
+metric slowest_seconds 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=default
+metric load_seconds 0.011 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=jsp
+metric load_seconds 0.007 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop name=default
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric processing_seconds 1.717 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric processing_seconds 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=default
+metric requests_count 68 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric requests_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=default
+metric errors_count 14 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric errors_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=default
+metric slowest_seconds 1.541 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric slowest_seconds 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=default
+metric load_seconds 0.025 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=jsp
+metric load_seconds 0.019 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop name=default
+
+$ bash packs/tomcat/jdbc.sh
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric active 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric active 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric idle 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric idle 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric min_idle 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric min_idle 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric size 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric waiting 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric borrowed_count 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric returned_count 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric created_count 4 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric released_count 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric abandoned_count 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric reconnected_count 0 tomcat=tc9 jmx=localhost:19301 context=/shop name=jdbc/orders
+metric hikari_active 3 tomcat=tc9 jmx=localhost:19301 type=Pool_(hikari)
+metric hikari_idle 0 tomcat=tc9 jmx=localhost:19301 type=Pool_(hikari)
+metric hikari_total 3 tomcat=tc9 jmx=localhost:19301 type=Pool_(hikari)
+metric hikari_waiting 0 tomcat=tc9 jmx=localhost:19301 type=Pool_(hikari)
+metric hikari_max 3 tomcat=tc9 jmx=localhost:19301 type=PoolConfig_(hikari)
+metric hikari_min_idle 0 tomcat=tc9 jmx=localhost:19301 type=PoolConfig_(hikari)
+metric hikari_timeout_seconds 1 tomcat=tc9 jmx=localhost:19301 type=PoolConfig_(hikari)
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric active 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric active 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric idle 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric idle 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric min_idle 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric min_idle 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric size 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric waiting 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric borrowed_count 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric returned_count 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric created_count 4 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric released_count 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric abandoned_count 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric reconnected_count 0 tomcat=tc10 jmx=localhost:19302 context=/shop name=jdbc/orders
+metric hikari_active 3 tomcat=tc10 jmx=localhost:19302 type=Pool_(hikari)
+metric hikari_idle 0 tomcat=tc10 jmx=localhost:19302 type=Pool_(hikari)
+metric hikari_total 3 tomcat=tc10 jmx=localhost:19302 type=Pool_(hikari)
+metric hikari_waiting 0 tomcat=tc10 jmx=localhost:19302 type=Pool_(hikari)
+metric hikari_max 3 tomcat=tc10 jmx=localhost:19302 type=PoolConfig_(hikari)
+metric hikari_min_idle 0 tomcat=tc10 jmx=localhost:19302 type=PoolConfig_(hikari)
+metric hikari_timeout_seconds 1 tomcat=tc10 jmx=localhost:19302 type=PoolConfig_(hikari)
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric active 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric active 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric max 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric max_idle 2 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric min_idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric min_idle 0 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/shop
+metric max_wait_seconds 1 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+metric size 4 tomcat=tc11 jmx=localhost:19303 context=/shop name=jdbc/orders
+... (84 lines)
+
+$ bash packs/tomcat/cache.sh
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric lookups_count 12 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric lookups_count 74 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric hits_count 4 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric hits_count 53 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric size_bytes 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric size_bytes 13312 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric max_bytes 10485760 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric max_bytes 10485760 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric jsps 4 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop
+metric jsp_reloads_count 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop
+metric jsp_unloads_count 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop
+metric string_cache_lookups_count 0 tomcat=tc9 jmx=localhost:19301
+metric string_cache_hits_count 0 tomcat=tc9 jmx=localhost:19301
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric lookups_count 10 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric lookups_count 72 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric hits_count 4 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric hits_count 53 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric size_bytes 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric size_bytes 12288 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric max_bytes 10485760 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric max_bytes 10485760 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric jsps 4 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop
+metric jsp_reloads_count 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop
+metric jsp_unloads_count 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop
+metric string_cache_lookups_count 0 tomcat=tc10 jmx=localhost:19302
+metric string_cache_hits_count 0 tomcat=tc10 jmx=localhost:19302
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric lookups_count 10 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric lookups_count 72 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric hits_count 4 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric hits_count 53 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric size_bytes 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric size_bytes 12288 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric max_bytes 10485760 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric max_bytes 10485760 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric jsps 4 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
+metric jsp_reloads_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
+metric jsp_unloads_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
+metric string_cache_lookups_count 0 tomcat=tc11 jmx=localhost:19303
+metric string_cache_hits_count 0 tomcat=tc11 jmx=localhost:19303
+
+# What they read.
+  PASS  tomcat: status runs
+  PASS  tomcat: requests runs
+  PASS  tomcat: threads runs
+  PASS  tomcat: inflight runs
+  PASS  tomcat: apps runs
+  PASS  tomcat: sessions runs
+  PASS  tomcat: servlets runs
+  PASS  tomcat: jdbc runs
+  PASS  tomcat: cache runs
+  PASS  tc9: answers over TLS with a password
+  PASS  tc9: its version, 9.0
+  PASS  tc9: the server is started
+  PASS  tc9: both connectors
+  PASS  tc9: requests, counted
+  PASS  tc9: and those that failed
+  PASS  tc9: the Executor's threads, all busy
+  PASS  tc9: of 8
+  PASS  tc9: requests queued behind them
+  PASS  tc9: the admin connector's threads, all busy
+  PASS  tc9: of 6
+  PASS  tc9: requests running now, the longest first
+  PASS  tc9: stuck threads
+  PASS  tc9: the shop is started
+  PASS  tc9: the app that cannot start is not
+  PASS  tc9: the shop's sessions, at their limit
+  PASS  tc9: the limit
+  PASS  tc9: and those refused for it
+  PASS  tc9: the JSPs' time
+  PASS  tc9: DBCP's pool, every connection in use
+  PASS  tc9: of 4
+  PASS  tc9: Tomcat's JDBC pool, every connection in use
+  PASS  tc9: and its connections borrowed
+  PASS  tc9: HikariCP's pool, every connection in use
+  PASS  tc9: of its 3
+  PASS  tc9: Tomcat's utility executor
+  PASS  tc9: the JSP servlet's load time, read
+  PASS  tc9: the shop's JSPs, loaded
+  PASS  tc9: its resource cache, looked in
+  PASS  tc10: answers over TLS with a password
+  PASS  tc10: its version, 10.1
+  PASS  tc10: the server is started
+  PASS  tc10: both connectors
+  PASS  tc10: requests, counted
+  PASS  tc10: and those that failed
+  PASS  tc10: the Executor's threads, all busy
+  PASS  tc10: of 8
+  PASS  tc10: requests queued behind them
+  PASS  tc10: the admin connector's threads, all busy
+  PASS  tc10: of 6
+  PASS  tc10: requests running now, the longest first
+  PASS  tc10: stuck threads
+  PASS  tc10: the shop is started
+  PASS  tc10: the app that cannot start is not
+  PASS  tc10: the shop's sessions, at their limit
+  PASS  tc10: the limit
+  PASS  tc10: and those refused for it
+  PASS  tc10: the JSPs' time
+  PASS  tc10: DBCP's pool, every connection in use
+  PASS  tc10: of 4
+  PASS  tc10: Tomcat's JDBC pool, every connection in use
+  PASS  tc10: and its connections borrowed
+  PASS  tc10: HikariCP's pool, every connection in use
+  PASS  tc10: of its 3
+  PASS  tc10: Tomcat's utility executor
+  PASS  tc10: the JSP servlet's load time, read
+  PASS  tc10: the shop's JSPs, loaded
+  PASS  tc10: its resource cache, looked in
+  PASS  tc11: answers over TLS with a password
+  PASS  tc11: its version, 11.0
+  PASS  tc11: the server is started
+  PASS  tc11: both connectors
+  PASS  tc11: requests, counted
+  PASS  tc11: and those that failed
+  PASS  tc11: the Executor's threads, all busy
+  PASS  tc11: of 8
+  PASS  tc11: requests queued behind them
+  PASS  tc11: the admin connector's threads, all busy
+  PASS  tc11: of 6
+  PASS  tc11: requests running now, the longest first
+  PASS  tc11: stuck threads
+  PASS  tc11: the shop is started
+  PASS  tc11: the app that cannot start is not
+  PASS  tc11: the shop's sessions, at their limit
+  PASS  tc11: the limit
+  PASS  tc11: and those refused for it
+  PASS  tc11: the JSPs' time
+  PASS  tc11: DBCP's pool, every connection in use
+  PASS  tc11: of 4
+  PASS  tc11: Tomcat's JDBC pool, every connection in use
+  PASS  tc11: and its connections borrowed
+  PASS  tc11: HikariCP's pool, every connection in use
+  PASS  tc11: of its 3
+  PASS  tc11: Tomcat's utility executor
+  PASS  tc11: the JSP servlet's load time, read
+  PASS  tc11: the shop's JSPs, loaded
+  PASS  tc11: its resource cache, looked in
+  PASS  tomcat: the shop is up longer than it took to start
+
+# The pack through Vigil.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+tomcat: tc9: jmxs=localhost:19301; tc10: jmxs=localhost:19302; tc11: jmxs=localhost:19303
+  PASS  tomcat: off until enabled
+  PASS  tomcat: enabled
+        on: tomcat_status
+        on: tomcat_requests
+        on: tomcat_threads
+        on: tomcat_inflight
+        on: tomcat_apps
+        on: tomcat_sessions
+        on: tomcat_servlets
+        on: tomcat_jdbc
+        on: tomcat_cache
+        needs each Tomcat's JMX in TOMCAT_JMX (web1: jmxs=host:port): -Dcom.sun.management.jmxremote.port and a password and TLS in CATALINA_OPTS (packs/README.md shows how)
+        needs for JMX with a password: a secret line on the jobs: secret = TOMCAT_JMX_PASSWORD=secret:TOMCAT_JMX_PASSWORD, then vigil secret set TOMCAT_JMX_PASSWORD
+        needs for stuck requests: Tomcat's StuckThreadDetectionValve on the Host or the app (packs/README.md shows how)
+        needs for Tomcat's JVM (heap, garbage collection, threads, CPU, open files): the jvm pack, not this one: vigil pack install jvm, with each Tomcat in JVM_TARGETS named as here (web1: jmxs=host:port)
+        settings in vigil.config: TOMCAT_JMX= TOMCAT_JMX_USER= TOMCAT_CACERT=
+  PASS  tomcat: it says its JVM is the jvm pack's
+  PASS  tomcat: its jobs are on
+  PASS  tomcat: no secret line until JMX asks for one
+  PASS  tomcat: the password is a secret reference, on every job
+  PASS  tomcat: precheck is happy
+  PASS  tomcat: every job runs
+  PASS  tomcat: tc9 answers over JMX
+  PASS  tomcat: tc10 answers over JMX
+  PASS  tomcat: tc11 answers over JMX
+        status: 21 lines
+        requests: 39 lines
+        threads: 78 lines
+        inflight: 51 lines
+        apps: 42 lines
+        sessions: 60 lines
+        servlets: 33 lines
+        jdbc: 84 lines
+        cache: 42 lines
+  PASS  tomcat: a wrong password fails the run
+  PASS  tomcat: and says why
+  PASS  tomcat: a certificate it cannot trust fails the run
+  PASS  tomcat: and says why
+  PASS  tomcat: a server that does not answer still runs
+  PASS  tomcat: and reads as jmx_up 0
+  PASS  tomcat: the password is written nowhere
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)
+  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)
+  SKIP  mongodb: set VIGIL_IT_MONGODB_URL and VIGIL_IT_MONGODB_PASSWORD (scripts/run-mongodb.sh sets them up)
+  SKIP  zookeeper: set VIGIL_IT_ZOOKEEPER_SERVERS (scripts/run-zookeeper.sh sets it up)
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  docker: set VIGIL_IT_DOCKER (scripts/run-containers.sh docker sets it up)
+  SKIP  podman: set VIGIL_IT_PODMAN (scripts/run-containers.sh podman sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (scripts/run-sqlite.sh sets it up)
+  PASS  tomcat: metrics reach the backend
+21 passed, 0 failed
+
+# The jar: refused when changed, and on a JRE.
+  PASS  tomcat: a probe changed by one byte is not run
+        tomcat_status: _probe.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify tomcat says what differs
+  PASS  tomcat: and says why
+  PASS  tomcat: the JRE has no compiler
+  PASS  tomcat: every job runs on the JRE
+  PASS  tomcat: and reads the same Tomcats
+102 passed, 0 failed
+evidence: reports/runs/2026-11-26/fedora/pack-tomcat

@@ -1,0 +1,3 @@
+metric jmx_up 1 broker=art233 jmx=localhost:19331
+metric jmx_up 1 broker=art240 jmx=localhost:19332
+metric jmx_up 1 broker=art244 jmx=localhost:19333

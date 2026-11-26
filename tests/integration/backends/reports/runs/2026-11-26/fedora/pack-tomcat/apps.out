@@ -1,0 +1,42 @@
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric up 1 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric up 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric uptime_seconds 36 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric startup_seconds 0.038 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric startup_seconds 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric errors_count 14 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric errors_count 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric requests_count 68 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric requests_count 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric processing_seconds 2.249 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric processing_seconds 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric slowest_seconds 2.182 tomcat=tc9 jmx=localhost:19301 name=//localhost/shop
+metric slowest_seconds 0 tomcat=tc9 jmx=localhost:19301 name=//localhost/broken
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric up 1 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric up 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric uptime_seconds 35 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric startup_seconds 0.067 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric startup_seconds 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric errors_count 14 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric errors_count 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric requests_count 68 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric requests_count 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric processing_seconds 2.035 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric processing_seconds 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric slowest_seconds 1.939 tomcat=tc10 jmx=localhost:19302 name=//localhost/shop
+metric slowest_seconds 0 tomcat=tc10 jmx=localhost:19302 name=//localhost/broken
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric up 1 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric up 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+metric uptime_seconds 33 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric startup_seconds 0.035 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric startup_seconds 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+metric errors_count 14 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric errors_count 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+metric requests_count 68 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric requests_count 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+metric processing_seconds 1.717 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric processing_seconds 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken
+metric slowest_seconds 1.541 tomcat=tc11 jmx=localhost:19303 name=//localhost/shop
+metric slowest_seconds 0 tomcat=tc11 jmx=localhost:19303 name=//localhost/broken

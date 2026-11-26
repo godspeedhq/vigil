@@ -1,0 +1,16 @@
+metric jmx_up 1 jetty=j94 jmx=localhost:19311
+metric direct_bytes 32768 jetty=j94 jmx=localhost:19311
+metric heap_bytes 8192 jetty=j94 jmx=localhost:19311
+metric jmx_up 1 jetty=j11 jmx=localhost:19312
+metric direct_bytes 40960 jetty=j11 jmx=localhost:19312
+metric heap_bytes 0 jetty=j11 jmx=localhost:19312
+metric jmx_up 1 jetty=j120 jmx=localhost:19313
+metric direct_bytes 57344 jetty=j120 jmx=localhost:19313
+metric heap_bytes 8192 jetty=j120 jmx=localhost:19313
+metric direct_free_bytes 57344 jetty=j120 jmx=localhost:19313
+metric heap_free_bytes 8192 jetty=j120 jmx=localhost:19313
+metric jmx_up 1 jetty=j121 jmx=localhost:19314
+metric direct_bytes 49152 jetty=j121 jmx=localhost:19314
+metric heap_bytes 8192 jetty=j121 jmx=localhost:19314
+metric direct_free_bytes 49152 jetty=j121 jmx=localhost:19314
+metric heap_free_bytes 8192 jetty=j121 jmx=localhost:19314
