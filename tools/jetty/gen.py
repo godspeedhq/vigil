@@ -176,7 +176,7 @@ JOBS = [
 
 PACK = dict(
     name='jetty', tag='jetty', product='Jetty', what_tuned='Jetty',
-    version='1.0.0',
+    version='1.0.1',
     name_row='jetty',
     name_doc='Each Jetty is named as JETTY_JMX names it (web1: jmxs=host:port), else by its address.',
     jmx_doc=("Reads each Jetty's JMX, at JETTY_JMX: jmx=host:port, or jmxs=host:port over TLS, separated by ; "

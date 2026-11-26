@@ -1,0 +1,67 @@
+# _probe.tables - the cassandra pack's jobs, as tables the probe reads
+# (tools/probe/DESIGN.md), written by tools/cassandra/gen.py: edit that, not this.
+# A row: metric, MBean, attribute, then tags from the MBean's name (key/
+# for its value after the last /), +tag=value, -key=pattern, =STATE, @tag,
+# *scale, >=floor, sum, top, age. An MBean a server does not have prints
+# nothing.
+#
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+
+targets   CASSANDRA_JMX
+user      CASSANDRA_JMX_USER
+password  CASSANDRA_JMX_PASSWORD
+cacert    CASSANDRA_CACERT
+# Each node is named as CASSANDRA_JMX names it (db1: jmx=host:port), else by
+# its address.
+name      node
+
+[status]
+version            org.apache.cassandra.db:type=StorageService                           ReleaseVersion          @version
+mode               org.apache.cassandra.db:type=StorageService                           OperationMode           @mode
+normal             org.apache.cassandra.db:type=StorageService                           OperationMode           =NORMAL
+gossip_up          org.apache.cassandra.db:type=StorageService                           GossipRunning           =true
+native_up          org.apache.cassandra.db:type=StorageService                           NativeTransportRunning  =true
+nodes_up           org.apache.cassandra.net:type=FailureDetector                         UpEndpointCount
+nodes_down         org.apache.cassandra.net:type=FailureDetector                         DownEndpointCount
+load_bytes         org.apache.cassandra.metrics:type=Storage,name=Load                   Count
+exceptions_count   org.apache.cassandra.metrics:type=Storage,name=Exceptions             Count
+hints_count        org.apache.cassandra.metrics:type=Storage,name=TotalHints             Count
+hints_in_progress  org.apache.cassandra.metrics:type=Storage,name=TotalHintsInProgress   Count
+clients            org.apache.cassandra.metrics:type=Client,name=connectedNativeClients  Value
+commitlog_pending  org.apache.cassandra.metrics:type=CommitLog,name=PendingTasks         Value
+commitlog_bytes    org.apache.cassandra.metrics:type=CommitLog,name=TotalCommitLogSize   Value
+
+[requests]
+requests_count      org.apache.cassandra.metrics:type=ClientRequest,scope=*,name=Latency       Count           scope -scope=*-*
+latency_p99_ms      org.apache.cassandra.metrics:type=ClientRequest,scope=*,name=Latency       99thPercentile  scope -scope=*-* *0.001
+latency_mean_ms     org.apache.cassandra.metrics:type=ClientRequest,scope=*,name=Latency       Mean            scope -scope=*-* *0.001
+timeouts_count      org.apache.cassandra.metrics:type=ClientRequest,scope=*,name=Timeouts      Count           scope -scope=*-*
+unavailables_count  org.apache.cassandra.metrics:type=ClientRequest,scope=*,name=Unavailables  Count           scope -scope=*-*
+failures_count      org.apache.cassandra.metrics:type=ClientRequest,scope=*,name=Failures      Count           scope -scope=*-*
+
+[threads]
+pending              org.apache.cassandra.metrics:type=ThreadPools,path=*,scope=*,name=PendingTasks           Value  scope
+active               org.apache.cassandra.metrics:type=ThreadPools,path=*,scope=*,name=ActiveTasks            Value  scope
+blocked              org.apache.cassandra.metrics:type=ThreadPools,path=*,scope=*,name=CurrentlyBlockedTasks  Count  scope
+blocked_count        org.apache.cassandra.metrics:type=ThreadPools,path=*,scope=*,name=TotalBlockedTasks      Count  scope
+dropped_total_count  org.apache.cassandra.metrics:type=DroppedMessage,scope=*,name=Dropped                    Count  sum
+dropped_count        org.apache.cassandra.metrics:type=DroppedMessage,scope=*,name=Dropped                    Count  scope >=1
+
+[tables]
+compactions_pending        org.apache.cassandra.metrics:type=Compaction,name=PendingTasks                             Value
+compactions_done_count     org.apache.cassandra.metrics:type=Compaction,name=CompletedTasks                           Value
+compacted_bytes_count      org.apache.cassandra.metrics:type=Compaction,name=BytesCompacted                           Count
+key_cache_hit_pct          org.apache.cassandra.metrics:type=Cache,scope=KeyCache,name=HitRate                        Value           *100
+sstables                   org.apache.cassandra.metrics:type=Table,keyspace=*,scope=*,name=LiveSSTableCount           Value           keyspace scope -keyspace=system* top
+table_compactions_pending  org.apache.cassandra.metrics:type=Table,keyspace=*,scope=*,name=PendingCompactions         Value           keyspace scope -keyspace=system* top
+sstables_per_read_p99      org.apache.cassandra.metrics:type=Table,keyspace=*,scope=*,name=SSTablesPerReadHistogram   99thPercentile  keyspace scope -keyspace=system* top
+tombstones_per_read_p99    org.apache.cassandra.metrics:type=Table,keyspace=*,scope=*,name=TombstoneScannedHistogram  99thPercentile  keyspace scope -keyspace=system* top
+disk_bytes                 org.apache.cassandra.metrics:type=Table,keyspace=*,scope=*,name=LiveDiskSpaceUsed          Count           keyspace scope -keyspace=system* top
+partition_max_bytes        org.apache.cassandra.metrics:type=Table,keyspace=*,scope=*,name=MaxPartitionSize           Value           keyspace scope -keyspace=system* top

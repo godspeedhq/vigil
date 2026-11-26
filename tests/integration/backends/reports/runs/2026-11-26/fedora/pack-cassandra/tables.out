@@ -1,0 +1,28 @@
+metric jmx_up 1 node=c1 jmx=localhost:17199
+metric compactions_pending 0 node=c1 jmx=localhost:17199
+metric compactions_done_count 64 node=c1 jmx=localhost:17199
+metric compacted_bytes_count 48225 node=c1 jmx=localhost:17199
+metric key_cache_hit_pct 74.8214 node=c1 jmx=localhost:17199
+metric sstables 8 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric sstables 0 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric table_compactions_pending 0 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric table_compactions_pending 0 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric sstables_per_read_p99 8 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric sstables_per_read_p99 0 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric tombstones_per_read_p99 3311 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric tombstones_per_read_p99 1 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric disk_bytes 106822 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric disk_bytes 0 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric partition_max_bytes 50 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric partition_max_bytes 0 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric jmx_up 1 node=c41 jmx=localhost:17419
+metric compactions_pending 0 node=c41 jmx=localhost:17419
+metric compactions_done_count 54 node=c41 jmx=localhost:17419
+metric compacted_bytes_count 44809 node=c41 jmx=localhost:17419
+metric key_cache_hit_pct 88.8889 node=c41 jmx=localhost:17419
+metric sstables 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+metric table_compactions_pending 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+metric sstables_per_read_p99 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+metric tombstones_per_read_p99 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+metric disk_bytes 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+metric partition_max_bytes 0 node=c41 jmx=localhost:17419 keyspace=app scope=events

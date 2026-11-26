@@ -198,7 +198,7 @@ JOBS = [
 
 PACK = dict(
     name='tomcat', tag='tomcat', product='Tomcat', what_tuned='Tomcat',
-    version='1.0.0',
+    version='1.0.1',
     name_row='tomcat',
     name_doc='Each Tomcat is named as TOMCAT_JMX names it (web1: jmxs=host:port), else by its address.',
     jmx_doc=("Reads each Tomcat's JMX, at TOMCAT_JMX: jmx=host:port, or jmxs=host:port over TLS, separated by ; "

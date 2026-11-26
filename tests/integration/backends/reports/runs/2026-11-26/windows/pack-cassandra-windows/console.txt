@@ -1,0 +1,159 @@
+== pack-cassandra-windows
+date     2026-11-26T13:34:56Z
+host     the HP test machine (Windows 11), as an account that is not an administrator, over SSH
+pack     vigil-pack-cassandra-1.0.0-windows.zip, as tools/release/packs.sh builds it (51d570c+ working tree)
+servers  run-cassandra.sh's nodes on the Fedora test machine, held (VIGIL_IT_CASSANDRA_HOLD), through SSH tunnels
+
+# Every job under each PowerShell, against 5.0 (c1) and 4.1; a wrong password; and the pack through Vigil:
+
+archive: vigil-pack-cassandra-1.0.0-windows.zip; java: openjdk version "21.0.13.1" 2026-11-17 LTS; shells: powershell.exe, pwsh.exe
+status powershell.exe: 30 lines, exit 0
+status pwsh.exe: 30 lines, exit 0
+requests powershell.exe: 65 lines, exit 0
+requests pwsh.exe: 65 lines, exit 0
+threads powershell.exe: 164 lines, exit 0
+threads pwsh.exe: 164 lines, exit 0
+tables powershell.exe: 28 lines, exit 0
+tables pwsh.exe: 28 lines, exit 0
+--- a wrong password (5.1):
+cassandra_status: JMX at localhost:17199 refused the login: FailedLoginException: Invalid username or password (CASSANDRA_JMX_USER, and the secret behind CASSANDRA_JMX_PASSWORD)
+metric jmx_up 0 node=c1 jmx=localhost:17199
+cassandra_status: JMX at localhost:17419 refused the login: FailedLoginException: Invalid username or password (CASSANDRA_JMX_USER, and the secret behind CASSANDRA_JMX_PASSWORD)
+metric jmx_up 0 node=c41 jmx=localhost:17419
+exit 1
+--- through Vigil, under powershell.exe:
+PowerShell 5.1.26100.10068
+  PASS  init
+  PASS  the pack is off until enabled
+cassandra: c1: jmx=localhost:17199; c41: jmx=localhost:17419
+  PASS  cassandra: off until enabled
+  PASS  cassandra: enabled
+        on: cassandra_status
+        on: cassandra_requests
+        on: cassandra_threads
+        on: cassandra_tables
+        needs each node's JMX in CASSANDRA_JMX (db1: jmx=host:7199). Cassandra listens on JMX on localhost only (LOCAL_JMX=yes in cassandra-env.sh): run the pack on each node, pointed at localhost:7199, or open JMX with a password (LOCAL_JMX=no) to read it from elsewhere (packs/cassandra/README.md shows how)
+        needs for JMX with a password: CASSANDRA_JMX_USER, and a secret line on the jobs: secret = CASSANDRA_JMX_PASSWORD=secret:CASSANDRA_JMX_PASSWORD, then vigil secret set CASSANDRA_JMX_PASSWORD
+        needs for Cassandra's JVM (heap, garbage collection, threads): the jvm pack, not this one: vigil pack install jvm, with each node in JVM_TARGETS named as here
+        settings in vigil.config: CASSANDRA_JMX= CASSANDRA_JMX_USER= CASSANDRA_CACERT=
+  PASS  cassandra: it says its JVM is the jvm pack's
+  PASS  cassandra: its jobs are on
+  PASS  cassandra: no secret line until JMX asks for one
+  PASS  cassandra: the password is a secret reference, on every job
+  note  cassandra: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_PROBE_PASSWORD
+  PASS  cassandra: precheck is happy
+  PASS  cassandra: every job runs
+  PASS  cassandra: c1 answers over JMX
+  PASS  cassandra: c41 answers over JMX
+        metric jmx_up 1 node=c1 jmx=localhost:17199
+        metric version 1 node=c1 jmx=localhost:17199 version=5.0.9
+        metric mode 1 node=c1 jmx=localhost:17199 mode=NORMAL
+        metric normal 1 node=c1 jmx=localhost:17199
+        metric gossip_up 1 node=c1 jmx=localhost:17199
+        metric native_up 1 node=c1 jmx=localhost:17199
+        metric nodes_up 3 node=c1 jmx=localhost:17199
+        metric nodes_down 0 node=c1 jmx=localhost:17199
+        metric load_bytes 240334 node=c1 jmx=localhost:17199
+        metric exceptions_count 0 node=c1 jmx=localhost:17199
+        metric hints_count 3 node=c1 jmx=localhost:17199
+        metric hints_in_progress 0 node=c1 jmx=localhost:17199
+        metric clients 0 node=c1 jmx=localhost:17199
+        metric commitlog_pending 0 node=c1 jmx=localhost:17199
+        metric commitlog_bytes 67108864 node=c1 jmx=localhost:17199
+        metric jmx_up 1 node=c41 jmx=localhost:17419
+        metric version 1 node=c41 jmx=localhost:17419 version=4.1.12
+        metric mode 1 node=c41 jmx=localhost:17419 mode=NORMAL
+        metric normal 1 node=c41 jmx=localhost:17419
+        metric gossip_up 1 node=c41 jmx=localhost:17419
+        metric native_up 1 node=c41 jmx=localhost:17419
+        metric nodes_up 1 node=c41 jmx=localhost:17419
+        metric nodes_down 0 node=c41 jmx=localhost:17419
+        metric load_bytes 77396 node=c41 jmx=localhost:17419
+        metric exceptions_count 0 node=c41 jmx=localhost:17419
+        metric hints_count 0 node=c41 jmx=localhost:17419
+        metric hints_in_progress 0 node=c41 jmx=localhost:17419
+        metric clients 0 node=c41 jmx=localhost:17419
+        metric commitlog_pending 0 node=c41 jmx=localhost:17419
+        metric commitlog_bytes 67108864 node=c41 jmx=localhost:17419
+  PASS  cassandra: a wrong password fails the run
+  PASS  cassandra: and says why
+  PASS  cassandra: a server that does not answer still runs
+  PASS  cassandra: and reads as jmx_up 0
+  PASS  cassandra: the password is written nowhere
+  PASS  cassandra: metrics reach the backend
+18 passed, 0 failed
+exit 0
+--- through Vigil, under pwsh.exe:
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+cassandra: c1: jmx=localhost:17199; c41: jmx=localhost:17419
+  PASS  cassandra: off until enabled
+  PASS  cassandra: enabled
+        on: cassandra_status
+        on: cassandra_requests
+        on: cassandra_threads
+        on: cassandra_tables
+        needs each node's JMX in CASSANDRA_JMX (db1: jmx=host:7199). Cassandra listens on JMX on localhost only (LOCAL_JMX=yes in cassandra-env.sh): run the pack on each node, pointed at localhost:7199, or open JMX with a password (LOCAL_JMX=no) to read it from elsewhere (packs/cassandra/README.md shows how)
+        needs for JMX with a password: CASSANDRA_JMX_USER, and a secret line on the jobs: secret = CASSANDRA_JMX_PASSWORD=secret:CASSANDRA_JMX_PASSWORD, then vigil secret set CASSANDRA_JMX_PASSWORD
+        needs for Cassandra's JVM (heap, garbage collection, threads): the jvm pack, not this one: vigil pack install jvm, with each node in JVM_TARGETS named as here
+        settings in vigil.config: CASSANDRA_JMX= CASSANDRA_JMX_USER= CASSANDRA_CACERT=
+  PASS  cassandra: it says its JVM is the jvm pack's
+  PASS  cassandra: its jobs are on
+  PASS  cassandra: no secret line until JMX asks for one
+  PASS  cassandra: the password is a secret reference, on every job
+  note  cassandra: this logon cannot use the secret store (it has no password): the jobs take it by env:VIGIL_IT_PROBE_PASSWORD
+  PASS  cassandra: precheck is happy
+  PASS  cassandra: every job runs
+  PASS  cassandra: c1 answers over JMX
+  PASS  cassandra: c41 answers over JMX
+        metric jmx_up 1 node=c1 jmx=localhost:17199
+        metric version 1 node=c1 jmx=localhost:17199 version=5.0.9
+        metric mode 1 node=c1 jmx=localhost:17199 mode=NORMAL
+        metric normal 1 node=c1 jmx=localhost:17199
+        metric gossip_up 1 node=c1 jmx=localhost:17199
+        metric native_up 1 node=c1 jmx=localhost:17199
+        metric nodes_up 3 node=c1 jmx=localhost:17199
+        metric nodes_down 0 node=c1 jmx=localhost:17199
+        metric load_bytes 240334 node=c1 jmx=localhost:17199
+        metric exceptions_count 0 node=c1 jmx=localhost:17199
+        metric hints_count 3 node=c1 jmx=localhost:17199
+        metric hints_in_progress 0 node=c1 jmx=localhost:17199
+        metric clients 0 node=c1 jmx=localhost:17199
+        metric commitlog_pending 0 node=c1 jmx=localhost:17199
+        metric commitlog_bytes 67108864 node=c1 jmx=localhost:17199
+        metric jmx_up 1 node=c41 jmx=localhost:17419
+        metric version 1 node=c41 jmx=localhost:17419 version=4.1.12
+        metric mode 1 node=c41 jmx=localhost:17419 mode=NORMAL
+        metric normal 1 node=c41 jmx=localhost:17419
+        metric gossip_up 1 node=c41 jmx=localhost:17419
+        metric native_up 1 node=c41 jmx=localhost:17419
+        metric nodes_up 1 node=c41 jmx=localhost:17419
+        metric nodes_down 0 node=c41 jmx=localhost:17419
+        metric load_bytes 77396 node=c41 jmx=localhost:17419
+        metric exceptions_count 0 node=c41 jmx=localhost:17419
+        metric hints_count 0 node=c41 jmx=localhost:17419
+        metric hints_in_progress 0 node=c41 jmx=localhost:17419
+        metric clients 0 node=c41 jmx=localhost:17419
+        metric commitlog_pending 0 node=c41 jmx=localhost:17419
+        metric commitlog_bytes 67108864 node=c41 jmx=localhost:17419
+  PASS  cassandra: a wrong password fails the run
+  PASS  cassandra: and says why
+  PASS  cassandra: a server that does not answer still runs
+  PASS  cassandra: and reads as jmx_up 0
+  PASS  cassandra: the password is written nowhere
+  PASS  cassandra: metrics reach the backend
+18 passed, 0 failed
+exit 0
+
+# The Windows outputs beside the Linux scripts' against the same nodes: the same metric names and tags, and the same values where they hold still. A mean latency is printed only while there were requests in the last minutes, and a kind of dropped message once it has dropped one: neither is compared as a shape. Read straight after requests, Linux printed the mean as well.
+
+same     status powershell.exe: 30 lines, exit 0 (16 values that hold still, equal)
+same     status pwsh.exe: 30 lines, exit 0 (16 values that hold still, equal)
+same     requests powershell.exe: 65 lines, exit 0 (2 values that hold still, equal)
+same     requests pwsh.exe: 65 lines, exit 0 (2 values that hold still, equal)
+same     threads powershell.exe: 164 lines, exit 0 (2 values that hold still, equal)
+same     threads pwsh.exe: 164 lines, exit 0 (2 values that hold still, equal)
+same     tables powershell.exe: 28 lines, exit 0 (5 values that hold still, equal)
+same     tables pwsh.exe: 28 lines, exit 0 (5 values that hold still, equal)
+0 differ

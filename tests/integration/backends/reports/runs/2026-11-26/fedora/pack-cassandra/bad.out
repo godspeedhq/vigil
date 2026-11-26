@@ -1,0 +1,1 @@
+cassandra_status: _probe.jar does not match the digest in this script, so it is not run: it was changed or damaged. vigil pack verify cassandra says what differs

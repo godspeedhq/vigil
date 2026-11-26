@@ -1,0 +1,33 @@
+# Each job's example output, for its script's header: real lines from
+# tests/integration/backends/scripts/run-cassandra.sh's Cassandra 5.0.9 (c1),
+# with trouble on purpose, 2026-11-26. tools/cassandra/gen.py reads it.
+== status
+metric jmx_up 1 node=c1 jmx=localhost:17199
+metric version 1 node=c1 jmx=localhost:17199 version=5.0.9
+metric mode 1 node=c1 jmx=localhost:17199 mode=NORMAL
+metric normal 1 node=c1 jmx=localhost:17199
+metric nodes_up 3 node=c1 jmx=localhost:17199
+metric nodes_down 0 node=c1 jmx=localhost:17199
+metric load_bytes 227820 node=c1 jmx=localhost:17199
+metric hints_count 3 node=c1 jmx=localhost:17199
+== requests
+metric jmx_up 1 node=c1 jmx=localhost:17199
+metric requests_count 175 node=c1 jmx=localhost:17199 scope=Read
+metric requests_count 129 node=c1 jmx=localhost:17199 scope=Write
+metric latency_p99_ms 182.785 node=c1 jmx=localhost:17199 scope=Read
+metric latency_p99_ms 2346.799 node=c1 jmx=localhost:17199 scope=Write
+metric timeouts_count 3 node=c1 jmx=localhost:17199 scope=Write
+== threads
+metric jmx_up 1 node=c1 jmx=localhost:17199
+metric pending 0 node=c1 jmx=localhost:17199 scope=MutationStage
+metric pending 0 node=c1 jmx=localhost:17199 scope=ReadStage
+metric blocked 0 node=c1 jmx=localhost:17199 scope=MutationStage
+metric dropped_total_count 0 node=c1 jmx=localhost:17199
+== tables
+metric jmx_up 1 node=c1 jmx=localhost:17199
+metric compactions_pending 0 node=c1 jmx=localhost:17199
+metric key_cache_hit_pct 74.8214 node=c1 jmx=localhost:17199
+metric sstables 8 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric sstables_per_read_p99 8 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric tombstones_per_read_p99 3311 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric disk_bytes 106822 node=c1 jmx=localhost:17199 keyspace=app scope=events

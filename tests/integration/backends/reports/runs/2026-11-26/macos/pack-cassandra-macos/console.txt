@@ -1,0 +1,355 @@
+== pack-cassandra-macos
+date     2026-11-26T13:24:38Z
+host     the Mac test machine
+os       macOS 12.7.6 (Darwin 21.6.0 x86_64), bash 3.2.57(1)-release
+java     openjdk version "21.0.13.1" 2026-11-17 LTS
+pack     vigil-pack-cassandra-1.0.0-macos.tar.gz, as packs.sh builds it
+servers  run-cassandra.sh's nodes on the Fedora test machine, held (VIGIL_IT_CASSANDRA_HOLD), through SSH tunnels
+
+# 5.0, c1, and 4.1: every job, as the macOS scripts print it, as monitorRole.
+
+$ bash cassandra/status.sh
+metric jmx_up 1 node=c1 jmx=localhost:17199
+metric version 1 node=c1 jmx=localhost:17199 version=5.0.9
+metric mode 1 node=c1 jmx=localhost:17199 mode=NORMAL
+metric normal 1 node=c1 jmx=localhost:17199
+metric gossip_up 1 node=c1 jmx=localhost:17199
+metric native_up 1 node=c1 jmx=localhost:17199
+metric nodes_up 3 node=c1 jmx=localhost:17199
+metric nodes_down 0 node=c1 jmx=localhost:17199
+metric load_bytes 240334 node=c1 jmx=localhost:17199
+metric exceptions_count 0 node=c1 jmx=localhost:17199
+metric hints_count 3 node=c1 jmx=localhost:17199
+metric hints_in_progress 0 node=c1 jmx=localhost:17199
+metric clients 0 node=c1 jmx=localhost:17199
+metric commitlog_pending 0 node=c1 jmx=localhost:17199
+metric commitlog_bytes 67108864 node=c1 jmx=localhost:17199
+metric jmx_up 1 node=c41 jmx=localhost:17419
+metric version 1 node=c41 jmx=localhost:17419 version=4.1.12
+metric mode 1 node=c41 jmx=localhost:17419 mode=NORMAL
+metric normal 1 node=c41 jmx=localhost:17419
+metric gossip_up 1 node=c41 jmx=localhost:17419
+metric native_up 1 node=c41 jmx=localhost:17419
+metric nodes_up 1 node=c41 jmx=localhost:17419
+metric nodes_down 0 node=c41 jmx=localhost:17419
+metric load_bytes 77396 node=c41 jmx=localhost:17419
+metric exceptions_count 0 node=c41 jmx=localhost:17419
+metric hints_count 0 node=c41 jmx=localhost:17419
+metric hints_in_progress 0 node=c41 jmx=localhost:17419
+metric clients 0 node=c41 jmx=localhost:17419
+metric commitlog_pending 0 node=c41 jmx=localhost:17419
+metric commitlog_bytes 67108864 node=c41 jmx=localhost:17419
+
+$ bash cassandra/requests.sh
+metric jmx_up 1 node=c1 jmx=localhost:17199
+metric requests_count 0 node=c1 jmx=localhost:17199 scope=CASRead
+metric requests_count 0 node=c1 jmx=localhost:17199 scope=CASWrite
+metric requests_count 556 node=c1 jmx=localhost:17199 scope=RangeSlice
+metric requests_count 186 node=c1 jmx=localhost:17199 scope=Read
+metric requests_count 0 node=c1 jmx=localhost:17199 scope=ViewWrite
+metric requests_count 129 node=c1 jmx=localhost:17199 scope=Write
+metric latency_p99_ms 0 node=c1 jmx=localhost:17199 scope=CASRead
+metric latency_p99_ms 0 node=c1 jmx=localhost:17199 scope=CASWrite
+metric latency_p99_ms 20.501 node=c1 jmx=localhost:17199 scope=RangeSlice
+metric latency_p99_ms 51.012 node=c1 jmx=localhost:17199 scope=Read
+metric latency_p99_ms 0 node=c1 jmx=localhost:17199 scope=ViewWrite
+metric latency_p99_ms 0 node=c1 jmx=localhost:17199 scope=Write
+metric latency_mean_ms 5.7787 node=c1 jmx=localhost:17199 scope=RangeSlice
+metric latency_mean_ms 7.1413 node=c1 jmx=localhost:17199 scope=Read
+metric timeouts_count 0 node=c1 jmx=localhost:17199 scope=CASRead
+metric timeouts_count 0 node=c1 jmx=localhost:17199 scope=CASWrite
+metric timeouts_count 0 node=c1 jmx=localhost:17199 scope=RangeSlice
+metric timeouts_count 0 node=c1 jmx=localhost:17199 scope=Read
+metric timeouts_count 0 node=c1 jmx=localhost:17199 scope=ViewWrite
+metric timeouts_count 3 node=c1 jmx=localhost:17199 scope=Write
+metric unavailables_count 0 node=c1 jmx=localhost:17199 scope=CASRead
+metric unavailables_count 0 node=c1 jmx=localhost:17199 scope=CASWrite
+metric unavailables_count 0 node=c1 jmx=localhost:17199 scope=RangeSlice
+metric unavailables_count 0 node=c1 jmx=localhost:17199 scope=Read
+metric unavailables_count 0 node=c1 jmx=localhost:17199 scope=ViewWrite
+metric unavailables_count 0 node=c1 jmx=localhost:17199 scope=Write
+metric failures_count 0 node=c1 jmx=localhost:17199 scope=CASRead
+metric failures_count 0 node=c1 jmx=localhost:17199 scope=CASWrite
+metric failures_count 0 node=c1 jmx=localhost:17199 scope=RangeSlice
+metric failures_count 0 node=c1 jmx=localhost:17199 scope=Read
+metric failures_count 0 node=c1 jmx=localhost:17199 scope=ViewWrite
+metric failures_count 0 node=c1 jmx=localhost:17199 scope=Write
+metric jmx_up 1 node=c41 jmx=localhost:17419
+metric requests_count 0 node=c41 jmx=localhost:17419 scope=CASRead
+metric requests_count 0 node=c41 jmx=localhost:17419 scope=CASWrite
+metric requests_count 13 node=c41 jmx=localhost:17419 scope=RangeSlice
+metric requests_count 12 node=c41 jmx=localhost:17419 scope=Read
+metric requests_count 0 node=c41 jmx=localhost:17419 scope=ViewWrite
+metric requests_count 1 node=c41 jmx=localhost:17419 scope=Write
+metric latency_p99_ms 0 node=c41 jmx=localhost:17419 scope=CASRead
+metric latency_p99_ms 0 node=c41 jmx=localhost:17419 scope=CASWrite
+metric latency_p99_ms 0 node=c41 jmx=localhost:17419 scope=RangeSlice
+metric latency_p99_ms 0 node=c41 jmx=localhost:17419 scope=Read
+metric latency_p99_ms 0 node=c41 jmx=localhost:17419 scope=ViewWrite
+metric latency_p99_ms 0 node=c41 jmx=localhost:17419 scope=Write
+metric timeouts_count 0 node=c41 jmx=localhost:17419 scope=CASRead
+metric timeouts_count 0 node=c41 jmx=localhost:17419 scope=CASWrite
+metric timeouts_count 0 node=c41 jmx=localhost:17419 scope=RangeSlice
+metric timeouts_count 0 node=c41 jmx=localhost:17419 scope=Read
+metric timeouts_count 0 node=c41 jmx=localhost:17419 scope=ViewWrite
+metric timeouts_count 0 node=c41 jmx=localhost:17419 scope=Write
+metric unavailables_count 0 node=c41 jmx=localhost:17419 scope=CASRead
+metric unavailables_count 0 node=c41 jmx=localhost:17419 scope=CASWrite
+metric unavailables_count 0 node=c41 jmx=localhost:17419 scope=RangeSlice
+metric unavailables_count 0 node=c41 jmx=localhost:17419 scope=Read
+metric unavailables_count 0 node=c41 jmx=localhost:17419 scope=ViewWrite
+metric unavailables_count 0 node=c41 jmx=localhost:17419 scope=Write
+metric failures_count 0 node=c41 jmx=localhost:17419 scope=CASRead
+metric failures_count 0 node=c41 jmx=localhost:17419 scope=CASWrite
+metric failures_count 0 node=c41 jmx=localhost:17419 scope=RangeSlice
+metric failures_count 0 node=c41 jmx=localhost:17419 scope=Read
+metric failures_count 0 node=c41 jmx=localhost:17419 scope=ViewWrite
+metric failures_count 0 node=c41 jmx=localhost:17419 scope=Write
+
+$ bash cassandra/threads.sh
+metric jmx_up 1 node=c1 jmx=localhost:17199
+metric pending 0 node=c1 jmx=localhost:17199 scope=CacheCleanupExecutor
+metric pending 0 node=c1 jmx=localhost:17199 scope=CompactionExecutor
+metric pending 0 node=c1 jmx=localhost:17199 scope=GossipStage
+metric pending 0 node=c1 jmx=localhost:17199 scope=HintsDispatcher
+metric pending 0 node=c1 jmx=localhost:17199 scope=InternalResponseStage
+metric pending 0 node=c1 jmx=localhost:17199 scope=MemtableFlushWriter
+metric pending 0 node=c1 jmx=localhost:17199 scope=MemtablePostFlush
+metric pending 0 node=c1 jmx=localhost:17199 scope=MemtableReclaimMemory
+metric pending 0 node=c1 jmx=localhost:17199 scope=MigrationStage
+metric pending 0 node=c1 jmx=localhost:17199 scope=PendingRangeCalculator
+metric pending 0 node=c1 jmx=localhost:17199 scope=PerDiskMemtableFlushWriter_0
+metric pending 0 node=c1 jmx=localhost:17199 scope=Sampler
+metric pending 0 node=c1 jmx=localhost:17199 scope=SecondaryIndexExecutor
+metric pending 0 node=c1 jmx=localhost:17199 scope=SecondaryIndexManagement
+metric pending 0 node=c1 jmx=localhost:17199 scope=StatusPropagationExecutor
+metric pending 0 node=c1 jmx=localhost:17199 scope=ValidationExecutor
+metric pending 0 node=c1 jmx=localhost:17199 scope=ViewBuildExecutor
+metric pending 0 node=c1 jmx=localhost:17199 scope=MutationStage
+metric pending 0 node=c1 jmx=localhost:17199 scope=ReadStage
+metric pending 0 node=c1 jmx=localhost:17199 scope=RequestResponseStage
+metric pending 0 node=c1 jmx=localhost:17199 scope=Native-Transport-Auth-Requests
+metric pending 0 node=c1 jmx=localhost:17199 scope=Native-Transport-Requests
+metric active 0 node=c1 jmx=localhost:17199 scope=CacheCleanupExecutor
+metric active 0 node=c1 jmx=localhost:17199 scope=CompactionExecutor
+metric active 0 node=c1 jmx=localhost:17199 scope=GossipStage
+metric active 0 node=c1 jmx=localhost:17199 scope=HintsDispatcher
+metric active 0 node=c1 jmx=localhost:17199 scope=InternalResponseStage
+metric active 0 node=c1 jmx=localhost:17199 scope=MemtableFlushWriter
+metric active 0 node=c1 jmx=localhost:17199 scope=MemtablePostFlush
+metric active 0 node=c1 jmx=localhost:17199 scope=MemtableReclaimMemory
+metric active 0 node=c1 jmx=localhost:17199 scope=MigrationStage
+metric active 0 node=c1 jmx=localhost:17199 scope=PendingRangeCalculator
+metric active 0 node=c1 jmx=localhost:17199 scope=PerDiskMemtableFlushWriter_0
+metric active 0 node=c1 jmx=localhost:17199 scope=Sampler
+metric active 0 node=c1 jmx=localhost:17199 scope=SecondaryIndexExecutor
+metric active 0 node=c1 jmx=localhost:17199 scope=SecondaryIndexManagement
+metric active 0 node=c1 jmx=localhost:17199 scope=StatusPropagationExecutor
+metric active 0 node=c1 jmx=localhost:17199 scope=ValidationExecutor
+metric active 0 node=c1 jmx=localhost:17199 scope=ViewBuildExecutor
+metric active 0 node=c1 jmx=localhost:17199 scope=MutationStage
+metric active 0 node=c1 jmx=localhost:17199 scope=ReadStage
+metric active 0 node=c1 jmx=localhost:17199 scope=RequestResponseStage
+metric active 0 node=c1 jmx=localhost:17199 scope=Native-Transport-Auth-Requests
+metric active 0 node=c1 jmx=localhost:17199 scope=Native-Transport-Requests
+metric blocked 0 node=c1 jmx=localhost:17199 scope=CacheCleanupExecutor
+metric blocked 0 node=c1 jmx=localhost:17199 scope=CompactionExecutor
+metric blocked 0 node=c1 jmx=localhost:17199 scope=GossipStage
+metric blocked 0 node=c1 jmx=localhost:17199 scope=HintsDispatcher
+metric blocked 0 node=c1 jmx=localhost:17199 scope=InternalResponseStage
+metric blocked 0 node=c1 jmx=localhost:17199 scope=MemtableFlushWriter
+metric blocked 0 node=c1 jmx=localhost:17199 scope=MemtablePostFlush
+metric blocked 0 node=c1 jmx=localhost:17199 scope=MemtableReclaimMemory
+metric blocked 0 node=c1 jmx=localhost:17199 scope=MigrationStage
+metric blocked 0 node=c1 jmx=localhost:17199 scope=PendingRangeCalculator
+metric blocked 0 node=c1 jmx=localhost:17199 scope=PerDiskMemtableFlushWriter_0
+metric blocked 0 node=c1 jmx=localhost:17199 scope=Sampler
+metric blocked 0 node=c1 jmx=localhost:17199 scope=SecondaryIndexExecutor
+metric blocked 0 node=c1 jmx=localhost:17199 scope=SecondaryIndexManagement
+metric blocked 0 node=c1 jmx=localhost:17199 scope=StatusPropagationExecutor
+metric blocked 0 node=c1 jmx=localhost:17199 scope=ValidationExecutor
+metric blocked 0 node=c1 jmx=localhost:17199 scope=ViewBuildExecutor
+metric blocked 0 node=c1 jmx=localhost:17199 scope=MutationStage
+metric blocked 0 node=c1 jmx=localhost:17199 scope=ReadStage
+metric blocked 0 node=c1 jmx=localhost:17199 scope=RequestResponseStage
+metric blocked 0 node=c1 jmx=localhost:17199 scope=Native-Transport-Auth-Requests
+metric blocked 0 node=c1 jmx=localhost:17199 scope=Native-Transport-Requests
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=CacheCleanupExecutor
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=CompactionExecutor
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=GossipStage
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=HintsDispatcher
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=InternalResponseStage
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=MemtableFlushWriter
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=MemtablePostFlush
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=MemtableReclaimMemory
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=MigrationStage
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=PendingRangeCalculator
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=PerDiskMemtableFlushWriter_0
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=Sampler
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=SecondaryIndexExecutor
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=SecondaryIndexManagement
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=StatusPropagationExecutor
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=ValidationExecutor
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=ViewBuildExecutor
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=MutationStage
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=ReadStage
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=RequestResponseStage
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=Native-Transport-Auth-Requests
+metric blocked_count 0 node=c1 jmx=localhost:17199 scope=Native-Transport-Requests
+metric dropped_total_count 0 node=c1 jmx=localhost:17199
+metric jmx_up 1 node=c41 jmx=localhost:17419
+metric pending 0 node=c41 jmx=localhost:17419 scope=CacheCleanupExecutor
+metric pending 0 node=c41 jmx=localhost:17419 scope=CompactionExecutor
+metric pending 0 node=c41 jmx=localhost:17419 scope=GossipStage
+metric pending 0 node=c41 jmx=localhost:17419 scope=HintsDispatcher
+metric pending 0 node=c41 jmx=localhost:17419 scope=MemtableFlushWriter
+metric pending 0 node=c41 jmx=localhost:17419 scope=MemtablePostFlush
+metric pending 0 node=c41 jmx=localhost:17419 scope=MemtableReclaimMemory
+metric pending 0 node=c41 jmx=localhost:17419 scope=MigrationStage
+metric pending 0 node=c41 jmx=localhost:17419 scope=PendingRangeCalculator
+metric pending 0 node=c41 jmx=localhost:17419 scope=PerDiskMemtableFlushWriter_0
+metric pending 0 node=c41 jmx=localhost:17419 scope=Sampler
+metric pending 0 node=c41 jmx=localhost:17419 scope=SecondaryIndexManagement
+metric pending 0 node=c41 jmx=localhost:17419 scope=ValidationExecutor
+metric pending 0 node=c41 jmx=localhost:17419 scope=ViewBuildExecutor
+metric pending 0 node=c41 jmx=localhost:17419 scope=MutationStage
+metric pending 0 node=c41 jmx=localhost:17419 scope=ReadStage
+metric pending 0 node=c41 jmx=localhost:17419 scope=Native-Transport-Auth-Requests
+metric pending 0 node=c41 jmx=localhost:17419 scope=Native-Transport-Requests
+metric active 0 node=c41 jmx=localhost:17419 scope=CacheCleanupExecutor
+metric active 0 node=c41 jmx=localhost:17419 scope=CompactionExecutor
+metric active 0 node=c41 jmx=localhost:17419 scope=GossipStage
+metric active 0 node=c41 jmx=localhost:17419 scope=HintsDispatcher
+metric active 0 node=c41 jmx=localhost:17419 scope=MemtableFlushWriter
+metric active 0 node=c41 jmx=localhost:17419 scope=MemtablePostFlush
+metric active 0 node=c41 jmx=localhost:17419 scope=MemtableReclaimMemory
+metric active 0 node=c41 jmx=localhost:17419 scope=MigrationStage
+metric active 0 node=c41 jmx=localhost:17419 scope=PendingRangeCalculator
+metric active 0 node=c41 jmx=localhost:17419 scope=PerDiskMemtableFlushWriter_0
+metric active 0 node=c41 jmx=localhost:17419 scope=Sampler
+metric active 0 node=c41 jmx=localhost:17419 scope=SecondaryIndexManagement
+metric active 0 node=c41 jmx=localhost:17419 scope=ValidationExecutor
+metric active 0 node=c41 jmx=localhost:17419 scope=ViewBuildExecutor
+metric active 0 node=c41 jmx=localhost:17419 scope=MutationStage
+metric active 0 node=c41 jmx=localhost:17419 scope=ReadStage
+metric active 0 node=c41 jmx=localhost:17419 scope=Native-Transport-Auth-Requests
+metric active 0 node=c41 jmx=localhost:17419 scope=Native-Transport-Requests
+metric blocked 0 node=c41 jmx=localhost:17419 scope=CacheCleanupExecutor
+metric blocked 0 node=c41 jmx=localhost:17419 scope=CompactionExecutor
+metric blocked 0 node=c41 jmx=localhost:17419 scope=GossipStage
+metric blocked 0 node=c41 jmx=localhost:17419 scope=HintsDispatcher
+metric blocked 0 node=c41 jmx=localhost:17419 scope=MemtableFlushWriter
+metric blocked 0 node=c41 jmx=localhost:17419 scope=MemtablePostFlush
+metric blocked 0 node=c41 jmx=localhost:17419 scope=MemtableReclaimMemory
+metric blocked 0 node=c41 jmx=localhost:17419 scope=MigrationStage
+metric blocked 0 node=c41 jmx=localhost:17419 scope=PendingRangeCalculator
+metric blocked 0 node=c41 jmx=localhost:17419 scope=PerDiskMemtableFlushWriter_0
+metric blocked 0 node=c41 jmx=localhost:17419 scope=Sampler
+metric blocked 0 node=c41 jmx=localhost:17419 scope=SecondaryIndexManagement
+metric blocked 0 node=c41 jmx=localhost:17419 scope=ValidationExecutor
+metric blocked 0 node=c41 jmx=localhost:17419 scope=ViewBuildExecutor
+metric blocked 0 node=c41 jmx=localhost:17419 scope=MutationStage
+metric blocked 0 node=c41 jmx=localhost:17419 scope=ReadStage
+metric blocked 0 node=c41 jmx=localhost:17419 scope=Native-Transport-Auth-Requests
+metric blocked 0 node=c41 jmx=localhost:17419 scope=Native-Transport-Requests
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=CacheCleanupExecutor
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=CompactionExecutor
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=GossipStage
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=HintsDispatcher
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=MemtableFlushWriter
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=MemtablePostFlush
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=MemtableReclaimMemory
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=MigrationStage
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=PendingRangeCalculator
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=PerDiskMemtableFlushWriter_0
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=Sampler
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=SecondaryIndexManagement
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=ValidationExecutor
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=ViewBuildExecutor
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=MutationStage
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=ReadStage
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=Native-Transport-Auth-Requests
+metric blocked_count 0 node=c41 jmx=localhost:17419 scope=Native-Transport-Requests
+metric dropped_total_count 0 node=c41 jmx=localhost:17419
+
+$ bash cassandra/tables.sh
+metric jmx_up 1 node=c1 jmx=localhost:17199
+metric compactions_pending 0 node=c1 jmx=localhost:17199
+metric compactions_done_count 603 node=c1 jmx=localhost:17199
+metric compacted_bytes_count 48182 node=c1 jmx=localhost:17199
+metric key_cache_hit_pct 87.069 node=c1 jmx=localhost:17199
+metric sstables 8 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric sstables 0 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric table_compactions_pending 0 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric table_compactions_pending 0 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric sstables_per_read_p99 0 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric sstables_per_read_p99 0 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric tombstones_per_read_p99 3311 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric tombstones_per_read_p99 0 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric disk_bytes 119368 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric disk_bytes 0 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric partition_max_bytes 50 node=c1 jmx=localhost:17199 keyspace=app scope=events
+metric partition_max_bytes 0 node=c1 jmx=localhost:17199 keyspace=app scope=tomb
+metric jmx_up 1 node=c41 jmx=localhost:17419
+metric compactions_pending 0 node=c41 jmx=localhost:17419
+metric compactions_done_count 549 node=c41 jmx=localhost:17419
+metric compacted_bytes_count 44728 node=c41 jmx=localhost:17419
+metric key_cache_hit_pct 88.8889 node=c41 jmx=localhost:17419
+metric sstables 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+metric table_compactions_pending 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+metric sstables_per_read_p99 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+metric tombstones_per_read_p99 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+metric disk_bytes 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+metric partition_max_bytes 0 node=c41 jmx=localhost:17419 keyspace=app scope=events
+  PASS  status runs
+  PASS  requests runs
+  PASS  threads runs
+  PASS  tables runs
+  PASS  c1: JMX answers, 5.0, normal, three nodes up
+  PASS  4.1: JMX answers, its version
+  PASS  c1: the write timeouts, c2 paused
+  PASS  c1: app.events, its SSTables; the tombstones a read scanned
+
+# A wrong password, and nothing listening.
+  PASS  a wrong password fails the run, and says so
+        cassandra_status: JMX at localhost:17199 refused the login: FailedLoginException: Invalid username or password (CASSANDRA_JMX_USER, and the secret behind CASSANDRA_JMX_PASSWORD)
+        metric jmx_up 0 node=c1 jmx=localhost:17199
+        cassandra_status: JMX at localhost:17419 refused the login: FailedLoginException: Invalid username or password (CASSANDRA_JMX_USER, and the secret behind CASSANDRA_JMX_PASSWORD)
+        metric jmx_up 0 node=c41 jmx=localhost:17419
+  PASS  nothing listening: the run succeeds, jmx_up 0
+10 passed, 0 failed
+
+# The pack through Vigil.
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+cassandra: c1: jmx=localhost:17199; c41: jmx=localhost:17419
+  PASS  cassandra: off until enabled
+  PASS  cassandra: enabled
+        on: cassandra_status
+        on: cassandra_requests
+        on: cassandra_threads
+        on: cassandra_tables
+        needs each node's JMX in CASSANDRA_JMX (db1: jmx=host:7199). Cassandra listens on JMX on localhost only (LOCAL_JMX=yes in cassandra-env.sh): run the pack on each node, pointed at localhost:7199, or open JMX with a password (LOCAL_JMX=no) to read it from elsewhere (packs/cassandra/README.md shows how)
+        needs for JMX with a password: CASSANDRA_JMX_USER, and a secret line on the jobs: secret = CASSANDRA_JMX_PASSWORD=secret:CASSANDRA_JMX_PASSWORD, then vigil secret set CASSANDRA_JMX_PASSWORD
+        needs for Cassandra's JVM (heap, garbage collection, threads): the jvm pack, not this one: vigil pack install jvm, with each node in JVM_TARGETS named as here
+        settings in vigil.config: CASSANDRA_JMX= CASSANDRA_JMX_USER= CASSANDRA_CACERT=
+  PASS  cassandra: it says its JVM is the jvm pack's
+  PASS  cassandra: its jobs are on
+  PASS  cassandra: no secret line until JMX asks for one
+  PASS  cassandra: the password is a secret reference, on every job
+  PASS  cassandra: precheck is happy
+  PASS  cassandra: every job runs
+  PASS  cassandra: c1 answers over JMX
+  PASS  cassandra: c41 answers over JMX
+        status: 30 lines
+        requests: 64 lines
+        threads: 164 lines
+        tables: 28 lines
+  PASS  cassandra: a wrong password fails the run
+  PASS  cassandra: and says why
+  PASS  cassandra: a server that does not answer still runs
+  PASS  cassandra: and reads as jmx_up 0
+  PASS  cassandra: the password is written nowhere
+  PASS  cassandra: metrics reach the backend
+18 passed, 0 failed

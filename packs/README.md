@@ -50,6 +50,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`clickhouse`](clickhouse/README.md) | ClickHouse, a server or a replicated cluster: up, memory, inserts delayed and refused for too many parts, parts per table, replicated tables read-only or behind, replicas missing, mutations failing, merges, parts detached and broken, disks, slow queries and errors by name | [packs/clickhouse/README.md](clickhouse/README.md) |
 | [`zookeeper`](zookeeper/README.md) | ZooKeeper, a server or an ensemble: up and serving, one leader, followers in sync, read-only mode, latency, requests waiting, znodes, watches and ephemerals, fsync and JVM pauses, elections | [packs/zookeeper/README.md](zookeeper/README.md) |
 | [`mongodb`](mongodb/README.md) | MongoDB, a server or a replica set member: up, connections, operations and latency, the WiredTiger cache, queues; a primary or not, members down, lag, the oplog window; databases; operations running long | [packs/mongodb/README.md](mongodb/README.md) |
+| [`cassandra`](cassandra/README.md) | Cassandra over JMX: each node up and normal, gossip and CQL, nodes down, hints; requests, latency, timeouts and unavailables; thread pools, blocked tasks, dropped messages; compactions, SSTables and tombstones per table | [packs/cassandra/README.md](cassandra/README.md) |
 | [`nginx`](nginx/README.md) | nginx: connections and requests, processes and reloads, an edit not reloaded, how full the workers are, the access log minute by minute (status, errors, response and upstream times), certificate expiry | [packs/nginx/README.md](nginx/README.md) |
 | [`httpd`](httpd/README.md) | Apache httpd: workers and the scoreboard, requests, connections, the TLS session cache, an edit not loaded, the access log minute by minute (status, errors, response times), certificate expiry | [packs/httpd/README.md](httpd/README.md) |
 | [`caddy`](caddy/README.md) | Caddy: its configuration and reloads, traffic per server, reverse proxy upstreams and their health, the certificate of every site, from its admin API | [packs/caddy/README.md](caddy/README.md) |
@@ -186,6 +187,12 @@ Apache ZooKeeper, one server or a whole ensemble, from its four-letter words (`r
 MongoDB, a server or a member of a replica set, with `mongosh`, as a user with MongoDB's own `clusterMonitor` role (it reads the server's state, none of its data). Up, connections, operations and their latency, the WiredTiger cache and how dirty it is, operations queued; the replica set as each member sees it: a primary or not, members down, how far each is behind, the oplog's window; databases and their size; and the operations running past a minute, by namespace and ID, never their text. Each job is a script mongosh runs with no connection of its own, so the password is never on a command line. Linux, macOS and Windows.
 
 **Its page: [packs/mongodb/README.md](mongodb/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### cassandra
+
+Apache Cassandra, every node, over JMX, with the probe every JMX pack shares (Java 11 or later on the Vigil machine, nothing of Cassandra's). Each node up and in normal operation (or draining, leaving, decommissioned), gossip and CQL, the nodes it sees down, hints for nodes that were away; the requests it coordinates, their latency, those that timed out or found too few replicas; its thread pools, blocked tasks, dropped messages; its compactions and, for each of the application's tables, its SSTables, how many a read looks in, and the tombstones a read scans. On localhost with no password, or with a read-only JMX user. Linux, macOS and Windows.
+
+**Its page: [packs/cassandra/README.md](cassandra/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ### nginx
 

@@ -156,7 +156,7 @@ JOBS = [
 
 PACK = dict(
     name='artemis', tag='broker', product='Artemis', what_tuned='brokers',
-    version='1.0.0',
+    version='1.0.1',
     name_row='broker',
     name_doc='Each broker is named as ARTEMIS_JMX names it (art1: jmxs=host:port), else by its address; its own name is in artemis_status.',
     jmx_doc=("Reads each ActiveMQ Artemis broker's JMX, at ARTEMIS_JMX: jmx=host:port, or jmxs=host:port over TLS, "
