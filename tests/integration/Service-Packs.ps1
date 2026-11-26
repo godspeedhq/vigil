@@ -262,7 +262,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
     $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs')
-    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
+    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'zookeeper', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
         Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
@@ -1482,6 +1482,48 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "${p}: metrics reach the backend, each table by its name" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^${p}_tables_table_parts\{.*table=")))
+    }
+
+    # --- zookeeper ---------------------------------------------------------
+    # ZooKeeper servers, through Vigil: VIGIL_IT_ZOOKEEPER_SERVERS an ensemble
+    # and a server (host:port;...), as scripts/run-zookeeper.sh sets them up.
+    if (-not $env:VIGIL_IT_ZOOKEEPER_SERVERS) { Write-Host '  SKIP  zookeeper: set VIGIL_IT_ZOOKEEPER_SERVERS (scripts/run-zookeeper.sh sets it up)' }
+    else {
+        Remove-Item Env:\ZOOKEEPER_SERVERS -ErrorAction SilentlyContinue
+        $zs = $env:VIGIL_IT_ZOOKEEPER_SERVERS
+        Write-Host "zookeeper: $zs"
+        $zn = @($zs.Split(';') | Where-Object { $_.Trim() }).Count
+        function Get-ZkJobsOn {
+            $list = (Invoke-Vigil pack list).Text
+            $s = @($list.Split("`n") | Where-Object { $_ -match '^\s*zookeeper_\w+\s' } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            return (@($s | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        Test-Equal 'zookeeper: off until enabled' 'off=1' (Get-ZkJobsOn)
+        $r = Invoke-Vigil pack enable zookeeper
+        Test-Equal 'zookeeper: enabled' '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal 'zookeeper: its job is on' 'on=1' (Get-ZkJobsOn)
+        Test-Equal 'zookeeper: it says the words to allow' 'True' ([string]$r.Text.Contains('4lw.commands.whitelist=mntr,ruok,isro'))
+        Set-Env ZOOKEEPER_SERVERS $zs
+        $r = Invoke-Vigil precheck
+        Test-Equal 'zookeeper: precheck is happy' '0' ([string]$r.Code)
+        Test-Equal 'zookeeper: the job runs' '0' ([string](Invoke-Vigil run zookeeper_status).Code)
+        Show-LastRun zookeeper_status
+        Test-Equal 'zookeeper: every server serving, one leader' "$zn $zn 1" "$(Get-Printed zookeeper_status servers) $(Get-Printed zookeeper_status servers_serving) $(Get-Printed zookeeper_status leaders)"
+        Set-Env ZOOKEEPER_SERVERS "$zs; 127.0.0.1:1"
+        Test-Equal 'zookeeper: a server that does not answer: the run succeeds' '0' ([string](Invoke-Vigil run zookeeper_status).Code)
+        Test-Equal 'zookeeper: and it reads as up 0' '0' (Get-Printed zookeeper_status up 'server=127.0.0.1:1')
+        Set-Env ZOOKEEPER_SERVERS $zs
+        [void](Invoke-Vigil run zookeeper_status)
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match '(?m)^zookeeper_up\{') { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal 'zookeeper: metrics reach the backend, each server by its address' 'True' ([string](($prom -match '(?m)^zookeeper_leaders\{') -and ($prom -match '(?m)^zookeeper_up\{.*server=')))
     }
 
     # --- rabbitmq ----------------------------------------------------------

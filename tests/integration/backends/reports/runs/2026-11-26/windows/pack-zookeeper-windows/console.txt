@@ -1,0 +1,444 @@
+== pack-zookeeper-windows
+date     2026-11-26T11:09:03Z
+host     the development laptop (Windows 11), not an administrator
+os       Microsoft Windows 11 Pro 10.0.22631
+shells   Windows PowerShell 5.1.22621.6133, PowerShell 7.6.10
+vigil    0cc06b5+ (working tree)
+servers  run-zookeeper.sh's ensemble on the Fedora test machine, held (VIGIL_IT_ZK_HOLD), through SSH tunnels
+
+# The Windows script beside the Linux one (run on Fedora at the same moment), against the same servers: the same metric names and tags, and the same values where they hold still.
+
+same     status powershell.exe: 102 lines, exit 0 (42 values that hold still, equal)
+same     status pwsh.exe: 102 lines, exit 0 (42 values that hold still, equal)
+--- Windows PowerShell 5.1, as printed:
+metric up 1 server=127.0.0.1:12181
+metric serving 1 server=127.0.0.1:12181
+metric info 1 server=127.0.0.1:12181 version=3.9.7 role=follower
+metric readonly 0 server=127.0.0.1:12181
+metric uptime_seconds 90.67 server=127.0.0.1:12181
+metric latency_avg_ms 18.51 server=127.0.0.1:12181
+metric latency_max_ms 85 server=127.0.0.1:12181
+metric connections 2 server=127.0.0.1:12181
+metric outstanding_requests 0 server=127.0.0.1:12181
+metric znodes 208 server=127.0.0.1:12181
+metric watches 2 server=127.0.0.1:12181
+metric ephemerals 1 server=127.0.0.1:12181
+metric data_bytes 102610 server=127.0.0.1:12181
+metric fds_open 68 server=127.0.0.1:12181
+metric fds_pct 0.01 server=127.0.0.1:12181
+metric fsync_max_ms 86 server=127.0.0.1:12181
+metric jvm_pause_max_ms 0 server=127.0.0.1:12181
+metric packets_received_count 251 server=127.0.0.1:12181
+metric packets_sent_count 272 server=127.0.0.1:12181
+metric elections_count 1 server=127.0.0.1:12181
+metric auth_failed_count 0 server=127.0.0.1:12181
+metric throttled_count 0 server=127.0.0.1:12181
+metric errors_count 0 server=127.0.0.1:12181
+metric quorum_size 3 server=127.0.0.1:12181
+metric up 1 server=127.0.0.1:12182
+metric serving 1 server=127.0.0.1:12182
+metric info 1 server=127.0.0.1:12182 version=3.9.7 role=leader
+metric readonly 0 server=127.0.0.1:12182
+metric uptime_seconds 90.8 server=127.0.0.1:12182
+metric latency_avg_ms 0 server=127.0.0.1:12182
+metric latency_max_ms 0 server=127.0.0.1:12182
+metric connections 1 server=127.0.0.1:12182
+metric outstanding_requests 0 server=127.0.0.1:12182
+metric znodes 208 server=127.0.0.1:12182
+metric watches 0 server=127.0.0.1:12182
+metric ephemerals 1 server=127.0.0.1:12182
+metric data_bytes 102610 server=127.0.0.1:12182
+metric fds_open 69 server=127.0.0.1:12182
+metric fds_pct 0.01 server=127.0.0.1:12182
+metric fsync_max_ms 50 server=127.0.0.1:12182
+metric jvm_pause_max_ms 0 server=127.0.0.1:12182
+metric packets_received_count 38 server=127.0.0.1:12182
+metric packets_sent_count 61 server=127.0.0.1:12182
+metric elections_count 1 server=127.0.0.1:12182
+metric auth_failed_count 0 server=127.0.0.1:12182
+metric throttled_count 0 server=127.0.0.1:12182
+metric errors_count 0 server=127.0.0.1:12182
+metric quorum_size 3 server=127.0.0.1:12182
+metric followers 2 server=127.0.0.1:12182
+metric followers_synced 2 server=127.0.0.1:12182
+metric pending_syncs 0 server=127.0.0.1:12182
+metric up 1 server=127.0.0.1:12183
+metric serving 1 server=127.0.0.1:12183
+metric info 1 server=127.0.0.1:12183 version=3.9.7 role=follower
+metric readonly 0 server=127.0.0.1:12183
+metric uptime_seconds 90.96 server=127.0.0.1:12183
+metric latency_avg_ms 0 server=127.0.0.1:12183
+metric latency_max_ms 0 server=127.0.0.1:12183
+metric connections 1 server=127.0.0.1:12183
+metric outstanding_requests 0 server=127.0.0.1:12183
+metric znodes 208 server=127.0.0.1:12183
+metric watches 0 server=127.0.0.1:12183
+metric ephemerals 1 server=127.0.0.1:12183
+metric data_bytes 102610 server=127.0.0.1:12183
+metric fds_open 67 server=127.0.0.1:12183
+metric fds_pct 0.01 server=127.0.0.1:12183
+metric fsync_max_ms 89 server=127.0.0.1:12183
+metric jvm_pause_max_ms 0 server=127.0.0.1:12183
+metric packets_received_count 38 server=127.0.0.1:12183
+metric packets_sent_count 61 server=127.0.0.1:12183
+metric elections_count 1 server=127.0.0.1:12183
+metric auth_failed_count 0 server=127.0.0.1:12183
+metric throttled_count 0 server=127.0.0.1:12183
+metric errors_count 0 server=127.0.0.1:12183
+metric quorum_size 3 server=127.0.0.1:12183
+metric up 1 server=127.0.0.1:12188
+metric serving 1 server=127.0.0.1:12188
+metric info 1 server=127.0.0.1:12188 version=3.8.8 role=standalone
+metric readonly 0 server=127.0.0.1:12188
+metric uptime_seconds 92.44 server=127.0.0.1:12188
+metric latency_avg_ms 0 server=127.0.0.1:12188
+metric latency_max_ms 0 server=127.0.0.1:12188
+metric connections 1 server=127.0.0.1:12188
+metric outstanding_requests 0 server=127.0.0.1:12188
+metric znodes 5 server=127.0.0.1:12188
+metric watches 0 server=127.0.0.1:12188
+metric ephemerals 0 server=127.0.0.1:12188
+metric data_bytes 44 server=127.0.0.1:12188
+metric fds_open 55 server=127.0.0.1:12188
+metric fds_pct 0.01 server=127.0.0.1:12188
+metric fsync_max_ms 0 server=127.0.0.1:12188
+metric jvm_pause_max_ms 0 server=127.0.0.1:12188
+metric packets_received_count 32 server=127.0.0.1:12188
+metric packets_sent_count 41 server=127.0.0.1:12188
+metric elections_count 0 server=127.0.0.1:12188
+metric auth_failed_count 0 server=127.0.0.1:12188
+metric throttled_count 0 server=127.0.0.1:12188
+metric errors_count 0 server=127.0.0.1:12188
+metric servers 4
+metric servers_up 4
+metric servers_serving 4
+metric leaders 1
+exit 0
+--- the server with the default whitelist, beside 3.8.8 (5.1, then 7):
+metric up 1 server=127.0.0.1:12189
+metric serving 0 server=127.0.0.1:12189
+metric servers 2
+metric servers_up 2
+metric servers_serving 1
+metric leaders 0
+status: 127.0.0.1:12189 refuses ruok, mntr: add the words to its whitelist in zoo.cfg, 4lw.commands.whitelist=mntr,ruok,isro, and restart it (packs/zookeeper/README.md)
+exit 1
+metric up 1 server=127.0.0.1:12189
+metric serving 0 server=127.0.0.1:12189
+metric servers 2
+metric servers_up 2
+metric servers_serving 1
+metric leaders 0
+status: 127.0.0.1:12189 refuses ruok, mntr: add the words to its whitelist in zoo.cfg, 4lw.commands.whitelist=mntr,ruok,isro, and restart it (packs/zookeeper/README.md)
+exit 1
+--- nothing listening (5.1):
+metric up 0 server=127.0.0.1:12199
+metric serving 0 server=127.0.0.1:12199
+metric servers 1
+metric servers_up 0
+metric servers_serving 0
+metric leaders 0
+exit 0
+0 differ
+
+# The pack through Vigil, under Windows PowerShell 5.1 (tests/integration/Service-Packs.ps1):
+PowerShell 5.1.22621.6133
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD
+  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)
+zookeeper: 127.0.0.1:12181; 127.0.0.1:12182; 127.0.0.1:12183; 127.0.0.1:12188
+  PASS  zookeeper: off until enabled
+  PASS  zookeeper: enabled
+        on: zookeeper_status
+        needs each server's client port (2181) reachable from this machine, in plain text (not secureClientPort alone)
+        needs the four-letter words allowed on each server, in zoo.cfg: 4lw.commands.whitelist=mntr,ruok,isro (then restart it)
+        settings in vigil.config: ZOOKEEPER_SERVERS=
+  PASS  zookeeper: its job is on
+  PASS  zookeeper: it says the words to allow
+  PASS  zookeeper: precheck is happy
+  PASS  zookeeper: the job runs
+        metric up 1 server=127.0.0.1:12181
+        metric serving 1 server=127.0.0.1:12181
+        metric info 1 server=127.0.0.1:12181 version=3.9.7 role=follower
+        metric readonly 0 server=127.0.0.1:12181
+        metric uptime_seconds 148.83 server=127.0.0.1:12181
+        metric latency_avg_ms 18.01 server=127.0.0.1:12181
+        metric latency_max_ms 85 server=127.0.0.1:12181
+        metric connections 2 server=127.0.0.1:12181
+        metric outstanding_requests 0 server=127.0.0.1:12181
+        metric znodes 208 server=127.0.0.1:12181
+        metric watches 2 server=127.0.0.1:12181
+        metric ephemerals 1 server=127.0.0.1:12181
+        metric data_bytes 102610 server=127.0.0.1:12181
+        metric fds_open 68 server=127.0.0.1:12181
+        metric fds_pct 0.01 server=127.0.0.1:12181
+        metric fsync_max_ms 86 server=127.0.0.1:12181
+        metric jvm_pause_max_ms 0 server=127.0.0.1:12181
+        metric packets_received_count 260 server=127.0.0.1:12181
+        metric packets_sent_count 283 server=127.0.0.1:12181
+        metric elections_count 1 server=127.0.0.1:12181
+        metric auth_failed_count 0 server=127.0.0.1:12181
+        metric throttled_count 0 server=127.0.0.1:12181
+        metric errors_count 0 server=127.0.0.1:12181
+        metric quorum_size 3 server=127.0.0.1:12181
+        metric up 1 server=127.0.0.1:12182
+        metric serving 1 server=127.0.0.1:12182
+        metric info 1 server=127.0.0.1:12182 version=3.9.7 role=leader
+        metric readonly 0 server=127.0.0.1:12182
+        metric uptime_seconds 148.95 server=127.0.0.1:12182
+        metric latency_avg_ms 0 server=127.0.0.1:12182
+        metric latency_max_ms 0 server=127.0.0.1:12182
+        metric connections 1 server=127.0.0.1:12182
+        metric outstanding_requests 0 server=127.0.0.1:12182
+        metric znodes 208 server=127.0.0.1:12182
+        metric watches 0 server=127.0.0.1:12182
+        metric ephemerals 1 server=127.0.0.1:12182
+        metric data_bytes 102610 server=127.0.0.1:12182
+        metric fds_open 69 server=127.0.0.1:12182
+        metric fds_pct 0.01 server=127.0.0.1:12182
+        metric fsync_max_ms 50 server=127.0.0.1:12182
+        metric jvm_pause_max_ms 0 server=127.0.0.1:12182
+        metric packets_received_count 41 server=127.0.0.1:12182
+        metric packets_sent_count 66 server=127.0.0.1:12182
+        metric elections_count 1 server=127.0.0.1:12182
+        metric auth_failed_count 0 server=127.0.0.1:12182
+        metric throttled_count 0 server=127.0.0.1:12182
+        metric errors_count 0 server=127.0.0.1:12182
+        metric quorum_size 3 server=127.0.0.1:12182
+        metric followers 2 server=127.0.0.1:12182
+        metric followers_synced 2 server=127.0.0.1:12182
+        metric pending_syncs 0 server=127.0.0.1:12182
+        metric up 1 server=127.0.0.1:12183
+        metric serving 1 server=127.0.0.1:12183
+        metric info 1 server=127.0.0.1:12183 version=3.9.7 role=follower
+        metric readonly 0 server=127.0.0.1:12183
+        metric uptime_seconds 149.06 server=127.0.0.1:12183
+        metric latency_avg_ms 0 server=127.0.0.1:12183
+        metric latency_max_ms 0 server=127.0.0.1:12183
+        metric connections 1 server=127.0.0.1:12183
+        metric outstanding_requests 0 server=127.0.0.1:12183
+        metric znodes 208 server=127.0.0.1:12183
+        metric watches 0 server=127.0.0.1:12183
+        metric ephemerals 1 server=127.0.0.1:12183
+        metric data_bytes 102610 server=127.0.0.1:12183
+        metric fds_open 67 server=127.0.0.1:12183
+        metric fds_pct 0.01 server=127.0.0.1:12183
+        metric fsync_max_ms 89 server=127.0.0.1:12183
+        metric jvm_pause_max_ms 0 server=127.0.0.1:12183
+        metric packets_received_count 41 server=127.0.0.1:12183
+        metric packets_sent_count 66 server=127.0.0.1:12183
+        metric elections_count 1 server=127.0.0.1:12183
+        metric auth_failed_count 0 server=127.0.0.1:12183
+        metric throttled_count 0 server=127.0.0.1:12183
+        metric errors_count 0 server=127.0.0.1:12183
+        metric quorum_size 3 server=127.0.0.1:12183
+        metric up 1 server=127.0.0.1:12188
+        metric serving 1 server=127.0.0.1:12188
+        metric info 1 server=127.0.0.1:12188 version=3.8.8 role=standalone
+        metric readonly 0 server=127.0.0.1:12188
+        metric uptime_seconds 150.5 server=127.0.0.1:12188
+        metric latency_avg_ms 0 server=127.0.0.1:12188
+        metric latency_max_ms 0 server=127.0.0.1:12188
+        metric connections 1 server=127.0.0.1:12188
+        metric outstanding_requests 0 server=127.0.0.1:12188
+        metric znodes 5 server=127.0.0.1:12188
+        metric watches 0 server=127.0.0.1:12188
+        metric ephemerals 0 server=127.0.0.1:12188
+        metric data_bytes 44 server=127.0.0.1:12188
+        metric fds_open 55 server=127.0.0.1:12188
+        metric fds_pct 0.01 server=127.0.0.1:12188
+        metric fsync_max_ms 0 server=127.0.0.1:12188
+        metric jvm_pause_max_ms 0 server=127.0.0.1:12188
+        metric packets_received_count 41 server=127.0.0.1:12188
+        metric packets_sent_count 53 server=127.0.0.1:12188
+        metric elections_count 0 server=127.0.0.1:12188
+        metric auth_failed_count 0 server=127.0.0.1:12188
+        metric throttled_count 0 server=127.0.0.1:12188
+        metric errors_count 0 server=127.0.0.1:12188
+        metric servers 4
+        metric servers_up 4
+        metric servers_serving 4
+        metric leaders 1
+  PASS  zookeeper: every server serving, one leader
+  PASS  zookeeper: a server that does not answer: the run succeeds
+  PASS  zookeeper: and it reads as up 0
+  PASS  zookeeper: metrics reach the backend, each server by its address
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  iis: set VIGIL_IT_WEB_IIS (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  docker: set VIGIL_IT_DOCKER (backends\scripts\Run-Containers.ps1 sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (backends\scripts\run-sqlite.ps1 sets it up)
+12 passed, 0 failed
+
+# The same under PowerShell 7:
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD
+  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)
+zookeeper: 127.0.0.1:12181; 127.0.0.1:12182; 127.0.0.1:12183; 127.0.0.1:12188
+  PASS  zookeeper: off until enabled
+  PASS  zookeeper: enabled
+        on: zookeeper_status
+        needs each server's client port (2181) reachable from this machine, in plain text (not secureClientPort alone)
+        needs the four-letter words allowed on each server, in zoo.cfg: 4lw.commands.whitelist=mntr,ruok,isro (then restart it)
+        settings in vigil.config: ZOOKEEPER_SERVERS=
+  PASS  zookeeper: its job is on
+  PASS  zookeeper: it says the words to allow
+  PASS  zookeeper: precheck is happy
+  PASS  zookeeper: the job runs
+        metric up 1 server=127.0.0.1:12181
+        metric serving 1 server=127.0.0.1:12181
+        metric info 1 server=127.0.0.1:12181 version=3.9.7 role=follower
+        metric readonly 0 server=127.0.0.1:12181
+        metric uptime_seconds 250.32 server=127.0.0.1:12181
+        metric latency_avg_ms 17.25 server=127.0.0.1:12181
+        metric latency_max_ms 85 server=127.0.0.1:12181
+        metric connections 2 server=127.0.0.1:12181
+        metric outstanding_requests 0 server=127.0.0.1:12181
+        metric znodes 208 server=127.0.0.1:12181
+        metric watches 2 server=127.0.0.1:12181
+        metric ephemerals 1 server=127.0.0.1:12181
+        metric data_bytes 102610 server=127.0.0.1:12181
+        metric fds_open 68 server=127.0.0.1:12181
+        metric fds_pct 0.01 server=127.0.0.1:12181
+        metric fsync_max_ms 86 server=127.0.0.1:12181
+        metric jvm_pause_max_ms 0 server=127.0.0.1:12181
+        metric packets_received_count 279 server=127.0.0.1:12181
+        metric packets_sent_count 308 server=127.0.0.1:12181
+        metric elections_count 1 server=127.0.0.1:12181
+        metric auth_failed_count 0 server=127.0.0.1:12181
+        metric throttled_count 0 server=127.0.0.1:12181
+        metric errors_count 0 server=127.0.0.1:12181
+        metric quorum_size 3 server=127.0.0.1:12181
+        metric up 1 server=127.0.0.1:12182
+        metric serving 1 server=127.0.0.1:12182
+        metric info 1 server=127.0.0.1:12182 version=3.9.7 role=leader
+        metric readonly 0 server=127.0.0.1:12182
+        metric uptime_seconds 250.56 server=127.0.0.1:12182
+        metric latency_avg_ms 0 server=127.0.0.1:12182
+        metric latency_max_ms 0 server=127.0.0.1:12182
+        metric connections 1 server=127.0.0.1:12182
+        metric outstanding_requests 0 server=127.0.0.1:12182
+        metric znodes 208 server=127.0.0.1:12182
+        metric watches 0 server=127.0.0.1:12182
+        metric ephemerals 1 server=127.0.0.1:12182
+        metric data_bytes 102610 server=127.0.0.1:12182
+        metric fds_open 69 server=127.0.0.1:12182
+        metric fds_pct 0.01 server=127.0.0.1:12182
+        metric fsync_max_ms 50 server=127.0.0.1:12182
+        metric jvm_pause_max_ms 0 server=127.0.0.1:12182
+        metric packets_received_count 50 server=127.0.0.1:12182
+        metric packets_sent_count 81 server=127.0.0.1:12182
+        metric elections_count 1 server=127.0.0.1:12182
+        metric auth_failed_count 0 server=127.0.0.1:12182
+        metric throttled_count 0 server=127.0.0.1:12182
+        metric errors_count 0 server=127.0.0.1:12182
+        metric quorum_size 3 server=127.0.0.1:12182
+        metric followers 2 server=127.0.0.1:12182
+        metric followers_synced 2 server=127.0.0.1:12182
+        metric pending_syncs 0 server=127.0.0.1:12182
+        metric up 1 server=127.0.0.1:12183
+        metric serving 1 server=127.0.0.1:12183
+        metric info 1 server=127.0.0.1:12183 version=3.9.7 role=follower
+        metric readonly 0 server=127.0.0.1:12183
+        metric uptime_seconds 250.69 server=127.0.0.1:12183
+        metric latency_avg_ms 0 server=127.0.0.1:12183
+        metric latency_max_ms 0 server=127.0.0.1:12183
+        metric connections 1 server=127.0.0.1:12183
+        metric outstanding_requests 0 server=127.0.0.1:12183
+        metric znodes 208 server=127.0.0.1:12183
+        metric watches 0 server=127.0.0.1:12183
+        metric ephemerals 1 server=127.0.0.1:12183
+        metric data_bytes 102610 server=127.0.0.1:12183
+        metric fds_open 67 server=127.0.0.1:12183
+        metric fds_pct 0.01 server=127.0.0.1:12183
+        metric fsync_max_ms 89 server=127.0.0.1:12183
+        metric jvm_pause_max_ms 0 server=127.0.0.1:12183
+        metric packets_received_count 50 server=127.0.0.1:12183
+        metric packets_sent_count 81 server=127.0.0.1:12183
+        metric elections_count 1 server=127.0.0.1:12183
+        metric auth_failed_count 0 server=127.0.0.1:12183
+        metric throttled_count 0 server=127.0.0.1:12183
+        metric errors_count 0 server=127.0.0.1:12183
+        metric quorum_size 3 server=127.0.0.1:12183
+        metric up 1 server=127.0.0.1:12188
+        metric serving 1 server=127.0.0.1:12188
+        metric info 1 server=127.0.0.1:12188 version=3.8.8 role=standalone
+        metric readonly 0 server=127.0.0.1:12188
+        metric uptime_seconds 252.14 server=127.0.0.1:12188
+        metric latency_avg_ms 0 server=127.0.0.1:12188
+        metric latency_max_ms 0 server=127.0.0.1:12188
+        metric connections 1 server=127.0.0.1:12188
+        metric outstanding_requests 0 server=127.0.0.1:12188
+        metric znodes 5 server=127.0.0.1:12188
+        metric watches 0 server=127.0.0.1:12188
+        metric ephemerals 0 server=127.0.0.1:12188
+        metric data_bytes 44 server=127.0.0.1:12188
+        metric fds_open 55 server=127.0.0.1:12188
+        metric fds_pct 0.01 server=127.0.0.1:12188
+        metric fsync_max_ms 0 server=127.0.0.1:12188
+        metric jvm_pause_max_ms 0 server=127.0.0.1:12188
+        metric packets_received_count 50 server=127.0.0.1:12188
+        metric packets_sent_count 65 server=127.0.0.1:12188
+        metric elections_count 0 server=127.0.0.1:12188
+        metric auth_failed_count 0 server=127.0.0.1:12188
+        metric throttled_count 0 server=127.0.0.1:12188
+        metric errors_count 0 server=127.0.0.1:12188
+        metric servers 4
+        metric servers_up 4
+        metric servers_serving 4
+        metric leaders 1
+  PASS  zookeeper: every server serving, one leader
+  PASS  zookeeper: a server that does not answer: the run succeeds
+  PASS  zookeeper: and it reads as up 0
+  PASS  zookeeper: metrics reach the backend, each server by its address
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  iis: set VIGIL_IT_WEB_IIS (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  docker: set VIGIL_IT_DOCKER (backends\scripts\Run-Containers.ps1 sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (backends\scripts\run-sqlite.ps1 sets it up)
+12 passed, 0 failed

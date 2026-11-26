@@ -48,6 +48,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`opensearch`](opensearch/README.md) | OpenSearch: cluster health, nodes, thread pools and rejections, circuit breakers, backpressure and admission control, indices, shards and why one is unassigned, disks and watermarks, node work, ingest, tasks, ISM, snapshot management, snapshots | [packs/opensearch/README.md](opensearch/README.md) |
 | [`cockroachdb`](cockroachdb/README.md) | CockroachDB, a node or a cluster: health and readiness, clock offset, certificates, ranges unavailable and under-replicated, slow requests, storage and write stalls, admission control, SQL, nodes live and dead, decommissioning, upgrades, jobs, backups and changefeeds | [packs/cockroachdb/README.md](cockroachdb/README.md) |
 | [`clickhouse`](clickhouse/README.md) | ClickHouse, a server or a replicated cluster: up, memory, inserts delayed and refused for too many parts, parts per table, replicated tables read-only or behind, replicas missing, mutations failing, merges, parts detached and broken, disks, slow queries and errors by name | [packs/clickhouse/README.md](clickhouse/README.md) |
+| [`zookeeper`](zookeeper/README.md) | ZooKeeper, a server or an ensemble: up and serving, one leader, followers in sync, read-only mode, latency, requests waiting, znodes, watches and ephemerals, fsync and JVM pauses, elections | [packs/zookeeper/README.md](zookeeper/README.md) |
 | [`nginx`](nginx/README.md) | nginx: connections and requests, processes and reloads, an edit not reloaded, how full the workers are, the access log minute by minute (status, errors, response and upstream times), certificate expiry | [packs/nginx/README.md](nginx/README.md) |
 | [`httpd`](httpd/README.md) | Apache httpd: workers and the scoreboard, requests, connections, the TLS session cache, an edit not loaded, the access log minute by minute (status, errors, response times), certificate expiry | [packs/httpd/README.md](httpd/README.md) |
 | [`caddy`](caddy/README.md) | Caddy: its configuration and reloads, traffic per server, reverse proxy upstreams and their health, the certificate of every site, from its admin API | [packs/caddy/README.md](caddy/README.md) |
@@ -172,6 +173,12 @@ CockroachDB, one node or a whole cluster, from its HTTP API, with `curl` and `jq
 ClickHouse, one server or a replicated cluster, from its HTTP interface, with `curl` and `jq` (on Windows, PowerShell alone), and no ClickHouse client, as a user the server keeps read-only. Up, memory against its limit, and inserts delayed and refused for too many parts; each table's parts, the most first; replicated tables read-only (Keeper lost), behind, their queues and the replicas missing; mutations that fail and never finish; merges; parts detached, broken ones apart; disks; queries running long, and the errors the server has counted, by name. Linux, macOS and Windows.
 
 **Its page: [packs/clickhouse/README.md](clickhouse/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### zookeeper
+
+Apache ZooKeeper, one server or a whole ensemble, from its four-letter words (`ruok`, `mntr`, `isro`), with bash alone (on Windows, PowerShell alone), no login and no client. Each server up, and serving (a server without its quorum answers, and serves nothing); its role, read-only mode, latency, requests waiting, znodes, watches and ephemerals, file descriptors, the longest fsync and JVM pause, and elections; on the leader, its followers in sync. And the ensemble: servers serving, and one leader. The servers must allow the words (`4lw.commands.whitelist=mntr,ruok,isro`). Linux, macOS and Windows.
+
+**Its page: [packs/zookeeper/README.md](zookeeper/README.md)**, with how to set it up, the job, what to alert on, and how it was tested.
 
 ### nginx
 
