@@ -110,6 +110,9 @@
 #                                        account's own Podman), with _DOWN
 #                                        (scripts/run-containers.sh sets
 #                                        them up, with containers to read)
+#   VIGIL_IT_SQLITE                      SQLite databases for the sqlite pack,
+#                                        separated by ;, the last one not there
+#                                        (scripts/run-sqlite.sh makes them)
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
 #
@@ -186,7 +189,7 @@ cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
 obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs'
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb nginx httpd caddy haproxy phpfpm $obs_packs docker podman; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1797,6 +1800,36 @@ for o in docker podman; do
     fi
 done
 
+# --- sqlite -----------------------------------------------------------------
+# Databases scripts/run-sqlite.sh made, the last one not there: enabled,
+# precheck, both jobs, the check turned on, and what each read.
+if [ -z "${VIGIL_IT_SQLITE-}" ]; then
+    printf '  SKIP  sqlite: set VIGIL_IT_SQLITE (scripts/run-sqlite.sh sets it up)\n'
+else
+    printf 'sqlite: %s\n' "$VIGIL_IT_SQLITE"
+    sn=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/sqlite/pack.config" | wc -l | tr -d ' ')
+    check 'sqlite: off until enabled' "off=$sn" "$(vigil pack list | awk 'index($1, "sqlite_") == 1 { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }')"
+    out=$(vigil pack enable sqlite 2>&1)
+    check 'sqlite: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'sqlite: it says what it needs: the databases, read access, the check' yes "$(printf '%s\n' "$out" | grep -q 'SQLITE_FILES=' && printf '%s\n' "$out" | grep -q 'read access' && printf '%s\n' "$out" | grep -q 'SQLITE_CHECK=quick' && echo yes || echo no)"
+    set_env SQLITE_FILES "$VIGIL_IT_SQLITE"
+    check 'sqlite: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    vigil run sqlite_status > "$work/out" 2>&1
+    check 'sqlite: status runs' 0 "$?"
+    sd=$(printf '%s' "$VIGIL_IT_SQLITE" | tr ';' '\n' | grep -c .)
+    check 'sqlite: status: every database counted, the one not there missing' "$sd 1" "$(printed sqlite_status databases) $(printed sqlite_status missing)"
+    vigil run sqlite_check > "$work/out" 2>&1
+    check 'sqlite: the check is off until asked' '0 0' "$? $(printed sqlite_check checked)"
+    if command -v sqlite3 > /dev/null 2>&1; then
+        set_env SQLITE_CHECK quick
+        vigil run sqlite_check > "$work/out" 2>&1
+        check 'sqlite: asked, it checks each database there, and finds the damaged one' "0 $((sd - 1)) 1" "$? $(printed sqlite_check checked) $(printed sqlite_check not_ok)"
+    else
+        printf '  SKIP  sqlite: the check: sqlite3 is not installed here\n'
+    fi
+fi
+
 # What ran reaches the backend.
 vigil supervise --once > /dev/null 2>&1
 sleep 3
@@ -1880,5 +1913,9 @@ for o in docker podman; do
     check "$o: metrics reach the backend, each container's too" 'yes yes' "$(grep -q "^${o}_up{" "$root/metrics/vigil.prom" && echo yes || echo no) $(grep -q "^${o}_containers_running{.*name=" "$root/metrics/vigil.prom" && echo yes || echo no)"
 done
 
+if [ -n "${VIGIL_IT_SQLITE-}" ]; then
+    for _ in $(seq 1 20); do grep -q '^sqlite_size_bytes{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check 'sqlite: metrics reach the backend, each database by its path' 'yes yes' "$(grep -q '^sqlite_databases{' "$root/metrics/vigil.prom" && echo yes || echo no) $(grep -q '^sqlite_size_bytes{.*db=' "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

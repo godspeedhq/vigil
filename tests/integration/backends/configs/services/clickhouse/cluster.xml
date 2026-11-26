@@ -1,0 +1,35 @@
+<!--
+  Copyright (c) Bankole Ogundero and the Vigil contributors
+  SPDX-License-Identifier: Apache-2.0
+
+  Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+  implied. Run it at your own risk: review it first, and test it before you
+  rely on it. In no event shall the authors or copyright holders be liable
+  for any claim, damages or other liability arising from its use. See the
+  LICENSE file for the full terms.
+
+  The clickhouse pack's test cluster (compose.clickhouse.yaml): one shard,
+  two replicas (ch1, ch2), ClickHouse Keeper. Each server's replica name
+  comes from its CH_REPLICA. Small caches: the test machine has 8 GB.
+-->
+<clickhouse>
+    <remote_servers>
+        <c>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica><host>ch1</host><port>9000</port><user>default</user><password from_env="CLICKHOUSE_PASSWORD"/></replica>
+                <replica><host>ch2</host><port>9000</port><user>default</user><password from_env="CLICKHOUSE_PASSWORD"/></replica>
+            </shard>
+        </c>
+    </remote_servers>
+    <zookeeper>
+        <node><host>keeper</host><port>9181</port></node>
+        <session_timeout_ms>10000</session_timeout_ms>
+    </zookeeper>
+    <macros>
+        <shard>1</shard>
+        <replica from_env="CH_REPLICA"/>
+    </macros>
+    <distributed_ddl><path>/clickhouse/task_queue/ddl</path></distributed_ddl>
+    <mark_cache_size>67108864</mark_cache_size>
+</clickhouse>

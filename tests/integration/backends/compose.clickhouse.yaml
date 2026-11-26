@@ -1,0 +1,71 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# ClickHouse for the clickhouse pack (scripts/run-clickhouse.sh):
+# - 26.8, two replicas of one shard (cluster c) and ClickHouse Keeper: HTTP
+#   on 127.0.0.1:18123 (ch1) and 18124 (ch2), Keeper's client port on
+#   127.0.0.1:19181.
+# - 25.8, one server, no Keeper: HTTP on 127.0.0.1:18125.
+# Each server's admin (default) has CH_ADMIN_PASSWORD, made by the run
+# script; the read-only user the pack asks for is made by the script, over
+# HTTP. Memory capped: the Fedora test machine has 8 GB for all.
+
+x-ch: &ch
+  image: clickhouse/clickhouse-server:${CH_VERSION:-26.8.47.5}
+  mem_limit: 1g
+  ulimits: { nofile: { soft: 262144, hard: 262144 } }
+  environment:
+    CLICKHOUSE_USER: default
+    CLICKHOUSE_PASSWORD: ${CH_ADMIN_PASSWORD:?the admin password}
+    CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+  depends_on: [keeper]
+
+services:
+  keeper:
+    image: clickhouse/clickhouse-keeper:${CH_VERSION:-26.8.47.5}
+    hostname: keeper
+    mem_limit: 256m
+    volumes: ["./configs/services/clickhouse/keeper.xml:/etc/clickhouse-keeper/keeper_config.xml:ro,Z"]
+    ports: ["127.0.0.1:19181:9181"]
+
+  ch1:
+    <<: *ch
+    hostname: ch1
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CH_ADMIN_PASSWORD:?the admin password}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      CH_REPLICA: ch1
+    volumes: ["./configs/services/clickhouse/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro,Z"]
+    ports: ["127.0.0.1:18123:8123"]
+  ch2:
+    <<: *ch
+    hostname: ch2
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CH_ADMIN_PASSWORD:?the admin password}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      CH_REPLICA: ch2
+    volumes: ["./configs/services/clickhouse/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro,Z"]
+    ports: ["127.0.0.1:18124:8123"]
+
+  ch25:
+    image: clickhouse/clickhouse-server:${CH_OLD:-25.8.33.6}
+    hostname: ch25
+    mem_limit: 1g
+    ulimits: { nofile: { soft: 262144, hard: 262144 } }
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CH_ADMIN_PASSWORD:?the admin password}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes: [ch25:/var/lib/clickhouse]
+    ports: ["127.0.0.1:18125:8123"]
+
+volumes:
+  ch25:

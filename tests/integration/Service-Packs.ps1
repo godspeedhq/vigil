@@ -262,7 +262,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
     $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs')
-    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'nginx', 'httpd', 'caddy', 'iis', 'docker') + $obsPacks) {
+    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
         Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
@@ -1705,6 +1705,44 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "docker: metrics reach the backend, each container's too" 'True True' "$([string]($prom -match '(?m)^docker_up\{')) $([string]($prom -match '(?m)^docker_containers_running\{.*name='))"
+    }
+    # VIGIL_IT_SQLITE: databases backends\scripts\run-sqlite.ps1 made,
+    # separated by ;, the last one not there; the check runs with sqlite3.exe
+    # (VIGIL_IT_SQLITE3, else the one on the PATH), when there is one.
+    if (-not $env:VIGIL_IT_SQLITE) { Write-Host '  SKIP  sqlite: set VIGIL_IT_SQLITE (backends\scripts\run-sqlite.ps1 sets it up)' }
+    else {
+        Write-Host "sqlite: $($env:VIGIL_IT_SQLITE)"
+        $r = Invoke-Vigil pack enable sqlite
+        Test-Equal 'sqlite: enabled' '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        $t = $r.Text -replace '\s+', ' '
+        Test-Equal 'sqlite: it says what it needs: the databases, read access, the check' 'True True True' "$($t.Contains('SQLITE_FILES=')) $($t.Contains('read access')) $($t.Contains('SQLITE_CHECK=quick'))"
+        Set-Env SQLITE_FILES $env:VIGIL_IT_SQLITE
+        Test-Equal 'sqlite: precheck is happy' '0' ([string](Invoke-Vigil precheck).Code)
+        Test-Equal 'sqlite: status runs' '0' ([string](Invoke-Vigil run sqlite_status).Code)
+        Show-LastRun sqlite_status
+        $sd = @($env:VIGIL_IT_SQLITE -split ';' | Where-Object { $_.Trim() }).Count
+        Test-Equal 'sqlite: status: every database counted, the one not there missing' "$sd 1" "$(Get-Printed sqlite_status databases) $(Get-Printed sqlite_status missing)"
+        $c = [string](Invoke-Vigil run sqlite_check).Code
+        Test-Equal 'sqlite: the check is off until asked' '0 0' "$c $(Get-Printed sqlite_check checked)"
+        $s3 = if ($env:VIGIL_IT_SQLITE3) { $env:VIGIL_IT_SQLITE3 } else { $g = Get-Command sqlite3 -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1; if ($g) { $g.Source } }
+        if (-not $s3) { Write-Host '  SKIP  sqlite: the check: sqlite3.exe is not here (VIGIL_IT_SQLITE3 names it)' }
+        else {
+            Set-Env SQLITE_CHECK quick
+            Set-Env SQLITE3 $s3
+            $c = [string](Invoke-Vigil run sqlite_check).Code
+            Show-LastRun sqlite_check
+            Test-Equal 'sqlite: asked, it checks each database there, and finds the damaged one' "0 $($sd - 1) 1" "$c $(Get-Printed sqlite_check checked) $(Get-Printed sqlite_check not_ok)"
+        }
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match '(?m)^sqlite_size_bytes\{') { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal 'sqlite: metrics reach the backend, each database by its path' 'True True' "$([string]($prom -match '(?m)^sqlite_databases\{')) $([string]($prom -match '(?m)^sqlite_size_bytes\{.*db='))"
     }
 }
 finally {

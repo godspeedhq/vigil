@@ -64,6 +64,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`victorialogs`](victorialogs/README.md) | VictoriaLogs: up and writable, disk left, entries ingested for each protocol and entries dropped with the reason, queries against the concurrency limit | [packs/victorialogs/README.md](victorialogs/README.md) |
 | [`docker`](docker/README.md) | Docker: whether the engine answers, its containers by state, each container (running, restarts, health, exit code, killed for memory), each one's CPU, memory against its limit, network and disk, and the disk the engine uses (images, containers, volumes, build cache) | [packs/docker/README.md](docker/README.md) |
 | [`podman`](podman/README.md) | Podman: whether it answers, its containers by state, each container (running, restarts, health, exit code, killed for memory), each one's CPU, memory against its limit, network and disk, and the disk it uses (images, containers, volumes) | [packs/podman/README.md](podman/README.md) |
+| [`sqlite`](sqlite/README.md) | SQLite databases, from their files: there or not, size and free pages, a write-ahead log that keeps growing, a rollback journal left in use, and, when asked, `PRAGMA quick_check` | [packs/sqlite/README.md](sqlite/README.md) |
 
 ## Service packs
 
@@ -266,6 +267,12 @@ A Docker engine, from its own API: whether it answers; every container's state; 
 Podman, asked with its own command, as the account Vigil runs as (root's containers as root, an account's own when rootless): whether it answers; every container's state; each container by name (running or not, restarts, healthy or not, the exit code it ended with, killed for memory); what each running container uses; and the disk it takes (images, containers, volumes). It only reads: nothing is started, stopped, removed or pruned. With `podman` and `jq`. Linux and macOS.
 
 **Its page: [packs/podman/README.md](podman/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### sqlite
+
+SQLite databases, the files an application keeps them in: each one there or not, its size, its free pages (space a `VACUUM` would give back), its write-ahead log (one that keeps growing is a reader that never lets a checkpoint finish), and a rollback journal still in use long after a transaction should have ended. It reads each database's first 100 bytes and the sizes and times of its files, with no SQLite library and no lock: nothing the application can notice. Only when asked, once a day, `PRAGMA quick_check`, read-only, with `sqlite3`. Linux, macOS and Windows.
+
+**Its page: [packs/sqlite/README.md](sqlite/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ## Writing a pack
 

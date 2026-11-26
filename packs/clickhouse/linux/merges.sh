@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+#
+# merges.sh - ClickHouse's background work: mutations not finished and
+# failing, merges running, parts detached
+#
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Reports the work ClickHouse does in the background. Mutations (ALTER
+# TABLE ... UPDATE or DELETE) not finished: how many, how old the oldest
+# is, and those that fail, each by its table and ID, the failing and the
+# oldest first. A mutation that fails is tried again and again, forever,
+# and every one queued after it on the table waits behind it. Merges
+# running: how many, the longest, and the memory they hold. And parts
+# detached, by why: a part ClickHouse found broken is moved aside, not
+# deleted, and the data in it is no longer read.
+#
+# Reads ClickHouse at CLICKHOUSE_URL with curl and jq: system.mutations,
+# system.merges and system.detached_parts. At most 20 mutations are named;
+# the rest are counted. What the scripts share is in _clickhouse.sh, beside
+# this one.
+#
+# Metrics:
+#   up                         1 when the server answers, else 0
+#   mutations                  mutations not finished
+#   mutations_failing          of those, how many fail
+#   mutations_oldest_seconds   the oldest one's age
+#   mutation_seconds           a mutation's age, tagged
+#                              table=<database.table> and id=<mutation_id>
+#   mutation_parts_to_do       the parts it has still to change
+#   mutation_failing           1 when it fails, else 0
+#   mutations_not_shown        mutations past 20, counted and not named
+#   merges                     merges running now
+#   merges_mutating            of those, mutations at work
+#   merge_longest_seconds      the longest-running one
+#   merges_memory_bytes        memory they hold
+#   detached_parts             parts detached, tagged reason=<broken,
+#                              unexpected, ignored, clone, manual...>
+#
+# Example output (the rest are in the same form):
+#   metric mutations 1
+#   metric mutations_failing 1
+#   metric mutation_seconds 3600 table=default.events id=mutation_12.txt
+#   metric mutation_failing 1 table=default.events id=mutation_12.txt
+#   metric merges 2
+#   metric detached_parts 0 reason=broken
+#
+# Reading the results (starting points: tune them to the server):
+#   Healthy  mutations 0, or each finishing within minutes;
+#            mutations_failing 0; detached_parts 0 but reason=manual.
+#   Watch    mutations_oldest_seconds past an hour on a small table;
+#            merge_longest_seconds past an hour; merges_memory_bytes a
+#            large share of the server's memory.
+#   Act      mutations_failing above 0: it will never finish, and those
+#            after it wait (system.mutations' latest_fail_reason says why;
+#            KILL MUTATION ends it); detached_parts reason=broken or
+#            unexpected above 0: data the table no longer reads.
+#
+# Requires: bash, curl and jq
+# Exit code: 0 on success, server up or down; 1 if curl or jq is missing,
+#   the login is refused, or the server answers wrong
+#
+# Example (vigil.config):
+#   [job.clickhouse_merges]
+#   file        = packs/clickhouse/merges.sh
+#   metric_name = clickhouse.merges
+#   run_every   = 5m
+#   env         = CLICKHOUSE_URL=http://localhost:8123
+#   env         = CLICKHOUSE_USER=vigil
+#   secret      = CLICKHOUSE_PASSWORD=secret:CLICKHOUSE_PASSWORD
+
+set -u
+
+job=merges
+# shellcheck source=/dev/null
+. "$(dirname "$0")/_clickhouse.sh"
+
+up
+sel "SELECT database, table, mutation_id, dateDiff('second', create_time, now()) AS age, parts_to_do,
+       latest_fail_reason != '' AS failing
+FROM system.mutations WHERE NOT is_done ORDER BY failing DESC, age DESC, database, table, mutation_id"
+jq -r "$jqlib"'
+    m("mutations"; length),
+    m("mutations_failing"; map(.failing | n) | add // 0),
+    m("mutations_oldest_seconds"; map(.age | n) | max // 0),
+    (.[0:20][] | "table=\(.database + "." + .table | tag) id=\(.mutation_id | tag)" as $t
+        | m("mutation_seconds"; .age; $t),
+          m("mutation_parts_to_do"; .parts_to_do; $t),
+          m("mutation_failing"; .failing; $t)),
+    (if length > 20 then m("mutations_not_shown"; length - 20) else empty end)
+' "$work/rows"
+sel "SELECT count() AS merges, countIf(is_mutation) AS mutating, max(elapsed) AS longest, sum(memory_usage) AS memory
+FROM system.merges"
+jq -r "$jqlib"'
+    .[0] // {} | m("merges"; .merges), m("merges_mutating"; .mutating), m("merge_longest_seconds"; .longest), m("merges_memory_bytes"; .memory)
+' "$work/rows"
+# A reason is empty for a part detached by hand (ALTER TABLE ... DETACH
+# PART): manual. Broken and unexpected always print, at 0 too.
+sel "SELECT if(reason = '', 'manual', reason) AS why, count() AS parts FROM system.detached_parts GROUP BY why"
+jq -r "$jqlib"'
+    (map({(.why): (.parts | n)}) | add // {}) as $d
+    | ({broken: 0, unexpected: 0} + $d) | to_entries | sort_by(.key)[]
+    | m("detached_parts"; .value; "reason=\(.key | tag)")
+' "$work/rows"
+exit 0
