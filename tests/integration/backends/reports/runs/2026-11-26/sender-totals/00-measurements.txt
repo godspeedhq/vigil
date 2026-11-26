@@ -1,0 +1,33 @@
+== The bash sender's OTLP body, before and after backlog 68 (2026-11-26)
+
+Input: a copy of fedora-c1's lgtm queue (1200 files, 1068871 bytes, 7836 events:
+6478 gauges, 1358 counts) and its totals file (196 series, 30691 bytes).
+A batch is what the sender takes: the oldest files, at most 160000 bytes.
+
+-- Where the time went, Vigil 1.5.3, Fedora 44 host, bash 5.3.9, no CPU cap
+   one batch: 182 files, 159115 bytes, 1167 events (964 gauges, 203 counts)
+   whole batch                      51.9 s   (user 48.9 s)
+   the 964 gauges alone              1.6 s
+   the 203 counts alone             50.9 s
+     summing them per series        36.7 s   (57 series, a 27440-byte string)
+     merging with the totals        11.7 s   (a 30690-byte string)
+     merging with no totals file     0.1 s
+
+-- Old against new, totals carried from each batch to the next
+   bash 5.3.9 (Fedora 44):
+     batch 1 (182 files): old 52409 ms, new 2267 ms; body 26df6ebf2d48 totals c2131c3c14b3, SAME
+     batch 2 (183 files): old 44313 ms, new 3631 ms; body e54675cca297 totals 818fc9e7d4c8, SAME
+     batch 3 (176 files): old  7913 ms, new 3623 ms; body bb56c946ebd4 totals 0411c226bbbc, SAME
+     batch 4 (178 files): old 46797 ms, new 2065 ms; body 58c2f1681f24 totals 84c192070838, SAME
+   bash 3.2.57 (macOS 12, a 2015 MacBook):
+     batch 1 (182 files, 1167 points): old 115 s, new 11 s, SAME
+     batch 2 (183 files, 1172 points): old  92 s, new  7 s, SAME
+
+-- Inside fedora-c1 (Alpine, bash 5.3.9 on musl, 0.5 CPU, 64 MB), the fixed code
+   one batch: real 96.3 s, user 4.6 s, sys 0.8 s
+   The CPU is a tenth of before; the wall time is the container's cap, shared with
+   the supervisor and the base pack (the cgroup throttled 175110 times).
+
+-- Suites with the fix
+   tests/run-conformance.sh: 144 passed (Windows, Git Bash), 129 passed (macOS bash 3.2)
+   tests/integration/backends.sh: 42 passed (Fedora 44)
