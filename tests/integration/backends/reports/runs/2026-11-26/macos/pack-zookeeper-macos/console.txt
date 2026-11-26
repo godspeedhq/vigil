@@ -1,0 +1,187 @@
+== pack-zookeeper-macos
+date     2026-11-26T11:08:10Z
+host     the Mac test machine
+os       macOS 12.7.6 (Darwin 21.6.0 x86_64), bash 3.2.57(1)-release
+vigil    0cc06b5+ (deployed copy)
+servers  run-zookeeper.sh's ensemble on the Fedora test machine, held (VIGIL_IT_ZK_HOLD), through SSH tunnels
+
+# The ensemble in use and 3.8.8: the job, as the macOS script prints it.
+
+$ ZOOKEEPER_SERVERS=127.0.0.1:12181; 127.0.0.1:12182; 127.0.0.1:12183; 127.0.0.1:12188 bash packs/zookeeper/macos/status.sh
+metric up 1 server=127.0.0.1:12181
+metric serving 1 server=127.0.0.1:12181
+metric info 1 server=127.0.0.1:12181 version=3.9.7 role=follower
+metric readonly 0 server=127.0.0.1:12181
+metric uptime_seconds 328.5 server=127.0.0.1:12181
+metric latency_avg_ms 16.68 server=127.0.0.1:12181
+metric latency_max_ms 85 server=127.0.0.1:12181
+metric connections 2 server=127.0.0.1:12181
+metric outstanding_requests 0 server=127.0.0.1:12181
+metric znodes 208 server=127.0.0.1:12181
+metric watches 2 server=127.0.0.1:12181
+metric ephemerals 1 server=127.0.0.1:12181
+metric data_bytes 102610 server=127.0.0.1:12181
+metric fds_open 68 server=127.0.0.1:12181
+metric fds_pct 0.01 server=127.0.0.1:12181
+metric fsync_max_ms 86 server=127.0.0.1:12181
+metric jvm_pause_max_ms 0 server=127.0.0.1:12181
+metric packets_received_count 296 server=127.0.0.1:12181
+metric packets_sent_count 331 server=127.0.0.1:12181
+metric elections_count 1 server=127.0.0.1:12181
+metric auth_failed_count 0 server=127.0.0.1:12181
+metric throttled_count 0 server=127.0.0.1:12181
+metric errors_count 0 server=127.0.0.1:12181
+metric quorum_size 3 server=127.0.0.1:12181
+metric up 1 server=127.0.0.1:12182
+metric serving 1 server=127.0.0.1:12182
+metric info 1 server=127.0.0.1:12182 version=3.9.7 role=leader
+metric readonly 0 server=127.0.0.1:12182
+metric uptime_seconds 328.89 server=127.0.0.1:12182
+metric latency_avg_ms 0 server=127.0.0.1:12182
+metric latency_max_ms 0 server=127.0.0.1:12182
+metric connections 1 server=127.0.0.1:12182
+metric outstanding_requests 0 server=127.0.0.1:12182
+metric znodes 208 server=127.0.0.1:12182
+metric watches 0 server=127.0.0.1:12182
+metric ephemerals 1 server=127.0.0.1:12182
+metric data_bytes 102610 server=127.0.0.1:12182
+metric fds_open 69 server=127.0.0.1:12182
+metric fds_pct 0.01 server=127.0.0.1:12182
+metric fsync_max_ms 50 server=127.0.0.1:12182
+metric jvm_pause_max_ms 0 server=127.0.0.1:12182
+metric packets_received_count 59 server=127.0.0.1:12182
+metric packets_sent_count 96 server=127.0.0.1:12182
+metric elections_count 1 server=127.0.0.1:12182
+metric auth_failed_count 0 server=127.0.0.1:12182
+metric throttled_count 0 server=127.0.0.1:12182
+metric errors_count 0 server=127.0.0.1:12182
+metric quorum_size 3 server=127.0.0.1:12182
+metric followers 2 server=127.0.0.1:12182
+metric followers_synced 2 server=127.0.0.1:12182
+metric pending_syncs 0 server=127.0.0.1:12182
+metric up 1 server=127.0.0.1:12183
+metric serving 1 server=127.0.0.1:12183
+metric info 1 server=127.0.0.1:12183 version=3.9.7 role=follower
+metric readonly 0 server=127.0.0.1:12183
+metric uptime_seconds 329.33 server=127.0.0.1:12183
+metric latency_avg_ms 0 server=127.0.0.1:12183
+metric latency_max_ms 0 server=127.0.0.1:12183
+metric connections 1 server=127.0.0.1:12183
+metric outstanding_requests 0 server=127.0.0.1:12183
+metric znodes 208 server=127.0.0.1:12183
+metric watches 0 server=127.0.0.1:12183
+metric ephemerals 1 server=127.0.0.1:12183
+metric data_bytes 102610 server=127.0.0.1:12183
+metric fds_open 67 server=127.0.0.1:12183
+metric fds_pct 0.01 server=127.0.0.1:12183
+metric fsync_max_ms 89 server=127.0.0.1:12183
+metric jvm_pause_max_ms 0 server=127.0.0.1:12183
+metric packets_received_count 59 server=127.0.0.1:12183
+metric packets_sent_count 96 server=127.0.0.1:12183
+metric elections_count 1 server=127.0.0.1:12183
+metric auth_failed_count 0 server=127.0.0.1:12183
+metric throttled_count 0 server=127.0.0.1:12183
+metric errors_count 0 server=127.0.0.1:12183
+metric quorum_size 3 server=127.0.0.1:12183
+metric up 1 server=127.0.0.1:12188
+metric serving 1 server=127.0.0.1:12188
+metric info 1 server=127.0.0.1:12188 version=3.8.8 role=standalone
+metric readonly 0 server=127.0.0.1:12188
+metric uptime_seconds 331.09 server=127.0.0.1:12188
+metric latency_avg_ms 0 server=127.0.0.1:12188
+metric latency_max_ms 0 server=127.0.0.1:12188
+metric connections 1 server=127.0.0.1:12188
+metric outstanding_requests 0 server=127.0.0.1:12188
+metric znodes 5 server=127.0.0.1:12188
+metric watches 0 server=127.0.0.1:12188
+metric ephemerals 0 server=127.0.0.1:12188
+metric data_bytes 44 server=127.0.0.1:12188
+metric fds_open 55 server=127.0.0.1:12188
+metric fds_pct 0.01 server=127.0.0.1:12188
+metric fsync_max_ms 0 server=127.0.0.1:12188
+metric jvm_pause_max_ms 0 server=127.0.0.1:12188
+metric packets_received_count 59 server=127.0.0.1:12188
+metric packets_sent_count 77 server=127.0.0.1:12188
+metric elections_count 0 server=127.0.0.1:12188
+metric auth_failed_count 0 server=127.0.0.1:12188
+metric throttled_count 0 server=127.0.0.1:12188
+metric errors_count 0 server=127.0.0.1:12188
+metric servers 4
+metric servers_up 4
+metric servers_serving 4
+metric leaders 1
+  PASS  the job runs
+  PASS  four servers, all up and serving, one leader
+  PASS  the leader: both followers in sync
+  PASS  3.8.8 standalone; two 3.9.7 followers
+  PASS  the 200 znodes, the 100 KB, the ephemeral, the watches
+  PASS  file descriptors, fsync and JVM pauses read
+
+# The server with the default whitelist, and nothing listening.
+
+$ ZOOKEEPER_SERVERS=127.0.0.1:12189; 127.0.0.1:12188 bash packs/zookeeper/macos/status.sh
+metric up 1 server=127.0.0.1:12189
+metric serving 0 server=127.0.0.1:12189
+metric up 1 server=127.0.0.1:12188
+metric serving 1 server=127.0.0.1:12188
+metric info 1 server=127.0.0.1:12188 version=3.8.8 role=standalone
+metric readonly 0 server=127.0.0.1:12188
+metric uptime_seconds 331.99 server=127.0.0.1:12188
+metric latency_avg_ms 0 server=127.0.0.1:12188
+metric latency_max_ms 0 server=127.0.0.1:12188
+metric connections 1 server=127.0.0.1:12188
+metric outstanding_requests 0 server=127.0.0.1:12188
+metric znodes 5 server=127.0.0.1:12188
+metric watches 0 server=127.0.0.1:12188
+metric ephemerals 0 server=127.0.0.1:12188
+metric data_bytes 44 server=127.0.0.1:12188
+metric fds_open 55 server=127.0.0.1:12188
+metric fds_pct 0.01 server=127.0.0.1:12188
+metric fsync_max_ms 0 server=127.0.0.1:12188
+metric jvm_pause_max_ms 0 server=127.0.0.1:12188
+metric packets_received_count 62 server=127.0.0.1:12188
+metric packets_sent_count 81 server=127.0.0.1:12188
+metric elections_count 0 server=127.0.0.1:12188
+metric auth_failed_count 0 server=127.0.0.1:12188
+metric throttled_count 0 server=127.0.0.1:12188
+metric errors_count 0 server=127.0.0.1:12188
+metric servers 2
+metric servers_up 2
+metric servers_serving 1
+metric leaders 0
+status: 127.0.0.1:12189 refuses ruok, mntr: add the words to its whitelist in zoo.cfg, 4lw.commands.whitelist=mntr,ruok,isro, and restart it (packs/zookeeper/README.md)
+exit 1
+  PASS  refused: the run fails, naming the server, the words and the setting
+  PASS  the other server is read all the same
+
+$ ZOOKEEPER_SERVERS=127.0.0.1:12199 bash packs/zookeeper/macos/status.sh
+metric up 0 server=127.0.0.1:12199
+metric serving 0 server=127.0.0.1:12199
+metric servers 1
+metric servers_up 0
+metric servers_serving 0
+metric leaders 0
+  PASS  nothing listening: the run succeeds, up 0
+9 passed, 0 failed
+
+# The pack through Vigil.
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+zookeeper: 127.0.0.1:12181; 127.0.0.1:12182; 127.0.0.1:12183; 127.0.0.1:12188
+  PASS  zookeeper: off until enabled
+  PASS  zookeeper: enabled
+        on: zookeeper_status
+        needs each server's client port (2181) reachable from this machine, in plain text (not secureClientPort alone)
+        needs the four-letter words allowed on each server, in zoo.cfg: 4lw.commands.whitelist=mntr,ruok,isro (then restart it)
+        settings in vigil.config: ZOOKEEPER_SERVERS=
+  PASS  zookeeper: its job is on
+  PASS  zookeeper: it says the words to allow
+  PASS  zookeeper: precheck is happy
+  PASS  zookeeper: the job runs
+        status: 102 lines
+  PASS  zookeeper: every server serving, one leader
+  PASS  zookeeper: a server that does not answer: the run succeeds
+  PASS  zookeeper: and it reads as up 0
+  PASS  zookeeper: metrics reach the backend, each server by its address
+12 passed, 0 failed

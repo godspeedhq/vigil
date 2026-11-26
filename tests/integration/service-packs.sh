@@ -94,6 +94,9 @@
 #   VIGIL_IT_CLICKHOUSE_URL, _USER,      a ClickHouse server's HTTP interface,
 #     _PASSWORD                          its read-only user and password
 #                                        (scripts/run-clickhouse.sh)
+#   VIGIL_IT_ZOOKEEPER_SERVERS           ZooKeeper servers, host:port;...,
+#                                        that allow mntr, ruok and isro
+#                                        (scripts/run-zookeeper.sh)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
 #   VIGIL_IT_WEB_NGINX, _HTTPD, _CADDY, _HAPROXY, _PHPFPM
 #                                        a web pack's settings, NAME=value
@@ -192,7 +195,7 @@ cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
 obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs'
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1603,6 +1606,44 @@ else
     check 'clickhouse: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_CLICKHOUSE_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
 
+# --- zookeeper --------------------------------------------------------------
+# ZooKeeper servers, through Vigil, as scripts/run-zookeeper.sh sets them
+# up: VIGIL_IT_ZOOKEEPER_SERVERS an ensemble and a server (host:port;...).
+if [ -z "${VIGIL_IT_ZOOKEEPER_SERVERS-}" ]; then
+    printf '  SKIP  zookeeper: set VIGIL_IT_ZOOKEEPER_SERVERS (scripts/run-zookeeper.sh sets it up)\n'
+else
+    unset ZOOKEEPER_SERVERS
+    printf 'zookeeper: %s\n' "$VIGIL_IT_ZOOKEEPER_SERVERS"
+    zn=$(printf '%s' "$VIGIL_IT_ZOOKEEPER_SERVERS" | tr ';' '\n' | grep -c '[^ ]')
+    zjobs_on() { vigil pack list | awk '$1 ~ /^zookeeper_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    zval() { grep -h " out metric $2 " "$root/logs/jobs/zookeeper_$1"/*.log 2> /dev/null | grep -- "${3-}" | tail -n 1 | awk '{ print $6 }'; }
+    zsaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/zookeeper_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    zrun() { vigil run "zookeeper_$1" > "$work/out" 2>&1; echo $?; }
+    check 'zookeeper: off until enabled' 'off=1' "$(zjobs_on)"
+    out=$(vigil pack enable zookeeper 2>&1)
+    check 'zookeeper: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'zookeeper: its job is on' 'on=1' "$(zjobs_on)"
+    check 'zookeeper: it says the words to allow' yes "$(printf '%s\n' "$out" | grep -q '4lw.commands.whitelist=mntr,ruok,isro' && echo yes || echo no)"
+    set_env ZOOKEEPER_SERVERS "$VIGIL_IT_ZOOKEEPER_SERVERS"
+    check 'zookeeper: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    [ "$(grep -c FAIL "$work/precheck")" -eq 0 ] || sed 's/^/        /' "$work/precheck"
+    check 'zookeeper: the job runs' 0 "$(zrun status)"
+    printf '        status: %s lines\n' "$(grep -h ' out metric ' "$root/logs/jobs/zookeeper_status"/*.log | wc -l | tr -d ' ')"
+    check 'zookeeper: every server serving, one leader' "$zn $zn 1" "$(zval status servers) $(zval status servers_serving) $(zval status leaders)"
+    # A server that does not answer is a reading, and the run succeeds.
+    set_env ZOOKEEPER_SERVERS "$VIGIL_IT_ZOOKEEPER_SERVERS; 127.0.0.1:1"
+    check 'zookeeper: a server that does not answer: the run succeeds' 0 "$(zrun status)"
+    check 'zookeeper: and it reads as up 0' 0 "$(zval status up 'server=127.0.0.1:1$')"
+    set_env ZOOKEEPER_SERVERS "$VIGIL_IT_ZOOKEEPER_SERVERS"
+    [ "$(zrun status)" = 0 ] || true
+fi
+
 # --- rabbitmq ---------------------------------------------------------------
 # RabbitMQ nodes, through Vigil, as scripts/run-rabbitmq.sh sets them up:
 # VIGIL_IT_RABBITMQ_TARGETS their Prometheus pages (name=address;...).
@@ -1976,6 +2017,10 @@ done
 if [ -n "${VIGIL_IT_CLICKHOUSE_URL-}" ] && [ -n "${VIGIL_IT_CLICKHOUSE_PASSWORD-}" ] && command -v jq > /dev/null 2>&1; then
     for _ in $(seq 1 20); do grep -q '^clickhouse_tables_table_parts{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
     check 'clickhouse: metrics reach the backend, each table by its name' 'yes yes' "$(grep -q '^clickhouse_up{' "$root/metrics/vigil.prom" && echo yes || echo no) $(grep -q '^clickhouse_tables_table_parts{.*table=' "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
+if [ -n "${VIGIL_IT_ZOOKEEPER_SERVERS-}" ]; then
+    for _ in $(seq 1 20); do grep -q '^zookeeper_up{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check 'zookeeper: metrics reach the backend, each server by its address' 'yes yes' "$(grep -q '^zookeeper_leaders{' "$root/metrics/vigil.prom" && echo yes || echo no) $(grep -q '^zookeeper_up{.*server=' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
 if [ -n "${VIGIL_IT_SQLITE-}" ]; then
     for _ in $(seq 1 20); do grep -q '^sqlite_size_bytes{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done

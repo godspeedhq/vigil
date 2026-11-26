@@ -1,0 +1,6 @@
+metric up 0 server=127.0.0.1:12199
+metric serving 0 server=127.0.0.1:12199
+metric servers 1
+metric servers_up 0
+metric servers_serving 0
+metric leaders 0

@@ -1,0 +1,29 @@
+metric up 1 server=127.0.0.1:12189
+metric serving 0 server=127.0.0.1:12189
+metric up 1 server=127.0.0.1:12188
+metric serving 1 server=127.0.0.1:12188
+metric info 1 server=127.0.0.1:12188 version=3.8.8 role=standalone
+metric readonly 0 server=127.0.0.1:12188
+metric uptime_seconds 18.53 server=127.0.0.1:12188
+metric latency_avg_ms 0 server=127.0.0.1:12188
+metric latency_max_ms 0 server=127.0.0.1:12188
+metric connections 1 server=127.0.0.1:12188
+metric outstanding_requests 0 server=127.0.0.1:12188
+metric znodes 5 server=127.0.0.1:12188
+metric watches 0 server=127.0.0.1:12188
+metric ephemerals 0 server=127.0.0.1:12188
+metric data_bytes 44 server=127.0.0.1:12188
+metric fds_open 55 server=127.0.0.1:12188
+metric fds_pct 0.01 server=127.0.0.1:12188
+metric fsync_max_ms 0 server=127.0.0.1:12188
+metric jvm_pause_max_ms 0 server=127.0.0.1:12188
+metric packets_received_count 11 server=127.0.0.1:12188
+metric packets_sent_count 13 server=127.0.0.1:12188
+metric elections_count 0 server=127.0.0.1:12188
+metric auth_failed_count 0 server=127.0.0.1:12188
+metric throttled_count 0 server=127.0.0.1:12188
+metric errors_count 0 server=127.0.0.1:12188
+metric servers 2
+metric servers_up 2
+metric servers_serving 1
+metric leaders 0

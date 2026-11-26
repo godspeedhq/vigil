@@ -1,0 +1,61 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# ZooKeeper for the zookeeper pack (scripts/run-zookeeper.sh):
+# - 3.9.7, an ensemble of three (zk1, zk2, zk3): client ports on
+#   127.0.0.1:12181-12183. zk1 and zk2 with read-only mode enabled (cut off
+#   from their quorum, they serve reads); zk3 without (it serves nothing).
+# - 3.8.8, one server: 127.0.0.1:12188.
+# - 3.9.7, one server left with the default whitelist (srvr alone), to be
+#   refused: 127.0.0.1:12189.
+# The ensemble and 3.8.8 allow the words the pack reads, and no more.
+# Small heaps: the Fedora test machine has 8 GB for all.
+
+x-zk: &zk
+  image: zookeeper:${ZK_VERSION:-3.9.7}
+  mem_limit: 384m
+  environment: &zkenv
+    ZOO_4LW_COMMANDS_WHITELIST: mntr,ruok,isro,srvr
+    ZOO_SERVERS: server.1=zk1:2888:3888;2181 server.2=zk2:2888:3888;2181 server.3=zk3:2888:3888;2181
+    JVMFLAGS: -Xmx192m -Dreadonlymode.enabled=true
+
+services:
+  zk1:
+    <<: *zk
+    hostname: zk1
+    environment: { <<: *zkenv, ZOO_MY_ID: "1" }
+    ports: ["127.0.0.1:12181:2181"]
+  zk2:
+    <<: *zk
+    hostname: zk2
+    environment: { <<: *zkenv, ZOO_MY_ID: "2" }
+    ports: ["127.0.0.1:12182:2181"]
+  zk3:
+    <<: *zk
+    hostname: zk3
+    # Read-only mode off: cut off, it answers and serves nothing.
+    environment: { <<: *zkenv, ZOO_MY_ID: "3", JVMFLAGS: -Xmx192m }
+    ports: ["127.0.0.1:12183:2181"]
+
+  zk38:
+    image: zookeeper:${ZK_OLD:-3.8.8}
+    hostname: zk38
+    mem_limit: 384m
+    environment:
+      ZOO_4LW_COMMANDS_WHITELIST: mntr,ruok,isro
+      JVMFLAGS: -Xmx192m
+    ports: ["127.0.0.1:12188:2181"]
+
+  zkdefault:
+    image: zookeeper:${ZK_VERSION:-3.9.7}
+    hostname: zkdefault
+    mem_limit: 384m
+    environment:
+      JVMFLAGS: -Xmx192m
+    ports: ["127.0.0.1:12189:2181"]
