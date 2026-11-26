@@ -166,11 +166,13 @@ _vigil_backend_body_line() {
 # running total on this backend is kept in _vb_totals between batches.
 #
 # Adds whole count $3 of name $2 at epoch $1, tags $4..., to this batch's
-# series, in _vb_cnt: "\n<series>\t<first epoch>\t<last epoch>\t<sum>\t<attributes>"
-# lines, in the order first seen.
+# series, in the order first seen: _vb_cs the series, _vb_cf and _vb_cl its
+# first and last epoch, _vb_cn its sum, _vb_ca its attributes. They are
+# plain arrays compared with =: matching a pattern such as *"$series"*
+# against one long string of them takes time that grows with the square of
+# its length, and a batch of a backlog took minutes (backlog 68).
 _vigil_backend_count() {
-    local epoch=$1 name=$2 value=$3 key val attrs='' series i j t n s rest entry first last sum
-    local nl=$_vigil_backend_nl tab=$_vigil_backend_tab
+    local epoch=$1 name=$2 value=$3 key val attrs='' series i j t n
     local -a tags
     shift 3
     # The tags sorted by key, keeping their order otherwise.
@@ -198,22 +200,21 @@ _vigil_backend_count() {
         attrs="$attrs${attrs:+,}{\"key\":\"$key\",\"value\":{\"stringValue\":$_vb_q}}"
         i=$((i + 1))
     done
-    s=$_vb_cnt
-    case $s in
-        *"$nl$series$tab"*)
-            rest=${s#*"$nl$series$tab"}
-            entry=${rest%%"$nl"*}
-            first=${entry%%"$tab"*}
-            entry=${entry#*"$tab"}
-            last=${entry%%"$tab"*}
-            entry=${entry#*"$tab"}
-            sum=${entry%%"$tab"*}
-            [ "$epoch" -gt "$last" ] && last=$epoch
-            _vb_cnt="${s%%"$nl$series$tab"*}$nl$series$tab$first$tab$last$tab$((sum + value))$tab$attrs"
-            case $rest in *"$nl"*) _vb_cnt="$_vb_cnt$nl${rest#*"$nl"}" ;; esac
-            ;;
-        *) _vb_cnt="$s$nl$series$tab$epoch$tab$epoch$tab$value$tab$attrs" ;;
-    esac
+    i=0
+    while [ "$i" -lt "${#_vb_cs[@]}" ]; do
+        if [ "${_vb_cs[$i]}" = "$series" ]; then
+            [ "$epoch" -gt "${_vb_cl[$i]}" ] && _vb_cl[$i]=$epoch
+            _vb_cn[$i]=$((_vb_cn[i] + value))
+            _vb_ca[$i]=$attrs
+            return 0
+        fi
+        i=$((i + 1))
+    done
+    _vb_cs[$i]=$series
+    _vb_cf[$i]=$epoch
+    _vb_cl[$i]=$epoch
+    _vb_cn[$i]=$value
+    _vb_ca[$i]=$attrs
 }
 
 # The running totals after this batch, into _vb_totals_new, and a sum for
@@ -222,61 +223,55 @@ _vigil_backend_count() {
 # second before its first count, each point is stamped at the latest count
 # it holds and at least a millisecond after the one before (Prometheus
 # refuses a time it already has), and a series not counted for 7 days is
-# forgotten, so it starts again from zero if it comes back.
+# forgotten, so it starts again from zero if it comes back. Kept in plain
+# arrays, as the counts are.
 _vigil_backend_totals() {
-    local nl=$_vigil_backend_nl tab=$_vigil_backend_tab tot='' cnt=$_vb_cnt line series first last sum attrs start total prev t rest keep=''
+    local nl=$_vigil_backend_nl tab=$_vigil_backend_tab line series start total prev t i j n=0 keep=''
     local cutoff=$(((_vb_now - 604800) * 1000000000))
-    # The old totals, well-formed lines only and the first for each series,
-    # as "\n"-led lines.
-    rest=${_vb_totals-}
-    while [ -n "$rest" ]; do
-        line=${rest%%"$nl"*}
-        case $rest in *"$nl"*) rest=${rest#*"$nl"} ;; *) rest='' ;; esac
+    local -a ts tstart ttotal tlast
+    # The old totals, well-formed lines only and the first for each series.
+    while IFS= read -r line; do
         [[ $line =~ $_vigil_backend_total ]] || continue
-        case $tot in *"$nl${line%%"$tab"*}$tab"*) continue ;; esac
-        tot="$tot$nl$line"
-    done
-    while [ -n "$cnt" ]; do
-        cnt=${cnt#"$nl"}
-        line=${cnt%%"$nl"*}
-        case $cnt in *"$nl"*) cnt=$nl${cnt#*"$nl"} ;; *) cnt='' ;; esac
         series=${line%%"$tab"*}
+        j=0
+        while [ "$j" -lt "$n" ] && [ "${ts[$j]}" != "$series" ]; do j=$((j + 1)); done
+        [ "$j" -lt "$n" ] && continue
         line=${line#*"$tab"}
-        first=${line%%"$tab"*}
+        ts[$n]=$series
+        tstart[$n]=${line%%"$tab"*}
         line=${line#*"$tab"}
-        last=${line%%"$tab"*}
-        line=${line#*"$tab"}
-        sum=${line%%"$tab"*}
-        attrs=${line#*"$tab"}
-        case $tot in
-            *"$nl$series$tab"*)
-                rest=${tot#*"$nl$series$tab"}
-                line=${rest%%"$nl"*}
-                start=${line%%"$tab"*}
-                line=${line#*"$tab"}
-                total=${line%%"$tab"*}
-                prev=${line#*"$tab"}
-                ;;
-            *) start=$(((first - 1) * 1000000000)) total=0 prev=0 rest='' ;;
-        esac
-        total=$((total + sum))
-        t=$((last * 1000000000))
-        [ "$t" -lt $((prev + 1000000)) ] && t=$((prev + 1000000))
-        if [ -n "$rest" ]; then
-            tot="${tot%%"$nl$series$tab"*}$nl$series$tab$start$tab$total$tab$t"
-            case $rest in *"$nl"*) tot="$tot$nl${rest#*"$nl"}" ;; esac
+        ttotal[$n]=${line%%"$tab"*}
+        tlast[$n]=${line#*"$tab"}
+        n=$((n + 1))
+    done <<EOT
+${_vb_totals-}
+EOT
+    i=0
+    while [ "$i" -lt "${#_vb_cs[@]}" ]; do
+        series=${_vb_cs[$i]}
+        j=0
+        while [ "$j" -lt "$n" ] && [ "${ts[$j]}" != "$series" ]; do j=$((j + 1)); done
+        if [ "$j" -lt "$n" ]; then
+            start=${tstart[$j]} total=${ttotal[$j]} prev=${tlast[$j]}
         else
-            tot="$tot$nl$series$tab$start$tab$total$tab$t"
+            start=$(((_vb_cf[i] - 1) * 1000000000)) total=0 prev=0
+            ts[$n]=$series
+            n=$((n + 1))
         fi
-        _vigil_backend_add "${_vb_any:+,}{\"name\":\"${series%% *}\",\"sum\":{\"aggregationTemporality\":2,\"isMonotonic\":true,\"dataPoints\":[{\"startTimeUnixNano\":\"$start\",\"timeUnixNano\":\"$t\",\"asDouble\":$total,\"attributes\":[$attrs]}]}}"
+        total=$((total + _vb_cn[i]))
+        t=$((_vb_cl[i] * 1000000000))
+        [ "$t" -lt $((prev + 1000000)) ] && t=$((prev + 1000000))
+        tstart[$j]=$start
+        ttotal[$j]=$total
+        tlast[$j]=$t
+        _vigil_backend_add "${_vb_any:+,}{\"name\":\"${series%% *}\",\"sum\":{\"aggregationTemporality\":2,\"isMonotonic\":true,\"dataPoints\":[{\"startTimeUnixNano\":\"$start\",\"timeUnixNano\":\"$t\",\"asDouble\":$total,\"attributes\":[${_vb_ca[$i]}]}]}}"
+        i=$((i + 1))
     done
     # Forget the series not counted for 7 days.
-    rest=$tot
-    while [ -n "$rest" ]; do
-        rest=${rest#"$nl"}
-        line=${rest%%"$nl"*}
-        case $rest in *"$nl"*) rest=$nl${rest#*"$nl"} ;; *) rest='' ;; esac
-        [ "${line##*"$tab"}" -ge "$cutoff" ] && keep="$keep${keep:+$nl}$line"
+    j=0
+    while [ "$j" -lt "$n" ]; do
+        [ "${tlast[$j]}" -ge "$cutoff" ] && keep="$keep${keep:+$nl}${ts[$j]}$tab${tstart[$j]}$tab${ttotal[$j]}$tab${tlast[$j]}"
+        j=$((j + 1))
     done
     _vb_totals_new=$keep
 }
@@ -293,7 +288,7 @@ vigil_backend_body() {
     _vb_points=0
     _vb_invalid=0
     _vb_old=0
-    _vb_cnt=''
+    _vb_cs=() _vb_cf=() _vb_cl=() _vb_cn=() _vb_ca=()
     _vb_totals_new=${_vb_totals-}
     for f in "$@"; do
         [ -f "$f" ] || continue
