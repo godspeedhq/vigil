@@ -1,0 +1,3 @@
+metric databases 1
+metric missing 0
+status: SQLITE_FILES names a folder, not a database file: /var/folders/92/4btgbn9d6453tlvqwyrbgqt40000gq/T//vigil-sqlite-it.cO8spm/db

@@ -1,0 +1,251 @@
+== pack-clickhouse-macos
+date     2026-11-26T10:37:38Z
+host     the Mac test machine
+os       macOS 12.7.6 (Darwin 21.6.0 x86_64), bash 3.2.57(1)-release
+tools    curl 8.7.1; jq-1.8.2; awk: /usr/bin/awk
+vigil    a8371a3 (deployed copy)
+servers  run-clickhouse.sh's cluster, held (VIGIL_IT_CH_HOLD) in the Linux test host on the development laptop's Docker, through SSH tunnels (Fedora's CPU cannot run ClickHouse 26.8)
+
+# 26.8, ch1, in trouble on purpose: every job, as the macOS scripts print it, as vigil.
+
+$ bash packs/clickhouse/macos/status.sh
+metric up 1
+metric info 1 version=26.8.47.5
+metric uptime_seconds 135
+metric queries 2
+metric connections 0 kind=tcp
+metric connections 2 kind=http
+metric connections 0 kind=mysql
+metric connections 0 kind=postgresql
+metric connections 0 kind=interserver
+metric memory_bytes 152621139
+metric memory_limit_bytes 966367641
+metric memory_pct 15.79
+metric max_parts_in_partition 19
+metric parts_to_throw_insert 3000
+metric parts_pct 0.63
+metric inserts_delayed 0
+metric inserts_delayed_count 10
+metric inserts_rejected_count 5
+metric queries_count 56
+metric failed_queries_count 15 kind=all
+metric failed_queries_count 4 kind=select
+metric failed_queries_count 10 kind=insert
+metric keeper_sessions 1
+metric readonly_replicas 0
+metric replica_delay_seconds 0
+metric replica_queue 0
+
+$ bash packs/clickhouse/macos/tables.sh
+metric up 1
+metric tables 16
+metric parts 44
+metric rows 102373
+metric bytes 1952803
+metric table_parts 19 table=app.tiny
+metric table_partitions 1 table=app.tiny
+metric table_max_parts 19 table=app.tiny
+metric table_rows 19 table=app.tiny
+metric table_bytes 8682 table=app.tiny
+metric table_parts 4 table=system.asynchronous_metric_log
+metric table_partitions 1 table=system.asynchronous_metric_log
+metric table_max_parts 4 table=system.asynchronous_metric_log
+metric table_rows 80467 table=system.asynchronous_metric_log
+metric table_bytes 55585 table=system.asynchronous_metric_log
+metric table_parts 2 table=system.metric_log
+metric table_partitions 1 table=system.metric_log
+metric table_max_parts 2 table=system.metric_log
+metric table_rows 133 table=system.metric_log
+metric table_bytes 746609 table=system.metric_log
+metric table_parts 2 table=system.query_metric_log
+metric table_partitions 1 table=system.query_metric_log
+metric table_max_parts 2 table=system.query_metric_log
+metric table_rows 130 table=system.query_metric_log
+metric table_bytes 528421 table=system.query_metric_log
+metric table_parts 2 table=system.text_log
+metric table_partitions 1 table=system.text_log
+metric table_max_parts 2 table=system.text_log
+metric table_rows 5275 table=system.text_log
+metric table_bytes 258346 table=system.text_log
+metric table_parts 2 table=system.trace_log
+metric table_partitions 1 table=system.trace_log
+metric table_max_parts 2 table=system.trace_log
+metric table_rows 3413 table=system.trace_log
+metric table_bytes 144394 table=system.trace_log
+metric table_parts 2 table=system.part_log
+metric table_partitions 1 table=system.part_log
+metric table_max_parts 2 table=system.part_log
+metric table_rows 238 table=system.part_log
+metric table_bytes 47670 table=system.part_log
+metric table_parts 2 table=system.asynchronous_insert_log
+metric table_partitions 1 table=system.asynchronous_insert_log
+metric table_max_parts 2 table=system.asynchronous_insert_log
+metric table_rows 25 table=system.asynchronous_insert_log
+metric table_bytes 8859 table=system.asynchronous_insert_log
+metric table_parts 2 table=system.background_schedule_pool_log
+metric table_partitions 1 table=system.background_schedule_pool_log
+metric table_max_parts 2 table=system.background_schedule_pool_log
+metric table_rows 2 table=system.background_schedule_pool_log
+metric table_bytes 4561 table=system.background_schedule_pool_log
+metric table_parts 1 table=system.query_log
+metric table_partitions 1 table=system.query_log
+metric table_max_parts 1 table=system.query_log
+metric table_rows 204 table=system.query_log
+metric table_bytes 53739 table=system.query_log
+metric table_parts 1 table=app.events
+metric table_partitions 1 table=app.events
+metric table_max_parts 1 table=app.events
+metric table_rows 10500 table=app.events
+metric table_bytes 45024 table=app.events
+metric table_parts 1 table=system.processors_profile_log
+metric table_partitions 1 table=system.processors_profile_log
+metric table_max_parts 1 table=system.processors_profile_log
+metric table_rows 754 table=system.processors_profile_log
+metric table_bytes 32842 table=system.processors_profile_log
+metric table_parts 1 table=app.m
+metric table_partitions 1 table=app.m
+metric table_max_parts 1 table=app.m
+metric table_rows 1000 table=app.m
+metric table_bytes 6750 table=app.m
+metric table_parts 1 table=system.aggregated_zookeeper_log
+metric table_partitions 1 table=system.aggregated_zookeeper_log
+metric table_max_parts 1 table=system.aggregated_zookeeper_log
+metric table_rows 192 table=system.aggregated_zookeeper_log
+metric table_bytes 5579 table=system.aggregated_zookeeper_log
+metric table_parts 1 table=system.error_log
+metric table_partitions 1 table=system.error_log
+metric table_max_parts 1 table=system.error_log
+metric table_rows 20 table=system.error_log
+metric table_bytes 3326 table=system.error_log
+metric table_parts 1 table=system.zookeeper_connection_log
+metric table_partitions 1 table=system.zookeeper_connection_log
+metric table_max_parts 1 table=system.zookeeper_connection_log
+metric table_rows 1 table=system.zookeeper_connection_log
+metric table_bytes 2416 table=system.zookeeper_connection_log
+
+$ bash packs/clickhouse/macos/replication.sh
+metric up 1
+metric replicated 1
+metric readonly 0
+metric replicas_missing 0
+metric queue_failing 0
+metric table_readonly 0 table=app.events
+metric table_delay_seconds 0 table=app.events
+metric table_queue 0 table=app.events
+metric table_queue_inserts 0 table=app.events
+metric table_queue_merges 0 table=app.events
+metric table_queue_failing 0 table=app.events
+metric table_queue_oldest_seconds 0 table=app.events
+metric table_log_behind 0 table=app.events
+metric table_replicas_active 2 table=app.events
+metric table_replicas 2 table=app.events
+
+$ bash packs/clickhouse/macos/merges.sh
+metric up 1
+metric mutations 1
+metric mutations_failing 1
+metric mutations_oldest_seconds 125
+metric mutation_seconds 125 table=app.m id=mutation_2.txt
+metric mutation_parts_to_do 1 table=app.m id=mutation_2.txt
+metric mutation_failing 1 table=app.m id=mutation_2.txt
+metric merges 0
+metric merges_mutating 0
+metric merge_longest_seconds 0
+metric merges_memory_bytes 0
+metric detached_parts 0 reason=broken
+metric detached_parts 1 reason=manual
+metric detached_parts 0 reason=unexpected
+
+$ bash packs/clickhouse/macos/disks.sh
+metric up 1
+metric disks 1
+metric free_bytes 986282627072 disk=default
+metric total_bytes 1081101176832 disk=default
+metric used_pct 8.77 disk=default
+metric keep_free_bytes 0 disk=default
+metric used_pct_max 8.77
+
+$ bash packs/clickhouse/macos/queries.sh
+metric up 1
+metric running 1
+metric slow 1
+metric longest_seconds 133.14
+metric memory_max_bytes 11092765
+metric query_seconds 133.14 user=default kind=Select id=vigil-it-slow
+metric errors_count 16 name=FUNCTION_THROW_IF_VALUE_IS_NON_ZERO
+metric errors_count 5 name=TOO_MANY_PARTS
+metric errors_count 3 name=UNKNOWN_TABLE
+metric errors_count 2 name=ACCESS_DENIED
+metric errors_count 2 name=AUTHENTICATION_FAILED
+metric errors_count 2 name=WRONG_PASSWORD
+
+# What they read.
+  PASS  ch1: status runs
+  PASS  ch1: tables runs
+  PASS  ch1: replication runs
+  PASS  ch1: merges runs
+  PASS  ch1: disks runs
+  PASS  ch1: queries runs
+  PASS  ch1: up, its version
+  PASS  ch1: inserts delayed, and the 5 refused
+  PASS  ch1: app.tiny first, 19 parts
+  PASS  ch1: one replicated table, both replicas active, none behind
+  PASS  ch1: the failing mutation
+  PASS  ch1: the part detached by hand
+  PASS  ch1: a disk, how full
+  PASS  ch1: the errors, by name
+
+# 25.8, one server, no Keeper: every job.
+  PASS  25.8: status runs
+  PASS  25.8: tables runs
+  PASS  25.8: replication runs
+  PASS  25.8: merges runs
+  PASS  25.8: disks runs
+  PASS  25.8: queries runs
+  PASS  25.8: up, its version, nothing replicated
+
+# Logins.
+  PASS  a wrong password fails the run, and says so
+        metric up 1
+        status: ClickHouse refused the login: CLICKHOUSE_USER or CLICKHOUSE_PASSWORD is wrong
+  PASS  nothing listening: the run succeeds, up 0
+23 passed, 0 failed
+
+# The pack through Vigil, against ch1.
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+clickhouse: http://127.0.0.1:18123 as vigil
+  PASS  clickhouse: off until enabled
+  PASS  clickhouse: enabled
+        on: clickhouse_status
+        on: clickhouse_tables
+        on: clickhouse_replication
+        on: clickhouse_merges
+        on: clickhouse_disks
+        on: clickhouse_queries
+        needs secret:CLICKHOUSE_PASSWORD: not set: vigil secret set CLICKHOUSE_PASSWORD, as the account Vigil runs as
+        needs the server's HTTP interface (8123, or 8443 over TLS) reachable from this machine
+        needs a read-only user, as an admin: CREATE USER vigil IDENTIFIED WITH sha256_password BY '...' SETTINGS readonly = 1; GRANT SELECT ON system.*, SHOW TABLES ON *.* TO vigil (it sees every table's parts, never their rows); then vigil secret set CLICKHOUSE_PASSWORD
+        settings in vigil.config: CLICKHOUSE_URL= CLICKHOUSE_CACERT= CLICKHOUSE_USER=vigil CLICKHOUSE_MOST=50
+  PASS  clickhouse: its jobs are on
+  PASS  clickhouse: it names the secret it needs, not set
+  PASS  clickhouse: the password is a secret reference, on every job
+  PASS  clickhouse: precheck is happy
+  PASS  clickhouse: every job runs
+        status: 26 lines
+        tables: 85 lines
+        replication: 15 lines
+        merges: 14 lines
+        disks: 7 lines
+        queries: 12 lines
+  PASS  clickhouse: up
+  PASS  clickhouse: the inserts refused for too many parts, seen
+  PASS  clickhouse: the failing mutation, seen
+  PASS  clickhouse: a wrong password fails the run
+  PASS  clickhouse: and says why
+  PASS  clickhouse: a server that does not answer still runs
+  PASS  clickhouse: and reads as up 0
+  PASS  clickhouse: the password is written nowhere
+  PASS  clickhouse: metrics reach the backend, each table by its name
+18 passed, 0 failed
