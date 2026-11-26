@@ -1,0 +1,2 @@
+cassandra_status: JMX at localhost:17999 does not answer: ConnectException: Connection refused
+metric jmx_up 0 node=gone jmx=localhost:17999

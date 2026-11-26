@@ -1,0 +1,4 @@
+cassandra_status: JMX at localhost:17199 refused the login: FailedLoginException: Invalid username or password (CASSANDRA_JMX_USER, and the secret behind CASSANDRA_JMX_PASSWORD)
+metric jmx_up 0 node=c1 jmx=localhost:17199
+cassandra_status: JMX at localhost:17419 refused the login: FailedLoginException: Invalid username or password (CASSANDRA_JMX_USER, and the secret behind CASSANDRA_JMX_PASSWORD)
+metric jmx_up 0 node=c41 jmx=localhost:17419

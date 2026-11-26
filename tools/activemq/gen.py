@@ -191,7 +191,7 @@ JOBS = [
 
 PACK = dict(
     name='activemq', tag='broker', product='ActiveMQ', what_tuned='brokers',
-    version='1.0.0',
+    version='1.0.1',
     name_row='broker',
     name_doc='Each broker is named as ACTIVEMQ_JMX names it (amq1: jmxs=host:port), else by its address; its own name is in activemq_status.',
     jmx_doc=("Reads each ActiveMQ Classic broker's JMX, at ACTIVEMQ_JMX: jmx=host:port, or jmxs=host:port over "

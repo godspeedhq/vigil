@@ -1,0 +1,15 @@
+metric jmx_up 1 node=c2 jmx=localhost:17299
+metric version 1 node=c2 jmx=localhost:17299 version=5.0.9
+metric mode 1 node=c2 jmx=localhost:17299 mode=DRAINED
+metric normal 0 node=c2 jmx=localhost:17299
+metric gossip_up 0 node=c2 jmx=localhost:17299
+metric native_up 0 node=c2 jmx=localhost:17299
+metric nodes_up 2 node=c2 jmx=localhost:17299
+metric nodes_down 1 node=c2 jmx=localhost:17299
+metric load_bytes 318864 node=c2 jmx=localhost:17299
+metric exceptions_count 0 node=c2 jmx=localhost:17299
+metric hints_count 0 node=c2 jmx=localhost:17299
+metric hints_in_progress 0 node=c2 jmx=localhost:17299
+metric clients 0 node=c2 jmx=localhost:17299
+metric commitlog_pending 0 node=c2 jmx=localhost:17299
+metric commitlog_bytes 33554432 node=c2 jmx=localhost:17299

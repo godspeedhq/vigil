@@ -1,0 +1,61 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Cassandra for the cassandra pack (scripts/run-cassandra.sh):
+# - 5.0, a cluster of three (c1, c2, c3; c1 the seed): JMX on
+#   127.0.0.1:17199, 17299 and 17399.
+# - 4.1, one node: JMX on 127.0.0.1:17419.
+# JMX is open to other hosts, as LOCAL_JMX=no makes it, with a password:
+# CASSANDRA_JMX_FILE (made by the run script) holds monitorRole's (read-only,
+# by the JDK's own access file: the pack's) and controlRole's (nodetool's).
+# Each node's JMX port is the same inside and out, and its RMI host
+# 127.0.0.1, so JMX answers through the port Docker publishes. Small heaps:
+# the Fedora test machine has 8 GB for all.
+
+x-c: &c
+  image: cassandra:${CASSANDRA_VERSION:-5.0.9}
+  mem_limit: 1300m
+  volumes: ["${CASSANDRA_JMX_FILE:?the JMX password file}:/run/vigil-jmx:ro,Z"]
+  entrypoint: ["bash", "-c", "cp /run/vigil-jmx /etc/cassandra/jmxremote.password && chown cassandra /etc/cassandra/jmxremote.password && chmod 400 /etc/cassandra/jmxremote.password && exec docker-entrypoint.sh cassandra -f"]
+
+x-env: &env
+  CASSANDRA_CLUSTER_NAME: vigil
+  CASSANDRA_SEEDS: c1
+  MAX_HEAP_SIZE: 512M
+  HEAP_NEWSIZE: 128M
+  LOCAL_JMX: "no"
+
+services:
+  c1:
+    <<: *c
+    hostname: c1
+    environment: { <<: *env, JVM_EXTRA_OPTS: "-Dcassandra.jmx.remote.port=17199 -Dcom.sun.management.jmxremote.rmi.port=17199 -Djava.rmi.server.hostname=127.0.0.1" }
+    ports: ["127.0.0.1:17199:17199"]
+  c2:
+    <<: *c
+    hostname: c2
+    environment: { <<: *env, JVM_EXTRA_OPTS: "-Dcassandra.jmx.remote.port=17299 -Dcom.sun.management.jmxremote.rmi.port=17299 -Djava.rmi.server.hostname=127.0.0.1" }
+    ports: ["127.0.0.1:17299:17299"]
+  c3:
+    <<: *c
+    hostname: c3
+    environment: { <<: *env, JVM_EXTRA_OPTS: "-Dcassandra.jmx.remote.port=17399 -Dcom.sun.management.jmxremote.rmi.port=17399 -Djava.rmi.server.hostname=127.0.0.1" }
+    ports: ["127.0.0.1:17399:17399"]
+
+  c41:
+    <<: *c
+    image: cassandra:${CASSANDRA_OLD:-4.1.12}
+    hostname: c41
+    environment:
+      CASSANDRA_CLUSTER_NAME: vigil41
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 128M
+      LOCAL_JMX: "no"
+      JVM_EXTRA_OPTS: "-Dcassandra.jmx.remote.port=17419 -Dcom.sun.management.jmxremote.rmi.port=17419 -Djava.rmi.server.hostname=127.0.0.1"
+    ports: ["127.0.0.1:17419:17419"]

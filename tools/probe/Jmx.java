@@ -212,8 +212,11 @@ final class Jmx {
         } catch (ExecutionException e) {
             Throwable c = e.getCause();
             String why = rootMessage(c);
-            if (c instanceof SecurityException || why.contains("Authentication failed") || why.contains("Invalid credentials")
-                    || why.contains("Credentials required")) {
+            // A refused login, however the server says it: the JDK's agent a
+            // SecurityException; Cassandra's a LoginException, deeper down.
+            if (hasCause(c, SecurityException.class) || hasCause(c, javax.security.auth.login.LoginException.class)
+                    || why.contains("Authentication failed") || why.contains("Invalid credentials")
+                    || why.contains("Credentials required") || why.contains("Invalid username or password")) {
                 fail("JMX at " + t.address + " refused the login: " + why + " (" + userVar + ", and the secret behind " + passwordVar + ")");
             } else if (hasCause(c, CertificateException.class) || why.contains("PKIX") || why.contains("certificate")) {
                 fail("JMX at " + t.address + ": its certificate is not trusted, or does not name it: " + why + " (" + cacertVar + ")");
