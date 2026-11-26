@@ -122,9 +122,11 @@ for w in grow calm; do q "$d/$w.db" 'PRAGMA journal_mode = WAL;' 'CREATE TABLE t
 head -c 8192 /dev/urandom > "$d/notdb.db"
 : > "$d/empty.db"
 cp "$d/frag.db" "$d/damaged.db"
-# Page 6 overwritten: inside the table, past the header.
+# The table's root page overwritten: every read of the table starts there
+# (a free page would not do: no check reads what a free page holds).
 ps=$(sqlite3 "$d/damaged.db" 'PRAGMA page_size;')
-head -c "$ps" /dev/zero | tr '\0' 'Z' | dd of="$d/damaged.db" bs="$ps" seek=5 conv=notrunc 2> /dev/null
+rp=$(sqlite3 "$d/damaged.db" "SELECT rootpage FROM sqlite_schema WHERE name = 't';")
+head -c "$ps" /dev/zero | tr '\0' 'Z' | dd of="$d/damaged.db" bs="$ps" seek=$((rp - 1)) conv=notrunc 2> /dev/null
 
 # An old reader holds grow.db's WAL: no checkpoint can finish while a
 # writer goes on. calm.db has the same writes and no reader.
@@ -186,8 +188,10 @@ for f in plain frag big-pages; do
 done
 check 'status: nine rows in ten deleted: most pages free, and the space they hold' 'yes yes' "$(least status free_pct frag.db 80) $(awk -v b="$(val status free_bytes frag.db)" -v p="$(val status free_pages frag.db)" 'BEGIN { print (b == p * 4096) ? "yes" : "no" }')"
 check 'status: the size, as the file is' "$(wc -c < "$d/frag.db" | tr -d ' ')" "$(val status size_bytes frag.db)"
-check 'status: the WAL held by an old reader has grown; the same writes without one have not' 'yes yes' \
-    "$(least status wal_bytes grow.db 15000000) $(awk -v c="$(val status wal_bytes calm.db)" 'BEGIN { print (c > 0 && c < 6000000) ? "yes" : "no [" c "]" }')"
+# Without a reader, each writer's last close checkpoints the WAL into the
+# database and deletes it: calm.db holds the rows, grow.db's WAL does.
+check 'status: the WAL held by an old reader has grown; the same writes without one went into the database' 'yes 0 yes' \
+    "$(least status wal_bytes grow.db 15000000) $(val status wal_bytes calm.db) $(least status size_bytes calm.db 15000000)"
 check 'status: a database closed cleanly has no WAL' 0 "$(val status wal_bytes wal.db)"
 check 'status: the transaction held open: its journal, and how long since it was written' 'yes yes' "$(least status journal_bytes held.db 1) $(has status journal_seconds held.db)"
 check 'status: no journal where no transaction is open' '0 no' "$(val status journal_bytes plain.db) $(has status journal_seconds plain.db)"
@@ -195,6 +199,7 @@ check 'status: last written: seconds ago, for each' 'yes yes' "$(has status last
 check 'check: every database there is checked, but those locked' "$((n - 2))" "$(val check checked)"
 check 'check: a sound database is ok; its check timed' '1 0 yes' "$(val check ok frag.db) $(val check problems frag.db) $(has check check_seconds frag.db)"
 check 'check: the page overwritten is found' 'yes 0' "$(least check problems damaged.db 1) $(val check ok damaged.db)"
+check 'check: at most 100 problems counted, and not the heading sqlite3 puts above them' yes "$(awk -v n="$(val check problems damaged.db)" 'BEGIN { print (n <= 100) ? "yes" : "no [" n "]" }')"
 check 'check: random bytes: not a database' 0 "$(val check ok notdb.db)"
 check 'check: a WAL held by a reader is checked, read-only' 1 "$(val check ok grow.db)"
 check 'check: in rollback mode, a transaction still open does not stop the check' 1 "$(val check ok held.db)"

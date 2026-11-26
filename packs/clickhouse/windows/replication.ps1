@@ -89,7 +89,7 @@ Up
 $most = [int]$script:Most
 $reps = @(Get-Rows @"
 SELECT database, table, is_readonly, queue_size, inserts_in_queue, merges_in_queue, absolute_delay,
-       total_replicas, active_replicas, log_max_index - log_pointer AS log_behind
+       total_replicas, active_replicas, greatest(toInt64(log_max_index) - toInt64(log_pointer), 0) AS log_behind
 FROM system.replicas
 "@)
 $queue = @{}

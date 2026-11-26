@@ -53,7 +53,9 @@
       failed_queries_count       queries that failed (a running total), tagged
                                  kind=<all, select, insert>
       keeper_sessions            sessions open with Keeper or ZooKeeper (0
-                                 without replicated tables)
+                                 without replicated tables). With Keeper
+                                 gone it stays 1 while the server retries:
+                                 readonly_replicas is what says so
       readonly_replicas          replicated tables gone read-only: cut off from
                                  Keeper
       replica_delay_seconds      how far the furthest-behind replicated table

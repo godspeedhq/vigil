@@ -143,10 +143,12 @@ try {
     [IO.File]::WriteAllBytes("$d\notdb.db", $rnd)
     [IO.File]::WriteAllBytes("$d\empty.db", (New-Object byte[] 0))
     Copy-Item -LiteralPath "$d\frag.db" -Destination "$d\damaged.db"
-    # Page 6 overwritten: inside the table, past the header.
+    # The table's root page overwritten: every read of the table starts there
+    # (a free page would not do: no check reads what a free page holds).
     $ps = [int](Q "$d\damaged.db" 'PRAGMA page_size;')
+    $rp = [int](Q "$d\damaged.db" "SELECT rootpage FROM sqlite_schema WHERE name = 't';")
     $fs = [IO.File]::Open("$d\damaged.db", 'Open', 'Write')
-    $fs.Position = 5 * $ps
+    $fs.Position = ($rp - 1) * $ps
     $z = New-Object byte[] $ps
     for ($i = 0; $i -lt $ps; $i++) { $z[$i] = 0x5A }
     $fs.Write($z, 0, $ps)
@@ -188,8 +190,9 @@ try {
     }
     Check 'status: nine rows in ten deleted: most pages free, and the space they hold' 'yes True' "$(Least status free_pct frag.db 80) $([double](Val status free_bytes frag.db) -eq [double](Val status free_pages frag.db) * 4096)"
     Check 'status: the size, as the file is' ([string](Get-Item -LiteralPath "$d\frag.db").Length) (Val status size_bytes frag.db)
-    $calm = [double](Val status wal_bytes calm.db)
-    Check 'status: the WAL held by an old reader has grown; the same writes without one have not' 'yes True' "$(Least status wal_bytes grow.db 15000000) $($calm -gt 0 -and $calm -lt 6000000)"
+    # Without a reader, each writer's last close checkpoints the WAL into the
+    # database and deletes it: calm.db holds the rows, grow.db's WAL does.
+    Check 'status: the WAL held by an old reader has grown; the same writes without one went into the database' 'yes 0 yes' "$(Least status wal_bytes grow.db 15000000) $(Val status wal_bytes calm.db) $(Least status size_bytes calm.db 15000000)"
     Check 'status: a database closed cleanly has no WAL' '0' (Val status wal_bytes wal.db)
     Check 'status: the transaction held open: its journal, and how long since it was written' 'yes yes' "$(Least status journal_bytes held.db 1) $(Has status journal_seconds held.db)"
     Check 'status: no journal where no transaction is open' '0 no' "$(Val status journal_bytes plain.db) $(Has status journal_seconds plain.db)"
@@ -197,6 +200,7 @@ try {
     Check 'check: every database there is checked, but those locked' ([string]($n - 2)) (Val check checked)
     Check 'check: a sound database is ok; its check timed' '1 0 yes' "$(Val check ok frag.db) $(Val check problems frag.db) $(Has check check_seconds frag.db)"
     Check 'check: the page overwritten is found' 'yes 0' "$(Least check problems damaged.db 1) $(Val check ok damaged.db)"
+    Check 'check: at most 100 problems counted, and not the heading sqlite3 puts above them' 'True' "$([double](Val check problems damaged.db) -le 100)"
     Check 'check: random bytes: not a database' '0' (Val check ok notdb.db)
     Check 'check: a WAL held by a reader is checked, read-only' '1' (Val check ok grow.db)
     Check 'check: in rollback mode, a transaction still open does not stop the check' '1' (Val check ok held.db)

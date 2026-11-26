@@ -1,0 +1,384 @@
+== pack-sqlite
+date     2026-11-26T09:20:32Z
+host     linux-it
+os       Alpine Linux v3.24 (Linux 6.18.33.2-microsoft-standard-WSL2 x86_64)
+vigil    03d9383+ (deployed copy)
+command  scripts/run-sqlite.sh
+bash     5.3.9(1)-release
+git      git version 2.54.1
+curl     curl 8.23.0 (x86_64-alpine-linux-musl) libcurl/8.23.0 OpenSSL/3.5.9 zlib/1.3.2 brotli/1.2.1 zstd/1.6.0 c-ares/1.34.9 libidn2/2.3.8 libpsl/0.21.5 nghttp2/1.70.0
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.3p1, OpenSSL 3.5.9 29 Sep 2026
+
+here     linux, bash 5.3.9(1)-release, sqlite3 3.53.4, as vt
+apps     Docker 29.10.1: docker.io/grafana/grafana:12.2.1, docker.io/gitea/gitea:1.24-rootless
+
+# Databases in every state the pack reads, made with sqlite3.
+       65536  autovac.db
+      131072  big-pages.db
+    20537344  calm.db
+    10272768  damaged.db
+           0  empty.db
+    10272768  frag.db
+        8192  grow.db
+       65536  grow.db-shm
+    21436392  grow.db-wal
+      110592  held.db
+       66176  held.db-journal
+       65536  incremental.db
+      110592  locked.db
+        8192  notdb.db
+      110592  plain.db
+       61440  wal.db
+
+# Two applications keeping their data in SQLite: Grafana (rollback mode) and Gitea (WAL).
+vigilit_sqlite_gitea: gitea/gitea:1.24-rootless, Up 12 seconds
+vigilit_sqlite_grafana: grafana/grafana:12.2.1, Up 12 seconds
+
+# Every job, as the linux scripts print it.
+
+$ bash packs/sqlite/linux/status.sh
+metric found 1 db=.../db/plain.db
+metric size_bytes 110592 db=.../db/plain.db
+metric valid 1 db=.../db/plain.db
+metric info 1 db=.../db/plain.db mode=rollback version=3.53.4 vacuum=none
+metric page_size 4096 db=.../db/plain.db
+metric pages 27 db=.../db/plain.db
+metric free_pages 0 db=.../db/plain.db
+metric free_pct 0 db=.../db/plain.db
+metric free_bytes 0 db=.../db/plain.db
+metric wal_bytes 0 db=.../db/plain.db
+metric journal_bytes 0 db=.../db/plain.db
+metric last_write_seconds 17 db=.../db/plain.db
+metric found 1 db=.../db/frag.db
+metric size_bytes 10272768 db=.../db/frag.db
+metric valid 1 db=.../db/frag.db
+metric info 1 db=.../db/frag.db mode=rollback version=3.53.4 vacuum=none
+metric page_size 4096 db=.../db/frag.db
+metric pages 2508 db=.../db/frag.db
+metric free_pages 2220 db=.../db/frag.db
+metric free_pct 88.52 db=.../db/frag.db
+metric free_bytes 9093120 db=.../db/frag.db
+metric wal_bytes 0 db=.../db/frag.db
+metric journal_bytes 0 db=.../db/frag.db
+metric last_write_seconds 17 db=.../db/frag.db
+metric found 1 db=.../db/wal.db
+metric size_bytes 61440 db=.../db/wal.db
+metric valid 1 db=.../db/wal.db
+metric info 1 db=.../db/wal.db mode=wal version=3.53.4 vacuum=none
+metric page_size 4096 db=.../db/wal.db
+metric pages 15 db=.../db/wal.db
+metric free_pages 0 db=.../db/wal.db
+metric free_pct 0 db=.../db/wal.db
+metric free_bytes 0 db=.../db/wal.db
+metric wal_bytes 0 db=.../db/wal.db
+metric journal_bytes 0 db=.../db/wal.db
+metric last_write_seconds 17 db=.../db/wal.db
+metric found 1 db=.../db/big-pages.db
+metric size_bytes 131072 db=.../db/big-pages.db
+metric valid 1 db=.../db/big-pages.db
+metric info 1 db=.../db/big-pages.db mode=rollback version=3.53.4 vacuum=none
+metric page_size 65536 db=.../db/big-pages.db
+metric pages 2 db=.../db/big-pages.db
+metric free_pages 0 db=.../db/big-pages.db
+metric free_pct 0 db=.../db/big-pages.db
+metric free_bytes 0 db=.../db/big-pages.db
+metric wal_bytes 0 db=.../db/big-pages.db
+metric journal_bytes 0 db=.../db/big-pages.db
+metric last_write_seconds 17 db=.../db/big-pages.db
+metric found 1 db=.../db/autovac.db
+metric size_bytes 65536 db=.../db/autovac.db
+metric valid 1 db=.../db/autovac.db
+metric info 1 db=.../db/autovac.db mode=rollback version=3.53.4 vacuum=full
+metric page_size 4096 db=.../db/autovac.db
+metric pages 16 db=.../db/autovac.db
+metric free_pages 0 db=.../db/autovac.db
+metric free_pct 0 db=.../db/autovac.db
+metric free_bytes 0 db=.../db/autovac.db
+metric wal_bytes 0 db=.../db/autovac.db
+metric journal_bytes 0 db=.../db/autovac.db
+metric last_write_seconds 17 db=.../db/autovac.db
+metric found 1 db=.../db/incremental.db
+metric size_bytes 65536 db=.../db/incremental.db
+metric valid 1 db=.../db/incremental.db
+metric info 1 db=.../db/incremental.db mode=rollback version=3.53.4 vacuum=incremental
+metric page_size 4096 db=.../db/incremental.db
+metric pages 16 db=.../db/incremental.db
+metric free_pages 0 db=.../db/incremental.db
+metric free_pct 0 db=.../db/incremental.db
+metric free_bytes 0 db=.../db/incremental.db
+metric wal_bytes 0 db=.../db/incremental.db
+metric journal_bytes 0 db=.../db/incremental.db
+metric last_write_seconds 17 db=.../db/incremental.db
+metric found 1 db=.../db/grow.db
+metric size_bytes 8192 db=.../db/grow.db
+metric valid 1 db=.../db/grow.db
+metric info 1 db=.../db/grow.db mode=wal version=3.53.4 vacuum=none
+metric page_size 4096 db=.../db/grow.db
+metric pages 2 db=.../db/grow.db
+metric free_pages 0 db=.../db/grow.db
+metric free_pct 0 db=.../db/grow.db
+metric free_bytes 0 db=.../db/grow.db
+metric wal_bytes 21436392 db=.../db/grow.db
+metric journal_bytes 0 db=.../db/grow.db
+metric last_write_seconds 15 db=.../db/grow.db
+metric found 1 db=.../db/calm.db
+metric size_bytes 20537344 db=.../db/calm.db
+metric valid 1 db=.../db/calm.db
+metric info 1 db=.../db/calm.db mode=wal version=3.53.4 vacuum=none
+metric page_size 4096 db=.../db/calm.db
+metric pages 5014 db=.../db/calm.db
+metric free_pages 0 db=.../db/calm.db
+metric free_pct 0 db=.../db/calm.db
+metric free_bytes 0 db=.../db/calm.db
+metric wal_bytes 0 db=.../db/calm.db
+metric journal_bytes 0 db=.../db/calm.db
+metric last_write_seconds 15 db=.../db/calm.db
+metric found 1 db=.../db/held.db
+metric size_bytes 110592 db=.../db/held.db
+metric valid 1 db=.../db/held.db
+metric info 1 db=.../db/held.db mode=rollback version=3.53.4 vacuum=none
+metric page_size 4096 db=.../db/held.db
+metric pages 27 db=.../db/held.db
+metric free_pages 0 db=.../db/held.db
+metric free_pct 0 db=.../db/held.db
+metric free_bytes 0 db=.../db/held.db
+metric wal_bytes 0 db=.../db/held.db
+metric journal_bytes 66176 db=.../db/held.db
+metric journal_seconds 15 db=.../db/held.db
+metric last_write_seconds 17 db=.../db/held.db
+metric found 1 db=.../db/locked.db
+metric size_bytes 110592 db=.../db/locked.db
+metric valid 1 db=.../db/locked.db
+metric info 1 db=.../db/locked.db mode=rollback version=3.53.4 vacuum=none
+metric page_size 4096 db=.../db/locked.db
+metric pages 27 db=.../db/locked.db
+metric free_pages 0 db=.../db/locked.db
+metric free_pct 0 db=.../db/locked.db
+metric free_bytes 0 db=.../db/locked.db
+metric wal_bytes 0 db=.../db/locked.db
+metric journal_bytes 0 db=.../db/locked.db
+metric last_write_seconds 17 db=.../db/locked.db
+metric found 1 db=.../db/notdb.db
+metric size_bytes 8192 db=.../db/notdb.db
+metric valid 0 db=.../db/notdb.db
+metric wal_bytes 0 db=.../db/notdb.db
+metric journal_bytes 0 db=.../db/notdb.db
+metric last_write_seconds 17 db=.../db/notdb.db
+metric found 1 db=.../db/empty.db
+metric size_bytes 0 db=.../db/empty.db
+metric valid 1 db=.../db/empty.db
+metric wal_bytes 0 db=.../db/empty.db
+metric journal_bytes 0 db=.../db/empty.db
+metric last_write_seconds 17 db=.../db/empty.db
+metric found 1 db=.../db/damaged.db
+metric size_bytes 10272768 db=.../db/damaged.db
+metric valid 1 db=.../db/damaged.db
+metric info 1 db=.../db/damaged.db mode=rollback version=3.53.4 vacuum=none
+metric page_size 4096 db=.../db/damaged.db
+metric pages 2508 db=.../db/damaged.db
+metric free_pages 2220 db=.../db/damaged.db
+metric free_pct 88.52 db=.../db/damaged.db
+metric free_bytes 9093120 db=.../db/damaged.db
+metric wal_bytes 0 db=.../db/damaged.db
+metric journal_bytes 0 db=.../db/damaged.db
+metric last_write_seconds 17 db=.../db/damaged.db
+metric found 0 db=.../db/nope.db
+metric found 1 db=.../grafana/grafana.db
+metric size_bytes 1249280 db=.../grafana/grafana.db
+metric valid 1 db=.../grafana/grafana.db
+metric info 1 db=.../grafana/grafana.db mode=rollback version=3.45.1 vacuum=none
+metric page_size 4096 db=.../grafana/grafana.db
+metric pages 305 db=.../grafana/grafana.db
+metric free_pages 0 db=.../grafana/grafana.db
+metric free_pct 0 db=.../grafana/grafana.db
+metric free_bytes 0 db=.../grafana/grafana.db
+metric wal_bytes 0 db=.../grafana/grafana.db
+metric journal_bytes 0 db=.../grafana/grafana.db
+metric last_write_seconds 9 db=.../grafana/grafana.db
+metric found 1 db=.../gitea/data/data/gitea.db
+metric size_bytes 1347584 db=.../gitea/data/data/gitea.db
+metric valid 1 db=.../gitea/data/data/gitea.db
+metric info 1 db=.../gitea/data/data/gitea.db mode=wal version=3.49.1 vacuum=none
+metric page_size 4096 db=.../gitea/data/data/gitea.db
+metric pages 329 db=.../gitea/data/data/gitea.db
+metric free_pages 0 db=.../gitea/data/data/gitea.db
+metric free_pct 0 db=.../gitea/data/data/gitea.db
+metric free_bytes 0 db=.../gitea/data/data/gitea.db
+metric wal_bytes 4124152 db=.../gitea/data/data/gitea.db
+metric journal_bytes 0 db=.../gitea/data/data/gitea.db
+metric last_write_seconds 10 db=.../gitea/data/data/gitea.db
+metric databases 16
+metric missing 1
+  PASS  status: runs
+
+$ bash packs/sqlite/linux/check.sh   (SQLITE_CHECK not set: off)
+metric checked 0
+  PASS  check: off until asked: checked 0, and nothing else
+  PASS  check: off reads nothing
+
+$ bash packs/sqlite/linux/check.sh   (SQLITE_CHECK=quick)
+metric ok 1 db=.../db/plain.db
+metric problems 0 db=.../db/plain.db
+metric check_seconds 0.00 db=.../db/plain.db
+metric busy 0 db=.../db/plain.db
+metric ok 1 db=.../db/frag.db
+metric problems 0 db=.../db/frag.db
+metric check_seconds 0.01 db=.../db/frag.db
+metric busy 0 db=.../db/frag.db
+metric ok 1 db=.../db/wal.db
+metric problems 0 db=.../db/wal.db
+metric check_seconds 0.01 db=.../db/wal.db
+metric busy 0 db=.../db/wal.db
+metric ok 1 db=.../db/big-pages.db
+metric problems 0 db=.../db/big-pages.db
+metric check_seconds 0.01 db=.../db/big-pages.db
+metric busy 0 db=.../db/big-pages.db
+metric ok 1 db=.../db/autovac.db
+metric problems 0 db=.../db/autovac.db
+metric check_seconds 0.00 db=.../db/autovac.db
+metric busy 0 db=.../db/autovac.db
+metric ok 1 db=.../db/incremental.db
+metric problems 0 db=.../db/incremental.db
+metric check_seconds 0.00 db=.../db/incremental.db
+metric busy 0 db=.../db/incremental.db
+metric ok 1 db=.../db/grow.db
+metric problems 0 db=.../db/grow.db
+metric check_seconds 0.03 db=.../db/grow.db
+metric busy 0 db=.../db/grow.db
+metric ok 1 db=.../db/calm.db
+metric problems 0 db=.../db/calm.db
+metric check_seconds 0.03 db=.../db/calm.db
+metric busy 0 db=.../db/calm.db
+metric ok 1 db=.../db/held.db
+metric problems 0 db=.../db/held.db
+metric check_seconds 0.01 db=.../db/held.db
+metric busy 0 db=.../db/held.db
+metric busy 1 db=.../db/locked.db
+metric ok 0 db=.../db/notdb.db
+metric problems 1 db=.../db/notdb.db
+metric check_seconds 0.01 db=.../db/notdb.db
+metric busy 0 db=.../db/notdb.db
+metric ok 1 db=.../db/empty.db
+metric problems 0 db=.../db/empty.db
+metric check_seconds 0.01 db=.../db/empty.db
+metric busy 0 db=.../db/empty.db
+metric ok 0 db=.../db/damaged.db
+metric problems 100 db=.../db/damaged.db
+metric check_seconds 0.01 db=.../db/damaged.db
+metric busy 0 db=.../db/damaged.db
+metric ok 1 db=.../grafana/grafana.db
+metric problems 0 db=.../grafana/grafana.db
+metric check_seconds 0.02 db=.../grafana/grafana.db
+metric busy 0 db=.../grafana/grafana.db
+metric ok 1 db=.../gitea/data/data/gitea.db
+metric problems 0 db=.../gitea/data/data/gitea.db
+metric check_seconds 0.02 db=.../gitea/data/data/gitea.db
+metric busy 0 db=.../gitea/data/data/gitea.db
+metric checked 14
+metric not_ok 2
+  PASS  check: runs
+
+# What each job must have read.
+  PASS  status: every database named is counted, and the one not there
+  PASS  status: the database files are valid; random bytes are not; an empty file is
+  PASS  status: the journal mode, as written in each header
+  PASS  status: the SQLite that last wrote it
+  PASS  status: auto-vacuum: none, full and incremental
+  PASS  status: the page size, 64 KB too (written as 1 in the header)
+  PASS  status: plain.db: pages and free pages, as sqlite3 counts them
+  PASS  status: frag.db: pages and free pages, as sqlite3 counts them
+  PASS  status: big-pages.db: pages and free pages, as sqlite3 counts them
+  PASS  status: nine rows in ten deleted: most pages free, and the space they hold
+  PASS  status: the size, as the file is
+  PASS  status: the WAL held by an old reader has grown; the same writes without one went into the database
+  PASS  status: a database closed cleanly has no WAL
+  PASS  status: the transaction held open: its journal, and how long since it was written
+  PASS  status: no journal where no transaction is open
+  PASS  status: last written: seconds ago, for each
+  PASS  check: every database there is checked, but those locked
+  PASS  check: a sound database is ok; its check timed
+  PASS  check: the page overwritten is found
+  PASS  check: at most 100 problems counted, and not the heading sqlite3 puts above them
+  PASS  check: random bytes: not a database
+  PASS  check: a WAL held by a reader is checked, read-only
+  PASS  check: in rollback mode, a transaction still open does not stop the check
+  PASS  check: the database locked for writing could not be checked: busy, after 30 seconds
+  PASS  check: the damaged ones are counted
+  PASS  grafana.db: found, valid, rollback mode
+  PASS  gitea.db: found, valid, WAL mode, its WAL there while it runs
+  PASS  grafana.db and gitea.db: checked while they run, and sound
+
+# Released: the reader, the writer and the lock end, and the WAL and the journal go.
+$ bash packs/sqlite/linux/status.sh   (released)
+metric wal_bytes 0 db=.../db/grow.db
+metric journal_bytes 0 db=.../db/grow.db
+metric wal_bytes 0 db=.../db/held.db
+metric journal_bytes 0 db=.../db/held.db
+  PASS  released: the journal is gone
+  PASS  released: the WAL is deleted as its last connection closes
+
+# A database this account may not read: the others are read, and the run fails, naming it.
+metric found 1 db=.../db/plain.db
+status: this account (vt) cannot read .../db/secret.db: give it read access (packs/sqlite/README.md shows how)
+  PASS  unreadable: exit 1, the others read, and the file named
+  PASS  a folder named: exit 1, said
+  PASS  SQLITE_FILES not set: databases 0, and the run succeeds
+
+37 passed, 0 failed
+
+# The pack through Vigil.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  docker: set VIGIL_IT_DOCKER (scripts/run-containers.sh docker sets it up)
+  SKIP  podman: set VIGIL_IT_PODMAN (scripts/run-containers.sh podman sets it up)
+sqlite: /tmp/vigil-sqlite-it.ciwi2I/db/plain.db; /tmp/vigil-sqlite-it.ciwi2I/db/frag.db; /tmp/vigil-sqlite-it.ciwi2I/db/damaged.db; /tmp/vigil-sqlite-it.ciwi2I/db/nope.db
+  PASS  sqlite: off until enabled
+  PASS  sqlite: enabled
+        on: sqlite_status
+        on: sqlite_check
+        needs the databases, their paths separated by ;: env = SQLITE_FILES=/var/lib/grafana/grafana.db; /srv/app/data.db
+        needs read access to each database for the account Vigil runs as, and in WAL mode to its folder for the check (packs/sqlite/README.md shows how)
+        needs for the check, which reads every page and can make writers wait in rollback mode: env = SQLITE_CHECK=quick, and run_every = 1d
+        settings in vigil.config: SQLITE_FILES= SQLITE_CHECK=off SQLITE3=
+  PASS  sqlite: it says what it needs: the databases, read access, the check
+  PASS  sqlite: precheck is happy
+  PASS  sqlite: status runs
+  PASS  sqlite: status: every database counted, the one not there missing
+  PASS  sqlite: the check is off until asked
+  PASS  sqlite: asked, it checks each database there, and finds the damaged one
+  PASS  sqlite: metrics reach the backend, each database by its path
+11 passed, 0 failed
+
+# Only what this run made is removed.
+  PASS  this run's two containers are gone, and no other was touched
+evidence: reports/runs/2026-11-26/linux-it/pack-sqlite

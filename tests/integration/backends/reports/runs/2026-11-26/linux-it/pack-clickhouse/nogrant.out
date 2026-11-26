@@ -1,0 +1,2 @@
+metric up 1
+tables: nogrant may not read the system tables: GRANT SELECT ON system.*, SHOW TABLES ON *.* TO nogrant (packs/clickhouse/README.md)

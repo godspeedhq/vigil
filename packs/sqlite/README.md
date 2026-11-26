@@ -122,17 +122,27 @@ Starting points, from the same figures each script's header explains; "In our te
 | --- | --- | --- | --- | --- |
 | `sqlite.missing` | 0 |  | Above 0: a database is gone, or its path is wrong; `found` says which | 1, for the path named that was never made |
 | `sqlite.valid` (by `db`) | 1 |  | 0: the file is not a SQLite database: damaged at the start, replaced, or encrypted (SQLCipher, whose header is encrypted too) | 0 for the file of random bytes |
-| `sqlite.wal_bytes` (by `db`) | A few MB: SQLite checkpoints at about 4 MB | Past 64 MB, or larger every day | Past 1 GB and growing: a reader holds an old snapshot, so no checkpoint can finish, and reads slow down as they search the WAL | 21 MB in seconds, while a reader held one transaction open and a writer went on |
-| `sqlite.journal_seconds` (by `db`) | Absent, or a few seconds |  | Past 10 minutes: a transaction left open, or a writer that died in one; other writers wait or fail with "database is locked" | Rising from 0 while a writer held its transaction open |
+| `sqlite.wal_bytes` (by `db`) | A few MB: SQLite checkpoints at about 4 MB | Past 64 MB, or larger every day | Past 1 GB and growing: a reader holds an old snapshot, so no checkpoint can finish, and reads slow down as they search the WAL | 21 MB in seconds, while a reader held one transaction open and a writer went on; 0 for the same writes with no reader (each writer's last close checkpointed it into the database); Gitea's own, 4 MB, while it ran |
+| `sqlite.journal_seconds` (by `db`) | Absent, or a few seconds |  | Past 10 minutes: a transaction left open, or a writer that died in one; other writers wait or fail with "database is locked" | 15 s, a 66 KB journal, while a writer held its transaction open; gone when it ended |
 | `sqlite.free_pct` (by `db`) | Low, or steady | Past 25 on a large database: a `VACUUM` would give `free_bytes` back |  | 88.52 after nine rows in ten were deleted |
 | `sqlite.last_write_seconds` (by `db`) | Within the application's habit | Far longer than its habit: the application has stopped writing |  | The seconds since each was made |
-| `sqlite.check.not_ok` | 0 |  | Above 0: a damaged database. Copy it aside, with its `-wal`, and run `sqlite3 <copy> "PRAGMA integrity_check"` to see what; restore from a backup, or `.recover` what can be | 1, for the copy with a page overwritten |
+| `sqlite.check.not_ok` | 0 |  | Above 0: a damaged database. Copy it aside, with its `-wal`, and run `sqlite3 <copy> "PRAGMA integrity_check"` to see what; restore from a backup, or `.recover` what can be | 2: the copy with its table's root page overwritten (`problems 100`, the most the check lists), and the file of random bytes |
 | `sqlite.check.busy` (by `db`) | 0 | 1 on two days running: a writer holds the database most of the time; pick another hour |  | 1 while a writer held the database locked past the 30 seconds the check waits |
 
 ## How it was tested
 
 <!-- tested:start -->
-**Not tested yet** against a real application's database. This page will say how it was, and what was found.
+**Tested** on 2026-11-26 by `tests/integration/backends/scripts/run-sqlite.sh`, with `sqlite3` 3.53.4, on a Linux test host (Alpine Linux 3.24, bash 5.3, as an account that is not root, so a file it may not read is one it cannot read). The run made, with `sqlite3`, a database in every state the pack reads: rollback mode and WAL; nine rows in ten deleted (free pages); 64 KB pages; auto-vacuum full and incremental; a WAL held by an old reader while a writer went on, beside the same writes with no reader; a transaction held open (its journal); a database locked for writing (`BEGIN EXCLUSIVE`); a file of random bytes, an empty file, a copy with its table's root page overwritten, and a path that was never made. And two applications that keep their data in SQLite, running in containers while they were read and checked: **Grafana 12.2.1** (rollback mode, as it ships, written by its SQLite 3.45.1) and **Gitea 1.24** (set to WAL, its SQLite 3.49.1).
+
+- **On Linux**: every job, each reading checked against what `sqlite3` itself says (pages, free pages, page size, mode, version); the check off, then on: sound databases `ok 1`, the damaged copy and the random bytes found, the locked one `busy` after its 30 seconds, the database in rollback mode with a transaction open checked all the same; then released: the journal and the WAL gone. A file this account may not read, a folder named and `SQLITE_FILES` empty, each as the header says. **37 passed, 0 failed**; then `service-packs.sh` through Vigil (enable, precheck, both jobs, the check turned on and finding the damaged copy, metrics in the backend, each database by its path): **11 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-26/linux-it/pack-sqlite/console.txt)).
+- **On Windows** (Windows 11, an account that is not an administrator, Windows PowerShell 5.1 and PowerShell 7), the `status` job through Vigil against databases made the same way: **9 passed, 0 failed**. The `check` job, which runs `sqlite3.exe`, and `run-sqlite.ps1` (the Windows twin of the run above) are still to run on a Windows test machine.
+- **On macOS**: not yet. Its scripts are the Linux ones, which use only `od`, `awk` and `stat` in forms macOS has.
+
+**What the run taught the pack:**
+
+- **SQLite heads its list of problems with a line of its own**, `*** in database main ***`. Counted, a database with 100 problems read 101; it is left out now.
+- **A rollback journal is in use when its first bytes are not all zero**, not when its magic number is there: SQLite writes the magic number only when it syncs the journal, so a transaction open and not yet synced has none.
+- **With no reader holding it, a WAL does not stay**: each connection that closes last checkpoints it into the database and deletes it. A WAL that is there and large, with the application idle, is the sign of a reader that never let go.
 <!-- tested:end -->
 
 ---

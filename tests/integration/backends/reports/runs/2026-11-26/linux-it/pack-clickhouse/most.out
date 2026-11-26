@@ -1,0 +1,16 @@
+metric up 1
+metric tables 16
+metric parts 54
+metric rows 55518
+metric bytes 2386118
+metric table_parts 19 table=app.tiny
+metric table_partitions 1 table=app.tiny
+metric table_max_parts 19 table=app.tiny
+metric table_rows 19 table=app.tiny
+metric table_bytes 8682 table=app.tiny
+metric table_parts 4 table=system.asynchronous_metric_log
+metric table_partitions 1 table=system.asynchronous_metric_log
+metric table_max_parts 4 table=system.asynchronous_metric_log
+metric table_rows 38027 table=system.asynchronous_metric_log
+metric table_bytes 34988 table=system.asynchronous_metric_log
+metric tables_not_shown 14

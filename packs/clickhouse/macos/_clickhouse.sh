@@ -92,7 +92,7 @@ sel() {
     case $m in
         *'Code: 60.'* | *'Code: 47.'* | *'Code: 16.'*) return 5 ;;
         *'Code: 516.'* | *'Code: 192.'* | *'Code: 194.'*) echo "$job: ClickHouse refused the login: CLICKHOUSE_USER or CLICKHOUSE_PASSWORD is wrong" >&2; exit 1 ;;
-        *'Code: 497.'*) echo "$job: $user may not read the system tables: GRANT SELECT ON system.* TO $user (packs/clickhouse/README.md)" >&2; exit 1 ;;
+        *'Code: 497.'*) echo "$job: $user may not read the system tables: GRANT SELECT ON system.*, SHOW TABLES ON *.* TO $user (packs/clickhouse/README.md)" >&2; exit 1 ;;
         *) echo "$job: $url answered HTTP $code: ${m%% (version*}" >&2; exit 1 ;;
     esac
 }

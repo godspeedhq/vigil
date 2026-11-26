@@ -123,7 +123,11 @@ foreach ($f in $files) {
         if ($r.Err -match 'malformed|not a database|corrupt') { $n = 1 }
         else { $failed += "${f}: $(($r.Err -split "`n")[0].Trim())"; continue }
     } elseif ($r.Out -eq 'ok') { $n = 0 }
-    else { $n = @($r.Out -split "`n" | Where-Object { $_.Trim() }).Count }
+    else {
+        # Not counted: the "*** in database main ***" line heading the list.
+        $n = @($r.Out -split "`n" | Where-Object { $_.Trim() -and $_ -notmatch '^\*\*\* in database ' }).Count
+        if ($n -eq 0) { $n = 1 }
+    }
     $checked++
     if ($n -eq 0) { M 'ok' 1 $t } else { $bad++; M 'ok' 0 $t }
     M 'problems' $n $t

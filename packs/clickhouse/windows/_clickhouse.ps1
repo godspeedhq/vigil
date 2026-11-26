@@ -176,7 +176,7 @@ function Get-Rows([string]$sql) {
         if ($m.Length -gt 400) { $m = $m.Substring(0, 400) }
         if ($m -match 'Code: (60|47|16)\.') { $script:NoTable = $true; return }
         if ($m -match 'Code: (516|192|194)\.') { [Console]::Error.WriteLine("${Job}: ClickHouse refused the login: CLICKHOUSE_USER or CLICKHOUSE_PASSWORD is wrong"); exit 1 }
-        if ($m -match 'Code: 497\.') { [Console]::Error.WriteLine("${Job}: $($script:User) may not read the system tables: GRANT SELECT ON system.* TO $($script:User) (packs/clickhouse/README.md)"); exit 1 }
+        if ($m -match 'Code: 497\.') { [Console]::Error.WriteLine("${Job}: $($script:User) may not read the system tables: GRANT SELECT ON system.*, SHOW TABLES ON *.* TO $($script:User) (packs/clickhouse/README.md)"); exit 1 }
         $m = $m -replace ' \(version.*', ''
         [Console]::Error.WriteLine("${Job}: $($script:Url) answered HTTP $($r.Status): $m")
         exit 1

@@ -1,0 +1,218 @@
+== pack-clickhouse-windows
+date     2026-11-26T09:53:53Z
+host     the development laptop (Windows 11), not an administrator
+os       Microsoft Windows 11 Pro 10.0.22631
+shells   Windows PowerShell 5.1.22621.6133, PowerShell 7.6.10
+vigil    03d9383+ (working tree)
+cluster  run-clickhouse.sh holding its cluster (VIGIL_IT_CH_HOLD) in a Linux test host on this machine's Docker; ch1 and ch25 forwarded to 127.0.0.1:28123 and 28125
+
+# The Windows scripts beside the Linux ones, against the same servers: the same metric names and tags, and the same values where they cannot move between two reads (ClickHouse's own log tables left out: they flush and merge between reads).
+
+same     18123 status powershell.exe: 26 lines, exit 0 (6 values that hold still, equal)
+same     18123 status pwsh.exe: 26 lines, exit 0 (6 values that hold still, equal)
+same     18123 tables powershell.exe: 85 lines, exit 0 (16 values that hold still, equal)
+same     18123 tables pwsh.exe: 85 lines, exit 0 (16 values that hold still, equal)
+same     18123 replication powershell.exe: 15 lines, exit 0 (6 values that hold still, equal)
+same     18123 replication pwsh.exe: 15 lines, exit 0 (6 values that hold still, equal)
+same     18123 merges powershell.exe: 14 lines, exit 0 (7 values that hold still, equal)
+same     18123 merges pwsh.exe: 14 lines, exit 0 (7 values that hold still, equal)
+same     18123 disks powershell.exe: 7 lines, exit 0 (3 values that hold still, equal)
+same     18123 disks pwsh.exe: 7 lines, exit 0 (3 values that hold still, equal)
+same     18123 queries powershell.exe: 12 lines, exit 0 (0 values that hold still, equal)
+same     18123 queries pwsh.exe: 12 lines, exit 0 (0 values that hold still, equal)
+same     18125 status powershell.exe: 26 lines, exit 0 (6 values that hold still, equal)
+same     18125 status pwsh.exe: 26 lines, exit 0 (6 values that hold still, equal)
+same     18125 tables powershell.exe: 35 lines, exit 0 (1 values that hold still, equal)
+same     18125 tables pwsh.exe: 35 lines, exit 0 (1 values that hold still, equal)
+same     18125 replication powershell.exe: 5 lines, exit 0 (3 values that hold still, equal)
+same     18125 replication pwsh.exe: 5 lines, exit 0 (3 values that hold still, equal)
+same     18125 merges powershell.exe: 10 lines, exit 0 (4 values that hold still, equal)
+same     18125 merges pwsh.exe: 10 lines, exit 0 (4 values that hold still, equal)
+same     18125 disks powershell.exe: 7 lines, exit 0 (3 values that hold still, equal)
+same     18125 disks pwsh.exe: 7 lines, exit 0 (3 values that hold still, equal)
+same     18125 queries powershell.exe: 5 lines, exit 0 (0 values that hold still, equal)
+same     18125 queries pwsh.exe: 5 lines, exit 0 (0 values that hold still, equal)
+--- PowerShell 5.1, status on ch1, as printed:
+metric up 1
+metric info 1 version=26.8.47.5
+metric uptime_seconds 293
+metric queries 2
+metric connections 0 kind=tcp
+metric connections 2 kind=http
+metric connections 0 kind=mysql
+metric connections 0 kind=postgresql
+metric connections 0 kind=interserver
+metric memory_bytes 255295899
+metric memory_limit_bytes 966367641
+metric memory_pct 26.42
+metric max_parts_in_partition 19
+metric parts_to_throw_insert 3000
+metric parts_pct 0.63
+metric inserts_delayed 0
+metric inserts_delayed_count 10
+metric inserts_rejected_count 5
+metric queries_count 117
+metric failed_queries_count 15 kind=all
+metric failed_queries_count 4 kind=select
+metric failed_queries_count 10 kind=insert
+metric keeper_sessions 1
+metric readonly_replicas 0
+metric replica_delay_seconds 0
+metric replica_queue 0
+--- a wrong password (5.1, then 7):
+metric up 1
+tables: ClickHouse refused the login: CLICKHOUSE_USER or CLICKHOUSE_PASSWORD is wrong
+exit 1
+metric up 1
+tables: ClickHouse refused the login: CLICKHOUSE_USER or CLICKHOUSE_PASSWORD is wrong
+exit 1
+--- nothing listening (5.1):
+metric up 0
+exit 0
+0 differ
+
+# The pack through Vigil, under Windows PowerShell 5.1 (tests/integration/Service-Packs.ps1):
+PowerShell 5.1.22621.6133
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD
+clickhouse: http://127.0.0.1:28123 as vigil
+  PASS  clickhouse: off until enabled
+  PASS  clickhouse: enabled
+        on: clickhouse_status
+        on: clickhouse_tables
+        on: clickhouse_replication
+        on: clickhouse_merges
+        on: clickhouse_disks
+        on: clickhouse_queries
+        needs secret:CLICKHOUSE_PASSWORD: not set: vigil secret set CLICKHOUSE_PASSWORD, as the account Vigil runs as (an elevated prompt for a system install)
+        needs the server's HTTP interface (8123, or 8443 over TLS) reachable from this machine
+        needs a read-only user, as an admin: CREATE USER vigil IDENTIFIED WITH sha256_password BY '...' SETTINGS readonly = 1; GRANT SELECT ON system.*, SHOW TABLES ON *.* TO vigil (it sees every table's parts, never their rows); then vigil secret set CLICKHOUSE_PASSWORD
+        settings in vigil.config: CLICKHOUSE_URL= CLICKHOUSE_CACERT= CLICKHOUSE_USER=vigil CLICKHOUSE_MOST=50
+  PASS  clickhouse: its jobs are on
+  PASS  clickhouse: the password is a secret reference, on every job
+  PASS  clickhouse: precheck is happy
+  PASS  clickhouse: every job runs
+  PASS  clickhouse: up
+  PASS  clickhouse: the inserts refused for too many parts, seen
+  PASS  clickhouse: the failing mutation, seen
+        metric up 1
+        metric mutations 1
+        metric mutations_failing 1
+        metric mutations_oldest_seconds 448
+        metric mutation_seconds 448 table=app.m id=mutation_2.txt
+        metric mutation_parts_to_do 1 table=app.m id=mutation_2.txt
+        metric mutation_failing 1 table=app.m id=mutation_2.txt
+        metric merges 0
+        metric merges_mutating 0
+        metric merge_longest_seconds 0
+        metric merges_memory_bytes 0
+        metric detached_parts 0 reason=broken
+        metric detached_parts 1 reason=manual
+        metric detached_parts 0 reason=unexpected
+  PASS  clickhouse: a wrong password fails the run
+  PASS  clickhouse: and says why
+  PASS  clickhouse: a server that does not answer still runs
+  PASS  clickhouse: and reads as up 0
+  PASS  clickhouse: the password is written nowhere
+  PASS  clickhouse: metrics reach the backend, each table by its name
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  iis: set VIGIL_IT_WEB_IIS (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  docker: set VIGIL_IT_DOCKER (backends\scripts\Run-Containers.ps1 sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (backends\scripts\run-sqlite.ps1 sets it up)
+17 passed, 0 failed
+
+# The same under PowerShell 7:
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh and the like set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD
+clickhouse: http://127.0.0.1:28123 as vigil
+  PASS  clickhouse: off until enabled
+  PASS  clickhouse: enabled
+        on: clickhouse_status
+        on: clickhouse_tables
+        on: clickhouse_replication
+        on: clickhouse_merges
+        on: clickhouse_disks
+        on: clickhouse_queries
+        needs secret:CLICKHOUSE_PASSWORD: not set: vigil secret set CLICKHOUSE_PASSWORD, as the account Vigil runs as (an elevated prompt for a system install)
+        needs the server's HTTP interface (8123, or 8443 over TLS) reachable from this machine
+        needs a read-only user, as an admin: CREATE USER vigil IDENTIFIED WITH sha256_password BY '...' SETTINGS readonly = 1; GRANT SELECT ON system.*, SHOW TABLES ON *.* TO vigil (it sees every table's parts, never their rows); then vigil secret set CLICKHOUSE_PASSWORD
+        settings in vigil.config: CLICKHOUSE_URL= CLICKHOUSE_CACERT= CLICKHOUSE_USER=vigil CLICKHOUSE_MOST=50
+  PASS  clickhouse: its jobs are on
+  PASS  clickhouse: the password is a secret reference, on every job
+  PASS  clickhouse: precheck is happy
+  PASS  clickhouse: every job runs
+  PASS  clickhouse: up
+  PASS  clickhouse: the inserts refused for too many parts, seen
+  PASS  clickhouse: the failing mutation, seen
+        metric up 1
+        metric mutations 1
+        metric mutations_failing 1
+        metric mutations_oldest_seconds 650
+        metric mutation_seconds 650 table=app.m id=mutation_2.txt
+        metric mutation_parts_to_do 1 table=app.m id=mutation_2.txt
+        metric mutation_failing 1 table=app.m id=mutation_2.txt
+        metric merges 0
+        metric merges_mutating 0
+        metric merge_longest_seconds 0
+        metric merges_memory_bytes 0
+        metric detached_parts 0 reason=broken
+        metric detached_parts 1 reason=manual
+        metric detached_parts 0 reason=unexpected
+  PASS  clickhouse: a wrong password fails the run
+  PASS  clickhouse: and says why
+  PASS  clickhouse: a server that does not answer still runs
+  PASS  clickhouse: and reads as up 0
+  PASS  clickhouse: the password is written nowhere
+  PASS  clickhouse: metrics reach the backend, each table by its name
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  iis: set VIGIL_IT_WEB_IIS (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  docker: set VIGIL_IT_DOCKER (backends\scripts\Run-Containers.ps1 sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (backends\scripts\run-sqlite.ps1 sets it up)
+17 passed, 0 failed

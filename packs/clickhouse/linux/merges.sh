@@ -41,7 +41,9 @@
 #   merge_longest_seconds      the longest-running one
 #   merges_memory_bytes        memory they hold
 #   detached_parts             parts detached, tagged reason=<broken,
-#                              unexpected, ignored, clone, manual...>
+#                              unexpected, ignored, clone, manual...>;
+#                              broken counts every broken one (found
+#                              so at start, from a backup)
 #
 # Example output (the rest are in the same form):
 #   metric mutations 1
@@ -102,7 +104,7 @@ jq -r "$jqlib"'
 ' "$work/rows"
 # A reason is empty for a part detached by hand (ALTER TABLE ... DETACH
 # PART): manual. Broken and unexpected always print, at 0 too.
-sel "SELECT if(reason = '', 'manual', reason) AS why, count() AS parts FROM system.detached_parts GROUP BY why"
+sel "SELECT multiIf(reason = '', 'manual', startsWith(reason, 'broken'), 'broken', reason) AS why, count() AS parts FROM system.detached_parts GROUP BY why"
 jq -r "$jqlib"'
     (map({(.why): (.parts | n)}) | add // {}) as $d
     | ({broken: 0, unexpected: 0} + $d) | to_entries | sort_by(.key)[]

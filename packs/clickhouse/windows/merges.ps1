@@ -42,7 +42,9 @@
       merge_longest_seconds      the longest-running one
       merges_memory_bytes        memory they hold
       detached_parts             parts detached, tagged reason=<broken,
-                                 unexpected, ignored, clone, manual...>
+                                 unexpected, ignored, clone, manual...>;
+                                 broken counts every broken one (found
+                                 so at start, from a backup)
 
     Example output (the rest are in the same form):
       metric mutations 1
@@ -110,6 +112,6 @@ M 'merges_memory_bytes' $g.memory
 # A reason is empty for a part detached by hand (ALTER TABLE ... DETACH
 # PART): manual. Broken and unexpected always print, at 0 too.
 $d = @{ broken = 0; unexpected = 0 }
-foreach ($r in @(Get-Rows "SELECT if(reason = '', 'manual', reason) AS why, count() AS parts FROM system.detached_parts GROUP BY why")) { $d[[string]$r.why] = N $r.parts }
+foreach ($r in @(Get-Rows "SELECT multiIf(reason = '', 'manual', startsWith(reason, 'broken'), 'broken', reason) AS why, count() AS parts FROM system.detached_parts GROUP BY why")) { $d[[string]$r.why] = N $r.parts }
 foreach ($k in @($d.Keys | Sort-Object { [string]$_ } -CaseSensitive)) { M 'detached_parts' $d[$k] "reason=$(Safe $k)" }
 exit 0

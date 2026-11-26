@@ -114,7 +114,9 @@ while IFS= read -r f; do
     elif [ "$(cat "$work/out")" = ok ]; then
         n=0
     else
-        n=$(grep -c . "$work/out")
+        # Not counted: the "*** in database main ***" line heading the list.
+        n=$(grep -v '^\*\*\* in database ' "$work/out" | grep -c .)
+        [ "$n" -gt 0 ] || n=1
     fi
     checked=$((checked + 1))
     if [ "$n" -eq 0 ]; then
