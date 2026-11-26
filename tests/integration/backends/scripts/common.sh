@@ -75,7 +75,8 @@ evidence_header() {
     fi
     printf '== %s\n' "$name"
     printf 'date     %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-    printf 'host     %s\n' "$(hostname)"
+    # The name given, when one is: a machine's own name can be private.
+    printf 'host     %s\n' "${VIGIL_EVIDENCE_HOST:-$(hostname)}"
     printf 'os       %s (%s)\n' "${os:-unknown}" "$(uname -srm)"
     printf 'vigil    %s\n' "$rev"
     printf 'command  %s\n' "$*"
