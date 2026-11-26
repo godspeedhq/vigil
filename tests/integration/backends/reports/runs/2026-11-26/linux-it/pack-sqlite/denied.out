@@ -1,0 +1,15 @@
+metric found 1 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric size_bytes 110592 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric valid 1 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric info 1 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db mode=rollback version=3.53.4 vacuum=none
+metric page_size 4096 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric pages 27 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric free_pages 0 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric free_pct 0 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric free_bytes 0 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric wal_bytes 0 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric journal_bytes 0 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric last_write_seconds 49 db=/tmp/vigil-sqlite-it.ciwi2I/db/plain.db
+metric databases 2
+metric missing 0
+status: this account (vt) cannot read /tmp/vigil-sqlite-it.ciwi2I/db/secret.db: give it read access (packs/sqlite/README.md shows how)

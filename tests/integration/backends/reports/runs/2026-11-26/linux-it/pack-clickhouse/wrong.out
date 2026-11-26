@@ -1,0 +1,2 @@
+metric up 1
+status: ClickHouse refused the login: CLICKHOUSE_USER or CLICKHOUSE_PASSWORD is wrong

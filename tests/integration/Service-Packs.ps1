@@ -262,7 +262,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
     $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs')
-    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'nginx', 'httpd', 'caddy', 'iis', 'docker') + $obsPacks) {
+    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
         Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
@@ -1403,6 +1403,87 @@ try {
         Test-Equal "${p}: metrics reach the backend" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^${p}_cluster_live\{")))
     }
 
+    # --- clickhouse ---------------------------------------------------------
+    # A ClickHouse server in trouble on purpose (inserts refused for too many
+    # parts, a mutation failing), through Vigil, as scripts/run-clickhouse.sh
+    # sets it up: VIGIL_IT_CLICKHOUSE_URL its HTTP interface, _USER and
+    # _PASSWORD its read-only user, _CACERT a CA over HTTPS.
+    if (-not $env:VIGIL_IT_CLICKHOUSE_URL -or -not $env:VIGIL_IT_CLICKHOUSE_PASSWORD) { Write-Host '  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)' }
+    else {
+        $p = 'clickhouse'
+        $url = $env:VIGIL_IT_CLICKHOUSE_URL
+        $user = if ($env:VIGIL_IT_CLICKHOUSE_USER) { $env:VIGIL_IT_CLICKHOUSE_USER } else { 'vigil' }
+        $pw = $env:VIGIL_IT_CLICKHOUSE_PASSWORD
+        $ca = [string]$env:VIGIL_IT_CLICKHOUSE_CACERT
+        foreach ($v in 'URL', 'USER', 'PASSWORD', 'CACERT') { Remove-Item "Env:\CLICKHOUSE_$v" -ErrorAction SilentlyContinue }
+        Write-Host "${p}: $url as $user"
+        $ck = Join-Path $root "packs\$p"
+        $cjobs = @(([System.IO.File]::ReadAllLines((Join-Path $ck 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] }))
+        $cn = $cjobs.Count
+        $on = {
+            $list = (Invoke-Vigil pack list).Text
+            $st = @($list.Split("`n") | Where-Object { $_ -match "^\s*${p}_\w+\s" } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            (@($st | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        Test-Equal "${p}: off until enabled" "off=$cn" (& $on)
+        $r = Invoke-Vigil pack enable $p
+        Test-Equal "${p}: enabled" '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "${p}: its jobs are on" "on=$cn" (& $on)
+        $cfg = Join-Path $root 'config\vigil.config'
+        Test-Equal "${p}: the password is a secret reference, on every job" ([string]$cn) ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*CLICKHOUSE_PASSWORD=secret:CLICKHOUSE_PASSWORD')).Count)
+        # A logon with no password (SSH with a key) cannot use the secret
+        # store: then the jobs take it by an env: reference.
+        $cenv = $false
+        Set-VigilSecret 'CLICKHOUSE_PASSWORD' $pw
+        if ((Invoke-Vigil secret list).Text -notmatch 'CLICKHOUSE_PASSWORD') {
+            $cenv = $true
+            Write-Host "  note  ${p}: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_CLICKHOUSE_PASSWORD"
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*CLICKHOUSE_PASSWORD=)secret:CLICKHOUSE_PASSWORD', '${1}env:VIGIL_IT_CLICKHOUSE_PASSWORD'))
+        }
+        Set-Env 'CLICKHOUSE_URL' $url
+        Set-Env 'CLICKHOUSE_USER' $user
+        Set-Env 'CLICKHOUSE_CACERT' $ca
+        $r = Invoke-Vigil precheck
+        Test-Equal "${p}: precheck is happy" '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $cjobs) { if ([string](Invoke-Vigil run "${p}_$j").Code -ne '0') { $failed += $j } }
+        Test-Equal "${p}: every job runs" '' ($failed -join ' ')
+        foreach ($j in $failed) { Show-LastRun "${p}_$j" }
+        Test-Equal "${p}: up" '1' (Get-Printed "${p}_status" up)
+        Test-Equal "${p}: the inserts refused for too many parts, seen" 'yes' (Test-Between "${p}_status" inserts_rejected_count '' 1 1e9)
+        Test-Equal "${p}: the failing mutation, seen" 'yes' (Test-Between "${p}_merges" mutations_failing '' 1 1e9)
+        Show-LastRun "${p}_merges"
+        if ($cenv) { $keep = $pw; $env:VIGIL_IT_CLICKHOUSE_PASSWORD = 'not-the-password' }
+        else { Set-VigilSecret 'CLICKHOUSE_PASSWORD' 'not-the-password' }
+        Test-Equal "${p}: a wrong password fails the run" '2' ([string](Invoke-Vigil run "${p}_tables").Code)
+        Test-Equal "${p}: and says why" 'True' (Test-Said "${p}_tables" 'ClickHouse refused the login')
+        if ($cenv) { $env:VIGIL_IT_CLICKHOUSE_PASSWORD = $keep } else { Set-VigilSecret 'CLICKHOUSE_PASSWORD' $pw }
+        Set-Env 'CLICKHOUSE_URL' 'http://127.0.0.1:1'
+        Test-Equal "${p}: a server that does not answer still runs" '0' ([string](Invoke-Vigil run "${p}_status").Code)
+        Test-Equal "${p}: and reads as up 0" '0' (Get-Printed "${p}_status" up)
+        Set-Env 'CLICKHOUSE_URL' $url
+        [void](Invoke-Vigil run "${p}_status")
+        [void](Invoke-Vigil run "${p}_tables")
+        $leaks = @()
+        foreach ($d in 'logs', 'state', 'spool', 'metrics') {
+            foreach ($f in Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue) {
+                if ([System.IO.File]::ReadAllText($f.FullName).Contains($pw)) { $leaks += $f.Name }
+            }
+        }
+        if ([System.IO.File]::ReadAllText($cfg).Contains($pw)) { $leaks += 'vigil.config' }
+        Test-Equal "${p}: the password is written nowhere" '' ($leaks -join ' ')
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match "(?m)^${p}_tables_table_parts\{") { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal "${p}: metrics reach the backend, each table by its name" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^${p}_tables_table_parts\{.*table=")))
+    }
+
     # --- rabbitmq ----------------------------------------------------------
     # RabbitMQ nodes, through Vigil: VIGIL_IT_RABBITMQ_TARGETS their
     # Prometheus pages (name=address;...).
@@ -1705,6 +1786,44 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "docker: metrics reach the backend, each container's too" 'True True' "$([string]($prom -match '(?m)^docker_up\{')) $([string]($prom -match '(?m)^docker_containers_running\{.*name='))"
+    }
+    # VIGIL_IT_SQLITE: databases backends\scripts\run-sqlite.ps1 made,
+    # separated by ;, the last one not there; the check runs with sqlite3.exe
+    # (VIGIL_IT_SQLITE3, else the one on the PATH), when there is one.
+    if (-not $env:VIGIL_IT_SQLITE) { Write-Host '  SKIP  sqlite: set VIGIL_IT_SQLITE (backends\scripts\run-sqlite.ps1 sets it up)' }
+    else {
+        Write-Host "sqlite: $($env:VIGIL_IT_SQLITE)"
+        $r = Invoke-Vigil pack enable sqlite
+        Test-Equal 'sqlite: enabled' '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        $t = $r.Text -replace '\s+', ' '
+        Test-Equal 'sqlite: it says what it needs: the databases, read access, the check' 'True True True' "$($t.Contains('SQLITE_FILES=')) $($t.Contains('read access')) $($t.Contains('SQLITE_CHECK=quick'))"
+        Set-Env SQLITE_FILES $env:VIGIL_IT_SQLITE
+        Test-Equal 'sqlite: precheck is happy' '0' ([string](Invoke-Vigil precheck).Code)
+        Test-Equal 'sqlite: status runs' '0' ([string](Invoke-Vigil run sqlite_status).Code)
+        Show-LastRun sqlite_status
+        $sd = @($env:VIGIL_IT_SQLITE -split ';' | Where-Object { $_.Trim() }).Count
+        Test-Equal 'sqlite: status: every database counted, the one not there missing' "$sd 1" "$(Get-Printed sqlite_status databases) $(Get-Printed sqlite_status missing)"
+        $c = [string](Invoke-Vigil run sqlite_check).Code
+        Test-Equal 'sqlite: the check is off until asked' '0 0' "$c $(Get-Printed sqlite_check checked)"
+        $s3 = if ($env:VIGIL_IT_SQLITE3) { $env:VIGIL_IT_SQLITE3 } else { $g = Get-Command sqlite3 -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1; if ($g) { $g.Source } }
+        if (-not $s3) { Write-Host '  SKIP  sqlite: the check: sqlite3.exe is not here (VIGIL_IT_SQLITE3 names it)' }
+        else {
+            Set-Env SQLITE_CHECK quick
+            Set-Env SQLITE3 $s3
+            $c = [string](Invoke-Vigil run sqlite_check).Code
+            Show-LastRun sqlite_check
+            Test-Equal 'sqlite: asked, it checks each database there, and finds the damaged one' "0 $($sd - 1) 1" "$c $(Get-Printed sqlite_check checked) $(Get-Printed sqlite_check not_ok)"
+        }
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match '(?m)^sqlite_size_bytes\{') { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal 'sqlite: metrics reach the backend, each database by its path' 'True True' "$([string]($prom -match '(?m)^sqlite_databases\{')) $([string]($prom -match '(?m)^sqlite_size_bytes\{.*db='))"
     }
 }
 finally {

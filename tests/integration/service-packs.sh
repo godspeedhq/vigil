@@ -91,6 +91,9 @@
 #                                        VIEWCLUSTERSETTING and VIEWJOB, its
 #                                        password, and the cluster's CA
 #                                        (scripts/run-cockroachdb.sh)
+#   VIGIL_IT_CLICKHOUSE_URL, _USER,      a ClickHouse server's HTTP interface,
+#     _PASSWORD                          its read-only user and password
+#                                        (scripts/run-clickhouse.sh)
 #   VIGIL_IT_NGINX_URL                   an nginx stub_status page
 #   VIGIL_IT_WEB_NGINX, _HTTPD, _CADDY, _HAPROXY, _PHPFPM
 #                                        a web pack's settings, NAME=value
@@ -110,6 +113,9 @@
 #                                        account's own Podman), with _DOWN
 #                                        (scripts/run-containers.sh sets
 #                                        them up, with containers to read)
+#   VIGIL_IT_SQLITE                      SQLite databases for the sqlite pack,
+#                                        separated by ;, the last one not there
+#                                        (scripts/run-sqlite.sh makes them)
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
 #
@@ -186,7 +192,7 @@ cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
 obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs'
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb nginx httpd caddy haproxy phpfpm $obs_packs docker podman; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1540,6 +1546,63 @@ else
     check 'cockroachdb: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_CRDB_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
 
+# --- clickhouse -------------------------------------------------------------
+# A ClickHouse server in trouble on purpose (inserts refused for too many
+# parts, a mutation failing), through Vigil, as scripts/run-clickhouse.sh
+# sets it up: VIGIL_IT_CLICKHOUSE_URL its HTTP interface, _USER and
+# _PASSWORD its read-only user.
+if [ -z "${VIGIL_IT_CLICKHOUSE_URL-}" ] || [ -z "${VIGIL_IT_CLICKHOUSE_PASSWORD-}" ]; then
+    printf '  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)\n'
+elif ! command -v jq > /dev/null 2>&1; then
+    printf '  SKIP  clickhouse: jq is not installed here\n'
+else
+    unset CLICKHOUSE_URL CLICKHOUSE_USER CLICKHOUSE_PASSWORD CLICKHOUSE_CACERT
+    printf 'clickhouse: %s as %s\n' "$VIGIL_IT_CLICKHOUSE_URL" "${VIGIL_IT_CLICKHOUSE_USER:-vigil}"
+    hjobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/clickhouse/pack.config")
+    hn=$(printf '%s\n' $hjobs | wc -l | tr -d ' ')
+    hjobs_on() { vigil pack list | awk '$1 ~ /^clickhouse_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    hval() { grep -h " out metric $2 " "$root/logs/jobs/clickhouse_$1"/*.log 2> /dev/null | grep -- "${3-}" | tail -n 1 | awk '{ print $6 }'; }
+    hrun() { vigil run "clickhouse_$1" > "$work/out" 2>&1; echo $?; }
+    hsaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/clickhouse_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    check 'clickhouse: off until enabled' "off=$hn" "$(hjobs_on)"
+    out=$(vigil pack enable clickhouse 2>&1)
+    check 'clickhouse: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'clickhouse: its jobs are on' "on=$hn" "$(hjobs_on)"
+    check 'clickhouse: it names the secret it needs, not set' yes "$(printf '%s\n' "$out" | grep -q 'needs secret:CLICKHOUSE_PASSWORD: not set' && echo yes || echo no)"
+    check 'clickhouse: the password is a secret reference, on every job' "$hn" "$(grep -c '^secret *= CLICKHOUSE_PASSWORD=secret:CLICKHOUSE_PASSWORD' "$root/config/vigil.config")"
+    printf '%s' "$VIGIL_IT_CLICKHOUSE_PASSWORD" | vigil secret set CLICKHOUSE_PASSWORD --stdin > /dev/null
+    set_env CLICKHOUSE_URL "$VIGIL_IT_CLICKHOUSE_URL"
+    set_env CLICKHOUSE_USER "${VIGIL_IT_CLICKHOUSE_USER:-vigil}"
+    check 'clickhouse: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    [ "$(grep -c FAIL "$work/precheck")" -eq 0 ] || sed 's/^/        /' "$work/precheck"
+    failed=''
+    for j in $hjobs; do [ "$(hrun "$j")" = 0 ] || failed="$failed $j"; done
+    check 'clickhouse: every job runs' '' "$failed"
+    for j in $failed; do sed 's/^/        /' "$root/logs/jobs/clickhouse_$j"/*.log | tail -n 4; done
+    for j in $hjobs; do
+        printf '        %s: %s lines\n' "$j" "$(grep -h ' out metric ' "$root/logs/jobs/clickhouse_$j"/*.log | wc -l | tr -d ' ')"
+    done
+    check 'clickhouse: up' 1 "$(hval status up)"
+    check 'clickhouse: the inserts refused for too many parts, seen' yes "$([ "$(hval status inserts_rejected_count)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    check 'clickhouse: the failing mutation, seen' yes "$([ "$(hval merges mutations_failing)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
+    printf 'not-the-password' | vigil secret set CLICKHOUSE_PASSWORD --stdin > /dev/null
+    check 'clickhouse: a wrong password fails the run' 2 "$(hrun tables)"
+    check 'clickhouse: and says why' yes "$(hsaid tables 'ClickHouse refused the login')"
+    printf '%s' "$VIGIL_IT_CLICKHOUSE_PASSWORD" | vigil secret set CLICKHOUSE_PASSWORD --stdin > /dev/null
+    set_env CLICKHOUSE_URL 'http://127.0.0.1:1'
+    check 'clickhouse: a server that does not answer still runs' 0 "$(hrun status)"
+    check 'clickhouse: and reads as up 0' 0 "$(hval status up)"
+    set_env CLICKHOUSE_URL "$VIGIL_IT_CLICKHOUSE_URL"
+    [ "$(hrun tables)" = 0 ] || true
+    check 'clickhouse: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_CLICKHOUSE_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+fi
+
 # --- rabbitmq ---------------------------------------------------------------
 # RabbitMQ nodes, through Vigil, as scripts/run-rabbitmq.sh sets them up:
 # VIGIL_IT_RABBITMQ_TARGETS their Prometheus pages (name=address;...).
@@ -1797,6 +1860,36 @@ for o in docker podman; do
     fi
 done
 
+# --- sqlite -----------------------------------------------------------------
+# Databases scripts/run-sqlite.sh made, the last one not there: enabled,
+# precheck, both jobs, the check turned on, and what each read.
+if [ -z "${VIGIL_IT_SQLITE-}" ]; then
+    printf '  SKIP  sqlite: set VIGIL_IT_SQLITE (scripts/run-sqlite.sh sets it up)\n'
+else
+    printf 'sqlite: %s\n' "$VIGIL_IT_SQLITE"
+    sn=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/sqlite/pack.config" | wc -l | tr -d ' ')
+    check 'sqlite: off until enabled' "off=$sn" "$(vigil pack list | awk 'index($1, "sqlite_") == 1 { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }')"
+    out=$(vigil pack enable sqlite 2>&1)
+    check 'sqlite: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'sqlite: it says what it needs: the databases, read access, the check' yes "$(printf '%s\n' "$out" | grep -q 'SQLITE_FILES=' && printf '%s\n' "$out" | grep -q 'read access' && printf '%s\n' "$out" | grep -q 'SQLITE_CHECK=quick' && echo yes || echo no)"
+    set_env SQLITE_FILES "$VIGIL_IT_SQLITE"
+    check 'sqlite: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    vigil run sqlite_status > "$work/out" 2>&1
+    check 'sqlite: status runs' 0 "$?"
+    sd=$(printf '%s' "$VIGIL_IT_SQLITE" | tr ';' '\n' | grep -c .)
+    check 'sqlite: status: every database counted, the one not there missing' "$sd 1" "$(printed sqlite_status databases) $(printed sqlite_status missing)"
+    vigil run sqlite_check > "$work/out" 2>&1
+    check 'sqlite: the check is off until asked' '0 0' "$? $(printed sqlite_check checked)"
+    if command -v sqlite3 > /dev/null 2>&1; then
+        set_env SQLITE_CHECK quick
+        vigil run sqlite_check > "$work/out" 2>&1
+        check 'sqlite: asked, it checks each database there, and finds the damaged one' "0 $((sd - 1)) 1" "$? $(printed sqlite_check checked) $(printed sqlite_check not_ok)"
+    else
+        printf '  SKIP  sqlite: the check: sqlite3 is not installed here\n'
+    fi
+fi
+
 # What ran reaches the backend.
 vigil supervise --once > /dev/null 2>&1
 sleep 3
@@ -1880,5 +1973,13 @@ for o in docker podman; do
     check "$o: metrics reach the backend, each container's too" 'yes yes' "$(grep -q "^${o}_up{" "$root/metrics/vigil.prom" && echo yes || echo no) $(grep -q "^${o}_containers_running{.*name=" "$root/metrics/vigil.prom" && echo yes || echo no)"
 done
 
+if [ -n "${VIGIL_IT_CLICKHOUSE_URL-}" ] && [ -n "${VIGIL_IT_CLICKHOUSE_PASSWORD-}" ] && command -v jq > /dev/null 2>&1; then
+    for _ in $(seq 1 20); do grep -q '^clickhouse_tables_table_parts{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check 'clickhouse: metrics reach the backend, each table by its name' 'yes yes' "$(grep -q '^clickhouse_up{' "$root/metrics/vigil.prom" && echo yes || echo no) $(grep -q '^clickhouse_tables_table_parts{.*table=' "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
+if [ -n "${VIGIL_IT_SQLITE-}" ]; then
+    for _ in $(seq 1 20); do grep -q '^sqlite_size_bytes{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check 'sqlite: metrics reach the backend, each database by its path' 'yes yes' "$(grep -q '^sqlite_databases{' "$root/metrics/vigil.prom" && echo yes || echo no) $(grep -q '^sqlite_size_bytes{.*db=' "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
