@@ -1,0 +1,30 @@
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric pending 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric enqueued_count 500 broker=a518 jmx=localhost:19321 destinationName=prices
+metric dequeued_count 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric dispatched_count 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric expired_count 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric consumers 2 broker=a518 jmx=localhost:19321 destinationName=prices
+metric producers 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric memory_pct 49 broker=a518 jmx=localhost:19321 destinationName=prices
+metric blocked_sends_count 0 broker=a518 jmx=localhost:19321 destinationName=prices
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric pending 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric enqueued_count 500 broker=a519 jmx=localhost:19322 destinationName=prices
+metric dequeued_count 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric dispatched_count 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric expired_count 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric consumers 1 broker=a519 jmx=localhost:19322 destinationName=prices
+metric producers 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric memory_pct 49 broker=a519 jmx=localhost:19322 destinationName=prices
+metric blocked_sends_count 0 broker=a519 jmx=localhost:19322 destinationName=prices
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric pending 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric enqueued_count 500 broker=a62 jmx=localhost:19323 destinationName=prices
+metric dequeued_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric dispatched_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric expired_count 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric consumers 1 broker=a62 jmx=localhost:19323 destinationName=prices
+metric producers 0 broker=a62 jmx=localhost:19323 destinationName=prices
+metric memory_pct 49 broker=a62 jmx=localhost:19323 destinationName=prices
+metric blocked_sends_count 0 broker=a62 jmx=localhost:19323 destinationName=prices

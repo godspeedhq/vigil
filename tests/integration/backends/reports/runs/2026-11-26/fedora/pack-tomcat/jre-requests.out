@@ -1,0 +1,39 @@
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric requests_count 54 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric requests_count 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric errors_count 14 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric errors_count 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric sent_bytes 47182 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric sent_bytes 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric received_bytes 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric received_bytes 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric processing_seconds 2.428 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric processing_seconds 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric slowest_seconds 2.281 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8080
+metric slowest_seconds 0 tomcat=tc9 jmx=localhost:19301 name=http-nio-0.0.0.0-8081
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric requests_count 54 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric requests_count 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric errors_count 14 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric errors_count 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric sent_bytes 47376 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric sent_bytes 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric received_bytes 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric received_bytes 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric processing_seconds 2.206 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric processing_seconds 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric slowest_seconds 2.063 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8080
+metric slowest_seconds 0 tomcat=tc10 jmx=localhost:19302 name=http-nio-0.0.0.0-8081
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric requests_count 54 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric requests_count 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric errors_count 14 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric errors_count 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric sent_bytes 46386 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric sent_bytes 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric received_bytes 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric received_bytes 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric processing_seconds 1.987 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric processing_seconds 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081
+metric slowest_seconds 1.667 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8080
+metric slowest_seconds 0 tomcat=tc11 jmx=localhost:19303 name=http-nio-0.0.0.0-8081

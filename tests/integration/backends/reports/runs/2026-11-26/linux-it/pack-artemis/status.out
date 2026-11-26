@@ -1,0 +1,48 @@
+metric jmx_up 1 broker=art233 jmx=localhost:19331
+metric version 1 broker=art233 jmx=localhost:19331 version=2.33.0
+metric broker 1 broker=art233 jmx=localhost:19331 broker_name=0.0.0.0
+metric ha_policy 1 broker=art233 jmx=localhost:19331 policy=Primary_Only
+metric uptime_seconds 347.176 broker=art233 jmx=localhost:19331
+metric started 1 broker=art233 jmx=localhost:19331
+metric active 1 broker=art233 jmx=localhost:19331
+metric backup 0 broker=art233 jmx=localhost:19331
+metric replica_sync 0 broker=art233 jmx=localhost:19331
+metric clustered 0 broker=art233 jmx=localhost:19331
+metric node 1 broker=art233 jmx=localhost:19331 node_id=06ea890d-e9a7-11f1-8751-423ec4d6dd9c
+metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=amqp
+metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=artemis
+metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=hornetq
+metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=mqtt
+metric acceptor_up 1 broker=art233 jmx=localhost:19331 name=stomp
+metric jmx_up 1 broker=art240 jmx=localhost:19332
+metric version 1 broker=art240 jmx=localhost:19332 version=2.40.0
+metric broker 1 broker=art240 jmx=localhost:19332 broker_name=0.0.0.0
+metric ha_policy 1 broker=art240 jmx=localhost:19332 policy=Primary_Only
+metric uptime_seconds 347.385 broker=art240 jmx=localhost:19332
+metric started 1 broker=art240 jmx=localhost:19332
+metric active 1 broker=art240 jmx=localhost:19332
+metric backup 0 broker=art240 jmx=localhost:19332
+metric replica_sync 0 broker=art240 jmx=localhost:19332
+metric clustered 0 broker=art240 jmx=localhost:19332
+metric node 1 broker=art240 jmx=localhost:19332 node_id=079fcf56-e9a7-11f1-ac0c-6235516f52f1
+metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=amqp
+metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=artemis
+metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=hornetq
+metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=mqtt
+metric acceptor_up 1 broker=art240 jmx=localhost:19332 name=stomp
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric version 1 broker=art244 jmx=localhost:19333 version=2.44.0
+metric broker 1 broker=art244 jmx=localhost:19333 broker_name=0.0.0.0
+metric ha_policy 1 broker=art244 jmx=localhost:19333 policy=Primary_Only
+metric uptime_seconds 348.436 broker=art244 jmx=localhost:19333
+metric started 1 broker=art244 jmx=localhost:19333
+metric active 1 broker=art244 jmx=localhost:19333
+metric backup 0 broker=art244 jmx=localhost:19333
+metric replica_sync 0 broker=art244 jmx=localhost:19333
+metric clustered 0 broker=art244 jmx=localhost:19333
+metric node 1 broker=art244 jmx=localhost:19333 node_id=0818341c-e9a7-11f1-9102-d24a79cec0d7
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=amqp
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=artemis
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=hornetq
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=mqtt
+metric acceptor_up 1 broker=art244 jmx=localhost:19333 name=stomp

@@ -1,0 +1,15 @@
+metric jmx_up 1 broker=art233 jmx=localhost:19331
+metric dead 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric dead_added_count 0 broker=art233 jmx=localhost:19331 address=DLQ queue=DLQ
+metric expired 100 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric expired_added_count 100 broker=art233 jmx=localhost:19331 address=ExpiryQueue queue=ExpiryQueue
+metric jmx_up 1 broker=art240 jmx=localhost:19332
+metric dead 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric dead_added_count 0 broker=art240 jmx=localhost:19332 address=DLQ queue=DLQ
+metric expired 100 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric expired_added_count 100 broker=art240 jmx=localhost:19332 address=ExpiryQueue queue=ExpiryQueue
+metric jmx_up 1 broker=art244 jmx=localhost:19333
+metric dead 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric dead_added_count 0 broker=art244 jmx=localhost:19333 address=DLQ queue=DLQ
+metric expired 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue
+metric expired_added_count 100 broker=art244 jmx=localhost:19333 address=ExpiryQueue queue=ExpiryQueue

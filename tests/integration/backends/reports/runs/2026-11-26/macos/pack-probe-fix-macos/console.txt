@@ -1,0 +1,167 @@
+== pack-probe-fix-macos
+host     the Mac test machine (macOS 12.7.6, bash 3.2, Java 21)
+what     the six packs carrying the fixed probe, each from packs-2026.11.26.4's own macOS archive, against its run-<pack>.sh's servers held on Fedora or the Dell, through SSH tunnels
+
+== tomcat on macOS 12.7.6, bash 3.2.57(1)-release, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-tomcat-1.0.1-macos.tar.gz
+status                 21 lines
+requests               39 lines
+threads                78 lines
+inflight               9 lines
+apps                   42 lines
+sessions               60 lines
+servlets               33 lines
+jdbc                   84 lines
+cache                  42 lines
+  PASS  tomcat: every job runs
+  PASS  tomcat: status reads all 3 servers over JMX
+        metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+        metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+        metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+  PASS  tomcat: a wrong JMX password fails the run, the login refused
+        tomcat_status: JMX at localhost:19301 refused the login: FailedLoginException: Invalid username or password (TOMCAT_JMX_USER, and the secret behind TOMCAT_JMX_PASSWORD)
+        tomcat_status: JMX at localhost:19302 refused the login: FailedLoginException: Invalid username or password (TOMCAT_JMX_USER, and the secret behind TOMCAT_JMX_PASSWORD)
+3 passed, 0 failed
+
+== jetty on macOS 12.7.6, bash 3.2.57(1)-release, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-jetty-1.0.1-macos.tar.gz
+status                 26 lines
+requests               90 lines
+threads                64 lines
+connections            68 lines
+sessions               44 lines
+buffers                16 lines
+  PASS  jetty: every job runs
+  PASS  jetty: status reads all 4 servers over JMX
+        metric jmx_up 1 jetty=j94 jmx=localhost:19311
+        metric jmx_up 1 jetty=j11 jmx=localhost:19312
+        metric jmx_up 1 jetty=j120 jmx=localhost:19313
+        metric jmx_up 1 jetty=j121 jmx=localhost:19314
+  PASS  jetty: a wrong JMX password fails the run, the login refused
+        jetty_status: JMX at localhost:19311 refused the login: FailedLoginException: Invalid username or password (JETTY_JMX_USER, and the secret behind JETTY_JMX_PASSWORD)
+        jetty_status: JMX at localhost:19312 refused the login: FailedLoginException: Invalid username or password (JETTY_JMX_USER, and the secret behind JETTY_JMX_PASSWORD)
+3 passed, 0 failed
+
+== activemq on macOS 12.7.6, bash 3.2.57(1)-release, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-activemq-1.0.1-macos.tar.gz
+status                 24 lines
+broker                 61 lines
+queues                 489 lines
+topics                 30 lines
+dlq                    9 lines
+subscribers            27 lines
+producers              7 lines
+connections            14 lines
+  PASS  activemq: every job runs
+  PASS  activemq: status reads all 3 servers over JMX
+        metric jmx_up 1 broker=a518 jmx=localhost:19321
+        metric jmx_up 1 broker=a519 jmx=localhost:19322
+        metric jmx_up 1 broker=a62 jmx=localhost:19323
+  PASS  activemq: a wrong JMX password fails the run, the login refused
+        activemq_status: JMX at localhost:19321 refused the login: FailedLoginException: Invalid username or password (ACTIVEMQ_JMX_USER, and the secret behind ACTIVEMQ_JMX_PASSWORD)
+        activemq_status: JMX at localhost:19322 refused the login: FailedLoginException: Invalid username or password (ACTIVEMQ_JMX_USER, and the secret behind ACTIVEMQ_JMX_PASSWORD)
+3 passed, 0 failed
+
+== artemis on macOS 12.7.6, bash 3.2.57(1)-release, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-artemis-1.0.1-macos.tar.gz
+status                 48 lines
+broker                 54 lines
+addresses              227 lines
+queues                 375 lines
+dlq                    15 lines
+cluster                3 lines
+  PASS  artemis: every job runs
+  PASS  artemis: status reads all 3 servers over JMX
+        metric jmx_up 1 broker=art233 jmx=localhost:19331
+        metric jmx_up 1 broker=art240 jmx=localhost:19332
+        metric jmx_up 1 broker=art244 jmx=localhost:19333
+  PASS  artemis: a wrong JMX password fails the run, the login refused
+        artemis_status: JMX at localhost:19331 refused the login: FailedLoginException: Invalid username or password (ARTEMIS_JMX_USER, and the secret behind ARTEMIS_JMX_PASSWORD)
+        artemis_status: JMX at localhost:19332 refused the login: FailedLoginException: Invalid username or password (ARTEMIS_JMX_USER, and the secret behind ARTEMIS_JMX_PASSWORD)
+3 passed, 0 failed
+
+== kafka on macOS 12.7.6, bash 3.2.57(1)-release, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-kafka-2.0.2-macos.tar.gz
+status                 5 lines
+quorum                 17 lines
+brokers                18 lines
+replication            11 lines
+reassignment           4 lines
+consumers              11 lines
+groups                 11 lines
+topics                 40 lines
+logdirs                41 lines
+transactions           4 lines
+config                 15 lines
+security               9 lines
+features               22 lines
+throughput             45 lines
+requests               57 lines
+controller             19 lines
+connections            63 lines
+tls                    11 lines
+  PASS  kafka: every job runs
+  PASS  kafka: throughput reads all 3 servers over JMX
+        metric jmx_up 1 broker=1 jmx=127.0.0.1:19991
+        metric jmx_up 1 broker=2 jmx=127.0.0.1:19992
+        metric jmx_up 1 broker=3 jmx=127.0.0.1:19993
+  PASS  kafka: a wrong JMX password fails the run, the login refused
+        kafka_throughput: JMX at 127.0.0.1:19991 refused the login: FailedLoginException: Invalid username or password (KAFKA_JMX_USER, and the secret behind KAFKA_JMX_PASSWORD)
+        kafka_throughput: JMX at 127.0.0.1:19992 refused the login: FailedLoginException: Invalid username or password (KAFKA_JMX_USER, and the secret behind KAFKA_JMX_PASSWORD)
+3 passed, 0 failed
+
+== jvm on macOS 12.7.6, bash 3.2.57(1)-release, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-jvm-1.2.2-macos.tar.gz
+process                7 lines
+discovery              2 lines
+status                 49 lines
+flags                  49 lines
+container              43 lines
+release_age            23 lines
+security               49 lines
+startup                19 lines
+heap                   31 lines
+pools                  145 lines
+metaspace              43 lines
+codecache              49 lines
+buffers                52 lines
+native                 32 lines
+native_overhead        7 lines
+gc                     51 lines
+gc_cycles              37 lines
+gc_last                59 lines
+gc_cpu                 7 lines
+allocation             19 lines
+promotion              1 lines
+tlab                   1 lines
+gclog                  1 lines
+gclog_detail           1 lines
+threads                61 lines
+deadlocks              21 lines
+contention             28 lines
+hot_threads            43 lines
+virtual_threads        13 lines
+classes                25 lines
+classloaders           83 lines
+jit                    13 lines
+deopt                  1 lines
+safepoints             1 lines
+finalization           13 lines
+os                     79 lines
+io                     7 lines
+crashes                7 lines
+oom                    7 lines
+jfr                    25 lines
+mbeans                 1 lines
+  PASS  jvm: every job runs
+  PASS  jvm: heap reads all 6 servers over JMX
+        metric jmx_up 1 jvm=j8
+        metric jmx_up 1 jvm=j8tls
+        metric jmx_up 1 jvm=j11
+        metric jmx_up 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric jmx_up 1 jvm=j25
+  PASS  jvm: a wrong JMX password fails the run, the login refused
+        jvm_heap: JMX at localhost:19181 refused the login: FailedLoginException: Invalid username or password (JVM_JMX_USER, and the secret behind JVM_JMX_PASSWORD)
+        jvm_heap: JMX at localhost:19186 refused the login: FailedLoginException: Invalid username or password (JVM_JMX_USER, and the secret behind JVM_JMX_PASSWORD)
+3 passed, 0 failed

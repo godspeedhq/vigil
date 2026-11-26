@@ -1,0 +1,9 @@
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric size 50 broker=a518 jmx=localhost:19321 destinationName=ActiveMQ.DLQ
+metric enqueued_count 50 broker=a518 jmx=localhost:19321 destinationName=ActiveMQ.DLQ
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric size 50 broker=a519 jmx=localhost:19322 destinationName=ActiveMQ.DLQ
+metric enqueued_count 50 broker=a519 jmx=localhost:19322 destinationName=ActiveMQ.DLQ
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric size 50 broker=a62 jmx=localhost:19323 destinationName=ActiveMQ.DLQ
+metric enqueued_count 50 broker=a62 jmx=localhost:19323 destinationName=ActiveMQ.DLQ

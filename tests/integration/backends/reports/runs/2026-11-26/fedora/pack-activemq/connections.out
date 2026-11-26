@@ -1,0 +1,34 @@
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric dispatch_queue 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_3b4ba32b3ac7-33675-1795704064386-0_1
+metric dispatch_queue 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_3b4ba32b3ac7-43133-1795704064805-0_1
+metric blocked 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_3b4ba32b3ac7-33675-1795704064386-0_1
+metric blocked 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_3b4ba32b3ac7-43133-1795704064805-0_1
+metric slow 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_3b4ba32b3ac7-33675-1795704064386-0_1
+metric slow 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_3b4ba32b3ac7-43133-1795704064805-0_1
+metric transactions 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_3b4ba32b3ac7-33675-1795704064386-0_1
+metric transactions 0 broker=a518 jmx=localhost:19321 connectorName=openwire connectionName=ID_3b4ba32b3ac7-43133-1795704064805-0_1
+metric bridge 1 broker=a518 jmx=localhost:19321 networkConnectorName=to-a62 remote=a62
+metric bridge_enqueued_count 0 broker=a518 jmx=localhost:19321 networkConnectorName=to-a62 networkBridge=tcp_//172.20.0.3_61616
+metric bridge_dequeued_count 0 broker=a518 jmx=localhost:19321 networkConnectorName=to-a62 networkBridge=tcp_//172.20.0.3_61616
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric dispatch_queue 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_76f29c50899c-35307-1795704141908-0_1
+metric dispatch_queue 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_76f29c50899c-35573-1795704141956-0_1
+metric blocked 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_76f29c50899c-35307-1795704141908-0_1
+metric blocked 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_76f29c50899c-35573-1795704141956-0_1
+metric slow 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_76f29c50899c-35307-1795704141908-0_1
+metric slow 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_76f29c50899c-35573-1795704141956-0_1
+metric transactions 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_76f29c50899c-35307-1795704141908-0_1
+metric transactions 0 broker=a519 jmx=localhost:19322 connectorName=openwire connectionName=ID_76f29c50899c-35573-1795704141956-0_1
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric dispatch_queue 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f867c92ee6f1-39365-1795704214339-0_1
+metric dispatch_queue 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f867c92ee6f1-44765-1795704214124-0_1
+metric dispatch_queue 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=to-a62_a518_outbound
+metric blocked 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f867c92ee6f1-39365-1795704214339-0_1
+metric blocked 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f867c92ee6f1-44765-1795704214124-0_1
+metric blocked 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=to-a62_a518_outbound
+metric slow 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f867c92ee6f1-39365-1795704214339-0_1
+metric slow 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f867c92ee6f1-44765-1795704214124-0_1
+metric slow 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=to-a62_a518_outbound
+metric transactions 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f867c92ee6f1-39365-1795704214339-0_1
+metric transactions 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=ID_f867c92ee6f1-44765-1795704214124-0_1
+metric transactions 0 broker=a62 jmx=localhost:19323 connectorName=openwire connectionName=to-a62_a518_outbound

@@ -1,0 +1,24 @@
+metric jmx_up 1 broker=a518 jmx=localhost:19321
+metric version 1 broker=a518 jmx=localhost:19321 version=5.18.7
+metric broker 1 broker=a518 jmx=localhost:19321 broker_name=a518
+metric uptime_seconds 282.921 broker=a518 jmx=localhost:19321
+metric healthy 1 broker=a518 jmx=localhost:19321
+metric slave 0 broker=a518 jmx=localhost:19321
+metric connector_up 1 broker=a518 jmx=localhost:19321 connectorName=openwire
+metric connections_refused_count 0 broker=a518 jmx=localhost:19321 connectorName=openwire
+metric jmx_up 1 broker=a519 jmx=localhost:19322
+metric version 1 broker=a519 jmx=localhost:19322 version=5.19.2
+metric broker 1 broker=a519 jmx=localhost:19322 broker_name=a519
+metric uptime_seconds 283.97 broker=a519 jmx=localhost:19322
+metric healthy 1 broker=a519 jmx=localhost:19322
+metric slave 0 broker=a519 jmx=localhost:19322
+metric connector_up 1 broker=a519 jmx=localhost:19322 connectorName=openwire
+metric connections_refused_count 0 broker=a519 jmx=localhost:19322 connectorName=openwire
+metric jmx_up 1 broker=a62 jmx=localhost:19323
+metric version 1 broker=a62 jmx=localhost:19323 version=6.2.0
+metric broker 1 broker=a62 jmx=localhost:19323 broker_name=a62
+metric uptime_seconds 286.676 broker=a62 jmx=localhost:19323
+metric healthy 1 broker=a62 jmx=localhost:19323
+metric slave 0 broker=a62 jmx=localhost:19323
+metric connector_up 1 broker=a62 jmx=localhost:19323 connectorName=openwire
+metric connections_refused_count 0 broker=a62 jmx=localhost:19323 connectorName=openwire

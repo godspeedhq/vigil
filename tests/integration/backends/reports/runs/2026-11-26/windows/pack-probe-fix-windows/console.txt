@@ -1,0 +1,97 @@
+== pack-probe-fix-windows
+host     the HP test machine (Windows 11), an account that is not an administrator, Java 21, Windows PowerShell 5.1 and PowerShell 7
+what     the six packs carrying the fixed probe, each from packs-2026.11.26.4's own Windows archive, against its run-<pack>.sh's servers held on Fedora or the Dell, through SSH tunnels
+
+== tomcat on Windows 11, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-tomcat-1.0.1-windows.zip
+  PASS  tomcat powershell.exe: every job runs (9)
+  PASS  tomcat powershell.exe: status reads all 3 servers over JMX
+        metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+        metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+        metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+  PASS  tomcat powershell.exe: a wrong JMX password fails the run, the login refused
+        tomcat_status: JMX at localhost:19301 refused the login: FailedLoginException: Invalid username or password (TOMCAT_JMX_USER, and the secret behind TOMCAT_JMX_PASSWORD)
+  PASS  tomcat pwsh.exe: every job runs (9)
+  PASS  tomcat pwsh.exe: status reads all 3 servers over JMX
+  PASS  tomcat pwsh.exe: a wrong JMX password fails the run, the login refused
+        tomcat_status: JMX at localhost:19301 refused the login: FailedLoginException: Invalid username or password (TOMCAT_JMX_USER, and the secret behind TOMCAT_JMX_PASSWORD)
+6 passed, 0 failed
+
+== jetty on Windows 11, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-jetty-1.0.1-windows.zip
+  PASS  jetty powershell.exe: every job runs (6)
+  PASS  jetty powershell.exe: status reads all 4 servers over JMX
+        metric jmx_up 1 jetty=j94 jmx=localhost:19311
+        metric jmx_up 1 jetty=j11 jmx=localhost:19312
+        metric jmx_up 1 jetty=j120 jmx=localhost:19313
+        metric jmx_up 1 jetty=j121 jmx=localhost:19314
+  PASS  jetty powershell.exe: a wrong JMX password fails the run, the login refused
+        jetty_status: JMX at localhost:19311 refused the login: FailedLoginException: Invalid username or password (JETTY_JMX_USER, and the secret behind JETTY_JMX_PASSWORD)
+  PASS  jetty pwsh.exe: every job runs (6)
+  PASS  jetty pwsh.exe: status reads all 4 servers over JMX
+  PASS  jetty pwsh.exe: a wrong JMX password fails the run, the login refused
+        jetty_status: JMX at localhost:19311 refused the login: FailedLoginException: Invalid username or password (JETTY_JMX_USER, and the secret behind JETTY_JMX_PASSWORD)
+6 passed, 0 failed
+
+== activemq on Windows 11, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-activemq-1.0.1-windows.zip
+  PASS  activemq powershell.exe: every job runs (8)
+  PASS  activemq powershell.exe: status reads all 3 servers over JMX
+        metric jmx_up 1 broker=a518 jmx=localhost:19321
+        metric jmx_up 1 broker=a519 jmx=localhost:19322
+        metric jmx_up 1 broker=a62 jmx=localhost:19323
+  PASS  activemq powershell.exe: a wrong JMX password fails the run, the login refused
+        activemq_status: JMX at localhost:19321 refused the login: FailedLoginException: Invalid username or password (ACTIVEMQ_JMX_USER, and the secret behind ACTIVEMQ_JMX_PASSWORD)
+  PASS  activemq pwsh.exe: every job runs (8)
+  PASS  activemq pwsh.exe: status reads all 3 servers over JMX
+  PASS  activemq pwsh.exe: a wrong JMX password fails the run, the login refused
+        activemq_status: JMX at localhost:19321 refused the login: FailedLoginException: Invalid username or password (ACTIVEMQ_JMX_USER, and the secret behind ACTIVEMQ_JMX_PASSWORD)
+6 passed, 0 failed
+
+== artemis on Windows 11, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-artemis-1.0.1-windows.zip
+  PASS  artemis powershell.exe: every job runs (6)
+  PASS  artemis powershell.exe: status reads all 3 servers over JMX
+        metric jmx_up 1 broker=art233 jmx=localhost:19331
+        metric jmx_up 1 broker=art240 jmx=localhost:19332
+        metric jmx_up 1 broker=art244 jmx=localhost:19333
+  PASS  artemis powershell.exe: a wrong JMX password fails the run, the login refused
+        artemis_status: JMX at localhost:19331 refused the login: FailedLoginException: Invalid username or password (ARTEMIS_JMX_USER, and the secret behind ARTEMIS_JMX_PASSWORD)
+  PASS  artemis pwsh.exe: every job runs (6)
+  PASS  artemis pwsh.exe: status reads all 3 servers over JMX
+  PASS  artemis pwsh.exe: a wrong JMX password fails the run, the login refused
+        artemis_status: JMX at localhost:19331 refused the login: FailedLoginException: Invalid username or password (ARTEMIS_JMX_USER, and the secret behind ARTEMIS_JMX_PASSWORD)
+6 passed, 0 failed
+
+== kafka on Windows 11, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-kafka-2.0.2-windows.zip
+  PASS  kafka powershell.exe: every job runs (18)
+  PASS  kafka powershell.exe: throughput reads all 3 servers over JMX
+        metric jmx_up 1 broker=1 jmx=127.0.0.1:19991
+        metric jmx_up 1 broker=2 jmx=127.0.0.1:19992
+        metric jmx_up 1 broker=3 jmx=127.0.0.1:19993
+  PASS  kafka powershell.exe: a wrong JMX password fails the run, the login refused
+        kafka_throughput: JMX at 127.0.0.1:19991 refused the login: FailedLoginException: Invalid username or password (KAFKA_JMX_USER, and the secret behind KAFKA_JMX_PASSWORD)
+  PASS  kafka pwsh.exe: every job runs (18)
+  PASS  kafka pwsh.exe: throughput reads all 3 servers over JMX
+  PASS  kafka pwsh.exe: a wrong JMX password fails the run, the login refused
+        kafka_throughput: JMX at 127.0.0.1:19991 refused the login: FailedLoginException: Invalid username or password (KAFKA_JMX_USER, and the secret behind KAFKA_JMX_PASSWORD)
+6 passed, 0 failed
+
+== jvm on Windows 11, openjdk version "21.0.13.1" 2026-11-17 LTS
+archive  vigil-pack-jvm-1.2.2-windows.zip
+  PASS  jvm powershell.exe: every job runs (41)
+  PASS  jvm powershell.exe: heap reads all 6 servers over JMX
+        metric jmx_up 1 jvm=j8
+        metric jmx_up 1 jvm=j8tls
+        metric jmx_up 1 jvm=j11
+        metric jmx_up 1 jvm=j17
+        metric jmx_up 1 jvm=j21
+        metric jmx_up 1 jvm=j25
+  PASS  jvm powershell.exe: a wrong JMX password fails the run, the login refused
+        jvm_heap: JMX at localhost:19181 refused the login: FailedLoginException: Invalid username or password (JVM_JMX_USER, and the secret behind JVM_JMX_PASSWORD)
+  PASS  jvm pwsh.exe: every job runs (41)
+  PASS  jvm pwsh.exe: heap reads all 6 servers over JMX
+  PASS  jvm pwsh.exe: a wrong JMX password fails the run, the login refused
+        jvm_heap: JMX at localhost:19181 refused the login: FailedLoginException: Invalid username or password (JVM_JMX_USER, and the secret behind JVM_JMX_PASSWORD)
+6 passed, 0 failed

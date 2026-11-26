@@ -1,0 +1,42 @@
+metric jmx_up 1 tomcat=tc9 jmx=localhost:19301
+metric lookups_count 12 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric lookups_count 74 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric hits_count 4 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric hits_count 53 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric size_bytes 0 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric size_bytes 13312 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric max_bytes 10485760 tomcat=tc9 jmx=localhost:19301 host=localhost context=/broken
+metric max_bytes 10485760 tomcat=tc9 jmx=localhost:19301 host=localhost context=/shop
+metric jsps 4 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop
+metric jsp_reloads_count 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop
+metric jsp_unloads_count 0 tomcat=tc9 jmx=localhost:19301 WebModule=//localhost/shop
+metric string_cache_lookups_count 0 tomcat=tc9 jmx=localhost:19301
+metric string_cache_hits_count 0 tomcat=tc9 jmx=localhost:19301
+metric jmx_up 1 tomcat=tc10 jmx=localhost:19302
+metric lookups_count 10 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric lookups_count 72 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric hits_count 4 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric hits_count 53 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric size_bytes 0 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric size_bytes 12288 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric max_bytes 10485760 tomcat=tc10 jmx=localhost:19302 host=localhost context=/broken
+metric max_bytes 10485760 tomcat=tc10 jmx=localhost:19302 host=localhost context=/shop
+metric jsps 4 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop
+metric jsp_reloads_count 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop
+metric jsp_unloads_count 0 tomcat=tc10 jmx=localhost:19302 WebModule=//localhost/shop
+metric string_cache_lookups_count 0 tomcat=tc10 jmx=localhost:19302
+metric string_cache_hits_count 0 tomcat=tc10 jmx=localhost:19302
+metric jmx_up 1 tomcat=tc11 jmx=localhost:19303
+metric lookups_count 10 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric lookups_count 72 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric hits_count 4 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric hits_count 53 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric size_bytes 0 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric size_bytes 12288 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric max_bytes 10485760 tomcat=tc11 jmx=localhost:19303 host=localhost context=/broken
+metric max_bytes 10485760 tomcat=tc11 jmx=localhost:19303 host=localhost context=/shop
+metric jsps 4 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
+metric jsp_reloads_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
+metric jsp_unloads_count 0 tomcat=tc11 jmx=localhost:19303 WebModule=//localhost/shop
+metric string_cache_lookups_count 0 tomcat=tc11 jmx=localhost:19303
+metric string_cache_hits_count 0 tomcat=tc11 jmx=localhost:19303
