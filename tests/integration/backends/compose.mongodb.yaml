@@ -1,0 +1,51 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# MongoDB for the mongodb pack (scripts/run-mongodb.sh):
+# - 9.0, a replica set of three (rs0: m1, m2, m3), with authentication (a
+#   keyfile, MONGO_KEYFILE, made by the run script): 127.0.0.1:27117-27119.
+#   Test commands enabled, so the run can stop replication on purpose (a
+#   fail point), and no more.
+# - 8.0, one server, with authentication: 127.0.0.1:27180.
+# Each server's root user has MONGO_ROOT_PASSWORD, made by the run script;
+# the user the pack asks for is made by the script. Small caches: the
+# Fedora test machine has 8 GB for all.
+
+x-rs: &rs
+  image: mongo:${MONGO_VERSION:-9.0.8}
+  mem_limit: 1g
+  environment:
+    MONGO_INITDB_ROOT_USERNAME: root
+    MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?the root password}
+  volumes: ["${MONGO_KEYFILE:?the keyfile}:/run/vigil-key:ro,Z"]
+  entrypoint: ["bash", "-c", "cp /run/vigil-key /tmp/key && chown mongodb /tmp/key && chmod 400 /tmp/key && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/key --bind_ip_all --wiredTigerCacheSizeGB 0.25 --setParameter enableTestCommands=1"]
+
+services:
+  m1:
+    <<: *rs
+    hostname: m1
+    ports: ["127.0.0.1:27117:27017"]
+  m2:
+    <<: *rs
+    hostname: m2
+    ports: ["127.0.0.1:27118:27017"]
+  m3:
+    <<: *rs
+    hostname: m3
+    ports: ["127.0.0.1:27119:27017"]
+
+  m80:
+    image: mongo:${MONGO_OLD:-8.0.38}
+    hostname: m80
+    mem_limit: 1g
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?the root password}
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    ports: ["127.0.0.1:27180:27017"]

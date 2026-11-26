@@ -1,0 +1,459 @@
+== pack-mongodb
+date     2026-11-26T12:18:08Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    51d570c+ (deployed copy)
+command  scripts/run-mongodb.sh
+bash     5.3.9(1)-release
+git      git version 2.56.1
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.19.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.mongodb.yaml pins them)
+         mongo:${MONGO_OLD:-8.0.38}
+         mongo:${MONGO_VERSION:-9.0.8}
+
+mongosh  2.14.3, /home/vigil-test/clis/mongosh-2.14.3-linux-x64/bin/mongosh
+replica set rs0: m1 primary, m2, m3; users vigil (clusterMonitor) and norole (read on app); app.events 10,000 documents
+8.0: user vigil (clusterMonitor); app.events 1,000 documents
+mongodb  m1 mongo:9.0.8; m2 mongo:9.0.8; m3 mongo:9.0.8; m80 mongo:8.0.38
+
+# The replica set in trouble on purpose, as root.
+query    app.slow: $where sleep(1000), on 300 documents
+transaction  one held open: an insert into app.held, not committed
+m3       its fail point stopReplProducer on: it fetches nothing
+writes   25 inserts into app.ticks, one a second
+(waiting 15 s: the query has run for over 60 s)
+
+# 9.0, m1, the primary: every job, as the pack's scripts print it, as vigil.
+
+$ bash packs/mongodb/linux/status.sh
+metric up 1
+metric info 1 version=9.0.8 engine=wiredTiger
+metric uptime_seconds 87
+metric connections 17
+metric connections_available 392
+metric connections_pct 4.16
+metric connections_active 6
+metric connections_created_count 143
+metric operations_count 10330 op=insert
+metric operations_count 107 op=query
+metric operations_count 0 op=update
+metric operations_count 0 op=delete
+metric operations_count 221 op=getmore
+metric operations_count 845 op=command
+metric latency_avg_ms 0.22 op=reads
+metric latency_avg_ms 18.61 op=writes
+metric latency_avg_ms 3.96 op=commands
+metric queued 0 for=read
+metric queued 0 for=write
+metric memory_resident_bytes 353370112
+metric cache_bytes 8419435
+metric cache_max_bytes 268435456
+metric cache_pct 3.14
+metric cache_dirty_pct 0.21
+metric cache_evicted_by_threads_count 0
+metric cursors_open 2
+metric cursors_timed_out_count 0
+metric asserts_count 0 kind=regular
+metric asserts_count 0 kind=warning
+metric asserts_count 0 kind=msg
+metric asserts_count 212 kind=user
+metric page_faults_count 0
+metric network_in_bytes_count 3045827
+metric network_out_bytes_count 9078211
+metric transactions_open 1
+metric transactions_aborted_count 0
+
+$ bash packs/mongodb/linux/replication.sh
+metric up 1
+metric info 1 set=rs0 role=primary
+metric replicated 1
+metric members 3
+metric members_healthy 3
+metric members_down 0
+metric primary 1
+metric secondaries 2
+metric lag_seconds_max 66
+metric member_health 1 member=m1:27017 state=primary
+metric member_lag_seconds 0 member=m1:27017 state=primary
+metric member_health 1 member=m2:27017 state=secondary
+metric member_lag_seconds 0 member=m2:27017 state=secondary
+metric member_health 1 member=m3:27017 state=secondary
+metric member_lag_seconds 66 member=m3:27017 state=secondary
+metric oplog_window_hours 0.02
+metric oplog_bytes 3550569
+metric oplog_max_bytes 3877715200
+
+$ bash packs/mongodb/linux/databases.sh
+metric up 1
+metric databases 4
+metric size_bytes 1912832
+metric db_size_bytes 856064 db=local
+metric db_data_bytes 3568133 db=local
+metric db_index_bytes 180224 db=local
+metric db_collections 9 db=local
+metric db_indexes 8 db=local
+metric db_documents 86 db=local
+metric db_size_bytes 708608 db=app
+metric db_data_bytes 2449700 db=app
+metric db_index_bytes 376832 db=app
+metric db_collections 3 db=app
+metric db_indexes 4 db=app
+metric db_documents 10325 db=app
+metric db_size_bytes 192512 db=admin
+metric db_data_bytes 1809 db=admin
+metric db_index_bytes 114688 db=admin
+metric db_collections 3 db=admin
+metric db_indexes 4 db=admin
+metric db_documents 6 db=admin
+metric db_size_bytes 155648 db=config
+metric db_data_bytes 4316 db=config
+metric db_index_bytes 86016 db=config
+metric db_collections 9 db=config
+metric db_indexes 13 db=config
+metric db_documents 26 db=config
+
+$ bash packs/mongodb/linux/operations.sh
+metric up 1
+metric running 5
+metric slow 1
+metric longest_seconds 67.89
+metric waiting_for_lock 0
+metric transactions_open 1
+metric op_seconds 67.89 ns=app.slow op=query id=66563
+metric op_seconds 7.4 ns=admin._cmd op=command id=65543
+metric op_seconds 7.33 ns=admin._cmd op=command id=69639
+metric op_seconds 4.39 ns=local.oplog.rs op=getmore id=52338
+metric op_seconds 4.39 ns=local.oplog.rs op=getmore id=53359
+
+# 9.0, m1: what they read.
+  PASS  m1: status runs
+  PASS  m1: replication runs
+  PASS  m1: databases runs
+  PASS  m1: operations runs
+  PASS  m1: up, its version, WiredTiger
+  PASS  m1: connections, and their share
+  PASS  m1: operations by kind; inserts counted
+  PASS  m1: the cache: its limit, 256 MB, and how full
+  PASS  m1: the transaction held open
+  PASS  m1: the replica set, from the primary
+  PASS  m1: m3 behind, its fetching stopped
+  PASS  m1: and the furthest behind, m3
+  PASS  m1: m2 well ahead of m3
+  PASS  m1: the oplog: its size and its window
+  PASS  m1: the databases, app the largest of ours
+  PASS  m1: the slow query, running
+  PASS  m1: and the longest, past a minute
+  PASS  m1: the job's own currentOp not counted
+
+# 9.0, m2, a secondary: what it sees.
+
+$ bash packs/mongodb/linux/replication.sh
+metric up 1
+metric info 1 set=rs0 role=secondary
+metric replicated 1
+metric members 3
+metric members_healthy 3
+metric members_down 0
+metric primary 1
+metric secondaries 2
+metric lag_seconds_max 66
+metric lag_seconds 0
+metric member_health 1 member=m1:27017 state=primary
+metric member_lag_seconds 0 member=m1:27017 state=primary
+metric member_health 1 member=m2:27017 state=secondary
+metric member_lag_seconds 0 member=m2:27017 state=secondary
+metric member_health 1 member=m3:27017 state=secondary
+metric member_lag_seconds 66 member=m3:27017 state=secondary
+metric oplog_window_hours 0.02
+metric oplog_bytes 3545267
+metric oplog_max_bytes 3877715200
+  PASS  m2: a secondary of rs0, its own lag read
+  PASS  m2: m3 behind, seen from here too
+  PASS  m3 fetching again: none further behind than the 10 s no-op
+
+# 8.0, one server: every job; then writes held behind fsyncLock.
+
+$ bash packs/mongodb/linux/status.sh
+metric up 1
+metric info 1 version=8.0.38 engine=wiredTiger
+metric uptime_seconds 95
+metric connections 2
+metric connections_available 407
+metric connections_pct 0.49
+metric connections_active 1
+metric connections_created_count 8
+metric operations_count 1001 op=insert
+metric operations_count 1 op=query
+metric operations_count 1 op=update
+metric operations_count 0 op=delete
+metric operations_count 0 op=getmore
+metric operations_count 17 op=command
+metric latency_avg_ms 0 op=reads
+metric latency_avg_ms 30.67 op=writes
+metric latency_avg_ms 3.19 op=commands
+metric queued 0 for=read
+metric queued 0 for=write
+metric memory_resident_bytes 201326592
+metric cache_bytes 327573
+metric cache_max_bytes 268435456
+metric cache_pct 0.12
+metric cache_dirty_pct 0
+metric cache_evicted_by_threads_count 0
+metric cursors_open 0
+metric cursors_timed_out_count 0
+metric asserts_count 0 kind=regular
+metric asserts_count 0 kind=warning
+metric asserts_count 0 kind=msg
+metric asserts_count 8 kind=user
+metric page_faults_count 0
+metric network_in_bytes_count 38274
+metric network_out_bytes_count 3547
+metric transactions_open 0
+metric transactions_aborted_count 0
+
+$ bash packs/mongodb/linux/replication.sh
+metric up 1
+metric info 1 set=none role=standalone
+metric replicated 0
+
+$ bash packs/mongodb/linux/databases.sh
+metric up 1
+metric databases 4
+metric size_bytes 290816
+metric db_size_bytes 151552 db=admin
+metric db_data_bytes 1160 db=admin
+metric db_index_bytes 94208 db=admin
+metric db_collections 2 db=admin
+metric db_indexes 3 db=admin
+metric db_documents 4 db=admin
+metric db_size_bytes 73728 db=local
+metric db_data_bytes 12483 db=local
+metric db_index_bytes 36864 db=local
+metric db_collections 1 db=local
+metric db_indexes 1 db=local
+metric db_documents 2 db=local
+metric db_size_bytes 53248 db=app
+metric db_data_bytes 29000 db=app
+metric db_index_bytes 24576 db=app
+metric db_collections 1 db=app
+metric db_indexes 1 db=app
+metric db_documents 1000 db=app
+metric db_size_bytes 12288 db=config
+metric db_data_bytes 0 db=config
+metric db_index_bytes 8192 db=config
+metric db_collections 1 db=config
+metric db_indexes 2 db=config
+metric db_documents 0 db=config
+
+$ bash packs/mongodb/linux/operations.sh
+metric up 1
+metric running 0
+metric slow 0
+metric longest_seconds 0
+metric waiting_for_lock 0
+metric transactions_open 0
+  PASS  8.0: status runs
+  PASS  8.0: replication runs
+  PASS  8.0: databases runs
+  PASS  8.0: operations runs
+  PASS  8.0: up, its version
+  PASS  8.0: not a replica set, and that is a reading
+
+$ bash packs/mongodb/linux/operations.sh   (fsyncLock, an insert waiting)
+metric up 1
+metric running 2
+metric slow 0
+metric longest_seconds 0.91
+metric waiting_for_lock 1
+metric transactions_open 0
+metric op_seconds 0.91 ns=app.events op=insert id=48131
+metric op_seconds 0.45 ns=admin._cmd op=command id=47105
+  PASS  8.0: the insert waiting behind the lock
+
+# Logins, roles, and the password's whereabouts, on m1.
+  PASS  a wrong password fails the run, and says so
+        status: MongoDB refused the login: MONGODB_USER or MONGODB_PASSWORD is wrong (Authentication failed.)
+  PASS  a user without clusterMonitor fails the run, naming the role
+        metric up 1
+        status: norole may not run serverStatus: grant it the clusterMonitor role (packs/mongodb/README.md)
+  PASS  no password set: the run fails, saying how to set it
+  PASS  nothing listening: the run succeeds, up 0
+  PASS  a password in MONGODB_URL is refused
+  PASS  the password on no command line while the job ran (mongosh's seen)
+
+# The pack through Vigil, against m1.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)
+  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)
+mongodb: mongodb://127.0.0.1:27117 as vigil
+  PASS  mongodb: off until enabled
+  PASS  mongodb: enabled
+        on: mongodb_status
+        on: mongodb_replication
+        on: mongodb_databases
+        on: mongodb_operations
+        needs secret:MONGODB_PASSWORD: not set: vigil secret set MONGODB_PASSWORD, as the account Vigil runs as
+        needs mongosh on this machine (MongoDB's shell: https://www.mongodb.com/try/download/shell), or MONGOSH naming it
+        needs a user with the clusterMonitor role, as an admin: db.getSiblingDB('admin').createUser({ user: 'vigil', pwd: passwordPrompt(), roles: ['clusterMonitor'] }); then vigil secret set MONGODB_PASSWORD
+        settings in vigil.config: MONGODB_URL= MONGODB_USER=vigil MONGODB_CACERT= MONGOSH= MONGODB_MOST=50
+  PASS  mongodb: its jobs are on
+  PASS  mongodb: it names the secret it needs, not set
+  PASS  mongodb: the password is a secret reference, on every job
+  PASS  mongodb: precheck is happy
+  PASS  mongodb: every job runs
+        status: 36 lines
+        replication: 18 lines
+        databases: 27 lines
+        operations: 11 lines
+  PASS  mongodb: up
+  PASS  mongodb: the replica set, with a primary
+  PASS  mongodb: the transaction held open, seen
+  PASS  mongodb: a wrong password fails the run
+  PASS  mongodb: and says why
+  PASS  mongodb: a server that does not answer still runs
+  PASS  mongodb: and reads as up 0
+  PASS  mongodb: the password is written nowhere
+  SKIP  zookeeper: set VIGIL_IT_ZOOKEEPER_SERVERS (scripts/run-zookeeper.sh sets it up)
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  docker: set VIGIL_IT_DOCKER (scripts/run-containers.sh docker sets it up)
+  SKIP  podman: set VIGIL_IT_PODMAN (scripts/run-containers.sh podman sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (scripts/run-sqlite.sh sets it up)
+  PASS  mongodb: metrics reach the backend, each database by its name
+18 passed, 0 failed
+
+# A member stops: m3.
+
+$ bash packs/mongodb/linux/replication.sh   (m3 stopped)
+metric up 1
+metric info 1 set=rs0 role=primary
+metric replicated 1
+metric members 3
+metric members_healthy 2
+metric members_down 1
+metric primary 1
+metric secondaries 1
+metric lag_seconds_max 0
+metric member_health 1 member=m1:27017 state=primary
+metric member_lag_seconds 0 member=m1:27017 state=primary
+metric member_health 1 member=m2:27017 state=secondary
+metric member_lag_seconds 0 member=m2:27017 state=secondary
+metric member_health 0 member=m3:27017 state=not_reachable_healthy
+metric oplog_window_hours 0.04
+metric oplog_bytes 3551187
+metric oplog_max_bytes 3877715200
+  PASS  m3 stopped: one member down, its health 0; still a primary
+
+# The primary stops: m1. m2 and m3 elect another.
+
+$ bash packs/mongodb/linux/replication.sh   (m1 stopped)
+metric up 1
+metric info 1 set=rs0 role=primary
+metric replicated 1
+metric members 3
+metric members_healthy 2
+metric members_down 1
+metric primary 1
+metric secondaries 1
+metric lag_seconds_max 0
+metric member_health 0 member=m1:27017 state=not_reachable_healthy
+metric member_health 1 member=m2:27017 state=primary
+metric member_lag_seconds 0 member=m2:27017 state=primary
+metric member_health 1 member=m3:27017 state=secondary
+metric member_lag_seconds 0 member=m3:27017 state=secondary
+metric oplog_window_hours 0.04
+metric oplog_bytes 3546089
+metric oplog_max_bytes 3877715200
+  PASS  m1 stopped: a new primary, m2 or m3; m1 down
+
+# Two stop: m1 and m3. m2 is left, and cannot be primary alone.
+
+$ bash packs/mongodb/linux/replication.sh   (m1 and m3 stopped)
+metric up 1
+metric info 1 set=rs0 role=secondary
+metric replicated 1
+metric members 3
+metric members_healthy 1
+metric members_down 2
+metric primary 0
+metric secondaries 1
+metric lag_seconds_max 0
+metric lag_seconds 0
+metric member_health 0 member=m1:27017 state=not_reachable_healthy
+metric member_health 1 member=m2:27017 state=secondary
+metric member_lag_seconds 0 member=m2:27017 state=secondary
+metric member_health 0 member=m3:27017 state=not_reachable_healthy
+metric oplog_window_hours 0.05
+metric oplog_bytes 3546295
+metric oplog_max_bytes 3877715200
+  PASS  no primary: m2 secondary, two down, the run succeeds
+
+$ bash packs/mongodb/linux/status.sh   (no primary)
+metric up 1
+metric info 1 version=9.0.8 engine=wiredTiger
+metric uptime_seconds 195
+metric connections 2
+metric connections_available 407
+metric connections_pct 0.49
+metric connections_active 1
+metric connections_created_count 81
+metric operations_count 1 op=insert
+metric operations_count 73 op=query
+metric operations_count 0 op=update
+metric operations_count 0 op=delete
+metric operations_count 16 op=getmore
+metric operations_count 620 op=command
+metric latency_avg_ms 0.29 op=reads
+metric latency_avg_ms 0 op=writes
+metric latency_avg_ms 0.16 op=commands
+metric queued 0 for=read
+metric queued 0 for=write
+metric memory_resident_bytes 231735296
+metric cache_bytes 7554500
+metric cache_max_bytes 268435456
+metric cache_pct 2.81
+metric cache_dirty_pct 0.03
+metric cache_evicted_by_threads_count 0
+metric cursors_open 0
+metric cursors_timed_out_count 0
+metric asserts_count 0 kind=regular
+metric asserts_count 0 kind=warning
+metric asserts_count 0 kind=msg
+metric asserts_count 192 kind=user
+metric page_faults_count 0
+metric network_in_bytes_count 223359
+metric network_out_bytes_count 727135
+metric transactions_open 0
+metric transactions_aborted_count 0
+  PASS  no primary: m2 itself still up
+38 passed, 0 failed
+evidence: reports/runs/2026-11-26/fedora/pack-mongodb

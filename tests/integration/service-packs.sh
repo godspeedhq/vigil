@@ -94,6 +94,9 @@
 #   VIGIL_IT_CLICKHOUSE_URL, _USER,      a ClickHouse server's HTTP interface,
 #     _PASSWORD                          its read-only user and password
 #                                        (scripts/run-clickhouse.sh)
+#   VIGIL_IT_MONGODB_URL, _USER,         a MongoDB server, a user with
+#     _PASSWORD, VIGIL_IT_MONGOSH        clusterMonitor, its password, and
+#                                        mongosh (scripts/run-mongodb.sh)
 #   VIGIL_IT_ZOOKEEPER_SERVERS           ZooKeeper servers, host:port;...,
 #                                        that allow mntr, ruok and isro
 #                                        (scripts/run-zookeeper.sh)
@@ -195,7 +198,7 @@ cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
 obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs'
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper mongodb nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1606,6 +1609,64 @@ else
     check 'clickhouse: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_CLICKHOUSE_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
 
+# --- mongodb ----------------------------------------------------------------
+# A MongoDB replica set in trouble on purpose (a query running for
+# minutes, a transaction held open), through Vigil, as
+# scripts/run-mongodb.sh sets it up: VIGIL_IT_MONGODB_URL its primary,
+# _USER and _PASSWORD a user with clusterMonitor, VIGIL_IT_MONGOSH mongosh.
+if [ -z "${VIGIL_IT_MONGODB_URL-}" ] || [ -z "${VIGIL_IT_MONGODB_PASSWORD-}" ]; then
+    printf '  SKIP  mongodb: set VIGIL_IT_MONGODB_URL and VIGIL_IT_MONGODB_PASSWORD (scripts/run-mongodb.sh sets them up)\n'
+elif ! command -v "${VIGIL_IT_MONGOSH:-mongosh}" > /dev/null 2>&1; then
+    printf '  SKIP  mongodb: mongosh is not here (VIGIL_IT_MONGOSH names it)\n'
+else
+    unset MONGODB_URL MONGODB_USER MONGODB_PASSWORD MONGODB_CACERT MONGOSH
+    printf 'mongodb: %s as %s\n' "$VIGIL_IT_MONGODB_URL" "${VIGIL_IT_MONGODB_USER:-vigil}"
+    gjobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/mongodb/pack.config")
+    gn=$(printf '%s\n' $gjobs | wc -l | tr -d ' ')
+    gjobs_on() { vigil pack list | awk '$1 ~ /^mongodb_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    gval() { grep -h " out metric $2 " "$root/logs/jobs/mongodb_$1"/*.log 2> /dev/null | grep -- "${3-}" | tail -n 1 | awk '{ print $6 }'; }
+    grun() { vigil run "mongodb_$1" > "$work/out" 2>&1; echo $?; }
+    gsaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/mongodb_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    check 'mongodb: off until enabled' "off=$gn" "$(gjobs_on)"
+    out=$(vigil pack enable mongodb 2>&1)
+    check 'mongodb: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'mongodb: its jobs are on' "on=$gn" "$(gjobs_on)"
+    check 'mongodb: it names the secret it needs, not set' yes "$(printf '%s\n' "$out" | grep -q 'needs secret:MONGODB_PASSWORD: not set' && echo yes || echo no)"
+    check 'mongodb: the password is a secret reference, on every job' "$gn" "$(grep -c '^secret *= MONGODB_PASSWORD=secret:MONGODB_PASSWORD' "$root/config/vigil.config")"
+    printf '%s' "$VIGIL_IT_MONGODB_PASSWORD" | vigil secret set MONGODB_PASSWORD --stdin > /dev/null
+    set_env MONGODB_URL "$VIGIL_IT_MONGODB_URL"
+    set_env MONGODB_USER "${VIGIL_IT_MONGODB_USER:-vigil}"
+    set_env MONGOSH "$(command -v "${VIGIL_IT_MONGOSH:-mongosh}")"
+    check 'mongodb: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    [ "$(grep -c FAIL "$work/precheck")" -eq 0 ] || sed 's/^/        /' "$work/precheck"
+    failed=''
+    for j in $gjobs; do [ "$(grun "$j")" = 0 ] || failed="$failed $j"; done
+    check 'mongodb: every job runs' '' "$failed"
+    for j in $failed; do sed 's/^/        /' "$root/logs/jobs/mongodb_$j"/*.log | tail -n 4; done
+    for j in $gjobs; do
+        printf '        %s: %s lines\n' "$j" "$(grep -h ' out metric ' "$root/logs/jobs/mongodb_$j"/*.log | wc -l | tr -d ' ')"
+    done
+    check 'mongodb: up' 1 "$(gval status up)"
+    check 'mongodb: the replica set, with a primary' '1 1' "$(gval replication replicated) $(gval replication primary)"
+    check 'mongodb: the transaction held open, seen' 1 "$(gval status transactions_open)"
+    printf 'not-the-password' | vigil secret set MONGODB_PASSWORD --stdin > /dev/null
+    check 'mongodb: a wrong password fails the run' 2 "$(grun databases)"
+    check 'mongodb: and says why' yes "$(gsaid databases 'MongoDB refused the login')"
+    printf '%s' "$VIGIL_IT_MONGODB_PASSWORD" | vigil secret set MONGODB_PASSWORD --stdin > /dev/null
+    set_env MONGODB_URL 'mongodb://127.0.0.1:1'
+    check 'mongodb: a server that does not answer still runs' 0 "$(grun status)"
+    check 'mongodb: and reads as up 0' 0 "$(gval status up)"
+    set_env MONGODB_URL "$VIGIL_IT_MONGODB_URL"
+    [ "$(grun databases)" = 0 ] || true
+    check 'mongodb: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_MONGODB_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+fi
+
 # --- zookeeper --------------------------------------------------------------
 # ZooKeeper servers, through Vigil, as scripts/run-zookeeper.sh sets them
 # up: VIGIL_IT_ZOOKEEPER_SERVERS an ensemble and a server (host:port;...).
@@ -2017,6 +2078,10 @@ done
 if [ -n "${VIGIL_IT_CLICKHOUSE_URL-}" ] && [ -n "${VIGIL_IT_CLICKHOUSE_PASSWORD-}" ] && command -v jq > /dev/null 2>&1; then
     for _ in $(seq 1 20); do grep -q '^clickhouse_tables_table_parts{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
     check 'clickhouse: metrics reach the backend, each table by its name' 'yes yes' "$(grep -q '^clickhouse_up{' "$root/metrics/vigil.prom" && echo yes || echo no) $(grep -q '^clickhouse_tables_table_parts{.*table=' "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
+if [ -n "${VIGIL_IT_MONGODB_URL-}" ] && [ -n "${VIGIL_IT_MONGODB_PASSWORD-}" ] && command -v "${VIGIL_IT_MONGOSH:-mongosh}" > /dev/null 2>&1; then
+    for _ in $(seq 1 20); do grep -q '^mongodb_databases_db_size_bytes{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check 'mongodb: metrics reach the backend, each database by its name' 'yes yes' "$(grep -q '^mongodb_up{' "$root/metrics/vigil.prom" && echo yes || echo no) $(grep -q '^mongodb_databases_db_size_bytes{.*db=' "$root/metrics/vigil.prom" && echo yes || echo no)"
 fi
 if [ -n "${VIGIL_IT_ZOOKEEPER_SERVERS-}" ]; then
     for _ in $(seq 1 20); do grep -q '^zookeeper_up{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done

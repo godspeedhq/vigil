@@ -49,6 +49,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`cockroachdb`](cockroachdb/README.md) | CockroachDB, a node or a cluster: health and readiness, clock offset, certificates, ranges unavailable and under-replicated, slow requests, storage and write stalls, admission control, SQL, nodes live and dead, decommissioning, upgrades, jobs, backups and changefeeds | [packs/cockroachdb/README.md](cockroachdb/README.md) |
 | [`clickhouse`](clickhouse/README.md) | ClickHouse, a server or a replicated cluster: up, memory, inserts delayed and refused for too many parts, parts per table, replicated tables read-only or behind, replicas missing, mutations failing, merges, parts detached and broken, disks, slow queries and errors by name | [packs/clickhouse/README.md](clickhouse/README.md) |
 | [`zookeeper`](zookeeper/README.md) | ZooKeeper, a server or an ensemble: up and serving, one leader, followers in sync, read-only mode, latency, requests waiting, znodes, watches and ephemerals, fsync and JVM pauses, elections | [packs/zookeeper/README.md](zookeeper/README.md) |
+| [`mongodb`](mongodb/README.md) | MongoDB, a server or a replica set member: up, connections, operations and latency, the WiredTiger cache, queues; a primary or not, members down, lag, the oplog window; databases; operations running long | [packs/mongodb/README.md](mongodb/README.md) |
 | [`nginx`](nginx/README.md) | nginx: connections and requests, processes and reloads, an edit not reloaded, how full the workers are, the access log minute by minute (status, errors, response and upstream times), certificate expiry | [packs/nginx/README.md](nginx/README.md) |
 | [`httpd`](httpd/README.md) | Apache httpd: workers and the scoreboard, requests, connections, the TLS session cache, an edit not loaded, the access log minute by minute (status, errors, response times), certificate expiry | [packs/httpd/README.md](httpd/README.md) |
 | [`caddy`](caddy/README.md) | Caddy: its configuration and reloads, traffic per server, reverse proxy upstreams and their health, the certificate of every site, from its admin API | [packs/caddy/README.md](caddy/README.md) |
@@ -179,6 +180,12 @@ ClickHouse, one server or a replicated cluster, from its HTTP interface, with `c
 Apache ZooKeeper, one server or a whole ensemble, from its four-letter words (`ruok`, `mntr`, `isro`), with bash alone (on Windows, PowerShell alone), no login and no client. Each server up, and serving (a server without its quorum answers, and serves nothing); its role, read-only mode, latency, requests waiting, znodes, watches and ephemerals, file descriptors, the longest fsync and JVM pause, and elections; on the leader, its followers in sync. And the ensemble: servers serving, and one leader. The servers must allow the words (`4lw.commands.whitelist=mntr,ruok,isro`). Linux, macOS and Windows.
 
 **Its page: [packs/zookeeper/README.md](zookeeper/README.md)**, with how to set it up, the job, what to alert on, and how it was tested.
+
+### mongodb
+
+MongoDB, a server or a member of a replica set, with `mongosh`, as a user with MongoDB's own `clusterMonitor` role (it reads the server's state, none of its data). Up, connections, operations and their latency, the WiredTiger cache and how dirty it is, operations queued; the replica set as each member sees it: a primary or not, members down, how far each is behind, the oplog's window; databases and their size; and the operations running past a minute, by namespace and ID, never their text. Each job is a script mongosh runs with no connection of its own, so the password is never on a command line. Linux, macOS and Windows.
+
+**Its page: [packs/mongodb/README.md](mongodb/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ### nginx
 
