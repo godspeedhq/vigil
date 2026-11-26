@@ -1,0 +1,29 @@
+== fedora-c2, cut from the network 20:52:18-20:58:28; its own logs (read in the container)
+2026-11-26T20:58:57Z INFO supervisor configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
+
+-- vigil_fetch runs while cut off and after
+2026-11-26T20:52:25Z 20261126T205223Z-12-1873 run source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8443 after 0 
+2026-11-26T20:52:28Z 20261126T205223Z-12-1873 run end failed (source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8
+2026-11-26T20:53:19Z 20261126T205312Z-12-1881 run source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8443 after 0 
+2026-11-26T20:53:24Z 20261126T205312Z-12-1881 run end failed (source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8
+2026-11-26T20:53:58Z 20261126T205356Z-12-1884 run source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8443 after 0 
+2026-11-26T20:53:59Z 20261126T205356Z-12-1884 run end failed (source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8
+2026-11-26T20:54:35Z 20261126T205433Z-12-1892 run source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8443 after 0 
+2026-11-26T20:54:36Z 20261126T205433Z-12-1892 run end failed (source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8
+2026-11-26T20:55:21Z 20261126T205517Z-12-1899 run source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8443 after 0 
+2026-11-26T20:55:26Z 20261126T205517Z-12-1899 run end failed (source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8
+2026-11-26T20:55:57Z 20261126T205555Z-12-1900 run source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8443 after 0 
+2026-11-26T20:55:59Z 20261126T205555Z-12-1900 run end failed (source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8
+2026-11-26T20:56:41Z 20261126T205640Z-12-1908 run source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8443 after 0 
+2026-11-26T20:56:42Z 20261126T205640Z-12-1908 run end failed (source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8
+2026-11-26T20:57:30Z 20261126T205729Z-12-1915 run source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8443 after 0 
+2026-11-26T20:57:32Z 20261126T205729Z-12-1915 run end failed (source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8
+2026-11-26T20:58:17Z 20261126T205810Z-12-1923 run source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8443 after 0 
+2026-11-26T20:58:23Z 20261126T205810Z-12-1923 run end failed (source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': Failed to connect to 192.168.4.40:8
+2026-11-26T20:58:54Z 20261126T205851Z-12-1924 run end succeeded in 2s, cpu 0.64s
+2026-11-26T20:59:39Z 20261126T205935Z-12-1932 run end succeeded in 3s, cpu 0.45s
+2026-11-26T21:00:30Z 20261126T210022Z-12-1938 run end succeeded in 6s, cpu 0.61s
+2026-11-26T21:01:34Z 20261126T210113Z-12-1946 run end succeeded in 15s, cpu 0.66s
+2026-11-26T21:02:02Z 20261126T210158Z-12-1948 run end succeeded in 3s, cpu 0.53s
+2026-11-26T21:02:46Z 20261126T210238Z-12-1956 run end succeeded in 6s, cpu 0.60s
+2026-11-26T21:03:41Z 20261126T210330Z-12-1964 run end succeeded in 8s, cpu 0.65s

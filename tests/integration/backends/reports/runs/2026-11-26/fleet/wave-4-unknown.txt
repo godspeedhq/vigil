@@ -1,0 +1,65 @@
+== wave 4, pushed 2026-11-26T18:19:00Z; the backend's record of the next 240s
+
+-- activations (Loki: each instance's own log line)
+0 activations
+
+-- refusals and errors (Loki)
++   2s  fedora-c5              linux-container  end failed (source.fleet: linux-container.config has errors) in 4s, cpu 0.65s
++  11s  fedora                 linux-bare         ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  11s  fedora                 linux-bare       source.fleet: linux-bare.config has errors
++  13s  fedora                 linux-bare       end failed (source.fleet: linux-bare.config has errors) in 2s, cpu 0.57s
++  15s  fedora-c10             linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  15s  fedora-c10             linux-container  source.fleet: linux-container.config has errors
++  15s  fedora-c4              linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  15s  fedora-c4              linux-container  source.fleet: linux-container.config has errors
++  15s  fedora-c9              linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  15s  fedora-c9              linux-container  source.fleet: linux-container.config has errors
++  16s  mac                    macos-bare         ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  16s  mac                    macos-bare       source.fleet: macos-bare.config has errors
++  17s  mac                    macos-bare       end failed (source.fleet: macos-bare.config has errors) in 1s, cpu 1.14s
++  17s  fedora-c1              linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  17s  fedora-c1              linux-container  source.fleet: linux-container.config has errors
++  17s  fedora-c3              linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  17s  fedora-c3              linux-container  source.fleet: linux-container.config has errors
++  17s  fedora-c8              linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  17s  fedora-c8              linux-container  source.fleet: linux-container.config has errors
++  24s  fedora-c7              linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  24s  fedora-c7              linux-container  source.fleet: linux-container.config has errors
++  27s  fedora-c2              linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  27s  fedora-c2              linux-container  source.fleet: linux-container.config has errors
++  28s  fedora-c10             linux-container  end failed (source.fleet: linux-container.config has errors) in 13s, cpu 0.78s
++  28s  fedora-c9              linux-container  end failed (source.fleet: linux-container.config has errors) in 13s, cpu 0.80s
++  29s  lenovo                 windows-bare       ERROR    line 98: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  29s  lenovo                 windows-bare     end failed (source.fleet: windows-bare.config has errors) in 18s, cpu 6.81s
++  29s  lenovo                 windows-bare     source.fleet: windows-bare.config has errors
++  30s  fedora-c4              linux-container  end failed (source.fleet: linux-container.config has errors) in 15s, cpu 0.78s
++  30s  fedora-c8              linux-container  end failed (source.fleet: linux-container.config has errors) in 13s, cpu 0.77s
++  31s  fedora-c1              linux-container  end failed (source.fleet: linux-container.config has errors) in 14s, cpu 0.78s
++  31s  fedora-c3              linux-container  end failed (source.fleet: linux-container.config has errors) in 14s, cpu 0.78s
++  33s  fedora-c6              linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  33s  fedora-c6              linux-container  source.fleet: linux-container.config has errors
++  33s  fedora-c7              linux-container  end failed (source.fleet: linux-container.config has errors) in 9s, cpu 0.77s
++  36s  fedora-c2              linux-container  end failed (source.fleet: linux-container.config has errors) in 9s, cpu 0.72s
++  38s  hp                     windows-bare       ERROR    line 98: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  38s  hp                     windows-bare     source.fleet: windows-bare.config has errors
++  39s  hp                     windows-bare     end failed (source.fleet: windows-bare.config has errors) in 3s, cpu 5.52s
++  42s  fedora-c5              linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  42s  fedora-c5              linux-container  source.fleet: linux-container.config has errors
++  42s  fedora-c6              linux-container  end failed (source.fleet: linux-container.config has errors) in 9s, cpu 0.73s
+237 lines (the first of each kind per host shown)
+
+-- each instance's latest configuration at +240s (Prometheus)
+linux-bare       fedora      linux    wave  3  795481272778
+linux-container  fedora-c1   linux    wave  3  a21e3a374b61
+linux-container  fedora-c10  linux    wave  3  a21e3a374b61
+linux-container  fedora-c2   linux    wave  3  a21e3a374b61
+linux-container  fedora-c3   linux    wave  3  a21e3a374b61
+linux-container  fedora-c4   linux    wave  3  a21e3a374b61
+linux-container  fedora-c5   linux    wave  3  a21e3a374b61
+linux-container  fedora-c6   linux    wave  3  a21e3a374b61
+linux-container  fedora-c7   linux    wave  3  a21e3a374b61
+linux-container  fedora-c8   linux    wave  3  a21e3a374b61
+linux-container  fedora-c9   linux    wave  3  a21e3a374b61
+macos-bare       mac         macos    wave  3  4585b2955f3d
+windows-bare     hp          windows  wave  3  6577647af801
+windows-bare     lenovo      windows  wave  3  6577647af801

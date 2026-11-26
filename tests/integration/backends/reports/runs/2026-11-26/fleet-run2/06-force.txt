@@ -1,0 +1,74 @@
+== Round 6: history rewritten: a force-push (wave 15)
+started 2026-11-26T20:29:29Z, fleet size 16 instances
+
+  main before: 93f83db Wave 14: good;77cc65b Wave 13: windows;9bb939f Wave 12: unknown;
+2026-11-26T20:29:38Z pushed wave 15 (force) 861cc8e
+  main after:  861cc8e Wave 15: force-push, history rewritten;9bb939f Wave 12: unknown;b9f29ff Wave 11: broken;
+  after 300s: 17 of 22 run wave 15 (limit reached)
+
+== wave 15, pushed 2026-11-26T20:29:38Z; the backend's record of the next 300s
+
+-- activations (Loki: each instance's own log line)
++  13s  lenovo        windows-bare     configuration revision b11080219375 loaded (source.fleet windows-bare.config)
++  15s  mac   macos-bare       configuration revision ace03d6dd7ff loaded (source.fleet macos-bare.config)
++  22s  mac-c5                 linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  23s  fedora-c3              linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  23s  fedora-c4              linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  26s  hp             windows-bare     configuration revision b11080219375 loaded (source.fleet windows-bare.config)
++  26s  mac-c1                 linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  28s  fedora-c1              linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  28s  mac-c2                 linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  29s  fedora                 linux-bare       configuration revision 4ed4d1d94374 loaded (source.fleet linux-bare.config)
++  29s  fedora-c2              linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  30s  hp-c2                  linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  51s  hp-c5                  linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  54s  mac-c4                 linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  56s  hp-c3                  linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  56s  server2025        windows-bare     configuration revision b11080219375 loaded (source.fleet windows-bare.config)
++  59s  hp-c1                  linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  59s  hp-c4                  linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  62s  mac-c3                 linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  70s  lenovo-c2              linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
++  82s  lenovo-c3              linux-container  configuration revision 29143267b9f0 loaded (source.fleet linux-container.config)
+21 activations
+
+-- refusals and errors (Loki)
+0 lines (the first of each kind per host shown)
+
+-- each instance's latest configuration at +300s (Prometheus)
+linux-bare       fedora                linux    wave  15  4ed4d1d94374
+linux-container  fedora-c3             linux    wave  15  29143267b9f0
+linux-container  fedora-c4             linux    wave  15  29143267b9f0
+linux-container  hp-c1                 linux    wave  15  29143267b9f0
+linux-container  hp-c2                 linux    wave  15  29143267b9f0
+linux-container  hp-c3                 linux    wave  15  29143267b9f0
+linux-container  hp-c4                 linux    wave  15  29143267b9f0
+linux-container  hp-c5                 linux    wave  15  29143267b9f0
+linux-container  mac-c1                linux    wave  15  29143267b9f0
+linux-container  mac-c2                linux    wave  15  29143267b9f0
+linux-container  mac-c3                linux    wave  15  29143267b9f0
+linux-container  mac-c4                linux    wave  15  29143267b9f0
+linux-container  mac-c5                linux    wave  15  29143267b9f0
+macos-bare       mac  macos    wave  15  ace03d6dd7ff
+windows-bare     hp            windows  wave  15  b11080219375
+windows-bare     lenovo       windows  wave  15  b11080219375
+windows-bare     server2025       windows  wave  15  b11080219375
+
+-- each instance's latest configuration at 2026-11-26T20:34:44Z (Prometheus)
+linux-bare       fedora      wave  15  4ed4d1d94374
+linux-container  fedora-c3   wave  15  29143267b9f0
+linux-container  fedora-c4   wave  15  29143267b9f0
+linux-container  hp-c1       wave  15  29143267b9f0
+linux-container  hp-c2       wave  15  29143267b9f0
+linux-container  hp-c3       wave  15  29143267b9f0
+linux-container  hp-c4       wave  15  29143267b9f0
+linux-container  hp-c5       wave  15  29143267b9f0
+linux-container  mac-c1      wave  15  29143267b9f0
+linux-container  mac-c2      wave  15  29143267b9f0
+linux-container  mac-c3      wave  15  29143267b9f0
+linux-container  mac-c4      wave  15  29143267b9f0
+linux-container  mac-c5      wave  15  29143267b9f0
+macos-bare       mac         wave  15  ace03d6dd7ff
+windows-bare     hp          wave  15  b11080219375
+windows-bare     lenovo      wave  15  b11080219375
+windows-bare     server2025  wave  15  b11080219375

@@ -1,0 +1,41 @@
+== Gitea down 20:35:10-20:39:15: each instance's failed fetches, from its own logs (Loki)
+
+  fedora         14 failed fetches, first 20:35:08, last 20:38:51
+  fedora-c1       8 failed fetches, first 20:35:43, last 20:38:35
+  fedora-c2      12 failed fetches, first 20:35:22, last 20:39:03
+  fedora-c3      12 failed fetches, first 20:35:30, last 20:39:07
+  fedora-c4      12 failed fetches, first 20:35:15, last 20:38:43
+  hp             12 failed fetches, first 20:35:26, last 20:38:47
+  hp-c1           8 failed fetches, first 20:35:37, last 20:38:50
+  hp-c2          10 failed fetches, first 20:35:25, last 20:38:43
+  hp-c3          10 failed fetches, first 20:35:26, last 20:38:35
+  hp-c4          10 failed fetches, first 20:35:35, last 20:38:35
+  hp-c5          10 failed fetches, first 20:35:23, last 20:38:35
+  lenovo         10 failed fetches, first 20:35:39, last 20:38:50
+  lenovo-c1      10 failed fetches, first 20:35:05, last 20:39:01
+  lenovo-c2      10 failed fetches, first 20:35:04, last 20:38:56
+  lenovo-c3      10 failed fetches, first 20:35:25, last 20:39:07
+  lenovo-c4      10 failed fetches, first 20:35:29, last 20:39:07
+  lenovo-c5      10 failed fetches, first 20:35:28, last 20:39:00
+  mac            12 failed fetches, first 20:35:44, last 20:39:07
+  mac-c1         10 failed fetches, first 20:35:25, last 20:38:35
+  mac-c2         10 failed fetches, first 20:35:35, last 20:38:42
+  mac-c3         12 failed fetches, first 20:35:24, last 20:39:02
+  mac-c4         10 failed fetches, first 20:35:32, last 20:38:42
+  mac-c5         12 failed fetches, first 20:35:19, last 20:38:43
+  server2025     12 failed fetches, first 20:35:22, last 20:39:03
+
+  hosts with failed fetches: 24
+  one of the messages:
+    source.fleet: git fetch failed: fatal: unable to access 'https://192.168.4.40:8443/fleet/config.git/': The requested URL returned error: 502
+
+== Activations per round, counted by the revision the line names (not its tags; see B1)
+
+  wave 10  good     2026-11-26T20:04:57Z  24 lines from 24 instances, 6 61s after the push (first, last); tagged with another revision: 1
+  wave 11  broken   2026-11-26T20:08:53Z  24 lines from 24 instances, 3 74s after the push (first, last); tagged with another revision: 3
+  wave 12  unknown  2026-11-26T20:14:28Z   0 lines from  0 instances,  s after the push (first, last); tagged with another revision: 0
+  wave 13  windows  2026-11-26T20:17:30Z  21 lines from 21 instances, 7 74s after the push (first, last); tagged with another revision: 5
+  wave 14  good     2026-11-26T20:24:04Z  24 lines from 24 instances, 13 82s after the push (first, last); tagged with another revision: 2
+  wave 15  force    2026-11-26T20:29:38Z  24 lines from 24 instances, 13 82s after the push (first, last); tagged with another revision: 1
+  wave 16  good     2026-11-26T20:39:20Z  24 lines from 24 instances, 15 65s after the push (first, last); tagged with another revision: 3
+  wave 17  good     2026-11-26T20:52:24Z  24 lines from 24 instances, 10 393s after the push (first, last); tagged with another revision: 6

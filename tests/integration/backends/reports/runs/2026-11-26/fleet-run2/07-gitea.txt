@@ -1,0 +1,69 @@
+== Round 7: Gitea stopped for 240s, then a change (wave 16)
+started 2026-11-26T20:35:06Z, fleet size 17 instances
+
+  2026-11-26T20:35:10Z Gitea stopped
+  instances whose fetches failed in the last 2m: 5
+  instances still sending metrics (cpu in the last 2m): 10
+  instances still on wave 15: 15
+  2026-11-26T20:39:15Z Gitea back
+2026-11-26T20:39:20Z pushed wave 16 (good) 3d81a38
+  after 300s: 13 of 22 run wave 16 (limit reached)
+
+== wave 16, pushed 2026-11-26T20:35:10Z; the backend's record of the next 552s
+
+-- activations (Loki: each instance's own log line)
++ 265s  hp             windows-bare     configuration revision 17ed29710eb6 loaded (source.fleet windows-bare.config)
++ 267s  fedora                 linux-bare       configuration revision 6dce6f9513bf loaded (source.fleet linux-bare.config)
++ 270s  mac-c4                 linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 270s  mac-c5                 linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 272s  mac-c2                 linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 277s  fedora-c1              linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 277s  hp-c4                  linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 277s  server2025        windows-bare     configuration revision 17ed29710eb6 loaded (source.fleet windows-bare.config)
++ 278s  fedora-c4              linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 280s  hp-c3                  linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 280s  mac-c3                 linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 284s  mac   macos-bare       configuration revision 570216bea01a loaded (source.fleet macos-bare.config)
++ 284s  lenovo        windows-bare     configuration revision 17ed29710eb6 loaded (source.fleet windows-bare.config)
++ 285s  hp-c2                  linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 289s  fedora-c2              linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 292s  fedora-c3              linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
++ 315s  lenovo-c4              linux-container  configuration revision d1e83c7b13ff loaded (source.fleet linux-container.config)
+17 activations
+
+-- refusals and errors (Loki)
+0 lines (the first of each kind per host shown)
+
+-- each instance's latest configuration at +552s (Prometheus)
+linux-bare       fedora                linux    wave  16  6dce6f9513bf
+linux-container  hp-c1                 linux    wave  16  d1e83c7b13ff
+linux-container  hp-c2                 linux    wave  16  d1e83c7b13ff
+linux-container  hp-c3                 linux    wave  16  d1e83c7b13ff
+linux-container  hp-c4                 linux    wave  16  d1e83c7b13ff
+linux-container  hp-c5                 linux    wave  16  d1e83c7b13ff
+linux-container  mac-c1                linux    wave  16  d1e83c7b13ff
+linux-container  mac-c2                linux    wave  16  d1e83c7b13ff
+linux-container  mac-c3                linux    wave  16  d1e83c7b13ff
+linux-container  mac-c4                linux    wave  16  d1e83c7b13ff
+linux-container  mac-c5                linux    wave  16  d1e83c7b13ff
+macos-bare       mac  macos    wave  16  570216bea01a
+windows-bare     hp            windows  wave  16  17ed29710eb6
+windows-bare     lenovo       windows  wave  16  17ed29710eb6
+windows-bare     server2025       windows  wave  16  17ed29710eb6
+
+-- each instance's latest configuration at 2026-11-26T20:44:23Z (Prometheus)
+linux-bare       fedora      wave  16  6dce6f9513bf
+linux-container  hp-c1       wave  16  d1e83c7b13ff
+linux-container  hp-c2       wave  16  d1e83c7b13ff
+linux-container  hp-c3       wave  16  d1e83c7b13ff
+linux-container  hp-c4       wave  16  d1e83c7b13ff
+linux-container  hp-c5       wave  16  d1e83c7b13ff
+linux-container  mac-c1      wave  16  d1e83c7b13ff
+linux-container  mac-c2      wave  16  d1e83c7b13ff
+linux-container  mac-c3      wave  16  d1e83c7b13ff
+linux-container  mac-c4      wave  16  d1e83c7b13ff
+linux-container  mac-c5      wave  16  d1e83c7b13ff
+macos-bare       mac         wave  16  570216bea01a
+windows-bare     hp          wave  16  17ed29710eb6
+windows-bare     lenovo      wave  16  17ed29710eb6
+windows-bare     server2025  wave  16  17ed29710eb6

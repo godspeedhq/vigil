@@ -1,0 +1,75 @@
+== The metric sender livelocks in the containers (captured 2026-11-26T21:06:27Z)
+
+-- age of each instance's newest metric (Prometheus): bare metal current, containers minutes behind
+  273s  hp-c5
+  270s  hp-c3
+  267s  mac-c5
+  248s  hp-c2
+  247s  hp-c1
+  27s  fedora
+  27s  lenovo
+  21s  hp
+  20s  mac
+  17s  server2025
+  (instances missing above have sent no metric in more than 5 minutes)
+
+-- fedora-c1: spool files 531, 2124 KB; its sender runs today (job log)
+  runs started: 248
+  runs that ended: 241
+  runs killed at max_runtime: 6
+  last runs that ended:
+    2026-11-26T20:19:17Z 20261126T201558Z-12-1564 run end succeeded in 197s, cpu 20.86s
+    2026-11-26T20:23:56Z 20261126T201926Z-12-1598 run end succeeded in 267s, cpu 31.98s
+    2026-11-26T20:28:47Z 20261126T202358Z-12-1632 run end succeeded in 287s, cpu 30.92s
+  last timeouts (supervisor log):
+    2026-11-26T20:56:32Z WARN supervisor job vigil_sender: run 20261126T205110Z-12-1867 passed max_runtime; sent TERM to its job
+    2026-11-26T20:56:42Z WARN supervisor job vigil_sender: run 20261126T205110Z-12-1867 timed out
+    2026-11-26T21:01:50Z WARN supervisor job vigil_sender: run 20261126T205645Z-12-1912 passed max_runtime; sent TERM to its job
+    2026-11-26T21:02:00Z WARN supervisor job vigil_sender: run 20261126T205645Z-12-1912 timed out
+
+
+-- fedora-c2: spool files 502, 2008 KB; its sender runs today (job log)
+  runs started: 248
+  runs that ended: 241
+  runs killed at max_runtime: 6
+  last runs that ended:
+    2026-11-26T20:23:04Z 20261126T202200Z-12-1613 run end succeeded in 61s, cpu 6.54s
+    2026-11-26T20:26:51Z 20261126T202311Z-12-1630 run end succeeded in 209s, cpu 23.87s
+    2026-11-26T20:32:08Z 20261126T202657Z-12-1656 run end succeeded in 308s, cpu 35.49s
+  last timeouts (supervisor log):
+    2026-11-26T20:58:47Z WARN supervisor job vigil_sender: run 20261126T205343Z-12-1883 passed max_runtime; sent TERM to its job
+    2026-11-26T20:58:57Z WARN supervisor job vigil_sender: run 20261126T205343Z-12-1883 timed out
+    2026-11-26T21:04:02Z WARN supervisor job vigil_sender: run 20261126T205900Z-12-1925 passed max_runtime; sent TERM to its job
+    2026-11-26T21:04:14Z WARN supervisor job vigil_sender: run 20261126T205900Z-12-1925 timed out
+
+
+-- fedora-c3: spool files 412, 1648 KB; its sender runs today (job log)
+  runs started: 136
+  runs that ended: 130
+  runs killed at max_runtime: 5
+  last runs that ended:
+    2026-11-26T20:32:44Z 20261126T202930Z-12-1253 run end succeeded in 191s, cpu 21.84s
+    2026-11-26T20:33:55Z 20261126T203248Z-12-1279 run end succeeded in 65s, cpu 8.35s
+    2026-11-26T20:37:46Z 20261126T203356Z-12-1289 run end succeeded in 227s, cpu 26.01s
+  last timeouts (supervisor log):
+    2026-11-26T20:59:36Z WARN supervisor job vigil_sender: run 20261126T205410Z-12-1464 passed max_runtime; sent TERM to its job
+    2026-11-26T20:59:46Z WARN supervisor job vigil_sender: run 20261126T205410Z-12-1464 timed out
+    2026-11-26T21:04:51Z WARN supervisor job vigil_sender: run 20261126T205947Z-12-1510 passed max_runtime; sent TERM to its job
+    2026-11-26T21:05:01Z WARN supervisor job vigil_sender: run 20261126T205947Z-12-1510 timed out
+
+
+-- fedora-c4: spool files 418, 1672 KB; its sender runs today (job log)
+  runs started: 141
+  runs that ended: 135
+  runs killed at max_runtime: 5
+  last runs that ended:
+    2026-11-26T20:32:42Z 20261126T202944Z-12-1256 run end succeeded in 176s, cpu 20.86s
+    2026-11-26T20:33:39Z 20261126T203248Z-12-1281 run end succeeded in 48s, cpu 5.30s
+    2026-11-26T20:37:28Z 20261126T203342Z-12-1291 run end succeeded in 224s, cpu 26.09s
+  last timeouts (supervisor log):
+    2026-11-26T20:58:51Z WARN supervisor job vigil_sender: run 20261126T205344Z-12-1461 passed max_runtime; sent TERM to its job
+    2026-11-26T20:59:01Z WARN supervisor job vigil_sender: run 20261126T205344Z-12-1461 timed out
+    2026-11-26T21:04:20Z WARN supervisor job vigil_sender: run 20261126T205907Z-12-1510 passed max_runtime; sent TERM to its job
+    2026-11-26T21:04:36Z WARN supervisor job vigil_sender: run 20261126T205907Z-12-1510 timed out
+
+

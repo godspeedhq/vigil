@@ -1,0 +1,29 @@
+== Round 8: the LGTM backend stopped for 240s
+started 2026-11-26T20:44:45Z, fleet size 12 instances
+
+  spool bytes before, fleet total: 149047
+  2026-11-26T20:44:52Z LGTM stopped
+  2026-11-26T20:48:54Z LGTM started
+  2026-11-26T20:48:55Z Prometheus answers
+  +60s: spool bytes, fleet total 125011, largest 72583
+  +120s: spool bytes, fleet total 568847, largest 108839
+  +180s: spool bytes, fleet total 264776, largest 95593
+  cpu readings stored for the middle of the outage (20:46:53): 15 series
+
+
+-- each instance's latest configuration at 2026-11-26T20:51:59Z (Prometheus)
+linux-bare       fedora      wave  16  6dce6f9513bf
+linux-container  hp-c1       wave  16  d1e83c7b13ff
+linux-container  hp-c2       wave  16  d1e83c7b13ff
+linux-container  hp-c3       wave  16  d1e83c7b13ff
+linux-container  hp-c4       wave  16  d1e83c7b13ff
+linux-container  hp-c5       wave  16  d1e83c7b13ff
+linux-container  mac-c1      wave  16  d1e83c7b13ff
+linux-container  mac-c2      wave  16  d1e83c7b13ff
+linux-container  mac-c3      wave  16  d1e83c7b13ff
+linux-container  mac-c4      wave  16  d1e83c7b13ff
+linux-container  mac-c5      wave  16  d1e83c7b13ff
+macos-bare       mac         wave  16  570216bea01a
+windows-bare     hp          wave  16  17ed29710eb6
+windows-bare     lenovo      wave  16  17ed29710eb6
+windows-bare     server2025  wave  16  17ed29710eb6
