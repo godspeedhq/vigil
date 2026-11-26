@@ -1,0 +1,8 @@
+metric up 1
+metric running 2
+metric slow 0
+metric longest_seconds 0.91
+metric waiting_for_lock 1
+metric transactions_open 0
+metric op_seconds 0.91 ns=app.events op=insert id=48131
+metric op_seconds 0.45 ns=admin._cmd op=command id=47105

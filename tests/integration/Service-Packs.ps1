@@ -262,7 +262,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
     $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs')
-    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'zookeeper', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
+    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'zookeeper', 'mongodb', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
         Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
@@ -1482,6 +1482,88 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "${p}: metrics reach the backend, each table by its name" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^${p}_tables_table_parts\{.*table=")))
+    }
+
+    # --- mongodb ------------------------------------------------------------
+    # A MongoDB replica set in trouble on purpose (a query running for
+    # minutes, a transaction held open), through Vigil, as
+    # scripts/run-mongodb.sh sets it up: VIGIL_IT_MONGODB_URL its primary,
+    # _USER and _PASSWORD a user with clusterMonitor, VIGIL_IT_MONGOSH mongosh.
+    if (-not $env:VIGIL_IT_MONGODB_URL -or -not $env:VIGIL_IT_MONGODB_PASSWORD) { Write-Host '  SKIP  mongodb: set VIGIL_IT_MONGODB_URL and VIGIL_IT_MONGODB_PASSWORD (scripts/run-mongodb.sh sets them up)' }
+    else {
+        $p = 'mongodb'
+        $url = $env:VIGIL_IT_MONGODB_URL
+        $user = if ($env:VIGIL_IT_MONGODB_USER) { $env:VIGIL_IT_MONGODB_USER } else { 'vigil' }
+        $pw = $env:VIGIL_IT_MONGODB_PASSWORD
+        $ca = [string]$env:VIGIL_IT_MONGODB_CACERT
+        foreach ($v in 'URL', 'USER', 'PASSWORD', 'CACERT') { Remove-Item "Env:\MONGODB_$v" -ErrorAction SilentlyContinue }
+        Write-Host "${p}: $url as $user"
+        $ck = Join-Path $root "packs\$p"
+        $cjobs = @(([System.IO.File]::ReadAllLines((Join-Path $ck 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] }))
+        $cn = $cjobs.Count
+        $on = {
+            $list = (Invoke-Vigil pack list).Text
+            $st = @($list.Split("`n") | Where-Object { $_ -match "^\s*${p}_\w+\s" } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            (@($st | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        Test-Equal "${p}: off until enabled" "off=$cn" (& $on)
+        $r = Invoke-Vigil pack enable $p
+        Test-Equal "${p}: enabled" '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "${p}: its jobs are on" "on=$cn" (& $on)
+        $cfg = Join-Path $root 'config\vigil.config'
+        Test-Equal "${p}: the password is a secret reference, on every job" ([string]$cn) ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*MONGODB_PASSWORD=secret:MONGODB_PASSWORD')).Count)
+        # A logon with no password (SSH with a key) cannot use the secret
+        # store: then the jobs take it by an env: reference.
+        $cenv = $false
+        Set-VigilSecret 'MONGODB_PASSWORD' $pw
+        if ((Invoke-Vigil secret list).Text -notmatch 'MONGODB_PASSWORD') {
+            $cenv = $true
+            Write-Host "  note  ${p}: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_MONGODB_PASSWORD"
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*MONGODB_PASSWORD=)secret:MONGODB_PASSWORD', '${1}env:VIGIL_IT_MONGODB_PASSWORD'))
+        }
+        Set-Env 'MONGODB_URL' $url
+        Set-Env 'MONGODB_USER' $user
+        Set-Env 'MONGOSH' $(if ($env:VIGIL_IT_MONGOSH) { $env:VIGIL_IT_MONGOSH } else { (Get-Command mongosh -ErrorAction SilentlyContinue).Source })
+        Set-Env 'MONGODB_CACERT' $ca
+        $r = Invoke-Vigil precheck
+        Test-Equal "${p}: precheck is happy" '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $cjobs) { if ([string](Invoke-Vigil run "${p}_$j").Code -ne '0') { $failed += $j } }
+        Test-Equal "${p}: every job runs" '' ($failed -join ' ')
+        foreach ($j in $failed) { Show-LastRun "${p}_$j" }
+        Test-Equal "${p}: up" '1' (Get-Printed "${p}_status" up)
+        Test-Equal "${p}: the replica set, with a primary" '1 1' "$(Get-Printed "${p}_replication" replicated) $(Get-Printed "${p}_replication" primary)"
+        Test-Equal "${p}: the transaction held open, seen" '1' (Get-Printed "${p}_status" transactions_open)
+        Show-LastRun "${p}_replication"
+        if ($cenv) { $keep = $pw; $env:VIGIL_IT_MONGODB_PASSWORD = 'not-the-password' }
+        else { Set-VigilSecret 'MONGODB_PASSWORD' 'not-the-password' }
+        Test-Equal "${p}: a wrong password fails the run" '2' ([string](Invoke-Vigil run "${p}_databases").Code)
+        Test-Equal "${p}: and says why" 'True' (Test-Said "${p}_databases" 'MongoDB refused the login')
+        if ($cenv) { $env:VIGIL_IT_MONGODB_PASSWORD = $keep } else { Set-VigilSecret 'MONGODB_PASSWORD' $pw }
+        Set-Env 'MONGODB_URL' 'mongodb://127.0.0.1:1'
+        Test-Equal "${p}: a server that does not answer still runs" '0' ([string](Invoke-Vigil run "${p}_status").Code)
+        Test-Equal "${p}: and reads as up 0" '0' (Get-Printed "${p}_status" up)
+        Set-Env 'MONGODB_URL' $url
+        [void](Invoke-Vigil run "${p}_status")
+        [void](Invoke-Vigil run "${p}_databases")
+        $leaks = @()
+        foreach ($d in 'logs', 'state', 'spool', 'metrics') {
+            foreach ($f in Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue) {
+                if ([System.IO.File]::ReadAllText($f.FullName).Contains($pw)) { $leaks += $f.Name }
+            }
+        }
+        if ([System.IO.File]::ReadAllText($cfg).Contains($pw)) { $leaks += 'vigil.config' }
+        Test-Equal "${p}: the password is written nowhere" '' ($leaks -join ' ')
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match "(?m)^${p}_databases_db_size_bytes\{") { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal "${p}: metrics reach the backend, each database by its name" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^${p}_databases_db_size_bytes\{.*db=")))
     }
 
     # --- zookeeper ---------------------------------------------------------

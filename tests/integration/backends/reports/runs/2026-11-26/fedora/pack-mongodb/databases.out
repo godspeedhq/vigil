@@ -1,0 +1,27 @@
+metric up 1
+metric databases 4
+metric size_bytes 290816
+metric db_size_bytes 151552 db=admin
+metric db_data_bytes 1160 db=admin
+metric db_index_bytes 94208 db=admin
+metric db_collections 2 db=admin
+metric db_indexes 3 db=admin
+metric db_documents 4 db=admin
+metric db_size_bytes 73728 db=local
+metric db_data_bytes 12483 db=local
+metric db_index_bytes 36864 db=local
+metric db_collections 1 db=local
+metric db_indexes 1 db=local
+metric db_documents 2 db=local
+metric db_size_bytes 53248 db=app
+metric db_data_bytes 29000 db=app
+metric db_index_bytes 24576 db=app
+metric db_collections 1 db=app
+metric db_indexes 1 db=app
+metric db_documents 1000 db=app
+metric db_size_bytes 12288 db=config
+metric db_data_bytes 0 db=config
+metric db_index_bytes 8192 db=config
+metric db_collections 1 db=config
+metric db_indexes 2 db=config
+metric db_documents 0 db=config

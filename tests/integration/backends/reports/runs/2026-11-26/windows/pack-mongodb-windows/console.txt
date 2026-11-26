@@ -1,0 +1,165 @@
+== pack-mongodb-windows
+date     2026-11-26T11:59:24Z
+host     the HP test machine (Windows 11), as an account that is not an administrator, over SSH
+vigil    51d570c+ (deployed copy)
+servers  run-mongodb.sh's servers on the Fedora test machine, held (VIGIL_IT_MONGO_HOLD), through SSH tunnels
+
+# Every job under each PowerShell, against the primary (27117), a secondary (27118) and 8.0 (27180); then a wrong password, nothing listening, and the pack through Vigil:
+
+shells: powershell.exe, pwsh.exe; mongosh 2.14.3
+27117 status powershell.exe: 36 lines, exit 0
+27117 status pwsh.exe: 36 lines, exit 0
+27117 replication powershell.exe: 18 lines, exit 0
+27117 replication pwsh.exe: 18 lines, exit 0
+27117 databases powershell.exe: 27 lines, exit 0
+27117 databases pwsh.exe: 27 lines, exit 0
+27117 operations powershell.exe: 11 lines, exit 0
+27117 operations pwsh.exe: 11 lines, exit 0
+27118 status powershell.exe: 36 lines, exit 0
+27118 status pwsh.exe: 36 lines, exit 0
+27118 replication powershell.exe: 19 lines, exit 0
+27118 replication pwsh.exe: 19 lines, exit 0
+27118 databases powershell.exe: 27 lines, exit 0
+27118 databases pwsh.exe: 27 lines, exit 0
+27118 operations powershell.exe: 8 lines, exit 0
+27118 operations pwsh.exe: 8 lines, exit 0
+27180 status powershell.exe: 36 lines, exit 0
+27180 status pwsh.exe: 36 lines, exit 0
+27180 replication powershell.exe: 3 lines, exit 0
+27180 replication pwsh.exe: 3 lines, exit 0
+27180 databases powershell.exe: 27 lines, exit 0
+27180 databases pwsh.exe: 27 lines, exit 0
+27180 operations powershell.exe: 6 lines, exit 0
+27180 operations pwsh.exe: 6 lines, exit 0
+--- a wrong password (5.1):
+status: MongoDB refused the login: MONGODB_USER or MONGODB_PASSWORD is wrong (Authentication failed.)
+exit 1
+--- nothing listening (5.1):
+metric up 0
+exit 0
+--- through Vigil, under powershell.exe:
+PowerShell 5.1.26100.10068
+  PASS  init
+  PASS  the pack is off until enabled
+mongodb: mongodb://127.0.0.1:27117 as vigil
+  PASS  mongodb: off until enabled
+  PASS  mongodb: enabled
+        on: mongodb_status
+        on: mongodb_replication
+        on: mongodb_databases
+        on: mongodb_operations
+        needs secret:MONGODB_PASSWORD: not set: vigil secret set MONGODB_PASSWORD, as the account Vigil runs as (an elevated prompt for a system install)
+        needs mongosh on this machine (MongoDB's shell: https://www.mongodb.com/try/download/shell), or MONGOSH naming it
+        needs a user with the clusterMonitor role, as an admin: db.getSiblingDB('admin').createUser({ user: 'vigil', pwd: passwordPrompt(), roles: ['clusterMonitor'] }); then vigil secret set MONGODB_PASSWORD
+        settings in vigil.config: MONGODB_URL= MONGODB_USER=vigil MONGODB_CACERT= MONGOSH= MONGODB_MOST=50
+  PASS  mongodb: its jobs are on
+  PASS  mongodb: the password is a secret reference, on every job
+  note  mongodb: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_MONGODB_PASSWORD
+  PASS  mongodb: precheck is happy
+  PASS  mongodb: every job runs
+  PASS  mongodb: up
+  PASS  mongodb: the replica set, with a primary
+  PASS  mongodb: the transaction held open, seen
+        metric up 1
+        metric info 1 set=rs0 role=primary
+        metric replicated 1
+        metric members 3
+        metric members_healthy 3
+        metric members_down 0
+        metric primary 1
+        metric secondaries 2
+        metric lag_seconds_max 0
+        metric member_health 1 member=m1:27017 state=primary
+        metric member_lag_seconds 0 member=m1:27017 state=primary
+        metric member_health 1 member=m2:27017 state=secondary
+        metric member_lag_seconds 0 member=m2:27017 state=secondary
+        metric member_health 1 member=m3:27017 state=secondary
+        metric member_lag_seconds 0 member=m3:27017 state=secondary
+        metric oplog_window_hours 0.14
+        metric oplog_bytes 3575368
+        metric oplog_max_bytes 3878199552
+  PASS  mongodb: a wrong password fails the run
+  PASS  mongodb: and says why
+  PASS  mongodb: a server that does not answer still runs
+  PASS  mongodb: and reads as up 0
+  PASS  mongodb: the password is written nowhere
+  PASS  mongodb: metrics reach the backend, each database by its name
+17 passed, 0 failed
+exit 0
+--- through Vigil, under pwsh.exe:
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+mongodb: mongodb://127.0.0.1:27117 as vigil
+  PASS  mongodb: off until enabled
+  PASS  mongodb: enabled
+        on: mongodb_status
+        on: mongodb_replication
+        on: mongodb_databases
+        on: mongodb_operations
+        needs secret:MONGODB_PASSWORD: not set: vigil secret set MONGODB_PASSWORD, as the account Vigil runs as (an elevated prompt for a system install)
+        needs mongosh on this machine (MongoDB's shell: https://www.mongodb.com/try/download/shell), or MONGOSH naming it
+        needs a user with the clusterMonitor role, as an admin: db.getSiblingDB('admin').createUser({ user: 'vigil', pwd: passwordPrompt(), roles: ['clusterMonitor'] }); then vigil secret set MONGODB_PASSWORD
+        settings in vigil.config: MONGODB_URL= MONGODB_USER=vigil MONGODB_CACERT= MONGOSH= MONGODB_MOST=50
+  PASS  mongodb: its jobs are on
+  PASS  mongodb: the password is a secret reference, on every job
+  note  mongodb: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_MONGODB_PASSWORD
+  PASS  mongodb: precheck is happy
+  PASS  mongodb: every job runs
+  PASS  mongodb: up
+  PASS  mongodb: the replica set, with a primary
+  PASS  mongodb: the transaction held open, seen
+        metric up 1
+        metric info 1 set=rs0 role=primary
+        metric replicated 1
+        metric members 3
+        metric members_healthy 3
+        metric members_down 0
+        metric primary 1
+        metric secondaries 2
+        metric lag_seconds_max 0
+        metric member_health 1 member=m1:27017 state=primary
+        metric member_lag_seconds 0 member=m1:27017 state=primary
+        metric member_health 1 member=m2:27017 state=secondary
+        metric member_lag_seconds 0 member=m2:27017 state=secondary
+        metric member_health 1 member=m3:27017 state=secondary
+        metric member_lag_seconds 0 member=m3:27017 state=secondary
+        metric oplog_window_hours 0.16
+        metric oplog_bytes 3576089
+        metric oplog_max_bytes 3878199552
+  PASS  mongodb: a wrong password fails the run
+  PASS  mongodb: and says why
+  PASS  mongodb: a server that does not answer still runs
+  PASS  mongodb: and reads as up 0
+  PASS  mongodb: the password is written nowhere
+  PASS  mongodb: metrics reach the backend, each database by its name
+17 passed, 0 failed
+exit 0
+
+# The Windows outputs beside the Linux scripts' (read on Fedora just after), against the same servers: the same metric names and tags, and the same values where they hold still.
+
+same     27117 status powershell.exe: 36 lines, exit 0 (4 values that hold still, equal)
+same     27117 status pwsh.exe: 36 lines, exit 0 (4 values that hold still, equal)
+same     27117 replication powershell.exe: 18 lines, exit 0 (11 values that hold still, equal)
+same     27117 replication pwsh.exe: 18 lines, exit 0 (11 values that hold still, equal)
+same     27117 databases powershell.exe: 27 lines, exit 0 (10 values that hold still, equal)
+same     27117 databases pwsh.exe: 27 lines, exit 0 (10 values that hold still, equal)
+same     27117 operations powershell.exe: 11 lines, exit 0 (2 values that hold still, equal)
+same     27117 operations pwsh.exe: 11 lines, exit 0 (2 values that hold still, equal)
+same     27118 status powershell.exe: 36 lines, exit 0 (4 values that hold still, equal)
+same     27118 status pwsh.exe: 36 lines, exit 0 (4 values that hold still, equal)
+same     27118 replication powershell.exe: 19 lines, exit 0 (11 values that hold still, equal)
+same     27118 replication pwsh.exe: 19 lines, exit 0 (11 values that hold still, equal)
+same     27118 databases powershell.exe: 27 lines, exit 0 (10 values that hold still, equal)
+same     27118 databases pwsh.exe: 27 lines, exit 0 (10 values that hold still, equal)
+same     27118 operations powershell.exe: 8 lines, exit 0 (2 values that hold still, equal)
+same     27118 operations pwsh.exe: 8 lines, exit 0 (2 values that hold still, equal)
+same     27180 status powershell.exe: 36 lines, exit 0 (4 values that hold still, equal)
+same     27180 status pwsh.exe: 36 lines, exit 0 (4 values that hold still, equal)
+same     27180 replication powershell.exe: 3 lines, exit 0 (3 values that hold still, equal)
+same     27180 replication pwsh.exe: 3 lines, exit 0 (3 values that hold still, equal)
+same     27180 databases powershell.exe: 27 lines, exit 0 (10 values that hold still, equal)
+same     27180 databases pwsh.exe: 27 lines, exit 0 (10 values that hold still, equal)
+same     27180 operations powershell.exe: 6 lines, exit 0 (2 values that hold still, equal)
+same     27180 operations pwsh.exe: 6 lines, exit 0 (2 values that hold still, equal)
+0 differ

@@ -1,0 +1,228 @@
+== pack-mongodb-macos
+date     2026-11-26T12:15:08Z
+host     the Mac test machine
+os       macOS 12.7.6 (Darwin 21.6.0 x86_64), bash 3.2.57(1)-release
+mongosh  2.5.10 (2.14 needs a newer macOS than 12)
+vigil    51d570c+ (deployed copy)
+servers  run-mongodb.sh's servers on the Fedora test machine, held (VIGIL_IT_MONGO_HOLD), through SSH tunnels
+
+# 9.0, m1, the primary: every job, as the macOS scripts print it.
+
+$ bash packs/mongodb/macos/status.sh
+metric up 1
+metric info 1 version=9.0.8 engine=wiredTiger
+metric uptime_seconds 146
+metric connections 17
+metric connections_available 392
+metric connections_pct 4.16
+metric connections_active 6
+metric connections_created_count 198
+metric operations_count 10330 op=insert
+metric operations_count 114 op=query
+metric operations_count 0 op=update
+metric operations_count 0 op=delete
+metric operations_count 262 op=getmore
+metric operations_count 1124 op=command
+metric latency_avg_ms 0.26 op=reads
+metric latency_avg_ms 21.69 op=writes
+metric latency_avg_ms 1.67 op=commands
+metric queued 0 for=read
+metric queued 0 for=write
+metric memory_resident_bytes 356515840
+metric cache_bytes 9569423
+metric cache_max_bytes 268435456
+metric cache_pct 3.56
+metric cache_dirty_pct 0.03
+metric cache_evicted_by_threads_count 0
+metric cursors_open 2
+metric cursors_timed_out_count 0
+metric asserts_count 0 kind=regular
+metric asserts_count 0 kind=warning
+metric asserts_count 0 kind=msg
+metric asserts_count 286 kind=user
+metric page_faults_count 0
+metric network_in_bytes_count 3183594
+metric network_out_bytes_count 9809277
+metric transactions_open 1
+metric transactions_aborted_count 0
+
+$ bash packs/mongodb/macos/replication.sh
+metric up 1
+metric info 1 set=rs0 role=primary
+metric replicated 1
+metric members 3
+metric members_healthy 3
+metric members_down 0
+metric primary 1
+metric secondaries 2
+metric lag_seconds_max 0
+metric member_health 1 member=m1:27017 state=primary
+metric member_lag_seconds 0 member=m1:27017 state=primary
+metric member_health 1 member=m2:27017 state=secondary
+metric member_lag_seconds 0 member=m2:27017 state=secondary
+metric member_health 1 member=m3:27017 state=secondary
+metric member_lag_seconds 0 member=m3:27017 state=secondary
+metric oplog_window_hours 0.04
+metric oplog_bytes 3551187
+metric oplog_max_bytes 3877726464
+
+$ bash packs/mongodb/macos/databases.sh
+metric up 1
+metric databases 4
+metric size_bytes 1994752
+metric db_size_bytes 872448 db=local
+metric db_data_bytes 3568751 db=local
+metric db_index_bytes 180224 db=local
+metric db_collections 9 db=local
+metric db_indexes 8 db=local
+metric db_documents 92 db=local
+metric db_size_bytes 741376 db=app
+metric db_data_bytes 2449700 db=app
+metric db_index_bytes 393216 db=app
+metric db_collections 3 db=app
+metric db_indexes 4 db=app
+metric db_documents 10325 db=app
+metric db_size_bytes 192512 db=admin
+metric db_data_bytes 1809 db=admin
+metric db_index_bytes 114688 db=admin
+metric db_collections 3 db=admin
+metric db_indexes 4 db=admin
+metric db_documents 6 db=admin
+metric db_size_bytes 188416 db=config
+metric db_data_bytes 4316 db=config
+metric db_index_bytes 102400 db=config
+metric db_collections 9 db=config
+metric db_indexes 13 db=config
+metric db_documents 26 db=config
+
+$ bash packs/mongodb/macos/operations.sh
+metric up 1
+metric running 5
+metric slow 1
+metric longest_seconds 131.6
+metric waiting_for_lock 0
+metric transactions_open 1
+metric op_seconds 131.6 ns=app.slow op=query id=70659
+metric op_seconds 2.52 ns=local.oplog.rs op=getmore id=197655
+metric op_seconds 2.52 ns=local.oplog.rs op=getmore id=52358
+metric op_seconds 1.1 ns=admin._cmd op=command id=65550
+metric op_seconds 1.02 ns=admin._cmd op=command id=69646
+  PASS  m1: status runs
+  PASS  m1: replication runs
+  PASS  m1: databases runs
+  PASS  m1: operations runs
+  PASS  m1: up, 9.0, WiredTiger
+  PASS  m1: the transaction held open
+  PASS  m1: rs0 from its primary: three members, all healthy
+  PASS  m1: the oplog read
+  PASS  m1: app, 10,000 documents and more
+  PASS  m1: operations read
+
+# 9.0, m2, a secondary; and 8.0.
+
+$ bash packs/mongodb/macos/replication.sh
+metric up 1
+metric info 1 set=rs0 role=secondary
+metric replicated 1
+metric members 3
+metric members_healthy 3
+metric members_down 0
+metric primary 1
+metric secondaries 2
+metric lag_seconds_max 0
+metric lag_seconds 0
+metric member_health 1 member=m1:27017 state=primary
+metric member_lag_seconds 0 member=m1:27017 state=primary
+metric member_health 1 member=m2:27017 state=secondary
+metric member_lag_seconds 0 member=m2:27017 state=secondary
+metric member_health 1 member=m3:27017 state=secondary
+metric member_lag_seconds 0 member=m3:27017 state=secondary
+metric oplog_window_hours 0.04
+metric oplog_bytes 3546228
+metric oplog_max_bytes 3877726464
+  PASS  m2: a secondary of rs0
+
+$ bash packs/mongodb/macos/status.sh
+metric up 1
+metric info 1 version=8.0.38 engine=wiredTiger
+metric uptime_seconds 155
+metric connections 2
+metric connections_available 407
+metric connections_pct 0.49
+metric connections_active 1
+metric connections_created_count 44
+metric operations_count 1002 op=insert
+metric operations_count 1 op=query
+metric operations_count 1 op=update
+metric operations_count 0 op=delete
+metric operations_count 0 op=getmore
+metric operations_count 93 op=command
+metric latency_avg_ms 0 op=reads
+metric latency_avg_ms 862.01 op=writes
+metric latency_avg_ms 3.66 op=commands
+metric queued 0 for=read
+metric queued 0 for=write
+metric memory_resident_bytes 202375168
+metric cache_bytes 330106
+metric cache_max_bytes 268435456
+metric cache_pct 0.12
+metric cache_dirty_pct 0
+metric cache_evicted_by_threads_count 0
+metric cursors_open 0
+metric cursors_timed_out_count 0
+metric asserts_count 0 kind=regular
+metric asserts_count 0 kind=warning
+metric asserts_count 0 kind=msg
+metric asserts_count 60 kind=user
+metric page_faults_count 0
+metric network_in_bytes_count 57953
+metric network_out_bytes_count 156084
+metric transactions_open 0
+metric transactions_aborted_count 0
+
+$ bash packs/mongodb/macos/replication.sh
+metric up 1
+metric info 1 set=none role=standalone
+metric replicated 0
+  PASS  8.0: up, its version, standalone
+
+# Logins.
+  PASS  a wrong password fails the run, and says so
+        status: MongoDB refused the login: MONGODB_USER or MONGODB_PASSWORD is wrong (Authentication failed.)
+  PASS  nothing listening: the run succeeds, up 0
+14 passed, 0 failed
+
+# The pack through Vigil, against m1.
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+mongodb: mongodb://127.0.0.1:27117 as vigil
+  PASS  mongodb: off until enabled
+  PASS  mongodb: enabled
+        on: mongodb_status
+        on: mongodb_replication
+        on: mongodb_databases
+        on: mongodb_operations
+        needs secret:MONGODB_PASSWORD: not set: vigil secret set MONGODB_PASSWORD, as the account Vigil runs as
+        needs mongosh on this machine (MongoDB's shell: https://www.mongodb.com/try/download/shell), or MONGOSH naming it
+        needs a user with the clusterMonitor role, as an admin: db.getSiblingDB('admin').createUser({ user: 'vigil', pwd: passwordPrompt(), roles: ['clusterMonitor'] }); then vigil secret set MONGODB_PASSWORD
+        settings in vigil.config: MONGODB_URL= MONGODB_USER=vigil MONGODB_CACERT= MONGOSH= MONGODB_MOST=50
+  PASS  mongodb: its jobs are on
+  PASS  mongodb: it names the secret it needs, not set
+  PASS  mongodb: the password is a secret reference, on every job
+  PASS  mongodb: precheck is happy
+  PASS  mongodb: every job runs
+        status: 36 lines
+        replication: 18 lines
+        databases: 27 lines
+        operations: 11 lines
+  PASS  mongodb: up
+  PASS  mongodb: the replica set, with a primary
+  PASS  mongodb: the transaction held open, seen
+  PASS  mongodb: a wrong password fails the run
+  PASS  mongodb: and says why
+  PASS  mongodb: a server that does not answer still runs
+  PASS  mongodb: and reads as up 0
+  PASS  mongodb: the password is written nowhere
+  PASS  mongodb: metrics reach the backend, each database by its name
+18 passed, 0 failed

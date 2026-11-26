@@ -1,0 +1,17 @@
+metric up 1
+metric info 1 set=rs0 role=secondary
+metric replicated 1
+metric members 3
+metric members_healthy 1
+metric members_down 2
+metric primary 0
+metric secondaries 1
+metric lag_seconds_max 0
+metric lag_seconds 0
+metric member_health 0 member=m1:27017 state=not_reachable_healthy
+metric member_health 1 member=m2:27017 state=secondary
+metric member_lag_seconds 0 member=m2:27017 state=secondary
+metric member_health 0 member=m3:27017 state=not_reachable_healthy
+metric oplog_window_hours 0.05
+metric oplog_bytes 3546295
+metric oplog_max_bytes 3877715200

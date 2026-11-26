@@ -1,0 +1,36 @@
+metric up 1
+metric info 1 version=9.0.8 engine=wiredTiger
+metric uptime_seconds 195
+metric connections 2
+metric connections_available 407
+metric connections_pct 0.49
+metric connections_active 1
+metric connections_created_count 81
+metric operations_count 1 op=insert
+metric operations_count 73 op=query
+metric operations_count 0 op=update
+metric operations_count 0 op=delete
+metric operations_count 16 op=getmore
+metric operations_count 620 op=command
+metric latency_avg_ms 0.29 op=reads
+metric latency_avg_ms 0 op=writes
+metric latency_avg_ms 0.16 op=commands
+metric queued 0 for=read
+metric queued 0 for=write
+metric memory_resident_bytes 231735296
+metric cache_bytes 7554500
+metric cache_max_bytes 268435456
+metric cache_pct 2.81
+metric cache_dirty_pct 0.03
+metric cache_evicted_by_threads_count 0
+metric cursors_open 0
+metric cursors_timed_out_count 0
+metric asserts_count 0 kind=regular
+metric asserts_count 0 kind=warning
+metric asserts_count 0 kind=msg
+metric asserts_count 192 kind=user
+metric page_faults_count 0
+metric network_in_bytes_count 223359
+metric network_out_bytes_count 727135
+metric transactions_open 0
+metric transactions_aborted_count 0
