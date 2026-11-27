@@ -28,6 +28,7 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
       - lgtm:/data
+      - ./prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
     ports:
       - "127.0.0.1:9090:9090"
       - "127.0.0.1:3100:3100"
