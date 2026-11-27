@@ -74,6 +74,8 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 
 ### B6. A stopped sender's leftover process keeps its run alive, reported as ORPHANED
 
+- **Status: fixed, not merged yet** (PR #282, branch `fix-sender-process-group`, backlog 69). The supervisor started the sender in its own process group, so TERM never reached what it started; now it does, and the supervisor KILLs that group after grace itself.
+
 - **Seen:** while verifying the B5 fix in fedora-c1 (2026-11-26, 22:51).
 - **What happens:**
   1. The supervisor stopped a sender run at `max_runtime` (22:51:05, "sent TERM to its job").
@@ -96,12 +98,16 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 
 ### D1. Remote config on Windows with a private CA
 
+- **Status: documented, not merged yet** (PR #283, branch `docs-windows-git-ca`): the README's Sources section.
+
 - **Git for Windows:** it checks certificates against its own bundle, not the Windows store, so it needs `http.<url>.sslCAInfo`.
 - **MinGit:** it uses schannel, which demands a revocation check a private CA may not support, and ignores `sslCAInfo`, so it needs `http.sslBackend = openssl`.
 - **Until then:** the instance waits with "SSL certificate OpenSSL verify result: unable to get local issuer certificate (20)".
 
 
 ### D2. Prometheus keeps only the last hour of a backlog
+
+- **Status: documented, not merged yet** (PR #281): the README's backends section.
 
 - **Seen:** verifying the B5 fix (`../sender-totals/03-what-prometheus-kept.txt`).
 - **What happens:** with no `out_of_order_time_window`, Prometheus refuses a sample more than about an hour older than the newest it holds. Other hosts keep that current, so after a long outage the oldest part of an instance's backlog is refused. fedora-c1's readings from 20:35 to 22:25 were lost: 66,580 samples "too old".
