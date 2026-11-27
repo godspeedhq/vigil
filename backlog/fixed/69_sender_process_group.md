@@ -18,7 +18,9 @@ Windows ends a job's whole process tree at once, and its sender starts no proces
 - When a worker that is its own job is gone and its run is still held, the supervisor sends the KILL itself once `grace` has passed: to the group only, never to the bare process id, which may have been reused. A group's id is not reused while the group has a member, so the group is still the run's.
 - The ORPHANED report for such a run says that processes it started still hold it. The PowerShell twin words it the same way.
 
-`tests/integration/backends.sh` now lets each request of the hung-sender test wait 30 seconds for the mock, which answers after 60, and checks that the run is over within 20 seconds of being started with a 3-second limit. Before the fix it failed (the run lasted until `curl` gave up); after, it passes on Fedora 44 (bash 5.3) and macOS 12 (bash 3.2).
+`tests/integration/backends.sh` now lets each request of the hung-sender test wait 30 seconds for the mock, which answers after 60, and checks that the run is over within 20 seconds of being started with a 3-second limit. Before the fix it failed (the run lasted until `curl` gave up); after, it passes on Fedora 44 (bash 5.3) and macOS 12 (bash 3.2). With the fix, these suites pass whole: `backends` (43), `max-runtime` (19), `supervise` (104), `crash` (72), `uncertain` (35) and `run-accounting` (21) on Fedora; `backends`, `max-runtime` and `supervise` on macOS; `Supervise.ps1` (113) on Windows 11.
+
+`Crash.ps1` on Windows 11, run over SSH, fails 6 to 9 of its 72 checks on `main` and on this branch alike, a different set each time (twice each): it waits for crashed workers with `Get-CimInstance`, which Windows denies over SSH, so it can go on before a worker has ended. Its orphan checks pass.
 
 ## Closed
 
