@@ -792,6 +792,15 @@ For `splunk`, the token's default index must be a metrics index.
 
 All are `https` only, except to a collector on the same host. Batches the backend rejects as malformed, and points too old for Datadog, are dropped and counted in `vigil.spool.dropped` (`reason=rejected`, `too_old`), never retried forever.
 
+Delivery is at least once as far as the backend's answer goes. What a backend does after it has answered is its own affair, and one case matters after an outage: **Prometheus refuses samples more than about an hour older than the newest it holds**, unless `out_of_order_time_window` is set. When other hosts keep it current, the oldest part of a backlog is refused, and behind an OpenTelemetry Collector that has already answered 2xx, Vigil cannot know. To keep a backlog from outages of a few hours, set the window at least that long:
+
+```yaml
+# prometheus.yml
+storage:
+  tsdb:
+    out_of_order_time_window: 6h
+```
+
 Today `file`, `datadog`, `otel` and `splunk` deliver. Events for an enabled backend of any other type are not queued: they are counted in `vigil.spool.dropped` with `reason=not_implemented`, so the spool never fills with events that cannot yet be sent.
 
 ---
