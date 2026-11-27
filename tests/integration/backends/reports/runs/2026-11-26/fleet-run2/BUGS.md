@@ -129,3 +129,7 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 - **Fedora's capacity:** 4 cores, with a demo Vigil and its own Vigil service. 10 containers overloaded it (load 35), and so did 6 (load 14). It runs 4.
 - **`run-all.sh`, partition round:** the wait loop printed "on wave 17 300s after reconnecting" when it hit its limit. fedora-c2's own log shows it loaded wave 17 at 20:58:57, 29 s after reconnecting (`09-partition-fedora-c2-own-logs.txt`).
 - **`evidence.sh`:** it counts activations by the `wave` tag, so bug B1 hides some. `10-followup-gitea-and-activations.txt` recounts by revision.
+- **Deploying the fixes for the outage test (2026-11-27):**
+  - `Bare.ps1 down` printed "stopped" when Windows refused to end the supervisor (Access denied: another SSH session started it), and removed its pid file. The app was then swapped under the running 1.5.3 supervisor, and the new ones were refused ("another supervisor owns"). Fixed: `down` waits and says FAILED; `Stop-FleetNode.ps1` stops it as Administrator.
+  - Ending a held SSH session does not end the Windows supervisor that `Bare.ps1 run` started.
+  - On the Mac, a supervisor started just after the old one stopped found its lock still held and exited. Fixed: `bare.sh up` retries.
