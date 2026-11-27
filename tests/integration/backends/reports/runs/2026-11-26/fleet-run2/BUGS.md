@@ -2,11 +2,13 @@
 
 Each entry: what happens, what should happen, the evidence, where it was
 seen. Found in run 1 (`../fleet/`) or run 2 (this folder). Nothing here is
-fixed yet: this is the list to plan the fixes from.
+fixed yet, except where marked: this is the list to plan the fixes from.
 
 ## Vigil
 
-### B5. The metric sender livelocks: once a run outlasts max_runtime, metrics stop (most serious)
+### B5. The metric sender livelocks: once a run outlasts max_runtime, metrics stop (most serious; fixed in #281)
+
+- **Status: fixed, not merged yet** (PR #281, branch `fix-sender-otel-totals`, backlog 68). The cause was the bash sender's OTLP count handling, not sending. A batch's counts and the backend's running totals were each kept as one string, and each series was found by pattern matching, which in bash takes time that grows with the square of the string's length. One 160 KB batch took 52 s of CPU (bash 5.3) and 115 s (bash 3.2); now 2.3 s and 11 s, with byte-for-byte the same output. With the fix in place, fedora-c1's backlog of 1,711 files drained in 34 minutes and a sender run finished on its own for the first time in three hours. Evidence: `../sender-totals/`.
 
 - **Seen:** run 2, every Alpine container. These are small instances: bash Vigil and the base pack, capped at half a CPU and 64 MB.
 - **What happens:**
@@ -34,7 +36,9 @@ fixed yet: this is the list to plan the fixes from.
 - **Evidence:** `../fleet/findings.txt`, section 2.
 - **Run 2:** 21 activation lines carry a revision other than the one they announce, across waves 10–17 (`10-followup-gitea-and-activations.txt`). A query by tag therefore undercounts activations: by the `wave` tag, round 1 shows 19 of 24.
 
-### B2. The metric sender is slow, and falls behind under load
+### B2. The metric sender is slow, and falls behind under load (fixed in #281)
+
+- **Status: fixed with B5, same cause.** Merging the 30 KB totals file alone cost about 12 s of CPU per batch, whatever the batch's size.
 
 - **Seen:** run 1, Alpine containers (bash Vigil, base pack).
 - **What happens:** the sender is the largest share of an instance's CPU, about 8 of roughly 18 CPU seconds a minute. On a host short of CPU, sender runs took minutes, and metrics reached the backend 4–5 minutes late. Nothing was lost.
@@ -68,6 +72,19 @@ fixed yet: this is the list to plan the fixes from.
 - **Decide:** whether this is worth a metric, given that Vigil should stay simple.
 - **Evidence:** `../fleet/findings.txt`, section 6.
 
+### B6. A stopped sender's leftover process keeps its run alive, reported as ORPHANED
+
+- **Seen:** while verifying the B5 fix in fedora-c1 (2026-11-26, 22:51).
+- **What happens:**
+  1. The supervisor stopped a sender run at `max_runtime` (22:51:05, "sent TERM to its job").
+  2. The sender is its own job, so the process the TERM ended was also its worker.
+  3. A child process of the sender (a `curl`, or a subshell) still held the run token, so the run lived on.
+  4. For an ordinary job, the worker sends the group KILL once `grace` has passed (§11.6). The sender's worker was gone, so nothing did: the run ended only when the child ended on its own, 96 s after TERM (22:52:41) instead of the usual 10–13 s.
+  5. Meanwhile `vigil status` reported `ORPHANED: vigil_sender: run …, its worker (pid 390253) is gone; its job (pid 390253) still runs`: the same pid, gone and running.
+- **Should:** when the job's own process is the worker (Vigil's internal workers), the supervisor should send the group KILL after `grace` itself, and the report should name what still runs.
+- **Severity:** low. The children end by themselves (`curl` has `--max-time`), and no second sender starts meanwhile.
+- **Evidence:** fedora-c1's supervisor log, 22:51:05 and 22:52:41; `app/lib/posix/supervisor.sh`, `_vigil_sup_timeout` (it returns early once the job's process is gone, expecting the worker to finish the group).
+
 ## Documentation
 
 ### D1. Remote config on Windows with a private CA
@@ -75,6 +92,14 @@ fixed yet: this is the list to plan the fixes from.
 - **Git for Windows:** it checks certificates against its own bundle, not the Windows store, so it needs `http.<url>.sslCAInfo`.
 - **MinGit:** it uses schannel, which demands a revocation check a private CA may not support, and ignores `sslCAInfo`, so it needs `http.sslBackend = openssl`.
 - **Until then:** the instance waits with "SSL certificate OpenSSL verify result: unable to get local issuer certificate (20)".
+
+
+### D2. Prometheus keeps only the last hour of a backlog
+
+- **Seen:** verifying the B5 fix (`../sender-totals/03-what-prometheus-kept.txt`).
+- **What happens:** with no `out_of_order_time_window`, Prometheus refuses a sample more than about an hour older than the newest it holds. Other hosts keep that current, so after a long outage the oldest part of an instance's backlog is refused. fedora-c1's readings from 20:35 to 22:25 were lost: 66,580 samples "too old".
+- **Vigil cannot see it:** the OpenTelemetry Collector in front of Prometheus had answered 2xx, and its own write was refused. Nothing was counted as dropped.
+- **Docs:** the backend docs should say that a Prometheus meant to keep a backlog needs `out_of_order_time_window` at least as long as the outages it should survive, and that "delivered late, not lost" holds up to the backend's answer.
 
 ## The test kit (fixed as found, for the record)
 

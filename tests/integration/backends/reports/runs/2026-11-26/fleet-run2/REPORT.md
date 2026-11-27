@@ -64,12 +64,14 @@ How long changes took is counted from each instance's own "configuration revisio
 
 | Bug | What |
 | --- | --- |
-| B5 | The sender livelocks: once a run outlasts `max_runtime`, metrics stop (most serious) |
+| B5 | The sender livelocks: once a run outlasts `max_runtime`, metrics stop (most serious; fixed in #281) |
 | B1 | A forwarded log line carries the revision active when it is sent, not when it was written |
-| B2 | The sender's cost per event is high, and grows with its backlog |
+| B2 | The sender's cost per event is high, and grows with its backlog (fixed in #281, same cause as B5) |
 | B3 | On Windows, checking the configuration's source costs 5–8 CPU seconds |
 | B4 | A refused configuration and an unreachable source look the same in metrics |
+| B6 | A stopped sender's leftover process keeps its run alive, reported as ORPHANED (minor) |
 | D1 | Docs: remote configuration on Windows with a private CA |
+| D2 | Docs: Prometheus keeps only the last hour of a backlog |
 
 ## How to run it yourself
 
