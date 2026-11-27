@@ -238,12 +238,17 @@ check "large batch: the last series sent" yes "$(received '"path": "/v1/metrics"
 
 # A hung sender is ended at its limit (4.5), recorded timed_out, and what it
 # was sending goes with a later sender: at least once, never lost. The mock
-# answers after 60 s; the test's limit is 3 s (22.4.7), not 5 minutes.
+# answers after 60 s, and each request may wait 30 s for it; the test's limit
+# is 3 s (22.4.7), not 5 minutes. The sender runs in its own process group,
+# so the TERM ends the curl it is waiting on too: the run is over within a
+# tick or two, not when that curl gives up (11.6).
 echo 60 > "$root/mock/delay"
+sed -i.bak 's/^timeout  = 5s$/timeout  = 30s/' "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
 vigil run emit > /dev/null
 sender_state() { sed -n 's/^status *= *//p' "$root/state/jobs/vigil_sender.state" 2>/dev/null; }
 sender_run() { sed -n 's/^run_id *= *//p' "$root/state/jobs/vigil_sender.state" 2>/dev/null; }
 before=$(sender_run)
+hung_t0=$(date '+%s')
 VIGIL_TEST_SENDER_LIMIT=3 vigil supervise --once > /dev/null 2>&1
 # A new sender run, then until it is concluded.
 i=0
@@ -255,6 +260,8 @@ while [ "$(sender_state)" = running ] && [ "$i" -lt 30 ]; do
     i=$((i + 1))
 done
 check "hung sender: recorded timed_out" timed_out "$(sender_state)"
+check "hung sender: over before its curl gave up" yes "$([ $(($(date '+%s') - hung_t0)) -lt 20 ] && echo yes || echo no)"
+sed -i.bak 's/^timeout  = 30s$/timeout  = 5s/' "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
 check "hung sender: ended for its limit" yes "$(cat "$root"/logs/supervisor/2*.log | grep -q 'job vigil_sender: run .* passed max_runtime' && echo yes || echo no)"
 rm -f "$root/mock/delay"
 tick
