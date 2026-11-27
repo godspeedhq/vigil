@@ -85,6 +85,13 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 - **Severity:** low. The children end by themselves (`curl` has `--max-time`), and no second sender starts meanwhile.
 - **Evidence:** fedora-c1's supervisor log, 22:51:05 and 22:52:41; `app/lib/posix/supervisor.sh`, `_vigil_sup_timeout` (it returns early once the job's process is gone, expecting the worker to finish the group).
 
+### B7. After a long outage, current metrics wait behind hours of history (a design question)
+
+- **Seen:** the Mac, HP and Lenovo containers, patched with the B5 fix at about 07:05 on 2026-11-27 after some ten hours stuck.
+- **What happens:** the spool is delivered oldest first, and it is bounded only by size (`[spool] max_mb`, 100 MB by default), not by age. Ten hours of a small instance's events is about 10,000 files, well inside the cap, so all of it waits to be sent, at roughly 50 files a minute net on half a CPU: three to four hours before the instance's current metrics arrive. Prometheus refuses everything more than about an hour old (D2), so most of that time goes on events that will not be kept. 15 minutes after the patch, none of the 15 containers was current, and Prometheus's "too old" count rose by about 1,000 samples a minute.
+- **Decide:** whether the spool should have an age limit (for example `[spool] max_age`, older events dropped and counted with `reason=too_old`, as Datadog's already are), or deliver the newest first after a backlog. Either changes spec 4.5; neither is needed for a short outage.
+- **Evidence:** `../sender-totals/04-fleet-containers-recovering.txt`.
+
 ## Documentation
 
 ### D1. Remote config on Windows with a private CA

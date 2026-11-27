@@ -70,6 +70,7 @@ How long changes took is counted from each instance's own "configuration revisio
 | B3 | On Windows, checking the configuration's source costs 5–8 CPU seconds |
 | B4 | A refused configuration and an unreachable source look the same in metrics |
 | B6 | A stopped sender's leftover process keeps its run alive, reported as ORPHANED (minor) |
+| B7 | After a long outage, current metrics wait behind hours of history (a design question) |
 | D1 | Docs: remote configuration on Windows with a private CA |
 | D2 | Docs: Prometheus keeps only the last hour of a backlog |
 
