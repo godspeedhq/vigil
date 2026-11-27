@@ -1,0 +1,8 @@
+== Baseline: 15 minutes of normal running
+started 2026-11-27T17:19:59Z; instances watched: host!~".*-c[0-9]+"
+  hp               newest reading 37s old
+  mac     newest reading 55s old
+  lenovo          newest reading 31s old
+  fedora                   newest reading 49s old
+  server2025          newest reading 27s old
+  5 instances

@@ -53,6 +53,14 @@ ages() {
 }
 ready() { local i; for i in $(seq 120); do curl -s -m 3 http://127.0.0.1:9090/-/ready | grep -q Ready && curl -s -m 3 http://127.0.0.1:3100/ready | grep -q ready && return 0; sleep 2; done; return 1; }
 
+# RESUME="<start> <down> <up>" (epoch seconds, from console.txt) picks up a
+# run that stopped after the backend came back: recovery and counting only.
+if [ -n "${RESUME:-}" ]; then
+read -r t0 down up <<< "$RESUME"
+file=$out/console.txt
+echo "resumed $(now): baseline from $(date -u -d @"$t0" +%H:%M:%S), backend down $(date -u -d @"$down" +%H:%M:%S) to $(date -u -d @"$up" +%H:%M:%S) UTC" | say
+want=${WANT:-5}
+else
 step 01-baseline "Baseline: $((baseline / 60)) minutes of normal running"
 echo "started $(now); instances watched: $(sel)" | say
 ages | awk '{ printf "  %-24s newest reading %ss old\n", $1, $2 }' | say
@@ -70,20 +78,23 @@ docker start vigil-fleet-lgtm-1 > /dev/null
 up=$(date +%s)
 echo "  $(now) LGTM started" | say
 ready && echo "  $(now) Prometheus and Loki answer" | say
+fi
 
 step 03-recovery "Recovery: each instance until its newest reading is under 3 minutes old"
 declare -A done_at
+ndone=0
 while :; do
     while read -r h a; do
         [ -n "$h" ] || continue
         if [ -z "${done_at[$h]-}" ] && [ "$a" -lt 180 ]; then
             done_at[$h]=$(( $(date +%s) - up ))
+            ndone=$((ndone + 1))
             echo "  $(now) $h current again, $(( ${done_at[$h]} / 60 ))m $(( ${done_at[$h]} % 60 ))s after the backend came back" | say
         fi
     done < <(ages)
-    [ "${#done_at[@]}" -ge "$want" ] && break
+    [ "$ndone" -ge "$want" ] && break
     if [ $(( $(date +%s) - up )) -ge "$limit" ]; then
-        echo "  limit reached: $(( ${#done_at[@]} )) of $want current" | say
+        echo "  limit reached: $ndone of $want current" | say
         ages | awk '{ printf "    %-24s newest reading %ss old\n", $1, $2 }' | say
         break
     fi

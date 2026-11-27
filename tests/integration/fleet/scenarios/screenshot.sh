@@ -18,6 +18,7 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 [ "$#" -eq 4 ] || { sed -n '10,16p' "$0"; exit 64; }
 addr=$1 from=$(( $(date -d "$2" +%s) * 1000 )) to=$(( $(date -d "$3" +%s) * 1000 )) png=$4
+case $png in /*) ;; *) png=$PWD/$png ;; esac  # the browser writes a relative path elsewhere
 mask=$here/../backend/out/mask.txt
 o='--cacert'; curl --version | grep -qi schannel && o='--ssl-no-revoke --cacert'
 # Each host-carrying query, wrapped in one label_replace per masked name.

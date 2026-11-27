@@ -97,6 +97,21 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 - **What happens:** the spool is delivered oldest first, and it is bounded only by size (`[spool] max_mb`, 100 MB by default), not by age. Ten hours of a small instance's events is about 10,000 files, well inside the cap, so all of it waits to be sent, at roughly 50 files a minute net on half a CPU: three to four hours before the instance's current metrics arrive. Prometheus refuses everything more than about an hour old (D2), so most of that time goes on events that will not be kept. 15 minutes after the patch, none of the 15 containers was current, and Prometheus's "too old" count rose by about 1,000 samples a minute.
 - **Decide:** whether the spool should have an age limit (for example `[spool] max_age`, older events dropped and counted with `reason=too_old`, as Datadog's already are), or deliver the newest first after a backlog. Either changes spec 4.5; neither is needed for a short outage.
 - **Evidence:** `../sender-totals/04-fleet-containers-recovering.txt`.
+- **Outage test (2026-11-27):** on the fixed build, five bare-metal instances were current again 4–8 minutes after a 2-hour outage. Hours of backlog are a problem for weak machines, not for a 2-hour outage. "Newest first" would also make Loki drop more of the backlog (B8).
+
+### B8. After a long outage, Loki drops forwarded log lines, because the whole fleet is one stream
+
+- **Seen:** the bare-metal outage test, 2026-11-27 (`../../2026-11-27/outage/`). The backend was down 17:35–19:35. Fedora's log lines from the outage all arrived. The HP, Lenovo, Mac and Server 2025 lost theirs from the outage's start (17:35) to about 18:45. Loki's `loki_discarded_samples_total{reason="too_far_behind"}` was 10,692. Every metric arrived (D2's 6-hour window).
+- **What happens:**
+  - The forwarder's only resource attribute that Loki indexes is `service.name=vigil`. Host, job and tags go in as structured metadata. So every instance in a fleet writes to one Loki stream, `{service_name="vigil"}`.
+  - Loki accepts a line only up to `max_chunk_age / 2` behind the newest line in its stream. The default `max_chunk_age` is 2h, so the window is 1 hour.
+  - Fedora's backlog went in first, which moved the stream's newest line to the present. After that, the other four instances' lines more than an hour old were refused.
+  - Each instance sends its own spool oldest first, so if each had its own stream, none of this backlog would have been refused.
+- **Vigil cannot see it:** the collector answered 2xx, as in D2. The spools drained to 0, and nothing was counted as dropped.
+- **Fix to decide:** give the forwarded records an index label per instance. The OpenTelemetry way is `service.instance.id` = the instance name, which Loki indexes by default. That would be one stream per instance, so an instance's backlog falls behind only its own newest line.
+  - Logs only: the metrics already carry `host`, and adding the attribute to metrics would start new series in Prometheus.
+  - Spec 13.4.2, both twins, and a test that checks the resource attribute.
+  - Even then, an instance that sent its newest lines first (one way of doing B7) would lose its backlog beyond an hour. D3 applies either way.
 
 ## Documentation
 
@@ -117,6 +132,13 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 - **What happens:** with no `out_of_order_time_window`, Prometheus refuses a sample more than about an hour older than the newest it holds. Other hosts keep that current, so after a long outage the oldest part of an instance's backlog is refused. fedora-c1's readings from 20:35 to 22:25 were lost: 66,580 samples "too old".
 - **Vigil cannot see it:** the OpenTelemetry Collector in front of Prometheus had answered 2xx, and its own write was refused. Nothing was counted as dropped.
 - **Docs:** the backend docs should say that a Prometheus meant to keep a backlog needs `out_of_order_time_window` at least as long as the outages it should survive, and that "delivered late, not lost" holds up to the backend's answer.
+- **Confirmed (2026-11-27):** with a 6-hour window (`../../../../../fleet/backend/prometheus.yaml`), a 2-hour outage lost no samples: every 10 minutes held 10 CPU readings per instance, and "too old" stayed 0.
+
+### D3. Loki keeps only the last hour behind a stream's newest line
+
+- **Status: not documented yet.**
+- **What happens:** Loki refuses a line more than `max_chunk_age / 2` (1 hour by default) behind its stream's newest line ("too_far_behind"). Today the whole fleet is one stream (B8), so this applies across instances.
+- **Docs:** beside D2, the README should say that Loki needs `ingester.max_chunk_age` of twice the outages it should survive. Until B8 is fixed, it should also say that the window counts from the newest line any instance has sent.
 
 ## The test kit (fixed as found, for the record)
 
@@ -133,3 +155,6 @@ fixed yet, except where marked: this is the list to plan the fixes from.
   - `Bare.ps1 down` printed "stopped" when Windows refused to end the supervisor (Access denied: another SSH session started it), and removed its pid file. The app was then swapped under the running 1.5.3 supervisor, and the new ones were refused ("another supervisor owns"). Fixed: `down` waits and says FAILED; `Stop-FleetNode.ps1` stops it as Administrator.
   - Ending a held SSH session does not end the Windows supervisor that `Bare.ps1 run` started.
   - On the Mac, a supervisor started just after the old one stopped found its lock still held and exited. Fixed: `bare.sh up` retries.
+- **`outage.sh` (2026-11-27):**
+  - It stopped as recovery began ("done_at: unbound variable"). Under `set -u`, this bash counts an empty associative array as unset. Fixed: a plain counter. It also gained `RESUME="<start> <down> <up>"`, which picked the run up two minutes later; recovery times are still measured from the backend's return.
+  - Its screenshot step failed because the browser was given a relative path. Fixed: `screenshot.sh` makes the path absolute.
