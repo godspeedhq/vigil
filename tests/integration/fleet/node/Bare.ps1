@@ -101,7 +101,16 @@ check_every = $check
         "ended ($($p.ExitCode))"
     }
     'down' {
-        if ($r = Get-Running) { & taskkill /PID $r.Id /T /F | Out-Null; 'stopped' } else { 'not running' }
+        if ($r = Get-Running) {
+            & taskkill /PID $r.Id /T /F 2>&1 | Out-Null
+            # Windows refuses (Access denied) a supervisor that another SSH
+            # session started: say so, and keep the pid file, rather than
+            # report a stop that did not happen.
+            for ($i = 0; $i -lt 10 -and -not $r.HasExited; $i++) { Start-Sleep -Seconds 1; $r.Refresh() }
+            if (-not $r.HasExited) { "FAILED: supervisor $($r.Id) still runs; stop it as Administrator with Stop-FleetNode.ps1"; exit 1 }
+            'stopped'
+        }
+        else { 'not running' }
         Remove-Item -Force $pidf -ErrorAction SilentlyContinue
     }
     'remove' {

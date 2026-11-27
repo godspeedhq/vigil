@@ -60,9 +60,19 @@ check_every = ${FLEET_CHECK_EVERY:-30s}
 EOF
         (umask 077; printf 'https://fleet-reader:%s@%s:8443\n' "$(tr -d '\r\n' < "$tok")" "$addr" > "$cred")
         git config --global "credential.https://$addr:8443.helper" "store --file $cred"
-        nohup "$root/app/vigil" --root "$root" supervise > "$root/fleet.out" 2>&1 < /dev/null &
-        echo $! > "$pidf"
-        echo "started (pid $!), $kind, config from https://$addr:8443/fleet/config" ;;
+        # A supervisor just stopped can hold its lock a moment longer: the new
+        # one then says "another supervisor owns" and exits. Started again,
+        # up to six times, five seconds apart.
+        for try in 1 2 3 4 5 6; do
+            nohup "$root/app/vigil" --root "$root" supervise > "$root/fleet.out" 2>&1 < /dev/null &
+            echo $! > "$pidf"
+            sleep 3
+            running && break
+            grep -q 'another supervisor owns' "$root/fleet.out" || break
+            sleep 5
+        done
+        running || { echo "not started:"; cat "$root/fleet.out"; exit 1; }
+        echo "started (pid $(cat "$pidf")), $kind, config from https://$addr:8443/fleet/config" ;;
     down)
         if running; then kill "$(cat "$pidf")"; echo stopped; else echo 'not running'; fi
         rm -f "$pidf" ;;
