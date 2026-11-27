@@ -25,7 +25,9 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 - **Related:** B2 (the sender's cost per event) makes this likely on small hosts. The livelock itself is the bug: any backlog large enough, from an outage or a slow link, would cause it on any host.
 - **Evidence:** `11-sender-livelock.txt`, `00-whole-run.png`, `08-backend.png`.
 
-### B1. Forwarded log lines carry the revision active when they are sent, not when they were written
+### B1. Forwarded log lines carry the revision active when they are sent, not when they were written (fixed in #284)
+
+- **Status: fixed, not merged yet** (PR #284, branch `fix-log-record-revision`, backlog 70). The supervisor records each revision it activates, with its tags and the time, in `state/config.history`; the forwarder gives each line the revision active at the line's own time, and a request never mixes two.
 
 - **Seen:** run 1, wave 3 (linux containers on Fedora).
 - **Specification (§14, log forwarding):** every record carries "the active configuration revision" and the `[tags]`.
