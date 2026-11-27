@@ -61,7 +61,9 @@ fixed yet, except where marked: this is the list to plan the fixes from.
     - At the same time, the Lenovo containers' logs were current (20:29) but their newest metrics were over 5 minutes old, and the dashboard shows none of them.
     - The sender's cost grows with its backlog: a slow run leaves more for the next. Look at the cost per spooled event, which is about 12 KB per CPU second here.
 
-### B3. On Windows, a check of the configuration's source costs 5–8 CPU seconds
+### B3. On Windows, a check of the configuration's source costs 5–8 CPU seconds (fixed in #285)
+
+- **Status: fixed, not merged yet** (PR #285, branch `fix-windows-fetch-cost`, backlog 71). Most of it was validating the fetched configuration in each new PowerShell process, the same file nearly every time. A file that passed is now recorded and not validated again under the same Vigil: median 7.1 s of CPU a check on the HP, now 2.9.
 
 - **Seen:** run 1, Windows 11 (HP, Lenovo).
 - **What happens:** `vigil_fetch` uses 4.9–7.8 s of CPU per run, against 0.55–0.80 s on Linux and about 1.1 s on macOS. At a 30 s `check_every`, that is about a fifth of a core.
