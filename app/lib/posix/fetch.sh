@@ -628,16 +628,37 @@ _vigil_fetch_ref() {
 
 # Tags of the fetcher's events, from the parsed configuration.
 _vigil_fetch_tags() {
+    vigil_config_tagline
+    _vf_tags="host=$_vw_host os=$_vw_os $_vc_tagline"
+}
+
+# The parsed configuration's own tags, into _vc_tagline: instance=<name>,
+# then the [tags] section, space-separated (tag values hold no spaces, 14.6).
+vigil_config_tagline() {
     local i
     _vigil_wk_get vigil instance vigil
-    _vf_tags="host=$_vw_host os=$_vw_os instance=$_vw_value"
+    _vc_tagline="instance=$_vw_value"
     vigil_config_section tags
     [ "$VIGIL_CFG_SEC" -ge 0 ] || return 0
     i=${VIGIL_CFG_SEC_FIRST[$VIGIL_CFG_SEC]}
     while [ "$i" -lt $((VIGIL_CFG_SEC_FIRST[VIGIL_CFG_SEC] + VIGIL_CFG_SEC_COUNT[VIGIL_CFG_SEC])) ]; do
-        _vf_tags="$_vf_tags ${VIGIL_CFG_KEY[$i]}=${VIGIL_CFG_VALUE[$i]}"
+        _vc_tagline="$_vc_tagline ${VIGIL_CFG_KEY[$i]}=${VIGIL_CFG_VALUE[$i]}"
         i=$((i + 1))
     done
+}
+
+# Records revision $2 as active from now, with the parsed configuration's
+# tags, in <state dir $1>/config.history: "<epoch> <revision> <tags>" lines,
+# the last 50, a line only when the revision or the tags change. The log
+# forwarder tags each line with the revision active when it was written
+# (13.4.2).
+vigil_config_history() {
+    local f="$1/config.history" line last=''
+    vigil_config_tagline
+    line="$(date '+%s') $2 $_vc_tagline"
+    [ -f "$f" ] && last=$(tail -n 1 "$f" 2>/dev/null)
+    [ "${last#* }" = "${line#* }" ] && return 0
+    { [ -f "$f" ] && tail -n 49 "$f"; printf '%s\n' "$line"; } > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f" || rm -f "$f.tmp.$$"
 }
 
 # Removes cache entries named by neither the active nor the previous record

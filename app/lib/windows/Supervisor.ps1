@@ -340,6 +340,7 @@ function Invoke-VigilSupervisor {
                     try { $sv.ValidSha = Get-VigilFileSha $valid } catch { }
                 }
                 else { $sv.Sum = '' }
+                Add-VigilConfigHistory -State $sv.State -Revision $sv.Revision -Parsed $parsed
                 & $log 'INFO' 'configuration loaded'
                 return $true
             }
@@ -370,6 +371,7 @@ function Invoke-VigilSupervisor {
             if ($active.Revision -cne $sv.Revision) {
                 $sv.Revision = $active.Revision
                 & $log 'INFO' "configuration revision $($sv.Revision) loaded ($($active.Origin))"
+                Add-VigilConfigHistory -State $sv.State -Revision $sv.Revision -Parsed $p
             }
         }
         else {

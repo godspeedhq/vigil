@@ -760,6 +760,7 @@ EOF_REPORT
                 _su_revision=${_su_revision:0:12}
                 _su_valid="$_su_statedir/config.valid"
                 mkdir -p "$_su_statedir"
+                vigil_config_history "$_su_statedir" "$_su_revision"
                 # Kept so a later bad edit falls back to this copy while the supervisor runs.
                 # At startup there is nothing to fall back to: a bad file stops it there.
                 cp "$_su_root/config/vigil.config" "$_su_valid.tmp.$$" && mv -f "$_su_valid.tmp.$$" "$_su_valid"
@@ -783,6 +784,7 @@ EOF_REPORT
         if [ "$VIGIL_ACT_REVISION" != "${_su_revision-}" ]; then
             _su_revision=$VIGIL_ACT_REVISION
             _vigil_sup_log INFO "configuration revision $_su_revision loaded ($VIGIL_ACT_ORIGIN)"
+            vigil_config_history "$_su_statedir" "$_su_revision"
         fi
     else
         VIGIL_ACT_SRC=() VIGIL_ACT_FILE=() VIGIL_ACT_ENTRY=() VIGIL_ACT_SHA=()
