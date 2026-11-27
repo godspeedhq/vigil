@@ -1144,6 +1144,7 @@ Everything lives under one install root (§18.6 gives the root per platform). A 
     config.active                 the activation record (§16.5)
     config.previous               the record it replaced, whose cache entries are kept for a rollback
     configs/<sha256>.config       each configuration the records name, by content
+    configs/<sha256>.checked      Windows: that the configuration passed validation under this Vigil, with the jobs found invalid, so an unchanged one is not validated again at each check
     config.valid                  a copy of the last valid local configuration, kept active while a newer one is rejected (§16.3), or until the first fetch after a source is added (§16.5)
     config.fetched                empty: a fetched configuration has been in force, so config.valid is from before it and is not gone back to (§16.5)
     sources/<name>.state          each source's last check: when, what it found, and its last error
