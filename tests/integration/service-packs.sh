@@ -132,6 +132,11 @@
 #                                        spaces, with VIGIL_IT_TLS_CACERT (their
 #                                        CA) and VIGIL_IT_TLS_FAILED (how many
 #                                        fail a check) (scripts/run-tls.sh)
+#   VIGIL_IT_WIREGUARD                   1 where WireGuard runs and this account
+#                                        has the wireguard pack's sudoers rule,
+#                                        with VIGIL_IT_WIREGUARD_SECRETS, a file of
+#                                        its keys, none of which may be written
+#                                        anywhere (scripts/run-wireguard.sh)
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
 #
@@ -208,7 +213,8 @@ cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
 obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs etcd openbao traefik nats'
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper mongodb oracle nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite tls; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper mongodb oracle nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite tls wireguard; do
+    [ -d "$repo/packs/$p/$os" ] || continue
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -2094,10 +2100,34 @@ else
     check 'tls: every target counted, those failing a check counted' "$tn ${VIGIL_IT_TLS_FAILED-}" "$(printed tls_certs targets) $(printed tls_certs targets_failed)"
 fi
 
+# --- wireguard --------------------------------------------------------------
+# Where WireGuard runs and this account has the pack's sudoers rule (the hub
+# of scripts/run-wireguard.sh): enabled, precheck, the job, what it read.
+if [ "${VIGIL_IT_WIREGUARD-}" != 1 ]; then
+    printf '  SKIP  wireguard: set VIGIL_IT_WIREGUARD (scripts/run-wireguard.sh runs it in its hub)\n'
+else
+    check 'wireguard: off until enabled' off "$(vigil pack list | awk '$1 == "wireguard_peers" { print $2 }')"
+    out=$(vigil pack enable wireguard 2>&1)
+    check 'wireguard: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'wireguard: it says what it needs: the sudoers rule, and that it reads no key' yes "$(printf '%s\n' "$out" | grep -q 'NOPASSWD: /usr/bin/wg show interfaces' && printf '%s\n' "$out" | grep -q 'none of which prints a key' && echo yes || echo no)"
+    check 'wireguard: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    vigil run wireguard_peers > "$work/out" 2>&1
+    check 'wireguard: peers runs' 0 "$?"
+    check 'wireguard: its interfaces and peers read' 'yes yes' "$(awk -v v="$(printed wireguard_peers interfaces)" 'BEGIN { print (v >= 1) ? "yes" : "no" }') $(awk -v v="$(printed wireguard_peers peers)" 'BEGIN { print (v >= 1) ? "yes" : "no" }')"
+fi
+
 # What ran reaches the backend.
 vigil supervise --once > /dev/null 2>&1
 sleep 3
 vigil supervise --once > /dev/null 2>&1
+if [ "${VIGIL_IT_WIREGUARD-}" = 1 ]; then
+    for _ in $(seq 1 20); do grep -q '^wireguard_handshake_seconds{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check 'wireguard: metrics reach the backend, each peer by its public key' yes "$(grep -q '^wireguard_peers{' "$root/metrics/vigil.prom" && grep -q '^wireguard_handshake_seconds{.*peer=' "$root/metrics/vigil.prom" && echo yes || echo no)"
+    if [ -n "${VIGIL_IT_WIREGUARD_SECRETS-}" ]; then
+        check 'wireguard: no key, private or preshared, anywhere Vigil wrote' '' "$(grep -rlF -f "$VIGIL_IT_WIREGUARD_SECRETS" "$root" 2> /dev/null)"
+    fi
+fi
 if [ -n "${VIGIL_IT_TLS-}" ]; then
     for _ in $(seq 1 20); do grep -q '^tls_cert_expires_days{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
     check 'tls: metrics reach the backend, each target by name' yes "$(grep -q '^tls_targets{' "$root/metrics/vigil.prom" && grep -q '^tls_cert_expires_days{.*target=' "$root/metrics/vigil.prom" && echo yes || echo no)"
