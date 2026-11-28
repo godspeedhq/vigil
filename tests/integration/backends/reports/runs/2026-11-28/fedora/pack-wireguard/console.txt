@@ -1,0 +1,132 @@
+== pack-wireguard
+date     2026-11-28T17:50:36Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    1a1dadc (deployed copy)
+command  tests/integration/backends/scripts/run-wireguard.sh
+bash     5.3.9(1)-release
+git      git version 2.56.1
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.19.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.wireguard.yaml pins them)
+         vigil-it-wireguard:1
+
+wg       wireguard-tools v1.0.20260223; Linux 7.1.5-200.fc44.x86_64
+tunnels  hub: wg0 with peer1 (a preshared key), peer2 and one that never connects; wg1 with no peer. peer1 and peer2 ping the hub every 5 s
+sudo     the hub's account vigil may run exactly: wg show interfaces, wg show all latest-handshakes, wg show all transfer
+
+# Both peers up, one never connected, wg1 with none: the pack as vigil, through sudo.
+
+$ sudo -u vigil bash packs/wireguard/linux/peers.sh
+metric interfaces 2
+metric peers 3
+metric peers_stale 0
+metric peers_never 1
+metric interface_peers 3 interface=wg0
+metric interface_peers 0 interface=wg1
+metric handshake_seconds -1 interface=wg0 peer=EcNI0FIB9H+Bywnzgiuofm6zINvEaqLn53mfVx8LxiA_
+metric rx_bytes_count 0 interface=wg0 peer=EcNI0FIB9H+Bywnzgiuofm6zINvEaqLn53mfVx8LxiA_
+metric tx_bytes_count 0 interface=wg0 peer=EcNI0FIB9H+Bywnzgiuofm6zINvEaqLn53mfVx8LxiA_
+metric handshake_seconds 1 interface=wg0 peer=J+nVZcEMDjRvvH0BhiOeFZ/1CTXJeEZ1rte4Xq8IqXU_
+metric rx_bytes_count 308 interface=wg0 peer=J+nVZcEMDjRvvH0BhiOeFZ/1CTXJeEZ1rte4Xq8IqXU_
+metric tx_bytes_count 220 interface=wg0 peer=J+nVZcEMDjRvvH0BhiOeFZ/1CTXJeEZ1rte4Xq8IqXU_
+metric handshake_seconds 1 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+metric rx_bytes_count 308 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+metric tx_bytes_count 220 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+metric peers_not_shown 0
+  PASS  it runs as vigil, through the sudoers rule
+  PASS  two interfaces; three peers on wg0, none on wg1
+  PASS  one never connected, named first; none stale
+  PASS  peer1 and peer2: a handshake within the last two minutes
+  PASS  peer1 and peer2: bytes each way
+  PASS  no key in what it printed
+
+# As an account the sudoers rule does not cover.
+
+$ sudo -u other bash packs/wireguard/linux/peers.sh
+peers: may not run "wg show interfaces" as root: add the sudoers rule in packs/wireguard/README.md
+exit 1
+  PASS  it fails, and says which rule to add
+
+# peer2 stops. A peer that talks completes a handshake every two minutes; once peer2's last is past 180 seconds, it is stale.
+
+$ sudo -u vigil bash packs/wireguard/linux/peers.sh   (peer2 stopped)
+metric interfaces 2
+metric peers 3
+metric peers_stale 1
+metric peers_never 1
+metric interface_peers 3 interface=wg0
+metric interface_peers 0 interface=wg1
+metric handshake_seconds -1 interface=wg0 peer=EcNI0FIB9H+Bywnzgiuofm6zINvEaqLn53mfVx8LxiA_
+metric rx_bytes_count 0 interface=wg0 peer=EcNI0FIB9H+Bywnzgiuofm6zINvEaqLn53mfVx8LxiA_
+metric tx_bytes_count 0 interface=wg0 peer=EcNI0FIB9H+Bywnzgiuofm6zINvEaqLn53mfVx8LxiA_
+metric handshake_seconds 183 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+metric rx_bytes_count 564 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+metric tx_bytes_count 3436 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+metric handshake_seconds 63 interface=wg0 peer=J+nVZcEMDjRvvH0BhiOeFZ/1CTXJeEZ1rte4Xq8IqXU_
+metric rx_bytes_count 5096 interface=wg0 peer=J+nVZcEMDjRvvH0BhiOeFZ/1CTXJeEZ1rte4Xq8IqXU_
+metric tx_bytes_count 4920 interface=wg0 peer=J+nVZcEMDjRvvH0BhiOeFZ/1CTXJeEZ1rte4Xq8IqXU_
+metric peers_not_shown 0
+  PASS  peer2 stale, past 180 seconds; peer1 not
+  PASS  the order: never first, then the longest quiet (peer2), then peer1
+  PASS  no key in what it printed
+
+# The pack through Vigil, in the hub as vigil.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)
+  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)
+  SKIP  mongodb: set VIGIL_IT_MONGODB_URL and VIGIL_IT_MONGODB_PASSWORD (scripts/run-mongodb.sh sets them up)
+  SKIP  oracle: set VIGIL_IT_ORACLE_HOST, VIGIL_IT_ORACLE_SERVICE and VIGIL_IT_ORACLE_PASSWORD (scripts/run-oracle.sh sets them up)
+  SKIP  zookeeper: set VIGIL_IT_ZOOKEEPER_SERVERS (scripts/run-zookeeper.sh sets it up)
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  etcd: set VIGIL_IT_OBS_ETCD (scripts/run-obs.sh sets it up)
+  SKIP  openbao: set VIGIL_IT_OBS_OPENBAO (scripts/run-obs.sh sets it up)
+  SKIP  traefik: set VIGIL_IT_OBS_TRAEFIK (scripts/run-obs.sh sets it up)
+  SKIP  nats: set VIGIL_IT_OBS_NATS (scripts/run-obs.sh sets it up)
+  SKIP  docker: set VIGIL_IT_DOCKER (scripts/run-containers.sh docker sets it up)
+  SKIP  podman: set VIGIL_IT_PODMAN (scripts/run-containers.sh podman sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (scripts/run-sqlite.sh sets it up)
+  SKIP  tls: set VIGIL_IT_TLS (scripts/run-tls.sh sets it up)
+  PASS  wireguard: off until enabled
+  PASS  wireguard: enabled
+        on: wireguard_peers
+        needs root for wg show: a sudoers rule for exactly three read-only commands, none of which prints a key: vigil ALL=(root) NOPASSWD: /usr/bin/wg show interfaces, /usr/bin/wg show all latest-handshakes, /usr/bin/wg show all transfer (packs/wireguard/README.md)
+        settings in vigil.config: WG_STALE_SECONDS=180
+  PASS  wireguard: it says what it needs: the sudoers rule, and that it reads no key
+  PASS  wireguard: precheck is happy
+  PASS  wireguard: peers runs
+  PASS  wireguard: its interfaces and peers read
+  PASS  wireguard: metrics reach the backend, each peer by its public key
+  PASS  wireguard: no key, private or preshared, anywhere Vigil wrote
+10 passed, 0 failed
+10 passed, 0 failed
+evidence: reports/runs/2026-11-28/fedora/pack-wireguard

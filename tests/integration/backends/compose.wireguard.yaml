@@ -1,0 +1,44 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# WireGuard for the wireguard pack (scripts/run-wireguard.sh), which writes
+# the keys and each container's start script into WG_CONF. Kernel WireGuard,
+# each container in its own network namespace (NET_ADMIN):
+# - hub: wg0 with three peers (peer1, peer2, and one that never connects),
+#   and wg1 with none. It has the repository at /repo, an account vigil
+#   allowed by sudoers exactly the three wg show commands the pack runs, and
+#   an account other allowed nothing.
+# - peer1, peer2: each a peer of the hub, keeping the tunnel alive.
+
+x-wg: &wg
+  build:
+    context: .
+    dockerfile_inline: |
+      FROM alpine:3
+      RUN apk add --no-cache bash coreutils curl sudo wireguard-tools-wg iproute2 \
+       && adduser -D vigil && adduser -D other \
+       && printf 'vigil ALL=(root) NOPASSWD: /usr/bin/wg show interfaces, /usr/bin/wg show all latest-handshakes, /usr/bin/wg show all transfer\n' > /etc/sudoers.d/vigil-wireguard \
+       && chmod 440 /etc/sudoers.d/vigil-wireguard
+  image: vigil-it-wireguard:1
+  cap_add: [NET_ADMIN]
+  mem_limit: 128m
+
+services:
+  hub:
+    <<: *wg
+    command: [sh, /conf/hub.sh]
+    volumes: ["${WG_CONF:?the keys}:/conf:ro,z", "${WG_REPO:?the repository}:/repo:ro,z"]
+  peer1:
+    <<: *wg
+    command: [sh, /conf/peer1.sh]
+    volumes: ["${WG_CONF:?the keys}:/conf:ro,z"]
+  peer2:
+    <<: *wg
+    command: [sh, /conf/peer2.sh]
+    volumes: ["${WG_CONF:?the keys}:/conf:ro,z"]

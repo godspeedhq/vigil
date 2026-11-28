@@ -1,0 +1,16 @@
+metric interfaces 2
+metric peers 3
+metric peers_stale 0
+metric peers_never 1
+metric interface_peers 3 interface=wg0
+metric interface_peers 0 interface=wg1
+metric handshake_seconds -1 interface=wg0 peer=EcNI0FIB9H+Bywnzgiuofm6zINvEaqLn53mfVx8LxiA_
+metric rx_bytes_count 0 interface=wg0 peer=EcNI0FIB9H+Bywnzgiuofm6zINvEaqLn53mfVx8LxiA_
+metric tx_bytes_count 0 interface=wg0 peer=EcNI0FIB9H+Bywnzgiuofm6zINvEaqLn53mfVx8LxiA_
+metric handshake_seconds 1 interface=wg0 peer=J+nVZcEMDjRvvH0BhiOeFZ/1CTXJeEZ1rte4Xq8IqXU_
+metric rx_bytes_count 308 interface=wg0 peer=J+nVZcEMDjRvvH0BhiOeFZ/1CTXJeEZ1rte4Xq8IqXU_
+metric tx_bytes_count 220 interface=wg0 peer=J+nVZcEMDjRvvH0BhiOeFZ/1CTXJeEZ1rte4Xq8IqXU_
+metric handshake_seconds 1 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+metric rx_bytes_count 308 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+metric tx_bytes_count 220 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+metric peers_not_shown 0
