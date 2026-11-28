@@ -1,0 +1,63 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-traefik.sh), against
+# Traefik 3.8 with a configuration in trouble on purpose.
+
+== status
+metric up 1
+metric ping 1
+metric last_reload_seconds 165
+metric reloads_count 1
+metric connections 1
+metric connections_by_entrypoint 1 entrypoint=traefik
+metric connections_by_entrypoint 0 entrypoint=web
+metric connections_by_entrypoint 0 entrypoint=websecure
+metric requests_count 102
+metric requests_4xx_count 60
+metric requests_5xx_count 20
+metric requests_5xx 20 entrypoint=web
+metric request_avg_ms 742.947236
+metric tls_requests_count 2
+metric certs 2
+metric cert_expires_at 1796309450
+
+== services
+metric up 1
+metric servers 3
+metric servers_down 1
+metric server_down 1 url=http://nowhere:80
+metric server_down 0 url=http://w1:80
+metric server_down 0 url=http://w2:80
+metric down_by_service 1 service=app@file
+metric requests_count 42
+metric requests_5xx_count 20
+metric requests_5xx 20 service=gone@file
+metric request_avg_ms 1804.14556
+
+== routers
+metric up 1
+metric requests_count 42
+metric requests 20 router=app@file
+metric requests 20 router=gone@file
+metric requests 1 router=good@file
+metric requests 1 router=soon@file
+metric requests_5xx 20 router=gone@file
+
+== config
+metric up 1
+metric version 1 version=3.8.0
+metric routers 10 protocol=http
+metric routers_errors 2 protocol=http
+metric routers_warnings 0 protocol=http
+metric services 7 protocol=http
+metric services_errors 0 protocol=http
+metric services_warnings 0 protocol=http
+metric middlewares 2 protocol=http
+metric middlewares_errors 0 protocol=http
+metric middlewares_warnings 0 protocol=http
+metric certificates 2
+metric certificates_warnings 1
+metric certificates_errors 0
+metric router_error 1 protocol=http router=broken@file reason=the_service__not-there@file__does_not_exist
+metric router_error 1 protocol=http router=nomiddleware@file reason=middleware__no-such-middleware@file__does_not_exist
+metric cert_expires_days 4.99
+metric certs_expiring_30d 1

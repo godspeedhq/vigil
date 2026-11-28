@@ -54,6 +54,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`oracle`](oracle/README.md) | Oracle Database 19c, 21c and 23ai, a CDB and every PDB: up and open (and why not), sessions and processes against their limits, workload, blocking and transactions left open, waits, every tablespace against the most it can grow to, the recovery area and the archiver, redo, memory and the PGA limit, RMAN backups, invalid objects, corrupt blocks, Scheduler jobs failed, the alert log; nothing from a paid pack | [packs/oracle/README.md](oracle/README.md) |
 | [`etcd`](etcd/README.md) | etcd, each member: healthy or not, a leader and quorum, leader changes, members it cannot reach, proposals waiting and failed, the database against its quota (the NOSPACE alarm) and its fragmentation, revisions since compaction, watchers, the WAL's and the backend's disk latency, gRPC requests failed by code | [packs/etcd/README.md](etcd/README.md) |
 | [`openbao`](openbao/README.md) | OpenBao and HashiCorp Vault, each node: sealed or not, initialized, active or standby, an unseal under way; the Raft cluster as autopilot sees it (healthy, failure tolerance, the unhealthy node named), followers behind, storage latency; leases and those it could not revoke, tokens by auth method; logins that failed, users locked out, responses refused, audit devices that failed | [packs/openbao/README.md](openbao/README.md) |
+| [`traefik`](traefik/README.md) | Traefik: up, configuration reloads, connections and requests on each entrypoint, 4xx and 5xx; backend servers up and down, each named; services and routers answering 5xx; routers, services and middlewares in error, each router named with why; TLS certificates and the soonest to expire | [packs/traefik/README.md](traefik/README.md) |
 | [`nginx`](nginx/README.md) | nginx: connections and requests, processes and reloads, an edit not reloaded, how full the workers are, the access log minute by minute (status, errors, response and upstream times), certificate expiry | [packs/nginx/README.md](nginx/README.md) |
 | [`httpd`](httpd/README.md) | Apache httpd: workers and the scoreboard, requests, connections, the TLS session cache, an edit not loaded, the access log minute by minute (status, errors, response times), certificate expiry | [packs/httpd/README.md](httpd/README.md) |
 | [`caddy`](caddy/README.md) | Caddy: its configuration and reloads, traffic per server, reverse proxy upstreams and their health, the certificate of every site, from its admin API | [packs/caddy/README.md](caddy/README.md) |
@@ -214,6 +215,12 @@ An etcd member, each one, from its metrics listener (`--listen-metrics-urls`, pl
 OpenBao, or HashiCorp Vault (the two answer the same paths and publish the same metrics, so one pack reads both, and says which), each node. With no token: sealed or not, initialized, active or standby, how far an unseal has got. With a token that may read `sys/metrics` and nothing else: the Raft cluster as autopilot sees it, storage latency, leases and those it could not revoke, logins that failed and users locked out. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
 
 **Its page: [packs/openbao/README.md](openbao/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### traefik
+
+A Traefik proxy, from its Prometheus metrics and its read-only API on the `traefik` entrypoint: up, its requests and 5xx, the backend servers its health checks find down (each by its URL), the services and routers that fail, the routers in its configuration that are broken and why, and the certificate that expires first. With `curl`, `awk` and `jq` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/traefik/README.md](traefik/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ### nginx
 

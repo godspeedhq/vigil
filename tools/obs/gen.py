@@ -37,7 +37,7 @@ NOTICE = [
     'LICENSE file for the full terms.',
 ]
 
-ORDER = ['prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs', 'etcd', 'openbao']
+ORDER = ['prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs', 'etcd', 'openbao', 'traefik']
 PACKS = {}
 for name in ORDER:
     if os.path.exists(os.path.join(src, name + '.py')):

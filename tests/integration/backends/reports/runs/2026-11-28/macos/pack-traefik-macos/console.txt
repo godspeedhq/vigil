@@ -1,0 +1,82 @@
+== pack-traefik-macos
+date     2026-11-28
+host     the Intel Mac test machine (macOS 12.7.6), as an account that is not an administrator, over SSH
+vigil    80a8539 (deployed copy)
+servers  run-traefik.sh's Traefik 3.8.0 and 3.7.20 on the Fedora test machine, held (VIGIL_IT_TRAEFIK_HOLD), through SSH tunnels
+
+bash 3.2.57(1)-release on macOS 12.7.6; curl 8.7.1 (x86_64-apple-darwin21.0) libcurl/8.7.1 (SecureTransport) LibreSSL/3.3.6 zlib/1.2.11 nghttp2/1.45.1; jq-1.8.2
+
+# t38: every job
+t38 status: 18 lines, exit 0
+  PASS  t38 status runs
+t38 services: 10 lines, exit 0
+  PASS  t38 services runs
+t38 routers: 4 lines, exit 0
+  PASS  t38 routers runs
+t38 config: 34 lines, exit 0
+  PASS  t38 config runs
+  PASS  t38: the routers in error named; the dead backend down
+
+# t37: every job
+t37 status: 18 lines, exit 0
+  PASS  t37 status runs
+t37 services: 14 lines, exit 0
+  PASS  t37 services runs
+t37 routers: 10 lines, exit 0
+  PASS  t37 routers runs
+t37 config: 34 lines, exit 0
+  PASS  t37 config runs
+  PASS  t37: the routers in error named; the dead backend down
+
+$ bash packs/traefik/macos/status.sh   (t38)
+metric up 1
+metric ping 1
+metric last_reload_seconds 230
+metric reloads_count 3
+metric connections 1
+metric connections_by_entrypoint 1 entrypoint=traefik
+metric connections_by_entrypoint 0 entrypoint=web
+metric connections_by_entrypoint 0 entrypoint=websecure
+metric connections_by_entrypoint_not_shown 0
+metric requests_count 102
+metric requests_4xx_count 60
+metric requests_5xx_count 20
+metric requests_5xx 20 entrypoint=web
+metric requests_5xx_not_shown 0
+metric request_avg_ms 742.947236
+metric tls_requests_count 2
+metric certs 2
+metric cert_expires_at 1796309450
+  PASS  nothing listening: up 0, the run succeeding
+
+# The pack through Vigil:
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+traefik: TRAEFIK_URL=http://127.0.0.1:18080
+  PASS  traefik: off until enabled
+  PASS  traefik: enabled
+        on: traefik_status
+        on: traefik_services
+        on: traefik_routers
+        on: traefik_config
+        needs its metrics and API: --metrics.prometheus=true (with addRoutersLabels and addServicesLabels for the routers and services jobs), --api=true and --ping=true; they are served on the traefik entrypoint (port 8080): env = TRAEFIK_URL=... where it is elsewhere
+        needs for backends up and down: health checks on the services (loadBalancer.healthCheck); without one, Traefik does not know
+        needs where the API is behind a login (a router with basicAuth): TRAEFIK_USER and secret = TRAEFIK_PASSWORD=secret:TRAEFIK_PASSWORD
+        needs for Traefik's CPU and memory: the base pack's processes job
+        settings in vigil.config: TRAEFIK_URL= TRAEFIK_USER= TRAEFIK_CACERT=
+  PASS  traefik: it says CPU and memory are the base pack's
+  PASS  traefik: its jobs are on
+  PASS  traefik: precheck is happy
+        status: 18 lines
+        services: 10 lines
+        routers: 4 lines
+        config: 34 lines
+  PASS  traefik: every job runs
+  PASS  traefik: answers
+  PASS  traefik: a server that does not answer still runs
+  PASS  traefik: and reads as up 0
+  PASS  traefik: metrics reach the backend
+12 passed, 0 failed
+
+11 passed, 0 failed
