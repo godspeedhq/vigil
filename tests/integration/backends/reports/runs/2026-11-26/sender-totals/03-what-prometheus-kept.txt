@@ -1,0 +1,29 @@
+== What reached Prometheus from fedora-c1's backlog (2026-11-26T23:21:46Z)
+
+-- fedora-c1's newest cpu reading: 82 s old
+
+-- cpu readings stored for fedora-c1, per 10 minutes (it reads every 60 s)
+  20:10  10
+  20:20  10
+  20:30  9
+  22:30  7
+  22:40  10
+  22:50  10
+  23:00  10
+  23:10  10
+  23:20  10
+  (no line: no reading stored for those 10 minutes)
+
+-- Prometheus's own counters
+  prometheus_http_requests_total{code="200",handler="/api/v1/otlp/v1/metrics"} 11664
+  prometheus_http_requests_total{code="400",handler="/api/v1/otlp/v1/metrics"} 89
+  prometheus_tsdb_head_min_time 1.7957304e+12
+  prometheus_tsdb_out_of_bound_samples_total{type="float"} 0
+  prometheus_tsdb_too_old_samples_total{type="float"} 66580
+  head_min_time 2026-11-26T22:00:00Z
+  With out_of_order_time_window 0, Prometheus refuses a sample more than about an hour
+  older than the newest it holds (half its 2 h block). Other hosts kept it current, so
+  fedora-c1's readings older than about an hour when they arrived were refused: 20:35-22:25.
+
+-- vigil_spool_dropped series in Prometheus, any host: none
+   The collector in front of Prometheus answered 2xx; the refusal happened on its own write, which Vigil cannot see.

@@ -1,0 +1,6 @@
+== fedora-c1 before the fix, 2026-11-26T22:40:41Z
+queue files: 1585
+incoming: 65
+/home/vigil/vigil/logs/supervisor/jobs.log:0
+b33c1f2f59c8ab9ccfb1d6dcb5f41180f270237644558606b1c766471cf3d9d0  /home/vigil/vigil/app/lib/posix/backends.sh
+fixed backends.sh in place at 2026-11-26T22:40:42Z
