@@ -1,0 +1,9 @@
+metric invalid_objects 0 pdb=CDB_ROOT
+metric invalid_objects 1 pdb=FREEPDB1
+metric corrupt_blocks 0
+metric datafiles_need_recovery 0
+metric datafiles_offline 0
+metric accounts_expiring 1
+metric scheduler_failed_24h 1
+metric job_failed_24h 1 pdb=FREEPDB1 job=VIGIL_APP.NIGHTLY_LOAD
+metric scheduler_broken 0

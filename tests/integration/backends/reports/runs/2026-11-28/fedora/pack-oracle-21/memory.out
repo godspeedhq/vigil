@@ -1,0 +1,12 @@
+metric sga_bytes 1610612120
+metric buffer_cache_bytes 989855744
+metric shared_pool_bytes 436207616
+metric shared_pool_free_bytes 40361248
+metric memory_target_bytes 0
+metric pga_limit_bytes 2147483648
+metric pga_target_bytes 536870912
+metric sga_target_bytes 1610612736
+metric pga_allocated_bytes 420115456
+metric pga_inuse_bytes 331530240
+metric pga_over_allocations_count 0
+metric pga_limit_pct 19.56

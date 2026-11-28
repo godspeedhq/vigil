@@ -97,6 +97,9 @@
 #   VIGIL_IT_MONGODB_URL, _USER,         a MongoDB server, a user with
 #     _PASSWORD, VIGIL_IT_MONGOSH        clusterMonitor, its password, and
 #                                        mongosh (scripts/run-mongodb.sh)
+#   VIGIL_IT_ORACLE_HOST, _PORT,         an Oracle database (its CDB root's
+#     _SERVICE, _PASSWORD,               service), C##VIGIL_MONITOR's password,
+#     VIGIL_IT_ORACLE_SQLPLUS            and SQL*Plus (scripts/run-oracle.sh)
 #   VIGIL_IT_ZOOKEEPER_SERVERS           ZooKeeper servers, host:port;...,
 #                                        that allow mntr, ruok and isro
 #                                        (scripts/run-zookeeper.sh)
@@ -198,7 +201,7 @@ cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
 obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs'
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper mongodb nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper mongodb oracle nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -1665,6 +1668,67 @@ else
     set_env MONGODB_URL "$VIGIL_IT_MONGODB_URL"
     [ "$(grun databases)" = 0 ] || true
     check 'mongodb: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_MONGODB_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+fi
+
+# --- oracle -----------------------------------------------------------------
+# An Oracle database in trouble on purpose (a session blocked, a tablespace
+# full), through Vigil, as scripts/run-oracle.sh sets it up:
+# VIGIL_IT_ORACLE_HOST, _PORT and _SERVICE its CDB root, _PASSWORD
+# C##VIGIL_MONITOR's, VIGIL_IT_ORACLE_SQLPLUS SQL*Plus.
+if [ -z "${VIGIL_IT_ORACLE_HOST-}" ] || [ -z "${VIGIL_IT_ORACLE_PASSWORD-}" ] || [ -z "${VIGIL_IT_ORACLE_SERVICE-}" ]; then
+    printf '  SKIP  oracle: set VIGIL_IT_ORACLE_HOST, VIGIL_IT_ORACLE_SERVICE and VIGIL_IT_ORACLE_PASSWORD (scripts/run-oracle.sh sets them up)\n'
+elif [ ! -x "${VIGIL_IT_ORACLE_SQLPLUS:-$(command -v sqlplus 2> /dev/null)}" ]; then
+    printf '  SKIP  oracle: sqlplus is not here (VIGIL_IT_ORACLE_SQLPLUS names it)\n'
+else
+    unset ORACLE_HOST ORACLE_PORT ORACLE_SERVICE ORACLE_USER ORACLE_PASSWORD ORACLE_SQLPLUS
+    printf 'oracle: %s:%s/%s as C##VIGIL_MONITOR\n' "$VIGIL_IT_ORACLE_HOST" "${VIGIL_IT_ORACLE_PORT:-1521}" "$VIGIL_IT_ORACLE_SERVICE"
+    ojobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$repo/packs/oracle/pack.config")
+    on=$(printf '%s\n' $ojobs | wc -l | tr -d ' ')
+    ojobs_on() { vigil pack list | awk '$1 ~ /^oracle_/ { print $2 }' | sort | uniq -c | awk '{ print $2 "=" $1 }' | tr '\n' ' ' | sed 's/ $//'; }
+    oval() { grep -h " out metric $2 " "$root/logs/jobs/oracle_$1"/*.log 2> /dev/null | grep -- "${3-}" | tail -n 1 | awk '{ print $6 }'; }
+    orun() { vigil run "oracle_$1" > "$work/out" 2>&1; echo $?; }
+    osaid() {
+        local f rid
+        f=$(ls "$root/logs/jobs/oracle_$1"/*.log | tail -n 1)
+        rid=$(tail -n 1 "$f" | awk '{ print $2 }')
+        grep " $rid " "$f" | grep -q -- "$2" && echo yes || echo no
+    }
+    check 'oracle: off until enabled' "off=$on" "$(ojobs_on)"
+    out=$(vigil pack enable oracle 2>&1)
+    check 'oracle: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'oracle: its jobs are on' "on=$on" "$(ojobs_on)"
+    check 'oracle: it names the secret it needs, not set' yes "$(printf '%s\n' "$out" | grep -q 'needs secret:ORACLE_MONITOR_PASSWORD: not set' && echo yes || echo no)"
+    check 'oracle: the password is a secret reference, on every job' "$on" "$(grep -c '^secret *= ORACLE_PASSWORD=secret:ORACLE_MONITOR_PASSWORD' "$root/config/vigil.config")"
+    printf '%s' "$VIGIL_IT_ORACLE_PASSWORD" | vigil secret set ORACLE_MONITOR_PASSWORD --stdin > /dev/null
+    set_env ORACLE_HOST "$VIGIL_IT_ORACLE_HOST"
+    set_env ORACLE_PORT "${VIGIL_IT_ORACLE_PORT:-1521}"
+    set_env ORACLE_SERVICE "$VIGIL_IT_ORACLE_SERVICE"
+    # ORACLE_SQLPLUS is not in the pack's env lines: one for each job.
+    awk -v sp="${VIGIL_IT_ORACLE_SQLPLUS:-$(command -v sqlplus)}" '{ print } /^env *= ORACLE_HOST=/ { print "env         = ORACLE_SQLPLUS=" sp }' \
+        "$root/config/vigil.config" > "$work/vigil.config" && cp "$work/vigil.config" "$root/config/vigil.config"
+    check 'oracle: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    [ "$(grep -c FAIL "$work/precheck")" -eq 0 ] || sed 's/^/        /' "$work/precheck"
+    failed=''
+    for j in $ojobs; do [ "$(orun "$j")" = 0 ] || failed="$failed $j"; done
+    check 'oracle: every job runs' '' "$failed"
+    for j in $failed; do sed 's/^/        /' "$root/logs/jobs/oracle_$j"/*.log | tail -n 4; done
+    for j in $ojobs; do
+        printf '        %s: %s lines\n' "$j" "$(grep -h ' out metric ' "$root/logs/jobs/oracle_$j"/*.log | wc -l | tr -d ' ')"
+    done
+    check 'oracle: up, open' '1 1' "$(oval status up) $(oval status open)"
+    check 'oracle: the blocked session, seen' 1 "$(oval activity blocked)"
+    check 'oracle: the alert log, readable' 1 "$(oval alerts readable)"
+    printf 'not-the-password' | vigil secret set ORACLE_MONITOR_PASSWORD --stdin > /dev/null
+    check 'oracle: a wrong password fails the run' 2 "$(orun memory)"
+    check 'oracle: and says why' yes "$(osaid memory 'ORA-01017')"
+    printf '%s' "$VIGIL_IT_ORACLE_PASSWORD" | vigil secret set ORACLE_MONITOR_PASSWORD --stdin > /dev/null
+    set_env ORACLE_PORT 1
+    check 'oracle: a database that does not answer still runs' 0 "$(orun status)"
+    check 'oracle: and reads as up 0' 0 "$(oval status up)"
+    set_env ORACLE_PORT "${VIGIL_IT_ORACLE_PORT:-1521}"
+    [ "$(orun memory)" = 0 ] || true
+    check 'oracle: the password is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_ORACLE_PASSWORD" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
 fi
 
 # --- zookeeper --------------------------------------------------------------

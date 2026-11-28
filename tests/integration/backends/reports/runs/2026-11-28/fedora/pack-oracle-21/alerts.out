@@ -1,0 +1,13 @@
+metric readable 1
+metric checkpoint_not_complete 5
+metric errors 24
+metric incidents 6
+metric error_count 1 code=ORA-00060
+metric error_count 4 code=ORA-00600
+metric error_count 4 code=ORA-00800
+metric error_count 1 code=ORA-01653
+metric error_count 8 code=ORA-06512
+metric error_count 1 code=ORA-12012
+metric error_count 1 code=ORA-19815
+metric error_count 2 code=ORA-20013
+metric error_count 2 code=ORA-27167

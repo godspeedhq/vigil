@@ -1,0 +1,423 @@
+== pack-oracle-21
+date     2026-11-28T11:57:53Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    6c57b29 (deployed copy)
+command  tests/integration/backends/scripts/run-oracle.sh 21
+bash     5.3.9(1)-release
+git      git version 2.56.1
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.19.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.oracle.yaml pins them)
+         gvenzl/oracle-free:23
+         gvenzl/oracle-xe:21
+
+sqlplus  SQL*Plus: Release 23.26.2.0.0 - Production, /home/vigil-test/clis/instantclient_23_26/sqlplus
+
+# Oracle 21: the users, ARCHIVELOG with a recovery area, and an application in trouble, as SYSDBA.
+users    C##VIGIL_MONITOR (as packs/oracle/README.md says), C##VIGIL_NOALERT (the same, without the alert log)
+archive  ARCHIVELOG, a 4 GB recovery area in /opt/oracle/oradata/fra
+app      in XEPDB1: vigil_app (password lifetime 3 days), tablespace VIGIL_SMALL (10 MB, no autoextend), an invalid view, a Scheduler job that fails
+rman     the failing backup: ORA-19504: failed to create file "/nonexistent/0758ihhh_7_1_1"
+rman     BACKUP DATABASE, BACKUP ARCHIVELOG ALL; and one to /nonexistent, which failed
+fra      shrunk to 2293 MB: some 90% of it holds what cannot be freed
+redo     6 log switches
+fill     ORA-01653: unable to extend table VIGIL_APP
+deadlock ORA-00060: deadlock detected while waiting for resource
+blocking one session holds row 1, its transaction open and idle; another waits for it
+
+# Oracle 21: every job, as the pack's scripts print it, as C##VIGIL_MONITOR.
+
+$ bash packs/oracle/linux/status.sh
+metric up 1
+metric info 1 release=21 version=21.3.0.0.0 edition=xe cdb=yes role=primary
+metric uptime_seconds 117
+metric open 1 mode=read_write
+metric archivelog 1
+metric cpus 4
+metric processes 76
+metric processes_max 320
+metric processes_pct 23.75
+metric sessions 105
+metric sessions_max 502
+metric sessions_pct 20.92
+metric pdbs 1
+metric pdb_open 1 pdb=XEPDB1 mode=read_write
+
+$ bash packs/oracle/linux/performance.sh
+metric bytes_received_count 672717
+metric bytes_sent_count 488881
+metric commits_count 3405
+metric deadlocks_count 1
+metric disk_sorts_count 0
+metric executions_count 142364
+metric hard_parses_count 4007
+metric lock_timeouts_count 27
+metric logical_reads_count 546605
+metric logons_count 183
+metric logons_current 73
+metric long_table_scans_count 0
+metric open_cursors 91
+metric parse_failures_count 8
+metric parses_count 102140
+metric physical_reads_count 14855
+metric physical_writes_count 1744
+metric redo_bytes_count 13152524
+metric rollbacks_count 4
+metric user_calls_count 2591
+metric db_cpu_ms_count 29791
+metric db_time_ms_count 104139
+metric host_busy_ms_count 157670
+metric host_idle_ms_count 271760
+metric buffer_cache_hit_pct 97.28
+
+$ bash packs/oracle/linux/activity.sh
+metric sessions 1 state=active
+metric sessions 1 state=inactive
+metric active 1 class=application
+metric blocked 1
+metric longest_blocked_seconds 21.07
+metric head_blockers 1
+metric longest_active_seconds 21
+metric transactions 1
+metric oldest_transaction_seconds 24
+metric idle_in_transaction 1
+metric idle_in_transaction_seconds 24
+metric long_operations 0
+
+$ bash packs/oracle/linux/waits.sh
+metric wait_ms_count 14740 class=administrative
+metric wait_ms_count 28670 class=application
+metric wait_ms_count 1060 class=commit
+metric wait_ms_count 2550 class=concurrency
+metric wait_ms_count 50 class=configuration
+metric wait_ms_count 10 class=network
+metric wait_ms_count 14110 class=other
+metric wait_ms_count 9520 class=scheduler
+metric wait_ms_count 38520 class=system_i_o
+metric wait_ms_count 14080 class=user_i_o
+metric waits_count 319 class=administrative
+metric waits_count 101 class=application
+metric waits_count 59 class=commit
+metric waits_count 665 class=concurrency
+metric waits_count 3 class=configuration
+metric waits_count 1650 class=network
+metric waits_count 9216 class=other
+metric waits_count 309 class=scheduler
+metric waits_count 15400 class=system_i_o
+metric waits_count 9931 class=user_i_o
+metric top_wait_ms_count 3460 event=ADR_block_file_write
+metric top_waits_count 904 event=ADR_block_file_write
+metric top_wait_ms_count 13113 event=RMAN_backup___recovery_I_O
+metric top_waits_count 4605 event=RMAN_backup___recovery_I_O
+metric top_wait_ms_count 10619 event=control_file_parallel_write
+metric top_waits_count 753 event=control_file_parallel_write
+metric top_wait_ms_count 5563 event=db_file_async_I_O_submit
+metric top_waits_count 645 event=db_file_async_I_O_submit
+metric top_wait_ms_count 3653 event=db_file_sequential_read
+metric top_waits_count 7916 event=db_file_sequential_read
+metric top_wait_ms_count 27671 event=enq__TX_-_row_lock_contention
+metric top_waits_count 3 event=enq__TX_-_row_lock_contention
+metric top_wait_ms_count 6941 event=local_write_wait
+metric top_waits_count 639 event=local_write_wait
+metric top_wait_ms_count 8361 event=log_file_parallel_write
+metric top_waits_count 962 event=log_file_parallel_write
+metric top_wait_ms_count 9523 event=resmgr_cpu_quantum
+metric top_waits_count 309 event=resmgr_cpu_quantum
+metric top_wait_ms_count 14734 event=switch_logfile_command
+metric top_waits_count 7 event=switch_logfile_command
+
+$ bash packs/oracle/linux/tablespaces.sh
+metric tablespaces 10
+metric tablespaces_not_shown 0
+metric max_bytes 34359721984 pdb=CDB_ROOT tablespace=SYSAUX kind=permanent
+metric online 1 pdb=CDB_ROOT tablespace=SYSAUX kind=permanent
+metric used_bytes 521863168 pdb=CDB_ROOT tablespace=SYSAUX kind=permanent
+metric used_pct 1.52 pdb=CDB_ROOT tablespace=SYSAUX kind=permanent
+metric max_bytes 34359721984 pdb=CDB_ROOT tablespace=SYSTEM kind=permanent
+metric online 1 pdb=CDB_ROOT tablespace=SYSTEM kind=permanent
+metric used_bytes 899678208 pdb=CDB_ROOT tablespace=SYSTEM kind=permanent
+metric used_pct 2.62 pdb=CDB_ROOT tablespace=SYSTEM kind=permanent
+metric max_bytes 34359721984 pdb=CDB_ROOT tablespace=TEMP kind=temporary
+metric online 1 pdb=CDB_ROOT tablespace=TEMP kind=temporary
+metric used_bytes 0 pdb=CDB_ROOT tablespace=TEMP kind=temporary
+metric used_pct 0 pdb=CDB_ROOT tablespace=TEMP kind=temporary
+metric max_bytes 34359721984 pdb=CDB_ROOT tablespace=UNDOTBS1 kind=undo
+metric online 1 pdb=CDB_ROOT tablespace=UNDOTBS1 kind=undo
+metric used_bytes 2621440 pdb=CDB_ROOT tablespace=UNDOTBS1 kind=undo
+metric used_pct 0.01 pdb=CDB_ROOT tablespace=UNDOTBS1 kind=undo
+metric max_bytes 34359721984 pdb=CDB_ROOT tablespace=USERS kind=permanent
+metric online 1 pdb=CDB_ROOT tablespace=USERS kind=permanent
+metric used_bytes 1048576 pdb=CDB_ROOT tablespace=USERS kind=permanent
+metric used_pct 0 pdb=CDB_ROOT tablespace=USERS kind=permanent
+metric max_bytes 34359721984 pdb=XEPDB1 tablespace=SYSAUX kind=permanent
+metric online 1 pdb=XEPDB1 tablespace=SYSAUX kind=permanent
+metric used_bytes 293011456 pdb=XEPDB1 tablespace=SYSAUX kind=permanent
+metric used_pct 0.85 pdb=XEPDB1 tablespace=SYSAUX kind=permanent
+metric max_bytes 34359721984 pdb=XEPDB1 tablespace=SYSTEM kind=permanent
+metric online 1 pdb=XEPDB1 tablespace=SYSTEM kind=permanent
+metric used_bytes 282853376 pdb=XEPDB1 tablespace=SYSTEM kind=permanent
+metric used_pct 0.82 pdb=XEPDB1 tablespace=SYSTEM kind=permanent
+metric max_bytes 34359721984 pdb=XEPDB1 tablespace=UNDOTBS1 kind=undo
+metric online 1 pdb=XEPDB1 tablespace=UNDOTBS1 kind=undo
+metric used_bytes 2621440 pdb=XEPDB1 tablespace=UNDOTBS1 kind=undo
+metric used_pct 0.01 pdb=XEPDB1 tablespace=UNDOTBS1 kind=undo
+metric max_bytes 34359721984 pdb=XEPDB1 tablespace=USERS kind=permanent
+metric online 1 pdb=XEPDB1 tablespace=USERS kind=permanent
+metric used_bytes 1179648 pdb=XEPDB1 tablespace=USERS kind=permanent
+metric used_pct 0 pdb=XEPDB1 tablespace=USERS kind=permanent
+metric max_bytes 10485760 pdb=XEPDB1 tablespace=VIGIL_SMALL kind=permanent
+metric online 1 pdb=XEPDB1 tablespace=VIGIL_SMALL kind=permanent
+metric used_bytes 10485760 pdb=XEPDB1 tablespace=VIGIL_SMALL kind=permanent
+metric used_pct 100 pdb=XEPDB1 tablespace=VIGIL_SMALL kind=permanent
+metric datafiles 12
+metric datafiles_max 200
+
+$ bash packs/oracle/linux/recovery.sh
+metric fra_limit_bytes 2404384768
+metric fra_reclaimable_bytes 0
+metric fra_used_bytes 2163495936
+metric fra_used_pct 89.98
+metric flashback_on 0
+metric archive_dest_errors 0
+metric log_switches_1h 6
+metric redo_groups 2
+metric redo_group_bytes 20971520
+metric redo_groups_active 1
+metric redo_groups_not_archived 0
+
+$ bash packs/oracle/linux/memory.sh
+metric sga_bytes 1610612120
+metric buffer_cache_bytes 989855744
+metric shared_pool_bytes 436207616
+metric shared_pool_free_bytes 40361248
+metric memory_target_bytes 0
+metric pga_limit_bytes 2147483648
+metric pga_target_bytes 536870912
+metric sga_target_bytes 1610612736
+metric pga_allocated_bytes 420115456
+metric pga_inuse_bytes 331530240
+metric pga_over_allocations_count 0
+metric pga_limit_pct 19.56
+
+$ bash packs/oracle/linux/backups.sh
+metric archivelog_age_seconds 55
+metric full_age_seconds 62
+metric incremental_age_seconds -1
+metric failed_24h 1
+metric running 0
+metric last_bytes 2154823680
+metric last_seconds 32
+
+$ bash packs/oracle/linux/health.sh
+metric invalid_objects 0 pdb=CDB_ROOT
+metric invalid_objects 1 pdb=XEPDB1
+metric corrupt_blocks 0
+metric datafiles_need_recovery 0
+metric datafiles_offline 0
+metric accounts_expiring 1
+metric scheduler_failed_24h 1
+metric job_failed_24h 1 pdb=XEPDB1 job=VIGIL_APP.NIGHTLY_LOAD
+metric scheduler_broken 0
+
+$ bash packs/oracle/linux/alerts.sh
+metric readable 1
+metric checkpoint_not_complete 5
+metric errors 24
+metric incidents 6
+metric error_count 1 code=ORA-00060
+metric error_count 4 code=ORA-00600
+metric error_count 4 code=ORA-00800
+metric error_count 1 code=ORA-01653
+metric error_count 8 code=ORA-06512
+metric error_count 1 code=ORA-12012
+metric error_count 1 code=ORA-19815
+metric error_count 2 code=ORA-20013
+metric error_count 2 code=ORA-27167
+
+# Oracle 21: what they read.
+  PASS  status runs
+  PASS  performance runs
+  PASS  activity runs
+  PASS  waits runs
+  PASS  tablespaces runs
+  PASS  recovery runs
+  PASS  memory runs
+  PASS  backups runs
+  PASS  health runs
+  PASS  alerts runs
+  PASS  up, the release, a CDB, the primary
+  PASS  open read-write, in ARCHIVELOG mode, the PDB open
+  PASS  sessions and processes, against their limits
+  PASS  the counters: executions, the deadlock, DB time
+  PASS  one session blocked, one at the head of the chain
+  PASS  the blocked one waits on a row lock: class application
+  PASS  the transaction left open, idle, and how long
+  PASS  the oldest transaction, at least as old
+  PASS  waits by class; ten events, each with its count
+  PASS  VIGIL_SMALL filled: above 85% of what it can hold
+  PASS  and 10 MB at most, online
+  PASS  the data files, against db_files
+  PASS  the recovery area: its limit, some 90% full
+  PASS  the log switches, the archiver without error
+  PASS  the memory: SGA, PGA against its limit
+  PASS  the full backup and the archived logs, minutes old
+  PASS  the failed backup counted; the last one, its size
+  PASS  the invalid view, in the PDB
+  PASS  the account whose password expires in 3 days
+  PASS  the Scheduler job that failed, by name
+  PASS  no corrupt blocks, no file needing recovery
+  PASS  the alert log: readable, the full tablespace and the deadlock
+  PASS  and the errors, counted
+
+# Logins, grants, the password's whereabouts, and Oracle Net's encryption.
+  PASS  a wrong password fails the run, and says so
+        status: the query failed: ORA-01017: invalid username/password; logon denied 
+  PASS  no password set: the run fails, saying where it comes from
+  PASS  nothing listening: the run succeeds, up 0, no_listener
+  PASS  and another job succeeds, printing nothing
+  PASS  a service the listener does not know: up 0, service_unknown
+  PASS  without the alert log's grant: readable 0, and only that, the run succeeding
+  PASS  and its other jobs run as before
+  PASS  the password on no command line while the job ran (sqlplus's seen)
+net      Encryption service for Linux: Version 21.0.1.0.0 - Production
+net      AES256 Encryption service adapter for Linux: Version 21.0.1.0.0 - Production
+net      Crypto-checksumming service for Linux: Version 21.0.1.0.0 - Production
+net      SHA512 Crypto-checksumming service adapter for Linux: Version 21.0.1.0.0 - Produ
+  PASS  the job's session: encrypted with AES, its integrity checked
+  PASS  a server that rejects encryption: the run fails, saying so
+        status: the query failed: ORA-12660: Encryption or crypto-checksumming parameters incompatible 
+  PASS  and with it put back, up 1 again
+
+# The pack through Vigil, against Oracle 21.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)
+  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)
+  SKIP  mongodb: set VIGIL_IT_MONGODB_URL and VIGIL_IT_MONGODB_PASSWORD (scripts/run-mongodb.sh sets them up)
+oracle: 127.0.0.1:11521/XE as C##VIGIL_MONITOR
+  PASS  oracle: off until enabled
+  PASS  oracle: enabled
+        on: oracle_status
+        on: oracle_performance
+        on: oracle_activity
+        on: oracle_waits
+        on: oracle_tablespaces
+        on: oracle_recovery
+        on: oracle_memory
+        on: oracle_backups
+        on: oracle_health
+        on: oracle_alerts
+        needs secret:ORACLE_MONITOR_PASSWORD: not set: vigil secret set ORACLE_MONITOR_PASSWORD, as the account Vigil runs as
+        needs a read-only user, as SYSDBA in the CDB root: CREATE USER C##VIGIL_MONITOR IDENTIFIED BY "..." CONTAINER=ALL; GRANT CREATE SESSION, SELECT_CATALOG_ROLE TO C##VIGIL_MONITOR CONTAINER=ALL; ALTER USER C##VIGIL_MONITOR SET CONTAINER_DATA=ALL CONTAINER=CURRENT (not a CDB: VIGIL_MONITOR, without CONTAINER and CONTAINER_DATA)
+        needs for oracle_alerts: GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO C##VIGIL_MONITOR CONTAINER=ALL
+        settings in vigil.config: ORACLE_HOST=localhost ORACLE_PORT=1521 ORACLE_SERVICE=ORCLCDB ORACLE_USER=C##VIGIL_MONITOR
+  PASS  oracle: its jobs are on
+  PASS  oracle: it names the secret it needs, not set
+  PASS  oracle: the password is a secret reference, on every job
+  PASS  oracle: precheck is happy
+  PASS  oracle: every job runs
+        status: 14 lines
+        performance: 25 lines
+        activity: 12 lines
+        waits: 40 lines
+        tablespaces: 44 lines
+        recovery: 11 lines
+        memory: 12 lines
+        backups: 7 lines
+        health: 9 lines
+        alerts: 14 lines
+  PASS  oracle: up, open
+  PASS  oracle: the blocked session, seen
+  PASS  oracle: the alert log, readable
+  PASS  oracle: a wrong password fails the run
+  PASS  oracle: and says why
+  PASS  oracle: a database that does not answer still runs
+  PASS  oracle: and reads as up 0
+  PASS  oracle: the password is written nowhere
+  SKIP  zookeeper: set VIGIL_IT_ZOOKEEPER_SERVERS (scripts/run-zookeeper.sh sets it up)
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  docker: set VIGIL_IT_DOCKER (scripts/run-containers.sh docker sets it up)
+  SKIP  podman: set VIGIL_IT_PODMAN (scripts/run-containers.sh podman sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (scripts/run-sqlite.sh sets it up)
+17 passed, 0 failed
+
+# The PDB closed.
+
+$ bash packs/oracle/linux/status.sh   (XEPDB1 closed)
+metric up 1
+metric info 1 release=21 version=21.3.0.0.0 edition=xe cdb=yes role=primary
+metric uptime_seconds 155
+metric open 1 mode=read_write
+metric archivelog 1
+metric cpus 4
+metric processes 75
+metric processes_max 320
+metric processes_pct 23.44
+metric sessions 104
+metric sessions_max 502
+metric sessions_pct 20.72
+metric pdbs 1
+metric pdb_open 0 pdb=XEPDB1 mode=mounted
+  PASS  the PDB closed: pdb_open 0, mounted; the CDB still up
+
+$ bash packs/oracle/linux/health.sh   (XEPDB1 closed)
+metric invalid_objects 0 pdb=CDB_ROOT
+metric corrupt_blocks 0
+metric datafiles_need_recovery 0
+metric datafiles_offline 0
+metric accounts_expiring 0
+metric scheduler_failed_24h 0
+metric scheduler_broken 0
+  PASS  and health still runs, the closed PDB left out
+
+# Logins restricted.
+
+$ bash packs/oracle/linux/status.sh   (restricted)
+metric up 0 reason=restricted
+  PASS  logins restricted: up 0, restricted, the run succeeding
+
+# Mounted, not open.
+
+$ bash packs/oracle/linux/status.sh   (mounted)
+metric up 0 reason=not_open
+  PASS  mounted: up 0, not_open
+
+# Shut down.
+
+$ bash packs/oracle/linux/status.sh   (shut down)
+metric up 0 reason=service_unknown
+  PASS  shut down: up 0, the listener knowing no such service
+
+$ bash packs/oracle/linux/tablespaces.sh   (shut down)
+  PASS  and another job succeeds, printing nothing
+50 passed, 0 failed
+evidence: reports/runs/2026-11-28/fedora/pack-oracle-21

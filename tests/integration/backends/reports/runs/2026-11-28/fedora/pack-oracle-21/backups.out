@@ -1,0 +1,7 @@
+metric archivelog_age_seconds 55
+metric full_age_seconds 62
+metric incremental_age_seconds -1
+metric failed_24h 1
+metric running 0
+metric last_bytes 2154823680
+metric last_seconds 32

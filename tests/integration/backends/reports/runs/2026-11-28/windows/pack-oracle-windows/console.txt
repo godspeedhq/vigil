@@ -1,0 +1,235 @@
+== pack-oracle-windows
+date     2026-11-28
+host     the HP test machine (Windows 11), as an account that is not an administrator, over SSH
+vigil    0b572a7 (deployed copy)
+servers  run-oracle.sh's Oracle Database 23ai Free on the Fedora test machine, held (VIGIL_IT_ORACLE_HOLD), through SSH tunnels
+client   Oracle Instant Client 23.26 for Windows x64 (basic lite and sqlplus)
+
+# Every job under each PowerShell; a wrong password, no password, nothing listening, a service not there, the user without the alert log's grant; then the pack through Vigil under each:
+
+shells: powershell.exe, pwsh.exe; sqlplus SQL*Plus: Release 23.26.1.0.0 - Production
+
+# Every job under each PowerShell, as C##VIGIL_MONITOR:
+
+status powershell.exe: 14 lines, exit 0
+  PASS  status runs under powershell.exe
+status pwsh.exe: 14 lines, exit 0
+  PASS  status runs under pwsh.exe
+performance powershell.exe: 25 lines, exit 0
+  PASS  performance runs under powershell.exe
+performance pwsh.exe: 25 lines, exit 0
+  PASS  performance runs under pwsh.exe
+activity powershell.exe: 12 lines, exit 0
+  PASS  activity runs under powershell.exe
+activity pwsh.exe: 12 lines, exit 0
+  PASS  activity runs under pwsh.exe
+waits powershell.exe: 42 lines, exit 0
+  PASS  waits runs under powershell.exe
+waits pwsh.exe: 42 lines, exit 0
+  PASS  waits runs under pwsh.exe
+tablespaces powershell.exe: 48 lines, exit 0
+  PASS  tablespaces runs under powershell.exe
+tablespaces pwsh.exe: 48 lines, exit 0
+  PASS  tablespaces runs under pwsh.exe
+recovery powershell.exe: 11 lines, exit 0
+  PASS  recovery runs under powershell.exe
+recovery pwsh.exe: 11 lines, exit 0
+  PASS  recovery runs under pwsh.exe
+memory powershell.exe: 12 lines, exit 0
+  PASS  memory runs under powershell.exe
+memory pwsh.exe: 12 lines, exit 0
+  PASS  memory runs under pwsh.exe
+backups powershell.exe: 7 lines, exit 0
+  PASS  backups runs under powershell.exe
+backups pwsh.exe: 7 lines, exit 0
+  PASS  backups runs under pwsh.exe
+health powershell.exe: 9 lines, exit 0
+  PASS  health runs under powershell.exe
+health pwsh.exe: 9 lines, exit 0
+  PASS  health runs under pwsh.exe
+alerts powershell.exe: 4 lines, exit 0
+  PASS  alerts runs under powershell.exe
+alerts pwsh.exe: 4 lines, exit 0
+  PASS  alerts runs under pwsh.exe
+
+$ powershell.exe -File packs\oracle\windows\activity.ps1
+metric sessions 2 state=active
+metric sessions 1 state=inactive
+metric active 1 class=application
+metric blocked 1
+metric longest_blocked_seconds 773.65
+metric head_blockers 1
+metric longest_active_seconds 774
+metric transactions 1
+metric oldest_transaction_seconds 777
+metric idle_in_transaction 1
+metric idle_in_transaction_seconds 777
+metric long_operations 0
+
+$ pwsh.exe -File packs\oracle\windows\status.ps1
+metric up 1
+metric info 1 release=23 version=23.26.4.0.0 edition=free cdb=yes role=primary
+metric uptime_seconds 2361
+metric open 1 mode=read_write
+metric archivelog 1
+metric cpus 4
+metric processes 95
+metric processes_max 200
+metric processes_pct 47.5
+metric sessions 126
+metric sessions_max 322
+metric sessions_pct 39.13
+metric pdbs 1
+metric pdb_open 1 pdb=FREEPDB1 mode=read_write
+  PASS  up, 23ai Free, a CDB, open
+  PASS  the blocked session and its blocker, seen
+  PASS  the alert log, readable
+
+# Logins and grants, under each PowerShell:
+  PASS  powershell.exe: a wrong password fails the run, and says so
+        powershell.exe : status: the query failed: ORA-01017: invalid credential or not authorized; logon 
+        denied Help: https://docs.oracle.com/error-help/db/ora-01017/
+        At C:\Users\vigil-test\ora-it\hp-ora2.ps1:29 char:5
+        +     & $Shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $rep ...
+        +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            + CategoryInfo          : NotSpecified: (status: the que...p/db/ora-01017/:String) [], Remote 
+           Exception
+            + FullyQualifiedErrorId : NativeCommandError
+         
+  PASS  powershell.exe: no password: the run fails, saying where it comes from
+  PASS  powershell.exe: nothing listening: up 0, no_listener, the run succeeding
+  PASS  powershell.exe: and another job succeeds, printing nothing
+  PASS  powershell.exe: a service not there: up 0, service_unknown
+  PASS  powershell.exe: without the alert log's grant: readable 0, and only that
+  PASS  pwsh.exe: a wrong password fails the run, and says so
+  PASS  pwsh.exe: no password: the run fails, saying where it comes from
+  PASS  pwsh.exe: nothing listening: up 0, no_listener, the run succeeding
+  PASS  pwsh.exe: and another job succeeds, printing nothing
+  PASS  pwsh.exe: a service not there: up 0, service_unknown
+  PASS  pwsh.exe: without the alert log's grant: readable 0, and only that
+
+# The pack through Vigil, under each PowerShell:
+
+== powershell.exe tests\integration\Service-Packs.ps1
+PowerShell 5.1.26100.10068
+  PASS  init
+  PASS  the pack is off until enabled
+oracle: 127.0.0.1:11523/FREE as C##VIGIL_MONITOR
+  PASS  oracle: off until enabled
+  PASS  oracle: enabled
+        on: oracle_status
+        on: oracle_performance
+        on: oracle_activity
+        on: oracle_waits
+        on: oracle_tablespaces
+        on: oracle_recovery
+        on: oracle_memory
+        on: oracle_backups
+        on: oracle_health
+        on: oracle_alerts
+        needs secret:ORACLE_MONITOR_PASSWORD: not set: vigil secret set ORACLE_MONITOR_PASSWORD, as the account Vigil runs as (an elevated prompt for a system install)
+        needs a read-only user, as SYSDBA in the CDB root: CREATE USER C##VIGIL_MONITOR IDENTIFIED BY "..." CONTAINER=ALL; GRANT CREATE SESSION, SELECT_CATALOG_ROLE TO C##VIGIL_MONITOR CONTAINER=ALL; ALTER USER C##VIGIL_MONITOR SET CONTAINER_DATA=ALL CONTAINER=CURRENT (not a CDB: VIGIL_MONITOR, without CONTAINER and CONTAINER_DATA)
+        needs for oracle_alerts: GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO C##VIGIL_MONITOR CONTAINER=ALL
+        settings in vigil.config: ORACLE_HOST=localhost ORACLE_PORT=1521 ORACLE_SERVICE=ORCLCDB ORACLE_USER=C##VIGIL_MONITOR
+  PASS  oracle: its jobs are on
+  PASS  oracle: the password is a secret reference, on every job
+  note  oracle: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_ORACLE_PASSWORD
+  PASS  oracle: precheck is happy
+  PASS  oracle: every job runs
+  PASS  oracle: up, open
+  PASS  oracle: the blocked session, seen
+  PASS  oracle: the alert log, readable
+        metric sessions 2 state=active
+        metric sessions 1 state=inactive
+        metric active 1 class=application
+        metric blocked 1
+        metric longest_blocked_seconds 947.24
+        metric head_blockers 1
+        metric longest_active_seconds 947
+        metric transactions 1
+        metric oldest_transaction_seconds 951
+        metric idle_in_transaction 1
+        metric idle_in_transaction_seconds 950
+        metric long_operations 0
+  PASS  oracle: a wrong password fails the run
+  PASS  oracle: and says why
+  PASS  oracle: a database that does not answer still runs
+  PASS  oracle: and reads as up 0
+  PASS  oracle: the password is written nowhere
+  PASS  oracle: metrics reach the backend, each tablespace by its name
+17 passed, 0 failed
+
+== pwsh.exe tests\integration\Service-Packs.ps1
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+oracle: 127.0.0.1:11523/FREE as C##VIGIL_MONITOR
+  PASS  oracle: off until enabled
+  PASS  oracle: enabled
+        on: oracle_status
+        on: oracle_performance
+        on: oracle_activity
+        on: oracle_waits
+        on: oracle_tablespaces
+        on: oracle_recovery
+        on: oracle_memory
+        on: oracle_backups
+        on: oracle_health
+        on: oracle_alerts
+        needs secret:ORACLE_MONITOR_PASSWORD: not set: vigil secret set ORACLE_MONITOR_PASSWORD, as the account Vigil runs as (an elevated prompt for a system install)
+        needs a read-only user, as SYSDBA in the CDB root: CREATE USER C##VIGIL_MONITOR IDENTIFIED BY "..." CONTAINER=ALL; GRANT CREATE SESSION, SELECT_CATALOG_ROLE TO C##VIGIL_MONITOR CONTAINER=ALL; ALTER USER C##VIGIL_MONITOR SET CONTAINER_DATA=ALL CONTAINER=CURRENT (not a CDB: VIGIL_MONITOR, without CONTAINER and CONTAINER_DATA)
+        needs for oracle_alerts: GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO C##VIGIL_MONITOR CONTAINER=ALL
+        settings in vigil.config: ORACLE_HOST=localhost ORACLE_PORT=1521 ORACLE_SERVICE=ORCLCDB ORACLE_USER=C##VIGIL_MONITOR
+  PASS  oracle: its jobs are on
+  PASS  oracle: the password is a secret reference, on every job
+  note  oracle: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_ORACLE_PASSWORD
+  PASS  oracle: precheck is happy
+  PASS  oracle: every job runs
+  PASS  oracle: up, open
+  PASS  oracle: the blocked session, seen
+  PASS  oracle: the alert log, readable
+        metric sessions 2 state=active
+        metric sessions 1 state=inactive
+        metric active 1 class=application
+        metric blocked 1
+        metric longest_blocked_seconds 1231.21
+        metric head_blockers 1
+        metric longest_active_seconds 1232
+        metric transactions 1
+        metric oldest_transaction_seconds 1235
+        metric idle_in_transaction 1
+        metric idle_in_transaction_seconds 1235
+        metric long_operations 0
+  PASS  oracle: a wrong password fails the run
+  PASS  oracle: and says why
+  PASS  oracle: a database that does not answer still runs
+  PASS  oracle: and reads as up 0
+  PASS  oracle: the password is written nowhere
+  PASS  oracle: metrics reach the backend, each tablespace by its name
+17 passed, 0 failed
+
+35 passed, 0 failed
+
+# The Windows outputs beside the Linux scripts' (read on Fedora just after), against the same database: the same metric names and tags.
+
+same     activity powershell.exe: 12 lines, the same names and tags
+same     activity pwsh.exe: 12 lines, the same names and tags
+same     alerts powershell.exe: 4 lines, the same names and tags
+same     alerts pwsh.exe: 4 lines, the same names and tags
+same     backups powershell.exe: 7 lines, the same names and tags
+same     backups pwsh.exe: 7 lines, the same names and tags
+same     health powershell.exe: 9 lines, the same names and tags
+same     health pwsh.exe: 9 lines, the same names and tags
+same     memory powershell.exe: 12 lines, the same names and tags
+same     memory pwsh.exe: 12 lines, the same names and tags
+same     performance powershell.exe: 25 lines, the same names and tags
+same     performance pwsh.exe: 25 lines, the same names and tags
+same     recovery powershell.exe: 11 lines, the same names and tags
+same     recovery pwsh.exe: 11 lines, the same names and tags
+same     status powershell.exe: 14 lines, the same names and tags
+same     status pwsh.exe: 14 lines, the same names and tags
+same     tablespaces powershell.exe: 48 lines, the same names and tags
+same     tablespaces pwsh.exe: 48 lines, the same names and tags
+same     waits powershell.exe: 42 lines, the same names and tags
+same     waits pwsh.exe: 42 lines, the same names and tags
+0 differ

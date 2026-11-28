@@ -1,0 +1,110 @@
+== pack-oracle-macos
+date     2026-11-28
+host     the Intel Mac test machine (macOS 12.7.6), as an account that is not an administrator, over SSH
+vigil    0b572a7 (deployed copy)
+servers  run-oracle.sh's Oracle Database 23ai Free on the Fedora test machine, held (VIGIL_IT_ORACLE_HOLD), through SSH tunnels
+client   Oracle Instant Client 19.16 (basic lite and sqlplus), the last for Intel Macs
+
+# Every job, as the macOS scripts print it; a wrong password, nothing listening, the user without the alert log's grant; then the pack through Vigil:
+
+bash 3.2.57(1)-release on macOS 12.7.6; SQL*Plus: Release 19.0.0.0.0 - Production
+
+status: 14 lines, exit 0
+  PASS  status runs
+performance: 25 lines, exit 0
+  PASS  performance runs
+activity: 12 lines, exit 0
+  PASS  activity runs
+waits: 42 lines, exit 0
+  PASS  waits runs
+tablespaces: 48 lines, exit 0
+  PASS  tablespaces runs
+recovery: 11 lines, exit 0
+  PASS  recovery runs
+memory: 12 lines, exit 0
+  PASS  memory runs
+backups: 7 lines, exit 0
+  PASS  backups runs
+health: 9 lines, exit 0
+  PASS  health runs
+alerts: 4 lines, exit 0
+  PASS  alerts runs
+
+$ bash packs/oracle/macos/activity.sh
+metric sessions 2 state=active
+metric sessions 1 state=inactive
+metric active 1 class=application
+metric blocked 1
+metric longest_blocked_seconds 50.72
+metric head_blockers 1
+metric longest_active_seconds 254
+metric transactions 1
+metric oldest_transaction_seconds 54
+metric idle_in_transaction 1
+metric idle_in_transaction_seconds 54
+metric long_operations 0
+
+$ bash packs/oracle/macos/backups.sh
+metric archivelog_age_seconds 1591
+metric full_age_seconds 1598
+metric incremental_age_seconds -1
+metric failed_24h 1
+metric running 0
+metric last_bytes 2464153600
+metric last_seconds 32
+  PASS  up, 23ai Free, a CDB, open
+  PASS  the blocked session and its blocker, seen
+  PASS  the alert log, readable
+
+  PASS  a wrong password fails the run, and says so
+        status: the query failed: ORA-01017: invalid credential or not authorized; logon denied 
+  PASS  nothing listening: up 0, the run succeeding (19c reads a refused port as ORA-12547: unreachable)
+  PASS  without the alert log's grant: readable 0, and only that
+
+# The pack through Vigil:
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+oracle: 127.0.0.1:11523/FREE as C##VIGIL_MONITOR
+  PASS  oracle: off until enabled
+  PASS  oracle: enabled
+        on: oracle_status
+        on: oracle_performance
+        on: oracle_activity
+        on: oracle_waits
+        on: oracle_tablespaces
+        on: oracle_recovery
+        on: oracle_memory
+        on: oracle_backups
+        on: oracle_health
+        on: oracle_alerts
+        needs secret:ORACLE_MONITOR_PASSWORD: not set: vigil secret set ORACLE_MONITOR_PASSWORD, as the account Vigil runs as
+        needs a read-only user, as SYSDBA in the CDB root: CREATE USER C##VIGIL_MONITOR IDENTIFIED BY "..." CONTAINER=ALL; GRANT CREATE SESSION, SELECT_CATALOG_ROLE TO C##VIGIL_MONITOR CONTAINER=ALL; ALTER USER C##VIGIL_MONITOR SET CONTAINER_DATA=ALL CONTAINER=CURRENT (not a CDB: VIGIL_MONITOR, without CONTAINER and CONTAINER_DATA)
+        needs for oracle_alerts: GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO C##VIGIL_MONITOR CONTAINER=ALL
+        settings in vigil.config: ORACLE_HOST=localhost ORACLE_PORT=1521 ORACLE_SERVICE=ORCLCDB ORACLE_USER=C##VIGIL_MONITOR
+  PASS  oracle: its jobs are on
+  PASS  oracle: it names the secret it needs, not set
+  PASS  oracle: the password is a secret reference, on every job
+  PASS  oracle: precheck is happy
+  PASS  oracle: every job runs
+        status: 14 lines
+        performance: 25 lines
+        activity: 12 lines
+        waits: 42 lines
+        tablespaces: 48 lines
+        recovery: 11 lines
+        memory: 12 lines
+        backups: 7 lines
+        health: 9 lines
+        alerts: 4 lines
+  PASS  oracle: up, open
+  PASS  oracle: the blocked session, seen
+  PASS  oracle: the alert log, readable
+  PASS  oracle: a wrong password fails the run
+  PASS  oracle: and says why
+  PASS  oracle: a database that does not answer still runs
+  PASS  oracle: and reads as up 0
+  PASS  oracle: the password is written nowhere
+17 passed, 0 failed
+
+16 passed, 0 failed
