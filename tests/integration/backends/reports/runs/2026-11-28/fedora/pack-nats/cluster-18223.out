@@ -1,0 +1,11 @@
+metric up 1
+metric clustered 1
+metric routes_configured 2
+metric route_peers 2
+metric route_peer 1 peer=n1
+metric route_peer 1 peer=n3
+metric route_peer_not_shown 0
+metric route_connections 8
+metric route_pending_bytes 0
+metric route_rtt_max_ms 0.615
+metric leafnodes 0

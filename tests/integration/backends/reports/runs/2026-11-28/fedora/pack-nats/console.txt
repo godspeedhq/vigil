@@ -1,0 +1,536 @@
+== pack-nats
+date     2026-11-28T17:17:37Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    cb0ba28 (deployed copy)
+command  tests/integration/backends/scripts/run-nats.sh
+bash     5.3.9(1)-release
+git      git version 2.56.1
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.19.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.nats.yaml pins them)
+         nats:${NATS14_VERSION:-2.14.10-alpine}
+         nats:${NATS_VERSION:-2.15.3-alpine}
+
+nats     n1 nats:2.15.3-alpine; n2 nats:2.15.3-alpine; n3 nats:2.15.3-alpine; plain nats:2.15.3-alpine; s14 nats:2.14.10-alpine
+cluster  ORDERS (R3): 500 orders, consumer billing fetched 50 without acking, then 50 again after its 2s ack wait; LIMITED (R3, 64 KB, discard new): 200 KB sent
+slow     stuck-reader subscribed to firehose on n1 and never read; 8 MB published to it
+s14      BIG: 4 MB published into 2 MB of storage; 15 clients of the 20 allowed
+
+# The cluster, NATS 2.15: every job on each of its three servers.
+
+$ NATS_URL=http://127.0.0.1:18222 bash packs/nats/linux/status.sh
+metric up 1
+metric healthy 1
+metric info 1 server=n1 version=2.15.3 cluster=c1 jetstream=on
+metric uptime_seconds 30
+metric last_reload_seconds 30
+metric connections 0
+metric max_connections 65536
+metric connections_pct 0
+metric total_connections_count 9
+metric subscriptions 272
+metric slow_consumers_count 2
+metric slow_consumer_clients_count 2
+metric slow_consumer_routes_count 0
+metric slow_consumer_gateways_count 0
+metric slow_consumer_leafs_count 0
+metric stale_connections_count 0
+metric in_msgs_count 6742
+metric out_msgs_count 3491
+metric in_bytes_count 8603626
+metric out_bytes_count 1852581
+metric pending_bytes_max 0 client=none
+
+$ NATS_URL=http://127.0.0.1:18222 bash packs/nats/linux/cluster.sh
+metric up 1
+metric clustered 1
+metric routes_configured 2
+metric route_peers 2
+metric route_peer 1 peer=n2
+metric route_peer 1 peer=n3
+metric route_connections 8
+metric route_pending_bytes 0
+metric route_rtt_max_ms 0.46
+metric leafnodes 0
+
+$ NATS_URL=http://127.0.0.1:18222 bash packs/nats/linux/jetstream.sh
+metric up 1
+metric jetstream 1
+metric memory_bytes 0
+metric storage_bytes 89235
+metric max_memory_bytes 6141358080
+metric max_storage_bytes 53622297600
+metric memory_pct 0
+metric storage_pct 0
+metric streams 2
+metric consumers 1
+metric messages 561
+metric bytes 89235
+metric api_count 6
+metric api_errors_count 1
+metric meta_cluster_size 3
+metric meta_leader_known 1
+metric meta_is_leader 1
+metric meta_replicas_behind 0
+metric streams_led 0
+metric streams_no_leader 0
+metric stream_replicas_behind 0
+metric consumers_led 1
+metric consumers_pending 450
+metric consumers_ack_pending 50
+metric consumers_redelivered 50
+metric consumer_pending 450 stream=ORDERS consumer=billing
+metric consumer_ack_pending 50 stream=ORDERS consumer=billing
+metric consumer_redelivered 50 stream=ORDERS consumer=billing
+
+$ NATS_URL=http://127.0.0.1:18223 bash packs/nats/linux/status.sh
+metric up 1
+metric healthy 1
+metric info 1 server=n2 version=2.15.3 cluster=c1 jetstream=on
+metric uptime_seconds 29
+metric last_reload_seconds 29
+metric connections 0
+metric max_connections 65536
+metric connections_pct 0
+metric total_connections_count 0
+metric subscriptions 272
+metric slow_consumers_count 0
+metric slow_consumer_clients_count 0
+metric slow_consumer_routes_count 0
+metric slow_consumer_gateways_count 0
+metric slow_consumer_leafs_count 0
+metric stale_connections_count 0
+metric in_msgs_count 2859
+metric out_msgs_count 2351
+metric in_bytes_count 190369
+metric out_bytes_count 182252
+metric pending_bytes_max 0 client=none
+
+$ NATS_URL=http://127.0.0.1:18223 bash packs/nats/linux/cluster.sh
+metric up 1
+metric clustered 1
+metric routes_configured 2
+metric route_peers 2
+metric route_peer 1 peer=n1
+metric route_peer 1 peer=n3
+metric route_connections 8
+metric route_pending_bytes 0
+metric route_rtt_max_ms 0.615
+metric leafnodes 0
+
+$ NATS_URL=http://127.0.0.1:18223 bash packs/nats/linux/jetstream.sh
+metric up 1
+metric jetstream 1
+metric memory_bytes 0
+metric storage_bytes 89235
+metric max_memory_bytes 6141358080
+metric max_storage_bytes 53622297600
+metric memory_pct 0
+metric storage_pct 0
+metric streams 2
+metric consumers 1
+metric messages 561
+metric bytes 89235
+metric api_count 2
+metric api_errors_count 0
+metric meta_cluster_size 3
+metric meta_leader_known 1
+metric meta_is_leader 0
+metric streams_led 1
+metric streams_no_leader 0
+metric stream_replicas_behind 0
+metric stream_messages 500 stream=ORDERS
+metric stream_bytes 24392 stream=ORDERS
+metric consumers_led 0
+metric consumers_pending 0
+metric consumers_ack_pending 0
+metric consumers_redelivered 0
+
+$ NATS_URL=http://127.0.0.1:18224 bash packs/nats/linux/status.sh
+metric up 1
+metric healthy 1
+metric info 1 server=n3 version=2.15.3 cluster=c1 jetstream=on
+metric uptime_seconds 30
+metric last_reload_seconds 30
+metric connections 0
+metric max_connections 65536
+metric connections_pct 0
+metric total_connections_count 0
+metric subscriptions 272
+metric slow_consumers_count 0
+metric slow_consumer_clients_count 0
+metric slow_consumer_routes_count 0
+metric slow_consumer_gateways_count 0
+metric slow_consumer_leafs_count 0
+metric stale_connections_count 0
+metric in_msgs_count 1813
+metric out_msgs_count 1605
+metric in_bytes_count 348491
+metric out_bytes_count 211479
+metric pending_bytes_max 0 client=none
+
+$ NATS_URL=http://127.0.0.1:18224 bash packs/nats/linux/cluster.sh
+metric up 1
+metric clustered 1
+metric routes_configured 2
+metric route_peers 2
+metric route_peer 1 peer=n1
+metric route_peer 1 peer=n2
+metric route_connections 8
+metric route_pending_bytes 0
+metric route_rtt_max_ms 0.308
+metric leafnodes 0
+
+$ NATS_URL=http://127.0.0.1:18224 bash packs/nats/linux/jetstream.sh
+metric up 1
+metric jetstream 1
+metric memory_bytes 0
+metric storage_bytes 89235
+metric max_memory_bytes 6141358080
+metric max_storage_bytes 53622297600
+metric memory_pct 0
+metric storage_pct 0
+metric streams 2
+metric consumers 1
+metric messages 561
+metric bytes 89235
+metric api_count 1
+metric api_errors_count 0
+metric meta_cluster_size 3
+metric meta_leader_known 1
+metric meta_is_leader 0
+metric streams_led 1
+metric streams_no_leader 0
+metric stream_replicas_behind 0
+metric stream_messages 61 stream=LIMITED
+metric stream_bytes 64843 stream=LIMITED
+metric stream_used_pct 98.94 stream=LIMITED
+metric consumers_led 0
+metric consumers_pending 0
+metric consumers_ack_pending 0
+metric consumers_redelivered 0
+
+# What they read.
+  PASS  18222: status runs
+  PASS  18222: cluster runs
+  PASS  18222: jetstream runs
+  PASS  18223: status runs
+  PASS  18223: cluster runs
+  PASS  18223: jetstream runs
+  PASS  18224: status runs
+  PASS  18224: cluster runs
+  PASS  18224: jetstream runs
+  PASS  each healthy, 2.15.3, in cluster c1, JetStream on
+  PASS  each has routes to the other two, named
+  PASS  one meta leader, which has no server behind
+  PASS  each stream counted once, by its leader
+  PASS  billing: 450 not given yet, 50 waiting for acks, redelivered, named
+  PASS  LIMITED: at its 64 KB, by its leader
+  PASS  the client that stopped reading: cut off, as a slow client
+
+# NATS 2.14 alone, JetStream with 2 MB of file storage and 20 connections at most.
+
+$ NATS_URL=http://127.0.0.1:18232 bash packs/nats/linux/status.sh
+metric up 1
+metric healthy 1
+metric info 1 server=s14 version=2.14.10 cluster=none jetstream=on
+metric uptime_seconds 32
+metric last_reload_seconds 32
+metric connections 15
+metric max_connections 20
+metric connections_pct 75
+metric total_connections_count 17
+metric subscriptions 82
+metric slow_consumers_count 0
+metric slow_consumer_clients_count 0
+metric slow_consumer_routes_count 0
+metric slow_consumer_gateways_count 0
+metric slow_consumer_leafs_count 0
+metric stale_connections_count 0
+metric in_msgs_count 1002
+metric out_msgs_count 2
+metric in_bytes_count 4096390
+metric out_bytes_count 1194
+metric pending_bytes_max 0 client=NATS_CLI_Version_0.5.1
+
+$ NATS_URL=http://127.0.0.1:18232 bash packs/nats/linux/cluster.sh
+metric up 1
+metric clustered 0
+
+$ NATS_URL=http://127.0.0.1:18232 bash packs/nats/linux/jetstream.sh
+metric up 1
+metric jetstream 1
+metric memory_bytes 0
+metric storage_bytes 2098548
+metric max_memory_bytes 1048576
+metric max_storage_bytes 2097152
+metric memory_pct 0
+metric storage_pct 100.07
+metric streams 1
+metric consumers 0
+metric messages 508
+metric bytes 2098548
+metric api_count 2
+metric api_errors_count 0
+metric streams_led 1
+metric streams_no_leader 0
+metric stream_replicas_behind 0
+metric stream_messages 508 stream=BIG
+metric stream_bytes 2098548 stream=BIG
+metric consumers_led 0
+metric consumers_pending 0
+metric consumers_ack_pending 0
+metric consumers_redelivered 0
+  PASS  2.14: status runs
+  PASS  2.14: cluster runs
+  PASS  2.14: jetstream runs
+  PASS  2.14: its version; alone
+  PASS  2.14: 15 clients or more, of 20: 75% or more
+  PASS  2.14: its storage nearly full
+  PASS  2.14: alone, it leads its stream; no meta cluster
+
+# NATS 2.15 with neither JetStream nor a cluster.
+
+$ NATS_URL=http://127.0.0.1:18242 bash packs/nats/linux/status.sh
+metric up 1
+metric healthy 1
+metric info 1 server=plain version=2.15.3 cluster=none jetstream=off
+metric uptime_seconds 31
+metric last_reload_seconds 31
+metric connections 0
+metric max_connections 65536
+metric connections_pct 0
+metric total_connections_count 0
+metric subscriptions 60
+metric slow_consumers_count 0
+metric slow_consumer_clients_count 0
+metric slow_consumer_routes_count 0
+metric slow_consumer_gateways_count 0
+metric slow_consumer_leafs_count 0
+metric stale_connections_count 0
+metric in_msgs_count 0
+metric out_msgs_count 0
+metric in_bytes_count 0
+metric out_bytes_count 0
+metric pending_bytes_max 0 client=none
+
+$ NATS_URL=http://127.0.0.1:18242 bash packs/nats/linux/cluster.sh
+metric up 1
+metric clustered 0
+
+$ NATS_URL=http://127.0.0.1:18242 bash packs/nats/linux/jetstream.sh
+metric up 1
+metric jetstream 0
+  PASS  plain: JetStream off, alone; each job says so and stops
+
+# A server of the cluster, n3, stops.
+
+$ NATS_URL=http://127.0.0.1:18222 bash packs/nats/linux/cluster.sh   (n3 stopped)
+metric up 1
+metric clustered 1
+metric routes_configured 2
+metric route_peers 1
+metric route_peer 1 peer=n2
+metric route_connections 4
+metric route_pending_bytes 0
+metric route_rtt_max_ms 0.532
+metric leafnodes 0
+
+$ NATS_URL=http://127.0.0.1:18222 bash packs/nats/linux/jetstream.sh   (n3 stopped)
+metric up 1
+metric jetstream 1
+metric memory_bytes 0
+metric storage_bytes 89235
+metric max_memory_bytes 6141358080
+metric max_storage_bytes 53622297600
+metric memory_pct 0
+metric storage_pct 0
+metric streams 2
+metric consumers 1
+metric messages 561
+metric bytes 89235
+metric api_count 6
+metric api_errors_count 1
+metric meta_cluster_size 3
+metric meta_leader_known 1
+metric meta_is_leader 1
+metric meta_replicas_behind 1
+metric meta_behind 1 server=n3
+metric streams_led 1
+metric streams_no_leader 0
+metric stream_replicas_behind 1
+metric stream_behind 1 stream=LIMITED replica=n3
+metric stream_messages 61 stream=LIMITED
+metric stream_bytes 64843 stream=LIMITED
+metric stream_used_pct 98.94 stream=LIMITED
+metric consumers_led 1
+metric consumers_pending 450
+metric consumers_ack_pending 50
+metric consumers_redelivered 50
+metric consumer_pending 450 stream=ORDERS consumer=billing
+metric consumer_ack_pending 50 stream=ORDERS consumer=billing
+metric consumer_redelivered 50 stream=ORDERS consumer=billing
+
+$ NATS_URL=http://127.0.0.1:18223 bash packs/nats/linux/jetstream.sh   (n3 stopped)
+metric up 1
+metric jetstream 1
+metric memory_bytes 0
+metric storage_bytes 89235
+metric max_memory_bytes 6141358080
+metric max_storage_bytes 53622297600
+metric memory_pct 0
+metric storage_pct 0
+metric streams 2
+metric consumers 1
+metric messages 561
+metric bytes 89235
+metric api_count 2
+metric api_errors_count 0
+metric meta_cluster_size 3
+metric meta_leader_known 1
+metric meta_is_leader 0
+metric streams_led 1
+metric streams_no_leader 0
+metric stream_replicas_behind 1
+metric stream_behind 1 stream=ORDERS replica=n3
+metric stream_messages 500 stream=ORDERS
+metric stream_bytes 24392 stream=ORDERS
+metric consumers_led 0
+metric consumers_pending 0
+metric consumers_ack_pending 0
+metric consumers_redelivered 0
+  PASS  n3 stopped: n1 has one peer, n2
+  PASS  n3 stopped: its replica behind on both streams, named
+  PASS  n3 stopped: still a meta leader; the streams have leaders
+  PASS  n3 stopped: the meta leader says n3 is behind, named
+
+# A second, n2, stops: n1 is alone, a minority.
+
+$ NATS_URL=http://127.0.0.1:18222 bash packs/nats/linux/status.sh   (n2 and n3 stopped)
+metric up 1
+metric healthy 0
+metric info 1 server=n1 version=2.15.3 cluster=c1 jetstream=on
+metric uptime_seconds 61
+metric last_reload_seconds 61
+metric connections 0
+metric max_connections 65536
+metric connections_pct 0
+metric total_connections_count 9
+metric subscriptions 87
+metric slow_consumers_count 2
+metric slow_consumer_clients_count 2
+metric slow_consumer_routes_count 0
+metric slow_consumer_gateways_count 0
+metric slow_consumer_leafs_count 0
+metric stale_connections_count 0
+metric in_msgs_count 6809
+metric out_msgs_count 3560
+metric in_bytes_count 8607984
+metric out_bytes_count 1857232
+metric pending_bytes_max 0 client=none
+
+$ NATS_URL=http://127.0.0.1:18222 bash packs/nats/linux/jetstream.sh   (n2 and n3 stopped)
+metric up 1
+metric jetstream 1
+metric memory_bytes 0
+metric storage_bytes 89235
+metric max_memory_bytes 6141358080
+metric max_storage_bytes 53622297600
+metric memory_pct 0
+metric storage_pct 0
+metric streams 2
+metric consumers 1
+metric messages 561
+metric bytes 89235
+metric api_count 6
+metric api_errors_count 1
+metric meta_cluster_size 3
+metric meta_leader_known 0
+metric meta_is_leader 0
+metric streams_led 0
+metric streams_no_leader 2
+metric stream_replicas_behind 0
+metric consumers_led 0
+metric consumers_pending 0
+metric consumers_ack_pending 0
+metric consumers_redelivered 0
+  PASS  a minority: no meta leader; both streams with no leader; not healthy
+
+# Both start again.
+  PASS  together again: one meta leader, the streams led, no replica behind, healthy
+
+# Nothing listening.
+  PASS  nothing listening: status: up 0, the run succeeding
+  PASS  nothing listening: cluster: up 0, the run succeeding
+  PASS  nothing listening: jetstream: up 0, the run succeeding
+
+# The pack through Vigil, against n1 (and, for up 0, a port nothing listens on).
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)
+  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)
+  SKIP  mongodb: set VIGIL_IT_MONGODB_URL and VIGIL_IT_MONGODB_PASSWORD (scripts/run-mongodb.sh sets them up)
+  SKIP  oracle: set VIGIL_IT_ORACLE_HOST, VIGIL_IT_ORACLE_SERVICE and VIGIL_IT_ORACLE_PASSWORD (scripts/run-oracle.sh sets them up)
+  SKIP  zookeeper: set VIGIL_IT_ZOOKEEPER_SERVERS (scripts/run-zookeeper.sh sets it up)
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  etcd: set VIGIL_IT_OBS_ETCD (scripts/run-obs.sh sets it up)
+  SKIP  openbao: set VIGIL_IT_OBS_OPENBAO (scripts/run-obs.sh sets it up)
+  SKIP  traefik: set VIGIL_IT_OBS_TRAEFIK (scripts/run-obs.sh sets it up)
+nats: NATS_URL=http://127.0.0.1:18222
+  PASS  nats: off until enabled
+  PASS  nats: enabled
+        on: nats_status
+        on: nats_cluster
+        on: nats_jetstream
+        needs its monitoring port, from this machine: -m 8222 (http_port: 8222 in its configuration); env = NATS_URL=... on each job where it is not http://localhost:8222
+        needs jq, on Linux and macOS
+        needs on each server of a cluster: each reports itself, and the streams and consumers it leads; for its CPU and memory: the base pack's processes job
+        settings in vigil.config: NATS_URL= NATS_USER= NATS_CACERT=
+  PASS  nats: it says CPU and memory are the base pack's
+  PASS  nats: its jobs are on
+  PASS  nats: precheck is happy
+        status: 21 lines
+        cluster: 11 lines
+        jetstream: 38 lines
+  PASS  nats: every job runs
+  PASS  nats: answers
+  PASS  nats: a server that does not answer still runs
+  PASS  nats: and reads as up 0
+  SKIP  docker: set VIGIL_IT_DOCKER (scripts/run-containers.sh docker sets it up)
+  SKIP  podman: set VIGIL_IT_PODMAN (scripts/run-containers.sh podman sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (scripts/run-sqlite.sh sets it up)
+  SKIP  tls: set VIGIL_IT_TLS (scripts/run-tls.sh sets it up)
+  PASS  nats: metrics reach the backend
+12 passed, 0 failed
+hold     NATS stays up (18222 to 18224, 18232, 18242) until /home/vigil-test/nats-hold is deleted
+33 passed, 0 failed
+evidence: reports/runs/2026-11-28/fedora/pack-nats

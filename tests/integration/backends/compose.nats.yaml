@@ -1,0 +1,50 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# NATS for the nats pack (scripts/run-nats.sh), which writes each server's
+# configuration into NATS_CONF. Each server's monitoring port is on
+# 127.0.0.1; clients reach them only inside the compose network (nats-box,
+# started by the run script):
+# - n1, n2, n3: NATS 2.15, a JetStream cluster of three, monitoring on
+#   18222, 18223 and 18224; max_pending 1 MB, so a client that stops
+#   reading is cut off soon.
+# - s14: NATS 2.14 alone, monitoring on 18232: JetStream with 2 MB of file
+#   storage, and at most 20 connections.
+# - plain: NATS 2.15 alone, monitoring on 18242: no JetStream, no cluster.
+
+x-nats: &nats
+  mem_limit: 256m
+  image: nats:${NATS_VERSION:-2.15.3-alpine}
+
+services:
+  n1:
+    <<: *nats
+    command: [-c, /conf/n1.conf]
+    volumes: ["${NATS_CONF:?the configuration}:/conf:ro,z"]
+    ports: ["127.0.0.1:18222:8222"]
+  n2:
+    <<: *nats
+    command: [-c, /conf/n2.conf]
+    volumes: ["${NATS_CONF:?the configuration}:/conf:ro,z"]
+    ports: ["127.0.0.1:18223:8222"]
+  n3:
+    <<: *nats
+    command: [-c, /conf/n3.conf]
+    volumes: ["${NATS_CONF:?the configuration}:/conf:ro,z"]
+    ports: ["127.0.0.1:18224:8222"]
+  s14:
+    <<: *nats
+    image: nats:${NATS14_VERSION:-2.14.10-alpine}
+    command: [-c, /conf/s14.conf]
+    volumes: ["${NATS_CONF:?the configuration}:/conf:ro,z"]
+    ports: ["127.0.0.1:18232:8222"]
+  plain:
+    <<: *nats
+    command: [-n, plain, -m, "8222"]
+    ports: ["127.0.0.1:18242:8222"]

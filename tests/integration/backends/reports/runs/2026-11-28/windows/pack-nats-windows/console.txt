@@ -1,0 +1,342 @@
+== pack-nats-windows
+date     2026-11-28
+host     the HP test machine (Windows 11), as an account that is not an administrator, over SSH
+vigil    cb0ba28 (deployed copy)
+servers  run-nats.sh's NATS servers on the Fedora test machine, held (VIGIL_IT_NATS_HOLD), through SSH tunnels: the cluster n1, n2, n3 (2.15.3), 2.14.10 alone, 2.15.3 with no JetStream
+
+
+# Every job under powershell.exe, against each server
+status 18222 powershell.exe: 21 lines, exit 0
+  PASS  powershell status 18222 runs
+cluster 18222 powershell.exe: 11 lines, exit 0
+  PASS  powershell cluster 18222 runs
+jetstream 18222 powershell.exe: 38 lines, exit 0
+  PASS  powershell jetstream 18222 runs
+status 18223 powershell.exe: 21 lines, exit 0
+  PASS  powershell status 18223 runs
+cluster 18223 powershell.exe: 11 lines, exit 0
+  PASS  powershell cluster 18223 runs
+jetstream 18223 powershell.exe: 32 lines, exit 0
+  PASS  powershell jetstream 18223 runs
+status 18224 powershell.exe: 21 lines, exit 0
+  PASS  powershell status 18224 runs
+cluster 18224 powershell.exe: 11 lines, exit 0
+  PASS  powershell cluster 18224 runs
+jetstream 18224 powershell.exe: 30 lines, exit 0
+  PASS  powershell jetstream 18224 runs
+status 18232 powershell.exe: 21 lines, exit 0
+  PASS  powershell status 18232 runs
+cluster 18232 powershell.exe: 2 lines, exit 0
+  PASS  powershell cluster 18232 runs
+jetstream 18232 powershell.exe: 29 lines, exit 0
+  PASS  powershell jetstream 18232 runs
+status 18242 powershell.exe: 21 lines, exit 0
+  PASS  powershell status 18242 runs
+cluster 18242 powershell.exe: 2 lines, exit 0
+  PASS  powershell cluster 18242 runs
+jetstream 18242 powershell.exe: 2 lines, exit 0
+  PASS  powershell jetstream 18242 runs
+  PASS  powershell: the cluster healthy; n1 has routes to n2 and n3
+  PASS  powershell: one meta leader; each stream counted once, by its leader
+  PASS  powershell: billing: 450 not given, 50 waiting for acks, some redelivered
+  PASS  powershell: LIMITED at its 64 KB; the client that stopped reading cut off
+  PASS  powershell: 2.14: 15 clients of 20; its storage nearly full; alone
+  PASS  powershell: no JetStream, no cluster: each job says so
+  PASS  powershell: nothing listening: up 0, the run succeeding
+
+# Every job under pwsh.exe, against each server
+status 18222 pwsh.exe: 21 lines, exit 0
+  PASS  pwsh status 18222 runs
+cluster 18222 pwsh.exe: 11 lines, exit 0
+  PASS  pwsh cluster 18222 runs
+jetstream 18222 pwsh.exe: 38 lines, exit 0
+  PASS  pwsh jetstream 18222 runs
+status 18223 pwsh.exe: 21 lines, exit 0
+  PASS  pwsh status 18223 runs
+cluster 18223 pwsh.exe: 11 lines, exit 0
+  PASS  pwsh cluster 18223 runs
+jetstream 18223 pwsh.exe: 32 lines, exit 0
+  PASS  pwsh jetstream 18223 runs
+status 18224 pwsh.exe: 21 lines, exit 0
+  PASS  pwsh status 18224 runs
+cluster 18224 pwsh.exe: 11 lines, exit 0
+  PASS  pwsh cluster 18224 runs
+jetstream 18224 pwsh.exe: 30 lines, exit 0
+  PASS  pwsh jetstream 18224 runs
+status 18232 pwsh.exe: 21 lines, exit 0
+  PASS  pwsh status 18232 runs
+cluster 18232 pwsh.exe: 2 lines, exit 0
+  PASS  pwsh cluster 18232 runs
+jetstream 18232 pwsh.exe: 29 lines, exit 0
+  PASS  pwsh jetstream 18232 runs
+status 18242 pwsh.exe: 21 lines, exit 0
+  PASS  pwsh status 18242 runs
+cluster 18242 pwsh.exe: 2 lines, exit 0
+  PASS  pwsh cluster 18242 runs
+jetstream 18242 pwsh.exe: 2 lines, exit 0
+  PASS  pwsh jetstream 18242 runs
+  PASS  pwsh: the cluster healthy; n1 has routes to n2 and n3
+  PASS  pwsh: one meta leader; each stream counted once, by its leader
+  PASS  pwsh: billing: 450 not given, 50 waiting for acks, some redelivered
+  PASS  pwsh: LIMITED at its 64 KB; the client that stopped reading cut off
+  PASS  pwsh: 2.14: 15 clients of 20; its storage nearly full; alone
+  PASS  pwsh: no JetStream, no cluster: each job says so
+  PASS  pwsh: nothing listening: up 0, the run succeeding
+
+$ powershell.exe -File packs\nats\windows\jetstream.ps1   (each of the cluster; the lines of the servers that lead)
+18222  metric streams_led 2
+18222  metric stream_replicas_behind 0
+18222  metric stream_messages 61 stream=LIMITED
+18222  metric stream_bytes 64843 stream=LIMITED
+18222  metric stream_messages 500 stream=ORDERS
+18222  metric stream_bytes 24392 stream=ORDERS
+18222  metric stream_used_pct 98.94 stream=LIMITED
+18222  metric consumer_pending 450 stream=ORDERS consumer=billing
+18222  metric consumer_ack_pending 50 stream=ORDERS consumer=billing
+18222  metric consumer_redelivered 50 stream=ORDERS consumer=billing
+18223  metric meta_is_leader 1
+18223  metric stream_replicas_behind 0
+18224  metric stream_replicas_behind 0
+
+$ pwsh.exe -File packs\nats\windows\status.ps1   (2.14 alone)
+metric up 1
+metric healthy 1
+metric info 1 server=s14 version=2.14.10 cluster=none jetstream=on
+metric uptime_seconds 352
+metric last_reload_seconds 352
+metric connections 15
+metric max_connections 20
+metric connections_pct 75
+metric total_connections_count 17
+metric subscriptions 82
+metric slow_consumers_count 0
+metric slow_consumer_clients_count 0
+metric slow_consumer_routes_count 0
+metric slow_consumer_gateways_count 0
+metric slow_consumer_leafs_count 0
+metric stale_connections_count 0
+metric in_msgs_count 1002
+metric out_msgs_count 2
+metric in_bytes_count 4096390
+metric out_bytes_count 1194
+metric pending_bytes_max 0 client=NATS_CLI_Version_0.5.1
+
+== powershell.exe tests\integration\Service-Packs.ps1
+PowerShell 5.1.26100.10068
+  PASS  init
+  PASS  the pack is off until enabled
+nats: NATS_URL=http://127.0.0.1:18222
+  PASS  nats: enabled
+        on: nats_status
+        on: nats_cluster
+        on: nats_jetstream
+        needs its monitoring port, from this machine: -m 8222 (http_port: 8222 in its configuration); env = NATS_URL=... on each job where it is not http://localhost:8222
+        needs jq, on Linux and macOS
+        needs on each server of a cluster: each reports itself, and the streams and consumers it leads; for its CPU and memory: the base pack's processes job
+        settings in vigil.config: NATS_URL= NATS_USER= NATS_CACERT=
+  PASS  nats: it says CPU and memory are the base pack's
+  PASS  nats: precheck is happy
+  PASS  nats: every job runs (status, cluster, jetstream)
+        metric up 1
+        metric healthy 1
+        metric info 1 server=n1 version=2.15.3 cluster=c1 jetstream=on
+        metric uptime_seconds 402
+        metric last_reload_seconds 402
+        metric connections 0
+        metric max_connections 65536
+        metric connections_pct 0
+        metric total_connections_count 9
+        metric subscriptions 272
+        metric slow_consumers_count 2
+        metric slow_consumer_clients_count 2
+        metric slow_consumer_routes_count 0
+        metric slow_consumer_gateways_count 0
+        metric slow_consumer_leafs_count 0
+        metric stale_connections_count 0
+        metric in_msgs_count 9711
+        metric out_msgs_count 6456
+        metric in_bytes_count 8853115
+        metric out_bytes_count 2127648
+        metric pending_bytes_max 0 client=none
+        metric up 1
+        metric clustered 1
+        metric routes_configured 2
+        metric route_peers 2
+        metric route_peer 1 peer=n2
+        metric route_peer 1 peer=n3
+        metric route_peer_not_shown 0
+        metric route_connections 8
+        metric route_pending_bytes 0
+        metric route_rtt_max_ms 0.32
+        metric leafnodes 0
+        metric up 1
+        metric jetstream 1
+        metric memory_bytes 0
+        metric storage_bytes 89235
+        metric max_memory_bytes 6141358080
+        metric max_storage_bytes 53622297600
+        metric memory_pct 0
+        metric storage_pct 0
+        metric streams 2
+        metric consumers 1
+        metric messages 561
+        metric bytes 89235
+        metric api_count 6
+        metric api_errors_count 1
+        metric meta_cluster_size 3
+        metric meta_leader_known 1
+        metric meta_is_leader 0
+        metric streams_led 2
+        metric streams_no_leader 0
+        metric stream_replicas_behind 0
+        metric stream_behind_not_shown 0
+        metric stream_messages 61 stream=LIMITED
+        metric stream_bytes 64843 stream=LIMITED
+        metric stream_messages 500 stream=ORDERS
+        metric stream_bytes 24392 stream=ORDERS
+        metric stream_not_shown 0
+        metric stream_used_pct 98.94 stream=LIMITED
+        metric stream_used_pct_not_shown 0
+        metric consumers_led 1
+        metric consumers_pending 450
+        metric consumers_ack_pending 50
+        metric consumers_redelivered 50
+        metric consumer_pending 450 stream=ORDERS consumer=billing
+        metric consumer_pending_not_shown 0
+        metric consumer_ack_pending 50 stream=ORDERS consumer=billing
+        metric consumer_ack_pending_not_shown 0
+        metric consumer_redelivered 50 stream=ORDERS consumer=billing
+        metric consumer_redelivered_not_shown 0
+  PASS  nats: answers
+  PASS  nats: a service that does not answer still runs
+  PASS  nats: and reads as up 0
+  PASS  nats: metrics reach the backend
+10 passed, 0 failed
+
+== pwsh.exe tests\integration\Service-Packs.ps1
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+nats: NATS_URL=http://127.0.0.1:18222
+  PASS  nats: enabled
+        on: nats_status
+        on: nats_cluster
+        on: nats_jetstream
+        needs its monitoring port, from this machine: -m 8222 (http_port: 8222 in its configuration); env = NATS_URL=... on each job where it is not http://localhost:8222
+        needs jq, on Linux and macOS
+        needs on each server of a cluster: each reports itself, and the streams and consumers it leads; for its CPU and memory: the base pack's processes job
+        settings in vigil.config: NATS_URL= NATS_USER= NATS_CACERT=
+  PASS  nats: it says CPU and memory are the base pack's
+  PASS  nats: precheck is happy
+  PASS  nats: every job runs (status, cluster, jetstream)
+        metric up 1
+        metric healthy 1
+        metric info 1 server=n1 version=2.15.3 cluster=c1 jetstream=on
+        metric uptime_seconds 491
+        metric last_reload_seconds 491
+        metric connections 0
+        metric max_connections 65536
+        metric connections_pct 0
+        metric total_connections_count 9
+        metric subscriptions 272
+        metric slow_consumers_count 2
+        metric slow_consumer_clients_count 2
+        metric slow_consumer_routes_count 0
+        metric slow_consumer_gateways_count 0
+        metric slow_consumer_leafs_count 0
+        metric stale_connections_count 0
+        metric in_msgs_count 10477
+        metric out_msgs_count 7223
+        metric in_bytes_count 8914253
+        metric out_bytes_count 2197749
+        metric pending_bytes_max 0 client=none
+        metric up 1
+        metric clustered 1
+        metric routes_configured 2
+        metric route_peers 2
+        metric route_peer 1 peer=n2
+        metric route_peer 1 peer=n3
+        metric route_peer_not_shown 0
+        metric route_connections 8
+        metric route_pending_bytes 0
+        metric route_rtt_max_ms 0.235
+        metric leafnodes 0
+        metric up 1
+        metric jetstream 1
+        metric memory_bytes 0
+        metric storage_bytes 89235
+        metric max_memory_bytes 6141358080
+        metric max_storage_bytes 53622297600
+        metric memory_pct 0
+        metric storage_pct 0
+        metric streams 2
+        metric consumers 1
+        metric messages 561
+        metric bytes 89235
+        metric api_count 6
+        metric api_errors_count 1
+        metric meta_cluster_size 3
+        metric meta_leader_known 1
+        metric meta_is_leader 0
+        metric streams_led 2
+        metric streams_no_leader 0
+        metric stream_replicas_behind 0
+        metric stream_behind_not_shown 0
+        metric stream_messages 61 stream=LIMITED
+        metric stream_bytes 64843 stream=LIMITED
+        metric stream_messages 500 stream=ORDERS
+        metric stream_bytes 24392 stream=ORDERS
+        metric stream_not_shown 0
+        metric stream_used_pct 98.94 stream=LIMITED
+        metric stream_used_pct_not_shown 0
+        metric consumers_led 1
+        metric consumers_pending 450
+        metric consumers_ack_pending 50
+        metric consumers_redelivered 50
+        metric consumer_pending 450 stream=ORDERS consumer=billing
+        metric consumer_pending_not_shown 0
+        metric consumer_ack_pending 50 stream=ORDERS consumer=billing
+        metric consumer_ack_pending_not_shown 0
+        metric consumer_redelivered 50 stream=ORDERS consumer=billing
+        metric consumer_redelivered_not_shown 0
+  PASS  nats: answers
+  PASS  nats: a service that does not answer still runs
+  PASS  nats: and reads as up 0
+  PASS  nats: metrics reach the backend
+10 passed, 0 failed
+
+44 passed, 0 failed
+
+# The Windows outputs beside the Linux scripts' (read on Fedora just after), against the same servers: the same metric names and tags, every stream, consumer and peer included.
+
+same     cluster-18222 powershell.exe: 11 lines, the same names and tags
+same     cluster-18222 pwsh.exe: 11 lines, the same names and tags
+same     cluster-18223 powershell.exe: 11 lines, the same names and tags
+same     cluster-18223 pwsh.exe: 11 lines, the same names and tags
+same     cluster-18224 powershell.exe: 11 lines, the same names and tags
+same     cluster-18224 pwsh.exe: 11 lines, the same names and tags
+same     cluster-18232 powershell.exe: 2 lines, the same names and tags
+same     cluster-18232 pwsh.exe: 2 lines, the same names and tags
+same     cluster-18242 powershell.exe: 2 lines, the same names and tags
+same     cluster-18242 pwsh.exe: 2 lines, the same names and tags
+same     jetstream-18222 powershell.exe: 38 lines, the same names and tags
+same     jetstream-18222 pwsh.exe: 38 lines, the same names and tags
+same     jetstream-18223 powershell.exe: 32 lines, the same names and tags
+same     jetstream-18223 pwsh.exe: 32 lines, the same names and tags
+same     jetstream-18224 powershell.exe: 30 lines, the same names and tags
+same     jetstream-18224 pwsh.exe: 30 lines, the same names and tags
+same     jetstream-18232 powershell.exe: 29 lines, the same names and tags
+same     jetstream-18232 pwsh.exe: 29 lines, the same names and tags
+same     jetstream-18242 powershell.exe: 2 lines, the same names and tags
+same     jetstream-18242 pwsh.exe: 2 lines, the same names and tags
+same     status-18222 powershell.exe: 21 lines, the same names and tags
+same     status-18222 pwsh.exe: 21 lines, the same names and tags
+same     status-18223 powershell.exe: 21 lines, the same names and tags
+same     status-18223 pwsh.exe: 21 lines, the same names and tags
+same     status-18224 powershell.exe: 21 lines, the same names and tags
+same     status-18224 pwsh.exe: 21 lines, the same names and tags
+same     status-18232 powershell.exe: 21 lines, the same names and tags
+same     status-18232 pwsh.exe: 21 lines, the same names and tags
+same     status-18242 powershell.exe: 21 lines, the same names and tags
+same     status-18242 pwsh.exe: 21 lines, the same names and tags
+30 same, 0 differ
