@@ -69,11 +69,14 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 - **What happens:** `vigil_fetch` uses 4.9–7.8 s of CPU per run, against 0.55–0.80 s on Linux and about 1.1 s on macOS. At a 30 s `check_every`, that is about a fifth of a core.
 - **Evidence:** `../fleet/wave-4-unknown.txt`.
 
-### B4. A refused configuration and an unreachable source look the same in metrics
+### B4. A refused configuration and an unreachable source look the same in metrics (not a Vigil bug; tests in #287)
 
 - **Seen:** run 1, wave 4.
 - **What happens:** both raise only `vigil_source_failures_total`, and `vigil_supervisor_config_reload_failed` stays 0. Only the log tells them apart: `line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)`.
 - **Decide:** whether this is worth a metric, given that Vigil should stay simple.
+- **Resolved (2026-11-28):** Vigil already tells them apart. `vigil.source.failures` carries `reason`: `invalid` for a refused configuration, `unreachable` (or `timeout`, `auth`, `digest`) otherwise (§14.5). The fleet dashboard summed the counter without it. Now:
+  - PR #287 tests both reasons in `fetch.sh` and `Fetch.ps1`.
+  - The dashboard's two panels, and `run-all.sh`'s counts, split by reason.
 - **Evidence:** `../fleet/findings.txt`, section 6.
 
 ### B6. A stopped sender's leftover process keeps its run alive, reported as ORPHANED
@@ -91,15 +94,16 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 - **Severity:** low. The children end by themselves (`curl` has `--max-time`), and no second sender starts meanwhile.
 - **Evidence:** fedora-c1's supervisor log, 22:51:05 and 22:52:41; `app/lib/posix/supervisor.sh`, `_vigil_sup_timeout` (it returns early once the job's process is gone, expecting the worker to finish the group).
 
-### B7. After a long outage, current metrics wait behind hours of history (a design question)
+### B7. After a long outage, current metrics wait behind hours of history (fixed in #288)
 
 - **Seen:** the Mac, HP and Lenovo containers, patched with the B5 fix at about 07:05 on 2026-11-27 after some ten hours stuck.
 - **What happens:** the spool is delivered oldest first, and it is bounded only by size (`[spool] max_mb`, 100 MB by default), not by age. Ten hours of a small instance's events is about 10,000 files, well inside the cap, so all of it waits to be sent, at roughly 50 files a minute net on half a CPU: three to four hours before the instance's current metrics arrive. Prometheus refuses everything more than about an hour old (D2), so most of that time goes on events that will not be kept. 15 minutes after the patch, none of the 15 containers was current, and Prometheus's "too old" count rose by about 1,000 samples a minute.
 - **Decide:** whether the spool should have an age limit (for example `[spool] max_age`, older events dropped and counted with `reason=too_old`, as Datadog's already are), or deliver the newest first after a backlog. Either changes spec 4.5; neither is needed for a short outage.
+- **Decided (2026-11-28): an age limit.** `[spool] max_age`, default `6h`, `0s` for no limit. Older queued files are dropped and counted `too_old`, by backend. Delivery stays oldest first. PR #288.
 - **Evidence:** `../sender-totals/04-fleet-containers-recovering.txt`.
 - **Outage test (2026-11-27):** on the fixed build, five bare-metal instances were current again 4–8 minutes after a 2-hour outage. Hours of backlog are a problem for weak machines, not for a 2-hour outage. "Newest first" would also make Loki drop more of the backlog (B8).
 
-### B8. After a long outage, Loki drops forwarded log lines, because the whole fleet is one stream
+### B8. After a long outage, Loki drops forwarded log lines, because the whole fleet is one stream (stream per instance in #286; the rest is D3)
 
 - **Seen:** the bare-metal outage test, 2026-11-27 (`../../2026-11-27/outage/`). The backend was down 17:35–19:35. Fedora's log lines from the outage all arrived. The HP, Lenovo, Mac and Server 2025 lost theirs from the outage's start (17:35) to about 18:45. Loki's `loki_discarded_samples_total{reason="too_far_behind"}` was 10,692. Every metric arrived (D2's 6-hour window).
 - **What happens:**
@@ -108,7 +112,9 @@ fixed yet, except where marked: this is the list to plan the fixes from.
   - Fedora's backlog went in first, which moved the stream's newest line to the present. After that, the other four instances' lines more than an hour old were refused.
   - Each instance sends its own spool oldest first, so if each had its own stream, none of this backlog would have been refused.
 - **Vigil cannot see it:** the collector answered 2xx, as in D2. The spools drained to 0, and nothing was counted as dropped.
-- **Fix to decide:** give the forwarded records an index label per instance. The OpenTelemetry way is `service.instance.id` = the instance name, which Loki indexes by default. That would be one stream per instance, so an instance's backlog falls behind only its own newest line.
+- **Found later the same day:** a stream per instance is not enough on its own. The forwarder sends each log file to its end before the next. So even in one instance's stream, the first file brings the stream up to date, and the next files' lines more than an hour old are refused. Fedora's base_cpu lines (its first file) all arrived, but base_load kept 32 of its 120 lines from 18:00 to 19:00.
+- **Decided (2026-11-28):** a stream per instance plus documentation (D3); the forwarder's order is unchanged. PR #286.
+- **Fix to decide (as first written):** give the forwarded records an index label per instance. The OpenTelemetry way is `service.instance.id` = the instance name, which Loki indexes by default. That would be one stream per instance, so an instance's backlog falls behind only its own newest line.
   - Logs only: the metrics already carry `host`, and adding the attribute to metrics would start new series in Prometheus.
   - Spec 13.4.2, both twins, and a test that checks the resource attribute.
   - Even then, an instance that sent its newest lines first (one way of doing B7) would lose its backlog beyond an hour. D3 applies either way.
@@ -136,7 +142,7 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 
 ### D3. Loki keeps only the last hour behind a stream's newest line
 
-- **Status: not documented yet.**
+- **Status: documented, not merged yet** (PR #286): the README's "Forwarding Vigil's logs".
 - **What happens:** Loki refuses a line more than `max_chunk_age / 2` (1 hour by default) behind its stream's newest line ("too_far_behind"). Today the whole fleet is one stream (B8), so this applies across instances.
 - **Docs:** beside D2, the README should say that Loki needs `ingester.max_chunk_age` of twice the outages it should survive. Until B8 is fixed, it should also say that the window counts from the newest line any instance has sent.
 

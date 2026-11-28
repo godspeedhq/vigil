@@ -60,7 +60,9 @@ The script checks every 30 s, so each time is within about 30 s.
   - Loki accepts a line only up to `max_chunk_age / 2` (1 hour by default) behind its stream's newest line.
   - Fedora's backlog arrived first. After that, the other instances' lines more than an hour behind it were refused.
 - **Vigil cannot see it:** the collector answered 2xx. Each spool drained to 0, and nothing was counted as dropped.
-- **Recorded:** as B8 (the fix to decide: `service.instance.id` per instance) and D3 (Loki's window, for the docs) in `../../2026-11-26/fleet-run2/BUGS.md`.
+- **Recorded:** as B8 and D3 in `../../2026-11-26/fleet-run2/BUGS.md`.
+- **Found afterwards:** the one stream is only half of it. Fedora's other jobs lost lines too: base_load kept 32 of its 120 lines from 18:00 to 19:00. The forwarder sends each log file to its end before the next, so within one instance the first file brings the stream up to date, and the next file's lines more than an hour behind are refused.
+- **Decided:** a stream per instance (`service.instance.id`, PR #286), and the README's note that Loki needs `max_chunk_age` of twice the outages whose logs it should keep (D3).
 
 ### Test-kit problems (fixed)
 
@@ -72,7 +74,7 @@ The script checks every 30 s, so each time is within about 30 s.
 ## Answer
 
 - **Metrics:** after two hours without a backend, every instance delivered everything it measured and was current again in 4–8 minutes. That holds with a Prometheus whose out-of-order window covers the outage.
-- **Logs:** they were not complete. Today the fleet shares one Loki stream, so with Loki's defaults an instance keeps only the log lines within an hour of the fleet's newest line (B8).
+- **Logs:** they were not complete. With Loki's defaults, an instance keeps only the log lines within an hour of its stream's newest line, and today the whole fleet is one stream (B8, D3).
 
 ## Evidence
 

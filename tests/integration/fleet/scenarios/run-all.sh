@@ -117,7 +117,8 @@ p=$(push "$w2" unknown); log "$p"; at=${p%% *}
 log "expected: every instance refuses the file and keeps wave $w1"
 sleep 150
 log "  after 150s: $(at_wave "$w2") instances run wave $w2; $(at_wave "$w1") still run wave $w1"
-log "  instances whose fetches failed in the last 2m: $(prom 'count(increase(vigil_source_failures_total[2m]) > 0)')"
+log "  instances refusing a configuration (reason invalid) in the last 2m: $(prom 'count(increase(vigil_source_failures_total{reason="invalid"}[2m]) > 0)')"
+log "  instances unable to reach the source in the last 2m: $(prom 'count(increase(vigil_source_failures_total{reason!="invalid"}[2m]) > 0)')"
 finish "$at" "$w2" 150
 
 w3=$((wave + 3))
@@ -153,7 +154,8 @@ w6=$((wave + 6))
 round gitea "Gitea stopped for ${hold}s, then a change (wave $w6)"
 docker stop vigil-fleet-gitea-1 > /dev/null; down=$(now); log "  $down Gitea stopped"
 sleep "$hold"
-log "  instances whose fetches failed in the last 2m: $(prom 'count(increase(vigil_source_failures_total[2m]) > 0)')"
+log "  instances unable to reach the source in the last 2m: $(prom 'count(increase(vigil_source_failures_total{reason!="invalid"}[2m]) > 0)')"
+log "  instances refusing a configuration (reason invalid) in the last 2m: $(prom 'count(increase(vigil_source_failures_total{reason="invalid"}[2m]) > 0)')"
 log "  instances still sending metrics (cpu in the last 2m): $(prom 'count(max by (host) (max_over_time(system_cpu_used_pct[2m])))')"
 log "  instances still on wave $w5: $(at_wave "$w5")"
 docker start vigil-fleet-gitea-1 > /dev/null

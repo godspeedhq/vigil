@@ -104,7 +104,7 @@
         "w": 4,
         "h": 5
       },
-      "description": "Failed checks of the configuration's source, across the fleet.",
+      "description": "Checks that could not reach or read the configuration's source (reason unreachable, timeout, auth or digest), across the fleet. A refused configuration is counted next door.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -129,7 +129,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(vigil_source_failures_total{kind=~\"$kind\"}[15m])) or vector(0)"
+          "expr": "sum(increase(vigil_source_failures_total{kind=~\"$kind\", reason!=\"invalid\"}[15m])) or vector(0)"
         }
       ]
     },
@@ -143,7 +143,7 @@
         "w": 4,
         "h": 5
       },
-      "description": "Instances whose last fetches failed: a configuration that does not validate is refused, and the instance keeps the one it runs.",
+      "description": "Instances that fetched a configuration that does not validate (reason invalid): it is refused, and the instance keeps the one it runs.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -168,7 +168,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(increase(vigil_source_failures_total{kind=~\"$kind\"}[2m]) > 0) or vector(0)"
+          "expr": "count(increase(vigil_source_failures_total{kind=~\"$kind\", reason=\"invalid\"}[2m]) > 0) or vector(0)"
         }
       ]
     },
