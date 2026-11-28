@@ -35,7 +35,29 @@
 #   client_sent_bytes_count      bytes to clients (a running total)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric requests_count 2004
+#   metric failed_count 0
+#   metric failed 0 code=Aborted
+#   metric failed 0 code=AlreadyExists
+#   metric failed 0 code=Canceled
+#   metric failed 0 code=DataLoss
+#   metric failed 0 code=DeadlineExceeded
+#   metric failed 0 code=FailedPrecondition
+#   metric failed 0 code=Internal
+#   metric failed 0 code=InvalidArgument
+#   metric failed 0 code=NotFound
+#   metric failed 0 code=OutOfRange
+#   metric failed 0 code=PermissionDenied
+#   metric failed 0 code=ResourceExhausted
+#   metric failed 0 code=Unauthenticated
+#   metric failed 0 code=Unavailable
+#   metric failed 0 code=Unimplemented
+#   metric failed 0 code=Unknown
+#   metric failed_not_shown 0
+#   metric requests_started_count 2005
+#   metric client_received_bytes_count 41632
+#   metric client_sent_bytes_count 54035
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  failed_count rising slowly, if at all, against requests_count.

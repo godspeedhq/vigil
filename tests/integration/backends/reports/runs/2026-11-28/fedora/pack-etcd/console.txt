@@ -1,0 +1,412 @@
+== pack-etcd
+date     2026-11-28T12:40:46Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    85806d0 (deployed copy)
+command  tests/integration/backends/scripts/run-etcd.sh
+bash     5.3.9(1)-release
+git      git version 2.56.1
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.19.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.etcd.yaml pins them)
+         quay.io/coreos/etcd:${ETCD35_VERSION:-v3.5.36}
+         quay.io/coreos/etcd:${ETCD_VERSION:-v3.6.17}
+
+etcd     e1 quay.io/coreos/etcd:v3.6.17; e2 quay.io/coreos/etcd:v3.6.17; e35 quay.io/coreos/etcd:v3.5.36; e3 quay.io/coreos/etcd:v3.6.17
+
+# The cluster in use, with etcdctl.
+keys     /app/key1 to /app/key500, each written 4 times
+watch    one, on /app, held open on e1
+leases   two of 2 s, each with a key, left to expire
+
+# 3.6, e1: every job, as the pack's scripts print it.
+
+$ ETCD_URL=http://127.0.0.1:12381 bash packs/etcd/linux/status.sh
+metric up 1
+metric healthy 1
+metric version 1 version=3.6.17
+metric cluster_version 1 version=3.6
+metric has_leader 1
+metric is_leader 1
+metric is_learner 0
+metric leader_changes_count 1
+metric members 3
+metric peers_active 2
+metric peers_unreachable 0
+metric heartbeat_failures_count 0
+metric peer_send_failures_count 0
+metric proposals_committed_count 2014
+metric proposals_applied_count 2014
+metric apply_backlog 0
+metric proposals_pending 0
+metric proposals_failed_count 0
+metric slow_applies_count 0
+metric read_indexes_failed_count 0
+metric slow_read_indexes_count 0
+metric health_failures_count 0
+
+$ ETCD_URL=http://127.0.0.1:12381 bash packs/etcd/linux/database.sh
+metric up 1
+metric db_bytes 167936
+metric quota_bytes 2147483648
+metric db_used_pct 0.01
+metric db_in_use_bytes 167936
+metric fragmented_bytes 0
+metric keys 500
+metric revision 2005
+metric compacted_revision -1
+metric revisions_kept 2006
+metric puts_count 2002
+metric deletes_count 2
+metric ranges_count 3
+metric txns_count 0
+metric watchers 1
+metric watch_streams 1
+metric slow_watchers 0
+metric leases_granted_count 2
+metric leases_expired_count 2
+metric defrag_running 0
+
+$ ETCD_URL=http://127.0.0.1:12381 bash packs/etcd/linux/disk.sh
+metric up 1
+metric wal_fsyncs_count 2013
+metric wal_fsync_avg_ms 4.858972
+metric wal_fsyncs_slow_count 18
+metric backend_commits_count 463
+metric backend_commit_avg_ms 10.905357
+metric backend_commits_slow_count 4
+metric wal_written_bytes_count 207640
+metric peer_rtt_avg_ms 0.460904
+
+$ ETCD_URL=http://127.0.0.1:12381 bash packs/etcd/linux/requests.sh
+metric up 1
+metric requests_count 2004
+metric failed_count 0
+metric failed 0 code=Aborted
+metric failed 0 code=AlreadyExists
+metric failed 0 code=Canceled
+metric failed 0 code=DataLoss
+metric failed 0 code=DeadlineExceeded
+metric failed 0 code=FailedPrecondition
+metric failed 0 code=Internal
+metric failed 0 code=InvalidArgument
+metric failed 0 code=NotFound
+metric failed 0 code=OutOfRange
+metric failed 0 code=PermissionDenied
+metric failed 0 code=ResourceExhausted
+metric failed 0 code=Unauthenticated
+metric failed 0 code=Unavailable
+metric failed 0 code=Unimplemented
+metric failed 0 code=Unknown
+metric failed_not_shown 0
+metric requests_started_count 2005
+metric client_received_bytes_count 41632
+metric client_sent_bytes_count 54035
+
+# 3.6: what they read.
+  PASS  e1: status runs
+  PASS  e1: database runs
+  PASS  e1: disk runs
+  PASS  e1: requests runs
+  PASS  e1: up, healthy, a leader, 3.6
+  PASS  e1: three members, the two others connected
+  PASS  e1: proposals committed and applied, none waiting
+  PASS  one leader among the three, as each member says of itself
+  PASS  the keys, and the history to compact
+  PASS  the database, against its quota (2 GiB by default)
+  PASS  the watch held open; the leases granted
+  PASS  the leases expired, counted by the leader
+  PASS  the WAL's fsyncs and the backend's commits, timed
+  PASS  the round trip to its peers
+  PASS  requests handled, by e1
+
+# 3.6: the leader stops; the others elect another.
+stopped  e1, the leader
+
+$ ETCD_URL=http://127.0.0.1:12481 bash packs/etcd/linux/status.sh   (e1 stopped)
+metric up 1
+metric healthy 1
+metric version 1 version=3.6.17
+metric cluster_version 1 version=3.6
+metric has_leader 1
+metric is_leader 1
+metric is_learner 0
+metric leader_changes_count 2
+metric members 3
+metric peers_active 1
+metric peers_unreachable 1
+metric heartbeat_failures_count 0
+metric peer_send_failures_count 6
+metric proposals_committed_count 2015
+metric proposals_applied_count 2015
+metric apply_backlog 0
+metric proposals_pending 0
+metric proposals_failed_count 0
+metric slow_applies_count 0
+metric read_indexes_failed_count 0
+metric slow_read_indexes_count 0
+metric health_failures_count 0
+  PASS  e2: a new leader, elected; the old one unreachable
+  PASS  e2: the leader change counted
+
+# 3.6: two of three stop. No quorum: no leader, and a write fails.
+stopped  e2 and e3
+write    desc = context deadline exceeded
+
+$ ETCD_URL=http://127.0.0.1:12381 bash packs/etcd/linux/status.sh   (e2 and e3 stopped)
+metric up 1
+metric healthy 0
+metric version 1 version=3.6.17
+metric cluster_version 1 version=3.6
+metric has_leader 0
+metric is_leader 0
+metric is_learner 0
+metric leader_changes_count 1
+metric members 3
+metric peers_active 0
+metric peers_unreachable 2
+metric heartbeat_failures_count 0
+metric peer_send_failures_count 6
+metric proposals_committed_count 2016
+metric proposals_applied_count 2016
+metric apply_backlog 0
+metric proposals_pending 0
+metric proposals_failed_count 1
+metric slow_applies_count 0
+metric read_indexes_failed_count 0
+metric slow_read_indexes_count 0
+metric health_failures_count 1
+  PASS  e1: no leader, not healthy, the two others unreachable
+  PASS  e1: and still up: no leader is a reading
+  PASS  e1: the write that failed, counted
+
+$ ETCD_URL=http://127.0.0.1:12381 bash packs/etcd/linux/requests.sh   (e2 and e3 stopped)
+metric up 1
+metric requests_count 1
+metric failed_count 1
+metric failed 1 code=Canceled
+metric failed 0 code=Aborted
+metric failed 0 code=AlreadyExists
+metric failed 0 code=DataLoss
+metric failed 0 code=DeadlineExceeded
+metric failed 0 code=FailedPrecondition
+metric failed 0 code=Internal
+metric failed 0 code=InvalidArgument
+metric failed 0 code=NotFound
+metric failed 0 code=OutOfRange
+metric failed 0 code=PermissionDenied
+metric failed 0 code=ResourceExhausted
+metric failed 0 code=Unauthenticated
+metric failed 0 code=Unavailable
+metric failed 0 code=Unimplemented
+metric failed 0 code=Unknown
+metric failed_not_shown 0
+metric requests_started_count 1
+metric client_received_bytes_count 19
+metric client_sent_bytes_count 0
+  PASS  e1: the request that failed, by its gRPC code
+
+# 3.5, alone: its database filled to its quota of 32 MiB.
+  PASS  e35: status runs
+  PASS  e35: database runs
+  PASS  e35: disk runs
+  PASS  e35: requests runs
+  PASS  e35: 3.5, alone, its own leader
+write    MiB 24: desc = etcdserver: mvcc: database space exceeded
+alarm    memberID:4510995011271227941 alarm:NOSPACE 
+
+$ ETCD_URL=http://127.0.0.1:12681 bash packs/etcd/linux/status.sh   (at its quota)
+metric up 1
+metric healthy 0
+metric version 1 version=3.5.36
+metric cluster_version 1 version=3.5
+metric has_leader 1
+metric is_leader 1
+metric is_learner 0
+metric leader_changes_count 1
+metric members 1
+metric peers_active 0
+metric peers_unreachable 0
+metric heartbeat_failures_count 0
+metric peer_send_failures_count 0
+metric proposals_committed_count 30
+metric proposals_applied_count 30
+metric apply_backlog 0
+metric proposals_pending 0
+metric proposals_failed_count 0
+metric slow_applies_count 0
+metric read_indexes_failed_count 0
+metric slow_read_indexes_count 0
+metric health_failures_count 0
+  PASS  e35: not healthy, its leader there: an alarm
+
+$ ETCD_URL=http://127.0.0.1:12681 bash packs/etcd/linux/database.sh   (at its quota)
+metric up 1
+metric db_bytes 32571392
+metric quota_bytes 33554432
+metric db_used_pct 97.07
+metric db_in_use_bytes 28385280
+metric fragmented_bytes 4186112
+metric keys 24
+metric revision 25
+metric compacted_revision -1
+metric revisions_kept 26
+metric puts_count 24
+metric deletes_count 0
+metric ranges_count 4
+metric txns_count 0
+metric watchers 0
+metric watch_streams 0
+metric slow_watchers 0
+metric leases_granted_count 0
+metric leases_expired_count 0
+metric defrag_running 0
+  PASS  e35: the database at its quota (the alarm comes when a write would pass it)
+
+$ ETCD_URL=http://127.0.0.1:12681 bash packs/etcd/linux/requests.sh   (at its quota)
+metric up 1
+metric requests_count 25
+metric failed_count 1
+metric failed 1 code=ResourceExhausted
+metric failed 0 code=Aborted
+metric failed 0 code=AlreadyExists
+metric failed 0 code=Canceled
+metric failed 0 code=DataLoss
+metric failed 0 code=DeadlineExceeded
+metric failed 0 code=FailedPrecondition
+metric failed 0 code=Internal
+metric failed 0 code=InvalidArgument
+metric failed 0 code=NotFound
+metric failed 0 code=OutOfRange
+metric failed 0 code=PermissionDenied
+metric failed 0 code=Unauthenticated
+metric failed 0 code=Unavailable
+metric failed 0 code=Unimplemented
+metric failed 0 code=Unknown
+metric failed_not_shown 0
+metric requests_started_count 25
+metric client_received_bytes_count 25166127
+metric client_sent_bytes_count 638
+  PASS  e35: the write refused, as ResourceExhausted
+mended   compacted to revision 25, defragmented, the alarm disarmed
+
+$ ETCD_URL=http://127.0.0.1:12681 bash packs/etcd/linux/status.sh   (mended)
+metric up 1
+metric healthy 1
+metric version 1 version=3.5.36
+metric cluster_version 1 version=3.5
+metric has_leader 1
+metric is_leader 1
+metric is_learner 0
+metric leader_changes_count 1
+metric members 1
+metric peers_active 0
+metric peers_unreachable 0
+metric heartbeat_failures_count 0
+metric peer_send_failures_count 0
+metric proposals_committed_count 33
+metric proposals_applied_count 33
+metric apply_backlog 0
+metric proposals_pending 0
+metric proposals_failed_count 0
+metric slow_applies_count 0
+metric read_indexes_failed_count 0
+metric slow_read_indexes_count 0
+metric health_failures_count 1
+  PASS  e35: healthy again
+
+$ ETCD_URL=http://127.0.0.1:12681 bash packs/etcd/linux/database.sh   (mended)
+metric up 1
+metric db_bytes 25235456
+metric quota_bytes 33554432
+metric db_used_pct 75.21
+metric db_in_use_bytes 25231360
+metric fragmented_bytes 4096
+metric keys 24
+metric revision 25
+metric compacted_revision 25
+metric revisions_kept 0
+metric last_compaction_seconds 1
+metric puts_count 24
+metric deletes_count 0
+metric ranges_count 6
+metric txns_count 0
+metric watchers 0
+metric watch_streams 0
+metric slow_watchers 0
+metric leases_granted_count 0
+metric leases_expired_count 0
+metric defrag_running 0
+  PASS  e35: the space given back
+
+# Nothing listening, and a page that is not there.
+  PASS  nothing listening: up 0, the run succeeding
+  PASS  a page that is not there: up 0, said why
+
+# The pack through Vigil, against e1 (and, for up 0, a port nothing listens on).
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)
+  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)
+  SKIP  mongodb: set VIGIL_IT_MONGODB_URL and VIGIL_IT_MONGODB_PASSWORD (scripts/run-mongodb.sh sets them up)
+  SKIP  oracle: set VIGIL_IT_ORACLE_HOST, VIGIL_IT_ORACLE_SERVICE and VIGIL_IT_ORACLE_PASSWORD (scripts/run-oracle.sh sets them up)
+  SKIP  zookeeper: set VIGIL_IT_ZOOKEEPER_SERVERS (scripts/run-zookeeper.sh sets it up)
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+etcd: ETCD_URL=http://127.0.0.1:12381
+  PASS  etcd: off until enabled
+  PASS  etcd: enabled
+        on: etcd_status
+        on: etcd_database
+        on: etcd_disk
+        on: etcd_requests
+        needs its metrics page: etcd serves /metrics and /health on its client port, where clients usually need a certificate; give it a plain one with --listen-metrics-urls=http://127.0.0.1:2381 (kubeadm's etcd has it already), and set env = ETCD_URL=... where it is elsewhere
+        needs on each member: each reports itself and its view of the cluster
+        needs for etcd's CPU and memory: the base pack's processes job
+        settings in vigil.config: ETCD_URL= ETCD_USER= ETCD_CACERT=
+  PASS  etcd: it says CPU and memory are the base pack's
+  PASS  etcd: its jobs are on
+  PASS  etcd: precheck is happy
+        status: 22 lines
+        database: 20 lines
+        disk: 9 lines
+        requests: 23 lines
+  PASS  etcd: every job runs
+  PASS  etcd: answers
+  PASS  etcd: a server that does not answer still runs
+  PASS  etcd: and reads as up 0
+  SKIP  docker: set VIGIL_IT_DOCKER (scripts/run-containers.sh docker sets it up)
+  SKIP  podman: set VIGIL_IT_PODMAN (scripts/run-containers.sh podman sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (scripts/run-sqlite.sh sets it up)
+  PASS  etcd: metrics reach the backend
+12 passed, 0 failed
+hold     the cluster stays up (metrics 12381, 12481, 12581, 12681) until /home/vigil-test/etcd-hold is deleted
+33 passed, 0 failed
+evidence: reports/runs/2026-11-28/fedora/pack-etcd

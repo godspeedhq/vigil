@@ -1,0 +1,2 @@
+metric up 0
+status: http://127.0.0.1:12381/nothing/metrics: no such page (HTTP 404): is ETCD_URL etcd's address?

@@ -38,7 +38,15 @@
 #                               milliseconds (none alone)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric wal_fsyncs_count 2013
+#   metric wal_fsync_avg_ms 4.858972
+#   metric wal_fsyncs_slow_count 18
+#   metric backend_commits_count 463
+#   metric backend_commit_avg_ms 10.905357
+#   metric backend_commits_slow_count 4
+#   metric wal_written_bytes_count 207640
+#   metric peer_rtt_avg_ms 0.460904
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  wal_fsyncs_slow_count and backend_commits_slow_count rising

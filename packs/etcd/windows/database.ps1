@@ -55,7 +55,26 @@
                                answers nothing meanwhile
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric db_bytes 167936
+      metric quota_bytes 2147483648
+      metric db_used_pct 0.01
+      metric db_in_use_bytes 167936
+      metric fragmented_bytes 0
+      metric keys 500
+      metric revision 2005
+      metric compacted_revision -1
+      metric revisions_kept 2006
+      metric puts_count 2002
+      metric deletes_count 2
+      metric ranges_count 3
+      metric txns_count 0
+      metric watchers 1
+      metric watch_streams 1
+      metric slow_watchers 0
+      metric leases_granted_count 2
+      metric leases_expired_count 2
+      metric defrag_running 0
 
     Reading the results (starting points: tune them to your own):
       Healthy  db_used_pct well below 80; revisions_kept steady (compaction

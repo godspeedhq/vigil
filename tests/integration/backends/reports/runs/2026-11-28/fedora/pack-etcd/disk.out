@@ -1,0 +1,8 @@
+metric up 1
+metric wal_fsyncs_count 5
+metric wal_fsync_avg_ms 10.322541
+metric wal_fsyncs_slow_count 1
+metric backend_commits_count 6
+metric backend_commit_avg_ms 13.671529
+metric backend_commits_slow_count 0
+metric wal_written_bytes_count 1104

@@ -57,7 +57,28 @@
 #   health_failures_count      health checks that failed (a running total)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric healthy 1
+#   metric version 1 version=3.6.17
+#   metric cluster_version 1 version=3.6
+#   metric has_leader 1
+#   metric is_leader 1
+#   metric is_learner 0
+#   metric leader_changes_count 1
+#   metric members 3
+#   metric peers_active 2
+#   metric peers_unreachable 0
+#   metric heartbeat_failures_count 0
+#   metric peer_send_failures_count 0
+#   metric proposals_committed_count 2014
+#   metric proposals_applied_count 2014
+#   metric apply_backlog 0
+#   metric proposals_pending 0
+#   metric proposals_failed_count 0
+#   metric slow_applies_count 0
+#   metric read_indexes_failed_count 0
+#   metric slow_read_indexes_count 0
+#   metric health_failures_count 0
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  up 1; healthy 1; has_leader 1; peers_unreachable 0;

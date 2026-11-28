@@ -2,6 +2,8 @@
 
 Nine packs from one source: `prometheus`, `alertmanager`, `grafana`, `loki`, `mimir`, `tempo`, `otelcol`, `victoriametrics` and `victorialogs`. They watch the things that watch everything else, and each stands on its own (packs never depend on each other). They are written together because all nine say what is wrong with them the same way: a page of metrics in Prometheus' text format, at `/metrics`.
 
+Other services that say what is wrong with them the same way are written here too, though they watch nothing: `etcd`. A pack's page may then carry its own "How it was tested" (`tested` in `pages.py`); the nine share one.
+
 `py tools/obs/gen.py .` writes them all; `py tools/obs/gen.py . loki` writes one.
 
 | File | What |

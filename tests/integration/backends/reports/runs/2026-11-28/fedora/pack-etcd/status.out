@@ -1,0 +1,22 @@
+metric up 1
+metric healthy 1
+metric version 1 version=3.5.36
+metric cluster_version 1 version=3.5
+metric has_leader 1
+metric is_leader 1
+metric is_learner 0
+metric leader_changes_count 1
+metric members 1
+metric peers_active 0
+metric peers_unreachable 0
+metric heartbeat_failures_count 0
+metric peer_send_failures_count 0
+metric proposals_committed_count 33
+metric proposals_applied_count 33
+metric apply_backlog 0
+metric proposals_pending 0
+metric proposals_failed_count 0
+metric slow_applies_count 0
+metric read_indexes_failed_count 0
+metric slow_read_indexes_count 0
+metric health_failures_count 1

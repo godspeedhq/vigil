@@ -1,0 +1,72 @@
+== pack-etcd-macos
+date     2026-11-28
+host     the Intel Mac test machine (macOS 12.7.6), as an account that is not an administrator, over SSH
+vigil    85806d0 (deployed copy)
+servers  run-etcd.sh's cluster on the Fedora test machine, held (VIGIL_IT_ETCD_HOLD), through SSH tunnels
+
+bash 3.2.57(1)-release on macOS 12.7.6; curl 8.7.1 (x86_64-apple-darwin21.0) libcurl/8.7.1 (SecureTransport) LibreSSL/3.3.6 zlib/1.2.11 nghttp2/1.45.1
+
+# e1: every job
+e1 status: 22 lines, exit 0
+  PASS  e1 status runs
+e1 database: 20 lines, exit 0
+  PASS  e1 database runs
+e1 disk: 9 lines, exit 0
+  PASS  e1 disk runs
+e1 requests: 23 lines, exit 0
+  PASS  e1 requests runs
+
+# e35: every job
+e35 status: 22 lines, exit 0
+  PASS  e35 status runs
+e35 database: 21 lines, exit 0
+  PASS  e35 database runs
+e35 disk: 8 lines, exit 0
+  PASS  e35 disk runs
+e35 requests: 23 lines, exit 0
+  PASS  e35 requests runs
+
+$ bash packs/etcd/macos/disk.sh   (e1)
+metric up 1
+metric wal_fsyncs_count 6
+metric wal_fsync_avg_ms 26.068644
+metric wal_fsyncs_slow_count 3
+metric backend_commits_count 8
+metric backend_commit_avg_ms 26.027964
+metric backend_commits_slow_count 2
+metric wal_written_bytes_count 464
+metric peer_rtt_avg_ms 0.603073
+  PASS  e1: healthy, a leader, three members, none unreachable
+  PASS  e35: 3.5, alone
+  PASS  nothing listening: up 0, the run succeeding
+
+# The pack through Vigil:
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+etcd: ETCD_URL=http://127.0.0.1:12381
+  PASS  etcd: off until enabled
+  PASS  etcd: enabled
+        on: etcd_status
+        on: etcd_database
+        on: etcd_disk
+        on: etcd_requests
+        needs its metrics page: etcd serves /metrics and /health on its client port, where clients usually need a certificate; give it a plain one with --listen-metrics-urls=http://127.0.0.1:2381 (kubeadm's etcd has it already), and set env = ETCD_URL=... where it is elsewhere
+        needs on each member: each reports itself and its view of the cluster
+        needs for etcd's CPU and memory: the base pack's processes job
+        settings in vigil.config: ETCD_URL= ETCD_USER= ETCD_CACERT=
+  PASS  etcd: it says CPU and memory are the base pack's
+  PASS  etcd: its jobs are on
+  PASS  etcd: precheck is happy
+        status: 22 lines
+        database: 20 lines
+        disk: 9 lines
+        requests: 23 lines
+  PASS  etcd: every job runs
+  PASS  etcd: answers
+  PASS  etcd: a server that does not answer still runs
+  PASS  etcd: and reads as up 0
+  PASS  etcd: metrics reach the backend
+12 passed, 0 failed
+
+11 passed, 0 failed
