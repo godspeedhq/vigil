@@ -1,0 +1,64 @@
+== The Mac, HP and Lenovo containers after the patch (the user ran it about 07:05 UTC, 2026-11-27): instances whose newest cpu reading is under 3 minutes old, every 2 minutes
+07:09:24Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:11:43Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:14:00Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:16:16Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:18:33Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:20:50Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:23:06Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:25:22Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:27:38Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:29:55Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:32:12Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:34:28Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:36:44Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+07:39:01Z current 0 of 15; behind: mac-c1(none) mac-c2(none) mac-c3(none) mac-c4(none) mac-c5(none) hp-c1(none) hp-c2(none) hp-c3(none) hp-c4(none) hp-c5(none) lenovo-c1(none) lenovo-c2(none) lenovo-c3(none) lenovo-c4(none) lenovo-c5(none)
+
+-- Prometheus's too-old count, to measure the drain later
+  07:12:41Z 290260
+  07:25:29Z 337630
+  07:39:10Z 400044
+
+-- 09:03:28Z: hp-c1's queue, counted by the user: 1488 files at about 08:20Z, 9 files now
+-- age of each container's newest cpu reading in Prometheus
+  fedora-c1    182s
+  hp-c1         61s
+  hp-c3         58s
+  too-old count 698650
+
+-- 09:29:52Z: age of each container's newest cpu reading in Prometheus
+  fedora-c1     80s
+  hp-c1         73s
+  hp-c3         74s
+  hp-c4         71s
+  hp-c5         66s
+  too-old count 755125
+
+-- 11:38:18Z: age of each container's newest cpu reading in Prometheus
+  fedora-c1     45s
+  hp-c1         36s
+  hp-c2         38s
+  hp-c3         37s
+  hp-c4         39s
+  hp-c5         42s
+  too-old count 1.015933e+06
+
+-- 13:40:51Z: the Mac's and the Lenovo's containers taken out of the tests
+  Queues 10 minutes apart (counted by the user): lenovo-c1 8104 then 8298 (+194), mac-c1 6675 then 6656 (-19).
+  About 230 files arrive in 10 minutes: the Lenovo's fell further behind, the Mac's only kept level.
+  Five half-CPU containers in a Docker VM on two cores (a 2015 MacBook, an i5-3320M) leave the sender
+  too little CPU: weak hardware for this load, not the stall of B5. Their bare-metal instances stay.
+  Removed with start-fleet-mac.sh --stop and Start-FleetContainers.ps1 -Name lenovo -Stop: 5 each.
+
+-- age of each instance's newest cpu reading in Prometheus afterwards
+  fedora          42s
+  fedora-c1       71s
+  hp              29s
+  hp-c1           71s
+  hp-c2           70s
+  hp-c3           71s
+  hp-c4           76s
+  hp-c5           71s
+  lenovo          25s
+  mac             96s
+  server2025      25s
