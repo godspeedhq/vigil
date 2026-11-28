@@ -1147,6 +1147,7 @@ Everything lives under one install root (§18.6 gives the root per platform). A 
     configs/<sha256>.checked      Windows: that the configuration passed validation under this Vigil, with the jobs found invalid, so an unchanged one is not validated again at each check
     config.valid                  a copy of the last valid local configuration, kept active while a newer one is rejected (§16.3), or until the first fetch after a source is added (§16.5)
     config.fetched                empty: a fetched configuration has been in force, so config.valid is from before it and is not gone back to (§16.5)
+    config.history                each revision the supervisor activated, with its tags, and when: the last 50, so a forwarded log line carries the revision it was written under (§13.4.2)
     sources/<name>.state          each source's last check: when, what it found, and its last error
     fetch.next                    when the fetcher is next due, and the local file it last read
     supervisor.lock               held open by the live supervisor
@@ -1334,7 +1335,7 @@ timeout      = 10s
 
 The internal workers `vigil_sender`, `vigil_fetch` and `vigil_update` write job logs like any job and are forwarded with them. **The forwarder's own log, `logs/jobs/vigil_logs/`, is never forwarded**, so a failing destination cannot produce errors that are themselves forwarded, fail, and produce more. Its failures are reported as metrics instead (§13.4.6).
 
-Every record carries: the time from the line, `host`, `os`, `instance` and the `[tags]` section (§14.6), the component (`supervisor` or `job`), for job lines the job id and run id, the category, the severity when there is one, the message (the line's text, unchanged), the source file name, and the active configuration revision (§16.5). Run ids are fine in log records, unlike metric tags: logs are not aggregated into series.
+Every record carries: the time from the line, `host`, `os`, `instance` and the `[tags]` section (§14.6), the component (`supervisor` or `job`), for job lines the job id and run id, the category, the severity when there is one, the message (the line's text, unchanged), the source file name, and the configuration revision (§16.5). The revision and the tags are those in force when the line was written, not when it is sent: the supervisor records each revision it activates, with its tags and the time, in `state/config.history`, and a line goes with the last activated at or before its own time (the first recorded, for an older line; a line with no time keeps the revision of the line before it). A request carries one revision, so a batch ends where the revision changes. Without a history, as just after an upgrade, the active revision is used. Run ids are fine in log records, unlike metric tags: logs are not aggregated into series.
 
 In OTLP, `service.name` (`vigil`), the host, tags and `config.revision` are attributes of the resource, shared by a request's records; `component`, `category`, `job`, `run_id`, `source_file` and, for a cut line, `truncated` are attributes of each record. Severity is `severityNumber` 9, 13 or 17 with `severityText` `INFO`, `WARN` or `ERROR`, and is absent when there is none. A line in neither log format is kept: it is sent whole, with time `0`, as `run` (or `supervisor`), so nothing is lost to a format Vigil did not expect.
 
