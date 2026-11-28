@@ -1,0 +1,10 @@
+metric up 1 target=127.0.0.1:18543/good.test reason=ok
+metric handshake_ms 18 target=127.0.0.1:18543/good.test
+metric cert_expires_days 90.00 target=127.0.0.1:18543/good.test
+metric cert_valid 1 target=127.0.0.1:18543/good.test
+metric cert_trusted 1 target=127.0.0.1:18543/good.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18543/good.test
+metric cert_info 1 target=127.0.0.1:18543/good.test issuer=Vigil_Test_Root_CA subject=good.test protocol=TLSv1.3
+metric targets 1
+metric targets_failed 0
+metric soonest_days 90.00

@@ -1,0 +1,129 @@
+== pack-tls-macos
+date     2026-11-28
+host     the Intel Mac test machine (macOS 12.7.6), as an account that is not an administrator, over SSH
+vigil    5966a4a (deployed copy)
+servers  run-tls.sh's targets on the Fedora test machine, held (VIGIL_IT_TLS_HOLD), through SSH tunnels (18543 to 18547; 18549 not tunnelled); its CA copied here as TLS_CACERT
+
+bash 3.2.57(1)-release on macOS 12.7.6; LibreSSL 2.8.3; perl v5.30.3
+
+$ TLS_TARGETS=... TLS_CACERT=ca.pem TLS_TIMEOUT=5 bash packs/tls/macos/certs.sh
+metric up 1 target=127.0.0.1:18543/good.test reason=ok
+metric handshake_ms 438 target=127.0.0.1:18543/good.test
+metric cert_expires_days 90.00 target=127.0.0.1:18543/good.test
+metric cert_valid 1 target=127.0.0.1:18543/good.test
+metric cert_trusted 1 target=127.0.0.1:18543/good.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18543/good.test
+metric cert_info 1 target=127.0.0.1:18543/good.test issuer=Vigil_Test_Root_CA subject=good.test protocol=TLSv1.2
+metric up 1 target=127.0.0.1:18543/soon.test reason=ok
+metric handshake_ms 217 target=127.0.0.1:18543/soon.test
+metric cert_expires_days 5.00 target=127.0.0.1:18543/soon.test
+metric cert_valid 1 target=127.0.0.1:18543/soon.test
+metric cert_trusted 1 target=127.0.0.1:18543/soon.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18543/soon.test
+metric cert_info 1 target=127.0.0.1:18543/soon.test issuer=Vigil_Test_Root_CA subject=soon.test protocol=TLSv1.2
+metric up 1 target=127.0.0.1:18543/expired.test reason=ok
+metric handshake_ms 207 target=127.0.0.1:18543/expired.test
+metric cert_expires_days -637.68 target=127.0.0.1:18543/expired.test
+metric cert_valid 0 target=127.0.0.1:18543/expired.test
+metric cert_trusted 0 target=127.0.0.1:18543/expired.test reason=certificate_has_expired
+metric cert_name_ok 1 target=127.0.0.1:18543/expired.test
+metric cert_info 1 target=127.0.0.1:18543/expired.test issuer=Vigil_Test_Root_CA subject=expired.test protocol=TLSv1.2
+metric up 1 target=127.0.0.1:18543/future.test reason=ok
+metric handshake_ms 115 target=127.0.0.1:18543/future.test
+metric cert_expires_days 26695.32 target=127.0.0.1:18543/future.test
+metric cert_valid 0 target=127.0.0.1:18543/future.test
+metric cert_trusted 0 target=127.0.0.1:18543/future.test reason=certificate_is_not_yet_valid
+metric cert_name_ok 1 target=127.0.0.1:18543/future.test
+metric cert_info 1 target=127.0.0.1:18543/future.test issuer=Vigil_Test_Root_CA subject=future.test protocol=TLSv1.2
+metric up 1 target=127.0.0.1:18543/self.test reason=ok
+metric handshake_ms 211 target=127.0.0.1:18543/self.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/self.test
+metric cert_valid 1 target=127.0.0.1:18543/self.test
+metric cert_trusted 0 target=127.0.0.1:18543/self.test reason=self_signed_certificate
+metric cert_name_ok 1 target=127.0.0.1:18543/self.test
+metric cert_info 1 target=127.0.0.1:18543/self.test issuer=self.test subject=self.test protocol=TLSv1.2
+metric up 1 target=127.0.0.1:18543/wrong.test reason=ok
+metric handshake_ms 123 target=127.0.0.1:18543/wrong.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/wrong.test
+metric cert_valid 1 target=127.0.0.1:18543/wrong.test
+metric cert_trusted 1 target=127.0.0.1:18543/wrong.test reason=ok
+metric cert_name_ok 0 target=127.0.0.1:18543/wrong.test
+metric cert_info 1 target=127.0.0.1:18543/wrong.test issuer=Vigil_Test_Root_CA subject=other.test protocol=TLSv1.2
+metric up 1 target=127.0.0.1:18543/chain.test reason=ok
+metric handshake_ms 111 target=127.0.0.1:18543/chain.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/chain.test
+metric cert_valid 1 target=127.0.0.1:18543/chain.test
+metric cert_trusted 0 target=127.0.0.1:18543/chain.test reason=unable_to_verify_the_first_certificate
+metric cert_name_ok 1 target=127.0.0.1:18543/chain.test
+metric cert_info 1 target=127.0.0.1:18543/chain.test issuer=Vigil_Test_Intermediate subject=chain.test protocol=TLSv1.2
+metric up 1 target=127.0.0.1:18543/a.apps.test reason=ok
+metric handshake_ms 122 target=127.0.0.1:18543/a.apps.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/a.apps.test
+metric cert_valid 1 target=127.0.0.1:18543/a.apps.test
+metric cert_trusted 1 target=127.0.0.1:18543/a.apps.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18543/a.apps.test
+metric cert_info 1 target=127.0.0.1:18543/a.apps.test issuer=Vigil_Test_Root_CA subject=_.apps.test protocol=TLSv1.2
+metric up 1 target=127.0.0.1:18543/a.b.apps.test reason=ok
+metric handshake_ms 128 target=127.0.0.1:18543/a.b.apps.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/a.b.apps.test
+metric cert_valid 1 target=127.0.0.1:18543/a.b.apps.test
+metric cert_trusted 1 target=127.0.0.1:18543/a.b.apps.test reason=ok
+metric cert_name_ok 0 target=127.0.0.1:18543/a.b.apps.test
+metric cert_info 1 target=127.0.0.1:18543/a.b.apps.test issuer=Vigil_Test_Root_CA subject=_.apps.test protocol=TLSv1.2
+metric up 0 target=127.0.0.1:18544/tls13.test reason=no_common_version
+metric up 1 target=127.0.0.1:18545/tls12.test reason=ok
+metric handshake_ms 128 target=127.0.0.1:18545/tls12.test
+metric cert_expires_days 90.00 target=127.0.0.1:18545/tls12.test
+metric cert_valid 1 target=127.0.0.1:18545/tls12.test
+metric cert_trusted 1 target=127.0.0.1:18545/tls12.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18545/tls12.test
+metric cert_info 1 target=127.0.0.1:18545/tls12.test issuer=Vigil_Test_Root_CA subject=good.test protocol=TLSv1.2
+metric up 0 target=127.0.0.1:18546 reason=handshake_failed
+metric up 0 target=127.0.0.1:18547 reason=timeout
+metric up 0 target=127.0.0.1:18549 reason=refused
+metric up 0 target=no-such-host.invalid reason=no_such_host
+metric targets 15
+metric targets_failed 11
+metric soonest_days -637.68
+exit 0
+  PASS  runs
+  PASS  every target counted; those failing a check counted
+  PASS  127.0.0.1:18543/good.test
+  PASS  127.0.0.1:18543/soon.test
+  PASS  127.0.0.1:18543/expired.test
+  PASS  127.0.0.1:18543/future.test
+  PASS  127.0.0.1:18543/self.test
+  PASS  127.0.0.1:18543/wrong.test
+  PASS  127.0.0.1:18543/chain.test
+  PASS  127.0.0.1:18543/a.apps.test
+  PASS  127.0.0.1:18543/a.b.apps.test
+  PASS  127.0.0.1:18544/tls13.test
+  PASS  127.0.0.1:18545/tls12.test
+  PASS  127.0.0.1:18546
+  PASS  127.0.0.1:18547
+  PASS  127.0.0.1:18549
+  PASS  no-such-host.invalid
+  PASS  soon: under 5 days left
+  PASS  TLS 1.2 only: agreed
+  PASS  good: its issuer and subject; the handshake timed (perl)
+  PASS  without the CA, the good one is not trusted
+
+# The pack through Vigil:
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+tls: 127.0.0.1:18543/good.test 127.0.0.1:18543/soon.test 127.0.0.1:18543/expired.test 127.0.0.1:18543/future.test 127.0.0.1:18543/self.test 127.0.0.1:18543/wrong.test 127.0.0.1:18543/chain.test 127.0.0.1:18543/a.apps.test 127.0.0.1:18543/a.b.apps.test 127.0.0.1:18544/tls13.test 127.0.0.1:18545/tls12.test 127.0.0.1:18546 127.0.0.1:18547 127.0.0.1:18549 no-such-host.invalid
+  PASS  tls: off until enabled
+  PASS  tls: enabled
+        on: tls_certs
+        needs the targets, separated by spaces: env = TLS_TARGETS=example.com mail.example.com:993 10.0.0.5:8443/app.internal
+        needs for certificates from a private CA: env = TLS_CACERT=/etc/ssl/private-ca.pem (on Windows, or trust the CA in Windows)
+        settings in vigil.config: TLS_TARGETS= TLS_CACERT= TLS_TIMEOUT=10
+  PASS  tls: it says what it needs: the targets, a private CA
+  PASS  tls: precheck is happy
+  PASS  tls: certs runs
+  PASS  tls: every target counted, those failing a check counted
+  PASS  tls: metrics reach the backend, each target by name
+9 passed, 0 failed
+
+21 passed, 0 failed

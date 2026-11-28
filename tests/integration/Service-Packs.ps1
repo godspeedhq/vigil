@@ -262,7 +262,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
     $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs', 'etcd', 'openbao', 'traefik')
-    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'zookeeper', 'mongodb', 'oracle', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
+    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'zookeeper', 'mongodb', 'oracle', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite', 'tls') + $obsPacks) {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
         Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
@@ -2043,6 +2043,35 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal 'sqlite: metrics reach the backend, each database by its path' 'True True' "$([string]($prom -match '(?m)^sqlite_databases\{')) $([string]($prom -match '(?m)^sqlite_size_bytes\{.*db='))"
+    }
+    # VIGIL_IT_TLS: targets backends/scripts/run-tls.sh serves, separated
+    # by spaces, with VIGIL_IT_TLS_CACERT (their CA, a file here) and
+    # VIGIL_IT_TLS_FAILED (how many fail a check).
+    if (-not $env:VIGIL_IT_TLS) { Write-Host '  SKIP  tls: set VIGIL_IT_TLS (backends/scripts/run-tls.sh sets it up)' }
+    else {
+        Write-Host "tls: $($env:VIGIL_IT_TLS)"
+        $r = Invoke-Vigil pack enable tls
+        Test-Equal 'tls: enabled' '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        $t = $r.Text -replace '\s+', ' '
+        Test-Equal 'tls: it says what it needs: the targets, a private CA' 'True True' "$($t.Contains('TLS_TARGETS=')) $($t.Contains('TLS_CACERT='))"
+        Set-Env TLS_TARGETS $env:VIGIL_IT_TLS
+        Set-Env TLS_CACERT ([string]$env:VIGIL_IT_TLS_CACERT)
+        Set-Env TLS_TIMEOUT 5
+        Test-Equal 'tls: precheck is happy' '0' ([string](Invoke-Vigil precheck).Code)
+        Test-Equal 'tls: certs runs' '0' ([string](Invoke-Vigil run tls_certs).Code)
+        Show-LastRun tls_certs
+        $tn = @($env:VIGIL_IT_TLS -split '\s+' | Where-Object { $_ }).Count
+        Test-Equal 'tls: every target counted, those failing a check counted' "$tn $($env:VIGIL_IT_TLS_FAILED)" "$(Get-Printed tls_certs targets) $(Get-Printed tls_certs targets_failed)"
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match '(?m)^tls_cert_expires_days\{') { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal 'tls: metrics reach the backend, each target by name' 'True True' "$([string]($prom -match '(?m)^tls_targets\{')) $([string]($prom -match '(?m)^tls_cert_expires_days\{.*target='))"
     }
 }
 finally {

@@ -1,0 +1,84 @@
+metric up 1 target=127.0.0.1:18543/good.test reason=ok
+metric handshake_ms 28 target=127.0.0.1:18543/good.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/good.test
+metric cert_valid 1 target=127.0.0.1:18543/good.test
+metric cert_trusted 1 target=127.0.0.1:18543/good.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18543/good.test
+metric cert_info 1 target=127.0.0.1:18543/good.test issuer=Vigil_Test_Root_CA subject=good.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/soon.test reason=ok
+metric handshake_ms 22 target=127.0.0.1:18543/soon.test
+metric cert_expires_days 5.00 target=127.0.0.1:18543/soon.test
+metric cert_valid 1 target=127.0.0.1:18543/soon.test
+metric cert_trusted 1 target=127.0.0.1:18543/soon.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18543/soon.test
+metric cert_info 1 target=127.0.0.1:18543/soon.test issuer=Vigil_Test_Root_CA subject=soon.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/expired.test reason=ok
+metric handshake_ms 24 target=127.0.0.1:18543/expired.test
+metric cert_expires_days -637.69 target=127.0.0.1:18543/expired.test
+metric cert_valid 0 target=127.0.0.1:18543/expired.test
+metric cert_trusted 0 target=127.0.0.1:18543/expired.test reason=certificate_has_expired
+metric cert_name_ok 1 target=127.0.0.1:18543/expired.test
+metric cert_info 1 target=127.0.0.1:18543/expired.test issuer=Vigil_Test_Root_CA subject=expired.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/future.test reason=ok
+metric handshake_ms 22 target=127.0.0.1:18543/future.test
+metric cert_expires_days 26695.31 target=127.0.0.1:18543/future.test
+metric cert_valid 0 target=127.0.0.1:18543/future.test
+metric cert_trusted 0 target=127.0.0.1:18543/future.test reason=certificate_is_not_yet_valid
+metric cert_name_ok 1 target=127.0.0.1:18543/future.test
+metric cert_info 1 target=127.0.0.1:18543/future.test issuer=Vigil_Test_Root_CA subject=future.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/self.test reason=ok
+metric handshake_ms 20 target=127.0.0.1:18543/self.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/self.test
+metric cert_valid 1 target=127.0.0.1:18543/self.test
+metric cert_trusted 0 target=127.0.0.1:18543/self.test reason=self-signed_certificate
+metric cert_name_ok 1 target=127.0.0.1:18543/self.test
+metric cert_info 1 target=127.0.0.1:18543/self.test issuer=self.test subject=self.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/wrong.test reason=ok
+metric handshake_ms 19 target=127.0.0.1:18543/wrong.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/wrong.test
+metric cert_valid 1 target=127.0.0.1:18543/wrong.test
+metric cert_trusted 1 target=127.0.0.1:18543/wrong.test reason=ok
+metric cert_name_ok 0 target=127.0.0.1:18543/wrong.test
+metric cert_info 1 target=127.0.0.1:18543/wrong.test issuer=Vigil_Test_Root_CA subject=other.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/chain.test reason=ok
+metric handshake_ms 16 target=127.0.0.1:18543/chain.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/chain.test
+metric cert_valid 1 target=127.0.0.1:18543/chain.test
+metric cert_trusted 0 target=127.0.0.1:18543/chain.test reason=unable_to_verify_the_first_certificate
+metric cert_name_ok 1 target=127.0.0.1:18543/chain.test
+metric cert_info 1 target=127.0.0.1:18543/chain.test issuer=Vigil_Test_Intermediate subject=chain.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/a.apps.test reason=ok
+metric handshake_ms 23 target=127.0.0.1:18543/a.apps.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/a.apps.test
+metric cert_valid 1 target=127.0.0.1:18543/a.apps.test
+metric cert_trusted 1 target=127.0.0.1:18543/a.apps.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18543/a.apps.test
+metric cert_info 1 target=127.0.0.1:18543/a.apps.test issuer=Vigil_Test_Root_CA subject=_.apps.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/a.b.apps.test reason=ok
+metric handshake_ms 28 target=127.0.0.1:18543/a.b.apps.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/a.b.apps.test
+metric cert_valid 1 target=127.0.0.1:18543/a.b.apps.test
+metric cert_trusted 1 target=127.0.0.1:18543/a.b.apps.test reason=ok
+metric cert_name_ok 0 target=127.0.0.1:18543/a.b.apps.test
+metric cert_info 1 target=127.0.0.1:18543/a.b.apps.test issuer=Vigil_Test_Root_CA subject=_.apps.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18544/tls13.test reason=ok
+metric handshake_ms 25 target=127.0.0.1:18544/tls13.test
+metric cert_expires_days 365.00 target=127.0.0.1:18544/tls13.test
+metric cert_valid 1 target=127.0.0.1:18544/tls13.test
+metric cert_trusted 1 target=127.0.0.1:18544/tls13.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18544/tls13.test
+metric cert_info 1 target=127.0.0.1:18544/tls13.test issuer=Vigil_Test_Root_CA subject=good.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18545/tls12.test reason=ok
+metric handshake_ms 19 target=127.0.0.1:18545/tls12.test
+metric cert_expires_days 365.00 target=127.0.0.1:18545/tls12.test
+metric cert_valid 1 target=127.0.0.1:18545/tls12.test
+metric cert_trusted 1 target=127.0.0.1:18545/tls12.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18545/tls12.test
+metric cert_info 1 target=127.0.0.1:18545/tls12.test issuer=Vigil_Test_Root_CA subject=good.test protocol=TLSv1.2
+metric up 0 target=127.0.0.1:18546 reason=handshake_failed
+metric up 0 target=127.0.0.1:18547 reason=timeout
+metric up 0 target=127.0.0.1:18549 reason=refused
+metric up 0 target=no-such-host.invalid reason=no_such_host
+metric targets 15
+metric targets_failed 10
+metric soonest_days -637.69
