@@ -73,6 +73,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`docker`](docker/README.md) | Docker: whether the engine answers, its containers by state, each container (running, restarts, health, exit code, killed for memory), each one's CPU, memory against its limit, network and disk, and the disk the engine uses (images, containers, volumes, build cache) | [packs/docker/README.md](docker/README.md) |
 | [`podman`](podman/README.md) | Podman: whether it answers, its containers by state, each container (running, restarts, health, exit code, killed for memory), each one's CPU, memory against its limit, network and disk, and the disk it uses (images, containers, volumes) | [packs/podman/README.md](podman/README.md) |
 | [`sqlite`](sqlite/README.md) | SQLite databases, from their files: there or not, size and free pages, a write-ahead log that keeps growing, a rollback journal left in use, and, when asked, `PRAGMA quick_check` | [packs/sqlite/README.md](sqlite/README.md) |
+| [`tls`](tls/README.md) | TLS certificates of any host and port: days until expiry, within its dates, trusted, for the right name; the handshake, why it failed, how long it took, the TLS version | [packs/tls/README.md](tls/README.md) |
 
 ## Service packs
 
@@ -329,6 +330,12 @@ Podman, asked with its own command, as the account Vigil runs as (root's contain
 SQLite databases, the files an application keeps them in: each one there or not, its size, its free pages (space a `VACUUM` would give back), its write-ahead log (one that keeps growing is a reader that never lets a checkpoint finish), and a rollback journal still in use long after a transaction should have ended. It reads each database's first 100 bytes and the sizes and times of its files, with no SQLite library and no lock: nothing the application can notice. Only when asked, once a day, `PRAGMA quick_check`, read-only, with `sqlite3`. Linux, macOS and Windows.
 
 **Its page: [packs/sqlite/README.md](sqlite/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### tls
+
+TLS certificates, the way a client meets them: for each host and port you list, a handshake, and the certificate it is given: the days until it expires, whether it is within its dates, trusted, and for the name asked for; whether the handshake finished, why not, how long it took, and the TLS version. It reads what the server serves, so a certificate renewed on disk and not loaded is still the old one, as it is for every client. Nothing is sent but the handshake. With `openssl` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/tls/README.md](tls/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ## Writing a pack
 

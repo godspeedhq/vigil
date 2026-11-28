@@ -1,0 +1,191 @@
+== pack-tls
+date     2026-11-28T16:27:14Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    5966a4a (deployed copy)
+command  tests/integration/backends/scripts/run-tls.sh
+bash     5.3.9(1)-release
+git      git version 2.56.1
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.19.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.tls.yaml pins them)
+         nginx:${NGINX_VERSION:-1.30.8-alpine}
+
+servers  web nginx:1.30.8-alpine
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+certs    from a CA of its own: good (a year), soon (5 days), expired, future (not valid yet), self-signed, wrong (for other.test), chain (from an intermediate, served without it), a wildcard (*.apps.test)
+
+# Every target, as the job prints it.
+
+$ TLS_TARGETS=... TLS_CACERT=ca.pem TLS_TIMEOUT=5 bash packs/tls/linux/certs.sh
+metric up 1 target=127.0.0.1:18543/good.test reason=ok
+metric handshake_ms 28 target=127.0.0.1:18543/good.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/good.test
+metric cert_valid 1 target=127.0.0.1:18543/good.test
+metric cert_trusted 1 target=127.0.0.1:18543/good.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18543/good.test
+metric cert_info 1 target=127.0.0.1:18543/good.test issuer=Vigil_Test_Root_CA subject=good.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/soon.test reason=ok
+metric handshake_ms 22 target=127.0.0.1:18543/soon.test
+metric cert_expires_days 5.00 target=127.0.0.1:18543/soon.test
+metric cert_valid 1 target=127.0.0.1:18543/soon.test
+metric cert_trusted 1 target=127.0.0.1:18543/soon.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18543/soon.test
+metric cert_info 1 target=127.0.0.1:18543/soon.test issuer=Vigil_Test_Root_CA subject=soon.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/expired.test reason=ok
+metric handshake_ms 24 target=127.0.0.1:18543/expired.test
+metric cert_expires_days -637.69 target=127.0.0.1:18543/expired.test
+metric cert_valid 0 target=127.0.0.1:18543/expired.test
+metric cert_trusted 0 target=127.0.0.1:18543/expired.test reason=certificate_has_expired
+metric cert_name_ok 1 target=127.0.0.1:18543/expired.test
+metric cert_info 1 target=127.0.0.1:18543/expired.test issuer=Vigil_Test_Root_CA subject=expired.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/future.test reason=ok
+metric handshake_ms 22 target=127.0.0.1:18543/future.test
+metric cert_expires_days 26695.31 target=127.0.0.1:18543/future.test
+metric cert_valid 0 target=127.0.0.1:18543/future.test
+metric cert_trusted 0 target=127.0.0.1:18543/future.test reason=certificate_is_not_yet_valid
+metric cert_name_ok 1 target=127.0.0.1:18543/future.test
+metric cert_info 1 target=127.0.0.1:18543/future.test issuer=Vigil_Test_Root_CA subject=future.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/self.test reason=ok
+metric handshake_ms 20 target=127.0.0.1:18543/self.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/self.test
+metric cert_valid 1 target=127.0.0.1:18543/self.test
+metric cert_trusted 0 target=127.0.0.1:18543/self.test reason=self-signed_certificate
+metric cert_name_ok 1 target=127.0.0.1:18543/self.test
+metric cert_info 1 target=127.0.0.1:18543/self.test issuer=self.test subject=self.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/wrong.test reason=ok
+metric handshake_ms 19 target=127.0.0.1:18543/wrong.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/wrong.test
+metric cert_valid 1 target=127.0.0.1:18543/wrong.test
+metric cert_trusted 1 target=127.0.0.1:18543/wrong.test reason=ok
+metric cert_name_ok 0 target=127.0.0.1:18543/wrong.test
+metric cert_info 1 target=127.0.0.1:18543/wrong.test issuer=Vigil_Test_Root_CA subject=other.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/chain.test reason=ok
+metric handshake_ms 16 target=127.0.0.1:18543/chain.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/chain.test
+metric cert_valid 1 target=127.0.0.1:18543/chain.test
+metric cert_trusted 0 target=127.0.0.1:18543/chain.test reason=unable_to_verify_the_first_certificate
+metric cert_name_ok 1 target=127.0.0.1:18543/chain.test
+metric cert_info 1 target=127.0.0.1:18543/chain.test issuer=Vigil_Test_Intermediate subject=chain.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/a.apps.test reason=ok
+metric handshake_ms 23 target=127.0.0.1:18543/a.apps.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/a.apps.test
+metric cert_valid 1 target=127.0.0.1:18543/a.apps.test
+metric cert_trusted 1 target=127.0.0.1:18543/a.apps.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18543/a.apps.test
+metric cert_info 1 target=127.0.0.1:18543/a.apps.test issuer=Vigil_Test_Root_CA subject=_.apps.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18543/a.b.apps.test reason=ok
+metric handshake_ms 28 target=127.0.0.1:18543/a.b.apps.test
+metric cert_expires_days 365.00 target=127.0.0.1:18543/a.b.apps.test
+metric cert_valid 1 target=127.0.0.1:18543/a.b.apps.test
+metric cert_trusted 1 target=127.0.0.1:18543/a.b.apps.test reason=ok
+metric cert_name_ok 0 target=127.0.0.1:18543/a.b.apps.test
+metric cert_info 1 target=127.0.0.1:18543/a.b.apps.test issuer=Vigil_Test_Root_CA subject=_.apps.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18544/tls13.test reason=ok
+metric handshake_ms 25 target=127.0.0.1:18544/tls13.test
+metric cert_expires_days 365.00 target=127.0.0.1:18544/tls13.test
+metric cert_valid 1 target=127.0.0.1:18544/tls13.test
+metric cert_trusted 1 target=127.0.0.1:18544/tls13.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18544/tls13.test
+metric cert_info 1 target=127.0.0.1:18544/tls13.test issuer=Vigil_Test_Root_CA subject=good.test protocol=TLSv1.3
+metric up 1 target=127.0.0.1:18545/tls12.test reason=ok
+metric handshake_ms 19 target=127.0.0.1:18545/tls12.test
+metric cert_expires_days 365.00 target=127.0.0.1:18545/tls12.test
+metric cert_valid 1 target=127.0.0.1:18545/tls12.test
+metric cert_trusted 1 target=127.0.0.1:18545/tls12.test reason=ok
+metric cert_name_ok 1 target=127.0.0.1:18545/tls12.test
+metric cert_info 1 target=127.0.0.1:18545/tls12.test issuer=Vigil_Test_Root_CA subject=good.test protocol=TLSv1.2
+metric up 0 target=127.0.0.1:18546 reason=handshake_failed
+metric up 0 target=127.0.0.1:18547 reason=timeout
+metric up 0 target=127.0.0.1:18549 reason=refused
+metric up 0 target=no-such-host.invalid reason=no_such_host
+metric targets 15
+metric targets_failed 10
+metric soonest_days -637.69
+
+# What it read.
+  PASS  the job runs
+  PASS  every target counted; those failing a check counted
+  PASS  good: up, a year left, valid, trusted by the CA, the right name
+  PASS  good: its issuer and subject; the handshake timed
+  PASS  soon: under 5 days left, and nothing else wrong
+  PASS  the soonest is the expired one
+  PASS  expired: below 0, not valid, not trusted, and why
+  PASS  future: not valid yet, and why
+  PASS  self-signed: within its dates, not trusted, and why
+  PASS  wrong: trusted, but not for the name asked
+  PASS  chain: the intermediate not sent, so not trusted, and why
+  PASS  the wildcard: one label, yes; two, no
+  PASS  TLS 1.3 only, and 1.2 only: each agreed
+  PASS  not TLS, never answers, nothing listening, no such host: each up 0, and why
+  PASS  without the CA, the good one is not trusted
+  PASS  no targets: none counted, the run succeeding
+
+# A renewal: a new certificate for good.test on disk, for 90 days. nginx has not reloaded.
+metric cert_expires_days 365.00 target=127.0.0.1:18543/good.test
+metric cert_trusted 1 target=127.0.0.1:18543/good.test reason=ok
+  PASS  renewed on disk, not loaded: clients still get the old one
+
+# nginx reloads.
+metric cert_expires_days 90.00 target=127.0.0.1:18543/good.test
+metric cert_trusted 1 target=127.0.0.1:18543/good.test reason=ok
+  PASS  reloaded: the new one, 90 days
+
+# The pack through Vigil, against them all.
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)
+  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)
+  SKIP  mongodb: set VIGIL_IT_MONGODB_URL and VIGIL_IT_MONGODB_PASSWORD (scripts/run-mongodb.sh sets them up)
+  SKIP  oracle: set VIGIL_IT_ORACLE_HOST, VIGIL_IT_ORACLE_SERVICE and VIGIL_IT_ORACLE_PASSWORD (scripts/run-oracle.sh sets them up)
+  SKIP  zookeeper: set VIGIL_IT_ZOOKEEPER_SERVERS (scripts/run-zookeeper.sh sets it up)
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  etcd: set VIGIL_IT_OBS_ETCD (scripts/run-obs.sh sets it up)
+  SKIP  openbao: set VIGIL_IT_OBS_OPENBAO (scripts/run-obs.sh sets it up)
+  SKIP  traefik: set VIGIL_IT_OBS_TRAEFIK (scripts/run-obs.sh sets it up)
+  SKIP  docker: set VIGIL_IT_DOCKER (scripts/run-containers.sh docker sets it up)
+  SKIP  podman: set VIGIL_IT_PODMAN (scripts/run-containers.sh podman sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (scripts/run-sqlite.sh sets it up)
+tls: 127.0.0.1:18543/good.test 127.0.0.1:18543/soon.test 127.0.0.1:18543/expired.test 127.0.0.1:18543/future.test 127.0.0.1:18543/self.test 127.0.0.1:18543/wrong.test 127.0.0.1:18543/chain.test 127.0.0.1:18543/a.apps.test 127.0.0.1:18543/a.b.apps.test 127.0.0.1:18544/tls13.test 127.0.0.1:18545/tls12.test 127.0.0.1:18546 127.0.0.1:18547 127.0.0.1:18549 no-such-host.invalid
+  PASS  tls: off until enabled
+  PASS  tls: enabled
+        on: tls_certs
+        needs the targets, separated by spaces: env = TLS_TARGETS=example.com mail.example.com:993 10.0.0.5:8443/app.internal
+        needs for certificates from a private CA: env = TLS_CACERT=/etc/ssl/private-ca.pem (on Windows, or trust the CA in Windows)
+        settings in vigil.config: TLS_TARGETS= TLS_CACERT= TLS_TIMEOUT=10
+  PASS  tls: it says what it needs: the targets, a private CA
+  PASS  tls: precheck is happy
+  PASS  tls: certs runs
+  PASS  tls: every target counted, those failing a check counted
+  PASS  tls: metrics reach the backend, each target by name
+9 passed, 0 failed
+18 passed, 0 failed
+evidence: reports/runs/2026-11-28/fedora/pack-tls
