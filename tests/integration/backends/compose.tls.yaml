@@ -9,20 +9,15 @@
 #
 # Targets for the tls pack (scripts/run-tls.sh), which writes nginx's
 # configuration into TLS_CONF and the certificates, from a CA of its own,
-# into TLS_CERTS:
-# - web: nginx, a certificate for each kind of trouble, chosen by the name
-#   asked for (SNI) on 127.0.0.1:18543; TLS 1.3 only on 18544; TLS 1.2 only
-#   on 18545; plain HTTP, no TLS, on 18546.
-# - silent: accepts a connection on 127.0.0.1:18547 and never answers.
+# into TLS_CERTS. nginx serves a certificate for each kind of trouble,
+# chosen by the name asked for (SNI), on 127.0.0.1:18543; TLS 1.3 only on
+# 18544; TLS 1.2 only on 18545; plain HTTP, no TLS, on 18546; and on 18547
+# it takes every connection and never answers (a stream server waiting on
+# an address that does not answer either).
 
 services:
   web:
     image: nginx:${NGINX_VERSION:-1.30.8-alpine}
     mem_limit: 128m
-    ports: ["127.0.0.1:18543:8443", "127.0.0.1:18544:8444", "127.0.0.1:18545:8445", "127.0.0.1:18546:8446"]
+    ports: ["127.0.0.1:18543:8443", "127.0.0.1:18544:8444", "127.0.0.1:18545:8445", "127.0.0.1:18546:8446", "127.0.0.1:18547:8447"]
     volumes: ["${TLS_CONF:?the configuration}:/etc/nginx/nginx.conf:ro,z", "${TLS_CERTS:?the certificates}:/certs:ro,z"]
-  silent:
-    image: busybox:${BUSYBOX_VERSION:-1.37.0}
-    mem_limit: 32m
-    command: [sh, -c, "while true; do nc -l -p 9443 > /dev/null; done"]
-    ports: ["127.0.0.1:18547:9443"]

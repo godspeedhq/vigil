@@ -18,7 +18,7 @@
 # not valid yet; one self-signed; one for another name; one from the
 # intermediate, served without it; and a wildcard. nginx serves each for
 # its name (SNI), and TLS 1.3 only and TLS 1.2 only on ports of their own;
-# compose.tls.yaml adds a port that is not TLS and one that never answers.
+# and a port that is not TLS and one that never answers.
 # The job runs against them all, with the CA as TLS_CACERT, and what it read
 # for each is checked. Then a renewal: a new certificate on disk, read
 # before nginx reloads it and after. Then tests/integration/service-packs.sh
@@ -87,6 +87,9 @@ site() { printf '    server { listen %s ssl; server_name %s; ssl_certificate /ce
     site 8444 tls13.test good ' ssl_protocols TLSv1.3;'
     site 8445 tls12.test good ' ssl_protocols TLSv1.2;'
     printf '    server { listen 8446; return 200 "plain\\n"; }\n}\n'
+    # Takes every connection and never answers: it waits on an address that
+    # does not answer either.
+    printf 'stream {\n    server { listen 8447; proxy_pass 10.255.255.1:9; proxy_connect_timeout 600s; }\n}\n'
 } > "$TLS_CONF"
 chmod 644 "$TLS_CONF"
 evidence_start pack-tls "$bk_dir/$file" "$0" "$@"
@@ -135,7 +138,7 @@ check 'expired: below 0, not valid, not trusted, and why' 'yes 0 0 reason=certif
 check 'future: not valid yet, and why' '0 reason=certificate_is_not_yet_valid' "$(val cert_valid "$w/future.test") $(tags cert_trusted "$w/future.test")"
 check 'self-signed: within its dates, not trusted, and why' '1 0 reason=self-signed_certificate' "$(val cert_valid "$w/self.test") $(val cert_trusted "$w/self.test") $(tags cert_trusted "$w/self.test")"
 check 'wrong: trusted, but not for the name asked' '1 0' "$(val cert_trusted "$w/wrong.test") $(val cert_name_ok "$w/wrong.test")"
-check 'chain: the intermediate not sent, so not trusted, and why' '0 reason=unable_to_get_local_issuer_certificate' "$(val cert_trusted "$w/chain.test") $(tags cert_trusted "$w/chain.test")"
+check 'chain: the intermediate not sent, so not trusted, and why' '0 reason=unable_to_verify_the_first_certificate' "$(val cert_trusted "$w/chain.test") $(tags cert_trusted "$w/chain.test")"
 check 'the wildcard: one label, yes; two, no' '1 0' "$(val cert_name_ok "$w/a.apps.test") $(val cert_name_ok "$w/a.b.apps.test")"
 check 'TLS 1.3 only, and 1.2 only: each agreed' 'protocol=TLSv1.3 protocol=TLSv1.2' "$(tags cert_info 127.0.0.1:18544/tls13.test | cut -d' ' -f3) $(tags cert_info 127.0.0.1:18545/tls12.test | cut -d' ' -f3)"
 check 'not TLS, never answers, nothing listening, no such host: each up 0, and why' '0 reason=handshake_failed 0 reason=timeout 0 reason=refused 0 reason=no_such_host' "$(val up 127.0.0.1:18546) $(tags up 127.0.0.1:18546) $(val up 127.0.0.1:18547) $(tags up 127.0.0.1:18547) $(val up 127.0.0.1:18549) $(tags up 127.0.0.1:18549) $(val up no-such-host.invalid) $(tags up no-such-host.invalid)"
