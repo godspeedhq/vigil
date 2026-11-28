@@ -173,6 +173,13 @@ quiet() { bash "$pack/$1.sh" > "$work/$1.out" 2> "$work/$1.err"; echo $?; }
 use() { export OPENBAO_URL; OPENBAO_URL=$(url "$1"); OPENBAO_TOKEN=$(cat "$work/secret.token-${1%?}"); export OPENBAO_TOKEN; }
 jobs=$(sed -n 's/^\[job\.\(.*\)\]$/\1/p' "$bk_repo/packs/openbao/pack.config")
 
+# Autopilot counts a node that has just joined as a voter only once it has
+# been stable a while: wait for each cluster to tolerate a failure.
+for p in o v; do
+    use "${p}1"
+    for _ in $(seq 1 45); do quiet storage > /dev/null; [ "$(val storage failure_tolerance '')" = 1 ] && break; sleep 2; done
+done
+
 for p in o v; do
     P=$([ "$p" = o ] && echo OpenBao || echo Vault)
     say "$P, ${p}1, the active node: every job, as the pack's scripts print it."
