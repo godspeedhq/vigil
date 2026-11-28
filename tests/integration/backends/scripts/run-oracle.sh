@@ -161,7 +161,9 @@ printf 'BEGIN UPDATE t SET v = 4 WHERE id = 3; DBMS_SESSION.SLEEP(4); UPDATE t S
 wait
 cat "$work/dead1.log" "$work/dead2.log" | grep -m 1 -o 'ORA-00060[^.]*' | sed 's/^/deadlock /'
 # One session holds row 1, its transaction open and idle; another waits.
-{ echo 'UPDATE t SET v = 1 WHERE id = 1;'; sleep 900; echo 'ROLLBACK;'; echo EXIT; } | app > /dev/null 2>&1 &
+# They last until the run deletes $work/blocking, held or not.
+: > "$work/blocking"
+{ echo 'UPDATE t SET v = 1 WHERE id = 1;'; while [ -e "$work/blocking" ]; do sleep 2; done; echo 'ROLLBACK;'; echo EXIT; } | app > /dev/null 2>&1 &
 bg="$bg $!"
 sleep 3
 { echo 'UPDATE t SET v = 2 WHERE id = 1;'; echo 'ROLLBACK;'; echo EXIT; } | app > /dev/null 2>&1 &
@@ -289,6 +291,7 @@ if [ -n "${VIGIL_IT_ORACLE_HOLD-}" ]; then
     while [ -e "$VIGIL_IT_ORACLE_HOLD" ]; do sleep 5; done
     rm -rf "$VIGIL_IT_ORACLE_HOLD.d"
 fi
+rm -f "$work/blocking"
 # shellcheck disable=SC2086
 kill $bg 2> /dev/null
 bg=''

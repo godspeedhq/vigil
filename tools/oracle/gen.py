@@ -492,7 +492,8 @@ try {
     $in = $p.StandardInput
     $in.NewLine = "`n"
 @PRELUDEPS@    $in.WriteLine('CONNECT ' + $user + '/"' + $env:ORACLE_PASSWORD + '"@//' + $hostName + ':' + $port + '/' + $env:ORACLE_SERVICE)
-    $in.Write($sql.Replace("`r`n", "`n"))
+    # A here-string ends without its last newline: the query's own ; ends a line.
+    $in.WriteLine($sql.Replace("`r`n", "`n"))
     $in.WriteLine('EXIT')
     $in.Close()
     $p.WaitForExit()
