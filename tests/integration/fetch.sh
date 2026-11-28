@@ -303,6 +303,8 @@ fetch
 check "unreachable: fetch failed" failed "$(fetch_status)"
 check "unreachable: revision unchanged" "$rev2" "$(revision)"
 check "unreachable: still runs" 'from_git: succeeded|metric hello 2' "$(run from_git)"
+tick
+check "unreachable: counted as unreachable" yes "$(yes_no grep -Eq '^vigil_source_failures_total[{].*(reason="unreachable".*source="ops"|source="ops".*reason="unreachable")' "$root/metrics/vigil.prom")"
 
 # A symbolic link out of the repository is refused.
 blob=$(printf '../../outside' | git --git-dir="$root/work/.git" hash-object -w --stdin)
@@ -439,6 +441,11 @@ fetch
 check "not from source: rejected" failed "$(fetch_status)"
 check "not from source: reported" yes "$(yes_no grep -rq 'E_NOT_FROM_SOURCE' "$root/logs/jobs/vigil_fetch")"
 check "not from source: revision unchanged" "$rev4" "$(revision)"
+# A refused configuration and an unreachable source differ in the metric's
+# reason (14.5), not only in the log.
+tick
+check "not from source: counted as invalid, not unreachable" yes "$(yes_no grep -Eq '^vigil_source_failures_total[{].*(reason="invalid".*source="central"|source="central".*reason="invalid")' "$root/metrics/vigil.prom")"
+check "not from source: no unreachable count for it" no "$(yes_no grep -Eq '^vigil_source_failures_total[{].*(reason="unreachable".*source="central"|source="central".*reason="unreachable")' "$root/metrics/vigil.prom")"
 
 # sftp: an OpenSSH server run as this user, its host key known only
 # through VIGIL_TEST_SSH_CONFIG.

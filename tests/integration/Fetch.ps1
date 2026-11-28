@@ -303,6 +303,9 @@ run_every = 3650d
     Test-Equal 'unreachable: fetch failed' 'failed' (Get-FetchStatus)
     Test-Equal 'unreachable: revision unchanged' $rev2 (Get-Revision)
     Test-Equal 'unreachable: still runs' 'from_git: succeeded|metric hello 2' (Invoke-Run 'from_git')
+    Invoke-Tick
+    $prom = [System.IO.File]::ReadAllText("$root\metrics\vigil.prom")
+    Test-Equal 'unreachable: counted as unreachable' 'True' ([string]($prom -cmatch '(?m)^vigil_source_failures_total\{.*(reason="unreachable".*source="ops"|source="ops".*reason="unreachable")'))
 
     # A symbolic link out of the repository is refused.
     $blobFile = Join-Path $root 'link-target'
@@ -404,6 +407,12 @@ run_every = 3650d
     Test-Equal 'not from source: rejected' 'failed' (Get-FetchStatus)
     Test-Equal 'not from source: reported' 'yes' (Test-InFiles "$root\logs\jobs\vigil_fetch" 'E_NOT_FROM_SOURCE')
     Test-Equal 'not from source: revision unchanged' $rev4 (Get-Revision)
+    # A refused configuration and an unreachable source differ in the
+    # metric's reason (14.5), not only in the log.
+    Invoke-Tick
+    $prom = [System.IO.File]::ReadAllText("$root\metrics\vigil.prom")
+    Test-Equal 'not from source: counted as invalid, not unreachable' 'True' ([string]($prom -cmatch '(?m)^vigil_source_failures_total\{.*(reason="invalid".*source="central"|source="central".*reason="invalid")'))
+    Test-Equal 'not from source: no unreachable count for it' 'False' ([string]($prom -cmatch '(?m)^vigil_source_failures_total\{.*(reason="unreachable".*source="central"|source="central".*reason="unreachable")'))
 
     # sftp: an OpenSSH server run as this user, its host key known only
     # through VIGIL_TEST_SSH_CONFIG.
