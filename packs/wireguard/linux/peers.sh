@@ -42,15 +42,16 @@
 #   peers_not_shown      peers past the 20 shown
 #
 # Example output (the rest are in the same form):
-#   metric interfaces 1
+#   metric interfaces 2
 #   metric peers 3
 #   metric peers_stale 1
 #   metric peers_never 1
 #   metric interface_peers 3 interface=wg0
-#   metric handshake_seconds -1 interface=wg0 peer=0sB0hbYJ1TzYWdA3x8ZtHeLDd0mHG2TwP7c0kB1yQmk_
-#   metric handshake_seconds 214 interface=wg0 peer=hQq8xKpdvgk1Dqv8mMtCwX6P6WbY5Jz0EJ2zB9b7m2k_
-#   metric rx_bytes_count 92 interface=wg0 peer=hQq8xKpdvgk1Dqv8mMtCwX6P6WbY5Jz0EJ2zB9b7m2k_
-#   metric tx_bytes_count 180 interface=wg0 peer=hQq8xKpdvgk1Dqv8mMtCwX6P6WbY5Jz0EJ2zB9b7m2k_
+#   metric interface_peers 0 interface=wg1
+#   metric handshake_seconds -1 interface=wg0 peer=EcNI0FIB9H+Bywnzgiuofm6zINvEaqLn53mfVx8LxiA_
+#   metric handshake_seconds 183 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+#   metric rx_bytes_count 564 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
+#   metric tx_bytes_count 3436 interface=wg0 peer=QzJ87q6To1z9+J1R/IGGXhQ2XzqFx8gBqucMerPInnk_
 #   metric peers_not_shown 0
 #
 # Reading the results (starting points: tune them to your peers):

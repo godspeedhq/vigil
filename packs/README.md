@@ -75,6 +75,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`podman`](podman/README.md) | Podman: whether it answers, its containers by state, each container (running, restarts, health, exit code, killed for memory), each one's CPU, memory against its limit, network and disk, and the disk it uses (images, containers, volumes) | [packs/podman/README.md](podman/README.md) |
 | [`sqlite`](sqlite/README.md) | SQLite databases, from their files: there or not, size and free pages, a write-ahead log that keeps growing, a rollback journal left in use, and, when asked, `PRAGMA quick_check` | [packs/sqlite/README.md](sqlite/README.md) |
 | [`tls`](tls/README.md) | TLS certificates of any host and port: days until expiry, within its dates, trusted, for the right name; the handshake, why it failed, how long it took, the TLS version | [packs/tls/README.md](tls/README.md) |
+| [`wireguard`](wireguard/README.md) | WireGuard on Linux: interfaces and peers, each peer's last handshake (stale, or never), bytes sent and received; never a key | [packs/wireguard/README.md](wireguard/README.md) |
 
 ## Service packs
 
@@ -343,6 +344,12 @@ SQLite databases, the files an application keeps them in: each one there or not,
 TLS certificates, the way a client meets them: for each host and port you list, a handshake, and the certificate it is given: the days until it expires, whether it is within its dates, trusted, and for the name asked for; whether the handshake finished, why not, how long it took, and the TLS version. It reads what the server serves, so a certificate renewed on disk and not loaded is still the old one, as it is for every client. Nothing is sent but the handshake. With `openssl` (on Windows, PowerShell alone). Linux, macOS and Windows.
 
 **Its page: [packs/tls/README.md](tls/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### wireguard
+
+WireGuard tunnels on a Linux machine: each interface's peers, how long since each last completed a handshake (a peer that talks does so every two minutes; one past three minutes is stale), the peers that never connected, and the bytes each sent and received. It never reads a key: it runs three `wg show` commands that print none, as root through a sudoers rule for exactly those three. Linux.
+
+**Its page: [packs/wireguard/README.md](wireguard/README.md)**, with how to set it up, the rule, what to alert on, and how it was tested.
 
 ## Writing a pack
 
