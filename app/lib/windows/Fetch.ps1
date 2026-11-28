@@ -215,6 +215,20 @@ function Test-VigilLinkInside {
     return $true
 }
 
+# What validating a configuration depends on besides its text: this Vigil's
+# own scripts, by digest, once a process. A recorded validation (below) is
+# used only under the same.
+function Get-VigilValidatorStamp {
+    if (-not $Script:VigilValidatorStamp) {
+        $sb = New-Object System.Text.StringBuilder
+        foreach ($p in @([System.IO.Directory]::GetFiles($PSScriptRoot, '*.ps1') | Sort-Object)) {
+            [void]$sb.Append("$([System.IO.Path]::GetFileName($p)) $(Get-VigilFileSha $p)`n")
+        }
+        $Script:VigilValidatorStamp = (Get-VigilTextSha $sb.ToString()).Substring(0, 16)
+    }
+    return $Script:VigilValidatorStamp
+}
+
 function Invoke-VigilFetch {
     param($Ctx, [string]$HostName, [string]$Root, [string]$Log, [string]$RunId)
     $state = $Ctx.State
@@ -611,15 +625,43 @@ function Invoke-VigilFetch {
         $kept = Join-Path $configs "$sha.config"
         if (-not [System.IO.File]::Exists($kept)) { Write-VigilFileAtomic -Path $kept -Text ([System.IO.File]::ReadAllText($cand)) }
         $parsed = ConvertFrom-VigilConfig -Path $kept
-        $records = Test-VigilConfig -Parsed $parsed
-        # Where configuration comes from, and where state is kept, are
-        # decided on the host (6.8).
-        if ($csrc) {
-            foreach ($e in $parsed.Entries) {
-                if ($e.Section -ceq 'vigil' -and @('config_source', 'config_file', 'state_dir') -ccontains $e.Key) {
-                    $records.Add([pscustomobject]@{ Kind = 'ERROR'; Job = ''; Line = $e.Line; Code = 'E_NOT_FROM_SOURCE'
-                            Message = "'$($e.Key)' cannot be set by a fetched configuration; it is set on the host" })
+        # Validating takes Windows PowerShell seconds of CPU in a fresh process,
+        # and every check is one, though the file is nearly always the one it
+        # checked last time (backlog 71). A file that passed is recorded
+        # beside its copy, with the jobs found invalid, and the same file is
+        # not validated again by the same Vigil: any change to Vigil's scripts,
+        # or to where the file came from, and it is.
+        $checked = Join-Path $configs "$sha.checked"
+        $stamp = "validator = $(Get-VigilValidatorStamp) from_source = $([int][bool]$csrc)"
+        $records = $null
+        try {
+            if ([System.IO.File]::Exists($checked)) {
+                $t = [System.IO.File]::ReadAllLines($checked)
+                if ($t.Count -ge 1 -and $t[0] -ceq $stamp) {
+                    $records = New-Object 'System.Collections.Generic.List[object]'
+                    foreach ($l in $t) {
+                        if ($l -cmatch '^invalid = ([a-z0-9_]+)$') { $records.Add([pscustomobject]@{ Kind = 'INVALID'; Job = $Matches[1]; Line = 0; Code = ''; Message = '' }) }
+                    }
                 }
+            }
+        }
+        catch { $records = $null }
+        if ($null -eq $records) {
+            $records = Test-VigilConfig -Parsed $parsed
+            # Where configuration comes from, and where state is kept, are
+            # decided on the host (6.8).
+            if ($csrc) {
+                foreach ($e in $parsed.Entries) {
+                    if ($e.Section -ceq 'vigil' -and @('config_source', 'config_file', 'state_dir') -ccontains $e.Key) {
+                        $records.Add([pscustomobject]@{ Kind = 'ERROR'; Job = ''; Line = $e.Line; Code = 'E_NOT_FROM_SOURCE'
+                                Message = "'$($e.Key)' cannot be set by a fetched configuration; it is set on the host" })
+                    }
+                }
+            }
+            if ($parsed.Errors.Count -eq 0 -and @($records | Where-Object { $_.Kind -ceq 'ERROR' }).Count -eq 0) {
+                $inv = @($records | Where-Object { $_.Kind -ceq 'INVALID' } | ForEach-Object { $_.Job } | Sort-Object -Unique)
+                $text = "$stamp`n" + (($inv | ForEach-Object { "invalid = $_`n" }) -join '')
+                try { Write-VigilFileAtomic -Path $checked -Text $text } catch { }
             }
         }
         if ($parsed.Errors.Count -gt 0 -or @($records | Where-Object { $_.Kind -ceq 'ERROR' }).Count -gt 0) {
@@ -740,6 +782,10 @@ function Remove-VigilFetchGarbage {
     if ([System.IO.Directory]::Exists($configs)) {
         foreach ($c in [System.IO.Directory]::GetFiles($configs, '*.config')) {
             if (-not $keep.Contains("configs\$([System.IO.Path]::GetFileName($c))")) { try { [System.IO.File]::Delete($c) } catch { } }
+        }
+        # A record of a validation goes with its configuration.
+        foreach ($c in [System.IO.Directory]::GetFiles($configs, '*.checked')) {
+            if (-not [System.IO.File]::Exists($c.Substring(0, $c.Length - 8) + '.config')) { try { [System.IO.File]::Delete($c) } catch { } }
         }
     }
 }

@@ -265,6 +265,19 @@ run_every = 3650d
     Test-Equal 'local: run from the cache' 'from_local: succeeded|metric local 3' (Invoke-Run 'from_local')
     Test-Equal 'precheck once fetched' '0' ([string](Invoke-Vigil @('precheck')).Code)
 
+    # A configuration that passed is recorded, so a check finding the same file
+    # again does not validate it again (backlog 71). A record made by another
+    # Vigil is not trusted: the file is validated again, and recorded anew.
+    $csha = Get-Field (Join-Path $root 'state\config.active') 'config'
+    $rec = "$root\state\configs\$csha.checked"
+    $good = '^validator = [0-9a-f]{16} from_source = 0$'
+    Test-Equal 'validated: recorded' 'True' ([string]((Test-Path -LiteralPath $rec) -and ([System.IO.File]::ReadAllLines($rec)[0] -cmatch $good)))
+    [System.IO.File]::WriteAllText($rec, "validator = 0000000000000000 from_source = 0`n")
+    Invoke-Fetch
+    $first = [System.IO.File]::ReadAllLines($rec)[0]
+    Test-Equal 'validated: a record from another Vigil is not used' 'True' ([string]($first -cmatch $good -and $first -cne 'validator = 0000000000000000 from_source = 0'))
+    Test-Equal 'validated: revision unchanged' $rev1 (Get-Revision)
+
     # A pinned script that changed in its source: the verified copy stays.
     Write-Text "$root\share\local.cmd" "@echo off`necho metric local 30`n"
     Invoke-Fetch
