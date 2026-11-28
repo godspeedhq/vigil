@@ -1068,6 +1068,30 @@ A git source's `ref` is a commit, a tag or a branch:
 
 Vigil fetches only branches and tags, so a commit has to be on one of them.
 
+A `git` source uses the `git` client as it is set up for the account Vigil runs as: its credential helper or SSH key for a private repository (Vigil never puts a token in a URL or on a command line), and its certificate settings for a server behind a private certificate authority. Until they are right, every fetch fails, `vigil_fetch`'s log gives git's reason, and the last valid configuration keeps running.
+
+On Linux and macOS, git trusts the system's certificates, so add the CA there, or point git at it for that server alone, as the account Vigil runs as (`vigil` on Linux; root on macOS, so plain `sudo`):
+
+```bash
+sudo -u vigil git config --global http.https://git.example.com/.sslCAInfo /opt/vigil/config/git-ca.pem
+```
+
+On Windows, the service runs as LocalSystem, so set git up from an elevated prompt with `--system`, which every account reads. Adding the CA to the Windows certificate store is not enough:
+
+- **Git for Windows** checks certificates against its own bundle, not the Windows store. Point it at the CA (a PEM file) for that server:
+
+  ```powershell
+  git config --system http.https://git.example.com/.sslCAInfo C:/ProgramData/Vigil/config/git-ca.pem
+  ```
+
+- **MinGit** uses the Windows store (`schannel`), which insists on checking each certificate for revocation, and a private CA often can't answer. Switch it to OpenSSL as well, then set `sslCAInfo` as above:
+
+  ```powershell
+  git config --system http.sslBackend openssl
+  ```
+
+Until then, the fetch fails with `unable to get local issuer certificate` (OpenSSL) or a revocation error (`schannel`).
+
 ### Secrets
 
 Secrets are never written in the configuration file. Every credential is a **reference** that names where its value comes from:

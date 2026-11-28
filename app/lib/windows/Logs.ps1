@@ -272,6 +272,8 @@ function ConvertTo-VigilLogRecord {
         $cut = $true
     }
     $epoch = ConvertFrom-VigilLogTime $when
+    # For the caller, which picks the revision the line was written under.
+    $Script:VigilLogEpoch = $epoch
     if ($Type -cne 'otel') {
         # A line with no time gets the time it arrives.
         $more = "`"component`":`"$(if ($category -ceq 'supervisor') { 'supervisor' } else { 'job' })`",`"category`":`"$category`""
@@ -381,6 +383,67 @@ function Read-VigilLogLine {
     }
 }
 
+# The parsed configuration's own tags: instance=<name>, then the [tags]
+# section, space-separated (tag values hold no spaces, 14.6).
+function Get-VigilConfigTagLine {
+    param($Parsed)
+    $t = "instance=$(Get-VigilConfigValue $Parsed 'vigil' 'instance' 'vigil')"
+    foreach ($e in $Parsed.Entries) { if ($e.Section -ceq 'tags') { $t += " $($e.Key)=$($e.Value)" } }
+    return $t
+}
+
+# Records -Revision as active from now, with the tags of -Parsed, in
+# <state>\config.history: "<epoch> <revision> <tags>" lines, the last 50, a
+# line only when the revision or the tags change. The log forwarder tags each
+# line with the revision active when it was written (13.4.2). As
+# vigil_config_history in fetch.sh.
+function Add-VigilConfigHistory {
+    param([string]$State, [string]$Revision, $Parsed)
+    $f = Join-Path $State 'config.history'
+    $line = "$([DateTimeOffset]::Now.ToUnixTimeSeconds()) $Revision $(Get-VigilConfigTagLine $Parsed)"
+    $lines = @()
+    try { if ([System.IO.File]::Exists($f)) { $lines = @([System.IO.File]::ReadAllLines($f) | Where-Object { $_ }) } } catch { $lines = @() }
+    if ($lines.Count -gt 0) {
+        $last = $lines[$lines.Count - 1]
+        if ($last.Substring($last.IndexOf(' ') + 1) -ceq $line.Substring($line.IndexOf(' ') + 1)) { return }
+    }
+    $keep = @($lines | Select-Object -Last 49) + $line
+    try { Write-VigilFileAtomic -Path $f -Text (($keep -join "`n") + "`n") } catch { }
+}
+
+# The supervisor's record of the revisions it activated, oldest first: a
+# list of @{ Epoch; Revision; Tags }, empty without one.
+function Read-VigilConfigHistory {
+    param([string]$State)
+    $h = New-Object 'System.Collections.Generic.List[object]'
+    $f = Join-Path $State 'config.history'
+    if (-not [System.IO.File]::Exists($f)) { return , $h }
+    try { $lines = [System.IO.File]::ReadAllLines($f) } catch { return , $h }
+    foreach ($l in $lines) {
+        if ($l -cmatch '^([0-9]+) +([^ ]+) *(.*)$') { $h.Add(@{ Epoch = [long]$Matches[1]; Revision = $Matches[2]; Tags = $Matches[3].Trim() }) }
+    }
+    return , $h
+}
+
+# The index in -Hist of the revision active when a line of time -Epoch was
+# written: the last at or before it, or the first for an older line. A line
+# with no time (-Epoch 0 or less) keeps -Cur, the newest for a first line.
+# -1 without a history. As _vigil_logs_pick in logs.sh.
+function Select-VigilLogRevision {
+    param($Hist, [long]$Epoch, [int]$Cur)
+    $n = $Hist.Count
+    if ($n -eq 0) { return -1 }
+    $i = $Cur
+    if ($Epoch -gt 0) {
+        # Lines come mostly in order: from the last one's, forward, then back.
+        if ($i -lt 0) { $i = 0 }
+        while ($i + 1 -lt $n -and $Hist[$i + 1].Epoch -le $Epoch) { $i++ }
+        while ($i -gt 0 -and $Hist[$i].Epoch -gt $Epoch) { $i-- }
+    }
+    elseif ($i -lt 0) { $i = $n - 1 }
+    return $i
+}
+
 function Invoke-VigilLogs {
     param($Ctx, [string]$HostName, [string]$Root, [string]$Log, [string]$RunId)
     $parsed = $Ctx.Parsed
@@ -443,36 +506,46 @@ function Invoke-VigilLogs {
     $active = if ($Ctx.Config) { Read-VigilActive -Root $Root -State $Ctx.State } else { $null }
     $revision = if ($active) { $active.Revision }
     else { (Get-VigilTextSha "config $(Get-VigilFileSha (Join-Path $Root 'config\vigil.config'))`n").Substring(0, 12) }
-    $attrs = ConvertTo-VigilLogAttr 'service.name' 'vigil'
-    $hostTag = ''
-    $instTag = ''
-    foreach ($t in $tags.Split(' ')) {
-        $eq = $t.IndexOf('=')
-        $attrs += ',' + (ConvertTo-VigilLogAttr $t.Substring(0, $eq) $t.Substring($eq + 1))
-        if ($t.StartsWith('host=')) { $hostTag = $t.Substring(5) }
-        elseif ($t.StartsWith('instance=')) { $instTag = $t.Substring(9) }
-    }
-    # One instance, one stream: Loki indexes service.instance.id, and keeps
-    # a line only within an hour or so of its stream's newest (13.4.2).
-    $attrs += ',' + (ConvertTo-VigilLogAttr 'service.instance.id' "$hostTag/$instTag")
-    $attrs += ',' + (ConvertTo-VigilLogAttr 'config.revision' $revision)
-    $resource = "{`"attributes`":[$attrs]}"
-    # What every record of a request shares (13.4.2), for the others.
-    $shared = ''
-    if ($type -cne 'otel') {
-        $name = ''
-        $list = ''
-        foreach ($t in $tags.Split(' ')) {
+    # What every record of a request shares (13.4.2), for tags -Tags and
+    # revision -Rev: the OTLP resource, and for the others the shared fields.
+    $partsOf = {
+        param([string]$Tags, [string]$Rev)
+        $attrs = ConvertTo-VigilLogAttr 'service.name' 'vigil'
+        $hostTag = ''
+        $instTag = ''
+        foreach ($t in $Tags.Split(' ')) {
             $eq = $t.IndexOf('=')
-            $k = $t.Substring(0, $eq)
-            $v = $t.Substring($eq + 1)
-            if ($k -ceq 'host') { $name = ConvertTo-VigilLogText $v }
-            elseif ($type -ceq 'datadog') { $list += "${k}:$($v.Replace(',', '_'))," }
-            else { $list += "`"$(ConvertTo-VigilSplunkKey $k)`":`"$(ConvertTo-VigilLogText $v)`"," }
+            $attrs += ',' + (ConvertTo-VigilLogAttr $t.Substring(0, $eq) $t.Substring($eq + 1))
+            if ($t.StartsWith('host=')) { $hostTag = $t.Substring(5) }
+            elseif ($t.StartsWith('instance=')) { $instTag = $t.Substring(9) }
         }
-        if ($type -ceq 'datadog') { $shared = "`"ddsource`":`"vigil`",`"service`":`"vigil`",`"hostname`":`"$name`",`"ddtags`":`"$(ConvertTo-VigilLogText "${list}config.revision:$revision")`"," }
-        else { $shared = "`"host`":`"$name`",`"source`":`"vigil`",`"sourcetype`":`"vigil:log`",`"fields`":{$list`"config.revision`":`"$revision`"}," }
+        # One instance, one stream: Loki indexes service.instance.id, and keeps
+        # a line only within an hour or so of its stream's newest (13.4.2).
+        $attrs += ',' + (ConvertTo-VigilLogAttr 'service.instance.id' "$hostTag/$instTag")
+        $attrs += ',' + (ConvertTo-VigilLogAttr 'config.revision' $Rev)
+        $sh = ''
+        if ($type -cne 'otel') {
+            $name = ''
+            $list = ''
+            foreach ($t in $Tags.Split(' ')) {
+                $eq = $t.IndexOf('=')
+                $k = $t.Substring(0, $eq)
+                $v = $t.Substring($eq + 1)
+                if ($k -ceq 'host') { $name = ConvertTo-VigilLogText $v }
+                elseif ($type -ceq 'datadog') { $list += "${k}:$($v.Replace(',', '_'))," }
+                else { $list += "`"$(ConvertTo-VigilSplunkKey $k)`":`"$(ConvertTo-VigilLogText $v)`"," }
+            }
+            if ($type -ceq 'datadog') { $sh = "`"ddsource`":`"vigil`",`"service`":`"vigil`",`"hostname`":`"$name`",`"ddtags`":`"$(ConvertTo-VigilLogText "${list}config.revision:$Rev")`"," }
+            else { $sh = "`"host`":`"$name`",`"source`":`"vigil`",`"sourcetype`":`"vigil:log`",`"fields`":{$list`"config.revision`":`"$Rev`"}," }
+        }
+        return @{ Resource = "{`"attributes`":[$attrs]}"; Shared = $sh }
     }
+    # Each line goes with the revision active when it was written, from the
+    # supervisor's record of what it activated, and when; without one, the
+    # active revision.
+    $hist = Read-VigilConfigHistory -State $Ctx.State
+    $g.Cur = -1
+    $g.Parts = & $partsOf $tags $revision
 
     $gap = {
         param([string]$Reason, [long]$Bytes, [string]$What)
@@ -524,7 +597,7 @@ function Invoke-VigilLogs {
         param([string]$Batch, [int]$Count)
         $headers = @('Content-Type: application/json')
         if ($g.Header) { $headers += $g.Header }
-        $body = if ($type -ceq 'otel') { "{`"resourceLogs`":[{`"resource`":$resource,`"scopeLogs`":[{`"scope`":{`"name`":`"vigil`"},`"logRecords`":[$Batch]}]}]}" }
+        $body = if ($type -ceq 'otel') { "{`"resourceLogs`":[{`"resource`":$batchResource,`"scopeLogs`":[{`"scope`":{`"name`":`"vigil`"},`"logRecords`":[$Batch]}]}]}" }
         elseif ($type -ceq 'datadog') { "[$Batch]" }
         else { $Batch }
         # The body is a byte string of valid UTF-8; the sender encodes text.
@@ -609,9 +682,19 @@ function Invoke-VigilLogs {
             $ends = New-Object 'System.Collections.Generic.List[long]'
             try {
                 while ($null -ne ($line = Read-VigilLogLine $reader)) {
-                    $rec = ConvertTo-VigilLogRecord -File $File -Line $line -Include $include -Output $output -Type $type -Shared $shared
+                    $rec = ConvertTo-VigilLogRecord -File $File -Line $line -Include $include -Output $output -Type $type -Shared $g.Parts.Shared
                     if ($rec) {
+                        $i = Select-VigilLogRevision $hist $Script:VigilLogEpoch $g.Cur
+                        if ($i -ne $g.Cur) {
+                            $g.Cur = $i
+                            $g.Parts = & $partsOf ("host=$HostName os=windows $($hist[$i].Tags)".Trim()) $hist[$i].Revision
+                            if ($type -cne 'otel') { $rec = ConvertTo-VigilLogRecord -File $File -Line $line -Include $include -Output $output -Type $type -Shared $g.Parts.Shared }
+                        }
                         if ($n -gt 0 -and ($n -ge $batchLines -or $bytes + $rec.Length -gt $batchBytes)) { break }
+                        # A request carries one revision (13.4.2): a line written
+                        # under another starts the next.
+                        if ($n -eq 0) { $bcur = $g.Cur; $batchResource = $g.Parts.Resource }
+                        elseif ($g.Cur -ne $bcur) { break }
                         # HEC takes events one after another, not as a list.
                         if ($n -gt 0 -and $type -cne 'splunk') { [void]$batch.Append(',') }
                         [void]$batch.Append($rec)

@@ -231,6 +231,37 @@ forward_output = false
     Invoke-Forward
     Test-Equal 'recovered: resent' '1' (Get-Received 'after the outage')
 
+    # A line goes with the revision and tags active when it was written, not
+    # when it is sent (13.4.2): one written before a change and one after,
+    # held back together by an outage, arrive in two requests, each with its own.
+    $cfg = "$root\config\vigil.config"
+    $iso = { [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture) }
+    [System.IO.File]::AppendAllText($cfg, "`n[tags]`nwave = first`n")
+    Invoke-Tick
+    Start-Sleep -Seconds 2
+    [System.IO.File]::WriteAllText("$root\mock\status", '503')
+    [System.IO.File]::AppendAllText($log, "$(& $iso) 20261030T150733Z-1 out written under the first`n")
+    Invoke-Forward
+    Start-Sleep -Seconds 2
+    [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -creplace '(?m)^wave = first$', 'wave = second'))
+    Invoke-Tick
+    Start-Sleep -Seconds 2
+    [System.IO.File]::AppendAllText($log, "$(& $iso) 20261030T150733Z-1 out written under the second`n")
+    Remove-Item -LiteralPath "$root\mock\status"
+    Clear-Requests
+    Invoke-Forward
+    $hl = @([System.IO.File]::ReadAllLines("$root\state\config.history") | Where-Object { $_ })
+    $rev1 = if ($hl.Count -ge 2) { $hl[$hl.Count - 2].Split(' ')[1] } else { '' }
+    $rev2 = if ($hl.Count -ge 1) { $hl[$hl.Count - 1].Split(' ')[1] } else { '' }
+    $reqs = [System.IO.File]::ReadAllLines("$root\mock\requests.log")
+    $with = { param([string]$A, [string]$B) [string]@($reqs | Where-Object { $_.Contains($A) -and $_.Contains($B) }).Count }
+    Test-Equal 'revision at writing: the change is in the history' 'True' ([string]($rev1 -and $rev2 -and $rev1 -cne $rev2))
+    Test-Equal 'revision at writing: the first line has the first tags' '1' (& $with 'written under the first' '\"stringValue\":\"first\"')
+    Test-Equal 'revision at writing: and the first revision' '1' (& $with 'written under the first' $rev1)
+    Test-Equal 'revision at writing: the second line has the second tags' '1' (& $with 'written under the second' '\"stringValue\":\"second\"')
+    Test-Equal 'revision at writing: and the second revision' '1' (& $with 'written under the second' $rev2)
+    Test-Equal 'revision at writing: in separate requests' '0' (& $with 'written under the first' 'written under the second')
+
     # A destination that hangs never holds the jobs back, and a forwarder
     # killed mid-send loses nothing (13.4): the next one sends from the
     # checkpoint. A real supervisor runs a 1-second job meanwhile; a run here

@@ -192,7 +192,7 @@ Workers never talk to backends. A worker writes its run's metric events to one s
 **Sender.** The sender is a worker like any other, with one fixed job id, `vigil_sender`:
 
 - On each tick where the spool is not empty and no sender is alive, the supervisor starts one, exactly as it starts a job: detached, with its own state file, identity check (§11) and log.
-- Only one sender runs at a time. It has a fixed internal `max_runtime` of 5 minutes: its state records the deadline, and the sender as its own job process, so the supervisor ends it past that as it ends a job (§10.3), recorded `timed_out`. What it was sending is not retired, so the next sender sends it again: at least once, never lost.
+- Only one sender runs at a time. It has a fixed internal `max_runtime` of 5 minutes: its state records the deadline, and the sender as its own job process, so the supervisor ends it past that as it ends a job (§10.3), recorded `timed_out`. On Linux and macOS it is started in its own process group, as a worker starts a job, so what it started (`curl`, subshells) is ended with it (§11.6). What it was sending is not retired, so the next sender sends it again: at least once, never lost.
 - Like every worker, it keeps running if the supervisor stops, and is never started while the supervisor is down.
 
 **Fan-out.** The sender copies each incoming file into `spool/backends/<name>/` for every enabled backend that should receive it (respecting each job's `backends` key). An interrupted fan-out must never silently lose a destination, so it follows a write-ahead protocol:
@@ -1105,7 +1105,7 @@ Deadlines: `deadline_epoch` is recorded at start and compared with the wall cloc
 Used only for `max_runtime` and `vigil uninstall`, after §11.5.
 
 - **Windows:** the ownership-checked job process and every process it started, read from the kernel first and ended from the root down, so a `cmd.exe` parent cannot run its next line between its children's ends; `taskkill /T /F` only where the kernel cannot be asked. Windows has no equivalent of `TERM` for console programs, so the tree is ended at once and `grace` does not apply. The worker is not killed: it records the outcome itself.
-- **Linux/macOS:** the worker starts the job in its own process group (`set -m`); termination signals the group: `TERM`, then `KILL` on the first tick at least `grace` later if it is still running. If the job's own process ends on the `TERM` while others in its group live on, its worker, still holding the token, sends the group `KILL` once `grace` has passed, then records the run: while the group has a member its id cannot be reused, so it is still the run's. Ownership is proven by the job process holding the run token, which it inherits from the worker. The worker is not signalled: it records the outcome itself.
+- **Linux/macOS:** the worker starts the job in its own process group (`set -m`); termination signals the group: `TERM`, then `KILL` on the first tick at least `grace` later if it is still running. If the job's own process ends on the `TERM` while others in its group live on, its worker, still holding the token, sends the group `KILL` once `grace` has passed, then records the run: while the group has a member its id cannot be reused, so it is still the run's. Ownership is proven by the job process holding the run token, which it inherits from the worker. The worker is not signalled: it records the outcome itself. The sender is its own job process (§4.5), so no worker is left once it has gone: the supervisor sends its group `KILL` itself after `grace`, to the group only, never to its bare process id, which may have been reused.
 
 Processes that deliberately escape their group or tree may survive. This limit is documented (§24).
 
@@ -1144,8 +1144,10 @@ Everything lives under one install root (§18.6 gives the root per platform). A 
     config.active                 the activation record (§16.5)
     config.previous               the record it replaced, whose cache entries are kept for a rollback
     configs/<sha256>.config       each configuration the records name, by content
+    configs/<sha256>.checked      Windows: that the configuration passed validation under this Vigil, with the jobs found invalid, so an unchanged one is not validated again at each check
     config.valid                  a copy of the last valid local configuration, kept active while a newer one is rejected (§16.3), or until the first fetch after a source is added (§16.5)
     config.fetched                empty: a fetched configuration has been in force, so config.valid is from before it and is not gone back to (§16.5)
+    config.history                each revision the supervisor activated, with its tags, and when: the last 50, so a forwarded log line carries the revision it was written under (§13.4.2)
     sources/<name>.state          each source's last check: when, what it found, and its last error
     fetch.next                    when the fetcher is next due, and the local file it last read
     supervisor.lock               held open by the live supervisor
@@ -1333,7 +1335,7 @@ timeout      = 10s
 
 The internal workers `vigil_sender`, `vigil_fetch` and `vigil_update` write job logs like any job and are forwarded with them. **The forwarder's own log, `logs/jobs/vigil_logs/`, is never forwarded**, so a failing destination cannot produce errors that are themselves forwarded, fail, and produce more. Its failures are reported as metrics instead (§13.4.6).
 
-Every record carries: the time from the line, `host`, `os`, `instance` and the `[tags]` section (§14.6), the component (`supervisor` or `job`), for job lines the job id and run id, the category, the severity when there is one, the message (the line's text, unchanged), the source file name, and the active configuration revision (§16.5). Run ids are fine in log records, unlike metric tags: logs are not aggregated into series.
+Every record carries: the time from the line, `host`, `os`, `instance` and the `[tags]` section (§14.6), the component (`supervisor` or `job`), for job lines the job id and run id, the category, the severity when there is one, the message (the line's text, unchanged), the source file name, and the configuration revision (§16.5). The revision and the tags are those in force when the line was written, not when it is sent: the supervisor records each revision it activates, with its tags and the time, in `state/config.history`, and a line goes with the last activated at or before its own time (the first recorded, for an older line; a line with no time keeps the revision of the line before it). A request carries one revision, so a batch ends where the revision changes. Without a history, as just after an upgrade, the active revision is used. Run ids are fine in log records, unlike metric tags: logs are not aggregated into series.
 
 In OTLP, `service.name` (`vigil`), `service.instance.id` (`<host>/<instance>`, so that a backend that indexes it, as Loki does, keeps each instance in a stream of its own), the host, tags and `config.revision` are attributes of the resource, shared by a request's records; `component`, `category`, `job`, `run_id`, `source_file` and, for a cut line, `truncated` are attributes of each record. Severity is `severityNumber` 9, 13 or 17 with `severityText` `INFO`, `WARN` or `ERROR`, and is absent when there is none. A line in neither log format is kept: it is sent whole, with time `0`, as `run` (or `supervisor`), so nothing is lost to a format Vigil did not expect.
 

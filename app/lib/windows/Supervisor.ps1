@@ -340,6 +340,7 @@ function Invoke-VigilSupervisor {
                     try { $sv.ValidSha = Get-VigilFileSha $valid } catch { }
                 }
                 else { $sv.Sum = '' }
+                Add-VigilConfigHistory -State $sv.State -Revision $sv.Revision -Parsed $parsed
                 & $log 'INFO' 'configuration loaded'
                 return $true
             }
@@ -370,6 +371,7 @@ function Invoke-VigilSupervisor {
             if ($active.Revision -cne $sv.Revision) {
                 $sv.Revision = $active.Revision
                 & $log 'INFO' "configuration revision $($sv.Revision) loaded ($($active.Origin))"
+                Add-VigilConfigHistory -State $sv.State -Revision $sv.Revision -Parsed $p
             }
         }
         else {
@@ -661,7 +663,13 @@ function Invoke-VigilSupervisor {
                 # id taken by another process since only hides this report.
                 if ($c -ceq 'alive' -and $tstate -ceq 'held' -and $st.Kind -ceq 'running' -and $st.WorkerPid -cmatch '^[0-9]+$' -and
                     -not (Get-Process -Id ([int]$st.WorkerPid) -ErrorAction SilentlyContinue)) {
-                    $sv.Orphaned.Add("${Job}: run $rid, its worker (pid $($st.WorkerPid)) is gone; its job (pid $($st.JobPid)) still runs, so it is not started again until it ends")
+                    if ($st.WorkerPid -ceq $st.JobPid) {
+                        # Vigil's own worker is its own job: what lives on is
+                        # something it started.
+                        $sv.Orphaned.Add("${Job}: run $rid, its worker (pid $($st.WorkerPid)) is gone, but processes it started still hold the run, so it is not started again until they end")
+                    } else {
+                        $sv.Orphaned.Add("${Job}: run $rid, its worker (pid $($st.WorkerPid)) is gone; its job (pid $($st.JobPid)) still runs, so it is not started again until it ends")
+                    }
                 }
             }
             'abandon' {

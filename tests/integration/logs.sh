@@ -225,6 +225,34 @@ rm -f "$root/mock/status"
 forward
 check "recovered: resent" 1 "$(received 'after the outage')"
 
+# A line goes with the revision and tags active when it was written, not
+# when it is sent (13.4.2): one written before a change and one after, held
+# back together by an outage, arrive in two requests, each with its own.
+iso() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
+printf '\n[tags]\nwave = first\n' >> "$root/config/vigil.config"
+tick
+sleep 2
+echo 503 > "$root/mock/status"
+clog=$root/logs/jobs/chatty/$(ls "$root/logs/jobs/chatty" | tail -1)
+printf '%s 20261030T150733Z-1 out written under the first\n' "$(iso)" >> "$clog"
+forward
+sleep 2
+sed -i.bak 's/^wave = first$/wave = second/' "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
+tick
+sleep 2
+printf '%s 20261030T150733Z-1 out written under the second\n' "$(iso)" >> "$clog"
+rm -f "$root/mock/status"
+: > "$root/mock/requests.log"
+forward
+rev1=$(tail -n 2 "$root/state/config.history" 2>/dev/null | head -n 1 | cut -d' ' -f2)
+rev2=$(tail -n 1 "$root/state/config.history" 2>/dev/null | cut -d' ' -f2)
+check "revision at writing: the change is in the history" yes "$([ -n "$rev1" ] && [ -n "$rev2" ] && [ "$rev1" != "$rev2" ] && echo yes || echo no)"
+check "revision at writing: the first line has the first tags" 1 "$(grep -F 'written under the first' "$root/mock/requests.log" | grep -cF '\"stringValue\":\"first\"')"
+check "revision at writing: and the first revision" 1 "$(grep -F 'written under the first' "$root/mock/requests.log" | grep -cF "$rev1")"
+check "revision at writing: the second line has the second tags" 1 "$(grep -F 'written under the second' "$root/mock/requests.log" | grep -cF '\"stringValue\":\"second\"')"
+check "revision at writing: and the second revision" 1 "$(grep -F 'written under the second' "$root/mock/requests.log" | grep -cF "$rev2")"
+check "revision at writing: in separate requests" 0 "$(grep -F 'written under the first' "$root/mock/requests.log" | grep -cF 'written under the second')"
+
 # A destination that hangs never holds the jobs back, and a forwarder
 # killed mid-send loses nothing (13.4): the next one sends from the
 # checkpoint. A real supervisor runs a 1-second job meanwhile.

@@ -322,6 +322,7 @@ vigil_logs_record() {
     if [[ $when =~ $_vigil_logs_iso ]]; then
         _vigil_logs_epoch
     fi
+    _vigil_logs_pick
     if [ "$_vl_type" != otel ]; then
         _vigil_logs_native "$file" "$msg" "$category" "$job" "$rid" "$sev" "$cut"
         return 0
@@ -394,12 +395,52 @@ _vigil_logs_native() {
     fi
 }
 
+# The supervisor's record of the revisions it activated, and when (13.4.2):
+# _vl_hepoch, _vl_hrev and _vl_htags, oldest first. Empty without one.
+_vigil_logs_history() {
+    local e r t
+    _vl_hepoch=() _vl_hrev=() _vl_htags=()
+    _vl_cur=-1
+    [ -f "$_vw_statedir/config.history" ] || return 0
+    while read -r e r t || [ -n "$e" ]; do
+        case $e in '' | *[!0-9]*) continue ;; esac
+        [ -n "$r" ] || continue
+        _vl_hepoch[${#_vl_hepoch[@]}]=$e
+        _vl_hrev[${#_vl_hrev[@]}]=$r
+        _vl_htags[${#_vl_htags[@]}]=$t
+    done < "$_vw_statedir/config.history"
+}
+
+# The revision active when the current line was written (13.4.2): the last
+# the history has at or before the line's time, or its first for an older
+# line. A line with no time keeps the revision of the line before it, the
+# newest for a first line. Without a history, the active revision. Sets
+# _vl_cur, and on a change _vl_revision, _vl_tags and the shared parts.
+_vigil_logs_pick() {
+    [ -n "${_vl_hepoch[*]+set}" ] || return 0
+    local i=${_vl_cur:--1} n=${#_vl_hepoch[@]}
+    [ "$n" -gt 0 ] || return 0
+    if [ "$_vl_epoch" -gt 0 ]; then
+        # Lines come mostly in order: from the last one's, forward, then back.
+        [ "$i" -ge 0 ] || i=0
+        while [ $((i + 1)) -lt "$n" ] && [ "${_vl_hepoch[i + 1]}" -le "$_vl_epoch" ]; do i=$((i + 1)); done
+        while [ "$i" -gt 0 ] && [ "${_vl_hepoch[i]}" -gt "$_vl_epoch" ]; do i=$((i - 1)); done
+    elif [ "$i" -lt 0 ]; then
+        i=$((n - 1))
+    fi
+    [ "$i" = "$_vl_cur" ] && return 0
+    _vl_cur=$i
+    _vl_revision=${_vl_hrev[$i]}
+    _vl_tags="host=$_vw_host os=$_vw_os ${_vl_htags[$i]}"
+    _vigil_logs_resource
+}
+
 # What every record of a request shares (13.4.2): the host, the tags and the
 # revision, in _vl_resource for OTLP and in _vl_shared for the others.
 _vigil_logs_resource() {
     local attrs tag k v name='' list=''
     if [ "$_vl_type" != otel ]; then
-        for tag in $_vf_tags; do
+        for tag in $_vl_tags; do
             k=${tag%%=*}
             v=${tag#*=}
             if [ "$k" = host ]; then
@@ -424,7 +465,7 @@ _vigil_logs_resource() {
     _vigil_logs_attr service.name vigil
     attrs=$_vl_attr
     local h='' i=''
-    for tag in $_vf_tags; do
+    for tag in $_vl_tags; do
         _vigil_logs_attr "${tag%%=*}" "${tag#*=}"
         attrs="$attrs,$_vl_attr"
         case $tag in host=*) h=${tag#*=} ;; instance=*) i=${tag#*=} ;; esac
@@ -520,7 +561,7 @@ _vigil_logs_send() {
     _vh_headers=('Content-Type: application/json')
     [ -z "$_vl_header" ] || _vh_headers[1]=$_vl_header
     case $_vl_type in
-        otel) _vh_body="{\"resourceLogs\":[{\"resource\":$_vl_resource,\"scopeLogs\":[{\"scope\":{\"name\":\"vigil\"},\"logRecords\":[$_vl_batch]}]}]}" ;;
+        otel) _vh_body="{\"resourceLogs\":[{\"resource\":$_vl_batch_resource,\"scopeLogs\":[{\"scope\":{\"name\":\"vigil\"},\"logRecords\":[$_vl_batch]}]}]}" ;;
         datadog) _vh_body="[$_vl_batch]" ;;
         *) _vh_body=$_vl_batch ;;
     esac
@@ -596,7 +637,7 @@ _vigil_logs_send() {
 
 # Forwards what is new in log file $1 (size $2). Returns 1 to end the run.
 _vigil_logs_file() {
-    local file=$1 size=$2 path="$_vw_logdir/$1" offset pos next line len rec bytes buf
+    local file=$1 size=$2 path="$_vw_logdir/$1" offset pos next line len rec bytes buf brev=-1
     local -a ends
     _vigil_logs_ckpath "$file"
     _vigil_logs_ckread
@@ -631,6 +672,14 @@ _vigil_logs_file() {
             if [ -n "$_vl_rec" ]; then
                 len=${#_vl_rec}
                 if [ "$_vl_n" -gt 0 ] && { [ "$_vl_n" -ge "$_vl_lines" ] || [ $((bytes + len)) -gt "$_vl_bytes" ]; }; then
+                    break
+                fi
+                # A request carries one revision (13.4.2): a line written under
+                # another starts the next.
+                if [ "$_vl_n" -eq 0 ]; then
+                    brev=$_vl_cur
+                    _vl_batch_resource=${_vl_resource-}
+                elif [ "$_vl_cur" != "$brev" ]; then
                     break
                 fi
                 # Through a short buffer: appending to the whole batch copies
@@ -765,6 +814,8 @@ vigil_logs() {
         _vl_revision=$(printf 'config %s\n' "$(_vigil_fetch_digest < "$_vw_root/config/vigil.config")" | _vigil_fetch_digest)
         _vl_revision=${_vl_revision:0:12}
     fi
+    _vl_tags=$_vf_tags
+    _vigil_logs_history
     _vigil_logs_resource
 
     _vigil_logs_list "$_vw_logdir"
