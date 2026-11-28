@@ -115,7 +115,13 @@ check 'one leader among the three, as each member says of itself' 1 "$leaders"
 use e1
 check 'the keys, and the history to compact' 'yes yes' "$(least database keys '' 500) $(least database revisions_kept '' 2000)"
 check 'the database, against its quota (2 GiB by default)' '2147483648 yes' "$(val database quota_bytes '') $(has database db_used_pct '')"
-check 'the watch held open; the leases expired' 'yes yes' "$(least database watchers '' 1) $(least database leases_expired_count '' 2)"
+check 'the watch held open; the leases granted' 'yes yes' "$(least database watchers '' 1) $(least database leases_granted_count '' 2)"
+# The leader expires leases, and counts them: summed over the members.
+expired=0
+for m in e1 e2 e3; do use "$m"; quiet database; expired=$((expired + $(val database leases_expired_count ''))); done
+use e1
+quiet database
+check 'the leases expired, counted by the leader' yes "$([ "$expired" -ge 2 ] && echo yes || echo "no [$expired]")"
 check "the WAL's fsyncs and the backend's commits, timed" 'yes yes yes' "$(least disk wal_fsyncs_count '' 1) $(has disk wal_fsync_avg_ms '') $(has disk backend_commit_avg_ms '')"
 check 'the round trip to its peers' yes "$(has disk peer_rtt_avg_ms '')"
 check 'requests handled, by e1' yes "$(least requests requests_count '' 2000)"
