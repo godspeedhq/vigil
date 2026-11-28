@@ -8,7 +8,7 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 
 ### B5. The metric sender livelocks: once a run outlasts max_runtime, metrics stop (most serious; fixed in #281)
 
-- **Status: fixed, not merged yet** (PR #281, branch `fix-sender-otel-totals`, backlog 68). The cause was the bash sender's OTLP count handling, not sending. A batch's counts and the backend's running totals were each kept as one string, and each series was found by pattern matching, which in bash takes time that grows with the square of the string's length. One 160 KB batch took 52 s of CPU (bash 5.3) and 115 s (bash 3.2); now 2.3 s and 11 s, with byte-for-byte the same output. With the fix in place, fedora-c1's backlog of 1,711 files drained in 34 minutes and a sender run finished on its own for the first time in three hours. Evidence: `../sender-totals/`.
+- **Status: fixed, merged 2026-11-28** (#281, backlog 68). The cause was the bash sender's OTLP count handling, not sending. A batch's counts and the backend's running totals were each kept as one string, and each series was found by pattern matching, which in bash takes time that grows with the square of the string's length. One 160 KB batch took 52 s of CPU (bash 5.3) and 115 s (bash 3.2); now 2.3 s and 11 s, with byte-for-byte the same output. With the fix in place, fedora-c1's backlog of 1,711 files drained in 34 minutes and a sender run finished on its own for the first time in three hours. Evidence: `../sender-totals/`.
 
 - **Seen:** run 2, every Alpine container. These are small instances: bash Vigil and the base pack, capped at half a CPU and 64 MB.
 - **What happens:**
@@ -27,7 +27,7 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 
 ### B1. Forwarded log lines carry the revision active when they are sent, not when they were written (fixed in #284)
 
-- **Status: fixed, not merged yet** (PR #284, branch `fix-log-record-revision`, backlog 70). The supervisor records each revision it activates, with its tags and the time, in `state/config.history`; the forwarder gives each line the revision active at the line's own time, and a request never mixes two.
+- **Status: fixed, merged 2026-11-28** (#284, backlog 70). The supervisor records each revision it activates, with its tags and the time, in `state/config.history`; the forwarder gives each line the revision active at the line's own time, and a request never mixes two.
 
 - **Seen:** run 1, wave 3 (linux containers on Fedora).
 - **Specification (§14, log forwarding):** every record carries "the active configuration revision" and the `[tags]`.
@@ -63,7 +63,7 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 
 ### B3. On Windows, a check of the configuration's source costs 5–8 CPU seconds (fixed in #285)
 
-- **Status: fixed, not merged yet** (PR #285, branch `fix-windows-fetch-cost`, backlog 71). Most of it was validating the fetched configuration in each new PowerShell process, the same file nearly every time. A file that passed is now recorded and not validated again under the same Vigil: median 7.1 s of CPU a check on the HP, now 2.9.
+- **Status: fixed, merged 2026-11-28** (#285, backlog 71). Most of it was validating the fetched configuration in each new PowerShell process, the same file nearly every time. A file that passed is now recorded and not validated again under the same Vigil: median 7.1 s of CPU a check on the HP, now 2.9.
 
 - **Seen:** run 1, Windows 11 (HP, Lenovo).
 - **What happens:** `vigil_fetch` uses 4.9–7.8 s of CPU per run, against 0.55–0.80 s on Linux and about 1.1 s on macOS. At a 30 s `check_every`, that is about a fifth of a core.
@@ -81,7 +81,7 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 
 ### B6. A stopped sender's leftover process keeps its run alive, reported as ORPHANED
 
-- **Status: fixed, not merged yet** (PR #282, branch `fix-sender-process-group`, backlog 69). The supervisor started the sender in its own process group, so TERM never reached what it started; now it does, and the supervisor KILLs that group after grace itself.
+- **Status: fixed, merged 2026-11-28** (#282, backlog 69). The supervisor started the sender in its own process group, so TERM never reached what it started; now it does, and the supervisor KILLs that group after grace itself.
 
 - **Seen:** while verifying the B5 fix in fedora-c1 (2026-11-26, 22:51).
 - **What happens:**
@@ -99,7 +99,7 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 - **Seen:** the Mac, HP and Lenovo containers, patched with the B5 fix at about 07:05 on 2026-11-27 after some ten hours stuck.
 - **What happens:** the spool is delivered oldest first, and it is bounded only by size (`[spool] max_mb`, 100 MB by default), not by age. Ten hours of a small instance's events is about 10,000 files, well inside the cap, so all of it waits to be sent, at roughly 50 files a minute net on half a CPU: three to four hours before the instance's current metrics arrive. Prometheus refuses everything more than about an hour old (D2), so most of that time goes on events that will not be kept. 15 minutes after the patch, none of the 15 containers was current, and Prometheus's "too old" count rose by about 1,000 samples a minute.
 - **Decide:** whether the spool should have an age limit (for example `[spool] max_age`, older events dropped and counted with `reason=too_old`, as Datadog's already are), or deliver the newest first after a backlog. Either changes spec 4.5; neither is needed for a short outage.
-- **Decided (2026-11-28): an age limit.** `[spool] max_age`, default `6h`, `0s` for no limit. Older queued files are dropped and counted `too_old`, by backend. Delivery stays oldest first. PR #288.
+- **Decided (2026-11-28): an age limit.** `[spool] max_age`, default `6h`, `0s` for no limit. Older queued files are dropped and counted `too_old`, by backend. Delivery stays oldest first. Merged in #288 on 2026-11-28.
 - **Evidence:** `../sender-totals/04-fleet-containers-recovering.txt`.
 - **Outage test (2026-11-27):** on the fixed build, five bare-metal instances were current again 4–8 minutes after a 2-hour outage. Hours of backlog are a problem for weak machines, not for a 2-hour outage. "Newest first" would also make Loki drop more of the backlog (B8).
 
@@ -113,17 +113,23 @@ fixed yet, except where marked: this is the list to plan the fixes from.
   - Each instance sends its own spool oldest first, so if each had its own stream, none of this backlog would have been refused.
 - **Vigil cannot see it:** the collector answered 2xx, as in D2. The spools drained to 0, and nothing was counted as dropped.
 - **Found later the same day:** a stream per instance is not enough on its own. The forwarder sends each log file to its end before the next. So even in one instance's stream, the first file brings the stream up to date, and the next files' lines more than an hour old are refused. Fedora's base_cpu lines (its first file) all arrived, but base_load kept 32 of its 120 lines from 18:00 to 19:00.
-- **Decided (2026-11-28):** a stream per instance plus documentation (D3); the forwarder's order is unchanged. PR #286.
+- **Decided (2026-11-28):** a stream per instance plus documentation (D3); the forwarder's order is unchanged. Merged in #286 on 2026-11-28.
 - **Fix to decide (as first written):** give the forwarded records an index label per instance. The OpenTelemetry way is `service.instance.id` = the instance name, which Loki indexes by default. That would be one stream per instance, so an instance's backlog falls behind only its own newest line.
   - Logs only: the metrics already carry `host`, and adding the attribute to metrics would start new series in Prometheus.
   - Spec 13.4.2, both twins, and a test that checks the resource attribute.
   - Even then, an instance that sent its newest lines first (one way of doing B7) would lose its backlog beyond an hour. D3 applies either way.
 
+### B9. CI: macOS "uninstall succeeds" failed once (found on #284's CI, not by the fleet)
+
+- **What happened:** in the macOS install suite (run 46020947666), `vigil uninstall` failed with `rm: /opt/vigil-it-u-89299/logs: Directory not empty`, so "the root is gone" failed too. A re-run passed, and the suite passed on every other PR.
+- **Likely cause (not confirmed):** a test just before leaves a job running after Vigil is removed. If that job writes a log line while uninstall deletes `logs/`, `rm -r` finds the folder not empty.
+- **To do:** confirm from the test. Then either the test waits for the job, or uninstall retries its delete once.
+
 ## Documentation
 
 ### D1. Remote config on Windows with a private CA
 
-- **Status: documented, not merged yet** (PR #283, branch `docs-windows-git-ca`): the README's Sources section.
+- **Status: documented, merged 2026-11-28** (#283): the README's Sources section.
 
 - **Git for Windows:** it checks certificates against its own bundle, not the Windows store, so it needs `http.<url>.sslCAInfo`.
 - **MinGit:** it uses schannel, which demands a revocation check a private CA may not support, and ignores `sslCAInfo`, so it needs `http.sslBackend = openssl`.
@@ -132,7 +138,7 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 
 ### D2. Prometheus keeps only the last hour of a backlog
 
-- **Status: documented, not merged yet** (PR #281): the README's backends section.
+- **Status: documented, merged 2026-11-28** (#281): the README's backends section.
 
 - **Seen:** verifying the B5 fix (`../sender-totals/03-what-prometheus-kept.txt`).
 - **What happens:** with no `out_of_order_time_window`, Prometheus refuses a sample more than about an hour older than the newest it holds. Other hosts keep that current, so after a long outage the oldest part of an instance's backlog is refused. fedora-c1's readings from 20:35 to 22:25 were lost: 66,580 samples "too old".
@@ -142,7 +148,7 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 
 ### D3. Loki keeps only the last hour behind a stream's newest line
 
-- **Status: documented, not merged yet** (PR #286): the README's "Forwarding Vigil's logs".
+- **Status: documented, merged 2026-11-28** (#286): the README's "Forwarding Vigil's logs".
 - **What happens:** Loki refuses a line more than `max_chunk_age / 2` (1 hour by default) behind its stream's newest line ("too_far_behind"). Today the whole fleet is one stream (B8), so this applies across instances.
 - **Docs:** beside D2, the README should say that Loki needs `ingester.max_chunk_age` of twice the outages it should survive. Until B8 is fixed, it should also say that the window counts from the newest line any instance has sent.
 
