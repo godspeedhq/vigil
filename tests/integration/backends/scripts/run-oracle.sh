@@ -264,12 +264,13 @@ grep -iE 'encryption|crypto' "$work/banner.out" | sed 's/^[[:space:]]*/net      
 check "the job's session: encrypted with AES, its integrity checked" 'yes yes' \
     "$(grep -qiE 'AES(256|192|128) Encryption service adapter' "$work/banner.out" && echo yes || echo no) $(grep -qiE 'SHA(256|384|512) Crypto-checksumming service adapter' "$work/banner.out" && echo yes || echo no)"
 # A server that refuses encryption refuses the job: its sqlnet.ora says so
-# for a while.
-docker exec "$c" bash -c 'f=$ORACLE_HOME/network/admin/sqlnet.ora; cp -p "$f" /tmp/sqlnet.ora.vigil 2> /dev/null || : > /tmp/sqlnet.ora.vigil; echo "SQLNET.ENCRYPTION_SERVER = REJECTED" >> "$f"'
+# for a while. It is in the Oracle base home: from 21c, the Oracle home is
+# read-only.
+docker exec "$c" bash -c 'f=$("$ORACLE_HOME/bin/orabasehome" 2> /dev/null || echo "$ORACLE_HOME")/network/admin/sqlnet.ora; cp -p "$f" /tmp/sqlnet.ora.vigil 2> /dev/null || : > /tmp/sqlnet.ora.vigil; echo "SQLNET.ENCRYPTION_SERVER = REJECTED" >> "$f"'
 bash "$pack/status.sh" > "$work/rejected.out" 2>&1
 check 'a server that rejects encryption: the run fails, saying so' '1 yes' "$? $(grep -qE 'ORA-12660|ORA-12650' "$work/rejected.out" && echo yes || echo no)"
 sed 's/^/        /' "$work/rejected.out"
-docker exec "$c" bash -c 'f=$ORACLE_HOME/network/admin/sqlnet.ora; if [ -s /tmp/sqlnet.ora.vigil ]; then cp -p /tmp/sqlnet.ora.vigil "$f"; else rm -f "$f"; fi; rm -f /tmp/sqlnet.ora.vigil'
+docker exec "$c" bash -c 'f=$("$ORACLE_HOME/bin/orabasehome" 2> /dev/null || echo "$ORACLE_HOME")/network/admin/sqlnet.ora; if [ -s /tmp/sqlnet.ora.vigil ]; then cp -p /tmp/sqlnet.ora.vigil "$f"; else rm -f "$f"; fi; rm -f /tmp/sqlnet.ora.vigil'
 quiet status
 check 'and with it put back, up 1 again' 1 "$(val status up '')"
 

@@ -319,14 +319,14 @@ Starting points, from the same figures each script's header explains; "In our te
 | `oracle.up` | 1 | | 0 for more than a few minutes: read its `reason` | 1; `up 0 reason=no_listener` for a port nothing listened on, `service_unknown` for a service the listener did not know and for the database shut down, `not_open` mounted, `restricted` with logins restricted: the run succeeding each time |
 | `oracle.pdb_open` (by `pdb`) | 1 | | 0 for a PDB that should be open | 1; `0 ... mode=mounted` with the PDB closed, the CDB still `up 1` |
 | `oracle.sessions_pct`, `processes_pct` | Below 70 | Past 80 | Past 95: new connections refused (ORA-00020) | 39.75 and 49.5 on 23ai Free |
-| `oracle.activity.head_blockers`, `blocked` | 0 | Above 0 | Above 0 for minutes: find the head of the chain | 1 and 1: one session holding a row, another waiting for it (`active 1 class=application`, `longest_blocked_seconds 20.66`) |
-| `oracle.activity.idle_in_transaction`, `oldest_transaction_seconds` | 0; seconds | A transaction open for minutes | Idle in a transaction for long: an application that did not commit | 1, 24 s: the session holding the row, idle |
+| `oracle.activity.head_blockers`, `blocked` | 0 | Above 0 | Above 0 for minutes: find the head of the chain | 1 and 1: one session holding a row, another waiting for it (`active 1 class=application`, `longest_blocked_seconds 20.58`) |
+| `oracle.activity.idle_in_transaction`, `oldest_transaction_seconds` | 0; seconds | A transaction open for minutes | Idle in a transaction for long: an application that did not commit | 1, 23 s idle (the oldest transaction 24 s): the session holding the row |
 | `oracle.tablespace.used_pct` (by `pdb`, `tablespace`) | Below 80 | Past 85 | Past 95 (permanent): inserts fail with ORA-01653 or ORA-01654 | 90.63 for a 10 MB tablespace filled until an insert failed with ORA-01653 |
-| `oracle.recovery.fra_used_pct` | Below 80 | Past 80 | Past 95 in ARCHIVELOG mode: the archiver stops, and so does every change (ORA-00257) | 90 with the area shrunk on purpose; Oracle's own warning, ORA-19815, in the alert log |
+| `oracle.recovery.fra_used_pct` | Below 80 | Past 80 | Past 95 in ARCHIVELOG mode: the archiver stops, and so does every change (ORA-00257) | 89.98 with the area shrunk on purpose; Oracle's own warning, ORA-19815, in the alert log |
 | `oracle.recovery.archive_dest_errors` | 0 | | Above 0 | 0 |
 | `oracle.recovery.log_switches_1h` | A few an hour | Dozens: the redo logs are small for the load | | 6, switched on purpose, and 6 "Checkpoint not complete" in the alert log with them |
-| `oracle.memory.pga_limit_pct` | Below 70 | Past 80 | Near 100: Oracle ends the sessions using the most PGA (ORA-04036) | 19.18 |
-| `oracle.backups.full_age_seconds`, `archivelog_age_seconds` | Within your schedule | Past it | -1, or far past it: the backups stopped | 49 and 43, minutes after RMAN backed up the database and the archived logs |
+| `oracle.memory.pga_limit_pct` | Below 70 | Past 80 | Near 100: Oracle ends the sessions using the most PGA (ORA-04036) | 19.08 |
+| `oracle.backups.full_age_seconds`, `archivelog_age_seconds` | Within your schedule | Past it | -1, or far past it: the backups stopped | 49 and 42 seconds, just after RMAN backed up the database and the archived logs |
 | `oracle.backups.failed_24h` | 0 | | Above 0 | 1, a backup sent to a folder that was not there (ORA-19504) |
 | `oracle.health.scheduler_failed_24h`, `job_failed_24h` (by `job`) | 0 | | Above 0 | 1, `job=VIGIL_APP.NIGHTLY_LOAD`, a job that raised an error |
 | `oracle.health.invalid_objects` (by `pdb`) | Steady | Rising after a deployment | | 1, a view whose table was dropped |
