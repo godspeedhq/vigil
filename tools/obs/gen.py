@@ -37,7 +37,7 @@ NOTICE = [
     'LICENSE file for the full terms.',
 ]
 
-ORDER = ['prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs']
+ORDER = ['prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs', 'etcd']
 PACKS = {}
 for name in ORDER:
     if os.path.exists(os.path.join(src, name + '.py')):
@@ -267,7 +267,7 @@ def readme(p, js, old):
           '| Metric | Healthy | Watch | Act | In our tests |', '| --- | --- | --- | --- | --- |']
     for row in g['alerts']:
         c += ['| ' + ' | '.join(row) + ' |']
-    c += ['', '## How it was tested', '', pages.TESTED.strip(), '']
+    c += ['', '## How it was tested', '', g.get('tested', pages.TESTED).strip(), '']
     if g.get('found'):
         c += ['**What the tests found.** ' + g['found'], '']
     return '\n'.join(c) + '\n' + DISCLAIMER

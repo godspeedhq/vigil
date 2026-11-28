@@ -1,0 +1,23 @@
+metric up 1
+metric requests_count 25
+metric failed_count 1
+metric failed 1 code=ResourceExhausted
+metric failed 0 code=Aborted
+metric failed 0 code=AlreadyExists
+metric failed 0 code=Canceled
+metric failed 0 code=DataLoss
+metric failed 0 code=DeadlineExceeded
+metric failed 0 code=FailedPrecondition
+metric failed 0 code=Internal
+metric failed 0 code=InvalidArgument
+metric failed 0 code=NotFound
+metric failed 0 code=OutOfRange
+metric failed 0 code=PermissionDenied
+metric failed 0 code=Unauthenticated
+metric failed 0 code=Unavailable
+metric failed 0 code=Unimplemented
+metric failed 0 code=Unknown
+metric failed_not_shown 0
+metric requests_started_count 25
+metric client_received_bytes_count 25166127
+metric client_sent_bytes_count 638

@@ -52,6 +52,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`mongodb`](mongodb/README.md) | MongoDB, a server or a replica set member: up, connections, operations and latency, the WiredTiger cache, queues; a primary or not, members down, lag, the oplog window; databases; operations running long | [packs/mongodb/README.md](mongodb/README.md) |
 | [`cassandra`](cassandra/README.md) | Cassandra over JMX: each node up and normal, gossip and CQL, nodes down, hints; requests, latency, timeouts and unavailables; thread pools, blocked tasks, dropped messages; compactions, SSTables and tombstones per table | [packs/cassandra/README.md](cassandra/README.md) |
 | [`oracle`](oracle/README.md) | Oracle Database 19c, 21c and 23ai, a CDB and every PDB: up and open (and why not), sessions and processes against their limits, workload, blocking and transactions left open, waits, every tablespace against the most it can grow to, the recovery area and the archiver, redo, memory and the PGA limit, RMAN backups, invalid objects, corrupt blocks, Scheduler jobs failed, the alert log; nothing from a paid pack | [packs/oracle/README.md](oracle/README.md) |
+| [`etcd`](etcd/README.md) | etcd, each member: healthy or not, a leader and quorum, leader changes, members it cannot reach, proposals waiting and failed, the database against its quota (the NOSPACE alarm) and its fragmentation, revisions since compaction, watchers, the WAL's and the backend's disk latency, gRPC requests failed by code | [packs/etcd/README.md](etcd/README.md) |
 | [`nginx`](nginx/README.md) | nginx: connections and requests, processes and reloads, an edit not reloaded, how full the workers are, the access log minute by minute (status, errors, response and upstream times), certificate expiry | [packs/nginx/README.md](nginx/README.md) |
 | [`httpd`](httpd/README.md) | Apache httpd: workers and the scoreboard, requests, connections, the TLS session cache, an edit not loaded, the access log minute by minute (status, errors, response times), certificate expiry | [packs/httpd/README.md](httpd/README.md) |
 | [`caddy`](caddy/README.md) | Caddy: its configuration and reloads, traffic per server, reverse proxy upstreams and their health, the certificate of every site, from its admin API | [packs/caddy/README.md](caddy/README.md) |
@@ -200,6 +201,12 @@ Apache Cassandra, every node, over JMX, with the probe every JMX pack shares (Ja
 Oracle Database 19c, 21c or 23ai, a container database and its pluggable databases or one that is not a CDB, on this machine or any it can reach, through SQL*Plus from Oracle Instant Client, as a user with Oracle's own read-only `SELECT_CATALOG_ROLE`. Only Oracle's basic views: nothing from the Diagnostics or Tuning Pack, so running it never makes a database owe Oracle a license. The password goes to SQL*Plus on its standard input, and Oracle Net's encryption is required. Linux, macOS and Windows.
 
 **Its page: [packs/oracle/README.md](oracle/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### etcd
+
+An etcd member, each one, from its metrics listener (`--listen-metrics-urls`, plain HTTP, as kubeadm sets it up): healthy or not, and why not (no leader, or an alarm such as NOSPACE); a leader and quorum, leader changes, members it cannot reach; proposals waiting and failed; the database against its quota; how fast its disk is where etcd needs it. With `curl` and `awk` (on Windows, PowerShell alone). Linux, macOS and Windows.
+
+**Its page: [packs/etcd/README.md](etcd/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ### nginx
 

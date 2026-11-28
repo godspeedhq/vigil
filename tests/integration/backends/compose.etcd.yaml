@@ -1,0 +1,48 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# etcd for the etcd pack (scripts/run-etcd.sh):
+# - 3.6, a cluster of three (e1, e2, e3): clients on 127.0.0.1:12379, 12479
+#   and 12579; metrics, as the pack reads them, on plain HTTP
+#   (--listen-metrics-urls) at 127.0.0.1:12381, 12481 and 12581.
+# - 3.5, one member alone (e35), with a quota of 32 MiB, so that the run can
+#   fill it: client 127.0.0.1:12679, metrics 127.0.0.1:12681.
+# No TLS and no authentication: the metrics listener is plain HTTP, as it is
+# where kubeadm sets it up, and the run makes its trouble with etcdctl.
+
+x-etcd: &etcd
+  image: quay.io/coreos/etcd:${ETCD_VERSION:-v3.6.17}
+  mem_limit: 512m
+
+services:
+  e1:
+    <<: *etcd
+    command: [etcd, --name=e1, --data-dir=/data, --listen-client-urls=http://0.0.0.0:2379, --advertise-client-urls=http://e1:2379,
+      --listen-peer-urls=http://0.0.0.0:2380, --initial-advertise-peer-urls=http://e1:2380, --listen-metrics-urls=http://0.0.0.0:2381,
+      "--initial-cluster=e1=http://e1:2380,e2=http://e2:2380,e3=http://e3:2380", --initial-cluster-state=new]
+    ports: ["127.0.0.1:12379:2379", "127.0.0.1:12381:2381"]
+  e2:
+    <<: *etcd
+    command: [etcd, --name=e2, --data-dir=/data, --listen-client-urls=http://0.0.0.0:2379, --advertise-client-urls=http://e2:2379,
+      --listen-peer-urls=http://0.0.0.0:2380, --initial-advertise-peer-urls=http://e2:2380, --listen-metrics-urls=http://0.0.0.0:2381,
+      "--initial-cluster=e1=http://e1:2380,e2=http://e2:2380,e3=http://e3:2380", --initial-cluster-state=new]
+    ports: ["127.0.0.1:12479:2379", "127.0.0.1:12481:2381"]
+  e3:
+    <<: *etcd
+    command: [etcd, --name=e3, --data-dir=/data, --listen-client-urls=http://0.0.0.0:2379, --advertise-client-urls=http://e3:2379,
+      --listen-peer-urls=http://0.0.0.0:2380, --initial-advertise-peer-urls=http://e3:2380, --listen-metrics-urls=http://0.0.0.0:2381,
+      "--initial-cluster=e1=http://e1:2380,e2=http://e2:2380,e3=http://e3:2380", --initial-cluster-state=new]
+    ports: ["127.0.0.1:12579:2379", "127.0.0.1:12581:2381"]
+  e35:
+    image: quay.io/coreos/etcd:${ETCD35_VERSION:-v3.5.36}
+    mem_limit: 512m
+    command: [etcd, --name=e35, --data-dir=/data, --listen-client-urls=http://0.0.0.0:2379, --advertise-client-urls=http://e35:2379,
+      --listen-peer-urls=http://0.0.0.0:2380, --initial-advertise-peer-urls=http://e35:2380, --listen-metrics-urls=http://0.0.0.0:2381,
+      --initial-cluster=e35=http://e35:2380, --initial-cluster-state=new, --quota-backend-bytes=33554432]
+    ports: ["127.0.0.1:12679:2379", "127.0.0.1:12681:2381"]

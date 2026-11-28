@@ -297,6 +297,51 @@ PAGES['victorialogs'] = dict(
         ('`victorialogs.selects_limit_timeout_count`', 'Flat', '`selects_limit_reached_count` rising: queries queue', 'Rising: queries are turned away', 'Not caused'),
     ])
 
+PAGES['etcd'] = dict(
+    intro="An etcd member, from what it says about itself on its metrics listener. The pack reads whether it is "
+          "healthy and, when it is not, whether its cluster has lost its leader or raised an alarm; whether it has "
+          "a leader, is the leader, or is a learner; how often the leader has changed; the members of its cluster "
+          "and those it cannot reach; the proposals it committed and applied, those waiting and those that failed. "
+          "Its database against its quota and the space a defragmentation would give back; its keys, revisions "
+          "and compaction; watchers and leases. How fast its disk is where etcd needs it: the WAL's fsyncs and the "
+          "backend's commits. And the gRPC requests it answered and those that failed, by code.",
+    why="etcd is small, and everything stands on it: Kubernetes keeps its whole state there. Its trouble is quiet "
+        "until it is total. A slow disk shows first as missed heartbeats and elections; a cluster that loses two "
+        "members of three has no leader and takes no writes, though the last member still answers; a database "
+        "that reaches its quota raises NOSPACE and refuses every write until someone compacts, defragments and "
+        "disarms it. Each of these is on its metrics page, and the pack reads it from each member.",
+    setup=["Give etcd a plain metrics listener, if it has none: `--listen-metrics-urls=http://127.0.0.1:2381`. Its "
+           "client port serves `/metrics` too, but there clients usually need a certificate. kubeadm's etcd has "
+           "the listener already, on `127.0.0.1:2381`.",
+           "`vigil pack enable etcd` on each member's machine, and, where the listener is elsewhere, set "
+           "`ETCD_URL` in the jobs' `env` lines. Each member reports itself, and its view of the cluster."],
+    reports={
+        'status': 'Healthy; version and cluster version; a leader, this member the leader or a learner; leader changes; members, and those it cannot reach; heartbeats and peer messages that failed; proposals committed, applied, waiting and failed; slow applies; reads that failed or were slow; health checks that failed',
+        'database': 'The database against its quota; space in use and fragmented; keys; the revision and how far past the last compaction; how long since a compaction; puts, deletes, reads and transactions; watchers and slow watchers; leases granted and expired; a defragmentation running',
+        'disk': "The WAL's fsyncs and the backend's commits: on average, and those that were slow; bytes written to the WAL; the round trip to its peers",
+        'requests': 'gRPC requests handled, and those that failed, for each code; bytes to and from clients',
+    },
+    alerts=[
+        ('`etcd.up`, `healthy`', '1', '', '`healthy 0`: read `has_leader`; with a leader, an alarm (`etcdctl alarm list`)', '`up 0` where nothing listened; `healthy 0` with no quorum, and with the NOSPACE alarm'),
+        ('`etcd.has_leader`', '1', '', '0: quorum is lost, and nothing can be written', '1; 0 on the last member, with two of three stopped'),
+        ('`etcd.peers_unreachable`', '0', 'Above 0: a member is down or cut off, and one more lost may cost quorum', '', '1 with the leader stopped; 2 with two stopped'),
+        ('`etcd.leader_changes_count`', 'Flat', 'Rising: elections, from a slow disk or network, or members restarting', '', 'Up by one when the leader stopped and the others elected another'),
+        ('`etcd.proposals_failed_count`', 'Flat', '', 'Rising: writes failing (no leader, or timeouts)', 'Up by one: the write tried with no quorum (`context deadline exceeded`)'),
+        ('`etcd.database.db_used_pct`', 'Below 80', 'Past 80', 'Near 100: the NOSPACE alarm, and no writes until it is compacted, defragmented and disarmed', '97.07 when the 32 MiB database refused its 24th MiB: etcd raises the alarm when a write would pass the quota; 75.21 once mended'),
+        ('`etcd.database.revisions_kept`', 'Steady', 'Growing: nothing compacts', '', '2006, for 500 keys written four times and never compacted'),
+        ('`etcd.disk.wal_fsync_avg_ms`, `wal_fsyncs_slow_count`', 'Under 10; slow ones rare', 'Average past 10, or slow ones rising', 'Slow ones rising with leader changes: the disk is too slow for etcd', '4.86 ms on average, 18 of 2,013 over 16 ms, on the test machine\'s disk (a first, scratch run read 21 ms)'),
+        ('`etcd.disk.backend_commit_avg_ms`', 'Under 25', 'Past 25', '', '10.91'),
+        ('`etcd.requests.failed` (by `code`)', 'Flat', '`DeadlineExceeded`, `Canceled` rising: requests waiting too long', '`Unavailable`, `ResourceExhausted` (NOSPACE), `Unauthenticated` rising', '`code=Canceled` for the write with no quorum (its client gave up first); `code=ResourceExhausted` for the write refused at the quota'),
+    ],
+    tested="""
+**Tested** on 2026-11-28 by `tests/integration/backends/scripts/run-etcd.sh`, against `compose.etcd.yaml`: **etcd 3.6.17, a cluster of three**, and **etcd 3.5.36, one member alone** with a quota of 32 MiB, each with its metrics on a plain listener (`--listen-metrics-urls`) as the pack reads them. Through etcd's own API: 500 keys, each written four times; a watch held open; two leases of two seconds, left to expire.
+
+- **On Fedora** (Fedora 44, bash 5.3): every job against a member of the cluster and the one alone, and what each read (one leader among the three, as each says of itself; the keys and the history kept; the watch; the leases, expired and counted by the leader; the disk's fsyncs and commits, and the round trip to the peers). Then the leader stopped (the others elected one, the change counted, the old leader unreachable); then two of three stopped (no leader, not healthy, the write that failed counted, by its gRPC code); then the 3.5 member's database filled to its quota (the NOSPACE alarm, healthy 0 with its leader there, the write refused as `ResourceExhausted`), compacted, defragmented and disarmed (healthy again, the space given back); then nothing listening and a page that is not there: **33 passed, 0 failed**. Then `service-packs.sh` through Vigil: **12 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/fedora/pack-etcd/console.txt)).
+- **On macOS**, on the Intel Mac test machine (macOS 12.7.6, bash 3.2, its own awk), against the same cluster through SSH tunnels: every job against the 3.6 member and the 3.5 one, the readings checked, nothing listening: **11 passed, 0 failed**; through Vigil, **12 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/macos/pack-etcd-macos/console.txt)).
+- **On Windows**, on the HP test machine (Windows 11) as an account that is not an administrator, against the same cluster: every job under Windows PowerShell 5.1 and PowerShell 7, the same metric names and tags as the Linux scripts read just after; nothing listening and a page that is not there; then through Vigil under each: **22 passed, 0 failed**, the names and tags the same for all 4 jobs against both members under both shells (16 of 16), and through Vigil **10 passed, 0 failed** under each ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/windows/pack-etcd-windows/console.txt)).
+""",
+    found="etcd publishes no metric for its alarms: a member with NOSPACE says so on `/health` (`ALARM NOSPACE`), and the pack reads it as `healthy 0` with a leader. It raises the alarm when a write would pass the quota, so the database was 97% full, not 100, when writes stopped. A member alone publishes no peer series, so the pack counts members from the active-peer series, one for each other member. Leases are expired, and counted, by the leader alone. A write tried with no quorum fails on the client first: the member counts it as `Canceled`, not `Unavailable`. The container image has no shell: the run makes its keys through etcd's HTTP gateway.")
+
 # How the nine were tested: the same words on every page, filled in from the runs.
 TESTED = """
 **Tested** on 2026-11-25 by `tests/integration/backends/scripts/run-obs.sh`, against `compose.obs.yaml`: one stack of all nine services wired together as they are in use, each in trouble on purpose. **Prometheus 3.15.1** (two targets down and one that answers without metrics, a rule group that cannot be evaluated, an Alertmanager that is not there, a remote write nothing answers and one that is refused), **Alertmanager 0.35.1** (two in a cluster; a receiver nothing listens to), **Grafana 13.2.5** (a data source nothing answers, an alert rule that reads it, a contact point nothing listens to), **Loki 3.7.9** (entries too old, lines too long), **Mimir 3.2.6** (a tenant held at 200 series), **Tempo 2.10.10** (traces larger than its limit), **the OpenTelemetry Collector 0.166.0** (an exporter nothing answers, whose queue fills; a receiver that must refuse), **VictoriaMetrics 1.157.0** (a scrape target down, queries that fail) and **VictoriaLogs 1.54.0** (entries older than its retention), in Docker, with traces, metrics and logs flowing through all of it.
