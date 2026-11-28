@@ -56,7 +56,7 @@ jetstream { store_dir: /data }
 cluster {
   name: c1
   listen: 0.0.0.0:6222
-  routes: [$(for o in n1 n2 n3; do [ "$o" = "$n" ] || printf 'nats://%s:6222 ' "$o"; done)]
+  routes: [$(for o in n1 n2 n3; do [ "$o" = "$n" ] || printf 'nats://%s:6222, ' "$o"; done | sed 's/, $//')]
 }
 EOF
 done
