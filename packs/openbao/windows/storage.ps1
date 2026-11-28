@@ -55,7 +55,23 @@
                                      milliseconds
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric active 1
+      metric autopilot_healthy 1
+      metric failure_tolerance 1
+      metric nodes 3
+      metric nodes_unhealthy 0
+      metric node_unhealthy 0 node=o1
+      metric node_unhealthy 0 node=o2
+      metric node_unhealthy 0 node=o3
+      metric raft_peers 3
+      metric follower_lag_max 0
+      metric leader_contact_avg_ms 43.75
+      metric commit_avg_ms 17.960183
+      metric storage_reads_count 215
+      metric storage_read_avg_ms 0.024136
+      metric storage_writes_count 127
+      metric storage_write_avg_ms 34.347212
 
     Reading the results (starting points: tune them to your own):
       Healthy  autopilot_healthy 1; nodes_unhealthy 0; failure_tolerance 1 or

@@ -1,0 +1,82 @@
+== pack-openbao-macos
+date     2026-11-28
+host     the Intel Mac test machine (macOS 12.7.6), as an account that is not an administrator, over SSH
+vigil    1d847c5 (deployed copy)
+servers  run-openbao.sh's OpenBao 2.7.3 and Vault 2.2.2 Raft clusters on the Fedora test machine, held (VIGIL_IT_OPENBAO_HOLD), through SSH tunnels
+
+bash 3.2.57(1)-release on macOS 12.7.6; curl 8.7.1 (x86_64-apple-darwin21.0) libcurl/8.7.1 (SecureTransport) LibreSSL/3.3.6 zlib/1.2.11 nghttp2/1.45.1
+
+# Every node: the status job, which needs no token.
+o1: metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft; metric sealed 0; metric standby 1; metric active 0
+o2: metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft; metric sealed 0; metric standby 0; metric active 1
+o3: metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft; metric sealed 0; metric standby 1; metric active 0
+v1: metric info 1 product=vault version=2.2.2 seal=shamir storage=raft; metric sealed 0; metric standby 1; metric active 0
+v2: metric info 1 product=vault version=2.2.2 seal=shamir storage=raft; metric sealed 0; metric standby 0; metric active 1
+v3: metric info 1 product=vault version=2.2.2 seal=shamir storage=raft; metric sealed 0; metric standby 1; metric active 0
+
+# o2, the active node: every job
+o2 status: 13 lines, exit 0
+  PASS  o2 status runs
+o2 storage: 18 lines, exit 0
+  PASS  o2 storage runs
+o2 leases: 4 lines, exit 0
+  PASS  o2 leases runs
+o2 requests: 9 lines, exit 0
+  PASS  o2 requests runs
+  PASS  o2: autopilot healthy, three nodes
+  PASS  o2: the user locked out
+
+# v2, the active node: every job
+v2 status: 13 lines, exit 0
+  PASS  v2 status runs
+v2 storage: 20 lines, exit 0
+  PASS  v2 storage runs
+v2 leases: 5 lines, exit 0
+  PASS  v2 leases runs
+v2 requests: 8 lines, exit 0
+  PASS  v2 requests runs
+  PASS  v2: autopilot healthy, three nodes
+  PASS  v2: the user locked out
+
+$ bash packs/openbao/macos/leases.sh   (o2)
+metric up 1
+metric leases 27
+metric irrevocable_leases 0
+metric tokens_created_not_shown 0
+  PASS  a token that is not one: the run fails, saying the login may not read it
+  PASS  nothing listening: up 0, the run succeeding
+
+# The pack through Vigil:
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+openbao: OPENBAO_URL=http://127.0.0.1:18302
+  PASS  openbao: off until enabled
+  PASS  openbao: enabled
+        on: openbao_status
+        on: openbao_storage
+        on: openbao_leases
+        on: openbao_requests
+        needs secret:OPENBAO_TOKEN: set
+        needs its address, where it is not http://localhost:8200: env = OPENBAO_URL=... on each job (https, and OPENBAO_CACERT when its CA is not one the system trusts)
+        needs for the storage, leases and requests jobs, its metrics: telemetry { prometheus_retention_time = "24h" } in its configuration, and a token that may read sys/metrics (secret = OPENBAO_TOKEN=secret:OPENBAO_TOKEN; packs/openbao/README.md has the policy), or unauthenticated_metrics_access = true on the listener
+        needs on a Vault standby, unauthenticated_metrics_access = true: Vault sends a standby's sys/metrics to the active node (HTTP 307) otherwise. The status job needs neither
+        needs on each node: each reports itself; for its CPU and memory: the base pack's processes job
+        settings in vigil.config: OPENBAO_URL= OPENBAO_USER= OPENBAO_CACERT=
+  PASS  openbao: it says CPU and memory are the base pack's
+  PASS  openbao: its jobs are on
+  PASS  openbao: precheck is happy
+        status: 13 lines
+        storage: 18 lines
+        leases: 4 lines
+        requests: 9 lines
+  PASS  openbao: every job runs
+  PASS  openbao: answers
+  PASS  openbao: a server that does not answer still runs
+  PASS  openbao: and reads as up 0
+  PASS  openbao: the token is a secret reference, on the jobs that need it
+  PASS  openbao: the token is written nowhere
+  PASS  openbao: metrics reach the backend
+14 passed, 0 failed
+
+14 passed, 0 failed

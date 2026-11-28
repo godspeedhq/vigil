@@ -1,0 +1,57 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-openbao.sh): OpenBao's
+# active node, and for the requests job Vault's (OpenBao counts no responses).
+
+== status
+metric up 1
+metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft
+metric initialized 1
+metric sealed 0
+metric standby 0
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 0
+metric ha_enabled 1
+metric active 1
+metric leader_known 1
+metric raft_apply_lag 0
+
+== storage
+metric up 1
+metric active 1
+metric autopilot_healthy 1
+metric failure_tolerance 1
+metric nodes 3
+metric nodes_unhealthy 0
+metric node_unhealthy 0 node=o1
+metric node_unhealthy 0 node=o2
+metric node_unhealthy 0 node=o3
+metric raft_peers 3
+metric follower_lag_max 0
+metric leader_contact_avg_ms 43.75
+metric commit_avg_ms 17.960183
+metric storage_reads_count 215
+metric storage_read_avg_ms 0.024136
+metric storage_writes_count 127
+metric storage_write_avg_ms 34.347212
+
+== leases
+metric up 1
+metric leases 27
+metric irrevocable_leases 0
+metric tokens_created_count 27
+metric tokens_created 22 method=token
+metric tokens_created 5 method=userpass
+metric mounts 5
+
+== requests
+metric up 1
+metric requests_count 32
+metric logins_count 25
+metric logins_ok_count 5
+metric logins_failed_count 20
+metric locked_users 0
+metric responses_4xx_count 10
+metric permission_denied_count 2
+metric responses_5xx_count 42

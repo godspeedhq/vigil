@@ -1,0 +1,8 @@
+metric up 1
+metric in_flight 0
+metric logins_count 0
+metric logins_ok_count 0
+metric logins_failed_count 0
+metric locked_users 1
+metric responses_4xx_count 2
+metric responses_5xx_count 45

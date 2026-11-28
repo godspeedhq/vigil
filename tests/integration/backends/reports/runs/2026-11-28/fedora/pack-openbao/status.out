@@ -1,0 +1,13 @@
+metric up 1
+metric info 1 product=vault version=2.2.2 seal=shamir storage=raft
+metric initialized 1
+metric sealed 0
+metric standby 0
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 0
+metric ha_enabled 1
+metric active 1
+metric leader_known 1
+metric raft_apply_lag 0

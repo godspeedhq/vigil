@@ -1,0 +1,256 @@
+== pack-openbao-windows
+date     2026-11-28
+host     the HP test machine (Windows 11), as an account that is not an administrator, over SSH
+vigil    1d847c5 (deployed copy)
+servers  run-openbao.sh's OpenBao 2.7.3 and Vault 2.2.2 Raft clusters on the Fedora test machine, held (VIGIL_IT_OPENBAO_HOLD), through SSH tunnels
+
+# The status job against every node; every job under each PowerShell against each cluster's active node; a Vault standby without unauthenticated metrics; a token that is not one; nothing listening; then the pack through Vigil under each:
+
+shells: powershell.exe, pwsh.exe
+
+# Every node: the status job, which needs no token.
+o1: metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft; metric sealed 0; metric standby 1; metric active 0
+o2: metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft; metric sealed 0; metric standby 0; metric active 1
+o3: metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft; metric sealed 0; metric standby 1; metric active 0
+v1: metric info 1 product=vault version=2.2.2 seal=shamir storage=raft; metric sealed 0; metric standby 1; metric active 0
+v2: metric info 1 product=vault version=2.2.2 seal=shamir storage=raft; metric sealed 0; metric standby 0; metric active 1
+v3: metric info 1 product=vault version=2.2.2 seal=shamir storage=raft; metric sealed 0; metric standby 1; metric active 0
+
+# o2, the active node: every job under each PowerShell
+o2 status powershell.exe: 13 lines, exit 0
+  PASS  o2 status runs under powershell.exe
+o2 status pwsh.exe: 13 lines, exit 0
+  PASS  o2 status runs under pwsh.exe
+o2 storage powershell.exe: 18 lines, exit 0
+  PASS  o2 storage runs under powershell.exe
+o2 storage pwsh.exe: 18 lines, exit 0
+  PASS  o2 storage runs under pwsh.exe
+o2 leases powershell.exe: 4 lines, exit 0
+  PASS  o2 leases runs under powershell.exe
+o2 leases pwsh.exe: 4 lines, exit 0
+  PASS  o2 leases runs under pwsh.exe
+o2 requests powershell.exe: 9 lines, exit 0
+  PASS  o2 requests runs under powershell.exe
+o2 requests pwsh.exe: 9 lines, exit 0
+  PASS  o2 requests runs under pwsh.exe
+  PASS  o2: autopilot healthy, three nodes
+  PASS  o2: the user locked out, and its logins counted
+
+# v2, the active node: every job under each PowerShell
+v2 status powershell.exe: 13 lines, exit 0
+  PASS  v2 status runs under powershell.exe
+v2 status pwsh.exe: 13 lines, exit 0
+  PASS  v2 status runs under pwsh.exe
+v2 storage powershell.exe: 20 lines, exit 0
+  PASS  v2 storage runs under powershell.exe
+v2 storage pwsh.exe: 20 lines, exit 0
+  PASS  v2 storage runs under pwsh.exe
+v2 leases powershell.exe: 5 lines, exit 0
+  PASS  v2 leases runs under powershell.exe
+v2 leases pwsh.exe: 5 lines, exit 0
+  PASS  v2 leases runs under pwsh.exe
+v2 requests powershell.exe: 8 lines, exit 0
+  PASS  v2 requests runs under powershell.exe
+v2 requests pwsh.exe: 8 lines, exit 0
+  PASS  v2 requests runs under pwsh.exe
+  PASS  v2: autopilot healthy, three nodes
+  PASS  v2: the user locked out, and its logins counted
+
+$ pwsh.exe -File packs\openbao\windows\storage.ps1   (o2)
+metric up 1
+metric active 1
+metric autopilot_healthy 1
+metric failure_tolerance 1
+metric nodes 3
+metric nodes_unhealthy 0
+metric node_unhealthy 0 node=o1
+metric node_unhealthy 0 node=o2
+metric node_unhealthy 0 node=o3
+metric node_unhealthy_not_shown 0
+metric raft_peers 3
+metric follower_lag_max 0
+metric leader_contact_avg_ms 91.837838
+metric commit_avg_ms 43.808887
+metric storage_reads_count 143
+metric storage_read_avg_ms 0.041862
+metric storage_writes_count 2
+metric storage_write_avg_ms 47.835745
+
+$ powershell.exe -File packs\openbao\windows\requests.ps1   (v2)
+metric up 1
+metric in_flight 0
+metric logins_count 0
+metric logins_ok_count 0
+metric logins_failed_count 0
+metric locked_users 1
+metric responses_4xx_count 2
+metric responses_5xx_count 45
+
+  PASS  powershell.exe: v1, a Vault standby without unauthenticated metrics: the run fails, saying HTTP 307
+  PASS  powershell.exe: a token that is not one: the run fails, saying the login may not read it
+  PASS  powershell.exe: nothing listening: up 0, the run succeeding
+  PASS  pwsh.exe: v1, a Vault standby without unauthenticated metrics: the run fails, saying HTTP 307
+  PASS  pwsh.exe: a token that is not one: the run fails, saying the login may not read it
+  PASS  pwsh.exe: nothing listening: up 0, the run succeeding
+
+== powershell.exe tests\integration\Service-Packs.ps1
+PowerShell 5.1.26100.10068
+  PASS  init
+  PASS  the pack is off until enabled
+openbao: OPENBAO_URL=http://127.0.0.1:18302
+  PASS  openbao: enabled
+        on: openbao_status
+        on: openbao_storage
+        on: openbao_leases
+        on: openbao_requests
+        needs secret:OPENBAO_TOKEN: not set: vigil secret set OPENBAO_TOKEN, as the account Vigil runs as (an elevated prompt for a system install)
+        needs its address, where it is not http://localhost:8200: env = OPENBAO_URL=... on each job (https, and OPENBAO_CACERT when its CA is not one the system trusts)
+        needs for the storage, leases and requests jobs, its metrics: telemetry { prometheus_retention_time = "24h" } in its configuration, and a token that may read sys/metrics (secret = OPENBAO_TOKEN=secret:OPENBAO_TOKEN; packs/openbao/README.md has the policy), or unauthenticated_metrics_access = true on the listener
+        needs on a Vault standby, unauthenticated_metrics_access = true: Vault sends a standby's sys/metrics to the active node (HTTP 307) otherwise. The status job needs neither
+        needs on each node: each reports itself; for its CPU and memory: the base pack's processes job
+        settings in vigil.config: OPENBAO_URL= OPENBAO_USER= OPENBAO_CACERT=
+  PASS  openbao: it says CPU and memory are the base pack's
+  note  openbao: this logon cannot use the secret store (it has no password): the jobs take the token by env:VIGIL_IT_OBS_OPENBAO_TOKEN
+  PASS  openbao: precheck is happy
+  PASS  openbao: every job runs (status, storage, leases, requests)
+        metric up 1
+        metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft
+        metric initialized 1
+        metric sealed 0
+        metric standby 0
+        metric performance_standby 0
+        metric unseal_threshold 2
+        metric unseal_shares 3
+        metric unseal_progress 0
+        metric ha_enabled 1
+        metric active 1
+        metric leader_known 1
+        metric raft_apply_lag 0
+        metric up 1
+        metric active 1
+        metric autopilot_healthy 1
+        metric failure_tolerance 1
+        metric nodes 3
+        metric nodes_unhealthy 0
+        metric node_unhealthy 0 node=o1
+        metric node_unhealthy 0 node=o2
+        metric node_unhealthy 0 node=o3
+        metric node_unhealthy_not_shown 0
+        metric raft_peers 3
+        metric follower_lag_max 0
+        metric leader_contact_avg_ms 63.744048
+        metric commit_avg_ms 43.808887
+        metric storage_reads_count 159
+        metric storage_read_avg_ms 0.040524
+        metric storage_writes_count 2
+        metric storage_write_avg_ms 47.835745
+        metric up 1
+        metric leases 27
+        metric irrevocable_leases 0
+        metric tokens_created_not_shown 0
+        metric up 1
+        metric requests_count 25
+        metric in_flight 0
+        metric logins_count 2
+        metric logins_ok_count 0
+        metric logins_failed_count 2
+        metric locked_users 1
+        metric audit_request_failures_count 0
+        metric audit_response_failures_count 0
+  PASS  openbao: answers
+  PASS  openbao: a service that does not answer still runs
+  PASS  openbao: and reads as up 0
+  PASS  openbao: metrics reach the backend
+10 passed, 0 failed
+
+== pwsh.exe tests\integration\Service-Packs.ps1
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+openbao: OPENBAO_URL=http://127.0.0.1:18302
+  PASS  openbao: enabled
+        on: openbao_status
+        on: openbao_storage
+        on: openbao_leases
+        on: openbao_requests
+        needs secret:OPENBAO_TOKEN: not set: vigil secret set OPENBAO_TOKEN, as the account Vigil runs as (an elevated prompt for a system install)
+        needs its address, where it is not http://localhost:8200: env = OPENBAO_URL=... on each job (https, and OPENBAO_CACERT when its CA is not one the system trusts)
+        needs for the storage, leases and requests jobs, its metrics: telemetry { prometheus_retention_time = "24h" } in its configuration, and a token that may read sys/metrics (secret = OPENBAO_TOKEN=secret:OPENBAO_TOKEN; packs/openbao/README.md has the policy), or unauthenticated_metrics_access = true on the listener
+        needs on a Vault standby, unauthenticated_metrics_access = true: Vault sends a standby's sys/metrics to the active node (HTTP 307) otherwise. The status job needs neither
+        needs on each node: each reports itself; for its CPU and memory: the base pack's processes job
+        settings in vigil.config: OPENBAO_URL= OPENBAO_USER= OPENBAO_CACERT=
+  PASS  openbao: it says CPU and memory are the base pack's
+  note  openbao: this logon cannot use the secret store (it has no password): the jobs take the token by env:VIGIL_IT_OBS_OPENBAO_TOKEN
+  PASS  openbao: precheck is happy
+  PASS  openbao: every job runs (status, storage, leases, requests)
+        metric up 1
+        metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft
+        metric initialized 1
+        metric sealed 0
+        metric standby 0
+        metric performance_standby 0
+        metric unseal_threshold 2
+        metric unseal_shares 3
+        metric unseal_progress 0
+        metric ha_enabled 1
+        metric active 1
+        metric leader_known 1
+        metric raft_apply_lag 0
+        metric up 1
+        metric active 1
+        metric autopilot_healthy 1
+        metric failure_tolerance 1
+        metric nodes 3
+        metric nodes_unhealthy 0
+        metric node_unhealthy 0 node=o1
+        metric node_unhealthy 0 node=o2
+        metric node_unhealthy 0 node=o3
+        metric node_unhealthy_not_shown 0
+        metric raft_peers 3
+        metric follower_lag_max 0
+        metric leader_contact_avg_ms 53.996183
+        metric commit_avg_ms 39.096604
+        metric storage_reads_count 166
+        metric storage_read_avg_ms 0.658197
+        metric storage_writes_count 2
+        metric storage_write_avg_ms 47.835745
+        metric up 1
+        metric leases 27
+        metric irrevocable_leases 0
+        metric tokens_created_not_shown 0
+        metric up 1
+        metric requests_count 28
+        metric in_flight 0
+        metric logins_count 2
+        metric logins_ok_count 0
+        metric logins_failed_count 2
+        metric locked_users 1
+        metric audit_request_failures_count 0
+        metric audit_response_failures_count 0
+  PASS  openbao: answers
+  PASS  openbao: a service that does not answer still runs
+  PASS  openbao: and reads as up 0
+  PASS  openbao: metrics reach the backend
+10 passed, 0 failed
+
+26 passed, 0 failed
+
+# The Windows outputs beside the Linux scripts' (read on Fedora just after), against the same active nodes: the same metric names and tags.
+
+same     o2-leases powershell.exe: 4 lines, the same names and tags
+same     o2-leases pwsh.exe: 4 lines, the same names and tags
+same     o2-requests powershell.exe: 9 lines, the same names and tags
+same     o2-requests pwsh.exe: 9 lines, the same names and tags
+same     o2-status powershell.exe: 13 lines, the same names and tags
+same     o2-status pwsh.exe: 13 lines, the same names and tags
+same     o2-storage powershell.exe: 18 lines, the same names and tags
+same     o2-storage pwsh.exe: 18 lines, the same names and tags
+same     v2-leases powershell.exe: 5 lines, the same names and tags
+same     v2-leases pwsh.exe: 5 lines, the same names and tags
+same     v2-requests powershell.exe: 8 lines, the same names and tags
+same     v2-requests pwsh.exe: 8 lines, the same names and tags
+same     v2-status powershell.exe: 13 lines, the same names and tags
+same     v2-status pwsh.exe: 13 lines, the same names and tags
+same     v2-storage powershell.exe: 20 lines, the same names and tags
+same     v2-storage pwsh.exe: 20 lines, the same names and tags
+0 differ

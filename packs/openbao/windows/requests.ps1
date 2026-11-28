@@ -49,7 +49,15 @@
                                      running total)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric requests_count 32
+      metric logins_count 25
+      metric logins_ok_count 5
+      metric logins_failed_count 20
+      metric locked_users 0
+      metric responses_4xx_count 10
+      metric permission_denied_count 2
+      metric responses_5xx_count 42
 
     Reading the results (starting points: tune them to your own):
       Healthy  logins_failed_count rising slowly, if at all; locked_users 0; the

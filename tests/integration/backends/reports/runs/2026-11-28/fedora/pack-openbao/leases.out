@@ -1,0 +1,8 @@
+metric up 1
+metric leases 27
+metric irrevocable_leases 0
+metric tokens_created_count 27
+metric tokens_created 22 method=token
+metric tokens_created 5 method=userpass
+metric tokens_created_not_shown 0
+metric mounts 6

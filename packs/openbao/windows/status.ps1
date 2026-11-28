@@ -43,7 +43,19 @@
       raft_apply_lag       Raft entries committed and not yet applied
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft
+      metric initialized 1
+      metric sealed 0
+      metric standby 0
+      metric performance_standby 0
+      metric unseal_threshold 2
+      metric unseal_shares 3
+      metric unseal_progress 0
+      metric ha_enabled 1
+      metric active 1
+      metric leader_known 1
+      metric raft_apply_lag 0
 
     Reading the results (starting points: tune them to your own):
       Healthy  up 1; initialized 1; sealed 0; one node of the cluster active 1,

@@ -1,0 +1,469 @@
+== pack-openbao
+date     2026-11-28T14:09:15Z
+host     fedora
+os       Fedora Linux 44 (Workstation Edition) (Linux 7.1.5-200.fc44.x86_64 x86_64)
+vigil    b1ca763 (deployed copy)
+command  tests/integration/backends/scripts/run-openbao.sh
+bash     5.3.9(1)-release
+git      git version 2.56.1
+curl     curl 8.18.0 (x86_64-redhat-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.9 zlib/1.3.1.zlib-ng brotli/1.2.1 libidn2/2.3.8 libpsl/0.21.5 libssh/0.12.2/openssl/zlib nghttp2/1.68.0 ngtcp2/1.22.1 nghttp3/1.19.0 mit-krb5/1.22.2 OpenLDAP/2.6.16
+openssl  OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)
+ssh      OpenSSH_10.2p1, OpenSSL 3.5.9 29 Sep 2026
+images   (as compose.openbao.yaml pins them)
+         hashicorp/vault:${VAULT_VERSION:-2.2.2}
+         openbao/openbao:${OPENBAO_VERSION:-2.7.3}
+
+servers  o1 openbao/openbao:2.7.3; o2 openbao/openbao:2.7.3; o3 openbao/openbao:2.7.3; v1 hashicorp/vault:2.2.2; v2 hashicorp/vault:2.2.2; v3 hashicorp/vault:2.2.2
+
+# Each cluster initialized and unsealed; a token that may read the metrics, and logins.
+o        OpenBao: initialized, 3 key shares, 2 needed; unsealed; a metrics token; 5 logins, 10 with a wrong password (the user guessed answered: 400 400 400 400 400 403 403); 20 tokens of 2 h
+v        Vault: initialized, 3 key shares, 2 needed; unsealed; a metrics token; 5 logins, 10 with a wrong password (the user guessed answered: 400 400 400 400 400 403 403); 20 tokens of 2 h
+
+# OpenBao, o1, the active node: every job, as the pack's scripts print it.
+
+$ OPENBAO_URL=http://127.0.0.1:18301 bash packs/openbao/linux/status.sh
+metric up 1
+metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft
+metric initialized 1
+metric sealed 0
+metric standby 0
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 0
+metric ha_enabled 1
+metric active 1
+metric leader_known 1
+metric raft_apply_lag 0
+
+$ OPENBAO_URL=http://127.0.0.1:18301 bash packs/openbao/linux/storage.sh
+metric up 1
+metric active 1
+metric autopilot_healthy 1
+metric failure_tolerance 1
+metric nodes 3
+metric nodes_unhealthy 0
+metric node_unhealthy 0 node=o1
+metric node_unhealthy 0 node=o2
+metric node_unhealthy 0 node=o3
+metric node_unhealthy_not_shown 0
+metric raft_peers 3
+metric follower_lag_max 0
+metric leader_contact_avg_ms 43.75
+metric commit_avg_ms 17.960183
+metric storage_reads_count 215
+metric storage_read_avg_ms 0.024136
+metric storage_writes_count 127
+metric storage_write_avg_ms 34.347212
+
+$ OPENBAO_URL=http://127.0.0.1:18301 bash packs/openbao/linux/leases.sh
+metric up 1
+metric leases 27
+metric irrevocable_leases 0
+metric tokens_created_count 27
+metric tokens_created 22 method=token
+metric tokens_created 5 method=userpass
+metric tokens_created_not_shown 0
+metric mounts 5
+
+$ OPENBAO_URL=http://127.0.0.1:18301 bash packs/openbao/linux/requests.sh
+metric up 1
+metric requests_count 29
+metric in_flight 0
+metric logins_count 25
+metric logins_ok_count 5
+metric logins_failed_count 20
+metric locked_users 0
+metric audit_request_failures_count 0
+metric audit_response_failures_count 0
+
+# OpenBao, o1: what they read.
+  PASS  o1: status runs
+  PASS  o1: storage runs
+  PASS  o1: leases runs
+  PASS  o1: requests runs
+  PASS  o1: OpenBao, initialized, unsealed, active, HA
+  PASS  o1: Shamir, 2 keys of 3, on Raft
+  PASS  o1: autopilot healthy, three nodes, one may be lost
+  PASS  o1: storage reads and writes, timed
+  PASS  o1: the leases, the logins' and the tokens'
+  PASS  o1: tokens created by userpass
+  PASS  o1: logins: 5 that worked, 10 that failed
+
+# OpenBao, o2, a standby.
+
+$ OPENBAO_URL=http://127.0.0.1:18302 bash packs/openbao/linux/status.sh
+metric up 1
+metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft
+metric initialized 1
+metric sealed 0
+metric standby 1
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 0
+metric ha_enabled 1
+metric active 0
+metric leader_known 1
+metric raft_apply_lag 0
+
+$ OPENBAO_URL=http://127.0.0.1:18302 bash packs/openbao/linux/storage.sh
+metric up 1
+metric active 0
+metric storage_reads_count 42
+metric storage_read_avg_ms 0.043519
+metric storage_writes_count 0
+metric storage_write_avg_ms 0
+  PASS  o2: a standby, unsealed, the leader known
+  PASS  o2: its own metrics read, as a standby
+
+# Vault, v1, the active node: every job, as the pack's scripts print it.
+
+$ OPENBAO_URL=http://127.0.0.1:18201 bash packs/openbao/linux/status.sh
+metric up 1
+metric info 1 product=vault version=2.2.2 seal=shamir storage=raft
+metric initialized 1
+metric sealed 0
+metric standby 0
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 0
+metric ha_enabled 1
+metric active 1
+metric leader_known 1
+metric raft_apply_lag 0
+
+$ OPENBAO_URL=http://127.0.0.1:18201 bash packs/openbao/linux/storage.sh
+metric up 1
+metric active 1
+metric autopilot_healthy 1
+metric failure_tolerance 1
+metric nodes 3
+metric nodes_unhealthy 0
+metric node_unhealthy 0 node=v1
+metric node_unhealthy 0 node=v2
+metric node_unhealthy 0 node=v3
+metric node_unhealthy_not_shown 0
+metric raft_peers 3
+metric follower_lag_max 0
+metric leader_contact_avg_ms 49
+metric commit_avg_ms 14.549928
+metric leadership_lost_count 0
+metric leadership_setup_failed_count 0
+metric storage_reads_count 237
+metric storage_read_avg_ms 0.026721
+metric storage_writes_count 138
+metric storage_write_avg_ms 30.202874
+
+$ OPENBAO_URL=http://127.0.0.1:18201 bash packs/openbao/linux/leases.sh
+metric up 1
+metric leases 27
+metric irrevocable_leases 0
+metric tokens_created_count 27
+metric tokens_created 22 method=token
+metric tokens_created 5 method=userpass
+metric tokens_created_not_shown 0
+metric mounts 6
+
+$ OPENBAO_URL=http://127.0.0.1:18201 bash packs/openbao/linux/requests.sh
+metric up 1
+metric requests_count 32
+metric in_flight 0
+metric logins_count 25
+metric logins_ok_count 5
+metric logins_failed_count 20
+metric locked_users 0
+metric responses_4xx_count 10
+metric permission_denied_count 2
+metric responses_5xx_count 42
+
+# Vault, v1: what they read.
+  PASS  v1: status runs
+  PASS  v1: storage runs
+  PASS  v1: leases runs
+  PASS  v1: requests runs
+  PASS  v1: Vault, initialized, unsealed, active, HA
+  PASS  v1: Shamir, 2 keys of 3, on Raft
+  PASS  v1: autopilot healthy, three nodes, one may be lost
+  PASS  v1: storage reads and writes, timed
+  PASS  v1: the leases, the logins' and the tokens'
+  PASS  v1: tokens created by userpass
+  PASS  v1: logins: 5 that worked, 10 that failed
+  PASS  v1: responses refused, and those of them 403 (the lockout)
+
+# Vault, v2, a standby.
+
+$ OPENBAO_URL=http://127.0.0.1:18202 bash packs/openbao/linux/status.sh
+metric up 1
+metric info 1 product=vault version=2.2.2 seal=shamir storage=raft
+metric initialized 1
+metric sealed 0
+metric standby 1
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 0
+metric ha_enabled 1
+metric active 0
+metric leader_known 1
+metric raft_apply_lag 0
+
+$ OPENBAO_URL=http://127.0.0.1:18202 bash packs/openbao/linux/storage.sh
+metric up 1
+metric active 0
+metric leadership_lost_count 0
+metric leadership_setup_failed_count 0
+metric storage_reads_count 13
+metric storage_read_avg_ms 0.05055
+metric storage_writes_count 0
+metric storage_write_avg_ms 0
+  PASS  v2: a standby, unsealed, the leader known
+  PASS  v2: its own metrics read, as a standby
+
+# Vault, v3: a standby whose metrics are sent to the active node.
+
+$ OPENBAO_URL=http://127.0.0.1:18203 bash packs/openbao/linux/storage.sh   (v3, without unauthenticated_metrics_access)
+metric up 0
+storage: http://127.0.0.1:18203/v1/sys/metrics?format=prometheus answered HTTP 307
+exit 1
+  PASS  v3: the run fails, saying HTTP 307
+
+# OpenBao: o3 restarts, and comes back sealed.
+
+$ OPENBAO_URL=http://127.0.0.1:18303 bash packs/openbao/linux/status.sh   (o3 sealed)
+metric up 1
+metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft
+metric initialized 1
+metric sealed 1
+metric standby 1
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 0
+  PASS  o3: sealed, its unseal not begun
+  PASS  o3: its metrics jobs read nothing, sealed
+
+$ OPENBAO_URL=http://127.0.0.1:18301 bash packs/openbao/linux/storage.sh   (o3 sealed)
+metric up 1
+metric active 1
+metric autopilot_healthy 0
+metric failure_tolerance 0
+metric nodes 3
+metric nodes_unhealthy 1
+metric node_unhealthy 1 node=o3
+metric node_unhealthy 0 node=o1
+metric node_unhealthy 0 node=o2
+metric node_unhealthy_not_shown 0
+metric raft_peers 3
+metric follower_lag_max 0
+metric leader_contact_avg_ms 341.846154
+metric commit_avg_ms 17.960183
+metric storage_reads_count 221
+metric storage_read_avg_ms 0.024211
+metric storage_writes_count 127
+metric storage_write_avg_ms 34.347212
+  PASS  o1: autopilot unhealthy, o3 named, nothing more may be lost
+
+$ OPENBAO_URL=http://127.0.0.1:18303 bash packs/openbao/linux/status.sh   (o3, one key of two given)
+metric up 1
+metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft
+metric initialized 1
+metric sealed 1
+metric standby 1
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 1
+  PASS  o3: still sealed, one key of two given
+  PASS  o3: unsealed, a standby again
+
+# OpenBao: the active node, o1, stops; another takes over.
+
+$ OPENBAO_URL=http://127.0.0.1:18302 bash packs/openbao/linux/status.sh   (o1 stopped)
+metric up 1
+metric info 1 product=openbao version=2.7.3 seal=shamir storage=raft
+metric initialized 1
+metric sealed 0
+metric standby 0
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 0
+metric ha_enabled 1
+metric active 1
+metric leader_known 1
+metric raft_apply_lag 0
+  PASS  OpenBao: a new active node, o2
+
+# Vault: v3 restarts, and comes back sealed.
+
+$ OPENBAO_URL=http://127.0.0.1:18203 bash packs/openbao/linux/status.sh   (v3 sealed)
+metric up 1
+metric info 1 product=vault version=2.2.2 seal=shamir storage=raft
+metric initialized 1
+metric sealed 1
+metric standby 1
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 0
+  PASS  v3: sealed, its unseal not begun
+  PASS  v3: its metrics jobs read nothing, sealed
+
+$ OPENBAO_URL=http://127.0.0.1:18201 bash packs/openbao/linux/storage.sh   (v3 sealed)
+metric up 1
+metric active 1
+metric autopilot_healthy 0
+metric failure_tolerance 0
+metric nodes 3
+metric nodes_unhealthy 1
+metric node_unhealthy 1 node=v3
+metric node_unhealthy 0 node=v1
+metric node_unhealthy 0 node=v2
+metric node_unhealthy_not_shown 0
+metric raft_peers 3
+metric follower_lag_max 0
+metric leader_contact_avg_ms 888.222222
+metric commit_avg_ms 14.549928
+metric leadership_lost_count 0
+metric leadership_setup_failed_count 0
+metric storage_reads_count 244
+metric storage_read_avg_ms 0.02669
+metric storage_writes_count 138
+metric storage_write_avg_ms 30.202874
+  PASS  v1: autopilot unhealthy, v3 named, nothing more may be lost
+
+$ OPENBAO_URL=http://127.0.0.1:18203 bash packs/openbao/linux/status.sh   (v3, one key of two given)
+metric up 1
+metric info 1 product=vault version=2.2.2 seal=shamir storage=raft
+metric initialized 1
+metric sealed 1
+metric standby 1
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 1
+  PASS  v3: still sealed, one key of two given
+  PASS  v3: unsealed, a standby again
+
+# Vault: the active node, v1, stops; another takes over.
+
+$ OPENBAO_URL=http://127.0.0.1:18202 bash packs/openbao/linux/status.sh   (v1 stopped)
+metric up 1
+metric info 1 product=vault version=2.2.2 seal=shamir storage=raft
+metric initialized 1
+metric sealed 0
+metric standby 0
+metric performance_standby 0
+metric unseal_threshold 2
+metric unseal_shares 3
+metric unseal_progress 0
+metric ha_enabled 1
+metric active 1
+metric leader_known 1
+metric raft_apply_lag 0
+  PASS  Vault: a new active node, v2
+
+# The users locked out, counted (every 15 minutes or so) on each active node.
+
+$ OPENBAO_URL=http://127.0.0.1:18302 bash packs/openbao/linux/requests.sh   (o2, 0 minutes after the lockout)
+metric up 1
+metric requests_count 2
+metric in_flight 0
+metric logins_count 2
+metric logins_ok_count 0
+metric logins_failed_count 2
+metric locked_users 1
+metric audit_request_failures_count 0
+metric audit_response_failures_count 0
+  PASS  o2: the user locked out
+
+$ OPENBAO_URL=http://127.0.0.1:18202 bash packs/openbao/linux/requests.sh   (v2, 0 minutes after the lockout)
+metric up 1
+metric in_flight 0
+metric logins_count 0
+metric logins_ok_count 0
+metric logins_failed_count 0
+metric locked_users 1
+metric responses_4xx_count 2
+metric responses_5xx_count 45
+  PASS  v2: the user locked out
+
+# Tokens, and nothing listening.
+  PASS  a token without the policy: the run fails, saying the login may not read it
+        storage: http://127.0.0.1:18302/v1/sys/metrics?format=prometheus answered HTTP 403: this login may not read it (OPENBAO_USER and OPENBAO_PASSWORD, or OPENBAO_TOKEN)
+        metric up 0
+  PASS  no token: the same
+  PASS  nothing listening: up 0, the run succeeding
+
+# The pack through Vigil, against OpenBao's o2 (and, for up 0, a port nothing listens on).
+bash 5.3.9(1)-release on Linux
+  PASS  init
+  PASS  the packs are off until enabled
+  SKIP  postgres: set VIGIL_IT_PG_HOST and VIGIL_IT_PG_PASSWORD
+  SKIP  mysql: set VIGIL_IT_MYSQL_HOST and VIGIL_IT_MYSQL_PASSWORD
+  SKIP  redis: set VIGIL_IT_REDIS_HOST and VIGIL_IT_REDIS_PASSWORD
+  SKIP  mssql: set VIGIL_IT_MSSQL_HOST and VIGIL_IT_MSSQL_PASSWORD
+  SKIP  kafka: set VIGIL_IT_KAFKA_BOOTSTRAP, VIGIL_IT_KAFKA_PASSWORD and VIGIL_IT_KAFKA_HOME
+  SKIP  jvm: set VIGIL_IT_JVM_TARGETS and VIGIL_IT_JVM_PASSWORD (scripts/run-jvm.sh sets them up)
+  SKIP  a pack on the probe: set VIGIL_IT_PROBE_PACK (scripts/run-tomcat.sh, run-jetty.sh, run-activemq.sh, run-artemis.sh set it up)
+  SKIP  jenkins: set VIGIL_IT_JENKINS_URL and VIGIL_IT_JENKINS_TOKEN (scripts/run-jenkins.sh sets them up)
+  SKIP  elasticsearch: set VIGIL_IT_ES_URL and VIGIL_IT_ES_PASSWORD (scripts/run-elasticsearch.sh sets them up)
+  SKIP  opensearch: set VIGIL_IT_OS_URL and VIGIL_IT_OS_PASSWORD (scripts/run-opensearch.sh sets them up)
+  SKIP  cockroachdb: set VIGIL_IT_CRDB_URL and VIGIL_IT_CRDB_PASSWORD (scripts/run-cockroachdb.sh sets them up)
+  SKIP  clickhouse: set VIGIL_IT_CLICKHOUSE_URL and VIGIL_IT_CLICKHOUSE_PASSWORD (scripts/run-clickhouse.sh sets them up)
+  SKIP  mongodb: set VIGIL_IT_MONGODB_URL and VIGIL_IT_MONGODB_PASSWORD (scripts/run-mongodb.sh sets them up)
+  SKIP  oracle: set VIGIL_IT_ORACLE_HOST, VIGIL_IT_ORACLE_SERVICE and VIGIL_IT_ORACLE_PASSWORD (scripts/run-oracle.sh sets them up)
+  SKIP  zookeeper: set VIGIL_IT_ZOOKEEPER_SERVERS (scripts/run-zookeeper.sh sets it up)
+  SKIP  rabbitmq: set VIGIL_IT_RABBITMQ_TARGETS (scripts/run-rabbitmq.sh sets it up)
+  SKIP  beam: set VIGIL_IT_BEAM_DIST and VIGIL_IT_BEAM_COOKIE (scripts/run-beam.sh sets them up)
+  SKIP  nginx: set VIGIL_IT_NGINX_URL
+  SKIP  nginx: set VIGIL_IT_WEB_NGINX (scripts/run-web.sh sets it up)
+  SKIP  httpd: set VIGIL_IT_WEB_HTTPD (scripts/run-web.sh sets it up)
+  SKIP  caddy: set VIGIL_IT_WEB_CADDY (scripts/run-web.sh sets it up)
+  SKIP  haproxy: set VIGIL_IT_WEB_HAPROXY (scripts/run-web.sh sets it up)
+  SKIP  phpfpm: set VIGIL_IT_WEB_PHPFPM (scripts/run-web.sh sets it up)
+  SKIP  prometheus: set VIGIL_IT_OBS_PROMETHEUS (scripts/run-obs.sh sets it up)
+  SKIP  alertmanager: set VIGIL_IT_OBS_ALERTMANAGER (scripts/run-obs.sh sets it up)
+  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA (scripts/run-obs.sh sets it up)
+  SKIP  loki: set VIGIL_IT_OBS_LOKI (scripts/run-obs.sh sets it up)
+  SKIP  mimir: set VIGIL_IT_OBS_MIMIR (scripts/run-obs.sh sets it up)
+  SKIP  tempo: set VIGIL_IT_OBS_TEMPO (scripts/run-obs.sh sets it up)
+  SKIP  otelcol: set VIGIL_IT_OBS_OTELCOL (scripts/run-obs.sh sets it up)
+  SKIP  victoriametrics: set VIGIL_IT_OBS_VICTORIAMETRICS (scripts/run-obs.sh sets it up)
+  SKIP  victorialogs: set VIGIL_IT_OBS_VICTORIALOGS (scripts/run-obs.sh sets it up)
+  SKIP  etcd: set VIGIL_IT_OBS_ETCD (scripts/run-obs.sh sets it up)
+openbao: OPENBAO_URL=http://127.0.0.1:18302
+  PASS  openbao: off until enabled
+  PASS  openbao: enabled
+        on: openbao_status
+        on: openbao_storage
+        on: openbao_leases
+        on: openbao_requests
+        needs secret:OPENBAO_TOKEN: set
+        needs its address, where it is not http://localhost:8200: env = OPENBAO_URL=... on each job (https, and OPENBAO_CACERT when its CA is not one the system trusts)
+        needs for the storage, leases and requests jobs, its metrics: telemetry { prometheus_retention_time = "24h" } in its configuration, and a token that may read sys/metrics (secret = OPENBAO_TOKEN=secret:OPENBAO_TOKEN; packs/openbao/README.md has the policy), or unauthenticated_metrics_access = true on the listener
+        needs on a Vault standby, unauthenticated_metrics_access = true: Vault sends a standby's sys/metrics to the active node (HTTP 307) otherwise. The status job needs neither
+        needs on each node: each reports itself; for its CPU and memory: the base pack's processes job
+        settings in vigil.config: OPENBAO_URL= OPENBAO_USER= OPENBAO_CACERT=
+  PASS  openbao: it says CPU and memory are the base pack's
+  PASS  openbao: its jobs are on
+  PASS  openbao: precheck is happy
+        status: 13 lines
+        storage: 18 lines
+        leases: 4 lines
+        requests: 9 lines
+  PASS  openbao: every job runs
+  PASS  openbao: answers
+  PASS  openbao: a server that does not answer still runs
+  PASS  openbao: and reads as up 0
+  PASS  openbao: the token is a secret reference, on the jobs that need it
+  PASS  openbao: the token is written nowhere
+  SKIP  docker: set VIGIL_IT_DOCKER (scripts/run-containers.sh docker sets it up)
+  SKIP  podman: set VIGIL_IT_PODMAN (scripts/run-containers.sh podman sets it up)
+  SKIP  sqlite: set VIGIL_IT_SQLITE (scripts/run-sqlite.sh sets it up)
+  PASS  openbao: metrics reach the backend
+14 passed, 0 failed
+45 passed, 0 failed
+evidence: reports/runs/2026-11-28/fedora/pack-openbao

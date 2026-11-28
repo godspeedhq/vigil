@@ -37,7 +37,13 @@
 #   mounts                    mounts: secrets engines and auth methods
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric leases 27
+#   metric irrevocable_leases 0
+#   metric tokens_created_count 27
+#   metric tokens_created 22 method=token
+#   metric tokens_created 5 method=userpass
+#   metric mounts 5
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  leases steady with the workload; irrevocable_leases 0.
