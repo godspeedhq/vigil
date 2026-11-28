@@ -139,7 +139,7 @@ def ms: [scan("([0-9.]+)(h|ms|m|s|µs|us|ns)")]
 
 def leader: if (.cluster.raft_group // "") != "" then (.cluster.leader // "") else $me end;
 def top(f): sort_by(-(f)) | .[0:20];
-if (.config // null) == null then "metric jetstream 0" else
+if .disabled == true or (.config // null) == null then "metric jetstream 0" else
     "metric jetstream 1",
     "metric memory_bytes \(.memory)",
     "metric storage_bytes \(.storage)",

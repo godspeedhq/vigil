@@ -205,7 +205,7 @@ get '/jsz?accounts=true&streams=true&consumers=true&config=true' jsz || { echo "
 jq -r --arg me "$me" '@DEFS@
 def leader: if (.cluster.raft_group // "") != "" then (.cluster.leader // "") else $me end;
 def top(f): sort_by(-(f)) | .[0:20];
-if (.config // null) == null then "metric jetstream 0" else
+if .disabled == true or (.config // null) == null then "metric jetstream 0" else
     "metric jetstream 1",
     "metric memory_bytes \(.memory)",
     "metric storage_bytes \(.storage)",
@@ -257,7 +257,7 @@ $me = [string]$v.server_name
 $jr = Get-Answer '/jsz?accounts=true&streams=true&consumers=true&config=true'
 if ($jr.State -ne 'ok') { [Console]::Error.WriteLine("${Job}: $($script:Url)/jsz did not answer"); exit 1 }
 $j = $jr.Body | ConvertFrom-Json
-if (-not $j.config) { Write-Output 'metric jetstream 0'; exit 0 }
+if ($j.disabled -eq $true -or -not $j.config) { Write-Output 'metric jetstream 0'; exit 0 }
 function Leader($o) { if ($o.cluster -and $o.cluster.raft_group) { [string]$o.cluster.leader } else { $me } }
 function Top($list, [string]$f) { @($list | Sort-Object -Property @{ Expression = { [double]$_.$f }; Descending = $true } | Select-Object -First 20) }
 function Rest($n) { [Math]::Max(@($n).Count - 20, 0) }

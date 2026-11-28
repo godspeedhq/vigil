@@ -148,7 +148,7 @@ $me = [string]$v.server_name
 $jr = Get-Answer '/jsz?accounts=true&streams=true&consumers=true&config=true'
 if ($jr.State -ne 'ok') { [Console]::Error.WriteLine("${Job}: $($script:Url)/jsz did not answer"); exit 1 }
 $j = $jr.Body | ConvertFrom-Json
-if (-not $j.config) { Write-Output 'metric jetstream 0'; exit 0 }
+if ($j.disabled -eq $true -or -not $j.config) { Write-Output 'metric jetstream 0'; exit 0 }
 function Leader($o) { if ($o.cluster -and $o.cluster.raft_group) { [string]$o.cluster.leader } else { $me } }
 function Top($list, [string]$f) { @($list | Sort-Object -Property @{ Expression = { [double]$_.$f }; Descending = $true } | Select-Object -First 20) }
 function Rest($n) { [Math]::Max(@($n).Count - 20, 0) }
