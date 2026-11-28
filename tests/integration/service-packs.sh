@@ -128,6 +128,10 @@
 #   VIGIL_IT_SQLITE                      SQLite databases for the sqlite pack,
 #                                        separated by ;, the last one not there
 #                                        (scripts/run-sqlite.sh makes them)
+#   VIGIL_IT_TLS                         targets for the tls pack, separated by
+#                                        spaces, with VIGIL_IT_TLS_CACERT (their
+#                                        CA) and VIGIL_IT_TLS_FAILED (how many
+#                                        fail a check) (scripts/run-tls.sh)
 # CI starts them as service containers; tests/integration/backends has
 # them for a machine of your own (scripts/run-pack.sh, compose.*.yaml).
 #
@@ -204,7 +208,7 @@ cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
 obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs etcd openbao traefik'
-for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper mongodb oracle nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
+for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper mongodb oracle nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite tls; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
 done
@@ -2068,10 +2072,36 @@ else
     fi
 fi
 
+# --- tls --------------------------------------------------------------------
+# Targets scripts/run-tls.sh serves, some failing a check on purpose:
+# enabled, precheck, the job, and what it read.
+if [ -z "${VIGIL_IT_TLS-}" ]; then
+    printf '  SKIP  tls: set VIGIL_IT_TLS (scripts/run-tls.sh sets it up)\n'
+else
+    printf 'tls: %s\n' "$VIGIL_IT_TLS"
+    check 'tls: off until enabled' off "$(vigil pack list | awk '$1 == "tls_certs" { print $2 }')"
+    out=$(vigil pack enable tls 2>&1)
+    check 'tls: enabled' 0 "$?"
+    printf '%s\n' "$out" | sed 's/^/        /'
+    check 'tls: it says what it needs: the targets, a private CA' yes "$(printf '%s\n' "$out" | grep -q 'TLS_TARGETS=' && printf '%s\n' "$out" | grep -q 'TLS_CACERT=' && echo yes || echo no)"
+    set_env TLS_TARGETS "$VIGIL_IT_TLS"
+    set_env TLS_CACERT "${VIGIL_IT_TLS_CACERT-}"
+    set_env TLS_TIMEOUT 5
+    check 'tls: precheck is happy' 0 "$(vigil precheck > "$work/precheck" 2>&1; echo $?)"
+    vigil run tls_certs > "$work/out" 2>&1
+    check 'tls: certs runs' 0 "$?"
+    tn=$(printf '%s\n' $VIGIL_IT_TLS | grep -c .)
+    check 'tls: every target counted, those failing a check counted' "$tn ${VIGIL_IT_TLS_FAILED-}" "$(printed tls_certs targets) $(printed tls_certs targets_failed)"
+fi
+
 # What ran reaches the backend.
 vigil supervise --once > /dev/null 2>&1
 sleep 3
 vigil supervise --once > /dev/null 2>&1
+if [ -n "${VIGIL_IT_TLS-}" ]; then
+    for _ in $(seq 1 20); do grep -q '^tls_cert_expires_days{' "$root/metrics/vigil.prom" 2> /dev/null && break; sleep 3; vigil supervise --once > /dev/null 2>&1; done
+    check 'tls: metrics reach the backend, each target by name' yes "$(grep -q '^tls_targets{' "$root/metrics/vigil.prom" && grep -q '^tls_cert_expires_days{.*target=' "$root/metrics/vigil.prom" && echo yes || echo no)"
+fi
 if [ -n "${VIGIL_IT_PG_HOST-}" ] && [ -n "${VIGIL_IT_PG_PASSWORD-}" ] && command -v psql > /dev/null 2>&1; then
     check 'postgres: metrics reach the backend' yes "$(grep -q '^postgres_connections{' "$root/metrics/vigil.prom" && echo yes || echo no)"
     check 'postgres: the 1.2.0 jobs reach it too' yes "$(grep -q '^postgres_activity_blocked{' "$root/metrics/vigil.prom" && grep -q '^postgres_wraparound_xid_pct{.*database="postgres"' "$root/metrics/vigil.prom" && echo yes || echo no)"
