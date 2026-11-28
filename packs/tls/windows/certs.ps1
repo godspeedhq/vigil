@@ -124,20 +124,26 @@ $Keep = [System.Net.Security.RemoteCertificateValidationCallback] {
     param($Sender, $Cert, $Chain, $Errors)
     $script:Seen = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 -ArgumentList $Cert
     $script:Errors = $Errors
-    $script:Why = @($Chain.ChainStatus | ForEach-Object { [string]$_.Status }) -join '+'
-    $chainBad = ($Errors -band [System.Net.Security.SslPolicyErrors]::RemoteCertificateChainErrors) -ne 0
-    if ($chainBad -and $Ca) {
+    $script:Why = ''
+    if (($Errors -band [System.Net.Security.SslPolicyErrors]::RemoteCertificateChainErrors) -ne 0) {
+        # The chain again, to say why in Windows' words (NotTimeValid,
+        # UntrustedRoot, PartialChain), and with TLS_CACERT as a root.
         $c = New-Object System.Security.Cryptography.X509Certificates.X509Chain
         $c.ChainPolicy.RevocationMode = [System.Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
-        $c.ChainPolicy.VerificationFlags = [System.Security.Cryptography.X509Certificates.X509VerificationFlags]::AllowUnknownCertificateAuthority
-        [void]$c.ChainPolicy.ExtraStore.Add($Ca)
+        if ($Ca) {
+            $c.ChainPolicy.VerificationFlags = [System.Security.Cryptography.X509Certificates.X509VerificationFlags]::AllowUnknownCertificateAuthority
+            [void]$c.ChainPolicy.ExtraStore.Add($Ca)
+        }
         # The intermediates the server sent: .NET Framework has them in the
         # chain's elements, PowerShell 7's .NET in its extra store.
         foreach ($e in @($Chain.ChainElements)) { if ($e.Certificate.Thumbprint -ne $script:Seen.Thumbprint) { [void]$c.ChainPolicy.ExtraStore.Add($e.Certificate) } }
         foreach ($x in @($Chain.ChainPolicy.ExtraStore)) { if ($x) { [void]$c.ChainPolicy.ExtraStore.Add($x) } }
-        if ($c.Build($script:Seen) -and $c.ChainElements[$c.ChainElements.Count - 1].Certificate.Thumbprint -eq $Ca.Thumbprint) {
+        $built = $c.Build($script:Seen)
+        $caRoot = $Ca -and $c.ChainElements[$c.ChainElements.Count - 1].Certificate.Thumbprint -eq $Ca.Thumbprint
+        if ($built -and $caRoot) {
             $script:Errors = $Errors -band (-bnot [System.Net.Security.SslPolicyErrors]::RemoteCertificateChainErrors)
-            $script:Why = ''
+        } else {
+            $script:Why = @($c.ChainStatus | ForEach-Object { [string]$_.Status } | Where-Object { -not ($caRoot -and $_ -eq 'UntrustedRoot') } | Select-Object -Unique) -join '+'
         }
     }
     return $true
@@ -200,14 +206,14 @@ foreach ($e in $list) {
     if (-not $name) { $name = $hostName }
     $script:Seen = $null; $script:Proto = $null
     $clock = [Diagnostics.Stopwatch]::StartNew()
-    $why = ''
+    $down = ''
     foreach ($o in $Offer) {
-        $why = Try-Handshake $hostName $port $name $o $clock
-        if (-not $why -or $script:Seen -or $why -ne 'handshake_failed') { break }
+        $down = Try-Handshake $hostName $port $name $o $clock
+        if (-not $down -or $script:Seen -or $down -ne 'handshake_failed') { break }
     }
     $clock.Stop()
     if (-not $script:Seen) {
-        "metric up 0 $t reason=$why"
+        "metric up 0 $t reason=$down"
         $failed++
         continue
     }

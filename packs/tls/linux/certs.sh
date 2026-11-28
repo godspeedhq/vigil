@@ -42,7 +42,10 @@
 #   up                   1 when the handshake finished, else 0; tagged
 #                        target=<as listed> and reason=<ok, refused,
 #                        no_such_host, unreachable, timeout,
-#                        handshake_failed>; the rest only when it finished
+#                        no_common_version, handshake_failed>; the rest
+#                        only when it finished. no_common_version: the
+#                        server and this openssl share no TLS version (the
+#                        LibreSSL of macOS 12 and earlier has no TLS 1.3)
 #   handshake_ms         the time to connect and finish the handshake
 #                        (with the start of openssl itself, a few ms)
 #   cert_expires_days    days until the certificate expires (below 0:
@@ -216,6 +219,7 @@ while IFS= read -r e; do
         elif grep -qi 'refused' "$work/err"; then why=refused
         elif grep -qi 'nodename nor servname\|not known\|no address associated\|BIO_lookup\|gethostbyname\|getaddrinfo\|lookup' "$work/err"; then why=no_such_host
         elif grep -qi 'unreachable\|no route' "$work/err"; then why=unreachable
+        elif grep -qi 'alert protocol version\|unsupported protocol\|no protocols available' "$work/err"; then why=no_common_version
         else why=handshake_failed
         fi
         echo "metric up 0 $t reason=$why"
