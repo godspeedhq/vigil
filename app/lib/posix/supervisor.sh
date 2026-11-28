@@ -115,13 +115,20 @@ _vigil_sup_marker() {
 # TERM goes to the job's process group first, KILL after grace. A marker
 # written before the first signal tells the worker its job timed out.
 _vigil_sup_timeout() {
-    local job=$1 rid=$2 token=$3 marker="$_su_statedir/locks/$1.$2.timeout" term='' line grace=30s i
+    local job=$1 rid=$2 token=$3 marker="$_su_statedir/locks/$1.$2.timeout" term='' line grace=30s i gone=''
     # TERM sent and the job's own process gone: its worker, which still holds
     # the token, ends the rest of its group after grace, then records the run.
     if [ -f "$marker" ] && [ -n "$_ss_job_pid" ] && ! kill -0 "$_ss_job_pid" 2>/dev/null; then
-        return 0
+        [ "$_ss_job_pid" = "$_ss_worker_pid" ] || return 0
+        # The sender is its own worker, so no worker is left to do it: what
+        # still holds the token is in its process group, proven the run's when
+        # TERM was sent, and a group's id is not reused while it has a member.
+        # The group alone is sent KILL after grace, never the bare pid.
+        gone=1
     fi
-    if [ -z "$_ss_job_pid" ] || [ -z "$token" ]; then
+    if [ -n "$gone" ]; then
+        _su_held=yes
+    elif [ -z "$_ss_job_pid" ] || [ -z "$token" ]; then
         _su_held=no
     else
         _vigil_sup_holds "$_ss_job_pid" "$token"
@@ -157,7 +164,10 @@ _vigil_sup_timeout() {
         i=$((i + 1))
     done
     _vigil_wk_secs "$grace"
-    if [ $((_su_epoch - term)) -ge "$_vw_secs" ]; then
+    if [ $((_su_epoch - term)) -ge "$_vw_secs" ] && [ -n "$gone" ]; then
+        kill -KILL -- "-$_ss_job_pid" 2>/dev/null
+        _vigil_sup_log WARN "job $job: run $rid: processes it started still running $grace after TERM; sent KILL to its group"
+    elif [ $((_su_epoch - term)) -ge "$_vw_secs" ]; then
         kill -KILL -- "-$_ss_job_pid" 2>/dev/null || kill -KILL "$_ss_job_pid" 2>/dev/null
         _vigil_sup_log WARN "job $job: run $rid still running $grace after TERM; sent KILL"
     fi
@@ -476,7 +486,11 @@ _vigil_sup_account() {
                 case $_ss_worker_pid in
                     '' | *[!0-9]*) ;;
                     *)
-                        if ! kill -0 "$_ss_worker_pid" 2>/dev/null; then
+                        if ! kill -0 "$_ss_worker_pid" 2>/dev/null && [ "$_ss_worker_pid" = "$_ss_job_pid" ]; then
+                            # Vigil's own worker is its own job: what lives on is
+                            # something it started.
+                            _su_orphaned="$_su_orphaned$job: run $rid, its worker (pid $_ss_worker_pid) is gone, but processes it started still hold the run, so it is not started again until they end"$'\n'
+                        elif ! kill -0 "$_ss_worker_pid" 2>/dev/null; then
                             _su_orphaned="$_su_orphaned$job: run $rid, its worker (pid $_ss_worker_pid) is gone; its job (pid $_ss_job_pid) still runs, so it is not started again until it ends"$'\n'
                         fi
                         ;;
@@ -983,8 +997,18 @@ _vigil_sup_start() {
     # keep the lock held after the supervisor exits. It is told the state
     # directory: its launch record is there, whatever the configuration
     # says by now (V-07).
-    ( trap '' HUP; exec 8>&-; exec "$BASH" "$_su_app/vigil" --root "$_su_root" worker "$job" --run-id "$rid" --state-dir "$_su_statedir" ) \
-        < /dev/null > /dev/null 2>&1 &
+    if [ "$job" = vigil_sender ]; then
+        # The sender is its own job process (4.5), so it gets its own process
+        # group, as a worker gives its job: past its deadline, TERM and KILL
+        # then reach what it started (curl, subshells), which would otherwise
+        # hold its token and its run after it had gone (11.6).
+        ( set -m
+          ( trap '' HUP; exec 8>&-; exec "$BASH" "$_su_app/vigil" --root "$_su_root" worker "$job" --run-id "$rid" --state-dir "$_su_statedir" ) \
+              < /dev/null > /dev/null 2>&1 & ) < /dev/null > /dev/null 2>&1
+    else
+        ( trap '' HUP; exec 8>&-; exec "$BASH" "$_su_app/vigil" --root "$_su_root" worker "$job" --run-id "$rid" --state-dir "$_su_statedir" ) \
+            < /dev/null > /dev/null 2>&1 &
+    fi
     vigil_fault launch.after_spawn
     _su_running=$((_su_running + 1))
     # The forwarder's own starts are not logged: each would give it
