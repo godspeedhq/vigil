@@ -1,0 +1,34 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# Oracle Database for the oracle pack (scripts/run-oracle.sh), one at a time:
+# - oracle23: Oracle Database 23ai Free, a CDB with FREEPDB1: 127.0.0.1:11523,
+#   service FREE.
+# - oracle21: Oracle Database 21c XE, a CDB with XEPDB1: 127.0.0.1:11521,
+#   service XE.
+# The full images, not -slim: those leave RMAN out. SYS's password is
+# ORACLE_PASSWORD, made by the run script; the user the pack asks for is
+# made by the script. Each takes some 2 GB: the Fedora test machine has 8
+# for all.
+
+services:
+  oracle23:
+    image: gvenzl/oracle-free:23
+    profiles: ["23"]
+    mem_limit: 3g
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:?SYS's password}
+    ports: ["127.0.0.1:11523:1521"]
+  oracle21:
+    image: gvenzl/oracle-xe:21
+    profiles: ["21"]
+    mem_limit: 3g
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:?SYS's password}
+    ports: ["127.0.0.1:11521:1521"]
