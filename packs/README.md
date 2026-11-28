@@ -51,6 +51,7 @@ Each pack has a page of its own: what it reads, how to turn it on, each job, wha
 | [`zookeeper`](zookeeper/README.md) | ZooKeeper, a server or an ensemble: up and serving, one leader, followers in sync, read-only mode, latency, requests waiting, znodes, watches and ephemerals, fsync and JVM pauses, elections | [packs/zookeeper/README.md](zookeeper/README.md) |
 | [`mongodb`](mongodb/README.md) | MongoDB, a server or a replica set member: up, connections, operations and latency, the WiredTiger cache, queues; a primary or not, members down, lag, the oplog window; databases; operations running long | [packs/mongodb/README.md](mongodb/README.md) |
 | [`cassandra`](cassandra/README.md) | Cassandra over JMX: each node up and normal, gossip and CQL, nodes down, hints; requests, latency, timeouts and unavailables; thread pools, blocked tasks, dropped messages; compactions, SSTables and tombstones per table | [packs/cassandra/README.md](cassandra/README.md) |
+| [`oracle`](oracle/README.md) | Oracle Database 19c, 21c and 23ai, a CDB and every PDB: up and open (and why not), sessions and processes against their limits, workload, blocking and transactions left open, waits, every tablespace against the most it can grow to, the recovery area and the archiver, redo, memory and the PGA limit, RMAN backups, invalid objects, corrupt blocks, Scheduler jobs failed, the alert log; nothing from a paid pack | [packs/oracle/README.md](oracle/README.md) |
 | [`nginx`](nginx/README.md) | nginx: connections and requests, processes and reloads, an edit not reloaded, how full the workers are, the access log minute by minute (status, errors, response and upstream times), certificate expiry | [packs/nginx/README.md](nginx/README.md) |
 | [`httpd`](httpd/README.md) | Apache httpd: workers and the scoreboard, requests, connections, the TLS session cache, an edit not loaded, the access log minute by minute (status, errors, response times), certificate expiry | [packs/httpd/README.md](httpd/README.md) |
 | [`caddy`](caddy/README.md) | Caddy: its configuration and reloads, traffic per server, reverse proxy upstreams and their health, the certificate of every site, from its admin API | [packs/caddy/README.md](caddy/README.md) |
@@ -193,6 +194,12 @@ MongoDB, a server or a member of a replica set, with `mongosh`, as a user with M
 Apache Cassandra, every node, over JMX, with the probe every JMX pack shares (Java 11 or later on the Vigil machine, nothing of Cassandra's). Each node up and in normal operation (or draining, leaving, decommissioned), gossip and CQL, the nodes it sees down, hints for nodes that were away; the requests it coordinates, their latency, those that timed out or found too few replicas; its thread pools, blocked tasks, dropped messages; its compactions and, for each of the application's tables, its SSTables, how many a read looks in, and the tombstones a read scans. On localhost with no password, or with a read-only JMX user. Linux, macOS and Windows.
 
 **Its page: [packs/cassandra/README.md](cassandra/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
+
+### oracle
+
+Oracle Database 19c, 21c or 23ai, a container database and its pluggable databases or one that is not a CDB, on this machine or any it can reach, through SQL*Plus from Oracle Instant Client, as a user with Oracle's own read-only `SELECT_CATALOG_ROLE`. Only Oracle's basic views: nothing from the Diagnostics or Tuning Pack, so running it never makes a database owe Oracle a license. The password goes to SQL*Plus on its standard input, and Oracle Net's encryption is required. Linux, macOS and Windows.
+
+**Its page: [packs/oracle/README.md](oracle/README.md)**, with how to set it up, each job, what to alert on, and how it was tested.
 
 ### nginx
 

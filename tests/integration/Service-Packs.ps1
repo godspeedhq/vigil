@@ -262,7 +262,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
     $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs')
-    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'zookeeper', 'mongodb', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
+    foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'zookeeper', 'mongodb', 'oracle', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
         Copy-Item -LiteralPath (Join-Path $repo "packs\$sp\pack.config") -Destination $sd
@@ -1564,6 +1564,94 @@ try {
             Start-Sleep -Seconds 3
         }
         Test-Equal "${p}: metrics reach the backend, each database by its name" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^${p}_databases_db_size_bytes\{.*db=")))
+    }
+
+    # --- oracle ------------------------------------------------------------
+    # An Oracle database in trouble on purpose (a session blocked, a
+    # tablespace full), through Vigil, as scripts/run-oracle.sh sets it up:
+    # VIGIL_IT_ORACLE_HOST, _PORT and _SERVICE its CDB root, _PASSWORD
+    # C##VIGIL_MONITOR's, VIGIL_IT_ORACLE_SQLPLUS SQL*Plus.
+    $oraPlus = if ($env:VIGIL_IT_ORACLE_SQLPLUS) { $env:VIGIL_IT_ORACLE_SQLPLUS } else { [string](Get-Command sqlplus.exe -ErrorAction SilentlyContinue).Source }
+    if (-not $env:VIGIL_IT_ORACLE_HOST -or -not $env:VIGIL_IT_ORACLE_SERVICE -or -not $env:VIGIL_IT_ORACLE_PASSWORD) { Write-Host '  SKIP  oracle: set VIGIL_IT_ORACLE_HOST, VIGIL_IT_ORACLE_SERVICE and VIGIL_IT_ORACLE_PASSWORD (scripts/run-oracle.sh sets them up)' }
+    elseif (-not $oraPlus -or -not (Test-Path -LiteralPath $oraPlus)) { Write-Host '  SKIP  oracle: sqlplus.exe is not here (VIGIL_IT_ORACLE_SQLPLUS names it)' }
+    else {
+        $p = 'oracle'
+        $pw = $env:VIGIL_IT_ORACLE_PASSWORD
+        $oport = if ($env:VIGIL_IT_ORACLE_PORT) { $env:VIGIL_IT_ORACLE_PORT } else { '1521' }
+        foreach ($v in 'HOST', 'PORT', 'SERVICE', 'USER', 'PASSWORD', 'SQLPLUS') { Remove-Item "Env:\ORACLE_$v" -ErrorAction SilentlyContinue }
+        Write-Host "${p}: $($env:VIGIL_IT_ORACLE_HOST):$oport/$($env:VIGIL_IT_ORACLE_SERVICE) as C##VIGIL_MONITOR"
+        $ck = Join-Path $root "packs\$p"
+        $cjobs = @(([System.IO.File]::ReadAllLines((Join-Path $ck 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] }))
+        $cn = $cjobs.Count
+        $on = {
+            $list = (Invoke-Vigil pack list).Text
+            $st = @($list.Split("`n") | Where-Object { $_ -match "^\s*${p}_\w+\s" } | ForEach-Object { ($_.Trim() -split '\s+')[1] })
+            (@($st | Group-Object | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Count)" })) -join ' '
+        }
+        Test-Equal "${p}: off until enabled" "off=$cn" (& $on)
+        $r = Invoke-Vigil pack enable $p
+        Test-Equal "${p}: enabled" '0' ([string]$r.Code)
+        Write-Host ($r.Text -replace '(?m)^', '        ')
+        Test-Equal "${p}: its jobs are on" "on=$cn" (& $on)
+        $cfg = Join-Path $root 'config\vigil.config'
+        Test-Equal "${p}: the password is a secret reference, on every job" ([string]$cn) ([string]([regex]::Matches([System.IO.File]::ReadAllText($cfg), '(?m)^secret\s*=\s*ORACLE_PASSWORD=secret:ORACLE_MONITOR_PASSWORD')).Count)
+        # A logon with no password (SSH with a key) cannot use the secret
+        # store: then the jobs take it by an env: reference.
+        $cenv = $false
+        Set-VigilSecret 'ORACLE_MONITOR_PASSWORD' $pw
+        if ((Invoke-Vigil secret list).Text -notmatch 'ORACLE_MONITOR_PASSWORD') {
+            $cenv = $true
+            Write-Host "  note  ${p}: this logon cannot use the secret store (it has no password): the jobs take the password by env:VIGIL_IT_ORACLE_PASSWORD"
+            [System.IO.File]::WriteAllText($cfg, ([System.IO.File]::ReadAllText($cfg) -replace '(?m)^(secret\s*=\s*ORACLE_PASSWORD=)secret:ORACLE_MONITOR_PASSWORD', '${1}env:VIGIL_IT_ORACLE_PASSWORD'))
+        }
+        Set-Env 'ORACLE_HOST' $env:VIGIL_IT_ORACLE_HOST
+        Set-Env 'ORACLE_PORT' $oport
+        Set-Env 'ORACLE_SERVICE' $env:VIGIL_IT_ORACLE_SERVICE
+        # ORACLE_SQLPLUS is not in the pack's env lines: one for each job.
+        $lines = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($l in [System.IO.File]::ReadAllLines($cfg)) {
+            $lines.Add($l)
+            if ($l -match '^env\s*=\s*ORACLE_HOST=') { $lines.Add('env         = ORACLE_SQLPLUS=' + $oraPlus) }
+        }
+        [System.IO.File]::WriteAllText($cfg, (($lines -join "`n") + "`n"))
+        $r = Invoke-Vigil precheck
+        Test-Equal "${p}: precheck is happy" '0' ([string]$r.Code)
+        $failed = @()
+        foreach ($j in $cjobs) { if ([string](Invoke-Vigil run "${p}_$j").Code -ne '0') { $failed += $j } }
+        Test-Equal "${p}: every job runs" '' ($failed -join ' ')
+        foreach ($j in $failed) { Show-LastRun "${p}_$j" }
+        Test-Equal "${p}: up, open" '1 1' "$(Get-Printed "${p}_status" up) $(Get-Printed "${p}_status" open)"
+        Test-Equal "${p}: the blocked session, seen" '1' (Get-Printed "${p}_activity" blocked)
+        Test-Equal "${p}: the alert log, readable" '1' (Get-Printed "${p}_alerts" readable)
+        Show-LastRun "${p}_activity"
+        if ($cenv) { $keep = $pw; $env:VIGIL_IT_ORACLE_PASSWORD = 'not-the-password' }
+        else { Set-VigilSecret 'ORACLE_MONITOR_PASSWORD' 'not-the-password' }
+        Test-Equal "${p}: a wrong password fails the run" '2' ([string](Invoke-Vigil run "${p}_memory").Code)
+        Test-Equal "${p}: and says why" 'True' (Test-Said "${p}_memory" 'ORA-01017')
+        if ($cenv) { $env:VIGIL_IT_ORACLE_PASSWORD = $keep } else { Set-VigilSecret 'ORACLE_MONITOR_PASSWORD' $pw }
+        Set-Env 'ORACLE_PORT' '1'
+        Test-Equal "${p}: a database that does not answer still runs" '0' ([string](Invoke-Vigil run "${p}_status").Code)
+        Test-Equal "${p}: and reads as up 0" '0' (Get-Printed "${p}_status" up)
+        Set-Env 'ORACLE_PORT' $oport
+        [void](Invoke-Vigil run "${p}_status")
+        [void](Invoke-Vigil run "${p}_tablespaces")
+        $leaks = @()
+        foreach ($d in 'logs', 'state', 'spool', 'metrics') {
+            foreach ($f in Get-ChildItem -LiteralPath (Join-Path $root $d) -Recurse -File -ErrorAction SilentlyContinue) {
+                if ([System.IO.File]::ReadAllText($f.FullName).Contains($pw)) { $leaks += $f.Name }
+            }
+        }
+        if ([System.IO.File]::ReadAllText($cfg).Contains($pw)) { $leaks += 'vigil.config' }
+        Test-Equal "${p}: the password is written nowhere" '' ($leaks -join ' ')
+        $prom = ''
+        foreach ($i in 1..20) {
+            [void](Invoke-Vigil supervise --once)
+            $pf = Join-Path $root 'metrics\vigil.prom'
+            if (Test-Path -LiteralPath $pf) { $prom = [System.IO.File]::ReadAllText($pf) }
+            if ($prom -match "(?m)^${p}_tablespace_used_pct\{") { break }
+            Start-Sleep -Seconds 3
+        }
+        Test-Equal "${p}: metrics reach the backend, each tablespace by its name" 'True' ([string](($prom -match "(?m)^${p}_up\{") -and ($prom -match "(?m)^${p}_tablespace_used_pct\{.*tablespace=")))
     }
 
     # --- zookeeper ---------------------------------------------------------
