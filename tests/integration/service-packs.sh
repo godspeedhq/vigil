@@ -110,13 +110,15 @@
 #                                        where nothing answers (scripts/run-web.sh
 #                                        sets them up)
 #   VIGIL_IT_OBS_PROMETHEUS, _ALERTMANAGER, _GRAFANA, _LOKI, _MIMIR, _TEMPO,
-#   _OTELCOL, _VICTORIAMETRICS, _VICTORIALOGS, _ETCD
+#   _OTELCOL, _VICTORIAMETRICS, _VICTORIALOGS, _ETCD, _OPENBAO
 #                                        the same for a pack that watches a
 #                                        monitoring stack, with _<PACK>_DOWN;
 #                                        VIGIL_IT_OBS_GRAFANA_TOKEN, a Viewer's
 #                                        token for Grafana's data sources
 #                                        (scripts/run-obs.sh sets them up;
-#                                        scripts/run-etcd.sh, etcd's)
+#                                        scripts/run-etcd.sh, etcd's;
+#                                        scripts/run-openbao.sh, OpenBao's,
+#                                        with VIGIL_IT_OBS_OPENBAO_TOKEN)
 #   VIGIL_IT_DOCKER, VIGIL_IT_PODMAN     the same for the docker and podman
 #                                        packs: "DOCKER_HOST=unix://..." and
 #                                        "CONTAINER_HOST=" (empty: this
@@ -201,7 +203,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs etcd'
+obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs etcd openbao'
 for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper mongodb oracle nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
@@ -1993,9 +1995,14 @@ for o in $obs_packs; do
         printf '  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA_TOKEN, a token for its data sources\n'
     elif [ "$o" = grafana ] && ! command -v jq > /dev/null 2>&1; then
         printf '  SKIP  grafana: jq is not installed here\n'
+    elif [ "$o" = openbao ] && [ -z "${VIGIL_IT_OBS_OPENBAO_TOKEN-}" ]; then
+        printf '  SKIP  openbao: set VIGIL_IT_OBS_OPENBAO_TOKEN, a token that may read sys/metrics\n'
     else
         if [ "$o" = grafana ]; then
             printf '%s' "$VIGIL_IT_OBS_GRAFANA_TOKEN" | vigil secret set GRAFANA_TOKEN --stdin > /dev/null
+        fi
+        if [ "$o" = openbao ]; then
+            printf '%s' "$VIGIL_IT_OBS_OPENBAO_TOKEN" | vigil secret set OPENBAO_TOKEN --stdin > /dev/null
         fi
         web_pack "$o" status "$os_" "$od"
         if [ "$o" = grafana ]; then
@@ -2004,6 +2011,10 @@ for o in $obs_packs; do
             check 'grafana: its data sources are read with the token' '1 yes' "$(printed grafana_datasources login_ok) $([ "$(printed grafana_datasources datasources)" -ge 1 ] 2> /dev/null && echo yes || echo no)"
             check 'grafana: the token is a secret reference, on the job that needs it' 1 "$(grep -c '^secret *= GRAFANA_TOKEN=secret:GRAFANA_TOKEN' "$root/config/vigil.config")"
             check 'grafana: the token is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_OBS_GRAFANA_TOKEN" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
+        fi
+        if [ "$o" = openbao ]; then
+            check 'openbao: the token is a secret reference, on the jobs that need it' 3 "$(grep -c '^secret *= OPENBAO_TOKEN=secret:OPENBAO_TOKEN' "$root/config/vigil.config")"
+            check 'openbao: the token is written nowhere' '' "$(grep -rlF -- "$VIGIL_IT_OBS_OPENBAO_TOKEN" "$root/logs" "$root/state" "$root/spool" "$root/metrics" "$root/config/vigil.config" 2> /dev/null)"
         fi
     fi
 done

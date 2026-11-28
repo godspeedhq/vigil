@@ -261,7 +261,7 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $jk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
-    $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs', 'etcd')
+    $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs', 'etcd', 'openbao')
     foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'zookeeper', 'mongodb', 'oracle', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)
@@ -1914,10 +1914,12 @@ try {
         $wd = [Environment]::GetEnvironmentVariable("VIGIL_IT_OBS_${PU}_DOWN")
         if (-not $ws) { Write-Host "  SKIP  ${p}: set VIGIL_IT_OBS_$PU (scripts/run-obs.sh sets it up)"; continue }
         if ($p -ceq 'grafana' -and -not $env:VIGIL_IT_OBS_GRAFANA_TOKEN) { Write-Host '  SKIP  grafana: set VIGIL_IT_OBS_GRAFANA_TOKEN, a token for its data sources'; continue }
+        if ($p -ceq 'openbao' -and -not $env:VIGIL_IT_OBS_OPENBAO_TOKEN) { Write-Host '  SKIP  openbao: set VIGIL_IT_OBS_OPENBAO_TOKEN, a token that may read sys/metrics'; continue }
         Write-Host "${p}: $ws"
         $wk = Join-Path $root "packs\$p"
         $wjobs = @([System.IO.File]::ReadAllLines((Join-Path $wk 'pack.config')) | Where-Object { $_ -match '^\[job\.(\w+)\]' } | ForEach-Object { $Matches[1] })
         if ($p -ceq 'grafana') { Set-VigilSecret GRAFANA_TOKEN $env:VIGIL_IT_OBS_GRAFANA_TOKEN }
+        if ($p -ceq 'openbao') { Set-VigilSecret OPENBAO_TOKEN $env:VIGIL_IT_OBS_OPENBAO_TOKEN }
         $r = Invoke-Vigil pack enable $p
         Test-Equal "${p}: enabled" '0' ([string]$r.Code)
         Write-Host ($r.Text -replace '(?m)^', '        ')
@@ -1928,6 +1930,11 @@ try {
             Write-Host '  note  grafana: this logon cannot use the secret store (it has no password): the job takes the token by env:VIGIL_IT_OBS_GRAFANA_TOKEN'
             $gcfg = Join-Path $root 'config\vigil.config'
             [System.IO.File]::WriteAllText($gcfg, ([System.IO.File]::ReadAllText($gcfg) -replace '(?m)^(secret\s*=\s*GRAFANA_TOKEN=)secret:GRAFANA_TOKEN', '${1}env:VIGIL_IT_OBS_GRAFANA_TOKEN'))
+        }
+        if ($p -ceq 'openbao' -and (Invoke-Vigil secret list).Text -notmatch 'OPENBAO_TOKEN') {
+            Write-Host '  note  openbao: this logon cannot use the secret store (it has no password): the jobs take the token by env:VIGIL_IT_OBS_OPENBAO_TOKEN'
+            $ocfg = Join-Path $root 'config\vigil.config'
+            [System.IO.File]::WriteAllText($ocfg, ([System.IO.File]::ReadAllText($ocfg) -replace '(?m)^(secret\s*=\s*OPENBAO_TOKEN=)secret:OPENBAO_TOKEN', '${1}env:VIGIL_IT_OBS_OPENBAO_TOKEN'))
         }
         foreach ($kv in @($ws -split '\|' | Where-Object { $_ })) { $n, $v = $kv -split '=', 2; Set-Env $n $v }
         $r = Invoke-Vigil precheck

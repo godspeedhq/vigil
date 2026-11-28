@@ -342,6 +342,62 @@ PAGES['etcd'] = dict(
 """,
     found="etcd publishes no metric for its alarms: a member with NOSPACE says so on `/health` (`ALARM NOSPACE`), and the pack reads it as `healthy 0` with a leader. It raises the alarm when a write would pass the quota, so the database was 97% full, not 100, when writes stopped. A member alone publishes no peer series, so the pack counts members from the active-peer series, one for each other member. Leases are expired, and counted, by the leader alone. A write tried with no quorum fails on the client first: the member counts it as `Canceled`, not `Unavailable`. The container image has no shell: the run makes its keys through etcd's HTTP gateway.")
 
+PAGES['openbao'] = dict(
+    intro="An OpenBao or HashiCorp Vault node, from what it says about itself: the two answer the same paths and "
+          "publish the same metrics, so one pack reads both, and says which it found. With no token at all, it "
+          "reads whether the node is initialized and sealed, how far an unseal has got, whether it is active or a "
+          "standby and knows its leader. With a token that may read its metrics, and nothing else: its Raft cluster "
+          "as autopilot sees it (healthy or not, how many nodes it may lose, which are unhealthy), followers behind "
+          "and leadership lost, how long storage takes; its leases and those it could not revoke, the tokens created; "
+          "and its requests: logins that failed, users locked out after too many, responses refused, audit devices "
+          "that failed to log.",
+    why="Everything that has a secret asks it for one, so trouble here is trouble everywhere at once. A node that "
+        "restarts with a Shamir seal comes back sealed and serves nothing until someone brings the keys; a cluster of "
+        "three that has lost one may not lose another; a client with a stale password is locked out after a few "
+        "tries, and an application stops; leases that grow without end make every failover slower; and with every "
+        "audit device failing, it refuses every request. Each of these is on its health page or its metrics page.",
+    setup=["Nothing to turn on for the status job: `/v1/sys/health`, `/v1/sys/seal-status` and `/v1/sys/leader` "
+           "answer anyone.",
+           "For the other three, its metrics: in its configuration, `telemetry { prometheus_retention_time = \"24h\" }` "
+           "(it drops a counter not updated in that time: keep it longer than the jobs' interval), and a token that may "
+           "read `sys/metrics` and nothing else: `bao policy write vigil-metrics - <<< 'path \"sys/metrics\" "
+           "{ capabilities = [\"read\"] }'`, then `bao token create -orphan -policy=vigil-metrics -no-default-policy "
+           "-period=768h` (`vault` for Vault). A periodic token never expires by TTL; renew it within the period, or "
+           "give a new one. Or let anyone read the metrics: `unauthenticated_metrics_access = true` in the listener's "
+           "`telemetry` block. **On a Vault standby, that setting is needed**: Vault sends a standby's `sys/metrics` "
+           "to the active node (HTTP 307) otherwise. OpenBao's standbys answer with the token.",
+           "`vigil pack enable openbao` on each node's machine, then `vigil secret set OPENBAO_TOKEN`, and where the "
+           "node is not at `http://localhost:8200`, `OPENBAO_URL` in the jobs' `env` lines (https, with "
+           "`OPENBAO_CACERT` when its CA is not one the system trusts). Each node reports itself."],
+    reports={
+        'status': 'Up; OpenBao or Vault, its version, its seal and its storage; initialized, sealed, standby; keys needed, given so far; HA, active, the leader known; Raft entries not yet applied',
+        'storage': 'Active; autopilot healthy, failure tolerance, nodes and those unhealthy, named; Raft peers; the follower furthest behind; time since the leader was heard; commit time; leadership lost; storage reads and writes and their time',
+        'leases': 'Leases held and those it could not revoke; tokens created, for each auth method; tokens; mounts',
+        'requests': 'Requests and those in flight; logins, those that created a token and those that failed; users locked out; responses refused (4xx, 403) and failed (5xx), on Vault; requests and responses audit devices failed to log',
+    },
+    alerts=[
+        ('`openbao.up`', '1', '', '0: the node does not answer', '`up 0` where nothing listened'),
+        ('`openbao.sealed`', '0', '', '1: the node serves nothing until its keys are given', '1 on a node restarted (a Shamir seal); `unseal_progress 1` with one key of two given, then `sealed 0`'),
+        ('`openbao.active` (over the nodes)', 'One node 1', '', 'None: the cluster has no active node', 'o1 and v1; then o2 and v2, each taking over within seconds of the active node stopping'),
+        ('`openbao.storage.autopilot_healthy`, `node_unhealthy` (by `node`)', '1; 0', '', '0: `node_unhealthy` names the node', '0, with `node_unhealthy 1 node=o3` (and `v3`): the node restarted and sealed'),
+        ('`openbao.storage.failure_tolerance`', '1 or more', '0: one more node lost and the cluster stops', '', '1 for three nodes; 0 with one sealed'),
+        ('`openbao.storage.storage_write_avg_ms`, `commit_avg_ms`', 'Steady', 'Rising: slow disks', '', '34 and 18 ms (OpenBao), 30 and 15 ms (Vault), on the test machine\'s disk'),
+        ('`openbao.requests.locked_users`', '0', '', 'Above 0: a user locked out; an application that cannot log in', '1: the user whose wrong password was tried seven times (400 five times, then 403)'),
+        ('`openbao.requests.logins_failed_count`', 'Flat', 'Rising: a stale secret, or someone guessing', '', '20 for the 10 wrong passwords: both count a failed login twice'),
+        ('`openbao.requests.permission_denied_count`, `responses_4xx_count`', 'Flat', 'Rising: tokens without the policy they need, or users locked out', '', '2 and 10 (Vault)'),
+        ('`openbao.leases.irrevocable_leases`', '0', '', 'Above 0: credentials it could not revoke still work', '0'),
+        ('`openbao.leases.leases`', 'Steady', 'Growing day after day', 'In the hundreds of thousands', '27: 5 from logins, 22 tokens'),
+        ('`openbao.requests.audit_request_failures_count`', 'Flat', '', 'Rising: with every audit device failing, it refuses every request', 'Not caused: OpenBao 2.7 enables audit devices only in its configuration file'),
+    ],
+    tested="""
+**Tested** on 2026-11-28 by `tests/integration/backends/scripts/run-openbao.sh`, against `compose.openbao.yaml`: **OpenBao 2.7.3, a Raft cluster of three**, and **HashiCorp Vault 2.2.2, a Raft cluster of three**, each initialized with three key shares (two needed) and unsealed, and given a token that may read `sys/metrics` and nothing else, as this page says. On each: userpass, five logins that worked and ten with a wrong password (seven of them for one user, locked out after five); twenty tokens with leases. One Vault standby lets anyone read its metrics (`unauthenticated_metrics_access`); the others do not. The keys and tokens were made by the run and kept out of the evidence.
+
+- **On Fedora** (Fedora 44, bash 5.3): every job against each cluster's active node and a standby, and what each read (OpenBao or Vault, Shamir 2 of 3, Raft; autopilot healthy, three nodes, one that may be lost; the leases; tokens by auth method; logins that worked and failed, the user locked out; on Vault, the responses refused and those 403). A Vault standby without unauthenticated metrics (the run fails, saying HTTP 307). Then, on each, a node restarted and sealed (`sealed 1`; autopilot unhealthy, the node named, nothing more may be lost), unsealed a key at a time (`unseal_progress 1`, then unsealed, a standby again); the active node stopped (another active within seconds); a token without the policy, no token, nothing listening.: **45 passed, 0 failed**. Then `service-packs.sh` through Vigil: **14 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/fedora/pack-openbao/console.txt)).
+- **On macOS**, on the Intel Mac test machine (macOS 12.7.6, bash 3.2, its own awk), against the same clusters through SSH tunnels: the status job against all six nodes, every job against each active node, a token that is not one, nothing listening: **14 passed, 0 failed**; through Vigil, **14 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/macos/pack-openbao-macos/console.txt)).
+- **On Windows**, on the HP test machine (Windows 11) as an account that is not an administrator: the same, under Windows PowerShell 5.1 and PowerShell 7, with the Vault standby that sends its metrics away: **26 passed, 0 failed**; the same metric names and tags as the Linux scripts for every job against both active nodes, under both shells (16 of 16); through Vigil, **10 passed, 0 failed** under each ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/windows/pack-openbao-windows/console.txt)).
+""",
+    found="OpenBao kept Vault's names: its metrics start `vault_`, and its pages are Vault's, so one pack reads both, and tells them apart by the `enterprise` field Vault's health page has. A sealed node answers its health and seal pages, but not its metrics (503) or its leader (503): the status job reads only the pages that answer. A Vault standby sends `sys/metrics` to the active node (307) unless the listener lets anyone read them; an OpenBao standby answers with the token. Both drop a counter not updated within `prometheus_retention_time`, so with a short one the running totals come and go. Both count a failed login twice. A node counts its locked-out users when it becomes active and every 15 minutes or so after, so right after a lockout it may still read 0. Autopilot counts a node that has just joined as a voter only once it has been stable a while: right after a cluster forms, `failure_tolerance` reads 0. OpenBao 2.7 enables audit devices only in its configuration file, not through its API.")
+
 # How the nine were tested: the same words on every page, filled in from the runs.
 TESTED = """
 **Tested** on 2026-11-25 by `tests/integration/backends/scripts/run-obs.sh`, against `compose.obs.yaml`: one stack of all nine services wired together as they are in use, each in trouble on purpose. **Prometheus 3.15.1** (two targets down and one that answers without metrics, a rule group that cannot be evaluated, an Alertmanager that is not there, a remote write nothing answers and one that is refused), **Alertmanager 0.35.1** (two in a cluster; a receiver nothing listens to), **Grafana 13.2.5** (a data source nothing answers, an alert rule that reads it, a contact point nothing listens to), **Loki 3.7.9** (entries too old, lines too long), **Mimir 3.2.6** (a tenant held at 200 series), **Tempo 2.10.10** (traces larger than its limit), **the OpenTelemetry Collector 0.166.0** (an exporter nothing answers, whose queue fills; a receiver that must refuse), **VictoriaMetrics 1.157.0** (a scrape target down, queries that fail) and **VictoriaLogs 1.54.0** (entries older than its retention), in Docker, with traces, metrics and logs flowing through all of it.

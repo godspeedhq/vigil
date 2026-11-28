@@ -1,0 +1,34 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# OpenBao and HashiCorp Vault for the openbao pack (scripts/run-openbao.sh):
+# - OpenBao 2.7, a Raft cluster of three (o1, o2, o3): 127.0.0.1:18301-18303.
+# - Vault 2.2, a Raft cluster of three (v1, v2, v3): 127.0.0.1:18201-18203.
+#   v2 lets anyone read its metrics (unauthenticated_metrics_access), as a
+#   Vault standby needs for its own to be read; v1 and v3 do not.
+# Each node's configuration is written by the run script into OPENBAO_CONF
+# (a folder of its own): Raft storage, a listener without TLS on 8200, and
+# telemetry for Prometheus, kept 24 hours. Shamir seals: the run initializes
+# each cluster, keeps its keys in its own folder, and unseals the nodes.
+
+x-bao: &bao
+  image: openbao/openbao:${OPENBAO_VERSION:-2.7.3}
+  mem_limit: 384m
+x-vault: &vault
+  image: hashicorp/vault:${VAULT_VERSION:-2.2.2}
+  mem_limit: 384m
+  cap_add: [IPC_LOCK]
+
+services:
+  o1: {<<: *bao, entrypoint: [bao, server, -config=/cfg/o1.hcl], volumes: ["${OPENBAO_CONF:?the configurations}:/cfg:ro,z"], ports: ["127.0.0.1:18301:8200"]}
+  o2: {<<: *bao, entrypoint: [bao, server, -config=/cfg/o2.hcl], volumes: ["${OPENBAO_CONF:?the configurations}:/cfg:ro,z"], ports: ["127.0.0.1:18302:8200"]}
+  o3: {<<: *bao, entrypoint: [bao, server, -config=/cfg/o3.hcl], volumes: ["${OPENBAO_CONF:?the configurations}:/cfg:ro,z"], ports: ["127.0.0.1:18303:8200"]}
+  v1: {<<: *vault, entrypoint: [vault, server, -config=/cfg/v1.hcl], volumes: ["${OPENBAO_CONF:?the configurations}:/cfg:ro,z"], ports: ["127.0.0.1:18201:8200"]}
+  v2: {<<: *vault, entrypoint: [vault, server, -config=/cfg/v2.hcl], volumes: ["${OPENBAO_CONF:?the configurations}:/cfg:ro,z"], ports: ["127.0.0.1:18202:8200"]}
+  v3: {<<: *vault, entrypoint: [vault, server, -config=/cfg/v3.hcl], volumes: ["${OPENBAO_CONF:?the configurations}:/cfg:ro,z"], ports: ["127.0.0.1:18203:8200"]}

@@ -1,0 +1,20 @@
+metric up 1
+metric active 1
+metric autopilot_healthy 0
+metric failure_tolerance 0
+metric nodes 3
+metric nodes_unhealthy 1
+metric node_unhealthy 1 node=v3
+metric node_unhealthy 0 node=v1
+metric node_unhealthy 0 node=v2
+metric node_unhealthy_not_shown 0
+metric raft_peers 3
+metric follower_lag_max 0
+metric leader_contact_avg_ms 888.222222
+metric commit_avg_ms 14.549928
+metric leadership_lost_count 0
+metric leadership_setup_failed_count 0
+metric storage_reads_count 244
+metric storage_read_avg_ms 0.02669
+metric storage_writes_count 138
+metric storage_write_avg_ms 30.202874
