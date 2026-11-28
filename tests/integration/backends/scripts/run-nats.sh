@@ -163,7 +163,7 @@ for _ in $(seq 1 60); do
     quiet 18222 cluster c1
     quiet 18222 jetstream j1
     quiet 18223 jetstream j2
-    [ "$(val c1 route_peers)" = 1 ] && [ "$(sumof stream_replicas_behind '' j1.out j2.out)" -ge 2 ] && break
+    [ "$(val c1 route_peers)" = 1 ] && [ "$(sumof stream_replicas_behind '' j1.out j2.out)" -ge 2 ] && [ "$(sumof meta_replicas_behind '' j1.out j2.out)" -ge 1 ] && break
     sleep 2
 done
 export NATS_URL=http://127.0.0.1:18222
@@ -174,6 +174,7 @@ run jetstream j2 'n3 stopped'
 check 'n3 stopped: n1 has one peer, n2' '1 yes' "$(val c1 route_peers) $(grep -q 'route_peer 1 peer=n2' "$work/c1.out" && echo yes || echo no)"
 check 'n3 stopped: its replica behind on both streams, named' 'yes yes' "$(grep -h 'stream_behind 1 stream=ORDERS replica=n3' "$work/j1.out" "$work/j2.out" | grep -c . | awk '{ print ($1 == 1) ? "yes" : "no" }') $(grep -h 'stream_behind 1 stream=LIMITED replica=n3' "$work/j1.out" "$work/j2.out" | grep -c . | awk '{ print ($1 == 1) ? "yes" : "no" }')"
 check 'n3 stopped: still a meta leader; the streams have leaders' '1 0' "$(sumof meta_is_leader '' j1.out j2.out) $(sumof streams_no_leader '' j1.out j2.out)"
+check 'n3 stopped: the meta leader says n3 is behind, named' '1 1' "$(sumof meta_replicas_behind '' j1.out j2.out) $(sumof meta_behind server=n3 j1.out j2.out)"
 
 say "A second, n2, stops: n1 is alone, a minority."
 dc stop n2 > /dev/null 2>&1

@@ -55,7 +55,11 @@
 #                                   made or changed
 #   meta_is_leader                  1 on the meta leader
 #   meta_replicas_behind            on the meta leader: servers not current
-#                                   with it
+#                                   with it, or offline (a few seconds after a
+#                                   new leader is elected)
+#   meta_behind                     always 1, one line for each, tagged
+#                                   server=<its name>
+#   meta_behind_not_shown           how many more there were than the 20 shown
 #   streams_led                     streams this server leads: the rest below
 #                                   are theirs
 #   streams_no_leader               streams it holds a replica of that have no
@@ -157,7 +161,12 @@ if .disabled == true or (.config // null) == null then "metric jetstream 0" else
         "metric meta_cluster_size \(.cluster_size)",
         "metric meta_leader_known \(if (.leader // "") != "" then 1 else 0 end)",
         "metric meta_is_leader \(if .leader == $me then 1 else 0 end)",
-        (if .leader == $me then "metric meta_replicas_behind \([(.replicas // [])[] | select(.current != true)] | length)" else empty end)),
+        (if .leader == $me then
+            [(.replicas // [])[] | select(.current != true or .offline == true) | .name] as $mb |
+            "metric meta_replicas_behind \($mb | length)",
+            ($mb[0:20][] | "metric meta_behind 1 server=\(t)"),
+            "metric meta_behind_not_shown \([($mb | length) - 20, 0] | max)"
+        else empty end)),
     ([(.account_details // [])[] | (.stream_detail // [])[]] as $all |
      [$all[] | select(leader == $me)] as $led |
      [$led[] | .name as $s | (.cluster.replicas // [])[] | select(.current != true) | {s: $s, r: .name}] as $behind |

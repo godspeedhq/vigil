@@ -57,7 +57,11 @@
                                       made or changed
       meta_is_leader                  1 on the meta leader
       meta_replicas_behind            on the meta leader: servers not current
-                                      with it
+                                      with it, or offline (a few seconds after a
+                                      new leader is elected)
+      meta_behind                     always 1, one line for each, tagged
+                                      server=<its name>
+      meta_behind_not_shown           how many more there were than the 20 shown
       streams_led                     streams this server leads: the rest below
                                       are theirs
       streams_no_leader               streams it holds a replica of that have no
@@ -170,7 +174,12 @@ if ($j.meta_cluster) {
     Write-Output "metric meta_cluster_size $($mc.cluster_size)"
     Write-Output "metric meta_leader_known $(if ([string]$mc.leader) { 1 } else { 0 })"
     Write-Output "metric meta_is_leader $(if ([string]$mc.leader -eq $me) { 1 } else { 0 })"
-    if ([string]$mc.leader -eq $me) { Write-Output "metric meta_replicas_behind $(@($mc.replicas | Where-Object { $_ -and $_.current -ne $true }).Count)" }
+    if ([string]$mc.leader -eq $me) {
+        $mb = @($mc.replicas | Where-Object { $_ -and ($_.current -ne $true -or $_.offline -eq $true) } | ForEach-Object { [string]$_.name })
+        Write-Output "metric meta_replicas_behind $($mb.Count)"
+        foreach ($n in ($mb | Select-Object -First 20)) { Write-Output "metric meta_behind 1 server=$(Safe $n)" }
+        Write-Output "metric meta_behind_not_shown $(Rest $mb)"
+    }
 }
 $all = @($j.account_details | Where-Object { $_ } | ForEach-Object { $_.stream_detail } | Where-Object { $_ })
 $led = @($all | Where-Object { (Leader $_) -eq $me })
