@@ -1,0 +1,60 @@
+== Round 9: fedora-c2 cut from the network while wave 17 lands
+started 2026-11-26T20:52:16Z, fleet size 9 instances
+
+  2026-11-26T20:52:18Z fedora-c2 disconnected
+2026-11-26T20:52:24Z pushed wave 17 (good) eb3a603
+  after 300s: 11 of 21 run wave 17 (limit reached)
+  fedora-c2 on wave 17 while cut off: 0
+  2026-11-26T20:58:28Z fedora-c2 reconnected
+  fedora-c2 on wave 17 300s after reconnecting
+
+== wave 17, pushed 2026-11-26T20:52:24Z; the backend's record of the next 666s
+
+-- activations (Loki: each instance's own log line)
++  10s  fedora-c1              linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
++  15s  server2025        windows-bare     configuration revision c4600e4c8454 loaded (source.fleet windows-bare.config)
++  23s  hp             windows-bare     configuration revision c4600e4c8454 loaded (source.fleet windows-bare.config)
++  23s  fedora-c4              linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
++  23s  hp-c3                  linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
++  23s  hp-c4                  linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
++  25s  hp-c2                  linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
++  32s  hp-c1                  linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
++  32s  mac-c5                 linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
++  33s  mac   macos-bare       configuration revision 8bc4b1e54653 loaded (source.fleet macos-bare.config)
++  34s  lenovo        windows-bare     configuration revision c4600e4c8454 loaded (source.fleet windows-bare.config)
++  36s  fedora                 linux-bare       configuration revision 36933e832b85 loaded (source.fleet linux-bare.config)
++  66s  lenovo-c4              linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
++  68s  lenovo-c5              linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
++  95s  lenovo-c1              linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
++ 393s  fedora-c2              linux-container  configuration revision 5ebbb8fa4d56 loaded (source.fleet linux-container.config)
+16 activations
+
+-- refusals and errors (Loki)
+0 lines (the first of each kind per host shown)
+
+-- each instance's latest configuration at +666s (Prometheus)
+linux-bare       fedora                linux    wave  17  36933e832b85
+linux-container  hp-c1                 linux    wave  17  5ebbb8fa4d56
+linux-container  hp-c2                 linux    wave  17  5ebbb8fa4d56
+linux-container  hp-c3                 linux    wave  17  5ebbb8fa4d56
+linux-container  hp-c4                 linux    wave  17  5ebbb8fa4d56
+linux-container  hp-c5                 linux    wave  17  5ebbb8fa4d56
+linux-container  mac-c1                linux    wave  17  5ebbb8fa4d56
+linux-container  mac-c5                linux    wave  17  5ebbb8fa4d56
+macos-bare       mac  macos    wave  17  8bc4b1e54653
+windows-bare     hp            windows  wave  17  c4600e4c8454
+windows-bare     lenovo       windows  wave  17  c4600e4c8454
+windows-bare     server2025       windows  wave  17  c4600e4c8454
+
+-- each instance's latest configuration at 2026-11-26T21:03:32Z (Prometheus)
+linux-bare       fedora      wave  17  36933e832b85
+linux-container  hp-c1       wave  17  5ebbb8fa4d56
+linux-container  hp-c2       wave  17  5ebbb8fa4d56
+linux-container  hp-c3       wave  17  5ebbb8fa4d56
+linux-container  hp-c4       wave  17  5ebbb8fa4d56
+linux-container  hp-c5       wave  17  5ebbb8fa4d56
+linux-container  mac-c5      wave  17  5ebbb8fa4d56
+macos-bare       mac         wave  17  8bc4b1e54653
+windows-bare     hp          wave  17  c4600e4c8454
+windows-bare     lenovo      wave  17  c4600e4c8454
+windows-bare     server2025  wave  17  c4600e4c8454

@@ -1,0 +1,41 @@
+== wave 7, pushed 2026-11-26T18:27:25Z; the backend's record of the next 240s
+
+-- activations (Loki: each instance's own log line)
++   9s  fedora-c9              linux-container  configuration revision a81546f04167 loaded (source.fleet linux-container.config)
++  18s  fedora-c8              linux-container  configuration revision a81546f04167 loaded (source.fleet linux-container.config)
++  20s  mac                    macos-bare       configuration revision e817e13614bb loaded (source.fleet macos-bare.config)
++  21s  fedora-c2              linux-container  configuration revision a81546f04167 loaded (source.fleet linux-container.config)
++  22s  fedora-c5              linux-container  configuration revision a81546f04167 loaded (source.fleet linux-container.config)
++  22s  fedora-c6              linux-container  configuration revision a81546f04167 loaded (source.fleet linux-container.config)
++  24s  fedora-c4              linux-container  configuration revision a81546f04167 loaded (source.fleet linux-container.config)
++  30s  fedora-c10             linux-container  configuration revision a81546f04167 loaded (source.fleet linux-container.config)
++  31s  fedora-c1              linux-container  configuration revision a81546f04167 loaded (source.fleet linux-container.config)
++  34s  fedora-c3              linux-container  configuration revision a81546f04167 loaded (source.fleet linux-container.config)
++  34s  fedora-c7              linux-container  configuration revision a81546f04167 loaded (source.fleet linux-container.config)
++  45s  fedora                 linux-bare       configuration revision 7f63cc9ededd loaded (source.fleet linux-bare.config)
+12 activations
+
+-- refusals and errors (Loki)
++   3s  lenovo                 windows-bare       ERROR    line 98: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++   3s  lenovo                 windows-bare     end failed (source.fleet: windows-bare.config has errors) in 19s, cpu 7.02s
++   3s  lenovo                 windows-bare     source.fleet: windows-bare.config has errors
++  14s  hp                     windows-bare       ERROR    line 98: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  14s  hp                     windows-bare     end failed (source.fleet: windows-bare.config has errors) in 3s, cpu 4.92s
++  14s  hp                     windows-bare     source.fleet: windows-bare.config has errors
+24 lines (the first of each kind per host shown)
+
+-- each instance's latest configuration at +240s (Prometheus)
+linux-bare       fedora      linux    wave  8  7283779ba42c
+linux-container  fedora-c1   linux    wave  8  d25499ea89f9
+linux-container  fedora-c10  linux    wave  8  d25499ea89f9
+linux-container  fedora-c2   linux    wave  8  d25499ea89f9
+linux-container  fedora-c3   linux    wave  8  d25499ea89f9
+linux-container  fedora-c4   linux    wave  8  d25499ea89f9
+linux-container  fedora-c5   linux    wave  8  d25499ea89f9
+linux-container  fedora-c6   linux    wave  8  d25499ea89f9
+linux-container  fedora-c7   linux    wave  8  d25499ea89f9
+linux-container  fedora-c8   linux    wave  8  d25499ea89f9
+linux-container  fedora-c9   linux    wave  8  d25499ea89f9
+macos-bare       mac         macos    wave  8  f75c359d5732
+windows-bare     hp          windows  wave  8  0ba12ff397f1
+windows-bare     lenovo      windows  wave  8  0ba12ff397f1

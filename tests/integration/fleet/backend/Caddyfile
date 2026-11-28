@@ -1,0 +1,27 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# TLS for the fleet test's backend (compose.yaml), with the certificate
+# tls/make-tls.sh made. No certificates fetched from anywhere.
+{
+	auto_https off
+	admin off
+}
+
+:8443 {
+	tls /certs/server.crt /certs/server.key
+	reverse_proxy gitea:3000
+}
+
+:4318 {
+	tls /certs/server.crt /certs/server.key
+	request_body {
+		max_size 20MB
+	}
+	reverse_proxy lgtm:4318
+}
+
+:3000 {
+	tls /certs/server.crt /certs/server.key
+	reverse_proxy lgtm:3000
+}

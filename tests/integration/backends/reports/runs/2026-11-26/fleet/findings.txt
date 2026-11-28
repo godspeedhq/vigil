@@ -1,0 +1,110 @@
+Vigil fleet test, 2026-11-26: findings so far
+=============================================
+
+Fleet: 14 instances (10 Alpine containers and 1 bare-metal instance on
+Fedora, bare metal on macOS and on two Windows 11 machines), later Windows
+Server 2025; every one fetching its configuration from Gitea over https,
+every one sending to the LGTM backend over https. Vigil 1.5.3, base pack.
+
+1. Configuration handling: as specified
+---------------------------------------
+A broken job (wave 3) is set aside as INVALID, the rest of the file runs
+(SPECIFICATION 16.3). A file with an unknown section (wave 4) is refused
+by every instance, which keeps the configuration it runs; a file broken
+only for Windows (wave 7) is refused by Windows only. See wave-*.txt and
+grafana-wave-4-refused.png.
+
+2. Log records near a configuration change carry the wrong revision
+-------------------------------------------------------------------
+SPECIFICATION 14 (Log forwarding): every record carries "the active
+configuration revision". The forwarder tags a line with the revision (and
+[tags], such as wave) active when it SENDS the line, not when the line was
+written. Near a change, lines are attributed to the wrong configuration,
+in both directions.
+
+The activation line of revision a21e3a374b61 (wave 3), from ten instances:
+four carry the new revision, six the previous one (df547f88403b):
+
+  2026-11-26T18:15:39Z  fedora-c3  config_revision tag=df547f88403b  wave tag=2  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+  2026-11-26T18:15:42Z  fedora-c5  config_revision tag=df547f88403b  wave tag=2  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+  2026-11-26T18:15:42Z  fedora-c6  config_revision tag=df547f88403b  wave tag=2  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+  2026-11-26T18:15:43Z  fedora-c7  config_revision tag=df547f88403b  wave tag=2  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+  2026-11-26T18:15:44Z  fedora-c2  config_revision tag=a21e3a374b61  wave tag=3  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+  2026-11-26T18:15:47Z  fedora-c1  config_revision tag=a21e3a374b61  wave tag=3  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+  2026-11-26T18:15:47Z  fedora-c10  config_revision tag=df547f88403b  wave tag=2  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+  2026-11-26T18:15:47Z  fedora-c9  config_revision tag=df547f88403b  wave tag=2  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+  2026-11-26T18:15:51Z  fedora-c4  config_revision tag=a21e3a374b61  wave tag=3  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+  2026-11-26T18:15:55Z  fedora-c8  config_revision tag=a21e3a374b61  wave tag=3  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+
+fedora-c1: lines written at 18:15:38 and 18:15:44, before revision
+a21e3a374b61 was loaded at 18:15:47, are tagged with it:
+
+  2026-11-26T18:15:32Z  fedora-c1  config_revision tag=a21e3a374b61  :: configuration revision a21e3a374b61 activated (source.fleet linux-container.config)
+  2026-11-26T18:15:32Z  fedora-c1  config_revision tag=a21e3a374b61  :: start
+  2026-11-26T18:15:32Z  fedora-c1  config_revision tag=a21e3a374b61  :: WARN source.fleet: ref 'main' is a branch: its scripts follow it, and hosts may briefly differ (W_SCRIPT_UNPINNED)
+  2026-11-26T18:15:34Z  fedora-c1  config_revision tag=a21e3a374b61  :: start
+  2026-11-26T18:15:38Z  fedora-c1  config_revision tag=a21e3a374b61  :: end succeeded in 6s, cpu 0.72s
+  2026-11-26T18:15:44Z  fedora-c1  config_revision tag=a21e3a374b61  :: end succeeded in 10s, cpu 2.09s
+  2026-11-26T18:15:47Z  fedora-c1  config_revision tag=a21e3a374b61  :: configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+  2026-11-26T18:15:51Z  fedora-c1  config_revision tag=a21e3a374b61  :: start
+  2026-11-26T18:15:52Z  fedora-c1  config_revision tag=a21e3a374b61  :: end succeeded in 1s, cpu 0.70s
+  2026-11-26T18:16:00Z  fedora-c1  config_revision tag=a21e3a374b61  :: start
+  2026-11-26T18:16:03Z  fedora-c1  config_revision tag=a21e3a374b61  :: end succeeded in 3s, cpu 0.61s
+  2026-11-26T18:16:06Z  fedora-c1  config_revision tag=a21e3a374b61  :: job base_cpu: run 20261126T181608Z-12-517 started
+  2026-11-26T18:16:06Z  fedora-c1  config_revision tag=a21e3a374b61  :: job base_disk: run 20261126T181609Z-12-519 started
+  2026-11-26T18:16:06Z  fedora-c1  config_revision tag=a21e3a374b61  :: job base_load: run 20261126T181609Z-12-521 started
+  2026-11-26T18:16:06Z  fedora-c1  config_revision tag=a21e3a374b61  :: job base_memory: run 20261126T181608Z-12-518 started
+  2026-11-26T18:16:06Z  fedora-c1  config_revision tag=a21e3a374b61  :: job base_network: run 20261126T181609Z-12-520 started
+  2026-11-26T18:16:06Z  fedora-c1  config_revision tag=a21e3a374b61  :: job base_services: run 20261126T181610Z-12-522 started
+  2026-11-26T18:16:06Z  fedora-c1  config_revision tag=a21e3a374b61  :: job vigil_fetch: run 20261126T181611Z-12-524 started
+
+3. The metric sender is the largest cost of an instance
+-------------------------------------------------------
+fedora-c3 (Alpine, bash Vigil, base pack, config checked every 30s), the
+average of each job's last 20 runs, from its job logs, at 18:36:
+
+  base_cpu         runs  20  wall  3.5s  cpu  0.50s
+  base_disk        runs   5  wall  3.2s  cpu  0.51s
+  base_diskio      runs   4  wall  2.8s  cpu  0.49s
+  base_host        runs   4  wall  3.8s  cpu  0.55s
+  base_load        runs  20  wall  2.6s  cpu  0.49s
+  base_memory      runs  20  wall  2.9s  cpu  0.49s
+  base_network     runs  20  wall  2.5s  cpu  0.50s
+  base_processes   runs   4  wall  3.8s  cpu  0.53s
+  base_services    runs  20  wall  2.4s  cpu  0.48s
+  vigil_fetch      runs  20  wall  7.5s  cpu  0.68s
+  vigil_logs       runs  20  wall 13.1s  cpu  1.55s
+  vigil_sender     runs  20  wall 22.8s  cpu  2.80s
+
+About 18 CPU seconds a minute in all (30% of a core); the sender alone
+about 8. Uncapped, one container used 40% of a core over 120s; capped at
+0.25 CPU, a container was throttled in 262 of 300 periods.
+
+4. A host short of CPU: metrics late, nothing lost
+--------------------------------------------------
+Fedora (4 cores; also running a demo Vigil and its own Vigil service) with
+10 containers: load average 23 at 18:33, 35 at 19:29; sender runs took
+minutes; metrics reached Prometheus 4-5 minutes late (e.g. fedora-c2 last
+seen 296s before). Spools held the data (Spool bytes, 40 KiB at most). With
+6 containers the load fell from 35 to 10 within two minutes (19:30-19:31).
+
+5. Windows: checking the configuration's source costs 5-8 CPU seconds
+---------------------------------------------------------------------
+vigil_fetch on Windows: cpu 4.89s-7.84s a run (wave-4-unknown.txt), against
+0.55s-0.80s on Linux and about 1.1s on macOS: a fifth of a core at a 30s
+check_every.
+
+6. Gitea down and broken configuration look the same in metrics
+---------------------------------------------------------------
+A refused file raises vigil_source_failures_total, as an unreachable source
+does; vigil_supervisor_config_reload_failed stays 0. The log tells them
+apart: "line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)".
+
+7. Windows and Git: certificates (documentation)
+------------------------------------------------
+Git for Windows checks certificates with its own bundle, not the Windows
+store: with a private CA, http.<url>.sslCAInfo is needed. MinGit uses
+schannel, which demands a revocation check a private CA may not support,
+and ignores sslCAInfo: http.sslBackend = openssl. Until then the instance
+waits: "waiting for the first fetch ... SSL certificate OpenSSL verify
+result: unable to get local issuer certificate (20)".

@@ -1,0 +1,34 @@
+== wave 3, pushed 2026-11-26T18:15:11Z; the backend's record of the next 240s
+
+-- activations (Loki: each instance's own log line)
++  18s  fedora                 linux-bare       configuration revision 795481272778 loaded (source.fleet linux-bare.config)
++  20s  lenovo                 windows-bare     configuration revision 6577647af801 loaded (source.fleet windows-bare.config)
++  33s  hp                     windows-bare     configuration revision 6577647af801 loaded (source.fleet windows-bare.config)
++  33s  fedora-c2              linux-container  configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
++  36s  fedora-c1              linux-container  configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
++  40s  fedora-c4              linux-container  configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
++  43s  mac                    macos-bare       configuration revision 4585b2955f3d loaded (source.fleet macos-bare.config)
++  44s  fedora-c8              linux-container  configuration revision a21e3a374b61 loaded (source.fleet linux-container.config)
+8 activations
+
+-- refusals and errors (Loki)
++ 227s  fedora-c5              linux-container    ERROR    line 93: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++ 227s  fedora-c5              linux-container  source.fleet: linux-container.config has errors
++ 231s  fedora-c5              linux-container  end failed (source.fleet: linux-container.config has errors) in 4s, cpu 0.65s
+3 lines (the first of each kind per host shown)
+
+-- each instance's latest configuration at +240s (Prometheus)
+linux-bare       fedora      linux    wave  3  795481272778
+linux-container  fedora-c1   linux    wave  3  a21e3a374b61
+linux-container  fedora-c10  linux    wave  3  a21e3a374b61
+linux-container  fedora-c2   linux    wave  3  a21e3a374b61
+linux-container  fedora-c3   linux    wave  3  a21e3a374b61
+linux-container  fedora-c4   linux    wave  3  a21e3a374b61
+linux-container  fedora-c5   linux    wave  3  a21e3a374b61
+linux-container  fedora-c6   linux    wave  3  a21e3a374b61
+linux-container  fedora-c7   linux    wave  3  a21e3a374b61
+linux-container  fedora-c8   linux    wave  3  a21e3a374b61
+linux-container  fedora-c9   linux    wave  3  a21e3a374b61
+macos-bare       mac         macos    wave  3  4585b2955f3d
+windows-bare     hp          windows  wave  3  6577647af801
+windows-bare     lenovo      windows  wave  3  6577647af801

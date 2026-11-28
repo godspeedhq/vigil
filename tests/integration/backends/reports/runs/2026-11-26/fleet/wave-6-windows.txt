@@ -1,0 +1,43 @@
+== wave 6, pushed 2026-11-26T18:26:02Z; the backend's record of the next 240s
+
+-- activations (Loki: each instance's own log line)
++  23s  hp                     windows-bare     configuration revision 62157fcd4496 loaded (source.fleet windows-bare.config)
++  28s  fedora                 linux-bare       configuration revision be128a05c180 loaded (source.fleet linux-bare.config)
++  31s  fedora-c10             linux-container  configuration revision 1668127406cf loaded (source.fleet linux-container.config)
++  33s  mac                    macos-bare       configuration revision 34002af52913 loaded (source.fleet macos-bare.config)
++  33s  fedora-c2              linux-container  configuration revision 1668127406cf loaded (source.fleet linux-container.config)
++  34s  fedora-c3              linux-container  configuration revision 1668127406cf loaded (source.fleet linux-container.config)
++  34s  fedora-c6              linux-container  configuration revision 1668127406cf loaded (source.fleet linux-container.config)
++  34s  fedora-c7              linux-container  configuration revision 1668127406cf loaded (source.fleet linux-container.config)
++  36s  fedora-c4              linux-container  configuration revision 1668127406cf loaded (source.fleet linux-container.config)
++  40s  fedora-c1              linux-container  configuration revision 1668127406cf loaded (source.fleet linux-container.config)
++  41s  lenovo                 windows-bare     configuration revision 62157fcd4496 loaded (source.fleet windows-bare.config)
++  41s  fedora-c9              linux-container  configuration revision 1668127406cf loaded (source.fleet linux-container.config)
++  42s  fedora-c5              linux-container  configuration revision 1668127406cf loaded (source.fleet linux-container.config)
++  46s  fedora-c8              linux-container  configuration revision 1668127406cf loaded (source.fleet linux-container.config)
+14 activations
+
+-- refusals and errors (Loki)
++  86s  lenovo                 windows-bare       ERROR    line 98: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  86s  lenovo                 windows-bare     end failed (source.fleet: windows-bare.config has errors) in 19s, cpu 7.02s
++  86s  lenovo                 windows-bare     source.fleet: windows-bare.config has errors
++  97s  hp                     windows-bare       ERROR    line 98: unknown section [fleet_nonsense] (E_SECTION_UNKNOWN)
++  97s  hp                     windows-bare     end failed (source.fleet: windows-bare.config has errors) in 3s, cpu 4.92s
++  97s  hp                     windows-bare     source.fleet: windows-bare.config has errors
+24 lines (the first of each kind per host shown)
+
+-- each instance's latest configuration at +240s (Prometheus)
+linux-bare       fedora      linux    wave  8  7283779ba42c
+linux-container  fedora-c1   linux    wave  7  a81546f04167
+linux-container  fedora-c10  linux    wave  8  d25499ea89f9
+linux-container  fedora-c2   linux    wave  8  d25499ea89f9
+linux-container  fedora-c3   linux    wave  7  a81546f04167
+linux-container  fedora-c4   linux    wave  7  a81546f04167
+linux-container  fedora-c5   linux    wave  8  d25499ea89f9
+linux-container  fedora-c6   linux    wave  8  d25499ea89f9
+linux-container  fedora-c7   linux    wave  7  a81546f04167
+linux-container  fedora-c8   linux    wave  7  a81546f04167
+linux-container  fedora-c9   linux    wave  8  d25499ea89f9
+macos-bare       mac         macos    wave  7  e817e13614bb
+windows-bare     hp          windows  wave  6  62157fcd4496
+windows-bare     lenovo      windows  wave  8  0ba12ff397f1

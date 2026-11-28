@@ -1,0 +1,63 @@
+# Copyright (c) Bankole Ogundero and the Vigil contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Provided "AS IS", WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or
+# implied. Run it at your own risk: review it first, and test it before you
+# rely on it. In no event shall the authors or copyright holders be liable
+# for any claim, damages or other liability arising from its use. See the
+# LICENSE file for the full terms.
+#
+# The fleet test's backend, on one machine (backend/setup.sh starts it):
+# - lgtm: Grafana's LGTM stack in one container (an OpenTelemetry collector
+#   taking OTLP, Prometheus, Loki, Tempo, Grafana).
+# - gitea: the Git server holding the fleet's configuration.
+# - caddy: TLS in front of both, with tls/out/server.crt (tls/make-tls.sh):
+#     https://<address>:8443   Gitea
+#     https://<address>:4318   OTLP, metrics and logs (/v1/metrics, /v1/logs)
+#     https://<address>:3000   Grafana
+# Prometheus and Loki are published on this machine's loopback only, for
+# the checker. Memory capped: this machine runs the fleet's backend, and
+# should stay usable.
+
+services:
+  lgtm:
+    image: grafana/otel-lgtm:${LGTM_VERSION:-0.41.1}
+    mem_limit: 3g
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - lgtm:/data
+      - ./prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+      - "127.0.0.1:3100:3100"
+    restart: unless-stopped
+
+  gitea:
+    image: gitea/gitea:${GITEA_VERSION:-28.4.0-rootless}
+    mem_limit: 512m
+    environment:
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__server__ROOT_URL: https://${FLEET_ADDR:?the backend's address}:8443/
+      GITEA__server__HTTP_PORT: "3000"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__log__LEVEL: Warn
+    volumes: [gitea:/var/lib/gitea]
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:${CADDY_VERSION:-2.11.9}
+    mem_limit: 128m
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../tls/out/server.crt:/certs/server.crt:ro
+      - ../tls/out/server.key:/certs/server.key:ro
+    ports: ["8443:8443", "4318:4318", "3000:3000"]
+    depends_on: [lgtm, gitea]
+    restart: unless-stopped
+
+volumes:
+  lgtm:
+  gitea:

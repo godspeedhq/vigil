@@ -1,0 +1,81 @@
+fleet: 22 instances reporting at 2026-11-26T20:04:49Z
+by kind: linux-bare=1 windows-bare=3 macos-bare=1 linux-container=17 
+== Round 1: a valid change (wave 10)
+started 2026-11-26T20:04:50Z, fleet size 22 instances
+
+2026-11-26T20:04:57Z pushed wave 10 (good) 0d41836
+  22 of 22 instances run wave 10, 204s after the push (seen in Prometheus)
+  -> 01-good.txt, 01-good.png
+== Round 2: one job broken: run_every = banana (wave 11)
+started 2026-11-26T20:08:47Z, fleet size 23 instances
+
+2026-11-26T20:08:53Z pushed wave 11 (broken) b9f29ff
+expected: every instance takes the file, sets fleet_broken aside as INVALID, runs the rest
+  after 300s: 18 of 22 run wave 11 (limit reached)
+  instances reporting fleet_broken as invalid: 22
+  -> 02-job.txt, 02-job.png
+== Round 3: an unknown section in every file (wave 12)
+started 2026-11-26T20:14:21Z, fleet size 17 instances
+
+2026-11-26T20:14:28Z pushed wave 12 (unknown) 9bb939f
+expected: every instance refuses the file and keeps wave 11
+  after 150s: 0 instances run wave 12; 15 still run wave 11
+  instances whose fetches failed in the last 2m: 14
+  -> 03-section.txt, 03-section.png
+== Round 4: only the Windows file invalid (wave 13)
+started 2026-11-26T20:17:23Z, fleet size 15 instances
+
+2026-11-26T20:17:30Z pushed wave 13 (windows) 77cc65b
+expected: 19 instances move to wave 13; the 3 Windows instances refuse it and keep wave 11
+  after 300s: 14 of 19 run wave 13 (limit reached)
+  Windows instances on wave 13: 0
+  -> 04-windows.txt, 04-windows.png
+== Round 5: back to one valid wave (wave 14)
+started 2026-11-26T20:23:56Z, fleet size 17 instances
+
+2026-11-26T20:24:04Z pushed wave 14 (good) 93f83db
+  after 300s: 15 of 22 run wave 14 (limit reached)
+  -> 05-good.txt, 05-good.png
+== Round 6: history rewritten: a force-push (wave 15)
+started 2026-11-26T20:29:29Z, fleet size 16 instances
+
+  main before: 93f83db Wave 14: good;77cc65b Wave 13: windows;9bb939f Wave 12: unknown;
+2026-11-26T20:29:38Z pushed wave 15 (force) 861cc8e
+  main after:  861cc8e Wave 15: force-push, history rewritten;9bb939f Wave 12: unknown;b9f29ff Wave 11: broken;
+  after 300s: 17 of 22 run wave 15 (limit reached)
+  -> 06-force.txt, 06-force.png
+== Round 7: Gitea stopped for 240s, then a change (wave 16)
+started 2026-11-26T20:35:06Z, fleet size 17 instances
+
+  2026-11-26T20:35:10Z Gitea stopped
+  instances whose fetches failed in the last 2m: 5
+  instances still sending metrics (cpu in the last 2m): 10
+  instances still on wave 15: 15
+  2026-11-26T20:39:15Z Gitea back
+2026-11-26T20:39:20Z pushed wave 16 (good) 3d81a38
+  after 300s: 13 of 22 run wave 16 (limit reached)
+  -> 07-gitea.txt, 07-gitea.png
+== Round 8: the LGTM backend stopped for 240s
+started 2026-11-26T20:44:45Z, fleet size 12 instances
+
+  spool bytes before, fleet total: 149047
+  2026-11-26T20:44:52Z LGTM stopped
+  2026-11-26T20:48:54Z LGTM started
+  2026-11-26T20:48:55Z Prometheus answers
+  +60s: spool bytes, fleet total 125011, largest 72583
+  +120s: spool bytes, fleet total 568847, largest 108839
+  +180s: spool bytes, fleet total 264776, largest 95593
+  cpu readings stored for the middle of the outage (20:46:53): 15 series
+  -> 08-backend.txt, 08-backend.png
+== Round 9: fedora-c2 cut from the network while wave 17 lands
+started 2026-11-26T20:52:16Z, fleet size 9 instances
+
+  2026-11-26T20:52:18Z fedora-c2 disconnected
+2026-11-26T20:52:24Z pushed wave 17 (good) eb3a603
+  after 300s: 11 of 21 run wave 17 (limit reached)
+  fedora-c2 on wave 17 while cut off: 0
+  2026-11-26T20:58:28Z fedora-c2 reconnected
+  fedora-c2 on wave 17 300s after reconnecting
+  -> 09-partition.txt, 09-partition.png
+done at 2026-11-26T21:03:55Z: 9 rounds in ../backends/reports/runs/2026-11-26/fleet-run2
+exit 0

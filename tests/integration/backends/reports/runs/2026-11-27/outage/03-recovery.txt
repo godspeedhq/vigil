@@ -1,0 +1,6 @@
+== Recovery: each instance until its newest reading is under 3 minutes old
+  2026-11-27T19:39:11Z lenovo current again, 4m 2s after the backend came back
+  2026-11-27T19:39:42Z hp current again, 4m 33s after the backend came back
+  2026-11-27T19:39:43Z fedora current again, 4m 34s after the backend came back
+  2026-11-27T19:40:14Z server2025 current again, 5m 5s after the backend came back
+  2026-11-27T19:42:48Z mac current again, 7m 39s after the backend came back

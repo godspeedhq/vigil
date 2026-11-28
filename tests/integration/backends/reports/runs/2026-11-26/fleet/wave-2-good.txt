@@ -1,0 +1,17 @@
+== wave 2, pushed 2026-11-26T17:50:34Z; the backend's record of the next 240s
+
+-- activations (Loki: each instance's own log line)
++  27s  fedora-c2              linux-container  configuration revision df547f88403b loaded (source.fleet linux-container.config)
++  49s  fedora-c1              linux-container  configuration revision df547f88403b loaded (source.fleet linux-container.config)
++ 104s  fedora                 linux-bare       configuration revision 5b7014921318 loaded (source.fleet linux-bare.config)
++ 109s  mac                    macos-bare       configuration revision a82f3e7d345a loaded (source.fleet macos-bare.config)
+4 activations
+
+-- refusals and errors (Loki)
+0 lines (the first of each kind per host shown)
+
+-- each instance's latest configuration at +240s (Prometheus)
+linux-bare       fedora     linux  wave  2  5b7014921318
+linux-container  fedora-c1  linux  wave  2  df547f88403b
+linux-container  fedora-c2  linux  wave  2  df547f88403b
+macos-bare       mac        macos  wave  2  a82f3e7d345a

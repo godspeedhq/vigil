@@ -1,0 +1,4 @@
+== Outage: the LGTM backend stopped for 120 minutes
+  2026-11-27T17:35:08Z LGTM stopped
+  2026-11-27T19:35:09Z LGTM started
+  2026-11-27T19:35:11Z Prometheus and Loki answer

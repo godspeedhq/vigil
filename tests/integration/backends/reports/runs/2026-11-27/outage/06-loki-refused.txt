@@ -1,0 +1,12 @@
+== Why Loki is missing lines: what it refused, and its streams (2026-11-27T19:52:26Z)
+-- Loki's discard counters (since it started again at 19:35)
+loki_discarded_bytes_total{format="",policy="",reason="too_far_behind",retention_hours="0",tenant="fake"} 3.846518e+06
+loki_discarded_samples_total{format="",policy="",reason="too_far_behind",retention_hours="0",tenant="fake"} 14178
+-- Loki's streams with service_name=vigil over the last 3 hours: the whole fleet is one
+{"service_name":"vigil"}
+-- Loki 3.7's version and its config (the image's own: max_chunk_age unset, so 2h, so a 1h window)
+loki, version 3.7.10 (branch: release-3.7.x, revision: c792f585)
+max_chunk_age lines in the config: 0
+-- Prometheus refused as too old
+prometheus_tsdb_too_old_samples_total{type="float"} 0
+-- The count still rises after the bare-metal instances caught up: the containers (1.5.3 with the B5 patch, not measured here) were still sending their backlog into the same stream.
