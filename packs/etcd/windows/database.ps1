@@ -30,8 +30,9 @@
       db_bytes                 the database file's size
       quota_bytes              its quota (--quota-backend-bytes; 2 GiB by
                                default)
-      db_used_pct              the file, as a percent of the quota: past 100,
-                               the NOSPACE alarm
+      db_used_pct              the file, as a percent of the quota: near 100,
+                               the NOSPACE alarm (raised when a write would pass
+                               the quota)
       db_in_use_bytes          of the file, the space in use
       fragmented_bytes         the space a defragmentation would give back
       keys                     keys

@@ -157,7 +157,7 @@ for m in e2 e3; do for _ in $(seq 1 30); do healthy "$m" && break; sleep 1; done
 
 say "3.5, alone: its database filled to its quota of 32 MiB."
 use e35
-for j in $jobs; do quiet "$j"; check "e35: $j runs" 'exit 0' "$(tail -n 1 "$work/$j.err" 2> /dev/null || echo "exit $?")"; done
+for j in $jobs; do quiet "$j"; check "e35: $j runs" 0 "$?"; done
 quiet status
 check 'e35: 3.5, alone, its own leader' 'yes 1 1 0' "$(has status version 'version=3\.5\.') $(val status members '') $(val status is_leader '') $(val status peers_unreachable '')"
 head -c 1048576 /dev/zero | tr '\0' x > "$work/mib"
@@ -167,7 +167,7 @@ ctl e35 alarm list | sed 's/^/alarm    /'
 run status 'at its quota'
 check 'e35: not healthy, its leader there: an alarm' '0 1' "$(val status healthy '') $(val status has_leader '')"
 run database 'at its quota'
-check 'e35: the database at its quota' yes "$(least database db_used_pct '' 99)"
+check 'e35: the database at its quota (the alarm comes when a write would pass it)' yes "$(least database db_used_pct '' 90)"
 run requests 'at its quota'
 check 'e35: the write refused, as ResourceExhausted' yes "$(least requests failed 'code=ResourceExhausted' 1)"
 rev=$(ctl e35 endpoint status -w fields | awk '/"Revision"/ { print $3 }')
@@ -178,7 +178,7 @@ echo "mended   compacted to revision $rev, defragmented, the alarm disarmed"
 run status 'mended'
 check 'e35: healthy again' 1 "$(val status healthy '')"
 run database 'mended'
-check 'e35: the space given back' yes "$(awk -v v="$(val database db_used_pct '')" 'BEGIN { print (v + 0 < 99) ? "yes" : "no [" v "]" }')"
+check 'e35: the space given back' yes "$(awk -v v="$(val database db_used_pct '')" 'BEGIN { print (v + 0 < 90) ? "yes" : "no [" v "]" }')"
 
 say "Nothing listening, and a page that is not there."
 ETCD_URL=http://127.0.0.1:12399 bash "$pack/status.sh" > "$work/down.out" 2>&1

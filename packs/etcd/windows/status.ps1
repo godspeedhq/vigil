@@ -39,7 +39,7 @@
       is_learner                 1 when this member is a learner, not yet voting
       leader_changes_count       leader changes this member has seen (a running
                                  total)
-      members                    members it knows, itself counted
+      members                    members of its cluster, itself counted
       peers_active               other members it is connected to
       peers_unreachable          other members it is not connected to
       heartbeat_failures_count   heartbeats the leader failed to send (a running
@@ -91,10 +91,10 @@ has_leader|max|etcd_server_has_leader
 is_leader|max|etcd_server_is_leader
 is_learner|max|etcd_server_is_learner
 leader_changes_count|sum|etcd_server_leader_changes_seen_total
-members|count|etcd_network_known_peers
-peers_active|sum|etcd_network_active_peers
-_others|sub|members|1
-peers_unreachable|sub|_others|peers_active
+_peers|count|etcd_network_active_peers
+members|add|_peers|1
+peers_active|count|etcd_network_active_peers|=1
+peers_unreachable|count|etcd_network_active_peers|=0
 heartbeat_failures_count|sum|etcd_server_heartbeat_send_failures_total
 peer_send_failures_count|sum|etcd_network_peer_sent_failures_total
 proposals_committed_count|sum|etcd_server_proposals_committed_total
