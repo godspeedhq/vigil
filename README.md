@@ -1017,6 +1017,17 @@ header_value = env:OTEL_LOGS_AUTH
 
 `supervisor` and `run` are Vigil's own lines. A job's output is where secrets tend to leak, so it goes only if `include` also names `stdout` or `stderr`, and a job can keep it local with `forward_output = false`. A worker of Vigil's own, `vigil_logs`, reads the log files and moves a checkpoint only past what the destination accepted, so delivery is at least once. A destination that is down never affects jobs, scheduling or metrics; anything lost for good is reported in `vigil.logs.gaps`.
 
+Over OTLP, each instance's records carry `service.instance.id` (`<host>/<instance>`), so Loki keeps each instance in a stream of its own rather than a whole fleet in one.
+
+One case matters after an outage. **Loki refuses a line more than `max_chunk_age / 2` (an hour, by default) behind its stream's newest line.** Behind an OpenTelemetry Collector that has already answered 2xx, Vigil cannot know.
+
+The forwarder sends each log file to its end before the next. So after an outage, the first file brings the stream up to date, and the others' lines from more than an hour back are refused. To keep the logs of outages longer than an hour, raise the window in Loki's configuration to twice the outages it should survive:
+
+```yaml
+ingester:
+  max_chunk_age: 6h   # keeps lines up to 3 hours behind
+```
+
 ### Sources
 
 A job's script can come from a source instead of `scripts/`, and the whole configuration can too:

@@ -423,10 +423,16 @@ _vigil_logs_resource() {
     fi
     _vigil_logs_attr service.name vigil
     attrs=$_vl_attr
+    local h='' i=''
     for tag in $_vf_tags; do
         _vigil_logs_attr "${tag%%=*}" "${tag#*=}"
         attrs="$attrs,$_vl_attr"
+        case $tag in host=*) h=${tag#*=} ;; instance=*) i=${tag#*=} ;; esac
     done
+    # One instance, one stream: Loki indexes service.instance.id, and keeps
+    # a line only within an hour or so of its stream's newest (13.4.2).
+    _vigil_logs_attr service.instance.id "$h/$i"
+    attrs="$attrs,$_vl_attr"
     _vigil_logs_attr config.revision "$_vl_revision"
     _vl_resource="{\"attributes\":[$attrs,$_vl_attr]}"
 }

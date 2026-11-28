@@ -190,6 +190,7 @@ check "run lines" yes "$(yes_no grep -F '\"stringValue\":\"end succeeded in' "$r
 check "supervisor lines" yes "$(yes_no grep -F '\"category\",\"value\":{\"stringValue\":\"supervisor\"}' "$root/mock/requests.log")"
 check "the resource" yes "$(yes_no grep -F '\"key\":\"instance\",\"value\":{\"stringValue\":\"lg\"}' "$root/mock/requests.log")"
 check "the revision" yes "$(yes_no grep -F '\"key\":\"config.revision\"' "$root/mock/requests.log")"
+check "one stream per instance: service.instance.id = host/instance" yes "$(yes_no grep -Eq 'service\.instance\.id\\",\\"value\\":[{]\\"stringValue\\":\\"[a-z0-9._-]+/lg\\"' "$root/mock/requests.log")"
 check "stderr stays local: not in include" 0 "$(received 'chatty on stderr')"
 check "forward_output = false stays local" 0 "$(received 'private output of quiet')"
 check "but the job's run lines go" yes "$(yes_no grep -F '\"key\":\"job\",\"value\":{\"stringValue\":\"quiet\"}' "$root/mock/requests.log")"

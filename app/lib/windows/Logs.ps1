@@ -444,10 +444,17 @@ function Invoke-VigilLogs {
     $revision = if ($active) { $active.Revision }
     else { (Get-VigilTextSha "config $(Get-VigilFileSha (Join-Path $Root 'config\vigil.config'))`n").Substring(0, 12) }
     $attrs = ConvertTo-VigilLogAttr 'service.name' 'vigil'
+    $hostTag = ''
+    $instTag = ''
     foreach ($t in $tags.Split(' ')) {
         $eq = $t.IndexOf('=')
         $attrs += ',' + (ConvertTo-VigilLogAttr $t.Substring(0, $eq) $t.Substring($eq + 1))
+        if ($t.StartsWith('host=')) { $hostTag = $t.Substring(5) }
+        elseif ($t.StartsWith('instance=')) { $instTag = $t.Substring(9) }
     }
+    # One instance, one stream: Loki indexes service.instance.id, and keeps
+    # a line only within an hour or so of its stream's newest (13.4.2).
+    $attrs += ',' + (ConvertTo-VigilLogAttr 'service.instance.id' "$hostTag/$instTag")
     $attrs += ',' + (ConvertTo-VigilLogAttr 'config.revision' $revision)
     $resource = "{`"attributes`":[$attrs]}"
     # What every record of a request shares (13.4.2), for the others.

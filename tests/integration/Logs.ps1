@@ -197,6 +197,7 @@ forward_output = false
     Test-Equal 'supervisor lines' 'True' ([string]$sent.Contains('\"category\",\"value\":{\"stringValue\":\"supervisor\"}'))
     Test-Equal 'the resource' 'True' ([string]$sent.Contains('\"key\":\"instance\",\"value\":{\"stringValue\":\"lg\"}'))
     Test-Equal 'the revision' 'True' ([string]$sent.Contains('\"key\":\"config.revision\"'))
+    Test-Equal 'one stream per instance: service.instance.id = host/instance' 'True' ([string]($sent -cmatch 'service\.instance\.id\\",\\"value\\":\{\\"stringValue\\":\\"[a-z0-9._-]+/lg\\"'))
     Test-Equal 'stderr stays local: not in include' '0' (Get-Received 'chatty on stderr')
     Test-Equal 'forward_output = false stays local' '0' (Get-Received 'private output of quiet')
     Test-Equal 'but the job''s run lines go' 'True' ([string]$sent.Contains('\"key\":\"job\",\"value\":{\"stringValue\":\"quiet\"}'))
