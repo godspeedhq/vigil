@@ -150,9 +150,9 @@ for p in o v; do
     printf '%s        %s: initialized, 3 key shares, 2 needed; unsealed; a metrics token; %d logins, %d with a wrong password (the user guessed answered:%s); 20 tokens of 2 h\n' \
         "$p" "$([ "$p" = o ] && echo OpenBao || echo Vault)" "$ok" "$bad" "$codes"
 done
-# The users locked out are counted every few minutes.
-echo '(waiting 5 minutes: the users locked out are counted every few minutes)'
-sleep 300
+
+# The users locked out are counted every 15 minutes or so: read at the end.
+locked_at=$(date +%s)
 
 pass=0
 fail=0
@@ -187,7 +187,6 @@ for p in o v; do
     check "${p}1: the leases, the logins' and the tokens'" yes "$(least leases leases '' 25)"
     check "${p}1: tokens created by userpass" yes "$(least leases tokens_created 'method=userpass' 5)"
     check "${p}1: logins: 5 that worked, 10 that failed" 'yes yes' "$(least requests logins_ok_count '' 5) $(least requests logins_failed_count '' 10)"
-    check "${p}1: the user locked out" yes "$(least requests locked_users '' 1)"
     if [ "$p" = v ]; then
         check 'v1: responses refused, and those of them 403 (the lockout)' 'yes yes' "$(least requests responses_4xx_count '' 10) $(least requests permission_denied_count '' 1)"
     fi
@@ -239,6 +238,21 @@ for p in o v; do
     dc start "${p}1" > /dev/null 2>&1
     for _ in $(seq 1 30); do curl -s -o /dev/null "$(url "${p}1")/v1/sys/seal-status" && break; sleep 1; done
     unseal "${p}1"
+done
+
+say "The users locked out, counted (every 15 minutes or so) on each active node."
+for p in o v; do
+    act=''
+    for n in "${p}1" "${p}2" "${p}3"; do [ "$(curl -s "$(url "$n")/v1/sys/leader" | jq -r .is_self 2> /dev/null)" = true ] && act=$n; done
+    use "${act:-${p}1}"
+    while :; do
+        quiet requests > /dev/null
+        [ "$(val requests locked_users '')" = 1 ] && break
+        [ "$(date +%s)" -lt $((locked_at + 1200)) ] || break
+        sleep 30
+    done
+    run requests "$act, $(( ($(date +%s) - locked_at) / 60 )) minutes after the lockout"
+    check "$act: the user locked out" 1 "$(val requests locked_users '')"
 done
 
 say "Tokens, and nothing listening."

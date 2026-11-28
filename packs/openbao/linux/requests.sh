@@ -76,8 +76,8 @@ page '/v1/sys/metrics?format=prometheus'
 readings <<'T'
 requests_count|sum?|vault_core_handle_request_count
 in_flight|max?|vault_core_in_flight_requests
-logins_count|sum?|vault_core_handle_login_request_count
-logins_ok_count|sum?|vault_token_creation|auth_method!=token
+logins_count|sum|vault_core_handle_login_request_count
+logins_ok_count|sum|vault_token_creation|auth_method!=token
 logins_failed_count|sub|logins_count|logins_ok_count
 locked_users|max?|vault_core_locked_users
 responses_4xx_count|sum?|vault_core_response_status_code|type=4xx
