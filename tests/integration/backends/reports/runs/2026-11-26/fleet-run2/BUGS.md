@@ -122,8 +122,12 @@ fixed yet, except where marked: this is the list to plan the fixes from.
 ### B9. CI: macOS "uninstall succeeds" failed once (found on #284's CI, not by the fleet)
 
 - **What happened:** in the macOS install suite (run 46020947666), `vigil uninstall` failed with `rm: /opt/vigil-it-u-89299/logs: Directory not empty`, so "the root is gone" failed too. A re-run passed, and the suite passed on every other PR.
-- **Likely cause (not confirmed):** a test just before leaves a job running after Vigil is removed. If that job writes a log line while uninstall deletes `logs/`, `rm -r` finds the folder not empty.
-- **To do:** confirm from the test. Then either the test waits for the job, or uninstall retries its delete once.
+- **Not what I first thought:** this case (`tests/integration/service.sh`, "vigil uninstall of a system service") leaves no job behind. It installs a fresh LaunchDaemon and runs `vigil uninstall --yes` about 2 s later (15:07:02.7, then 15:07:04.4). Its `hold` job runs every 2 s. Uninstall listed no running Vigil processes, then `rm -rf` failed on `logs/`.
+- **Likely cause (not reproduced):** something of that root was still writing into `logs/` while `rm -rf` ran. Either:
+  - the supervisor, still exiting after launchd reports it unloaded, or
+  - a worker started in that moment, not yet in its state file, so uninstall can't prove it is Vigil's and doesn't stop it.
+- **Tried (2026-11-28):** the same root and config in a scratch folder, without a service, 30 times each on Fedora and on macOS 12 (bash 3.2). The supervisor got TERM 1–2.6 s after its start, then `vigil uninstall --yes` ran: 0 of 60 failed. A system LaunchDaemon needs sudo, which these test accounts don't have.
+- **Fix to decide:** uninstall waits for the supervisor's pid to be gone before removing the root, and retries `rm -rf` once after a second if it fails. The test could also wait for the service to settle, but users can hit this too.
 
 ## Documentation
 
