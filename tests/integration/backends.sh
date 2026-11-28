@@ -282,6 +282,27 @@ check "spool full: the newest kept" yes "$(ls "$root"/spool/backends/*/ | grep -
 check "spool full: oldest first across the backends, none of the middle run kept" 0 "$(ls "$root"/spool/backends/*/ | grep -c 'fill-r2\.events$')"
 tick
 check "spool full: the drop counted, by backend" yes "$(grep -q '^vigil_spool_dropped_total{backend="datadog".*reason="spool_full"} [1-9]' "$root/metrics/vigil.prom" && echo yes || echo no)"
+
+# The age limit (4.5): the HTTP backends still down, max_age = 1h. A run's
+# file two hours old is dropped from every queue and counted as too_old;
+# one half an hour old waits. With max_age = 0s, nothing is too old.
+awk '{ print } /^max_mb = 1$/ { print "max_age = 1h" }' "$root/config/vigil.config" > "$root/config/vigil.config.new" && mv "$root/config/vigil.config.new" "$root/config/vigil.config"
+e=$(date '+%s')
+for a in 7200:old 1800:recent; do
+    f="$root/spool/incoming/$((e - ${a%%:*}))-fill-${a#*:}.events"
+    echo "$((e - ${a%%:*})) fill.age 1 gauge host=it" > "$f.tmp" && mv "$f.tmp" "$f"
+done
+tick
+check "age limit: the file older than max_age dropped" 0 "$(ls "$root"/spool/backends/*/ | grep -c 'fill-old\.events$')"
+check "age limit: the younger one kept, in each queue" 3 "$(ls "$root"/spool/backends/*/ | grep -c 'fill-recent\.events$')"
+tick
+check "age limit: the drop counted as too_old, by backend" yes "$(grep -q '^vigil_spool_dropped_total{backend="otel".*reason="too_old"} [1-9]' "$root/metrics/vigil.prom" && echo yes || echo no)"
+sed -i.bak 's/^max_age = 1h$/max_age = 0s/' "$root/config/vigil.config" && rm -f "$root/config/vigil.config.bak"
+f="$root/spool/incoming/$((e - 7200))-fill-kept.events"
+echo "$((e - 7200)) fill.age 1 gauge host=it" > "$f.tmp" && mv "$f.tmp" "$f"
+tick
+check "age limit: max_age = 0s keeps any age" 3 "$(ls "$root"/spool/backends/*/ | grep -c 'fill-kept\.events$')"
+check "age limit: max_age = 0s is valid" 0 "$(vigil precheck 2>&1 | grep -c "max_age")"
 rm -f "$root/mock/status"
 
 # Backends down or hung never hold jobs back (4.5, VIGIL-009): a real

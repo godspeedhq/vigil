@@ -768,7 +768,7 @@ Workers never talk to backends. They drop a file of events into `spool/incoming/
    failure  -> keep them, back off that backend only (5 s doubling to 5 min)
 ```
 
-On every start the sender first resumes any unfinished fan-out, skipping targets already marked done. A dead backend delays only its own queue. The spool is capped by `[spool] max_mb`; when full, the oldest (or newest) queued files are dropped and counted in `vigil.spool.dropped`, never silently.
+On every start the sender first resumes any unfinished fan-out, skipping targets already marked done. A dead backend delays only its own queue. The spool is capped by `[spool] max_mb`; when full, the oldest (or newest) queued files are dropped and counted in `vigil.spool.dropped`, never silently. Queued files older than `[spool] max_age` (default `6h`, `0s` for no limit) are dropped and counted too, with `reason=too_old`: most backends refuse samples that old, and after a long outage the sender would otherwise spend hours on them before current metrics.
 
 The **`file` backend** merges each batch into one Prometheus text file: gauges keep their latest value and counts become running `_total` counters. The file always holds the current state, so it stays small however long Vigil runs.
 

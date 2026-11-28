@@ -217,13 +217,14 @@ So a dead Datadog delays only Datadog's queue; Splunk and the local file still r
 
 - **Delay:** normally at most one tick (60 seconds by default).
 - **At-least-once delivery:** a crash between "sent" and "deleted" can resend a batch. Gauges are unaffected; a count may occasionally be duplicated.
+- **Age limit:** queued files older than `[spool] max_age` (a duration, default `6h`; `0s` is no limit) are dropped before delivery and counted in `vigil.spool.dropped` with `reason=too_old`, tagged by backend. The age is the epoch the file's name starts with. Most backends refuse samples that old anyway (Prometheus beyond its out-of-order window, Datadog beyond an hour), so after a long outage the sender does not spend hours on them before current metrics.
 - **Size cap:** when a backend's queue pushes the spool past `max_mb`, that queue's oldest (or newest, per `when_full`) files are dropped and counted in `vigil.spool.dropped`, tagged by backend.
 - **Removed or disabled backends:** their queues are discarded on the next sender run and counted as dropped.
 - **Old timestamps:** backends limit how old an accepted timestamp may be. Events older than a backend accepts are rejected; they are then dropped and counted, never retried forever.
 - **Supervisor down:** workers keep writing to `spool/incoming/`, and delivery resumes when the supervisor returns. The missing `vigil.supervisor.up` heartbeat is how the backend learns of the outage.
 - **Throughput:** one sender delivers to every backend in turn, so a backend that is slow to accept, but does not fail, delays the others by the time it takes, within the sender's 5-minute limit. The `file` backend merges about a thousand series a second (1000 events in about a second on Linux and Windows, two and a half on macOS's bash 3.2, measured on 2011-era hardware). An HTTP backend is bounded by its `timeout` per request, at most 10 requests a run. A job printing the most metric lines a run allows (§14.3) every few seconds can outrun that; ordinary jobs print a few a run.
 
-A failing or unreachable backend therefore never blocks a job, the scheduler or another backend (VIGIL-009), and its events survive the outage within the spool's size cap. One that accepts slowly delays the others only as the throughput above allows.
+A failing or unreachable backend therefore never blocks a job, the scheduler or another backend (VIGIL-009), and its events survive the outage within the spool's age limit and size cap. One that accepts slowly delays the others only as the throughput above allows.
 
 ---
 
@@ -315,7 +316,7 @@ A config file is not tied to an OS. Backends, tags and schedules are portable; r
 | `[scheduler]` | Tick interval and late-start window. |
 | `[log]` | Log directory, stdout mirroring, retention, file size cap. |
 | `[tags]` | Tags attached to every metric. |
-| `[spool]` | Spool directory, size cap, overflow policy. |
+| `[spool]` | Spool directory, age limit, size cap, overflow policy. |
 | `[backend.<name>]` | One metrics destination (§15). |
 | `[secret_store.<name>]` | An external secret store, for `store:` references (§6.5.3). |
 | `[log_forward]` | Optional forwarding of Vigil's logs (§13.4). |
@@ -1647,6 +1648,7 @@ When a backend fails:
 - Scheduling and supervision continue.
 - The failure is logged and counted.
 - That backend's events stay in the spool and are retried with bounded backoff.
+- Queued events older than `max_age` are dropped and counted (`reason=too_old`).
 - When the spool reaches `max_mb`, events are dropped according to `when_full` and counted.
 
 A backend can never consume unbounded memory or disk (VIGIL-009, VIGIL-014).
