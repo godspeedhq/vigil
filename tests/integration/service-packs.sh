@@ -110,7 +110,7 @@
 #                                        where nothing answers (scripts/run-web.sh
 #                                        sets them up)
 #   VIGIL_IT_OBS_PROMETHEUS, _ALERTMANAGER, _GRAFANA, _LOKI, _MIMIR, _TEMPO,
-#   _OTELCOL, _VICTORIAMETRICS, _VICTORIALOGS, _ETCD, _OPENBAO, _TRAEFIK
+#   _OTELCOL, _VICTORIAMETRICS, _VICTORIALOGS, _ETCD, _OPENBAO, _TRAEFIK, _NATS
 #                                        the same for a pack that watches a
 #                                        monitoring stack, with _<PACK>_DOWN;
 #                                        VIGIL_IT_OBS_GRAFANA_TOKEN, a Viewer's
@@ -207,7 +207,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs etcd openbao traefik'
+obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs etcd openbao traefik nats'
 for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper mongodb oracle nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite tls; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
