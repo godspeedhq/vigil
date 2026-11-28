@@ -182,6 +182,26 @@ function Invoke-VigilSend {
         [System.IO.Directory]::Delete($d, $true)
     }
 
+    # The age limit: queued files older than max_age are dropped (4.5). Most
+    # backends refuse old samples anyway, so after a long outage the sender
+    # does not spend hours on them before current metrics. 0s is no limit.
+    $maxAge = ConvertFrom-VigilDuration (Get-VigilConfigValue $parsed 'spool' 'max_age' '6h')
+    if ($maxAge -gt 0) {
+        $cutoff = $epoch - $maxAge
+        foreach ($d in [System.IO.Directory]::GetDirectories($be)) {
+            foreach ($f in [System.IO.Directory]::GetFiles($d, '*.events')) {
+                # Queue file names start with their epoch.
+                $name = [System.IO.Path]::GetFileName($f)
+                $dash = $name.IndexOf('-')
+                if ($dash -lt 1) { continue }
+                $t = [long]0
+                if (-not [long]::TryParse($name.Substring(0, $dash), [ref]$t) -or $t -ge $cutoff) { continue }
+                & $drop ([System.IO.Path]::GetFileName($d)) 'too_old' @($f)
+                [System.IO.File]::Delete($f)
+            }
+        }
+    }
+
     # The spool size cap: drop the oldest (or newest) queued files until the
     # queues fit in max_mb (4.5).
     $max = [long](Get-VigilConfigValue $parsed 'spool' 'max_mb' '100') * 1048576

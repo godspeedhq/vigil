@@ -219,6 +219,7 @@ function Get-VigilKeyType {
                 'dir' { $t = 'path' }
                 'max_mb' { $t = 'int1' }
                 'when_full' { $t = 'when_full' }
+                'max_age' { $t = 'dur0' }
             }
         }
         'log_forward' {

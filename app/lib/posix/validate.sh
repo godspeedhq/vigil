@@ -123,6 +123,7 @@ _vigil_val_keytype() {
         spool:dir) _vv_type=path ;;
         spool:max_mb) _vv_type=int1 ;;
         spool:when_full) _vv_type=when_full ;;
+        spool:max_age) _vv_type=dur0 ;;
         log_forward:enabled) _vv_type=bool ;;
         log_forward:destination) _vv_type=destination_ref ;;
         log_forward:include) _vv_type=log_include ;;

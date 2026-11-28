@@ -288,6 +288,32 @@ run_every   = 3650d
     Test-Equal 'spool full: oldest first across the backends, none of the middle run kept' '0' ([string]@($queuedFiles | Where-Object { $_.Name -clike '*-fill-r2.events' }).Count)
     Invoke-Tick
     Test-Equal 'spool full: the drop counted, by backend' 'yes' (Test-Prom '(?m)^vigil_spool_dropped_total\{backend="datadog".*reason="spool_full"\} [1-9]')
+
+    # The age limit (4.5): the HTTP backends still down, max_age = 1h. A
+    # run's file two hours old is dropped from every queue and counted as
+    # too_old; one half an hour old waits. With max_age = 0s, nothing is too old.
+    $cfgText = [System.IO.File]::ReadAllText("$root\config\vigil.config")
+    [System.IO.File]::WriteAllText("$root\config\vigil.config", $cfgText.Replace("`nmax_mb = 1`n", "`nmax_mb = 1`nmax_age = 1h`n"))
+    $e = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    foreach ($a in @(@(7200, 'old'), @(1800, 'recent'))) {
+        $f = "$root\spool\incoming\$($e - $a[0])-fill-$($a[1]).events"
+        [System.IO.File]::WriteAllText("$f.tmp", "$($e - $a[0]) fill.age 1 gauge host=it`n")
+        [System.IO.File]::Move("$f.tmp", $f)
+    }
+    Invoke-Tick
+    $queuedFiles = @(Get-ChildItem -LiteralPath "$root\spool\backends" -Recurse -File -Filter '*.events')
+    Test-Equal 'age limit: the file older than max_age dropped' '0' ([string]@($queuedFiles | Where-Object { $_.Name -clike '*-fill-old.events' }).Count)
+    Test-Equal 'age limit: the younger one kept, in each queue' '3' ([string]@($queuedFiles | Where-Object { $_.Name -clike '*-fill-recent.events' }).Count)
+    Invoke-Tick
+    Test-Equal 'age limit: the drop counted as too_old, by backend' 'yes' (Test-Prom '(?m)^vigil_spool_dropped_total\{backend="otel".*reason="too_old"\} [1-9]')
+    $cfgText = [System.IO.File]::ReadAllText("$root\config\vigil.config")
+    [System.IO.File]::WriteAllText("$root\config\vigil.config", $cfgText.Replace("`nmax_age = 1h`n", "`nmax_age = 0s`n"))
+    $f = "$root\spool\incoming\$($e - 7200)-fill-kept.events"
+    [System.IO.File]::WriteAllText("$f.tmp", "$($e - 7200) fill.age 1 gauge host=it`n")
+    [System.IO.File]::Move("$f.tmp", $f)
+    Invoke-Tick
+    $queuedFiles = @(Get-ChildItem -LiteralPath "$root\spool\backends" -Recurse -File -Filter '*.events')
+    Test-Equal 'age limit: max_age = 0s keeps any age' '3' ([string]@($queuedFiles | Where-Object { $_.Name -clike '*-fill-kept.events' }).Count)
     Remove-Item -LiteralPath "$root\mock\status"
 
     # Backends down or hung never hold jobs back (4.5, VIGIL-009): a real

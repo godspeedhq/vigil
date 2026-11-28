@@ -336,6 +336,25 @@ vigil_send() {
         rm -rf "$f"
     done
 
+    # The age limit: queued files older than max_age are dropped (4.5). Most
+    # backends refuse old samples anyway, so after a long outage the sender
+    # does not spend hours on them before current metrics. 0s is no limit.
+    _vigil_wk_get spool max_age 6h
+    if ! [[ $_vw_value =~ ^0+[smhd]$ ]]; then
+        _vigil_sched_dur "$_vw_value"
+        local cutoff=$((_sd_epoch - _vs_dur))
+        for f in "$_sd_be"/*/*.events; do
+            [ -f "$f" ] || continue
+            name=${f##*/}
+            # Queue file names start with their epoch.
+            case ${name%%-*} in '' | *[!0-9]*) continue ;; esac
+            [ "$((10#${name%%-*}))" -lt "$cutoff" ] || continue
+            b=${f%/*}
+            _vigil_send_drop "${b##*/}" too_old "$f"
+            rm -f "$f"
+        done
+    fi
+
     # The spool size cap: drop the oldest (or newest) queued files until the
     # queues fit in max_mb (4.5).
     _vigil_wk_get spool max_mb 100
