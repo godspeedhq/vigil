@@ -442,6 +442,52 @@ PAGES['traefik'] = dict(
 """,
     found="A router in error is not an error Traefik's own health shows: it answers its ping, takes the router out, and every request to its host gets a 404, counted with the requests to hosts no router takes. Its API names it, with why. Traefik 3's `traefik_config_last_reload_success` is the time of the last successful load, not a flag. A backend that cannot be reached keeps a request waiting: the service's average time rose past a second with every request to the missing host. Without a health check on a service, Traefik reports no server up or down for it.")
 
+PAGES['nats'] = dict(
+    intro="A NATS server and its JetStream, from its monitoring port. The pack reads whether the server answers and "
+          "is healthy, its connections against its limit, the slow consumers it has cut off and the client with the "
+          "most waiting; whether its cluster routes reach every other server, each named; and for JetStream, its "
+          "storage and memory against their limits, its API errors, whether the cluster has a meta leader, and, "
+          "from the server that leads each one, the streams with no leader, the replicas behind, the streams near "
+          "their own limits, and the consumers falling behind, each named.",
+    why="NATS is quiet when it fails. A subscriber that cannot keep up is cut off, and its messages are gone: the "
+        "publisher never hears about it. A consumer falls behind by a few thousand messages an hour, and nobody "
+        "notices until the backlog is a day old. A stream reaches its limit and starts dropping its oldest messages, "
+        "or refusing new ones, exactly as configured. A cluster loses a server and carries on; it loses a second, "
+        "and every stream stops taking writes. Each of these is in what the server says about itself, by name, and "
+        "the pack reads it.",
+    setup=["Turn on the monitoring port: `-m 8222` on the command line, or `http: 8222` in the configuration. It "
+           "answers with no login, so keep it on a private address. The pack reads it from the same machine or "
+           "network.",
+           "`vigil pack enable nats`, and where the monitoring port is not `http://localhost:8222`, set `NATS_URL` "
+           "in the jobs' `env` lines. On Linux and macOS the jobs need `jq`. In a cluster, enable the pack beside "
+           "each server: each reports itself, and the streams and consumers it leads."],
+    reports={
+        'status': 'Up and healthy; its name, version, cluster and JetStream; since it started and since its configuration loaded; connections against max_connections; subscriptions; slow consumers cut off, by kind; stale connections; messages and bytes in and out; the client with the most bytes waiting, named',
+        'cluster': 'In a cluster or not; the routes configured; the other servers it has routes to, each named; route connections, bytes waiting on them, the slowest round trip; leaf nodes',
+        'jetstream': 'JetStream on or off; storage and memory against their limits; streams, consumers, messages and bytes on this server; API calls and errors; the meta leader, known or not, and on it the servers behind, named; from the server that leads each: streams with no leader, replicas behind, each stream\'s size and how full against its limits, consumers\' messages not given, not acked and redelivered, each named',
+    },
+    alerts=[
+        ('`nats.up`, `nats.healthy`', '1', '', '0: the server does not answer, or is not ready (JetStream not current with its cluster)', '`healthy 0` on n1 alone, its two peers stopped'),
+        ('`nats.slow_consumers_count`, `slow_consumer_clients_count`', 'Flat', '', 'Moving: the server is cutting off clients that cannot keep up, and they lose messages', '2, the client that subscribed and stopped reading'),
+        ('`nats.connections_pct`', 'Well below 80', 'Above 80', 'Near 100: new clients are refused', '75: 15 clients of the 20 allowed'),
+        ('`nats.cluster.route_peers`, `route_peer` (by `peer`)', 'The cluster\'s size less one', '', 'Lower: a server is down or cut off; `route_peer` says which are there', '1, only `peer=n2`, with n3 stopped'),
+        ('`nats.jetstream.meta_leader_known`', '1', '', '0: the cluster has lost its majority: no stream or consumer can be made or changed', '0 on n1 alone'),
+        ('`nats.jetstream.streams_no_leader`', '0', '', 'Above 0: those streams take no writes', '2, both streams, on n1 alone'),
+        ('`nats.jetstream.stream_replicas_behind`, `stream_behind` (by `stream`, `replica`)', '0', 'Above 0 for a minute', 'Above 0 for long: a server is down or cannot keep up', '2: `ORDERS` and `LIMITED`, `replica=n3`, with n3 stopped; `meta_behind 1 server=n3` on the meta leader'),
+        ('`nats.jetstream.storage_pct`, `memory_pct`', 'Below 75', 'Above 75', 'Near 100: publishes to its streams fail', 'Above 80 on the 2.14 server given 2 MB, with 4 MB published'),
+        ('`nats.jetstream.stream_used_pct` (by `stream`)', 'Below 90', 'Above 90', '', '98.94 for `LIMITED`, at its 64 KB, refusing more (discard new)'),
+        ('`nats.jetstream.consumer_pending` (by `stream`, `consumer`)', 'Steady or falling', 'Growing run after run: that consumer is falling behind', '', '450 for `billing`: 500 published, 50 fetched'),
+        ('`nats.jetstream.consumer_ack_pending`, `consumer_redelivered`', 'Low', 'Redelivered growing: messages not acked within the ack wait', '', '50 and 50 for `billing`: fetched, never acked, redelivered after its 2 s wait'),
+    ],
+    tested="""
+**Tested** on 2026-11-28 by `tests/integration/backends/scripts/run-nats.sh`, against `compose.nats.yaml`: a JetStream **cluster of three NATS 2.15.3** servers; **NATS 2.14.10** alone, given 2 MB of file storage and 20 connections at most; and NATS 2.15.3 with neither JetStream nor a cluster. With `nats-box`, it made on the cluster a stream of 500 orders (three replicas) with a consumer whose messages were fetched and not acked, then redelivered after its 2-second ack wait; a stream limited to 64 KB, filled; and a client that subscribed and stopped reading, which the server cut off. On the 2.14 server, 4 MB published into its 2 MB, and 15 clients connected.
+
+- **On Fedora** (Fedora 44, bash 5.3, jq 1.8): every job against every server, and what each read: healthy, routes to the two others named, one meta leader, each stream counted once by its leader, the consumer's 450 not given, 50 not acked and its redeliveries, the stream at its limit, the slow client cut off; the 2.14 server's connections and storage; the plain server's JetStream off. Then n3 stopped: n1's one peer named, both streams' replicas on n3 behind, the meta leader naming n3; then n2 too: no meta leader, both streams with no leader, not healthy; then both back. And nothing listening. **33 passed, 0 failed**; then `service-packs.sh` through Vigil: **12 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/fedora/pack-nats/console.txt)).
+- **On Windows**, on the HP test machine (Windows 11) as an account that is not an administrator, against the same servers through SSH tunnels: every job under Windows PowerShell 5.1 and PowerShell 7, the same checks: **44 passed, 0 failed**; the same metric names and tags as the Linux scripts, every stream, consumer and peer included, for all 3 jobs against all 5 servers, under both shells (30 of 30); through Vigil, **10 passed, 0 failed** under each ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/windows/pack-nats-windows/console.txt)).
+- **On macOS**, on the Intel Mac test machine (macOS 12.7.6, bash 3.2, its own awk, jq 1.8.2), the same: **22 passed, 0 failed**; through Vigil, **12 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/macos/pack-nats-macos/console.txt)).
+""",
+    found="Each server of a cluster lists the streams and consumers it holds a replica of, and only the leader's view of the replicas is current: a follower showed a healthy replica as not current. So the pack reads a stream or a consumer only on the server that leads it, and a cluster's are counted once. Route pooling (2.10 and later) opens several connections to each server, so `num_routes` read 8 for two peers: the pack counts the servers by name. A server with JetStream off still answers `/jsz`, with `disabled` and a configuration of zeros. After a new meta leader is elected, it takes a few seconds to mark a stopped server offline: right after n3 (the old leader) stopped, the new one still counted it current.")
+
 # How the nine were tested: the same words on every page, filled in from the runs.
 TESTED = """
 **Tested** on 2026-11-25 by `tests/integration/backends/scripts/run-obs.sh`, against `compose.obs.yaml`: one stack of all nine services wired together as they are in use, each in trouble on purpose. **Prometheus 3.15.1** (two targets down and one that answers without metrics, a rule group that cannot be evaluated, an Alertmanager that is not there, a remote write nothing answers and one that is refused), **Alertmanager 0.35.1** (two in a cluster; a receiver nothing listens to), **Grafana 13.2.5** (a data source nothing answers, an alert rule that reads it, a contact point nothing listens to), **Loki 3.7.9** (entries too old, lines too long), **Mimir 3.2.6** (a tenant held at 200 series), **Tempo 2.10.10** (traces larger than its limit), **the OpenTelemetry Collector 0.166.0** (an exporter nothing answers, whose queue fills; a receiver that must refuse), **VictoriaMetrics 1.157.0** (a scrape target down, queries that fail) and **VictoriaLogs 1.54.0** (entries older than its retention), in Docker, with traces, metrics and logs flowing through all of it.

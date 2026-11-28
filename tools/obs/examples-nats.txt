@@ -1,0 +1,68 @@
+# Each job's example output, for its script's header: lines a test run
+# printed (tests/integration/backends/scripts/run-nats.sh), against n1 of a
+# JetStream cluster of three NATS 2.15 servers in trouble on purpose.
+
+== status
+metric up 1
+metric healthy 1
+metric info 1 server=n1 version=2.15.3 cluster=c1 jetstream=on
+metric uptime_seconds 30
+metric last_reload_seconds 30
+metric connections 0
+metric max_connections 65536
+metric connections_pct 0
+metric total_connections_count 9
+metric subscriptions 272
+metric slow_consumers_count 2
+metric slow_consumer_clients_count 2
+metric slow_consumer_routes_count 0
+metric slow_consumer_gateways_count 0
+metric slow_consumer_leafs_count 0
+metric stale_connections_count 0
+metric in_msgs_count 6742
+metric out_msgs_count 3491
+metric in_bytes_count 8603626
+metric out_bytes_count 1852581
+metric pending_bytes_max 0 client=none
+
+== cluster
+metric up 1
+metric clustered 1
+metric routes_configured 2
+metric route_peers 2
+metric route_peer 1 peer=n2
+metric route_peer 1 peer=n3
+metric route_connections 8
+metric route_pending_bytes 0
+metric route_rtt_max_ms 0.46
+metric leafnodes 0
+
+== jetstream
+metric up 1
+metric jetstream 1
+metric memory_bytes 0
+metric storage_bytes 89235
+metric max_memory_bytes 6141358080
+metric max_storage_bytes 53622297600
+metric memory_pct 0
+metric storage_pct 0
+metric streams 2
+metric consumers 1
+metric messages 561
+metric bytes 89235
+metric api_count 6
+metric api_errors_count 1
+metric meta_cluster_size 3
+metric meta_leader_known 1
+metric meta_is_leader 1
+metric meta_replicas_behind 0
+metric streams_led 0
+metric streams_no_leader 0
+metric stream_replicas_behind 0
+metric consumers_led 1
+metric consumers_pending 450
+metric consumers_ack_pending 50
+metric consumers_redelivered 50
+metric consumer_pending 450 stream=ORDERS consumer=billing
+metric consumer_ack_pending 50 stream=ORDERS consumer=billing
+metric consumer_redelivered 50 stream=ORDERS consumer=billing

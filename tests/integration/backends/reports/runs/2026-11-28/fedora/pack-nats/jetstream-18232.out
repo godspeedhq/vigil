@@ -1,0 +1,29 @@
+metric up 1
+metric jetstream 1
+metric memory_bytes 0
+metric storage_bytes 2098548
+metric max_memory_bytes 1048576
+metric max_storage_bytes 2097152
+metric memory_pct 0
+metric storage_pct 100.07
+metric streams 1
+metric consumers 0
+metric messages 508
+metric bytes 2098548
+metric api_count 2
+metric api_errors_count 0
+metric streams_led 1
+metric streams_no_leader 0
+metric stream_replicas_behind 0
+metric stream_behind_not_shown 0
+metric stream_messages 508 stream=BIG
+metric stream_bytes 2098548 stream=BIG
+metric stream_not_shown 0
+metric stream_used_pct_not_shown 0
+metric consumers_led 0
+metric consumers_pending 0
+metric consumers_ack_pending 0
+metric consumers_redelivered 0
+metric consumer_pending_not_shown 0
+metric consumer_ack_pending_not_shown 0
+metric consumer_redelivered_not_shown 0

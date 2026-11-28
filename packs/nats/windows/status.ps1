@@ -63,7 +63,27 @@
                                     address:port>
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric healthy 1
+      metric info 1 server=n1 version=2.15.3 cluster=c1 jetstream=on
+      metric uptime_seconds 30
+      metric last_reload_seconds 30
+      metric connections 0
+      metric max_connections 65536
+      metric connections_pct 0
+      metric total_connections_count 9
+      metric subscriptions 272
+      metric slow_consumers_count 2
+      metric slow_consumer_clients_count 2
+      metric slow_consumer_routes_count 0
+      metric slow_consumer_gateways_count 0
+      metric slow_consumer_leafs_count 0
+      metric stale_connections_count 0
+      metric in_msgs_count 6742
+      metric out_msgs_count 3491
+      metric in_bytes_count 8603626
+      metric out_bytes_count 1852581
+      metric pending_bytes_max 0 client=none
 
     Reading the results (starting points: tune them to your own):
       Healthy  up 1; healthy 1; connections_pct well below 80;

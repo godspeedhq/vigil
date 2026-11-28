@@ -1,0 +1,86 @@
+== pack-nats-macos
+date     2026-11-28
+host     the Intel Mac test machine (macOS 12.7.6), as an account that is not an administrator, over SSH
+vigil    cb0ba28 (deployed copy)
+servers  run-nats.sh's NATS servers on the Fedora test machine, held (VIGIL_IT_NATS_HOLD), through SSH tunnels
+
+bash 3.2.57(1)-release on macOS 12.7.6; curl 8.7.1; jq-1.8.2
+status 18222: 21 lines, exit 0
+  PASS  status 18222 runs
+cluster 18222: 11 lines, exit 0
+  PASS  cluster 18222 runs
+jetstream 18222: 38 lines, exit 0
+  PASS  jetstream 18222 runs
+status 18223: 21 lines, exit 0
+  PASS  status 18223 runs
+cluster 18223: 11 lines, exit 0
+  PASS  cluster 18223 runs
+jetstream 18223: 32 lines, exit 0
+  PASS  jetstream 18223 runs
+status 18224: 21 lines, exit 0
+  PASS  status 18224 runs
+cluster 18224: 11 lines, exit 0
+  PASS  cluster 18224 runs
+jetstream 18224: 30 lines, exit 0
+  PASS  jetstream 18224 runs
+status 18232: 21 lines, exit 0
+  PASS  status 18232 runs
+cluster 18232: 2 lines, exit 0
+  PASS  cluster 18232 runs
+jetstream 18232: 29 lines, exit 0
+  PASS  jetstream 18232 runs
+status 18242: 21 lines, exit 0
+  PASS  status 18242 runs
+cluster 18242: 2 lines, exit 0
+  PASS  cluster 18242 runs
+jetstream 18242: 2 lines, exit 0
+  PASS  jetstream 18242 runs
+  PASS  the cluster healthy; n1 has routes to n2 and n3
+  PASS  one meta leader; each stream counted once, by its leader
+  PASS  billing: 450 not given, 50 waiting for acks, some redelivered
+  PASS  LIMITED at its 64 KB; the client that stopped reading cut off
+  PASS  2.14: 15 clients of 20; its storage nearly full; alone
+  PASS  no JetStream, no cluster: each job says so
+  PASS  nothing listening: up 0, the run succeeding
+
+$ bash packs/nats/macos/cluster.sh   (n1)
+metric up 1
+metric clustered 1
+metric routes_configured 2
+metric route_peers 2
+metric route_peer 1 peer=n2
+metric route_peer 1 peer=n3
+metric route_peer_not_shown 0
+metric route_connections 8
+metric route_pending_bytes 0
+metric route_rtt_max_ms 0.225
+metric leafnodes 0
+
+# The pack through Vigil:
+bash 3.2.57(1)-release on Darwin
+  PASS  init
+  PASS  the packs are off until enabled
+nats: NATS_URL=http://127.0.0.1:18222
+  PASS  nats: off until enabled
+  PASS  nats: enabled
+        on: nats_status
+        on: nats_cluster
+        on: nats_jetstream
+        needs its monitoring port, from this machine: -m 8222 (http_port: 8222 in its configuration); env = NATS_URL=... on each job where it is not http://localhost:8222
+        needs jq, on Linux and macOS
+        needs on each server of a cluster: each reports itself, and the streams and consumers it leads; for its CPU and memory: the base pack's processes job
+        settings in vigil.config: NATS_URL= NATS_USER= NATS_CACERT=
+  PASS  nats: it says CPU and memory are the base pack's
+  PASS  nats: its jobs are on
+  PASS  nats: precheck is happy
+        status: 21 lines
+        cluster: 11 lines
+        jetstream: 38 lines
+  PASS  nats: every job runs
+  PASS  nats: answers
+  PASS  nats: a server that does not answer still runs
+  PASS  nats: and reads as up 0
+  PASS  nats: metrics reach the backend
+12 passed, 0 failed
+
+22 passed, 0 failed

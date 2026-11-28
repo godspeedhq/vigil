@@ -39,7 +39,16 @@
 #   leafnodes             leaf node connections
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric clustered 1
+#   metric routes_configured 2
+#   metric route_peers 2
+#   metric route_peer 1 peer=n2
+#   metric route_peer 1 peer=n3
+#   metric route_connections 8
+#   metric route_pending_bytes 0
+#   metric route_rtt_max_ms 0.46
+#   metric leafnodes 0
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  route_peers the cluster's size less one, steady;

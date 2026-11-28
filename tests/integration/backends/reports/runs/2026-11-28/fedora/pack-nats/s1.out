@@ -1,0 +1,21 @@
+metric up 1
+metric healthy 1
+metric info 1 server=n1 version=2.15.3 cluster=c1 jetstream=on
+metric uptime_seconds 67
+metric last_reload_seconds 67
+metric connections 0
+metric max_connections 65536
+metric connections_pct 0
+metric total_connections_count 9
+metric subscriptions 268
+metric slow_consumers_count 2
+metric slow_consumer_clients_count 2
+metric slow_consumer_routes_count 0
+metric slow_consumer_gateways_count 0
+metric slow_consumer_leafs_count 0
+metric stale_connections_count 0
+metric in_msgs_count 6852
+metric out_msgs_count 3599
+metric in_bytes_count 8623767
+metric out_bytes_count 1869259
+metric pending_bytes_max 0 client=none

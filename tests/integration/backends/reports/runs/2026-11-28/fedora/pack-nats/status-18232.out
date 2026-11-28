@@ -1,0 +1,21 @@
+metric up 1
+metric healthy 1
+metric info 1 server=s14 version=2.14.10 cluster=none jetstream=on
+metric uptime_seconds 32
+metric last_reload_seconds 32
+metric connections 15
+metric max_connections 20
+metric connections_pct 75
+metric total_connections_count 17
+metric subscriptions 82
+metric slow_consumers_count 0
+metric slow_consumer_clients_count 0
+metric slow_consumer_routes_count 0
+metric slow_consumer_gateways_count 0
+metric slow_consumer_leafs_count 0
+metric stale_connections_count 0
+metric in_msgs_count 1002
+metric out_msgs_count 2
+metric in_bytes_count 4096390
+metric out_bytes_count 1194
+metric pending_bytes_max 0 client=NATS_CLI_Version_0.5.1
