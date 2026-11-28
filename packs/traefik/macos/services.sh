@@ -41,7 +41,17 @@
 #                              middleware; a running total)
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric servers 3
+#   metric servers_down 1
+#   metric server_down 1 url=http://nowhere:80
+#   metric server_down 0 url=http://w1:80
+#   metric server_down 0 url=http://w2:80
+#   metric down_by_service 1 service=app@file
+#   metric requests_count 42
+#   metric requests_5xx_count 20
+#   metric requests_5xx 20 service=gone@file
+#   metric request_avg_ms 1804.14556
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  servers_down 0; requests_5xx_count flat.

@@ -1,0 +1,18 @@
+metric up 1
+metric ping 1
+metric last_reload_seconds 0
+metric reloads_count 2
+metric connections 1
+metric connections_by_entrypoint 1 entrypoint=traefik
+metric connections_by_entrypoint 0 entrypoint=web
+metric connections_by_entrypoint 0 entrypoint=websecure
+metric connections_by_entrypoint_not_shown 0
+metric requests_count 102
+metric requests_4xx_count 60
+metric requests_5xx_count 20
+metric requests_5xx 20 entrypoint=web
+metric requests_5xx_not_shown 0
+metric request_avg_ms 742.947236
+metric tls_requests_count 2
+metric certs 2
+metric cert_expires_at 1796309450

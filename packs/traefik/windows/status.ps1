@@ -58,7 +58,22 @@
                                            in days)
 
     Example output (the rest are in the same form):
-      (draft: no example yet)
+      metric up 1
+      metric ping 1
+      metric last_reload_seconds 165
+      metric reloads_count 1
+      metric connections 1
+      metric connections_by_entrypoint 1 entrypoint=traefik
+      metric connections_by_entrypoint 0 entrypoint=web
+      metric connections_by_entrypoint 0 entrypoint=websecure
+      metric requests_count 102
+      metric requests_4xx_count 60
+      metric requests_5xx_count 20
+      metric requests_5xx 20 entrypoint=web
+      metric request_avg_ms 742.947236
+      metric tls_requests_count 2
+      metric certs 2
+      metric cert_expires_at 1796309450
 
     Reading the results (starting points: tune them to your own):
       Healthy  up 1; ping 1; requests_5xx_count rising slowly, if at all;

@@ -48,7 +48,24 @@
 #   certs_expiring_30d       certificates that expire within 30 days
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric version 1 version=3.8.0
+#   metric routers 10 protocol=http
+#   metric routers_errors 2 protocol=http
+#   metric routers_warnings 0 protocol=http
+#   metric services 7 protocol=http
+#   metric services_errors 0 protocol=http
+#   metric services_warnings 0 protocol=http
+#   metric middlewares 2 protocol=http
+#   metric middlewares_errors 0 protocol=http
+#   metric middlewares_warnings 0 protocol=http
+#   metric certificates 2
+#   metric certificates_warnings 1
+#   metric certificates_errors 0
+#   metric router_error 1 protocol=http router=broken@file reason=the_service__not-there@file__does_not_exist
+#   metric router_error 1 protocol=http router=nomiddleware@file reason=middleware__no-such-middleware@file__does_not_exist
+#   metric cert_expires_days 4.99
+#   metric certs_expiring_30d 1
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  routers_errors, services_errors and middlewares_errors 0;

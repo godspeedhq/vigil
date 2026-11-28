@@ -1,0 +1,14 @@
+metric up 1
+metric servers 3
+metric servers_down 2
+metric server_down 1 url=http://nowhere:80
+metric server_down 1 url=http://w2:80
+metric server_down 0 url=http://w1:80
+metric server_down_not_shown 0
+metric down_by_service 2 service=app@file
+metric down_by_service_not_shown 0
+metric requests_count 42
+metric requests_5xx_count 20
+metric requests_5xx 20 service=gone@file
+metric requests_5xx_not_shown 0
+metric request_avg_ms 1804.14556

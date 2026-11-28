@@ -32,7 +32,13 @@
 #   requests_5xx_not_shown  how many more there were than the 20 shown
 #
 # Example output (the rest are in the same form):
-#   (draft: no example yet)
+#   metric up 1
+#   metric requests_count 42
+#   metric requests 20 router=app@file
+#   metric requests 20 router=gone@file
+#   metric requests 1 router=good@file
+#   metric requests 1 router=soon@file
+#   metric requests_5xx 20 router=gone@file
 #
 # Reading the results (starting points: tune them to your own):
 #   Healthy  requests_5xx flat for each router.

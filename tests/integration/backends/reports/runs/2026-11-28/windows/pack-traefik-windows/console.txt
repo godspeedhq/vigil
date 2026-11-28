@@ -1,0 +1,291 @@
+== pack-traefik-windows
+date     2026-11-28
+host     the HP test machine (Windows 11), as an account that is not an administrator, over SSH
+vigil    80a8539 (deployed copy)
+servers  run-traefik.sh's Traefik 3.8.0 and 3.7.20 on the Fedora test machine, held (VIGIL_IT_TRAEFIK_HOLD), through SSH tunnels
+
+# Every job under each PowerShell against each; nothing listening; then the pack through Vigil under each:
+
+shells: powershell.exe, pwsh.exe
+
+# Traefik 3.8: every job under each PowerShell
+t38 status powershell.exe: 18 lines, exit 0
+  PASS  t38 status runs under powershell.exe
+t38 status pwsh.exe: 18 lines, exit 0
+  PASS  t38 status runs under pwsh.exe
+t38 services powershell.exe: 10 lines, exit 0
+  PASS  t38 services runs under powershell.exe
+t38 services pwsh.exe: 10 lines, exit 0
+  PASS  t38 services runs under pwsh.exe
+t38 routers powershell.exe: 4 lines, exit 0
+  PASS  t38 routers runs under powershell.exe
+t38 routers pwsh.exe: 4 lines, exit 0
+  PASS  t38 routers runs under pwsh.exe
+t38 config powershell.exe: 34 lines, exit 0
+  PASS  t38 config runs under powershell.exe
+t38 config pwsh.exe: 34 lines, exit 0
+  PASS  t38 config runs under pwsh.exe
+  PASS  t38: its version, the two routers in error named
+  PASS  t38: the backend that does not exist, down and named
+
+# Traefik 3.7: every job under each PowerShell
+t37 status powershell.exe: 18 lines, exit 0
+  PASS  t37 status runs under powershell.exe
+t37 status pwsh.exe: 18 lines, exit 0
+  PASS  t37 status runs under pwsh.exe
+t37 services powershell.exe: 14 lines, exit 0
+  PASS  t37 services runs under powershell.exe
+t37 services pwsh.exe: 14 lines, exit 0
+  PASS  t37 services runs under pwsh.exe
+t37 routers powershell.exe: 10 lines, exit 0
+  PASS  t37 routers runs under powershell.exe
+t37 routers pwsh.exe: 10 lines, exit 0
+  PASS  t37 routers runs under pwsh.exe
+t37 config powershell.exe: 34 lines, exit 0
+  PASS  t37 config runs under powershell.exe
+t37 config pwsh.exe: 34 lines, exit 0
+  PASS  t37 config runs under pwsh.exe
+  PASS  t37: its version, the two routers in error named
+  PASS  t37: the backend that does not exist, down and named
+
+$ powershell.exe -File packs\traefik\windows\config.ps1   (3.8)
+metric up 1
+metric version 1 version=3.8.0
+metric routers 11 protocol=http
+metric routers_errors 2 protocol=http
+metric routers_warnings 0 protocol=http
+metric services 7 protocol=http
+metric services_errors 0 protocol=http
+metric services_warnings 0 protocol=http
+metric middlewares 2 protocol=http
+metric middlewares_errors 0 protocol=http
+metric middlewares_warnings 0 protocol=http
+metric certificates 2
+metric certificates_warnings 1
+metric certificates_errors 0
+metric router_error 1 protocol=http router=broken@file reason=the_service__not-there@file__does_not_exist
+metric router_error 1 protocol=http router=nomiddleware@file reason=middleware__no-such-middleware@file__does_not_exist
+metric router_errors_not_shown 0
+metric cert_expires_days 4.99
+metric certs_expiring_30d 1
+
+$ pwsh.exe -File packs\traefik\windows\services.ps1   (3.7)
+metric up 1
+metric servers 3
+metric servers_down 1
+metric server_down 1 url=http://nowhere:80
+metric server_down 0 url=http://w1:80
+metric server_down 0 url=http://w2:80
+metric server_down_not_shown 0
+metric down_by_service 1 service=app@file
+metric down_by_service_not_shown 0
+metric requests_count 42
+metric requests_5xx_count 20
+metric requests_5xx 20 service=gone@file
+metric requests_5xx_not_shown 0
+metric request_avg_ms 1871.90413
+
+  PASS  powershell.exe: nothing listening: up 0, the run succeeding
+  PASS  pwsh.exe: nothing listening: up 0, the run succeeding
+
+== powershell.exe tests\integration\Service-Packs.ps1
+PowerShell 5.1.26100.10068
+  PASS  init
+  PASS  the pack is off until enabled
+traefik: TRAEFIK_URL=http://127.0.0.1:18080
+  PASS  traefik: enabled
+        on: traefik_status
+        on: traefik_services
+        on: traefik_routers
+        on: traefik_config
+        needs its metrics and API: --metrics.prometheus=true (with addRoutersLabels and addServicesLabels for the routers and services jobs), --api=true and --ping=true; they are served on the traefik entrypoint (port 8080): env = TRAEFIK_URL=... where it is elsewhere
+        needs for backends up and down: health checks on the services (loadBalancer.healthCheck); without one, Traefik does not know
+        needs where the API is behind a login (a router with basicAuth): TRAEFIK_USER and secret = TRAEFIK_PASSWORD=secret:TRAEFIK_PASSWORD
+        needs for Traefik's CPU and memory: the base pack's processes job
+        settings in vigil.config: TRAEFIK_URL= TRAEFIK_USER= TRAEFIK_CACERT=
+  PASS  traefik: it says CPU and memory are the base pack's
+  PASS  traefik: precheck is happy
+  PASS  traefik: every job runs (status, services, routers, config)
+        metric up 1
+        metric ping 1
+        metric last_reload_seconds 290
+        metric reloads_count 3
+        metric connections 1
+        metric connections_by_entrypoint 1 entrypoint=traefik
+        metric connections_by_entrypoint 0 entrypoint=web
+        metric connections_by_entrypoint 0 entrypoint=websecure
+        metric connections_by_entrypoint_not_shown 0
+        metric requests_count 102
+        metric requests_4xx_count 60
+        metric requests_5xx_count 20
+        metric requests_5xx 20 entrypoint=web
+        metric requests_5xx_not_shown 0
+        metric request_avg_ms 742.947236
+        metric tls_requests_count 2
+        metric certs 2
+        metric cert_expires_at 1796309450
+        metric up 1
+        metric servers 3
+        metric servers_down 1
+        metric server_down 1 url=http://nowhere:80
+        metric server_down 0 url=http://w1:80
+        metric server_down 0 url=http://w2:80
+        metric server_down_not_shown 0
+        metric down_by_service 1 service=app@file
+        metric down_by_service_not_shown 0
+        metric requests_5xx_not_shown 0
+        metric up 1
+        metric requests_not_shown 0
+        metric requests_4xx_not_shown 0
+        metric requests_5xx_not_shown 0
+        metric up 1
+        metric version 1 version=3.8.0
+        metric routers 11 protocol=http
+        metric routers_errors 2 protocol=http
+        metric routers_warnings 0 protocol=http
+        metric services 7 protocol=http
+        metric services_errors 0 protocol=http
+        metric services_warnings 0 protocol=http
+        metric middlewares 2 protocol=http
+        metric middlewares_errors 0 protocol=http
+        metric middlewares_warnings 0 protocol=http
+        metric routers 0 protocol=tcp
+        metric routers_errors 0 protocol=tcp
+        metric routers_warnings 0 protocol=tcp
+        metric services 0 protocol=tcp
+        metric services_errors 0 protocol=tcp
+        metric services_warnings 0 protocol=tcp
+        metric middlewares 0 protocol=tcp
+        metric middlewares_errors 0 protocol=tcp
+        metric middlewares_warnings 0 protocol=tcp
+        metric routers 0 protocol=udp
+        metric routers_errors 0 protocol=udp
+        metric routers_warnings 0 protocol=udp
+        metric services 0 protocol=udp
+        metric services_errors 0 protocol=udp
+        metric services_warnings 0 protocol=udp
+        metric certificates 2
+        metric certificates_warnings 1
+        metric certificates_errors 0
+        metric router_error 1 protocol=http router=broken@file reason=the_service__not-there@file__does_not_exist
+        metric router_error 1 protocol=http router=nomiddleware@file reason=middleware__no-such-middleware@file__does_not_exist
+        metric router_errors_not_shown 0
+        metric cert_expires_days 4.99
+        metric certs_expiring_30d 1
+  PASS  traefik: answers
+  PASS  traefik: a service that does not answer still runs
+  PASS  traefik: and reads as up 0
+  PASS  traefik: metrics reach the backend
+10 passed, 0 failed
+
+== pwsh.exe tests\integration\Service-Packs.ps1
+PowerShell 7.6.10
+  PASS  init
+  PASS  the pack is off until enabled
+traefik: TRAEFIK_URL=http://127.0.0.1:18080
+  PASS  traefik: enabled
+        on: traefik_status
+        on: traefik_services
+        on: traefik_routers
+        on: traefik_config
+        needs its metrics and API: --metrics.prometheus=true (with addRoutersLabels and addServicesLabels for the routers and services jobs), --api=true and --ping=true; they are served on the traefik entrypoint (port 8080): env = TRAEFIK_URL=... where it is elsewhere
+        needs for backends up and down: health checks on the services (loadBalancer.healthCheck); without one, Traefik does not know
+        needs where the API is behind a login (a router with basicAuth): TRAEFIK_USER and secret = TRAEFIK_PASSWORD=secret:TRAEFIK_PASSWORD
+        needs for Traefik's CPU and memory: the base pack's processes job
+        settings in vigil.config: TRAEFIK_URL= TRAEFIK_USER= TRAEFIK_CACERT=
+  PASS  traefik: it says CPU and memory are the base pack's
+  PASS  traefik: precheck is happy
+  PASS  traefik: every job runs (status, services, routers, config)
+        metric up 1
+        metric ping 1
+        metric last_reload_seconds 369
+        metric reloads_count 3
+        metric connections 1
+        metric connections_by_entrypoint 1 entrypoint=traefik
+        metric connections_by_entrypoint 0 entrypoint=web
+        metric connections_by_entrypoint 0 entrypoint=websecure
+        metric connections_by_entrypoint_not_shown 0
+        metric requests_count 102
+        metric requests_4xx_count 60
+        metric requests_5xx_count 20
+        metric requests_5xx 20 entrypoint=web
+        metric requests_5xx_not_shown 0
+        metric request_avg_ms 742.947236
+        metric tls_requests_count 2
+        metric certs 2
+        metric cert_expires_at 1796309450
+        metric up 1
+        metric servers 3
+        metric servers_down 1
+        metric server_down 1 url=http://nowhere:80
+        metric server_down 0 url=http://w1:80
+        metric server_down 0 url=http://w2:80
+        metric server_down_not_shown 0
+        metric down_by_service 1 service=app@file
+        metric down_by_service_not_shown 0
+        metric requests_5xx_not_shown 0
+        metric up 1
+        metric requests_not_shown 0
+        metric requests_4xx_not_shown 0
+        metric requests_5xx_not_shown 0
+        metric up 1
+        metric version 1 version=3.8.0
+        metric routers 11 protocol=http
+        metric routers_errors 2 protocol=http
+        metric routers_warnings 0 protocol=http
+        metric services 7 protocol=http
+        metric services_errors 0 protocol=http
+        metric services_warnings 0 protocol=http
+        metric middlewares 2 protocol=http
+        metric middlewares_errors 0 protocol=http
+        metric middlewares_warnings 0 protocol=http
+        metric routers 0 protocol=tcp
+        metric routers_errors 0 protocol=tcp
+        metric routers_warnings 0 protocol=tcp
+        metric services 0 protocol=tcp
+        metric services_errors 0 protocol=tcp
+        metric services_warnings 0 protocol=tcp
+        metric middlewares 0 protocol=tcp
+        metric middlewares_errors 0 protocol=tcp
+        metric middlewares_warnings 0 protocol=tcp
+        metric routers 0 protocol=udp
+        metric routers_errors 0 protocol=udp
+        metric routers_warnings 0 protocol=udp
+        metric services 0 protocol=udp
+        metric services_errors 0 protocol=udp
+        metric services_warnings 0 protocol=udp
+        metric certificates 2
+        metric certificates_warnings 1
+        metric certificates_errors 0
+        metric router_error 1 protocol=http router=broken@file reason=the_service__not-there@file__does_not_exist
+        metric router_error 1 protocol=http router=nomiddleware@file reason=middleware__no-such-middleware@file__does_not_exist
+        metric router_errors_not_shown 0
+        metric cert_expires_days 4.99
+        metric certs_expiring_30d 1
+  PASS  traefik: answers
+  PASS  traefik: a service that does not answer still runs
+  PASS  traefik: and reads as up 0
+  PASS  traefik: metrics reach the backend
+10 passed, 0 failed
+
+22 passed, 0 failed
+
+# The Windows outputs beside the Linux scripts' (read on Fedora just after), against the same Traefiks: the same metric names and tags.
+
+same     t37-config powershell.exe: 34 lines, the same names and tags
+same     t37-config pwsh.exe: 34 lines, the same names and tags
+same     t37-routers powershell.exe: 10 lines, the same names and tags
+same     t37-routers pwsh.exe: 10 lines, the same names and tags
+same     t37-services powershell.exe: 14 lines, the same names and tags
+same     t37-services pwsh.exe: 14 lines, the same names and tags
+same     t37-status powershell.exe: 18 lines, the same names and tags
+same     t37-status pwsh.exe: 18 lines, the same names and tags
+same     t38-config powershell.exe: 34 lines, the same names and tags
+same     t38-config pwsh.exe: 34 lines, the same names and tags
+same     t38-routers powershell.exe: 4 lines, the same names and tags
+same     t38-routers pwsh.exe: 4 lines, the same names and tags
+same     t38-services powershell.exe: 10 lines, the same names and tags
+same     t38-services pwsh.exe: 10 lines, the same names and tags
+same     t38-status powershell.exe: 18 lines, the same names and tags
+same     t38-status pwsh.exe: 18 lines, the same names and tags
+0 differ

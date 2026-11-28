@@ -398,6 +398,50 @@ PAGES['openbao'] = dict(
 """,
     found="OpenBao kept Vault's names: its metrics start `vault_`, and its pages are Vault's, so one pack reads both, and tells them apart by the `enterprise` field Vault's health page has. A sealed node answers its health and seal pages, but not its metrics (503) or its leader (503): the status job reads only the pages that answer. A Vault standby sends `sys/metrics` to the active node (307) unless the listener lets anyone read them; an OpenBao standby answers with the token. Both drop a counter not updated within `prometheus_retention_time`, so with a short one the running totals come and go. Both count a failed login twice. A node counts its locked-out users when it becomes active and every 15 minutes or so after, so right after a lockout it may still read 0. Autopilot counts a node that has just joined as a voter only once it has been stable a while: right after a cluster forms, `failure_tolerance` reads 0. OpenBao 2.7 enables audit devices only in its configuration file, not through its API.")
 
+PAGES['traefik'] = dict(
+    intro="A Traefik proxy, from its own metrics page and its read-only API. The pack reads whether it is up and "
+          "answers its ping, when its configuration last loaded, the connections on each entrypoint and the requests "
+          "they answered, 4xx and 5xx; the backend servers it health-checks, up and down, each down one by its URL; "
+          "the services and routers answering 5xx, each by name; from its API, the routers, services and "
+          "middlewares in error, each router in error named with why; and its TLS certificates, those it warns "
+          "about, and the soonest to expire.",
+    why="A proxy fails sideways. A router whose service was renamed is put in error, takes no traffic, and every "
+        "request to its host gets a 404: Traefik itself is fine, and its own health check says so. A backend that "
+        "dies leaves its service with fewer servers, then none, and every request answers 503. A certificate Traefik "
+        "should have renewed is still the old one a week before it expires. Each of these is in what Traefik says "
+        "about itself, and the pack reads it, by name.",
+    setup=["Turn on what the pack reads, in Traefik's static configuration: `--metrics.prometheus=true` (with "
+           "`--metrics.prometheus.addRoutersLabels=true` and `addServicesLabels=true` for the routers and services "
+           "jobs), `--api=true` and `--ping=true`. They are served on the `traefik` entrypoint, port 8080. For "
+           "backends up and down, give the services health checks (`loadBalancer.healthCheck`): without one, Traefik "
+           "does not know.",
+           "`vigil pack enable traefik`, and where Traefik is not at `http://localhost:8080`, set `TRAEFIK_URL` in the "
+           "jobs' `env` lines. Where its API sits behind a login (a router with `basicAuth`), `TRAEFIK_USER` and "
+           "`secret = TRAEFIK_PASSWORD=secret:TRAEFIK_PASSWORD`. The config job needs `jq` on Linux and macOS."],
+    reports={
+        'status': 'Up and its ping; when its configuration last loaded, and how many times; connections on each entrypoint; requests, 4xx and 5xx (for each entrypoint), and their time; TLS requests; certificates, and when the first expires',
+        'services': 'Backend servers health-checked, up and down, each down one by its URL, and for each service; requests to the services, 5xx for each, and their time; retries',
+        'routers': 'Requests for each router, and those 4xx and 5xx',
+        'config': 'From its API: its version; routers, services and middlewares (HTTP, TCP, UDP) and those in error or warning; each router in error, named, with why; certificates, those it warns about, the soonest to expire and those within 30 days',
+    },
+    alerts=[
+        ('`traefik.up`, `ping`', '1', '', '0: the proxy does not answer', '`up 0` where nothing listened'),
+        ('`traefik.config.routers_errors`, `router_error` (by `router`)', '0', '', 'Above 0: `router_error` names the router and why. It takes no traffic: its host answers 404', '2: `broken@file` (`the service "not-there@file" does not exist`) and `nomiddleware@file` (`middleware "no-such-middleware@file" does not exist`)'),
+        ('`traefik.services.servers_down`, `server_down` (by `url`)', '0', 'Above 0 in a service with others up', '`down_by_service` equal to its servers: the service has none, and answers 503', '1, the backend whose host does not exist; 2 with a second stopped (`down_by_service 2 service=app@file`)'),
+        ('`traefik.requests_5xx_count`, `services.requests_5xx` (by `service`)', 'Flat', '', 'Rising: the service named fails (502 unreachable, 504 too slow)', '20, all `service=gone@file`, the service whose only backend does not exist'),
+        ('`traefik.requests_4xx_count`', 'Steady', 'Rising fast: a host or path no router takes, or a router in error', '', '60: 20 to a host no router takes, and 20 to each router in error'),
+        ('`traefik.config.cert_expires_days`, `certs_expiring_30d`', 'Above 30; 0', 'Below 30: Traefik renews ACME certificates 30 days ahead, so one still below is not renewing', 'Below 7', '4.99 days and 1, for the certificate made for 5 days; `certificates_warnings 1`'),
+        ('`traefik.last_reload_seconds`, `reloads_count`', '', 'A change that does not show as a reload: Traefik did not take it', '', '`reloads_count 2` and `last_reload_seconds 0` a moment after the configuration changed'),
+    ],
+    tested="""
+**Tested** on 2026-11-28 by `tests/integration/backends/scripts/run-traefik.sh`, against `compose.traefik.yaml`: **Traefik 3.8.0 and 3.7.20**, side by side, reading one dynamic configuration in trouble on purpose: a service of three backends, one a host that does not exist (its health check fails); a service whose only backend is that host; a router to a service that is not there and one with a middleware that is not there; a certificate made for 5 days and one for a year. Twenty requests to each router and to a host no router takes, on each Traefik.
+
+- **On Fedora** (Fedora 44, bash 5.3): every job against each, and what each read (up and ping; the requests, 4xx and 5xx; three backends health-checked, the missing one down and named; the 5xx by service and by router; the two routers in error, each named with why; two certificates, the 5-day one warned of, and when it expires both from the API and the metrics). Then a second backend stopped (two down, both named), the configuration changed (the reload counted, a moment ago), and nothing listening: **30 passed, 0 failed**. Then `service-packs.sh` through Vigil: **12 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/fedora/pack-traefik/console.txt)).
+- **On macOS**, on the Intel Mac test machine (macOS 12.7.6, bash 3.2, its own awk, jq 1.8.2), against the same two through SSH tunnels: every job, the routers in error and the dead backend named, nothing listening: **11 passed, 0 failed**; through Vigil, **12 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/macos/pack-traefik-macos/console.txt)).
+- **On Windows**, on the HP test machine (Windows 11) as an account that is not an administrator: every job under Windows PowerShell 5.1 and PowerShell 7, against both, the same checks: **22 passed, 0 failed**; the same metric names and tags as the Linux scripts for all 4 jobs against both, under both shells (16 of 16); through Vigil, **10 passed, 0 failed** under each ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/windows/pack-traefik-windows/console.txt)).
+""",
+    found="A router in error is not an error Traefik's own health shows: it answers its ping, takes the router out, and every request to its host gets a 404, counted with the requests to hosts no router takes. Its API names it, with why. Traefik 3's `traefik_config_last_reload_success` is the time of the last successful load, not a flag. A backend that cannot be reached keeps a request waiting: the service's average time rose past a second with every request to the missing host. Without a health check on a service, Traefik reports no server up or down for it.")
+
 # How the nine were tested: the same words on every page, filled in from the runs.
 TESTED = """
 **Tested** on 2026-11-25 by `tests/integration/backends/scripts/run-obs.sh`, against `compose.obs.yaml`: one stack of all nine services wired together as they are in use, each in trouble on purpose. **Prometheus 3.15.1** (two targets down and one that answers without metrics, a rule group that cannot be evaluated, an Alertmanager that is not there, a remote write nothing answers and one that is refused), **Alertmanager 0.35.1** (two in a cluster; a receiver nothing listens to), **Grafana 13.2.5** (a data source nothing answers, an alert rule that reads it, a contact point nothing listens to), **Loki 3.7.9** (entries too old, lines too long), **Mimir 3.2.6** (a tenant held at 200 series), **Tempo 2.10.10** (traces larger than its limit), **the OpenTelemetry Collector 0.166.0** (an exporter nothing answers, whose queue fills; a receiver that must refuse), **VictoriaMetrics 1.157.0** (a scrape target down, queries that fail) and **VictoriaLogs 1.54.0** (entries older than its retention), in Docker, with traces, metrics and logs flowing through all of it.
