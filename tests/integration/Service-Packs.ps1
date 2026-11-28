@@ -261,7 +261,7 @@ try {
     [void](New-Item -ItemType Directory -Force -Path $jk)
     Copy-Item -LiteralPath (Join-Path $repo 'packs\jenkins\pack.config') -Destination $jk
     Get-ChildItem -LiteralPath (Join-Path $repo 'packs\jenkins\windows') | Copy-Item -Destination $jk
-    $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs')
+    $obsPacks = @('prometheus', 'alertmanager', 'grafana', 'loki', 'mimir', 'tempo', 'otelcol', 'victoriametrics', 'victorialogs', 'etcd')
     foreach ($sp in @('elasticsearch', 'opensearch', 'cockroachdb', 'clickhouse', 'zookeeper', 'mongodb', 'oracle', 'nginx', 'httpd', 'caddy', 'iis', 'docker', 'sqlite') + $obsPacks) {
         $sd = Join-Path $root "packs\$sp"
         [void](New-Item -ItemType Directory -Force -Path $sd)

@@ -110,12 +110,13 @@
 #                                        where nothing answers (scripts/run-web.sh
 #                                        sets them up)
 #   VIGIL_IT_OBS_PROMETHEUS, _ALERTMANAGER, _GRAFANA, _LOKI, _MIMIR, _TEMPO,
-#   _OTELCOL, _VICTORIAMETRICS, _VICTORIALOGS
+#   _OTELCOL, _VICTORIAMETRICS, _VICTORIALOGS, _ETCD
 #                                        the same for a pack that watches a
 #                                        monitoring stack, with _<PACK>_DOWN;
 #                                        VIGIL_IT_OBS_GRAFANA_TOKEN, a Viewer's
 #                                        token for Grafana's data sources
-#                                        (scripts/run-obs.sh sets them up)
+#                                        (scripts/run-obs.sh sets them up;
+#                                        scripts/run-etcd.sh, etcd's)
 #   VIGIL_IT_DOCKER, VIGIL_IT_PODMAN     the same for the docker and podman
 #                                        packs: "DOCKER_HOST=unix://..." and
 #                                        "CONTAINER_HOST=" (empty: this
@@ -200,7 +201,7 @@ mkdir -p "$root"
 cp -R "$repo/app" "$repo/vendor" "$root/"
 vigil init --instance svcpack --backend file --no-pack > "$work/out" 2>&1
 check 'init' 0 "$?"
-obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs'
+obs_packs='prometheus alertmanager grafana loki mimir tempo otelcol victoriametrics victorialogs etcd'
 for p in postgres mysql redis mssql kafka jvm beam rabbitmq jenkins elasticsearch opensearch cockroachdb clickhouse zookeeper mongodb oracle nginx httpd caddy haproxy phpfpm $obs_packs docker podman sqlite; do
     mkdir -p "$root/packs/$p"
     cp "$repo/packs/$p/pack.config" "$repo/packs/$p/$os"/* "$root/packs/$p/"
