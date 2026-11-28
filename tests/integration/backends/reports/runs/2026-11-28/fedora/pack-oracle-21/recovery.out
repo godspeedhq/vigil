@@ -1,0 +1,11 @@
+metric fra_limit_bytes 2404384768
+metric fra_reclaimable_bytes 0
+metric fra_used_bytes 2163495936
+metric fra_used_pct 89.98
+metric flashback_on 0
+metric archive_dest_errors 0
+metric log_switches_1h 6
+metric redo_groups 2
+metric redo_group_bytes 20971520
+metric redo_groups_active 1
+metric redo_groups_not_archived 0

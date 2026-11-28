@@ -1,0 +1,7 @@
+metric invalid_objects 0 pdb=CDB_ROOT
+metric corrupt_blocks 0
+metric datafiles_need_recovery 0
+metric datafiles_offline 0
+metric accounts_expiring 0
+metric scheduler_failed_24h 0
+metric scheduler_broken 0

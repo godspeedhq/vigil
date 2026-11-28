@@ -1,0 +1,12 @@
+metric sessions 1 state=active
+metric sessions 1 state=inactive
+metric active 1 class=application
+metric blocked 1
+metric longest_blocked_seconds 21.07
+metric head_blockers 1
+metric longest_active_seconds 21
+metric transactions 1
+metric oldest_transaction_seconds 24
+metric idle_in_transaction 1
+metric idle_in_transaction_seconds 24
+metric long_operations 0

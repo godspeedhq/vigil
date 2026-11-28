@@ -312,7 +312,7 @@ Every job, every metric it prints and what it measures, and what good, watch and
 
 ## What to alert on
 
-Starting points, from the same figures each script's header explains; "In our tests" is what a 23ai database in trouble on purpose (below) showed:
+Starting points, from the same figures each script's header explains; "In our tests" is what 23ai and 21c XE databases in trouble on purpose (below) showed:
 
 | Metric | Healthy | Watch | Act | In our tests |
 | --- | --- | --- | --- | --- |
@@ -321,7 +321,7 @@ Starting points, from the same figures each script's header explains; "In our te
 | `oracle.sessions_pct`, `processes_pct` | Below 70 | Past 80 | Past 95: new connections refused (ORA-00020) | 39.75 and 49.5 on 23ai Free |
 | `oracle.activity.head_blockers`, `blocked` | 0 | Above 0 | Above 0 for minutes: find the head of the chain | 1 and 1: one session holding a row, another waiting for it (`active 1 class=application`, `longest_blocked_seconds 20.58`) |
 | `oracle.activity.idle_in_transaction`, `oldest_transaction_seconds` | 0; seconds | A transaction open for minutes | Idle in a transaction for long: an application that did not commit | 1, 23 s idle (the oldest transaction 24 s): the session holding the row |
-| `oracle.tablespace.used_pct` (by `pdb`, `tablespace`) | Below 80 | Past 85 | Past 95 (permanent): inserts fail with ORA-01653 or ORA-01654 | 90.63 for a 10 MB tablespace filled until an insert failed with ORA-01653 |
+| `oracle.tablespace.used_pct` (by `pdb`, `tablespace`) | Below 80 | Past 85 | Past 95 (permanent): inserts fail with ORA-01653 or ORA-01654 | 90.63 (23ai) and 100 (21c XE) for a 10 MB tablespace filled until an insert failed with ORA-01653 |
 | `oracle.recovery.fra_used_pct` | Below 80 | Past 80 | Past 95 in ARCHIVELOG mode: the archiver stops, and so does every change (ORA-00257) | 89.98 with the area shrunk on purpose; Oracle's own warning, ORA-19815, in the alert log |
 | `oracle.recovery.archive_dest_errors` | 0 | | Above 0 | 0 |
 | `oracle.recovery.log_switches_1h` | A few an hour | Dozens: the redo logs are small for the load | | 6, switched on purpose, and 6 "Checkpoint not complete" in the alert log with them |
@@ -332,13 +332,32 @@ Starting points, from the same figures each script's header explains; "In our te
 | `oracle.health.invalid_objects` (by `pdb`) | Steady | Rising after a deployment | | 1, a view whose table was dropped |
 | `oracle.health.accounts_expiring` | 0 | Above 0: a login about to lock an application out | | 1, a password with a 3-day lifetime |
 | `oracle.health.corrupt_blocks` | 0 | | Above 0: RMAN VALIDATE, and recover the blocks | Not caused |
-| `oracle.alerts.incidents` | 0 | | Above 0: an ORA-00600 or ORA-07445; open a service request | 4: ORA-00800 incidents Oracle Free files at each start in a container |
+| `oracle.alerts.incidents` | 0 | | Above 0: an ORA-00600 or ORA-07445; open a service request | 4 on 23ai: ORA-00800, which Oracle Free files at each start in a container; 6 on 21c XE, ORA-00600 among them, from its start |
 | `oracle.alerts.error_count` (by `code`) | None | Any | ORA-01653/01654 (space), ORA-00257 (archiver), ORA-04031 (shared pool), ORA-00060 (deadlock) | `code=ORA-01653`, `ORA-00060` (the deadlock made on purpose), `ORA-19815`, `ORA-12012` (the failed job) |
 | `oracle.performance.deadlocks_count` | Flat | | Rising | 1, two sessions that deadlocked on purpose |
 
 ## How it was tested
 
 <!-- tested:start -->
+**Tested** on 2026-11-28 by `tests/integration/backends/scripts/run-oracle.sh`, against `compose.oracle.yaml`: **Oracle Database 23ai Free** (23.26.4, a CDB with `FREEPDB1`) and **21c XE** (a CDB with `XEPDB1`), the full images (the `-slim` ones leave RMAN out), one at a time. As SYSDBA: the user the pack asks for, made as this page says, and one without the alert log's grant; ARCHIVELOG mode with a 4 GB recovery area; in the PDB, an application user whose password expires in 3 days, a 10 MB tablespace filled until an insert failed (ORA-01653), a view whose table was dropped, and a Scheduler job that failed. RMAN backed up the database and the archived logs, and failed a backup to a folder that was not there (ORA-19504); the recovery area was then shrunk to some 90% full; the redo logs switched 6 times; two sessions deadlocked (ORA-00060); and, while the jobs ran, one session held a row with its transaction open and idle, and another waited for it. The passwords were made by the run and kept out of the evidence.
+
+- **On Fedora 44** (bash 5.3, Instant Client 23.26): every job, each reading checked; a wrong password (ORA-01017), no password, nothing listening (`up 0 reason=no_listener`), a service the listener did not know (`service_unknown`), the user without the alert log's grant (`readable 0`, its other jobs as before); the password on no process's command line while a job ran, every process's read again and again until SQL*Plus was among them; the job's own session encrypted with AES256 and its integrity checked with SHA, read back from `V$SESSION_CONNECT_INFO`; and a server whose `sqlnet.ora` rejected encryption, refusing the job (ORA-12660). Then `service-packs.sh` through Vigil. Then the PDB closed (`pdb_open 0 mode=mounted`, the CDB still up), logins restricted (`up 0 reason=restricted`), the database mounted (`not_open`) and shut down (`service_unknown`), the run succeeding each time. 23ai: **50 passed, 0 failed**, and through Vigil **17 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/fedora/pack-oracle-23/console.txt)). 21c XE: **50 passed, 0 failed**, and through Vigil **17 passed, 0 failed**; there the full tablespace read 100%, and the alert log held real ORA-00600 incidents from XE's own start in a container ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/fedora/pack-oracle-21/console.txt)).
+- **On Windows**, on the HP test machine (Windows 11) as an account that is not an administrator, with Instant Client 23.26 for Windows, against the 23ai database held up for it, through SSH tunnels: every job under Windows PowerShell 5.1 and PowerShell 7, each reading of the trouble checked; a wrong password, no password, nothing listening, a service not there and the user without the alert log's grant, as on Linux: **35 passed, 0 failed**; through Vigil, **17 passed, 0 failed** under each; and the same metric names and tags as the Linux scripts read just after, all 10 jobs under both (20 of 20) ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/windows/pack-oracle-windows/console.txt)).
+- **On macOS**, on the Intel Mac test machine (macOS 12.7.6, bash 3.2) with **Instant Client 19.16**, the last for Intel Macs, against the same database: every job, each reading of the trouble checked, a wrong password, nothing listening and the user without the alert log's grant: **16 passed, 0 failed**; through Vigil, **17 passed, 0 failed** ([the console output](../../tests/integration/backends/reports/runs/2026-11-28/macos/pack-oracle-macos/console.txt)). So a 19c client reads 23ai as well.
+
+**Not tested:** 19c (Oracle's own images need an account on its container registry), a database that is not a CDB, Real Application Clusters, and Data Guard: none of the free images has it, so the pack does not read a standby's lag yet.
+
+**What Oracle taught the pack:**
+
+- **`SELECT_CATALOG_ROLE` does not include the alert log.** `V$DIAG_ALERT_EXT` needs a grant of its own; without it the job says `readable 0` rather than fail.
+- **The alert log's `MESSAGE_TYPE` is no guide.** It marks routine lines (the control file's cache at startup) as errors, so the pack counts the lines that carry an ORA- code. And it writes some codes without their leading zeros, `ORA-1653`: the pack gives each as ORA- and five digits.
+- **A query on `V$PARAMETER` can fail on a parameter it did not ask for.** `TO_NUMBER(value) ... WHERE name = 'db_files'` failed on 23ai with "invalid string value: DISABLED", from another row: Oracle converted before it filtered. The pack converts only what looks like a number.
+- **`V$PGASTAT` has a set of rows for each PDB** in 23ai; the instance's is the one with `CON_ID` 0.
+- **Logins restricted show at the listener**: it answers ORA-12526, not the ORA-01035 a session would get.
+- **A 19c client reads a closed port as ORA-12547**, "lost contact", where 23ai's says ORA-12541, "no listener": `up 0 reason=unreachable` from the Mac, `no_listener` elsewhere. Both are `up 0`, and the run succeeds.
+- **A PowerShell here-string drops its last newline.** The query's closing `;` and SQL*Plus's `EXIT` ended up on one line, and SQL*Plus quietly ran nothing and exited 0: every Windows job printed nothing until the query was given a line of its own.
+- **Oracle in a container files incidents at its start**: 23ai Free an ORA-00800, 21c XE ORA-00600 too. On a real server, an incident is worth reading.
+- **`ONLINE` is a reserved word**, even as a column alias.
 <!-- tested:end -->
 
 ---
