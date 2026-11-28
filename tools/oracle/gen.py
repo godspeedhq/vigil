@@ -286,9 +286,9 @@ DOWN_CODES = [
     # Nothing listening, or the address cannot be reached.
     ('no_listener', ['ORA-12541']),
     ('service_unknown', ['ORA-12514', 'ORA-12505', 'ORA-12521']),
-    ('not_open', ['ORA-01033', 'ORA-01034', 'ORA-01089', 'ORA-01090', 'ORA-12526', 'ORA-12528']),
+    ('not_open', ['ORA-01033', 'ORA-01034', 'ORA-01089', 'ORA-01090', 'ORA-12528']),
     # Open, but in restricted mode: only users with RESTRICTED SESSION.
-    ('restricted', ['ORA-01035']),
+    ('restricted', ['ORA-01035', 'ORA-12526']),
     ('timeout', ['ORA-12170', 'ORA-12535', 'ORA-12171']),
     ('unreachable', ['ORA-12543', 'ORA-12545', 'ORA-12537', 'ORA-12547', 'ORA-12560', 'ORA-03113', 'ORA-03114', 'ORA-03135']),
 ]

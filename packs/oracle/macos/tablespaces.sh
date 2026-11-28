@@ -165,8 +165,8 @@ reason=''
 case $code in
     ORA-12541) reason=no_listener ;;
     ORA-12514 | ORA-12505 | ORA-12521) reason=service_unknown ;;
-    ORA-01033 | ORA-01034 | ORA-01089 | ORA-01090 | ORA-12526 | ORA-12528) reason=not_open ;;
-    ORA-01035) reason=restricted ;;
+    ORA-01033 | ORA-01034 | ORA-01089 | ORA-01090 | ORA-12528) reason=not_open ;;
+    ORA-01035 | ORA-12526) reason=restricted ;;
     ORA-12170 | ORA-12535 | ORA-12171) reason=timeout ;;
     ORA-12543 | ORA-12545 | ORA-12537 | ORA-12547 | ORA-12560 | ORA-03113 | ORA-03114 | ORA-03135) reason=unreachable ;;
 esac

@@ -207,8 +207,8 @@ if (-not $why) { $why = ($out -replace '\s+', ' ').Trim() }
 $reasons = [ordered]@{
     '12541' = 'no_listener'
     '12514|12505|12521' = 'service_unknown'
-    '01033|01034|01089|01090|12526|12528' = 'not_open'
-    '01035' = 'restricted'
+    '01033|01034|01089|01090|12528' = 'not_open'
+    '01035|12526' = 'restricted'
     '12170|12535|12171' = 'timeout'
     '12543|12545|12537|12547|12560|03113|03114|03135' = 'unreachable'
 }
